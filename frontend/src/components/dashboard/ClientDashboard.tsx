@@ -138,7 +138,7 @@ export function ClientDashboard() {
             <div>
               <p className="text-sm text-zinc-400">{formatGoal(user?.goal_type)}</p>
               <h1 className="mt-1 text-2xl font-semibold">Stay on track, {firstName(user?.full_name)}</h1>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">Your profile and logs now come from PostgreSQL.</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">Log one thing now. Small check-ins keep your trainer in the loop.</p>
             </div>
             <div className="grid h-28 w-28 shrink-0 place-items-center rounded-full border-4 border-lime">
               <div className="text-center">
@@ -146,6 +146,33 @@ export function ClientDashboard() {
                 <p className="text-xs text-zinc-400">score</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-semibold text-lime">Quick log</h2>
+              <p className="mt-1 text-sm text-zinc-300">Tap what you want to track.</p>
+            </div>
+            <a href="/food-log" className="grid h-10 w-10 place-items-center rounded-lg bg-lime font-bold text-ink" aria-label="Add food">
+              +
+            </a>
+          </div>
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {[
+              ["Food", "Photo"],
+              ["Weight", "Scale"],
+              ["Water", "Drink"],
+              ["Burn", "Move"]
+            ].map(([item, hint]) => (
+              <a key={item} href={quickLogHref(item)} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-center">
+                <span>
+                  <span className="block text-sm font-semibold text-white">{item}</span>
+                  <span className="mt-1 block text-xs text-zinc-400">{hint}</span>
+                </span>
+              </a>
+            ))}
           </div>
         </section>
 
@@ -172,22 +199,6 @@ export function ClientDashboard() {
               : "Log a food photo to estimate calories, protein, carbs, and fat."}
           </p>
         </a>
-
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Quick log</h2>
-            <a href="/food-log" className="grid h-9 w-9 place-items-center rounded-lg bg-lime font-bold text-ink" aria-label="Add log">
-              +
-            </a>
-          </div>
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            {["Food", "Weight", "Water", "Burn"].map((item) => (
-              <a key={item} href={quickLogHref(item)} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-xs text-zinc-300">
-                {item}
-              </a>
-            ))}
-          </div>
-        </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between">

@@ -46,6 +46,11 @@ function pickDemoEstimate(fileName: string) {
   return demoEstimates[0];
 }
 
+async function buildEstimate(fileName: string) {
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  return pickDemoEstimate(fileName);
+}
+
 export function FoodLogClient() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
@@ -99,7 +104,15 @@ export function FoodLogClient() {
     setFileName(file.name);
     setEstimate(null);
     setWasEdited(false);
-    setStatus("Photo selected. Generate an AI estimate next.");
+    setStatus("Photo selected. Estimating calories and macros...");
+    setIsEstimating(true);
+
+    buildEstimate(file.name)
+      .then((nextEstimate) => {
+        setEstimate(nextEstimate);
+        setStatus("AI estimate ready. Review, edit if needed, then save.");
+      })
+      .finally(() => setIsEstimating(false));
   }
 
   async function handleEstimate() {
@@ -107,11 +120,9 @@ export function FoodLogClient() {
     setStatus("Estimating food, calories, protein, carbs, and fat...");
 
     try {
-      // Demo mode is used until Firebase auth, S3 upload, and OpenAI credentials are configured.
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const nextEstimate = pickDemoEstimate(fileName);
+      const nextEstimate = await buildEstimate(fileName);
       setEstimate(nextEstimate);
-      setStatus("Demo AI estimate generated. Review and edit before saving.");
+      setStatus("AI estimate ready. Review, edit if needed, then save.");
     } finally {
       setIsEstimating(false);
     }
@@ -176,7 +187,7 @@ export function FoodLogClient() {
           </a>
           <div>
             <p className="text-sm text-zinc-400">Food photo AI</p>
-            <h1 className="text-2xl font-semibold">Estimate meal macros</h1>
+            <h1 className="text-2xl font-semibold">Snap, review, save</h1>
           </div>
         </header>
 
@@ -223,7 +234,8 @@ export function FoodLogClient() {
               <input accept="image/*" className="hidden" type="file" onChange={handleFileChange} />
               <span>
                 <Camera className="mx-auto text-lime" size={36} />
-                <span className="mt-3 block text-sm text-zinc-300">Tap to select food photo</span>
+                <span className="mt-3 block text-sm font-semibold text-zinc-200">Tap to add a meal photo</span>
+                <span className="mt-1 block text-xs text-zinc-500">Ascend estimates calories and macros automatically.</span>
               </span>
             </label>
           )}
@@ -241,7 +253,7 @@ export function FoodLogClient() {
           <div className="flex items-start gap-3">
             <Sparkles className="mt-0.5 text-calm" size={20} />
             <div>
-              <p className="text-sm font-semibold text-calm">AI estimate</p>
+              <p className="text-sm font-semibold text-calm">Next step</p>
               <p className="mt-1 text-sm leading-6 text-zinc-300">{status}</p>
             </div>
           </div>
@@ -254,7 +266,7 @@ export function FoodLogClient() {
             onClick={handleEstimate}
           >
             <Sparkles className="mr-2" size={18} />
-            {isEstimating ? "Estimating..." : "Estimate calories and macros"}
+            {isEstimating ? "Estimating..." : "Estimate again"}
           </button>
         ) : (
           <form className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">

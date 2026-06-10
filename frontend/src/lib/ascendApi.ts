@@ -257,6 +257,20 @@ export function sendCoachMessage(message: string) {
   });
 }
 
+export function estimateBurnFromText(text: string) {
+  return authed<{
+    estimate: {
+      activityType: string;
+      durationMinutes: number;
+      caloriesBurned: number;
+      notes?: string;
+    };
+  }>("/ai/burn-estimate", {
+    method: "POST",
+    body: JSON.stringify({ text })
+  });
+}
+
 export function getTrainerClients() {
   return authed<{
     clients: Array<{

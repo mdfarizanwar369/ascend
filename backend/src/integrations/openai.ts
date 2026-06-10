@@ -60,6 +60,62 @@ export async function createNutritionCoachReply(message: string, context: string
   return response.output_text;
 }
 
+function fallbackBurnEstimate(text: string) {
+  const lower = text.toLowerCase();
+  const durationMatch = lower.match(/(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes|km|kilometer|kilometers|k)/);
+  const amount = durationMatch ? Number(durationMatch[1]) : 30;
+  const unit = durationMatch?.[2] ?? "minutes";
+
+  let activityType = "Strength training";
+  let caloriesPerMinute = 6;
+  if (lower.includes("run") || lower.includes("jog")) {
+    activityType = "Running";
+    caloriesPerMinute = 10;
+  }
+  if (lower.includes("walk")) {
+    activityType = "Walking";
+    caloriesPerMinute = 4;
+  }
+  if (lower.includes("cycle") || lower.includes("bike")) {
+    activityType = "Cycling";
+    caloriesPerMinute = 8;
+  }
+  if (lower.includes("class") || lower.includes("hiit") || lower.includes("zumba")) {
+    activityType = "Group class";
+    caloriesPerMinute = 7;
+  }
+
+  const durationMinutes = unit.startsWith("km") || unit === "k" ? Math.round(amount * (activityType === "Running" ? 6 : 12)) : Math.round(amount);
+  return {
+    activityType,
+    durationMinutes: Math.max(durationMinutes, 1),
+    caloriesBurned: Math.max(Math.round(durationMinutes * caloriesPerMinute), 1),
+    notes: "Estimate based on activity type and duration. Actual burn varies by body weight and intensity."
+  };
+}
+
+export async function estimateBurnFromText(text: string) {
+  if (!client) return fallbackBurnEstimate(text);
+
+  const response = await client.responses.create({
+    model: env.OPENAI_MODEL,
+    input: [
+      {
+        role: "system",
+        content:
+          "Estimate exercise calories for a beginner fitness app. Return strict JSON with activityType, durationMinutes, caloriesBurned, notes. Be practical, not medical."
+      },
+      { role: "user", content: text }
+    ]
+  });
+
+  try {
+    return JSON.parse(response.output_text) as ReturnType<typeof fallbackBurnEstimate>;
+  } catch {
+    return fallbackBurnEstimate(text);
+  }
+}
+
 export async function createWeeklySummary(context: string) {
   if (!client) {
     return "This week shows steady effort. Keep food logs consistent, hit water targets, and focus on one repeatable habit.";

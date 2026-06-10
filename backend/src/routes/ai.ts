@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createNutritionCoachReply } from "../integrations/openai";
+import { createNutritionCoachReply, estimateBurnFromText } from "../integrations/openai";
 import { requireAuth } from "../middleware/auth";
 import { query } from "../db/pool";
 
@@ -22,3 +22,8 @@ aiRouter.post("/ai/chat", requireAuth, async (req, res) => {
   res.json({ reply });
 });
 
+aiRouter.post("/ai/burn-estimate", requireAuth, async (req, res) => {
+  const text = String(req.body.text ?? "");
+  const estimate = await estimateBurnFromText(text);
+  res.json({ estimate });
+});

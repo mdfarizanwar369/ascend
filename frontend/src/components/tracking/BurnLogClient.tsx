@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Flame, Save } from "lucide-react";
-import { getBurnLogs, saveBurnLog } from "@/lib/ascendApi";
+import { estimateBurnFromText, getBurnLogs, saveBurnLog } from "@/lib/ascendApi";
 import { Field, inputClass } from "@/components/Field";
 
 const burnRates: Record<string, number> = {
@@ -13,16 +13,60 @@ const burnRates: Record<string, number> = {
   "Group class": 7
 };
 
+function understandBurnText(text: string) {
+  const lower = text.toLowerCase();
+  const durationMatch = lower.match(/(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes|km|kilometer|kilometers|k)/);
+  const amount = durationMatch ? Number(durationMatch[1]) : 30;
+  const unit = durationMatch?.[2] ?? "minutes";
+
+  let activityType = "Strength training";
+  if (lower.includes("run") || lower.includes("jog")) activityType = "Running";
+  if (lower.includes("walk")) activityType = "Walking";
+  if (lower.includes("cycle") || lower.includes("bike")) activityType = "Cycling";
+  if (lower.includes("class") || lower.includes("hiit") || lower.includes("zumba")) activityType = "Group class";
+  if (lower.includes("gym") || lower.includes("lift") || lower.includes("weight")) activityType = "Strength training";
+
+  const durationMinutes = unit.startsWith("km") || unit === "k" ? Math.round(amount * (activityType === "Running" ? 6 : 12)) : Math.round(amount);
+  return { activityType, durationMinutes: Math.max(durationMinutes, 1) };
+}
+
 export function BurnLogClient() {
   const [activityType, setActivityType] = useState("Strength training");
   const [durationMinutes, setDurationMinutes] = useState("45");
+  const [activityText, setActivityText] = useState("Ran 30 minutes");
   const [todayCalories, setTodayCalories] = useState(0);
+  const [aiCalories, setAiCalories] = useState<number | null>(null);
+  const [estimateNotes, setEstimateNotes] = useState("");
   const [status, setStatus] = useState("Loading today's burn...");
   const [isSaving, setIsSaving] = useState(false);
+  const [isEstimating, setIsEstimating] = useState(false);
 
   const estimatedCalories = useMemo(() => {
-    return Math.round((burnRates[activityType] ?? 6) * Number(durationMinutes || 0));
-  }, [activityType, durationMinutes]);
+    return aiCalories ?? Math.round((burnRates[activityType] ?? 6) * Number(durationMinutes || 0));
+  }, [activityType, aiCalories, durationMinutes]);
+
+  async function estimateFromText() {
+    const localEstimate = understandBurnText(activityText);
+    setIsEstimating(true);
+    setActivityType(localEstimate.activityType);
+    setDurationMinutes(String(localEstimate.durationMinutes));
+    setAiCalories(null);
+    setEstimateNotes("");
+    setStatus("Estimating activity burn...");
+
+    try {
+      const response = await estimateBurnFromText(activityText);
+      setActivityType(response.estimate.activityType);
+      setDurationMinutes(String(response.estimate.durationMinutes));
+      setAiCalories(response.estimate.caloriesBurned);
+      setEstimateNotes(response.estimate.notes ?? "");
+      setStatus("AI burn estimate ready. Review, then save.");
+    } catch {
+      setStatus(`Estimated ${localEstimate.activityType.toLowerCase()} for ${localEstimate.durationMinutes} minutes. Review, then save.`);
+    } finally {
+      setIsEstimating(false);
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -98,8 +142,39 @@ export function BurnLogClient() {
         </section>
 
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+          <Field label="Tell Ascend what you did">
+            <div className="space-y-2">
+              <input
+                className={inputClass}
+                value={activityText}
+                onChange={(event) => {
+                  setActivityText(event.target.value);
+                  setAiCalories(null);
+                  setEstimateNotes("");
+                }}
+                placeholder="Ran 30 minutes"
+              />
+              <button
+                type="button"
+                disabled={isEstimating || !activityText.trim()}
+                onClick={estimateFromText}
+                className="h-11 w-full rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+              >
+                {isEstimating ? "Estimating..." : "Estimate with AI"}
+              </button>
+            </div>
+          </Field>
+
           <Field label="Activity">
-            <select className={inputClass} value={activityType} onChange={(event) => setActivityType(event.target.value)}>
+            <select
+              className={inputClass}
+              value={activityType}
+              onChange={(event) => {
+                setActivityType(event.target.value);
+                setAiCalories(null);
+                setEstimateNotes("");
+              }}
+            >
               {Object.keys(burnRates).map((activity) => (
                 <option key={activity} value={activity}>
                   {activity}
@@ -112,7 +187,11 @@ export function BurnLogClient() {
             <input
               className={inputClass}
               value={durationMinutes}
-              onChange={(event) => setDurationMinutes(event.target.value)}
+              onChange={(event) => {
+                setDurationMinutes(event.target.value);
+                setAiCalories(null);
+                setEstimateNotes("");
+              }}
               inputMode="numeric"
               placeholder="45"
             />
@@ -121,6 +200,7 @@ export function BurnLogClient() {
           <div className="rounded-lg bg-ink p-4">
             <p className="text-sm text-zinc-400">Estimated burn</p>
             <p className="mt-1 text-3xl font-semibold">{estimatedCalories} kcal</p>
+            {estimateNotes ? <p className="mt-2 text-sm leading-6 text-zinc-400">{estimateNotes}</p> : null}
           </div>
 
           {status ? <p className="rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300">{status}</p> : null}
