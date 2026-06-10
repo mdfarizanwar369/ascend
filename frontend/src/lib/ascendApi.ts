@@ -244,7 +244,85 @@ export function sendCoachMessage(message: string) {
 }
 
 export function getTrainerClients() {
-  return authed<{ clients: unknown[] }>("/trainer/clients");
+  return authed<{
+    clients: Array<{
+      id: string;
+      full_name: string;
+      email: string;
+      goal_type?: GoalType | null;
+      compliance_score?: number | null;
+      risk_severity?: string | null;
+    }>;
+  }>("/trainer/clients");
+}
+
+export function getTrainerClient(clientId: string) {
+  return authed<{
+    client: {
+      id: string;
+      full_name: string;
+      email: string;
+      goal_type?: GoalType | null;
+      starting_weight_kg?: string | number | null;
+      target_weight_kg?: string | number | null;
+      gym_name?: string | null;
+      compliance_score?: number | null;
+    };
+  }>(`/trainer/clients/${clientId}`);
+}
+
+export function getTrainerClientFoodLogs(clientId: string) {
+  return authed<{
+    foodLogs: Array<{
+      id: string;
+      estimated_food_name: string;
+      calories: number;
+      protein_g: string | number;
+      carbs_g: string | number;
+      fat_g: string | number;
+      logged_at: string;
+    }>;
+  }>(`/trainer/clients/${clientId}/food-logs`);
+}
+
+export function getTrainerClientWeightLogs(clientId: string) {
+  return authed<{
+    weightLogs: Array<{
+      id: string;
+      weight_kg: string | number;
+      logged_at: string;
+    }>;
+  }>(`/trainer/clients/${clientId}/weight-logs`);
+}
+
+export function getTrainerClientWaterLogs(clientId: string) {
+  return authed<{
+    waterLogs: Array<{
+      id: string;
+      amount_ml: number;
+      logged_at: string;
+    }>;
+  }>(`/trainer/clients/${clientId}/water-logs`);
+}
+
+export function getTrainerRiskAlerts() {
+  return authed<{
+    alerts: Array<{
+      id: string;
+      user_id: string;
+      type: string;
+      severity: string;
+      message: string;
+      status: string;
+      created_at: string;
+    }>;
+  }>("/trainer/risk-alerts");
+}
+
+export function createWeeklyCheckin(clientId: string) {
+  return authed<{ summary: string }>(`/ai/weekly-checkin/${clientId}`, {
+    method: "POST"
+  });
 }
 
 export function getAdminRevenue() {
