@@ -70,6 +70,32 @@ export function getWaterLogs() {
   }>("/water-logs");
 }
 
+export function saveWeightLog(input: { weightKg: number; loggedAt?: string }) {
+  return authed<{
+    weightLog: {
+      id: string;
+      weight_kg: string | number;
+      logged_at: string;
+    };
+  }>("/weight-logs", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function saveWaterLog(input: { amountMl: number; loggedAt?: string }) {
+  return authed<{
+    waterLog: {
+      id: string;
+      amount_ml: number;
+      logged_at: string;
+    };
+  }>("/water-logs", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function requestFoodUploadUrl(contentType: string) {
   return authed<{ uploadUrl: string; key: string }>("/food-logs/photo-upload-url", {
     method: "POST",

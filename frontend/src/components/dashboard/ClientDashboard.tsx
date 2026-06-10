@@ -24,6 +24,13 @@ function asNumber(value: string | number | null | undefined) {
   return Number(value);
 }
 
+function quickLogHref(item: string) {
+  if (item === "Food") return "/food-log";
+  if (item === "Weight") return "/weight-log";
+  if (item === "Water") return "/water-log";
+  return "/dashboard";
+}
+
 export function ClientDashboard() {
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -137,7 +144,7 @@ export function ClientDashboard() {
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2">
             {["Food", "Weight", "Water", "Burn"].map((item) => (
-              <a key={item} href={item === "Food" ? "/food-log" : "/dashboard"} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-xs text-zinc-300">
+              <a key={item} href={quickLogHref(item)} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-xs text-zinc-300">
                 {item}
               </a>
             ))}
