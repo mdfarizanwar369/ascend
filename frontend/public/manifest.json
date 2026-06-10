@@ -1,0 +1,17 @@
+{
+  "name": "Ascend",
+  "short_name": "Ascend",
+  "description": "Fitness accountability for gym members and trainers",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#121417",
+  "theme_color": "#a7f04f",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+

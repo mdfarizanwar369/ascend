@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ascend
+      POSTGRES_PASSWORD: ascend
+      POSTGRES_DB: ascend
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ascend -d ascend"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    command: ["node", "dist/src/db/migrate.js"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    command: ["node", "dist/seeds/seed.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    ports:
+      - "4000:4000"
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
