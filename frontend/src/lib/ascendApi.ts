@@ -250,6 +250,37 @@ export function createCheckout(plan: Exclude<SubscriptionPlan, "free">) {
   });
 }
 
+export function getMySubscription() {
+  return authed<{
+    subscription: {
+      id?: string;
+      plan: SubscriptionPlan;
+      provider?: string;
+      status: string;
+      amount_cents?: number;
+      currency?: string;
+      current_period_end?: string | null;
+    };
+  }>("/subscriptions/me");
+}
+
+export function activateDemoSubscription(plan: Exclude<SubscriptionPlan, "free">) {
+  return authed<{
+    subscription: {
+      id: string;
+      plan: SubscriptionPlan;
+      provider: string;
+      status: string;
+      amount_cents: number;
+      currency: string;
+      current_period_end: string;
+    };
+  }>("/subscriptions/demo-activate", {
+    method: "POST",
+    body: JSON.stringify({ plan })
+  });
+}
+
 export function sendCoachMessage(message: string) {
   return authed<{ reply: string }>("/ai/chat", {
     method: "POST",

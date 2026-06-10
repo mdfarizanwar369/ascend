@@ -232,6 +232,11 @@ export function ClientDashboard() {
           <p className="text-sm font-medium text-calm">AI nutrition coach</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">Ask for a meal suggestion based on your goal and today's logs.</p>
         </a>
+
+        <a href="/subscription" className="mt-4 block rounded-lg border border-lime/40 bg-lime/10 p-4">
+          <p className="text-sm font-medium text-lime">Premium accountability</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">Upgrade to RM19/month for AI food, weekly reports, and trainer accountability.</p>
+        </a>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">

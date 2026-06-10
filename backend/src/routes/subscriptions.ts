@@ -21,6 +21,35 @@ subscriptionsRouter.post("/subscriptions/checkout", requireAuth, async (req, res
   }
 });
 
+subscriptionsRouter.post("/subscriptions/demo-activate", requireAuth, async (req, res, next) => {
+  try {
+    const plan = z.enum(["premium", "trainer_pro"]).parse(req.body.plan);
+    const amountCents = plan === "premium" ? 1900 : 9900;
+    const reference = `DEMO-${req.user!.id}-${Date.now()}`;
+    const userResult = await query<{ referred_by_gym_id: string | null; referred_by_trainer_id: string | null }>(
+      "select referred_by_gym_id, referred_by_trainer_id from users where id = $1",
+      [req.user!.id]
+    );
+    const user = userResult.rows[0];
+
+    const result = await query(
+      `
+      insert into subscriptions (
+        user_id, plan, provider, provider_subscription_id, status, amount_cents, currency,
+        current_period_start, current_period_end, referred_by_gym_id, referred_by_trainer_id
+      )
+      values ($1, $2, 'manual', $3, 'active', $4, 'MYR', now(), now() + interval '1 month', $5, $6)
+      returning *
+      `,
+      [req.user!.id, plan, reference, amountCents, user?.referred_by_gym_id ?? null, user?.referred_by_trainer_id ?? null]
+    );
+
+    res.status(201).json({ subscription: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 subscriptionsRouter.post("/subscriptions/cancel", requireAuth, async (req, res) => {
   const result = await query(
     `
