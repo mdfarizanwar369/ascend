@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getComplianceToday, getFoodLogs, getMe, getWaterLogs, getWeightLogs } from "@/lib/ascendApi";
+import { getComplianceToday, getFoodLogs, getHabitLogs, getHabits, getMe, getWaterLogs, getWeightLogs } from "@/lib/ascendApi";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
 type WaterLog = Awaited<ReturnType<typeof getWaterLogs>>["waterLogs"][number];
+type Habit = Awaited<ReturnType<typeof getHabits>>["habits"][number];
+type HabitLog = Awaited<ReturnType<typeof getHabitLogs>>["habitLogs"][number];
 
 function firstName(fullName?: string) {
   return fullName?.trim().split(/\s+/)[0] || "there";
@@ -36,6 +38,8 @@ export function ClientDashboard() {
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [complianceScore, setComplianceScore] = useState<number | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
 
@@ -44,11 +48,13 @@ export function ClientDashboard() {
 
     async function loadDashboard() {
       try {
-        const [me, foods, weights, waters, compliance] = await Promise.all([
+        const [me, foods, weights, waters, nextHabits, nextHabitLogs, compliance] = await Promise.all([
           getMe(),
           getFoodLogs(),
           getWeightLogs(),
           getWaterLogs(),
+          getHabits(),
+          getHabitLogs(),
           getComplianceToday()
         ]);
 
@@ -57,6 +63,8 @@ export function ClientDashboard() {
         setFoodLogs(foods.foodLogs);
         setWeightLogs(weights.weightLogs);
         setWaterLogs(waters.waterLogs);
+        setHabits(nextHabits.habits);
+        setHabitLogs(nextHabitLogs.habitLogs);
         setComplianceScore(compliance.compliance?.score ?? null);
         setStatus("");
       } catch {
@@ -77,6 +85,14 @@ export function ClientDashboard() {
   const todaysWaterMl = waterLogs.filter((log) => log.logged_at.slice(0, 10) === today).reduce((total, log) => total + log.amount_ml, 0);
   const latestFood = foodLogs[0];
   const latestWeight = weightLogs[0];
+  const completedHabitIds = useMemo(
+    () =>
+      new Set(
+        habitLogs.filter((log) => log.completed && log.logged_at.slice(0, 10) === today).map((log) => log.habit_id)
+      ),
+    [habitLogs, today]
+  );
+  const dashboardHabits = habits.slice(0, 3);
   const calories = todaysFood.reduce((total, log) => total + Number(log.calories), 0);
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
@@ -161,16 +177,30 @@ export function ClientDashboard() {
         </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <h2 className="text-base font-semibold">Habits</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">Habits</h2>
+            <a href="/habits" className="text-sm font-medium text-lime">
+              Open
+            </a>
+          </div>
           <div className="mt-3 space-y-2">
-            {["8,000 steps", "No sugary drinks", "Protein at breakfast"].map((habit, index) => (
-              <a key={habit} href="/habits" className="flex items-center justify-between rounded-lg bg-ink px-3 py-3">
-                <span className="text-sm">{habit}</span>
-                <span className={`grid h-6 w-6 place-items-center rounded ${index < 2 ? "bg-lime text-ink" : "border border-line"}`}>
-                  {index < 2 ? "OK" : ""}
-                </span>
+            {dashboardHabits.length ? (
+              dashboardHabits.map((habit) => {
+                const completed = completedHabitIds.has(habit.id);
+                return (
+                  <a key={habit.id} href="/habits" className="flex items-center justify-between rounded-lg bg-ink px-3 py-3">
+                    <span className="text-sm">{habit.name}</span>
+                    <span className={`grid h-6 w-6 place-items-center rounded ${completed ? "bg-lime text-ink" : "border border-line"}`}>
+                      {completed ? "OK" : ""}
+                    </span>
+                  </a>
+                );
+              })
+            ) : (
+              <a href="/habits" className="block rounded-lg bg-ink px-3 py-3 text-sm text-zinc-400">
+                Create your first habits
               </a>
-            ))}
+            )}
           </div>
         </section>
 
