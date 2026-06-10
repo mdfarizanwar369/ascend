@@ -1,9 +1,9 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
-import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { FoodEstimate } from "@ascend/shared";
-import { saveFoodLog } from "@/lib/ascendApi";
+import { getFoodLogs, saveFoodLog } from "@/lib/ascendApi";
 import { saveDemoFoodLog } from "@/lib/demoFoodLogs";
 import { Field, inputClass } from "@/components/Field";
 
@@ -37,6 +37,8 @@ const demoEstimates: FoodEstimate[] = [
   }
 ];
 
+type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
+
 function pickDemoEstimate(fileName: string) {
   const name = fileName.toLowerCase();
   if (name.includes("chicken") || name.includes("rice")) return demoEstimates[1];
@@ -48,9 +50,41 @@ export function FoodLogClient() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
   const [estimate, setEstimate] = useState<FoodEstimate | null>(null);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [status, setStatus] = useState("Upload a food photo to estimate calories and macros.");
   const [isEstimating, setIsEstimating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [wasEdited, setWasEdited] = useState(false);
+
+  async function loadFoodLogs() {
+    const response = await getFoodLogs();
+    setFoodLogs(response.foodLogs);
+  }
+
+  useEffect(() => {
+    loadFoodLogs().catch(() => {
+      setStatus("Upload a food photo to estimate calories and macros.");
+    });
+  }, []);
+
+  const todaysFoodLogs = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return foodLogs.filter((log) => log.logged_at.slice(0, 10) === today);
+  }, [foodLogs]);
+
+  const todaysTotals = useMemo(
+    () =>
+      todaysFoodLogs.reduce(
+        (total, log) => ({
+          calories: total.calories + Number(log.calories),
+          proteinG: total.proteinG + Number(log.protein_g),
+          carbsG: total.carbsG + Number(log.carbs_g),
+          fatG: total.fatG + Number(log.fat_g)
+        }),
+        { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+      ),
+    [todaysFoodLogs]
+  );
 
   const macroTotal = useMemo(() => {
     if (!estimate) return 0;
@@ -92,6 +126,9 @@ export function FoodLogClient() {
   async function handleSave() {
     if (!estimate) return;
 
+    setIsSaving(true);
+    setStatus("Saving food log...");
+
     const savedLog = {
       id: crypto.randomUUID(),
       imagePreviewUrl: previewUrl,
@@ -117,20 +154,65 @@ export function FoodLogClient() {
         aiEstimateRaw: estimate,
         wasEditedByUser: wasEdited
       });
+      await loadFoodLogs();
+      setPreviewUrl(null);
+      setEstimate(null);
+      setWasEdited(false);
       setStatus("Food log saved to Ascend.");
-    } catch {
+    } catch (error) {
       saveDemoFoodLog(savedLog);
-      setStatus("Saved in demo mode. Connect Firebase/backend auth to save to PostgreSQL.");
+      setStatus(error instanceof Error ? error.message : "Saved in demo mode. Connect Firebase/backend auth to save to PostgreSQL.");
+    } finally {
+      setIsSaving(false);
     }
   }
 
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
-        <header className="py-3">
-          <p className="text-sm text-zinc-400">Food photo AI</p>
-          <h1 className="mt-1 text-2xl font-semibold">Estimate meal macros</h1>
+        <header className="flex items-center gap-3 py-3">
+          <a href="/dashboard" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to dashboard">
+            <ArrowLeft size={19} />
+          </a>
+          <div>
+            <p className="text-sm text-zinc-400">Food photo AI</p>
+            <h1 className="text-2xl font-semibold">Estimate meal macros</h1>
+          </div>
         </header>
+
+        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Today's meals</p>
+              <p className="mt-1 text-sm text-zinc-400">
+                {todaysFoodLogs.length ? `${todaysFoodLogs.length} meals logged` : "No meals logged yet"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-semibold">{todaysTotals.calories}</p>
+              <p className="text-xs text-zinc-400">kcal</p>
+            </div>
+          </div>
+
+          {todaysFoodLogs.length ? (
+            <div className="mt-4 space-y-2">
+              {todaysFoodLogs.map((log) => (
+                <article key={log.id} className="rounded-lg bg-ink p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{log.estimated_food_name}</p>
+                      <p className="mt-1 text-xs text-zinc-400">
+                        P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F{" "}
+                        {Math.round(Number(log.fat_g))}g
+                      </p>
+                    </div>
+                    <p className="text-sm font-semibold">{log.calories} kcal</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </section>
 
         <section className="mt-3 grid aspect-[4/3] place-items-center overflow-hidden rounded-lg border border-line bg-surface">
           {previewUrl ? (
@@ -214,7 +296,7 @@ export function FoodLogClient() {
               </Field>
             </div>
             <div className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">
-              Macro calories: {macroTotal} kcal · Confidence: {Math.round(estimate.confidence * 100)}%
+              Macro calories: {macroTotal} kcal / Confidence: {Math.round(estimate.confidence * 100)}%
               <br />
               {estimate.notes}
             </div>
@@ -223,9 +305,14 @@ export function FoodLogClient() {
                 <Pencil className="mr-2" size={18} />
                 Editable
               </button>
-              <button className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink" onClick={handleSave} type="button">
+              <button
+                className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSaving}
+                onClick={handleSave}
+                type="button"
+              >
                 {wasEdited ? <Save className="mr-2" size={18} /> : <Check className="mr-2" size={18} />}
-                Save log
+                {isSaving ? "Saving..." : "Save log"}
               </button>
             </div>
           </form>
