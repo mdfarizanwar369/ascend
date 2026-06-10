@@ -1,6 +1,5 @@
-import { ArrowRight, BadgeCheck, Dumbbell } from "lucide-react";
-import { ActionButton } from "@/components/ActionButton";
-import { Field, inputClass } from "@/components/Field";
+import { BadgeCheck, Dumbbell } from "lucide-react";
+import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
 
 export default function OnboardingPage() {
   return (
@@ -25,35 +24,8 @@ export default function OnboardingPage() {
           </div>
         </section>
 
-        <form className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
-          <Field label="Full name">
-            <input className={inputClass} defaultValue="Ahmad Rahman" />
-          </Field>
-          <Field label="Referral code" hint="Examples: AF-AUSTIN, AF-KULAI, TRAINER-JASON">
-            <input className={inputClass} defaultValue="TRAINER-JASON" />
-          </Field>
-          <Field label="Goal">
-            <select className={inputClass} defaultValue="fat_loss">
-              <option value="fat_loss">Fat loss</option>
-              <option value="muscle_gain">Muscle gain</option>
-              <option value="maintenance">Maintenance</option>
-            </select>
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Current weight">
-              <input className={inputClass} defaultValue="81.2" inputMode="decimal" />
-            </Field>
-            <Field label="Target weight">
-              <input className={inputClass} defaultValue="75.0" inputMode="decimal" />
-            </Field>
-          </div>
-          <ActionButton>
-            Continue
-            <ArrowRight className="ml-2" size={19} />
-          </ActionButton>
-        </form>
+        <OnboardingForm />
       </div>
     </main>
   );
 }
-
