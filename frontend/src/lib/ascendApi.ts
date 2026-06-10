@@ -340,5 +340,69 @@ export function createWeeklyCheckin(clientId: string) {
 }
 
 export function getAdminRevenue() {
-  return authed<{ byGym: unknown[]; byTrainer: unknown[] }>("/admin/analytics/revenue");
+  return authed<{
+    byGym: Array<{
+      gym_name: string | null;
+      revenue_cents: string | number;
+      active_subscriptions: string | number;
+    }>;
+    byTrainer: Array<{
+      trainer_name: string | null;
+      revenue_cents: string | number;
+      active_subscriptions: string | number;
+    }>;
+  }>("/admin/analytics/revenue");
+}
+
+export function getAdminUsage() {
+  return authed<{
+    usage: Array<{
+      gym_name: string;
+      clients: string | number;
+      food_logs: string | number;
+      weight_logs: string | number;
+      water_logs: string | number;
+    }>;
+  }>("/admin/analytics/usage");
+}
+
+export function getAdminCompliance() {
+  return authed<{
+    compliance: Array<{
+      gym_name: string;
+      average_compliance: string | number | null;
+      low_compliance_clients: string | number;
+    }>;
+  }>("/admin/analytics/compliance");
+}
+
+export function getAdminReferrals() {
+  return authed<{
+    referrals: Array<{
+      code: string;
+      type: "gym" | "trainer";
+      gym_name: string | null;
+      trainer_name: string | null;
+      referred_users: string | number;
+      active_revenue_cents: string | number;
+    }>;
+  }>("/admin/referrals/analytics");
+}
+
+export function getAdminSubscriptions() {
+  return authed<{
+    subscriptions: Array<{
+      id: string;
+      full_name: string;
+      email: string;
+      plan: string;
+      provider: string;
+      status: string;
+      amount_cents: number;
+      currency: string;
+      referred_gym_name: string | null;
+      referred_trainer_name: string | null;
+      created_at: string;
+    }>;
+  }>("/admin/subscriptions");
 }
