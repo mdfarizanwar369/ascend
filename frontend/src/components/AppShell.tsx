@@ -2,11 +2,8 @@
 
 import { Activity, Camera, Home, MessageCircle, Shield, Users } from "lucide-react";
 import Link from "next/link";
-import { useRegisterServiceWorker } from "@/lib/pwa";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
-  useRegisterServiceWorker();
-
   const items = [
     { href: "/dashboard", label: "Home", icon: Home, key: "client" },
     { href: "/trainer", label: "Trainer", icon: Users, key: "trainer" },
@@ -58,4 +55,3 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     </main>
   );
 }
-

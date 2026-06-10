@@ -1,7 +1,6 @@
 import { Check, Droplets, Flame, Plus, Scale, Utensils } from "lucide-react";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
-import { DemoFoodSummary } from "@/components/dashboard/DemoFoodSummary";
 import { MetricCard } from "@/components/MetricCard";
 import { ProgressRing } from "@/components/ProgressRing";
 
@@ -26,7 +25,12 @@ export default function DashboardPage() {
         <MetricCard label="Weight" value="81.2kg" detail="-0.6kg this week" tone="success" />
       </section>
 
-      <DemoFoodSummary />
+      <Link href="/food-log" className="mt-4 block rounded-lg border border-line bg-surface p-4">
+        <p className="text-sm font-semibold">Latest food log</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">
+          Log a food photo to estimate calories, protein, carbs, and fat.
+        </p>
+      </Link>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center justify-between">
