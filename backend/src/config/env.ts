@@ -13,6 +13,7 @@ const schema = z.object({
   FIREBASE_PRIVATE_KEY: z.string().optional(),
   BOOTSTRAP_OWNER_EMAIL: z.string().optional(),
   AWS_REGION: z.string().default("ap-southeast-1"),
+  AWS_S3_ENDPOINT: z.string().optional(),
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_S3_BUCKET: z.string().optional(),

@@ -3,7 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { FoodEstimate } from "@ascend/shared";
-import { estimateFoodFromDataUrl, getFoodLogs, saveFoodLog } from "@/lib/ascendApi";
+import { estimateFoodFromDataUrl, getFoodLogs, requestFoodUploadUrl, saveFoodLog } from "@/lib/ascendApi";
 import { saveDemoFoodLog } from "@/lib/demoFoodLogs";
 import { Field, inputClass } from "@/components/Field";
 
@@ -83,6 +83,22 @@ async function buildEstimate(file: File) {
   const imageDataUrl = await resizeImageToDataUrl(file);
   const response = await estimateFoodFromDataUrl(imageDataUrl);
   return response.estimate;
+}
+
+async function uploadFoodPhoto(file: File) {
+  const upload = await requestFoodUploadUrl(file.type || "image/jpeg");
+  if (!upload.storageConfigured || !upload.uploadUrl) return null;
+
+  const response = await fetch(upload.uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type || "image/jpeg"
+    },
+    body: file
+  });
+
+  if (!response.ok) throw new Error("Photo upload failed.");
+  return upload.key;
 }
 
 export function FoodLogClient() {
@@ -182,7 +198,7 @@ export function FoodLogClient() {
     if (!estimate) return;
 
     setIsSaving(true);
-    setStatus("Saving food log...");
+    setStatus("Saving food log and photo...");
 
     const savedLog = {
       id: crypto.randomUUID(),
@@ -199,7 +215,17 @@ export function FoodLogClient() {
     };
 
     try {
+      let imageS3Key: string | null = null;
+      if (selectedFile) {
+        try {
+          imageS3Key = await uploadFoodPhoto(selectedFile);
+        } catch {
+          imageS3Key = null;
+        }
+      }
+
       await saveFoodLog({
+        imageS3Key: imageS3Key ?? undefined,
         mealType: savedLog.mealType,
         estimatedFoodName: savedLog.estimatedFoodName,
         calories: savedLog.calories,
@@ -212,8 +238,9 @@ export function FoodLogClient() {
       await loadFoodLogs();
       setPreviewUrl(null);
       setEstimate(null);
+      setSelectedFile(null);
       setWasEdited(false);
-      setStatus("Food log saved to Ascend.");
+      setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Add storage credentials later to keep the photo.");
     } catch (error) {
       saveDemoFoodLog(savedLog);
       setStatus(error instanceof Error ? error.message : "Saved in demo mode. Connect Firebase/backend auth to save to PostgreSQL.");

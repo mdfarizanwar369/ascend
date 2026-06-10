@@ -213,7 +213,7 @@ export function saveBurnLog(input: {
 }
 
 export function requestFoodUploadUrl(contentType: string) {
-  return authed<{ uploadUrl: string; key: string }>("/food-logs/photo-upload-url", {
+  return authed<{ uploadUrl: string; key: string; storageConfigured?: boolean }>("/food-logs/photo-upload-url", {
     method: "POST",
     body: JSON.stringify({ contentType })
   });

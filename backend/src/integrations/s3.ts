@@ -2,11 +2,15 @@ import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env";
 
-const s3 = new S3Client({ region: env.AWS_REGION });
+const s3 = new S3Client({
+  region: env.AWS_REGION,
+  endpoint: env.AWS_S3_ENDPOINT,
+  forcePathStyle: Boolean(env.AWS_S3_ENDPOINT)
+});
 
 export async function createUploadUrl(key: string, contentType: string) {
   if (!env.AWS_S3_BUCKET) {
-    return { uploadUrl: `http://localhost/mock-upload/${key}`, key };
+    return { uploadUrl: "", key, storageConfigured: false };
   }
 
   const command = new PutObjectCommand({
@@ -17,7 +21,7 @@ export async function createUploadUrl(key: string, contentType: string) {
 
   return {
     uploadUrl: await getSignedUrl(s3, command, { expiresIn: 300 }),
-    key
+    key,
+    storageConfigured: true
   };
 }
-
