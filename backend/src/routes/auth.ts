@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { env } from "../config/env";
 import { query } from "../db/pool";
 import { requireFirebaseToken } from "../middleware/auth";
 
@@ -61,3 +62,47 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
   }
 });
 
+authRouter.post("/auth/bootstrap-owner", requireFirebaseToken, async (req, res, next) => {
+  try {
+    const firebaseUser = req.firebaseUser!;
+    const allowedEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
+    const currentEmail = firebaseUser.email?.trim().toLowerCase();
+
+    if (!allowedEmail) {
+      return res.status(400).json({ error: "BOOTSTRAP_OWNER_EMAIL is not configured" });
+    }
+
+    if (!currentEmail || currentEmail !== allowedEmail) {
+      return res.status(403).json({ error: "This email is not allowed to bootstrap owner access" });
+    }
+
+    const gym = await query<{ id: string }>("select id from gyms order by created_at asc limit 1");
+    const gymId = gym.rows[0]?.id ?? null;
+
+    const result = await query(
+      `
+      insert into users (firebase_uid, email, full_name, primary_role, gym_id)
+      values ($1, $2, $3, 'owner', $4)
+      on conflict (firebase_uid) do update
+      set email = excluded.email,
+          full_name = coalesce(nullif(users.full_name, ''), excluded.full_name),
+          primary_role = 'owner',
+          gym_id = coalesce(users.gym_id, excluded.gym_id),
+          updated_at = now()
+      returning *
+      `,
+      [firebaseUser.firebaseUid, firebaseUser.email ?? "", firebaseUser.name ?? firebaseUser.email ?? "Ascend Owner", gymId]
+    );
+
+    await query("insert into user_roles (user_id, role) values ($1, 'owner') on conflict do nothing", [result.rows[0].id]);
+    await query("insert into user_roles (user_id, role) values ($1, 'admin') on conflict do nothing", [result.rows[0].id]);
+
+    if (gymId) {
+      await query("update gyms set owner_user_id = $1 where id = $2 and owner_user_id is null", [result.rows[0].id, gymId]);
+    }
+
+    res.json({ user: result.rows[0], roles: ["owner", "admin"] });
+  } catch (error) {
+    next(error);
+  }
+});

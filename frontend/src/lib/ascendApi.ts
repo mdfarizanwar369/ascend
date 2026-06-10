@@ -20,6 +20,20 @@ export function completeOnboarding(input: {
   });
 }
 
+export function bootstrapOwner() {
+  return authed<{
+    user: {
+      id: string;
+      email: string;
+      full_name: string;
+      primary_role: string;
+    };
+    roles: string[];
+  }>("/auth/bootstrap-owner", {
+    method: "POST"
+  });
+}
+
 export function getMe() {
   return authed<{
     user: {

@@ -11,6 +11,7 @@ const schema = z.object({
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),
+  BOOTSTRAP_OWNER_EMAIL: z.string().optional(),
   AWS_REGION: z.string().default("ap-southeast-1"),
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
@@ -25,4 +26,3 @@ const schema = z.object({
 });
 
 export const env = schema.parse(process.env);
-
