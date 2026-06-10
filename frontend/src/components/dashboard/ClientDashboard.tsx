@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getFoodLogs, getMe, getWaterLogs, getWeightLogs } from "@/lib/ascendApi";
+import { getComplianceToday, getFoodLogs, getMe, getWaterLogs, getWeightLogs } from "@/lib/ascendApi";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -36,6 +36,7 @@ export function ClientDashboard() {
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
+  const [complianceScore, setComplianceScore] = useState<number | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
 
   useEffect(() => {
@@ -43,13 +44,20 @@ export function ClientDashboard() {
 
     async function loadDashboard() {
       try {
-        const [me, foods, weights, waters] = await Promise.all([getMe(), getFoodLogs(), getWeightLogs(), getWaterLogs()]);
+        const [me, foods, weights, waters, compliance] = await Promise.all([
+          getMe(),
+          getFoodLogs(),
+          getWeightLogs(),
+          getWaterLogs(),
+          getComplianceToday()
+        ]);
 
         if (!isMounted) return;
         setUser(me.user);
         setFoodLogs(foods.foodLogs);
         setWeightLogs(weights.weightLogs);
         setWaterLogs(waters.waterLogs);
+        setComplianceScore(compliance.compliance?.score ?? null);
         setStatus("");
       } catch {
         if (isMounted) {
@@ -71,7 +79,8 @@ export function ClientDashboard() {
   const latestWeight = weightLogs[0];
   const calories = todaysFood.reduce((total, log) => total + Number(log.calories), 0);
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
-  const score = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
+  const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
+  const score = complianceScore ?? fallbackScore;
 
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">

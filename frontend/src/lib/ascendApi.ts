@@ -96,6 +96,72 @@ export function saveWaterLog(input: { amountMl: number; loggedAt?: string }) {
   });
 }
 
+export function getHabits() {
+  return authed<{
+    habits: Array<{
+      id: string;
+      name: string;
+      frequency: string;
+      active: boolean;
+      created_at: string;
+    }>;
+  }>("/habits");
+}
+
+export function createHabit(input: { name: string; frequency?: "daily" | "weekly" }) {
+  return authed<{
+    habit: {
+      id: string;
+      name: string;
+      frequency: string;
+      active: boolean;
+      created_at: string;
+    };
+  }>("/habits", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getHabitLogs() {
+  return authed<{
+    habitLogs: Array<{
+      id: string;
+      habit_id: string;
+      completed: boolean;
+      logged_at: string;
+    }>;
+  }>("/habit-logs");
+}
+
+export function saveHabitLog(input: { habitId: string; completed?: boolean; loggedAt?: string }) {
+  return authed<{
+    habitLog: {
+      id: string;
+      habit_id: string;
+      completed: boolean;
+      logged_at: string;
+    };
+  }>("/habit-logs", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getComplianceToday() {
+  return authed<{
+    compliance: {
+      id: string;
+      score: number;
+      food_score: number;
+      weight_score: number;
+      water_score: number;
+      habit_score: number;
+      calculated_for_date: string;
+    } | null;
+  }>("/compliance/today");
+}
+
 export function requestFoodUploadUrl(contentType: string) {
   return authed<{ uploadUrl: string; key: string }>("/food-logs/photo-upload-url", {
     method: "POST",
