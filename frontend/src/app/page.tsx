@@ -21,10 +21,10 @@ export default function HomePage() {
             </p>
           </div>
           <div className="grid gap-3">
-            <Link href="/dashboard" className="flex h-14 items-center justify-between rounded-lg bg-lime px-4 py-4 font-semibold text-ink">
+            <a href="/dashboard" className="flex h-14 items-center justify-between rounded-lg bg-lime px-4 py-4 font-semibold text-ink">
               Open client dashboard
               <ArrowRight size={20} />
-            </Link>
+            </a>
             <Link href="/onboarding" className="flex h-14 items-center justify-between rounded-lg border border-line bg-surface px-4 py-4 font-semibold text-white">
               Start onboarding
               <ArrowRight size={20} />
