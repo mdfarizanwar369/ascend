@@ -39,8 +39,10 @@ export function BurnLogClient() {
 
         setTodayCalories(total);
         setStatus("");
-      } catch {
-        if (isMounted) setStatus("Please log in again if activity burn does not load.");
+      } catch (error) {
+        if (isMounted) {
+          setStatus(error instanceof Error ? error.message : "Please log in again if activity burn does not load.");
+        }
       }
     }
 
@@ -63,8 +65,8 @@ export function BurnLogClient() {
       });
       setTodayCalories((current) => current + estimatedCalories);
       setStatus("Activity burn saved to Ascend.");
-    } catch {
-      setStatus("Could not save activity. Please make sure you are logged in.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save activity. Please make sure you are logged in.");
     } finally {
       setIsSaving(false);
     }
