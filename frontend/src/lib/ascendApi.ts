@@ -20,6 +20,56 @@ export function completeOnboarding(input: {
   });
 }
 
+export function getMe() {
+  return authed<{
+    user: {
+      id: string;
+      email: string;
+      full_name: string;
+      goal_type?: GoalType | null;
+      starting_weight_kg?: string | number | null;
+      target_weight_kg?: string | number | null;
+      gym_id?: string | null;
+      assigned_trainer_id?: string | null;
+    };
+    roles: string[];
+  }>("/me");
+}
+
+export function getFoodLogs() {
+  return authed<{
+    foodLogs: Array<{
+      id: string;
+      estimated_food_name: string;
+      calories: number;
+      protein_g: string | number;
+      carbs_g: string | number;
+      fat_g: string | number;
+      logged_at: string;
+    }>;
+  }>("/food-logs");
+}
+
+export function getWeightLogs() {
+  return authed<{
+    weightLogs: Array<{
+      id: string;
+      weight_kg: string | number;
+      logged_at: string;
+    }>;
+  }>("/weight-logs");
+}
+
+export function getWaterLogs() {
+  return authed<{
+    waterLogs: Array<{
+      id: string;
+      amount_ml: number;
+      logged_at: string;
+    }>;
+  }>("/water-logs");
+}
+
 export function requestFoodUploadUrl(contentType: string) {
   return authed<{ uploadUrl: string; key: string }>("/food-logs/photo-upload-url", {
     method: "POST",
@@ -72,4 +122,3 @@ export function getTrainerClients() {
 export function getAdminRevenue() {
   return authed<{ byGym: unknown[]; byTrainer: unknown[] }>("/admin/analytics/revenue");
 }
-
