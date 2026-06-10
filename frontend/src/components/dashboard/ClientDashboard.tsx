@@ -30,6 +30,7 @@ function quickLogHref(item: string) {
   if (item === "Food") return "/food-log";
   if (item === "Weight") return "/weight-log";
   if (item === "Water") return "/water-log";
+  if (item === "Burn") return "/burn-log";
   return "/dashboard";
 }
 

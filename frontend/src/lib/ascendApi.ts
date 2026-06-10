@@ -162,6 +162,42 @@ export function getComplianceToday() {
   }>("/compliance/today");
 }
 
+export function getBurnLogs() {
+  return authed<{
+    burnLogs: Array<{
+      id: string;
+      metadata: {
+        activityType?: string;
+        durationMinutes?: number;
+        caloriesBurned?: number;
+      };
+      created_at: string;
+    }>;
+  }>("/burn-logs");
+}
+
+export function saveBurnLog(input: {
+  activityType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  loggedAt?: string;
+}) {
+  return authed<{
+    burnLog: {
+      id: string;
+      metadata: {
+        activityType?: string;
+        durationMinutes?: number;
+        caloriesBurned?: number;
+      };
+      created_at: string;
+    };
+  }>("/burn-logs", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function requestFoodUploadUrl(contentType: string) {
   return authed<{ uploadUrl: string; key: string }>("/food-logs/photo-upload-url", {
     method: "POST",

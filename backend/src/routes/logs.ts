@@ -32,6 +32,13 @@ const waterLogSchema = z.object({
   loggedAt: z.string().datetime().optional()
 });
 
+const burnLogSchema = z.object({
+  activityType: z.string().min(2),
+  durationMinutes: z.number().int().positive(),
+  caloriesBurned: z.number().int().nonnegative(),
+  loggedAt: z.string().datetime().optional()
+});
+
 logsRouter.post("/food-logs/photo-upload-url", requireAuth, async (req, res) => {
   const contentType = String(req.body.contentType ?? "image/jpeg");
   const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
@@ -121,6 +128,40 @@ logsRouter.post("/water-logs", requireAuth, async (req, res, next) => {
 logsRouter.get("/water-logs", requireAuth, async (req, res) => {
   const result = await query("select * from water_logs where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
   res.json({ waterLogs: result.rows });
+});
+
+logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
+  try {
+    const input = burnLogSchema.parse(req.body);
+    const result = await query(
+      `
+      insert into analytics_events (user_id, gym_id, event_name, metadata, created_at)
+      values ($1, $2, 'burn_log', $3, coalesce($4, now()))
+      returning *
+      `,
+      [
+        req.user!.id,
+        req.user!.gymId ?? null,
+        {
+          activityType: input.activityType,
+          durationMinutes: input.durationMinutes,
+          caloriesBurned: input.caloriesBurned
+        },
+        input.loggedAt ?? null
+      ]
+    );
+    res.status(201).json({ burnLog: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.get("/burn-logs", requireAuth, async (req, res) => {
+  const result = await query(
+    "select * from analytics_events where user_id = $1 and event_name = 'burn_log' order by created_at desc limit 100",
+    [req.user!.id]
+  );
+  res.json({ burnLogs: result.rows });
 });
 
 logsRouter.post("/progress-photos/upload-url", requireAuth, async (req, res) => {
