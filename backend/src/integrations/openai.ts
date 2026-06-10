@@ -4,16 +4,37 @@ import { env } from "../config/env";
 
 const client = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 
+function demoFoodEstimate(): FoodEstimate {
+  return {
+    foodName: "Nasi Lemak",
+    confidence: 0.72,
+    calories: 620,
+    proteinG: 18,
+    carbsG: 72,
+    fatG: 28,
+    notes: "Demo estimate. Configure OPENAI_API_KEY to enable live image analysis."
+  };
+}
+
+function parseFoodEstimate(text: string): FoodEstimate {
+  const cleaned = text
+    .trim()
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  return JSON.parse(cleaned) as FoodEstimate;
+}
+
 export async function estimateFoodFromImage(imageUrl: string): Promise<FoodEstimate> {
   if (!client) {
+    return demoFoodEstimate();
+  }
+
+  if (env.AI_PROVIDER !== "openai") {
     return {
-      foodName: "Nasi Lemak",
-      confidence: 0.72,
-      calories: 620,
-      proteinG: 18,
-      carbsG: 72,
-      fatG: 28,
-      notes: "Demo estimate. Configure OPENAI_API_KEY to enable live image analysis."
+      ...demoFoodEstimate(),
+      notes: `${env.AI_PROVIDER} provider is reserved for a future hosted vision model. Using demo estimate for now.`
     };
   }
 
@@ -37,7 +58,7 @@ export async function estimateFoodFromImage(imageUrl: string): Promise<FoodEstim
   });
 
   const text = response.output_text;
-  return JSON.parse(text) as FoodEstimate;
+  return parseFoodEstimate(text);
 }
 
 export async function createNutritionCoachReply(message: string, context: string) {

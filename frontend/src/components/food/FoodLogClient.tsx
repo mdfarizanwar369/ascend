@@ -3,7 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { FoodEstimate } from "@ascend/shared";
-import { getFoodLogs, saveFoodLog } from "@/lib/ascendApi";
+import { estimateFoodFromDataUrl, getFoodLogs, saveFoodLog } from "@/lib/ascendApi";
 import { saveDemoFoodLog } from "@/lib/demoFoodLogs";
 import { Field, inputClass } from "@/components/Field";
 
@@ -46,14 +46,48 @@ function pickDemoEstimate(fileName: string) {
   return demoEstimates[0];
 }
 
-async function buildEstimate(fileName: string) {
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  return pickDemoEstimate(fileName);
+function resizeImageToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      const maxSize = 900;
+      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Could not prepare image."));
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read image."));
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+async function buildEstimate(file: File) {
+  const imageDataUrl = await resizeImageToDataUrl(file);
+  const response = await estimateFoodFromDataUrl(imageDataUrl);
+  return response.estimate;
 }
 
 export function FoodLogClient() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [fileName, setFileName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [estimate, setEstimate] = useState<FoodEstimate | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [status, setStatus] = useState("Upload a food photo to estimate calories and macros.");
@@ -101,16 +135,20 @@ export function FoodLogClient() {
     if (!file) return;
 
     setPreviewUrl(URL.createObjectURL(file));
-    setFileName(file.name);
+    setSelectedFile(file);
     setEstimate(null);
     setWasEdited(false);
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
 
-    buildEstimate(file.name)
+    buildEstimate(file)
       .then((nextEstimate) => {
         setEstimate(nextEstimate);
         setStatus("AI estimate ready. Review, edit if needed, then save.");
+      })
+      .catch(() => {
+        setEstimate(pickDemoEstimate(file.name));
+        setStatus("Demo estimate ready. Add OPENAI_API_KEY on Railway for live food photo AI.");
       })
       .finally(() => setIsEstimating(false));
   }
@@ -120,9 +158,15 @@ export function FoodLogClient() {
     setStatus("Estimating food, calories, protein, carbs, and fat...");
 
     try {
-      const nextEstimate = await buildEstimate(fileName);
+      if (!selectedFile) return;
+      const nextEstimate = await buildEstimate(selectedFile);
       setEstimate(nextEstimate);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
+    } catch {
+      if (selectedFile) {
+        setEstimate(pickDemoEstimate(selectedFile.name));
+        setStatus("Demo estimate ready. Add OPENAI_API_KEY on Railway for live food photo AI.");
+      }
     } finally {
       setIsEstimating(false);
     }

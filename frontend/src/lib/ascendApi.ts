@@ -226,6 +226,13 @@ export function estimateFood(imageUrl: string) {
   });
 }
 
+export function estimateFoodFromDataUrl(imageDataUrl: string) {
+  return authed<{ estimate: FoodEstimate }>("/food-logs/estimate-data-url", {
+    method: "POST",
+    body: JSON.stringify({ imageDataUrl })
+  });
+}
+
 export function saveFoodLog(input: {
   imageS3Key?: string;
   mealType: string;

@@ -16,6 +16,7 @@ const schema = z.object({
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_S3_BUCKET: z.string().optional(),
+  AI_PROVIDER: z.enum(["openai", "kimi", "qwen", "local"]).default("openai"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4.1-mini"),
   TOYYIBPAY_BASE_URL: z.string().default("https://toyyibpay.com"),

@@ -22,6 +22,10 @@ const foodLogSchema = z.object({
   loggedAt: z.string().datetime().optional()
 });
 
+const foodImageDataSchema = z.object({
+  imageDataUrl: z.string().startsWith("data:image/").max(7_000_000)
+});
+
 const weightLogSchema = z.object({
   weightKg: z.number().positive(),
   loggedAt: z.string().datetime().optional()
@@ -49,6 +53,15 @@ logsRouter.post("/food-logs/estimate", requireAuth, async (req, res, next) => {
   try {
     const imageUrl = z.string().url().parse(req.body.imageUrl);
     res.json({ estimate: await estimateFoodFromImage(imageUrl) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.post("/food-logs/estimate-data-url", requireAuth, async (req, res, next) => {
+  try {
+    const input = foodImageDataSchema.parse(req.body);
+    res.json({ estimate: await estimateFoodFromImage(input.imageDataUrl) });
   } catch (error) {
     next(error);
   }
