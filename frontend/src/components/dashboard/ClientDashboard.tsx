@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getComplianceToday, getFoodLogs, getHabitLogs, getHabits, getMe, getWaterLogs, getWeightLogs } from "@/lib/ascendApi";
+import {
+  getBurnLogs,
+  getComplianceToday,
+  getFoodLogs,
+  getHabitLogs,
+  getHabits,
+  getMe,
+  getWaterLogs,
+  getWeightLogs
+} from "@/lib/ascendApi";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -9,6 +18,7 @@ type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number]
 type WaterLog = Awaited<ReturnType<typeof getWaterLogs>>["waterLogs"][number];
 type Habit = Awaited<ReturnType<typeof getHabits>>["habits"][number];
 type HabitLog = Awaited<ReturnType<typeof getHabitLogs>>["habitLogs"][number];
+type BurnLog = Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number];
 
 function firstName(fullName?: string) {
   return fullName?.trim().split(/\s+/)[0] || "there";
@@ -41,6 +51,7 @@ export function ClientDashboard() {
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
+  const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
   const [complianceScore, setComplianceScore] = useState<number | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
 
@@ -49,13 +60,14 @@ export function ClientDashboard() {
 
     async function loadDashboard() {
       try {
-        const [me, foods, weights, waters, nextHabits, nextHabitLogs, compliance] = await Promise.all([
+        const [me, foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.all([
           getMe(),
           getFoodLogs(),
           getWeightLogs(),
           getWaterLogs(),
           getHabits(),
           getHabitLogs(),
+          getBurnLogs(),
           getComplianceToday()
         ]);
 
@@ -66,6 +78,7 @@ export function ClientDashboard() {
         setWaterLogs(waters.waterLogs);
         setHabits(nextHabits.habits);
         setHabitLogs(nextHabitLogs.habitLogs);
+        setBurnLogs(burns.burnLogs);
         setComplianceScore(compliance.compliance?.score ?? null);
         setStatus("");
       } catch {
@@ -84,6 +97,9 @@ export function ClientDashboard() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaysFood = foodLogs.filter((log) => log.logged_at.slice(0, 10) === today);
   const todaysWaterMl = waterLogs.filter((log) => log.logged_at.slice(0, 10) === today).reduce((total, log) => total + log.amount_ml, 0);
+  const todaysBurnCalories = burnLogs
+    .filter((log) => log.created_at.slice(0, 10) === today)
+    .reduce((total, log) => total + Number(log.metadata?.caloriesBurned ?? 0), 0);
   const latestFood = foodLogs[0];
   const latestWeight = weightLogs[0];
   const completedHabitIds = useMemo(
@@ -138,11 +154,7 @@ export function ClientDashboard() {
             ["Calories", calories ? calories.toLocaleString() : "0", todaysFood.length ? `${todaysFood.length} food logs today` : "No food logged today"],
             ["Protein", `${protein}g`, todaysFood.length ? "From food logs" : "Log food to update"],
             ["Water", `${(todaysWaterMl / 1000).toFixed(1)}L`, "2.5L target"],
-            [
-              "Weight",
-              latestWeight ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg` : `${asNumber(user?.starting_weight_kg).toFixed(1)}kg`,
-              user?.target_weight_kg ? `${asNumber(user.target_weight_kg).toFixed(1)}kg target` : "Target not set"
-            ]
+            ["Burn", `${todaysBurnCalories} kcal`, todaysBurnCalories ? "Activity logged today" : "No activity logged"]
           ].map(([label, value, detail]) => (
             <div key={label} className="rounded-lg border border-line bg-surface p-4">
               <p className="text-xs uppercase text-zinc-400">{label}</p>
