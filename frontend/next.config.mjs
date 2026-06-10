@@ -20,6 +20,15 @@ const nextConfig = {
             value: "no-store"
           }
         ]
+      },
+      {
+        source: "/reset",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store"
+          }
+        ]
       }
     ];
   }
