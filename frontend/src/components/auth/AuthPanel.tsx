@@ -2,11 +2,12 @@
 
 import { FormEvent, useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { ArrowRight, Dumbbell, LogIn } from "lucide-react";
+import { ArrowRight, LogIn } from "lucide-react";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { Field, inputClass } from "@/components/Field";
 import { getMe } from "@/lib/ascendApi";
+import { BrandMark } from "@/components/BrandMark";
 
 type Mode = "signup" | "login";
 
@@ -75,9 +76,7 @@ export function AuthPanel() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto flex min-h-screen max-w-md flex-col">
         <header className="flex items-center gap-3 py-3">
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-lime text-ink">
-            <Dumbbell size={21} />
-          </span>
+          <BrandMark />
           <div>
             <p className="text-lg font-semibold">Ascend</p>
             <p className="text-xs text-zinc-400">Austin Green and Kulai Indahpura launch</p>

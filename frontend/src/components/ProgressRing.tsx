@@ -8,7 +8,7 @@ export function ProgressRing({ score }: { score: number }) {
         <path
           d="M18 2a16 16 0 1 1 0 32a16 16 0 0 1 0-32"
           fill="none"
-          stroke="#a7f04f"
+          stroke="#35f2d0"
           strokeDasharray="100"
           strokeDashoffset={offset}
           strokeLinecap="round"
@@ -25,4 +25,3 @@ export function ProgressRing({ score }: { score: number }) {
     </div>
   );
 }
-

@@ -1,10 +1,11 @@
 "use client";
 
-import { Activity, Camera, Home, MessageCircle, Shield, Users } from "lucide-react";
+import { Camera, Home, MessageCircle, Shield, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AccountBar } from "@/components/AccountBar";
 import { BackButton } from "@/components/BackButton";
+import { BrandMark } from "@/components/BrandMark";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
 import { usablePlan } from "@/lib/subscriptionPlan";
 
@@ -41,9 +42,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           <div className="flex items-center gap-2">
             <BackButton fallbackHref="/dashboard" />
             <Link href="/" className="flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-lime text-ink">
-                <Activity size={20} strokeWidth={2.5} />
-              </span>
+              <BrandMark size="sm" />
               <span>
                 <span className="block text-lg font-semibold leading-5">Ascend</span>
                 <span className="text-xs text-zinc-400">Anytime Fitness launch</span>

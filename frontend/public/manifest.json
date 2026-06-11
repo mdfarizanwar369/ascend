@@ -4,9 +4,15 @@
   "description": "Fitness accountability for gym members and trainers",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#121417",
-  "theme_color": "#a7f04f",
+  "background_color": "#07090d",
+  "theme_color": "#35f2d0",
   "icons": [
+    {
+      "src": "/brand/ascend-logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "/icon.svg",
       "sizes": "any",
@@ -14,4 +20,3 @@
     }
   ]
 }
-

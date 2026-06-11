@@ -8,7 +8,10 @@
 
 body {
   margin: 0;
-  background: #121417;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(53, 242, 208, 0.14), transparent 34rem),
+    radial-gradient(circle at 0% 20%, rgba(139, 92, 246, 0.13), transparent 26rem),
+    #07090d;
   color: #f6f7f8;
 }
 
@@ -18,4 +21,3 @@ select,
 textarea {
   font: inherit;
 }
-

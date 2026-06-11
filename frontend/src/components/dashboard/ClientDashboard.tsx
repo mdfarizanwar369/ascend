@@ -13,6 +13,7 @@ import {
   getWeightLogs
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
+import { BrandMark } from "@/components/BrandMark";
 import { usablePlan } from "@/lib/subscriptionPlan";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -173,7 +174,7 @@ export function ClientDashboard() {
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <a href="/" className="flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-lime font-bold text-ink">A</span>
+            <BrandMark size="sm" />
             <span>
               <span className="block text-lg font-semibold leading-5">Ascend</span>
               <span className="text-xs text-zinc-400">Client dashboard</span>

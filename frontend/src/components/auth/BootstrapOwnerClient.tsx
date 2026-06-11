@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
 import { bootstrapOwner } from "@/lib/ascendApi";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 import { BackButton } from "@/components/BackButton";
+import { BrandMark } from "@/components/BrandMark";
 
 export function BootstrapOwnerClient() {
   const [status, setStatus] = useState("Log in first, then press the button to unlock owner/admin access for your email.");
@@ -38,9 +38,7 @@ export function BootstrapOwnerClient() {
       <div className="mx-auto max-w-md">
         <header className="flex items-start gap-3 py-3">
           <BackButton fallbackHref="/dashboard" />
-          <span className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink">
-            <ShieldCheck size={24} />
-          </span>
+          <BrandMark size="md" />
           <div>
             <h1 className="text-2xl font-semibold">Owner access setup</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-400">Use this once for your own test account.</p>

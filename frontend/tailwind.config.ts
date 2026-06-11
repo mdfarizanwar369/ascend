@@ -6,12 +6,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#121417",
-        surface: "#191d22",
-        line: "#2b3138",
-        lime: "#a7f04f",
+        ink: "#07090d",
+        surface: "#121721",
+        line: "#263042",
+        lime: "#35f2d0",
+        teal: "#35f2d0",
+        violet: "#8b5cf6",
         amber: "#f8b84e",
-        calm: "#77a8ff"
+        calm: "#8b5cf6"
       }
     }
   },
@@ -19,4 +21,3 @@ const config: Config = {
 };
 
 export default config;
-

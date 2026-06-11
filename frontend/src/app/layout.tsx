@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "Ascend",
   description: "Trainer-first fitness accountability",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/brand/ascend-logo.png",
+    apple: "/brand/ascend-logo.png"
+  },
   appleWebApp: {
     capable: true,
     title: "Ascend",
@@ -14,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#a7f04f",
+  themeColor: "#35f2d0",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover"

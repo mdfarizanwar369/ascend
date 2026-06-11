@@ -1,6 +1,7 @@
-import { BadgeCheck, Dumbbell } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
 import { BackButton } from "@/components/BackButton";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function OnboardingPage() {
   return (
@@ -8,9 +9,7 @@ export default function OnboardingPage() {
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref="/login" />
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-lime text-ink">
-            <Dumbbell size={21} />
-          </span>
+          <BrandMark />
           <div>
             <p className="text-lg font-semibold">Ascend setup</p>
             <p className="text-xs text-zinc-400">Goal, referral, and accountability profile</p>

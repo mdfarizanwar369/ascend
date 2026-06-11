@@ -1,19 +1,21 @@
-import { ArrowRight, Dumbbell, QrCode, Sparkles } from "lucide-react";
+import { ArrowRight, QrCode, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-ink text-white">
       <div className="mx-auto flex min-h-screen max-w-md flex-col px-5 py-6">
         <header className="flex items-center justify-between">
-          <div className="text-xl font-semibold">Ascend</div>
+          <div className="flex items-center gap-2">
+            <BrandMark size="sm" />
+            <div className="text-xl font-semibold">Ascend</div>
+          </div>
           <div className="rounded-lg border border-line px-3 py-2 text-xs text-zinc-300">Launch pilot</div>
         </header>
 
         <section className="flex flex-1 flex-col justify-center gap-7">
-          <div className="grid h-20 w-20 place-items-center rounded-2xl bg-lime text-ink">
-            <Dumbbell size={34} />
-          </div>
+          <BrandMark size="lg" />
           <div>
             <h1 className="text-5xl font-semibold leading-tight">Fitness accountability that follows the client.</h1>
             <p className="mt-4 text-base leading-7 text-zinc-300">
