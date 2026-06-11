@@ -20,6 +20,18 @@ export interface FirebaseTokenUser {
   name?: string;
 }
 
+function normalizeRoles(primaryRole: Role, roles: Role[]) {
+  const roleSet = new Set<Role>(roles.length ? roles : [primaryRole]);
+  roleSet.add(primaryRole);
+
+  if (primaryRole === "owner" || roleSet.has("owner")) {
+    roleSet.add("owner");
+    roleSet.add("admin");
+  }
+
+  return Array.from(roleSet);
+}
+
 declare global {
   namespace Express {
     interface Request {
@@ -85,12 +97,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       dbUser.roles = ["owner", "admin"];
     }
 
+    const roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
+
     req.user = {
       id: dbUser.id,
       firebaseUid: dbUser.firebase_uid,
       email: dbUser.email,
       primaryRole: dbUser.primary_role,
-      roles: dbUser.roles.length ? dbUser.roles : [dbUser.primary_role],
+      roles,
       gymId: dbUser.gym_id,
       trainerId: dbUser.trainer_id
     };
@@ -104,7 +118,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 export function requireRole(roles: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(401).json({ error: "Authentication required" });
-    if (!roles.some((role) => req.user?.roles.includes(role))) {
+    if (!roles.some((role) => req.user?.roles.includes(role) || req.user?.primaryRole === role)) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
     next();

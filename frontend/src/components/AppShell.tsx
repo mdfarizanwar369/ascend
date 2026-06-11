@@ -23,15 +23,18 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   ].filter((item) => item.show);
 
   useEffect(() => {
-    Promise.all([getMe(), getMySubscription()])
-      .then(([me, subscription]) =>
+    Promise.allSettled([getMe(), getMySubscription()])
+      .then(([meResult, subscriptionResult]) => {
+        const me = meResult.status === "fulfilled" ? meResult.value : null;
+        const subscription = subscriptionResult.status === "fulfilled" ? subscriptionResult.value : null;
+
         setAccount({
-          email: me.user.email,
-          fullName: me.user.full_name,
-          roles: me.roles,
-          plan: usablePlan(subscription.subscription.plan, subscription.subscription.status)
-        })
-      )
+          email: me?.user.email,
+          fullName: me?.user.full_name,
+          roles: me?.roles ?? [],
+          plan: subscription ? usablePlan(subscription.subscription.plan, subscription.subscription.status) : "free"
+        });
+      })
       .catch(() => setAccount({}));
   }, []);
 

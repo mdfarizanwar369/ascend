@@ -12,7 +12,14 @@ export function requireActivePlan(requiredPlan: Exclude<SubscriptionPlan, "free"
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Authentication required" });
-      if (req.user.roles.includes("owner") || req.user.roles.includes("admin")) return next();
+      if (
+        req.user.primaryRole === "owner" ||
+        req.user.primaryRole === "admin" ||
+        req.user.roles.includes("owner") ||
+        req.user.roles.includes("admin")
+      ) {
+        return next();
+      }
 
       const result = await query<{ plan: SubscriptionPlan; status: string }>(
         `

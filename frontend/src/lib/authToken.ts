@@ -18,7 +18,7 @@ function waitForFirebaseUser() {
     const timeout = window.setTimeout(() => {
       unsubscribe();
       resolve(null);
-    }, 3000);
+    }, 10000);
 
     unsubscribe = onAuthStateChanged(auth, (user) => {
       window.clearTimeout(timeout);

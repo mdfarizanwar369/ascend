@@ -147,7 +147,11 @@ adminRouter.patch("/admin/users/:userId/role", requireAuth, requireRole(["admin"
     }
 
     await db.query("delete from user_roles where user_id = $1", [req.params.userId]);
-    await db.query("insert into user_roles (user_id, role) values ($1, $2)", [req.params.userId, input.role]);
+    if (input.role === "owner") {
+      await db.query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [req.params.userId]);
+    } else {
+      await db.query("insert into user_roles (user_id, role) values ($1, $2)", [req.params.userId, input.role]);
+    }
 
     if (input.role === "trainer") {
       const gymId = input.gymId ?? user.gym_id;

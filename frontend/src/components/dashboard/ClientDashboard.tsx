@@ -74,9 +74,8 @@ export function ClientDashboard() {
 
   const loadDashboard = useCallback(async () => {
     try {
-      const [me, subscription, foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.all([
-        getMe(),
-        getMySubscription(),
+      const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -89,16 +88,18 @@ export function ClientDashboard() {
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);
       setPlan(usablePlan(subscription.subscription.plan, subscription.subscription.status));
-      setFoodLogs(Array.isArray(foods.foodLogs) ? foods.foodLogs : []);
-      setWeightLogs(Array.isArray(weights.weightLogs) ? weights.weightLogs : []);
-      setWaterLogs(Array.isArray(waters.waterLogs) ? waters.waterLogs : []);
-      setHabits(Array.isArray(nextHabits.habits) ? nextHabits.habits : []);
-      setHabitLogs(Array.isArray(nextHabitLogs.habitLogs) ? nextHabitLogs.habitLogs : []);
-      setBurnLogs(Array.isArray(burns.burnLogs) ? burns.burnLogs : []);
-      setComplianceScore(compliance.compliance?.score ?? null);
-      setStatus("");
-    } catch {
-      setStatus("Log in again if this page does not load your profile.");
+      if (foods.status === "fulfilled") setFoodLogs(Array.isArray(foods.value.foodLogs) ? foods.value.foodLogs : []);
+      if (weights.status === "fulfilled") setWeightLogs(Array.isArray(weights.value.weightLogs) ? weights.value.weightLogs : []);
+      if (waters.status === "fulfilled") setWaterLogs(Array.isArray(waters.value.waterLogs) ? waters.value.waterLogs : []);
+      if (nextHabits.status === "fulfilled") setHabits(Array.isArray(nextHabits.value.habits) ? nextHabits.value.habits : []);
+      if (nextHabitLogs.status === "fulfilled") {
+        setHabitLogs(Array.isArray(nextHabitLogs.value.habitLogs) ? nextHabitLogs.value.habitLogs : []);
+      }
+      if (burns.status === "fulfilled") setBurnLogs(Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : []);
+      if (compliance.status === "fulfilled") setComplianceScore(compliance.value.compliance?.score ?? null);
+      setStatus([foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance].some((result) => result.status === "rejected") ? "Some dashboard data is still loading. Your account is active." : "");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     }
   }, []);
 
