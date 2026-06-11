@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
+import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl, createUploadUrl } from "../integrations/s3";
 import { estimateFoodFromImage } from "../integrations/openai";
 
@@ -43,7 +44,7 @@ const burnLogSchema = z.object({
   loggedAt: z.string().datetime().optional()
 });
 
-logsRouter.post("/food-logs/photo-upload-url", requireAuth, async (req, res) => {
+logsRouter.post("/food-logs/photo-upload-url", requireAuth, requireActivePlan("premium"), async (req, res) => {
   const contentType = String(req.body.contentType ?? "image/jpeg");
   const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
   res.json(await createUploadUrl(key, contentType));
@@ -58,7 +59,7 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
   );
 }
 
-logsRouter.post("/food-logs/estimate", requireAuth, async (req, res, next) => {
+logsRouter.post("/food-logs/estimate", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const imageUrl = z.string().url().parse(req.body.imageUrl);
     res.json({ estimate: await estimateFoodFromImage(imageUrl) });
@@ -67,7 +68,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, async (req, res, next) => {
   }
 });
 
-logsRouter.post("/food-logs/estimate-data-url", requireAuth, async (req, res, next) => {
+logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = foodImageDataSchema.parse(req.body);
     res.json({ estimate: await estimateFoodFromImage(input.imageDataUrl) });
@@ -186,7 +187,7 @@ logsRouter.get("/burn-logs", requireAuth, async (req, res) => {
   res.json({ burnLogs: result.rows });
 });
 
-logsRouter.post("/progress-photos/upload-url", requireAuth, async (req, res) => {
+logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("premium"), async (req, res) => {
   const contentType = String(req.body.contentType ?? "image/jpeg");
   const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;
   res.json(await createUploadUrl(key, contentType));

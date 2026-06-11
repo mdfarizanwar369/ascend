@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl } from "../integrations/s3";
 
 export const progressRouter = Router();
@@ -21,7 +22,7 @@ async function withProgressImageUrls<T extends { image_s3_key?: string | null }>
   );
 }
 
-progressRouter.post("/progress-photos", requireAuth, async (req, res, next) => {
+progressRouter.post("/progress-photos", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = progressPhotoSchema.parse(req.body);
     const result = await query(
@@ -34,7 +35,7 @@ progressRouter.post("/progress-photos", requireAuth, async (req, res, next) => {
   }
 });
 
-progressRouter.get("/progress-photos", requireAuth, async (req, res) => {
+progressRouter.get("/progress-photos", requireAuth, requireActivePlan("premium"), async (req, res) => {
   const result = await query("select * from progress_photos where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
   res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
 });
@@ -42,6 +43,7 @@ progressRouter.get("/progress-photos", requireAuth, async (req, res) => {
 progressRouter.get(
   "/trainer/clients/:clientId/progress-photos",
   requireAuth,
+  requireActivePlan("trainer_pro"),
   requireRole(["trainer", "admin", "owner"]),
   async (req, res) => {
     const result = await query(

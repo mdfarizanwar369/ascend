@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Flame, Save } from "lucide-react";
-import { estimateBurnFromText, getBurnLogs, saveBurnLog } from "@/lib/ascendApi";
+import { estimateBurnFromText, getBurnLogs, getMe, getMySubscription, saveBurnLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
@@ -41,12 +41,18 @@ export function BurnLogClient() {
   const [status, setStatus] = useState("Loading today's burn...");
   const [isSaving, setIsSaving] = useState(false);
   const [isEstimating, setIsEstimating] = useState(false);
+  const [canUseAiEstimate, setCanUseAiEstimate] = useState(false);
 
   const estimatedCalories = useMemo(() => {
     return aiCalories ?? Math.round((burnRates[activityType] ?? 6) * Number(durationMinutes || 0));
   }, [activityType, aiCalories, durationMinutes]);
 
   async function estimateFromText() {
+    if (!canUseAiEstimate) {
+      setStatus("Premium is required for AI burn estimates. You can still choose the activity and save it manually.");
+      return;
+    }
+
     const localEstimate = understandBurnText(activityText);
     setIsEstimating(true);
     setActivityType(localEstimate.activityType);
@@ -92,6 +98,24 @@ export function BurnLogClient() {
     }
 
     load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([getMySubscription(), getMe()])
+      .then(([subscriptionResponse, meResponse]) => {
+        if (!isMounted) return;
+        const plan = subscriptionResponse.subscription.status === "active" ? subscriptionResponse.subscription.plan : "free";
+        setCanUseAiEstimate(plan === "premium" || plan === "trainer_pro" || meResponse.roles.includes("admin") || meResponse.roles.includes("owner"));
+      })
+      .catch(() => {
+        if (isMounted) setCanUseAiEstimate(false);
+      });
+
     return () => {
       isMounted = false;
     };
@@ -159,7 +183,7 @@ export function BurnLogClient() {
                 onClick={estimateFromText}
                 className="h-11 w-full rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
-                {isEstimating ? "Estimating..." : "Estimate with AI"}
+                {isEstimating ? "Estimating..." : canUseAiEstimate ? "Estimate with AI" : "Premium AI estimate"}
               </button>
             </div>
           </Field>

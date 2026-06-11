@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { requireActivePlan } from "../middleware/subscription";
 import { createWeeklySummary } from "../integrations/openai";
 import { createReadUrl } from "../integrations/s3";
 
@@ -15,7 +16,7 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
   );
 }
 
-trainerRouter.get("/trainer/clients", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
     select u.id, u.full_name, u.email, u.goal_type, cs.score as compliance_score, max(ra.severity) as risk_severity
@@ -31,7 +32,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireRole(["trainer", "admi
   res.json({ clients: result.rows });
 });
 
-trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
     select u.id, u.full_name, u.email, u.goal_type, u.starting_weight_kg, u.target_weight_kg,
@@ -49,7 +50,7 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireRole(["train
   res.json({ client: result.rows[0] });
 });
 
-trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
     select fl.*
@@ -64,7 +65,7 @@ trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireRo
   res.json({ foodLogs: await withFoodImageUrls(result.rows) });
 });
 
-trainerRouter.get("/trainer/clients/:clientId/weight-logs", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.get("/trainer/clients/:clientId/weight-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
     select wl.*
@@ -79,7 +80,7 @@ trainerRouter.get("/trainer/clients/:clientId/weight-logs", requireAuth, require
   res.json({ weightLogs: result.rows });
 });
 
-trainerRouter.get("/trainer/clients/:clientId/water-logs", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.get("/trainer/clients/:clientId/water-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
     select water_logs.*
@@ -94,7 +95,7 @@ trainerRouter.get("/trainer/clients/:clientId/water-logs", requireAuth, requireR
   res.json({ waterLogs: result.rows });
 });
 
-trainerRouter.get("/trainer/risk-alerts", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     "select * from risk_alerts where (trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[])) and status = 'open' order by created_at desc",
     [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
@@ -102,7 +103,7 @@ trainerRouter.get("/trainer/risk-alerts", requireAuth, requireRole(["trainer", "
   res.json({ alerts: result.rows });
 });
 
-trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
     update risk_alerts
@@ -115,7 +116,7 @@ trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireRole(["train
   res.json({ alert: result.rows[0] });
 });
 
-trainerRouter.post("/ai/weekly-checkin/:clientId", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
+trainerRouter.post("/ai/weekly-checkin/:clientId", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
     select u.full_name, u.goal_type, cs.score, count(fl.id) as food_logs
