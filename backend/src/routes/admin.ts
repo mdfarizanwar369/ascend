@@ -65,10 +65,21 @@ adminRouter.get("/admin/analytics/compliance", requireAuth, requireRole(["admin"
 adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
   try {
     const input = assignClientSchema.parse(req.body);
-    const result = await query("update users set assigned_trainer_id = $2, updated_at = now() where id = $1 returning *", [
-      input.clientId,
-      input.trainerId
-    ]);
+    const result = await query(
+      `
+      update users
+      set assigned_trainer_id = $2,
+          gym_id = case
+            when $2::uuid is null then gym_id
+            else coalesce(gym_id, (select gym_id from trainers where id = $2))
+          end,
+          updated_at = now()
+      where id = $1 and primary_role = 'client'
+      returning *
+      `,
+      [input.clientId, input.trainerId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Client not found" });
     res.json({ user: result.rows[0] });
   } catch (error) {
     next(error);
@@ -99,7 +110,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
 
 adminRouter.get("/admin/trainers", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   const result = await query(`
-    select t.id, t.user_id, u.full_name, u.email, g.name as gym_name, t.specialties, t.status
+    select t.id, t.user_id, t.gym_id, u.full_name, u.email, g.name as gym_name, t.specialties, t.status
     from trainers t
     join users u on u.id = t.user_id
     join gyms g on g.id = t.gym_id

@@ -579,6 +579,7 @@ export function getAdminTrainers() {
     trainers: Array<{
       id: string;
       user_id: string;
+      gym_id: string;
       full_name: string;
       email: string;
       gym_name: string;
