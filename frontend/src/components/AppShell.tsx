@@ -2,13 +2,23 @@
 
 import { Activity, Camera, Home, MessageCircle, Shield, Users } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { AccountBar } from "@/components/AccountBar";
+import { getMe } from "@/lib/ascendApi";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
+  const [account, setAccount] = useState<{ email?: string; roles?: string[] }>({});
   const items = [
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
     { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: active === "trainer" || active === "admin" },
     { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: active === "admin" }
   ].filter((item) => item.show);
+
+  useEffect(() => {
+    getMe()
+      .then((response) => setAccount({ email: response.user.email, roles: response.roles }))
+      .catch(() => setAccount({}));
+  }, []);
 
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
@@ -27,6 +37,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
             <MessageCircle size={19} />
           </Link>
         </header>
+        <AccountBar email={account.email} roles={account.roles} />
         {children}
       </div>
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">

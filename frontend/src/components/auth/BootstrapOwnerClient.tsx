@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { bootstrapOwner } from "@/lib/ascendApi";
+import { getFirebaseClientAuth } from "@/lib/firebase";
 
 export function BootstrapOwnerClient() {
   const [status, setStatus] = useState("Log in first, then press the button to unlock owner/admin access for your email.");
@@ -15,7 +16,11 @@ export function BootstrapOwnerClient() {
 
     try {
       const response = await bootstrapOwner();
-      setStatus(`Owner access enabled for ${response.user.email}. You can now open Trainer and Admin.`);
+      await getFirebaseClientAuth().currentUser?.getIdToken(true);
+      setStatus(`Owner access enabled for ${response.user.email}. Opening Admin...`);
+      window.setTimeout(() => {
+        window.location.href = "/admin";
+      }, 800);
     } catch (error) {
       setStatus(
         error instanceof Error

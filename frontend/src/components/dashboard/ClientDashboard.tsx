@@ -11,6 +11,7 @@ import {
   getWaterLogs,
   getWeightLogs
 } from "@/lib/ascendApi";
+import { AccountBar } from "@/components/AccountBar";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -146,6 +147,8 @@ export function ClientDashboard() {
         </header>
 
         {status ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+
+        <AccountBar email={user?.email} roles={safeRoles} />
 
         <section className="mt-3 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-4">

@@ -94,8 +94,8 @@ authRouter.post("/auth/bootstrap-owner", requireFirebaseToken, async (req, res, 
       [firebaseUser.firebaseUid, firebaseUser.email ?? "", firebaseUser.name ?? firebaseUser.email ?? "Ascend Owner", gymId]
     );
 
-    await query("insert into user_roles (user_id, role) values ($1, 'owner') on conflict do nothing", [result.rows[0].id]);
-    await query("insert into user_roles (user_id, role) values ($1, 'admin') on conflict do nothing", [result.rows[0].id]);
+    await query("delete from user_roles where user_id = $1", [result.rows[0].id]);
+    await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [result.rows[0].id]);
 
     if (gymId) {
       await query("update gyms set owner_user_id = $1 where id = $2 and owner_user_id is null", [result.rows[0].id, gymId]);
