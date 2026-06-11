@@ -344,6 +344,45 @@ export function estimateBurnFromText(text: string) {
   });
 }
 
+export function getMessageContacts() {
+  return authed<{
+    contacts: Array<{
+      id: string;
+      full_name: string;
+      email: string;
+      primary_role: string;
+    }>;
+  }>("/messages/contacts");
+}
+
+export function getMessages(userId: string) {
+  return authed<{
+    messages: Array<{
+      id: string;
+      sender_user_id: string;
+      receiver_user_id: string;
+      body: string;
+      created_at: string;
+      read_at?: string | null;
+    }>;
+  }>(`/messages/${userId}`);
+}
+
+export function sendMessage(input: { receiverUserId: string; body: string }) {
+  return authed<{
+    message: {
+      id: string;
+      sender_user_id: string;
+      receiver_user_id: string;
+      body: string;
+      created_at: string;
+    };
+  }>("/messages", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function getTrainerClients() {
   return authed<{
     clients: Array<{

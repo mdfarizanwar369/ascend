@@ -238,6 +238,11 @@ export function ClientDashboard() {
           <p className="mt-2 text-sm leading-6 text-zinc-300">Ask for a meal suggestion based on your goal and today's logs.</p>
         </a>
 
+        <a href="/messages" className="mt-4 block rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm font-semibold">Message your trainer</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Ask a quick question or share context about today’s logs.</p>
+        </a>
+
         <a href="/subscription" className="mt-4 block rounded-lg border border-lime/40 bg-lime/10 p-4">
           <p className="text-sm font-medium text-lime">Premium accountability</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">Upgrade to RM19/month for AI food, weekly reports, and trainer accountability.</p>

@@ -23,9 +23,9 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
               <span className="text-xs text-zinc-400">Anytime Fitness launch</span>
             </span>
           </Link>
-          <button className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
+          <Link href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
             <MessageCircle size={19} />
-          </button>
+          </Link>
         </header>
         {children}
       </div>
@@ -49,9 +49,13 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           })}
         </div>
       </nav>
-      <button className="fixed bottom-24 right-5 grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-xl shadow-lime/20" aria-label="Log food photo">
+      <Link
+        href="/food-log"
+        className="fixed bottom-24 right-5 grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-xl shadow-lime/20"
+        aria-label="Log food photo"
+      >
         <Camera size={24} />
-      </button>
+      </Link>
     </main>
   );
 }

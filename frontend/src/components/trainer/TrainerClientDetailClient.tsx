@@ -106,6 +106,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         <p className="mt-2 text-sm text-zinc-400">
           {formatGoal(client?.goal_type)} / {client?.gym_name ?? "Gym not set"}
         </p>
+        {client?.id ? (
+          <Link
+            href={`/messages?userId=${client.id}`}
+            className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+          >
+            Message client
+          </Link>
+        ) : null}
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
