@@ -26,10 +26,10 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
   const assignedTrainerResult = await query(
     `
     select trainer_user.id
-    from users current_user
-    join trainers t on t.id = current_user.assigned_trainer_id
+    from users cu
+    join trainers t on t.id = cu.assigned_trainer_id
     join users trainer_user on trainer_user.id = t.user_id
-    where current_user.id = $1 and trainer_user.id = $2
+    where cu.id = $1 and trainer_user.id = $2
     limit 1
     `,
     [currentUserId, otherUserId]
@@ -39,10 +39,10 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
   const gymTrainerResult = await query(
     `
     select trainer_user.id
-    from users current_user
-    join trainers t on t.gym_id = current_user.gym_id and t.status = 'active'
+    from users cu
+    join trainers t on t.gym_id = cu.gym_id and t.status = 'active'
     join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-    where current_user.id = $1 and trainer_user.id = $2
+    where cu.id = $1 and trainer_user.id = $2
     limit 1
     `,
     [currentUserId, otherUserId]
