@@ -24,6 +24,8 @@ export function AccountBar({
   plan?: SubscriptionPlan | null;
 }) {
   async function handleLogout() {
+    window.localStorage.removeItem("ascend.demoFoodLogs");
+    window.sessionStorage.clear();
     await signOut(getFirebaseClientAuth());
     window.location.href = "/login";
   }

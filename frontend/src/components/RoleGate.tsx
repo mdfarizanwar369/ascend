@@ -52,7 +52,9 @@ export function RoleGate({
       }
     }
 
-    checkAccess()
+    function refreshAccess() {
+      setState("loading");
+      checkAccess()
       .then((nextState) => {
         if (!isMounted) return;
         setState(nextState);
@@ -60,9 +62,18 @@ export function RoleGate({
       .catch(() => {
         if (isMounted) setState("role-blocked");
       });
+    }
+
+    function refreshAfterBack() {
+      refreshAccess();
+    }
+
+    refreshAccess();
+    window.addEventListener("pageshow", refreshAfterBack);
 
     return () => {
       isMounted = false;
+      window.removeEventListener("pageshow", refreshAfterBack);
     };
   }, [allowedRoleKey, requiredPlan]);
 

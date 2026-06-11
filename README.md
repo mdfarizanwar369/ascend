@@ -231,6 +231,8 @@ The npm validation path has been run successfully after Node.js and npm became a
 - `npm run test`
 - `npm run lint`
 
+The frontend also includes a browser session guard so account switching, logout, and mobile browser back/forward restores re-check access instead of keeping stale role or plan state.
+
 Before connecting real services, also run:
 
 ```powershell

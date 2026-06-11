@@ -70,6 +70,7 @@ Implemented structure:
 - Trainer approval workflow.
 - Owner/admin action dashboard for pending trainers and unassigned clients.
 - Role-aware navigation across owner, trainer, and client sections.
+- Session guard for account switching, logout, and browser back/forward refresh.
 
 ## Database Implemented
 
@@ -124,6 +125,7 @@ Seed data includes:
 - Backend TypeScript build passes.
 - Frontend ESLint passes.
 - Backend compliance tests pass.
+- Auth/session stability pass builds and type-checks.
 
 ## Remaining Before Live Pilot
 

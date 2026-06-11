@@ -27,8 +27,12 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   const backHref = active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";
 
   useEffect(() => {
-    Promise.allSettled([getMe(), getMySubscription()])
+    let isMounted = true;
+
+    function loadAccount() {
+      Promise.allSettled([getMe(), getMySubscription()])
       .then(([meResult, subscriptionResult]) => {
+        if (!isMounted) return;
         const me = meResult.status === "fulfilled" ? meResult.value : null;
         const subscription = subscriptionResult.status === "fulfilled" ? subscriptionResult.value : null;
 
@@ -39,7 +43,18 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           plan: subscription ? usablePlan(subscription.subscription.plan, subscription.subscription.status) : "free"
         });
       })
-      .catch(() => setAccount({}));
+      .catch(() => {
+        if (isMounted) setAccount({});
+      });
+    }
+
+    loadAccount();
+    window.addEventListener("pageshow", loadAccount);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("pageshow", loadAccount);
+    };
   }, []);
 
   return (

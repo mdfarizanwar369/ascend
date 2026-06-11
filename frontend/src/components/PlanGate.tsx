@@ -60,8 +60,7 @@ export function PlanGate({
   }, []);
 
   useEffect(() => {
-    function refreshAfterBack(event: PageTransitionEvent) {
-      if (!event.persisted) return;
+    function refreshAfterBack() {
       setIsLoading(true);
       loadAccess().catch(() => setIsLoading(false));
     }

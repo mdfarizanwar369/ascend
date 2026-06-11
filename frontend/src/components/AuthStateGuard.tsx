@@ -8,7 +8,12 @@ export function AuthStateGuard() {
   const lastUidRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
-    const auth = getFirebaseClientAuth();
+    let auth;
+    try {
+      auth = getFirebaseClientAuth();
+    } catch {
+      return;
+    }
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       const nextUid = user?.uid ?? null;
@@ -17,6 +22,10 @@ export function AuthStateGuard() {
 
       if (previousUid && nextUid && previousUid !== nextUid && window.location.pathname !== "/login") {
         window.location.reload();
+      }
+
+      if (previousUid && !nextUid && window.location.pathname !== "/login") {
+        window.location.href = "/login";
       }
     });
 

@@ -13,6 +13,7 @@ Ascend is deployable as a mobile-first PWA with:
 - OpenAI integration with demo fallbacks.
 - ToyyibPay-first subscription abstraction with manual/test activation, checkout creation, callback handling, and payment event records.
 - Daily compliance and risk job endpoint.
+- Browser back/forward and logout session refresh handling.
 
 ## Before Pilot Launch
 
