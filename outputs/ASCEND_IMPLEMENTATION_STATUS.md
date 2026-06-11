@@ -20,7 +20,9 @@ Implemented structure:
 - Demo food-photo macro estimation flow with editable calories, protein, carbs, and fat.
 - Demo food log persistence to local storage and dashboard summary.
 - AI nutrition coach chat screen.
+- Connected AI nutrition coach chat to the backend API.
 - Subscription plan screen.
+- Weekly progress report screen.
 - Progress photo screen.
 - Habit tracking screen.
 - Trainer client detail screen.
@@ -63,6 +65,7 @@ Implemented structure:
 - ToyyibPay webhook/callback handling for JSON and form-encoded callbacks.
 - Payment event recording for ToyyibPay callbacks.
 - OpenAI integration for food analysis, coach chat, and weekly summaries.
+- Client weekly report generation API.
 - AWS S3 signed upload integration.
 - Daily compliance job.
 - Risk alert job.

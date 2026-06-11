@@ -45,6 +45,8 @@ Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
 - `GET /compliance/history`
 - `POST /ai/chat`
 - `POST /ai/burn-estimate`
+- `GET /reports/weekly/current`
+- `POST /reports/weekly/generate`
 - `GET /subscriptions/me`
 - `POST /subscriptions/checkout`
 - `POST /subscriptions/demo-activate`

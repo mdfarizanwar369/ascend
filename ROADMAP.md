@@ -5,7 +5,7 @@
 Ascend is deployable as a mobile-first PWA with:
 
 - Firebase Auth login and signup.
-- Client onboarding, tracking, AI food logging, habits, progress photos, coach chat, and subscriptions.
+- Client onboarding, tracking, AI food logging, habits, progress photos, AI coach chat, weekly reports, and subscriptions.
 - Trainer signup, Trainer Pro gating, trainer approval, client work queue, client detail, messaging, risk alerts, and AI check-ins.
 - Owner/admin dashboard, users, trainer approvals, client assignment, referrals, subscriptions, and revenue attribution.
 - PostgreSQL as source of truth.

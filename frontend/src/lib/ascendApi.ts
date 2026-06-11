@@ -333,6 +333,36 @@ export function sendCoachMessage(message: string) {
   });
 }
 
+export function getCurrentWeeklyReport() {
+  return authed<{
+    report: {
+      id: string;
+      week_start: string;
+      week_end: string;
+      summary: string;
+      ai_generated_checkin?: string | null;
+      compliance_score?: number | null;
+      created_at: string;
+    } | null;
+  }>("/reports/weekly/current");
+}
+
+export function generateWeeklyReport() {
+  return authed<{
+    report: {
+      id: string;
+      week_start: string;
+      week_end: string;
+      summary: string;
+      ai_generated_checkin?: string | null;
+      compliance_score?: number | null;
+      created_at: string;
+    };
+  }>("/reports/weekly/generate", {
+    method: "POST"
+  });
+}
+
 export function estimateBurnFromText(text: string) {
   return authed<{
     estimate: {

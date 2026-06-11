@@ -158,6 +158,7 @@ export function ClientDashboard() {
   const premiumActions = [
     { href: "/food-log", title: "Snap food", detail: "AI macros" },
     { href: "/coach", title: "Ask coach", detail: "Meal guidance" },
+    { href: "/reports", title: "Weekly report", detail: "Progress summary" },
     { href: "/messages", title: "Message trainer", detail: user?.assigned_trainer_name ?? "Check in" },
     { href: "/progress", title: "Progress photo", detail: "Visual tracking" }
   ];

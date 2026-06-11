@@ -156,3 +156,23 @@ export async function createWeeklySummary(context: string) {
 
   return response.output_text;
 }
+
+export async function createClientWeeklyReport(context: string) {
+  if (!client) {
+    return "You kept the week moving. Focus next on one repeatable win: log meals earlier in the day, drink water before training, and keep your next weigh-in consistent.";
+  }
+
+  const response = await client.responses.create({
+    model: env.OPENAI_MODEL,
+    input: [
+      {
+        role: "system",
+        content:
+          "Create a concise client-facing weekly fitness accountability report. Be encouraging, specific, and beginner-friendly. Mention wins, one risk, and 2 next actions. Do not diagnose medical conditions."
+      },
+      { role: "user", content: context }
+    ]
+  });
+
+  return response.output_text;
+}
