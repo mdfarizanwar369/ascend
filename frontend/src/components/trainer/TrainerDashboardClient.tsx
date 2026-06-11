@@ -119,14 +119,17 @@ export function TrainerDashboardClient() {
       </section>
 
       <section className="mt-4 grid grid-cols-2 gap-3">
-        <button className="rounded-lg border border-line bg-surface p-4 text-left">
+        <Link
+          href={clients[0] ? `/trainer/clients/${clients[0].id}` : "/trainer"}
+          className="rounded-lg border border-line bg-surface p-4 text-left"
+        >
           <Sparkles className="text-calm" size={20} />
           <span className="mt-3 block text-sm font-medium">AI check-ins</span>
-        </button>
-        <button className="rounded-lg border border-line bg-surface p-4 text-left">
+        </Link>
+        <Link href={clients[0] ? `/messages?userId=${clients[0].id}` : "/messages"} className="rounded-lg border border-line bg-surface p-4 text-left">
           <MessageSquare className="text-lime" size={20} />
           <span className="mt-3 block text-sm font-medium">Messages</span>
-        </button>
+        </Link>
       </section>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">

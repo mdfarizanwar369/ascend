@@ -53,6 +53,7 @@ export function ClientDashboard() {
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
   const [complianceScore, setComplianceScore] = useState<number | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
   const [status, setStatus] = useState("Loading your Ascend profile...");
 
   useEffect(() => {
@@ -73,6 +74,7 @@ export function ClientDashboard() {
 
         if (!isMounted) return;
         setUser(me.user);
+        setRoles(me.roles);
         setFoodLogs(foods.foodLogs);
         setWeightLogs(weights.weightLogs);
         setWaterLogs(waters.waterLogs);
@@ -114,6 +116,13 @@ export function ClientDashboard() {
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = complianceScore ?? fallbackScore;
+  const canTrain = roles.some((role) => ["trainer", "admin", "owner"].includes(role));
+  const canAdmin = roles.some((role) => ["admin", "owner"].includes(role));
+  const navItems = [
+    { href: "/dashboard", label: "Home", selected: true, show: true },
+    { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
+    { href: "/admin", label: "Admin", selected: false, show: canAdmin }
+  ].filter((item) => item.show);
 
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
@@ -250,16 +259,18 @@ export function ClientDashboard() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
-        <div className="mx-auto grid max-w-md grid-cols-3 gap-2">
-          <a href="/dashboard" className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg bg-lime text-xs text-ink">
-            Home
-          </a>
-          <a href="/trainer" className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg text-xs text-zinc-400">
-            Trainer
-          </a>
-          <a href="/admin" className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg text-xs text-zinc-400">
-            Admin
-          </a>
+        <div className={`mx-auto grid max-w-md gap-2 ${navItems.length === 1 ? "grid-cols-1" : navItems.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+          {navItems.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              className={`flex h-14 flex-col items-center justify-center gap-1 rounded-lg text-xs ${
+                item.selected ? "bg-lime text-ink" : "text-zinc-400"
+              }`}
+            >
+              {item.label}
+            </a>
+          ))}
         </div>
       </nav>
     </main>

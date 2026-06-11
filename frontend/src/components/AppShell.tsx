@@ -2,13 +2,28 @@
 
 import { Activity, Camera, Home, MessageCircle, Shield, Users } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { getMe } from "@/lib/ascendApi";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
-  const items = [
-    { href: "/dashboard", label: "Home", icon: Home, key: "client" },
-    { href: "/trainer", label: "Trainer", icon: Users, key: "trainer" },
-    { href: "/admin", label: "Admin", icon: Shield, key: "admin" }
-  ] as const;
+  const [roles, setRoles] = useState<string[]>([]);
+
+  useEffect(() => {
+    getMe()
+      .then((response) => setRoles(response.roles))
+      .catch(() => setRoles(["client"]));
+  }, []);
+
+  const items = useMemo(() => {
+    const canTrain = roles.some((role) => ["trainer", "admin", "owner"].includes(role));
+    const canAdmin = roles.some((role) => ["admin", "owner"].includes(role));
+
+    return [
+      { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
+      { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: canTrain || active === "trainer" },
+      { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: canAdmin || active === "admin" }
+    ].filter((item) => item.show);
+  }, [active, roles]);
 
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
@@ -30,7 +45,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
         {children}
       </div>
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
-        <div className="mx-auto grid max-w-md grid-cols-3 gap-2">
+        <div className={`mx-auto grid max-w-md gap-2 ${items.length === 1 ? "grid-cols-1" : items.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
           {items.map((item) => {
             const Icon = item.icon;
             const selected = active === item.key;
