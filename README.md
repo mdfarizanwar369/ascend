@@ -254,4 +254,10 @@ TESTING_CHECKLIST.md
 - API spec: `docs/API_SPEC.md`
 - Deployment guide: `docs/DEPLOYMENT.md`
 - Railway beginner deployment: `docs/RAILWAY_DEPLOYMENT.md`
-- Manual testing: `TESTING_CHECKLIST.md`
+- Pilot launch checklist: `LAUNCH_CHECKLIST.md`
+- Critical bugs and blockers: `CRITICAL_BUGS.md`
+- Deployment checklist: `DEPLOYMENT_CHECKLIST.md`
+- Pilot testing checklist: `TESTING_CHECKLIST.md`
+- Environment variables: `ENVIRONMENT_VARIABLES.md`
+- External accounts: `EXTERNAL_ACCOUNTS.md`
+- Access testing: `ACCESS_TESTING_CHECKLIST.md`

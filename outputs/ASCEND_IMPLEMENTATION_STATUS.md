@@ -117,6 +117,12 @@ Seed data includes:
 - Deployment guide.
 - Architecture and roadmap document.
 - Railway daily job instructions.
+- Pilot launch checklist.
+- Critical bug/blocker register.
+- Deployment checklist.
+- Pilot testing checklist.
+- Environment variable inventory.
+- External account checklist.
 
 ## Verified Locally
 
@@ -144,3 +150,5 @@ Seed data includes:
 - Configure Railway Cron or external scheduler for `/api/v1/jobs/daily`.
 - Verify `docker compose up` on a machine where Docker Desktop is installed and visible.
 - Complete full manual test pass in `ACCESS_TESTING_CHECKLIST.md`.
+- Complete full pilot launch pass in `LAUNCH_CHECKLIST.md`.
+- Close or explicitly accept all Critical blockers in `CRITICAL_BUGS.md`.

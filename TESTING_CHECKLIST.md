@@ -1,16 +1,10 @@
-# Ascend Manual Testing Checklist
+# Ascend Pilot Testing Checklist
 
-Use this checklist after running the app locally on Windows.
+Use this after every production deploy before inviting real pilot users.
 
-## 1. Local Tooling
+## 1. Build And Static Validation
 
-- Run `node --version` and confirm Node.js is `22.x` or newer.
-- Run `npm --version` and confirm npm is available.
-- Run `docker compose version` and confirm Docker Compose is available.
-
-## 2. Install And Build
-
-From the project root:
+Run locally before pushing or after pulling latest:
 
 ```powershell
 npm install
@@ -21,328 +15,242 @@ npm run lint
 
 Expected:
 
-- Dependencies install without workspace errors.
-- Shared, backend, and frontend builds complete.
-- Backend compliance tests pass.
-- Lint/type checks complete.
+- [ ] Build passes.
+- [ ] Backend tests pass.
+- [ ] Frontend lint passes.
+- [ ] Backend type-check passes.
 
-## 3. Environment Files
-
-Confirm these files exist:
-
-- `.env`
-- `frontend/.env.local`
-- `backend/.env`
-
-Minimum local values:
-
-- `NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1`
-- `DATABASE_URL=postgres://ascend:ascend@localhost:5432/ascend`
-- `PORT=4000`
-- `CORS_ORIGIN=http://localhost:3000`
-
-## 4. Database
-
-Start PostgreSQL:
-
-```powershell
-docker compose up postgres
-```
-
-Run migration and seed:
-
-```powershell
-npm run migrate
-npm run seed
-```
-
-Expected:
-
-- Migration completes without SQL errors.
-- Seed completes without duplicate-key failures.
-- Seed can be run more than once.
-
-Seeded gyms:
-
-- Anytime Fitness Austin Green
-- Anytime Fitness Kulai Indahpura
-
-Seeded referral codes:
-
-- `AF-AUSTIN`
-- `AF-KULAI`
-- `TRAINER-JASON`
-- `TRAINER-SITI`
-
-## 5. Full Docker Run
-
-Run:
-
-```powershell
-docker compose up
-```
-
-Expected:
-
-- PostgreSQL becomes healthy.
-- Migration service exits successfully.
-- Seed service exits successfully.
-- Backend starts on port `4000`.
-- Frontend starts on port `3000`.
+## 2. Production Health
 
 Open:
 
-- `http://localhost:4000/api/v1/health`
-- `http://localhost:3000`
-
-Expected health response:
-
-```json
-{
-  "status": "ok",
-  "service": "ascend-api"
-}
-```
-
-## 6. PWA And Mobile-First UX
-
-Open `http://localhost:3000` in Chrome or Edge.
-
-Test mobile viewport:
-
-- Open DevTools.
-- Toggle device toolbar.
-- Test iPhone-sized and Android-sized viewports.
+- [ ] `https://backend-domain/api/v1/health`
+- [ ] `https://backend-domain/api/v1/health/storage`
+- [ ] `https://frontend-domain/login`
+- [ ] `https://frontend-domain/manifest.json`
 
 Expected:
 
-- No horizontal scrolling.
-- Bottom navigation is visible.
-- Floating food camera action is visible on dashboard screens.
-- Text does not overlap controls.
-- UI remains readable in dark mode.
+- [ ] Backend health returns ok.
+- [ ] Storage health shows configured before Premium photo testing.
+- [ ] Frontend loads without the Railway app error page.
+- [ ] PWA manifest loads.
 
-PWA checks:
+## 3. Public API Smoke Test
 
-- Open `http://localhost:3000/manifest.json`.
-- Confirm app name is `Ascend`.
-- Confirm display mode is `standalone`.
-- Confirm theme color is present.
-- In browser app install menu, confirm Ascend can be installed when served in production mode.
+Open or call:
 
-## 7. Public Pages
-
-Visit:
-
-- `http://localhost:3000`
-- `http://localhost:3000/login`
-- `http://localhost:3000/onboarding`
-- `http://localhost:3000/dashboard`
-- `http://localhost:3000/food-log`
-- `http://localhost:3000/coach`
-- `http://localhost:3000/reports`
-- `http://localhost:3000/subscription`
-- `http://localhost:3000/progress`
-- `http://localhost:3000/habits`
-- `http://localhost:3000/trainer`
-- `http://localhost:3000/trainer/clients/demo-client`
-- `http://localhost:3000/admin`
-- `http://localhost:3000/admin/referrals`
-- `http://localhost:3000/admin/subscriptions`
+- [ ] `GET /api/v1/gyms`
+- [ ] `GET /api/v1/referrals/validate/AF-AUSTIN`
+- [ ] `GET /api/v1/referrals/validate/AF-KULAI`
+- [ ] `GET /api/v1/referrals/validate/TRAINER-JASON`
+- [ ] `GET /api/v1/referrals/validate/TRAINER-SITI`
 
 Expected:
 
-- Every page loads.
-- Layout is mobile-first.
-- Austin Green and Kulai launch context appears where relevant.
-- Client, trainer, and admin flows are understandable without extra instructions.
+- [ ] Both launch gyms are present.
+- [ ] Gym referral codes show the correct gym.
+- [ ] Trainer referral codes show the correct trainer and gym.
 
-## 8. Public API Checks
+## 4. Firebase Auth
 
-Backend health:
+Client signup:
 
-```powershell
-Invoke-RestMethod http://localhost:4000/api/v1/health
-```
+- [ ] Open `/login`.
+- [ ] Choose Client.
+- [ ] Create a new account.
+- [ ] Use referral code `AF-AUSTIN`.
+- [ ] Complete onboarding.
+- [ ] Dashboard shows the entered name.
+- [ ] Account card shows Free Plan.
 
-Gyms:
+Trainer signup:
 
-```powershell
-Invoke-RestMethod http://localhost:4000/api/v1/gyms
-```
+- [ ] Open `/login`.
+- [ ] Choose Trainer.
+- [ ] Create a trainer account.
+- [ ] Use referral code `AF-KULAI`.
+- [ ] Trainer is not sent to client onboarding.
+- [ ] Trainer sees pending approval or Trainer Pro gating.
 
-Referral validation:
+Owner login:
 
-```powershell
-Invoke-RestMethod http://localhost:4000/api/v1/referrals/validate/AF-AUSTIN
-Invoke-RestMethod http://localhost:4000/api/v1/referrals/validate/AF-KULAI
-Invoke-RestMethod http://localhost:4000/api/v1/referrals/validate/TRAINER-JASON
-Invoke-RestMethod http://localhost:4000/api/v1/referrals/validate/TRAINER-SITI
-```
+- [ ] Log in with the configured owner email.
+- [ ] `/admin` loads.
+- [ ] Account card shows owner/admin access.
 
-Expected:
+## 5. Plan And Access Matrix
 
-- Both launch gyms return from `/gyms`.
-- Each referral code validates.
-- Gym codes include the correct gym.
-- Trainer codes include the correct trainer.
+Free client:
 
-## 9. Firebase-Protected API Checks
+- [ ] `/dashboard` loads.
+- [ ] `/weight-log` works.
+- [ ] `/water-log` works.
+- [ ] `/burn-log` works manually.
+- [ ] `/habits` works.
+- [ ] `/food-log` asks for Premium.
+- [ ] `/coach` asks for Premium.
+- [ ] `/reports` asks for Premium.
+- [ ] `/messages` asks for Premium.
+- [ ] `/progress` asks for Premium.
+- [ ] `/trainer` is blocked.
+- [ ] `/admin` is blocked.
 
-After Firebase is configured and a test user can sign in, get a Firebase ID token from the frontend session and use:
+Premium client:
 
-```powershell
-$headers = @{ Authorization = "Bearer <firebase_id_token>" }
-Invoke-RestMethod http://localhost:4000/api/v1/me -Headers $headers
-```
+- [ ] `/food-log` loads.
+- [ ] `/coach` loads and replies.
+- [ ] `/reports` loads and generates report.
+- [ ] `/messages` loads for assigned trainer.
+- [ ] `/progress` loads.
+- [ ] `/trainer` is blocked.
+- [ ] `/admin` is blocked.
 
-Expected:
+Trainer:
 
-- A seeded Firebase UID must exist in PostgreSQL or the API returns `User profile has not been provisioned`.
-- Once a matching user exists, `/me` returns the PostgreSQL user profile and roles.
+- [ ] `/trainer` loads after approval and Trainer Pro access.
+- [ ] Assigned clients appear.
+- [ ] Client detail opens.
+- [ ] Trainer can message assigned client.
+- [ ] `/admin` is blocked unless trainer is also admin.
 
-Provision a new Firebase-authenticated user:
+Owner/admin:
 
-```powershell
-$headers = @{ Authorization = "Bearer <firebase_id_token>" }
-$body = @{ fullName = "Test Member"; referralCode = "TRAINER-JASON"; primaryRole = "client" } | ConvertTo-Json
-Invoke-RestMethod http://localhost:4000/api/v1/auth/provision -Method Post -Headers $headers -Body $body -ContentType "application/json"
-```
+- [ ] `/admin` loads.
+- [ ] `/admin/users` loads.
+- [ ] `/admin/referrals` loads.
+- [ ] `/admin/subscriptions` loads.
+- [ ] `/trainer` loads.
+- [ ] Client detail opens from trainer dashboard.
 
-Expected:
+## 6. Client Tracking Flow
 
-- PostgreSQL user is created or updated.
-- Referral code links the user to the correct gym and trainer.
+As Premium client:
 
-## 10. Client Flow
+- [ ] Log food photo.
+- [ ] AI estimate returns food name, calories, protein, carbs, and fat.
+- [ ] Edit one estimate value.
+- [ ] Save food log.
+- [ ] Return to dashboard.
+- [ ] Calories and protein update for today.
+- [ ] Log water.
+- [ ] Dashboard water updates.
+- [ ] Log weight.
+- [ ] Dashboard weight/trend updates.
+- [ ] Log burn.
+- [ ] Dashboard burn updates.
+- [ ] Create habit.
+- [ ] Check habit.
+- [ ] Dashboard habit shows checked.
+- [ ] Upload progress photo.
 
-Manual flow:
+## 7. AI Flow
 
-- Open `/login`.
-- If Firebase is not configured, confirm the demo-mode button appears and opens `/dashboard`.
-- If Firebase is configured, create a test account and confirm the user is provisioned by the backend.
-- Open `/onboarding`.
-- Use referral code `TRAINER-JASON`.
-- Select fat loss.
-- Confirm the UI clearly asks for current and target weight.
-- Open `/dashboard`.
-- Confirm compliance score, calories, water, weight, and habits are visible.
-- Open `/food-log`.
-- Select a food photo.
-- Click `Estimate calories and macros`.
-- Confirm calories, protein, carbs, fat, food name, confidence, and notes appear.
-- Edit at least one macro value.
-- Save the log.
-- Return to `/dashboard` and confirm the latest demo food log appears.
-- Open `/coach`.
-- Send a message and confirm the AI coach replies.
-- Open `/reports`.
-- Generate a weekly report and confirm a summary appears.
-- Open `/subscription`.
-- Confirm Free, Premium RM19, and Trainer Pro RM99 appear.
+Without OpenAI key:
 
-## 11. Trainer Flow
+- [ ] Food estimate returns demo Nasi Lemak-style estimate.
+- [ ] Coach returns safe demo guidance.
+- [ ] Weekly report returns safe demo summary.
+- [ ] Trainer weekly check-in returns safe demo summary.
 
-Open `/trainer`.
+With OpenAI key:
 
-Expected:
+- [ ] Nasi Lemak image produces plausible local-food estimate.
+- [ ] Chicken Rice image produces plausible local-food estimate.
+- [ ] Roti Canai image produces plausible local-food estimate.
+- [ ] Coach responds to a practical meal question.
+- [ ] Burn estimate handles natural language such as `ran 30km`.
+- [ ] Weekly report summarizes current week.
 
-- Trainer can see assigned clients.
-- Risk alert section is visible.
-- Client scores and goals are visible.
-- AI check-in and messaging actions are visible.
+## 8. Trainer Workflow
 
-Protected API checks after auth is configured:
+- [ ] Owner approves trainer.
+- [ ] Owner assigns a client to trainer.
+- [ ] Trainer dashboard lists that client.
+- [ ] Trainer client detail shows:
+  - food logs
+  - water logs
+  - weight logs
+  - progress photos
+  - compliance score
+  - messages
+- [ ] Trainer sends message to client.
+- [ ] Client sees trainer message.
+- [ ] Client sends reply.
+- [ ] Trainer sees client reply.
+- [ ] Trainer generates AI weekly check-in.
 
-- `GET /api/v1/trainer/clients`
-- `GET /api/v1/trainer/risk-alerts`
-- `GET /api/v1/trainer/clients/:clientId/food-logs`
-- `GET /api/v1/trainer/clients/:clientId/weight-logs`
-- `GET /api/v1/trainer/clients/:clientId/water-logs`
-- `PATCH /api/v1/trainer/risk-alerts/:id`
-- `GET /api/v1/messages/:userId`
-- `POST /api/v1/messages`
+## 9. Admin Workflow
 
-Expected:
+- [ ] Owner sees total revenue.
+- [ ] Owner sees revenue by gym.
+- [ ] Owner sees revenue by trainer.
+- [ ] Owner sees pending trainers.
+- [ ] Owner sees unassigned clients.
+- [ ] Owner can assign client to trainer.
+- [ ] Gym referral analytics separate from trainer referral analytics.
+- [ ] Subscriptions page shows plan, provider, status, gym attribution, trainer attribution.
 
-- Trainer only sees assigned clients.
-- Admin/owner can see broader data.
-- Alert status can be updated.
+## 10. Subscription Flow
 
-## 12. Admin / Owner Flow
+Test activation, if allowed during pilot:
 
-Open `/admin`.
+- [ ] Activate Premium test plan.
+- [ ] Dashboard updates to Premium.
+- [ ] Premium pages unlock.
+- [ ] Activate Trainer Pro test plan for trainer.
+- [ ] Trainer dashboard unlocks.
 
-Expected:
+ToyyibPay:
 
-- Revenue by Austin Green and Kulai Indahpura is visible.
-- Revenue by trainer is visible.
-- Client assignment and referral code actions are visible.
+- [ ] Premium checkout opens ToyyibPay.
+- [ ] Trainer Pro checkout opens ToyyibPay.
+- [ ] Return from ToyyibPay goes to `/subscription`.
+- [ ] Callback activates paid subscription.
+- [ ] Cancelled/failed payment does not activate subscription.
+- [ ] Admin subscription view shows payment attribution.
 
-Protected API checks after auth is configured:
+## 11. Daily Job
 
-- `GET /api/v1/admin/users`
-- `GET /api/v1/admin/trainers`
-- `GET /api/v1/admin/subscriptions`
-- `GET /api/v1/admin/referrals/analytics`
-- `GET /api/v1/admin/analytics/revenue`
-- `GET /api/v1/admin/analytics/usage`
-- `GET /api/v1/admin/analytics/compliance`
+Manual run:
 
-Expected:
+- [ ] Call `POST /api/v1/jobs/daily` with `x-cron-secret`.
+- [ ] Response reports completed job.
+- [ ] Compliance scores update.
+- [ ] Risk alerts appear for relevant trainer clients.
 
-- Gym referral revenue is attributed correctly.
-- Trainer referral revenue is attributed correctly.
-- Admin can view subscriptions and referral analytics.
-- Admin can compare usage and compliance across Austin Green and Kulai Indahpura.
+Scheduled run:
 
-## 13. OpenAI Checks
+- [ ] Railway Cron or external scheduler is enabled.
+- [ ] Scheduler runs once successfully.
+- [ ] Backend logs show daily job request.
 
-Without `OPENAI_API_KEY`:
+## 12. Mobile / PWA
 
-- Food log screen should support demo AI estimates and local demo saving.
-- Food estimate endpoint should return demo Nasi Lemak estimate when called from an authenticated backend flow.
-- Coach endpoint should return demo coaching text.
-- Weekly report endpoint should return demo report text.
-- Trainer weekly check-in endpoint should return demo summary.
+Phone browser:
 
-With `OPENAI_API_KEY`:
+- [ ] Login works.
+- [ ] Leave browser for 5 minutes.
+- [ ] Return and refresh.
+- [ ] User remains logged in.
+- [ ] Dashboard shows correct name and plan.
+- [ ] No page jumps to another account state.
 
-- Food image analysis should return structured calories and macros.
-- Malaysia and Singapore foods should be prioritized.
-- User should be able to edit AI estimates before saving.
-- Coach chat should return a relevant response.
-- Weekly report generation should summarize the user's current week.
+PWA:
 
-## 14. ToyyibPay Checks
+- [ ] Add to home screen works.
+- [ ] App opens standalone.
+- [ ] Logo appears.
+- [ ] Bottom navigation is usable.
+- [ ] No horizontal scroll on key pages.
 
-Without ToyyibPay credentials:
+## 13. Final Pilot Acceptance
 
-- Checkout endpoint should return a demo checkout URL with a provider reference.
-
-With ToyyibPay credentials:
-
-- Premium checkout creates a ToyyibPay bill.
-- Trainer Pro checkout creates a ToyyibPay bill.
-- Callback reaches `/api/v1/webhooks/toyyibpay`.
-- Subscription status updates from callback.
-- Revenue attribution remains tied to referred gym and trainer.
-
-## 15. Known Not-Yet-Verified Items
-
-The npm validation path has been run successfully:
-
-- Dependency installation.
-- Next.js production build.
-- Backend TypeScript build.
-- Backend tests.
-- Frontend ESLint.
-- Backend type check.
-
-Still verify these locally with your real services:
-
-- Docker image build and `docker compose up`.
-- PostgreSQL migration execution against your local Docker database.
-- ToyyibPay live callback verification.
-- Firebase live sign-in.
-- OpenAI live image estimation.
+- [ ] All Critical blockers in `CRITICAL_BUGS.md` are closed or explicitly accepted.
+- [ ] Owner can operate admin tools.
+- [ ] Trainer can operate client accountability tools.
+- [ ] Client can complete daily tracking.
+- [ ] Payment/subscription path is verified.
+- [ ] Storage path is verified.
+- [ ] AI path is verified.
+- [ ] Database backup is confirmed.
