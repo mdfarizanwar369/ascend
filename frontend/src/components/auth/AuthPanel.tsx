@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { ArrowRight, Dumbbell, LogIn } from "lucide-react";
-import { getFirebaseClientAuth } from "@/lib/firebase";
+import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { Field, inputClass } from "@/components/Field";
 import { getMe } from "@/lib/ascendApi";
@@ -37,10 +37,12 @@ export function AuthPanel() {
     setStatus(null);
 
     try {
+      await waitForFirebasePersistence();
+      const auth = getFirebaseClientAuth();
       const credential =
         mode === "signup"
-          ? await createUserWithEmailAndPassword(getFirebaseClientAuth(), email, password)
-          : await signInWithEmailAndPassword(getFirebaseClientAuth(), email, password);
+          ? await createUserWithEmailAndPassword(auth, email, password)
+          : await signInWithEmailAndPassword(auth, email, password);
 
       if (mode === "signup" && fullName) {
         await updateProfile(credential.user, { displayName: fullName });

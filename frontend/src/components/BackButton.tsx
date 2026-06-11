@@ -7,12 +7,7 @@ export function BackButton({ fallbackHref = "/dashboard" }: { fallbackHref?: str
   const router = useRouter();
 
   function goBack() {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
-
-    window.location.href = fallbackHref;
+    router.push(fallbackHref);
   }
 
   return (

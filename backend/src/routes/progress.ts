@@ -35,9 +35,13 @@ progressRouter.post("/progress-photos", requireAuth, requireActivePlan("premium"
   }
 });
 
-progressRouter.get("/progress-photos", requireAuth, requireActivePlan("premium"), async (req, res) => {
-  const result = await query("select * from progress_photos where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
-  res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
+progressRouter.get("/progress-photos", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+  try {
+    const result = await query("select * from progress_photos where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
+    res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 progressRouter.get(
@@ -45,17 +49,21 @@ progressRouter.get(
   requireAuth,
   requireActivePlan("trainer_pro"),
   requireRole(["trainer", "admin", "owner"]),
-  async (req, res) => {
-    const result = await query(
-      `
-      select pp.*
-      from progress_photos pp
-      join users u on u.id = pp.user_id
-      where pp.user_id = $1 and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
-      order by pp.logged_at desc
-      `,
-      [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
-    );
-    res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
+  async (req, res, next) => {
+    try {
+      const result = await query(
+        `
+        select pp.*
+        from progress_photos pp
+        join users u on u.id = pp.user_id
+        where pp.user_id = $1 and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
+        order by pp.logged_at desc
+        `,
+        [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+      );
+      res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
+    } catch (error) {
+      next(error);
+    }
   }
 );

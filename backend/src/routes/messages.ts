@@ -147,38 +147,42 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
   }
 });
 
-messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res) => {
-  const context = await getTrainerClientThreadContext(req.params.clientId, req.user!.trainerId, req.user!.roles);
-  if (!context) return res.status(404).json({ error: "Client not found" });
+messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res, next) => {
+  try {
+    const context = await getTrainerClientThreadContext(req.params.clientId, req.user!.trainerId, req.user!.roles);
+    if (!context) return res.status(404).json({ error: "Client not found" });
 
-  const participantIds = [context.client_user_id, req.user!.id];
-  if (context.trainer_user_id) participantIds.push(context.trainer_user_id);
+    const participantIds = [context.client_user_id, req.user!.id];
+    if (context.trainer_user_id) participantIds.push(context.trainer_user_id);
 
-  const result = await query(
-    `
-    select *
-    from messages
-    where sender_user_id = any($1::uuid[])
-      and receiver_user_id = any($1::uuid[])
-      and (sender_user_id = $2 or receiver_user_id = $2)
-    order by created_at desc
-    limit 100
-    `,
-    [participantIds, context.client_user_id]
-  );
+    const result = await query(
+      `
+      select *
+      from messages
+      where sender_user_id = any($1::uuid[])
+        and receiver_user_id = any($1::uuid[])
+        and (sender_user_id = $2 or receiver_user_id = $2)
+      order by created_at desc
+      limit 100
+      `,
+      [participantIds, context.client_user_id]
+    );
 
-  await query(
-    `
-    update messages
-    set read_at = now()
-    where receiver_user_id = $1
-      and sender_user_id = $2
-      and read_at is null
-    `,
-    [req.user!.id, context.client_user_id]
-  );
+    await query(
+      `
+      update messages
+      set read_at = now()
+      where receiver_user_id = $1
+        and sender_user_id = $2
+        and read_at is null
+      `,
+      [req.user!.id, context.client_user_id]
+    );
 
-  res.json({ messages: result.rows.reverse() });
+    res.json({ messages: result.rows.reverse() });
+  } catch (error) {
+    next(error);
+  }
 });
 
 messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res, next) => {

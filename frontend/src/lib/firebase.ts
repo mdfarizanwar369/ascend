@@ -1,5 +1,7 @@
 import { getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
+
+let persistenceReady: Promise<void> | null = null;
 
 export function getFirebaseClientAuth() {
   if (typeof window === "undefined") {
@@ -18,5 +20,13 @@ export function getFirebaseClientAuth() {
   }
 
   const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
-  return getAuth(firebaseApp);
+  const auth = getAuth(firebaseApp);
+
+  persistenceReady ??= setPersistence(auth, browserLocalPersistence).catch(() => {});
+  return auth;
+}
+
+export async function waitForFirebasePersistence() {
+  getFirebaseClientAuth();
+  await persistenceReady;
 }

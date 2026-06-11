@@ -1,11 +1,12 @@
 import { onAuthStateChanged, User } from "firebase/auth";
-import { getFirebaseClientAuth } from "./firebase";
+import { getFirebaseClientAuth, waitForFirebasePersistence } from "./firebase";
 
 export async function getFirebaseToken() {
+  await waitForFirebasePersistence();
   const auth = getFirebaseClientAuth();
   const user = auth.currentUser ?? (await waitForFirebaseUser());
   if (!user) return undefined;
-  return user.getIdToken(true);
+  return user.getIdToken();
 }
 
 function waitForFirebaseUser() {

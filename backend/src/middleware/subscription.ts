@@ -19,7 +19,7 @@ export function requireActivePlan(requiredPlan: Exclude<SubscriptionPlan, "free"
         select plan, status
         from subscriptions
         where user_id = $1 and status in ('active', 'trialing')
-        order by created_at desc
+        order by case plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, created_at desc
         limit 1
         `,
         [req.user.id]

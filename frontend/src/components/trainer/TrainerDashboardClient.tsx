@@ -50,11 +50,16 @@ export function TrainerDashboardClient() {
 
     async function load() {
       try {
-        const [clientResponse, alertResponse] = await Promise.all([getTrainerClients(), getTrainerRiskAlerts()]);
+        const clientResponse = await getTrainerClients();
         if (!isMounted) return;
         setClients(clientResponse.clients);
-        setAlerts(alertResponse.alerts);
         setStatus("");
+
+        const alertResponse = await getTrainerRiskAlerts().catch(() => null);
+        if (!isMounted) return;
+        if (alertResponse) {
+          setAlerts(alertResponse.alerts);
+        }
       } catch (error) {
         if (isMounted) {
           setStatus(error instanceof Error ? error.message : "Could not load trainer dashboard. Please log in again.");

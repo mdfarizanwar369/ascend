@@ -53,8 +53,13 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
     async function load() {
       try {
-        const [profile, foods, nextMessages, progress, weights, waters] = await Promise.all([
-          getTrainerClient(clientId),
+        const profile = await getTrainerClient(clientId);
+
+        if (!isMounted) return;
+        setClient(profile.client);
+        setStatus("");
+
+        const [foods, nextMessages, progress, weights, waters] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
@@ -63,15 +68,17 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ]);
 
         if (!isMounted) return;
-        setClient(profile.client);
-        setFoodLogs(foods.foodLogs);
-        setMessages(nextMessages.messages);
-        setProgressPhotos(progress.progressPhotos);
-        setWeightLogs(weights.weightLogs);
-        setWaterLogs(waters.waterLogs);
-        setStatus("");
-      } catch {
-        if (isMounted) setStatus("Could not load this client. Make sure this is a trainer, owner, or admin account.");
+        if (foods.status === "fulfilled") setFoodLogs(foods.value.foodLogs);
+        if (nextMessages.status === "fulfilled") setMessages(nextMessages.value.messages);
+        if (progress.status === "fulfilled") setProgressPhotos(progress.value.progressPhotos);
+        if (weights.status === "fulfilled") setWeightLogs(weights.value.weightLogs);
+        if (waters.status === "fulfilled") setWaterLogs(waters.value.waterLogs);
+
+        if ([foods, nextMessages, progress, weights, waters].some((result) => result.status === "rejected")) {
+          setStatus("Some client sections could not load yet. The main client profile is still available.");
+        }
+      } catch (error) {
+        if (isMounted) setStatus(error instanceof Error ? error.message : "Could not load this client.");
       }
     }
 
