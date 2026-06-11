@@ -36,6 +36,10 @@ function asNumber(value: string | number | null | undefined) {
   return Number(value);
 }
 
+function dateKey(value?: string | null) {
+  return String(value ?? "").slice(0, 10);
+}
+
 function quickLogHref(item: string) {
   if (item === "Food") return "/food-log";
   if (item === "Weight") return "/weight-log";
@@ -74,13 +78,13 @@ export function ClientDashboard() {
 
         if (!isMounted) return;
         setUser(me.user);
-        setRoles(me.roles);
-        setFoodLogs(foods.foodLogs);
-        setWeightLogs(weights.weightLogs);
-        setWaterLogs(waters.waterLogs);
-        setHabits(nextHabits.habits);
-        setHabitLogs(nextHabitLogs.habitLogs);
-        setBurnLogs(burns.burnLogs);
+        setRoles(Array.isArray(me.roles) ? me.roles : []);
+        setFoodLogs(Array.isArray(foods.foodLogs) ? foods.foodLogs : []);
+        setWeightLogs(Array.isArray(weights.weightLogs) ? weights.weightLogs : []);
+        setWaterLogs(Array.isArray(waters.waterLogs) ? waters.waterLogs : []);
+        setHabits(Array.isArray(nextHabits.habits) ? nextHabits.habits : []);
+        setHabitLogs(Array.isArray(nextHabitLogs.habitLogs) ? nextHabitLogs.habitLogs : []);
+        setBurnLogs(Array.isArray(burns.burnLogs) ? burns.burnLogs : []);
         setComplianceScore(compliance.compliance?.score ?? null);
         setStatus("");
       } catch {
@@ -97,17 +101,17 @@ export function ClientDashboard() {
   }, []);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const todaysFood = foodLogs.filter((log) => log.logged_at.slice(0, 10) === today);
-  const todaysWaterMl = waterLogs.filter((log) => log.logged_at.slice(0, 10) === today).reduce((total, log) => total + log.amount_ml, 0);
+  const todaysFood = foodLogs.filter((log) => dateKey(log.logged_at) === today);
+  const todaysWaterMl = waterLogs.filter((log) => dateKey(log.logged_at) === today).reduce((total, log) => total + Number(log.amount_ml ?? 0), 0);
   const todaysBurnCalories = burnLogs
-    .filter((log) => log.created_at.slice(0, 10) === today)
+    .filter((log) => dateKey(log.created_at) === today)
     .reduce((total, log) => total + Number(log.metadata?.caloriesBurned ?? 0), 0);
   const latestFood = foodLogs[0];
   const latestWeight = weightLogs[0];
   const completedHabitIds = useMemo(
     () =>
       new Set(
-        habitLogs.filter((log) => log.completed && log.logged_at.slice(0, 10) === today).map((log) => log.habit_id)
+        habitLogs.filter((log) => log.completed && dateKey(log.logged_at) === today).map((log) => log.habit_id)
       ),
     [habitLogs, today]
   );
@@ -116,8 +120,9 @@ export function ClientDashboard() {
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = complianceScore ?? fallbackScore;
-  const canTrain = roles.some((role) => ["trainer", "admin", "owner"].includes(role));
-  const canAdmin = roles.some((role) => ["admin", "owner"].includes(role));
+  const safeRoles = Array.isArray(roles) ? roles : [];
+  const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
+  const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
   const navItems = [
     { href: "/dashboard", label: "Home", selected: true, show: true },
     { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
