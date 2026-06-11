@@ -25,7 +25,9 @@ export function RoleGate({
     getMe()
       .then((response) => {
         if (!isMounted) return;
-        const allowed = response.roles.some((role) => allowedRoleSet.has(role));
+        const roles = Array.isArray(response.roles) ? response.roles : [];
+        const primaryRole = response.user.primary_role;
+        const allowed = roles.some((role) => allowedRoleSet.has(role)) || Boolean(primaryRole && allowedRoleSet.has(primaryRole));
         setState(allowed ? "allowed" : "blocked");
       })
       .catch(() => {

@@ -40,6 +40,7 @@ export function getMe() {
       id: string;
       email: string;
       full_name: string;
+      primary_role?: "client" | "trainer" | "admin" | "owner";
       goal_type?: GoalType | null;
       starting_weight_kg?: string | number | null;
       target_weight_kg?: string | number | null;
