@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { Role } from "@ascend/shared";
 import { query } from "../db/pool";
 import { getFirebaseAuth } from "../integrations/firebase";
+import { env } from "../config/env";
 
 export interface AuthUser {
   id: string;
@@ -74,6 +75,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     const dbUser = userResult.rows[0];
     if (!dbUser) return res.status(403).json({ error: "User profile has not been provisioned" });
+
+    const ownerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
+    if (ownerEmail && dbUser.email.trim().toLowerCase() === ownerEmail) {
+      await query("update users set primary_role = 'owner', updated_at = now() where id = $1", [dbUser.id]);
+      await query("delete from user_roles where user_id = $1", [dbUser.id]);
+      await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [dbUser.id]);
+      dbUser.primary_role = "owner";
+      dbUser.roles = ["owner", "admin"];
+    }
 
     req.user = {
       id: dbUser.id,

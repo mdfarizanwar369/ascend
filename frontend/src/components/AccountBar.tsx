@@ -14,7 +14,7 @@ export function AccountBar({ email, roles }: { email?: string | null; roles?: st
     <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface p-3">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium">{email ?? "Signed in"}</p>
-        <p className="mt-1 text-xs text-zinc-400">{roles?.length ? `Role: ${roles.join(", ")}` : "Role loading..."}</p>
+        <p className="mt-1 text-xs text-zinc-400">{roles?.length ? `Role: ${roles.join(", ")}` : "Role: not loaded yet"}</p>
       </div>
       <button
         type="button"
