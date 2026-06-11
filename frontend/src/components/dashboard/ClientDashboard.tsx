@@ -13,6 +13,7 @@ import {
   getWeightLogs
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
+import { usablePlan } from "@/lib/subscriptionPlan";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -79,7 +80,7 @@ export function ClientDashboard() {
 
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);
-      setPlan(subscription.subscription.status === "active" ? subscription.subscription.plan : "free");
+      setPlan(usablePlan(subscription.subscription.plan, subscription.subscription.status));
       setFoodLogs(Array.isArray(foods.foodLogs) ? foods.foodLogs : []);
       setWeightLogs(Array.isArray(weights.weightLogs) ? weights.weightLogs : []);
       setWaterLogs(Array.isArray(waters.waterLogs) ? waters.waterLogs : []);

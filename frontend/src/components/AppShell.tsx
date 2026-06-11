@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AccountBar } from "@/components/AccountBar";
 import { BackButton } from "@/components/BackButton";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
+import { usablePlan } from "@/lib/subscriptionPlan";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
   const [account, setAccount] = useState<{
@@ -27,7 +28,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           email: me.user.email,
           fullName: me.user.full_name,
           roles: me.roles,
-          plan: subscription.subscription.status === "active" ? subscription.subscription.plan : "free"
+          plan: usablePlan(subscription.subscription.plan, subscription.subscription.status)
         })
       )
       .catch(() => setAccount({}));

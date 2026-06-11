@@ -5,6 +5,7 @@ import { Flame, Save } from "lucide-react";
 import { estimateBurnFromText, getBurnLogs, getMe, getMySubscription, saveBurnLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
+import { usablePlan } from "@/lib/subscriptionPlan";
 
 const burnRates: Record<string, number> = {
   Walking: 4,
@@ -109,7 +110,7 @@ export function BurnLogClient() {
     Promise.all([getMySubscription(), getMe()])
       .then(([subscriptionResponse, meResponse]) => {
         if (!isMounted) return;
-        const plan = subscriptionResponse.subscription.status === "active" ? subscriptionResponse.subscription.plan : "free";
+        const plan = usablePlan(subscriptionResponse.subscription.plan, subscriptionResponse.subscription.status);
         setCanUseAiEstimate(plan === "premium" || plan === "trainer_pro" || meResponse.roles.includes("admin") || meResponse.roles.includes("owner"));
       })
       .catch(() => {

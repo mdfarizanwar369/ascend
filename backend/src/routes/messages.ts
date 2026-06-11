@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
+import { requireActivePlan } from "../middleware/subscription";
 
 export const messagesRouter = Router();
 
@@ -61,7 +62,7 @@ async function getTrainerClientThreadContext(clientId: string, currentTrainerId:
   return result.rows[0] ?? null;
 }
 
-messagesRouter.get("/messages/contacts", requireAuth, async (req, res) => {
+messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium"), async (req, res) => {
   if (req.user!.roles.includes("admin") || req.user!.roles.includes("owner")) {
     const result = await query(
       `
@@ -103,7 +104,7 @@ messagesRouter.get("/messages/contacts", requireAuth, async (req, res) => {
   return res.json({ contacts: result.rows });
 });
 
-messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, async (req, res) => {
+messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res) => {
   const context = await getTrainerClientThreadContext(req.params.clientId, req.user!.trainerId, req.user!.roles);
   if (!context) return res.status(404).json({ error: "Client not found" });
 
@@ -137,7 +138,7 @@ messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, async (re
   res.json({ messages: result.rows.reverse() });
 });
 
-messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, async (req, res, next) => {
+messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res, next) => {
   try {
     const input = trainerClientMessageSchema.parse(req.body);
     const context = await getTrainerClientThreadContext(req.params.clientId, req.user!.trainerId, req.user!.roles);
@@ -153,7 +154,7 @@ messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, async (r
   }
 });
 
-messagesRouter.get("/messages/:userId", requireAuth, async (req, res) => {
+messagesRouter.get("/messages/:userId", requireAuth, requireActivePlan("premium"), async (req, res) => {
   const allowed = await canMessageUser(req.user!.id, req.user!.trainerId, req.user!.roles, req.params.userId);
   if (!allowed) return res.status(403).json({ error: "You cannot message this user" });
 
@@ -177,7 +178,7 @@ messagesRouter.get("/messages/:userId", requireAuth, async (req, res) => {
   res.json({ messages: result.rows.reverse() });
 });
 
-messagesRouter.post("/messages", requireAuth, async (req, res, next) => {
+messagesRouter.post("/messages", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = messageSchema.parse(req.body);
     const allowed = await canMessageUser(req.user!.id, req.user!.trainerId, req.user!.roles, input.receiverUserId);

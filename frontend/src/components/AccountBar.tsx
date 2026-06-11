@@ -4,12 +4,7 @@ import { LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { SubscriptionPlan } from "@ascend/shared";
 import { getFirebaseClientAuth } from "@/lib/firebase";
-
-function formatPlan(plan?: SubscriptionPlan | null) {
-  if (plan === "trainer_pro") return "Trainer Pro";
-  if (plan === "premium") return "Premium";
-  return "Free Plan";
-}
+import { formatPlan } from "@/lib/subscriptionPlan";
 
 function displayName(fullName?: string | null, email?: string | null) {
   const trimmedName = fullName?.trim();

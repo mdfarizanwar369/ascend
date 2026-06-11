@@ -6,12 +6,7 @@ import { SubscriptionPlan } from "@ascend/shared";
 import { useEffect, useMemo, useState } from "react";
 import { BackButton } from "@/components/BackButton";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
-
-const planRank: Record<SubscriptionPlan, number> = {
-  free: 0,
-  premium: 1,
-  trainer_pro: 2
-};
+import { planRank, usablePlan } from "@/lib/subscriptionPlan";
 
 function planLabel(plan: Exclude<SubscriptionPlan, "free">) {
   return plan === "trainer_pro" ? "Trainer Pro" : "Premium";
@@ -38,7 +33,7 @@ export function PlanGate({
     Promise.all([getMySubscription(), getMe()])
       .then(([subscriptionResponse, meResponse]) => {
         if (!isMounted) return;
-        setActivePlan(subscriptionResponse.subscription.status === "active" ? subscriptionResponse.subscription.plan : "free");
+        setActivePlan(usablePlan(subscriptionResponse.subscription.plan, subscriptionResponse.subscription.status));
         setRoles(meResponse.roles);
       })
       .catch(() => {

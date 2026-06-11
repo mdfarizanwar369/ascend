@@ -8,7 +8,19 @@ import { paymentProvider } from "../integrations/payments";
 export const subscriptionsRouter = Router();
 
 subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
-  const result = await query("select * from subscriptions where user_id = $1 order by created_at desc limit 1", [req.user!.id]);
+  const result = await query(
+    `
+    select *
+    from subscriptions
+    where user_id = $1
+    order by
+      case when status in ('active', 'trialing') then 0 else 1 end,
+      case plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc,
+      created_at desc
+    limit 1
+    `,
+    [req.user!.id]
+  );
   res.json({ subscription: result.rows[0] ?? { plan: "free", status: "active" } });
 });
 

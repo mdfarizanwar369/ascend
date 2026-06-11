@@ -5,18 +5,13 @@ import { Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
 import { activateDemoSubscription, createCheckout, getMySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 
 const features: Record<SubscriptionPlan, string[]> = {
   free: ["Weight tracking", "Water tracking", "Basic logs"],
   premium: ["AI food photo estimates", "AI nutrition coach", "Weekly reports", "Trainer accountability"],
   trainer_pro: ["Trainer dashboard", "Client risk alerts", "AI weekly check-ins", "Client messaging"]
 };
-
-function formatPlan(plan?: string) {
-  if (plan === "trainer_pro") return "Trainer Pro";
-  if (plan === "premium") return "Premium";
-  return "Free";
-}
 
 export function SubscriptionClient() {
   const [activePlan, setActivePlan] = useState<SubscriptionPlan>("free");
@@ -25,11 +20,12 @@ export function SubscriptionClient() {
 
   async function loadSubscription() {
     const response = await getMySubscription();
-    setActivePlan(response.subscription.plan);
+    const nextPlan = usablePlan(response.subscription.plan, response.subscription.status);
+    setActivePlan(nextPlan);
     setStatus(
-      response.subscription.status === "active"
-        ? `Current plan: ${formatPlan(response.subscription.plan)}`
-        : `Current plan: ${formatPlan(response.subscription.plan)} (${response.subscription.status})`
+      nextPlan !== "free"
+        ? `Current plan: ${formatPlan(nextPlan)}`
+        : "Current plan: Free Plan"
     );
   }
 
