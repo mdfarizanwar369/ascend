@@ -25,35 +25,58 @@ export function PlanGate({
 }) {
   const [activePlan, setActivePlan] = useState<SubscriptionPlan>("free");
   const [roles, setRoles] = useState<string[]>([]);
+  const [primaryRole, setPrimaryRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  async function loadAccess() {
+    const [subscriptionResult, profileResult] = await Promise.allSettled([getMySubscription(), getMe()]);
+
+    if (subscriptionResult.status === "fulfilled") {
+      setActivePlan(usablePlan(subscriptionResult.value.subscription.plan, subscriptionResult.value.subscription.status));
+    }
+
+    if (profileResult.status === "fulfilled") {
+      setRoles(Array.isArray(profileResult.value.roles) ? profileResult.value.roles : []);
+      setPrimaryRole(profileResult.value.user.primary_role ?? null);
+    }
+
+    setIsLoading(false);
+  }
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getMySubscription(), getMe()])
-      .then(([subscriptionResponse, meResponse]) => {
-        if (!isMounted) return;
-        setActivePlan(usablePlan(subscriptionResponse.subscription.plan, subscriptionResponse.subscription.status));
-        setRoles(meResponse.roles);
-      })
-      .catch(() => {
-        if (!isMounted) return;
-        setActivePlan("free");
-        setRoles([]);
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+    loadAccess().catch(() => {
+      if (!isMounted) return;
+      setActivePlan("free");
+      setRoles([]);
+      setPrimaryRole(null);
+      setIsLoading(false);
+    });
 
     return () => {
       isMounted = false;
     };
   }, []);
 
+  useEffect(() => {
+    function refreshAfterBack(event: PageTransitionEvent) {
+      if (!event.persisted) return;
+      setIsLoading(true);
+      loadAccess().catch(() => setIsLoading(false));
+    }
+
+    window.addEventListener("pageshow", refreshAfterBack);
+
+    return () => {
+      window.removeEventListener("pageshow", refreshAfterBack);
+    };
+  }, []);
+
   const hasAccess = useMemo(() => {
-    if (roles.includes("owner") || roles.includes("admin")) return true;
+    if (roles.includes("owner") || roles.includes("admin") || primaryRole === "owner" || primaryRole === "admin") return true;
     return planRank[activePlan] >= planRank[requiredPlan];
-  }, [activePlan, requiredPlan, roles]);
+  }, [activePlan, primaryRole, requiredPlan, roles]);
 
   if (isLoading) {
     return (
