@@ -24,11 +24,22 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
     const isExistingUser = Boolean(existingUser.rows[0]);
     const referral = input.referralCode
       ? await query<{ id: string; gym_id: string | null; trainer_id: string | null }>(
-          "select id, gym_id, trainer_id from referral_codes where code = $1 and active = true",
+          `
+          select rc.id, coalesce(rc.gym_id, referred_trainer.gym_id) as gym_id, rc.trainer_id
+          from referral_codes rc
+          left join trainers referred_trainer on referred_trainer.id = rc.trainer_id
+          where rc.code = $1 and rc.active = true
+          `,
           [input.referralCode.toUpperCase()]
         )
       : undefined;
     const referralRow = referral?.rows[0];
+    const fallbackGym =
+      primaryRole === "trainer" && !referralRow?.gym_id
+        ? await query<{ id: string }>("select id from gyms order by created_at asc limit 1")
+        : undefined;
+    const gymId = referralRow?.gym_id ?? fallbackGym?.rows[0]?.id ?? null;
+    const assignedTrainerId = primaryRole === "client" ? referralRow?.trainer_id ?? null : null;
 
     const result = await query(
       `
@@ -36,11 +47,11 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
         firebase_uid, email, full_name, primary_role, gym_id, assigned_trainer_id,
         referred_by_gym_id, referred_by_trainer_id
       )
-      values ($1, $2, $3, $4, $5, $6, $5, $6)
+      values ($1, $2, $3, $4, $5, $6, $7, $8)
       on conflict (firebase_uid) do update
       set email = excluded.email,
           full_name = coalesce(nullif(excluded.full_name, ''), users.full_name),
-          primary_role = case when $7 = true then 'owner'::user_role else users.primary_role end,
+          primary_role = case when $9 = true then 'owner'::user_role else users.primary_role end,
           gym_id = coalesce(excluded.gym_id, users.gym_id),
           assigned_trainer_id = coalesce(excluded.assigned_trainer_id, users.assigned_trainer_id),
           referred_by_gym_id = coalesce(excluded.referred_by_gym_id, users.referred_by_gym_id),
@@ -53,6 +64,8 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
         firebaseUser.email ?? "",
         input.fullName ?? firebaseUser.name ?? firebaseUser.email ?? "Ascend Member",
         primaryRole,
+        gymId,
+        assignedTrainerId,
         referralRow?.gym_id ?? null,
         referralRow?.trainer_id ?? null,
         isBootstrapOwner
@@ -64,6 +77,18 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
       await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [result.rows[0].id]);
     } else if (!isExistingUser) {
       await query("insert into user_roles (user_id, role) values ($1, $2) on conflict do nothing", [result.rows[0].id, input.primaryRole]);
+    }
+
+    if (!isBootstrapOwner && primaryRole === "trainer" && gymId) {
+      await query(
+        `
+        insert into trainers (user_id, gym_id, specialties, status)
+        values ($1, $2, '{}', 'pending')
+        on conflict (user_id) do update
+        set gym_id = excluded.gym_id
+        `,
+        [result.rows[0].id, gymId]
+      );
     }
 
     res.status(201).json({ user: result.rows[0], referralApplied: Boolean(referralRow) });

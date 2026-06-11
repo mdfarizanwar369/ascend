@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
-import { activateDemoSubscription, createCheckout, getMySubscription } from "@/lib/ascendApi";
+import { activateDemoSubscription, createCheckout, getMe, getMySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 
@@ -15,12 +15,23 @@ const features: Record<SubscriptionPlan, string[]> = {
 
 export function SubscriptionClient() {
   const [activePlan, setActivePlan] = useState<SubscriptionPlan>("free");
+  const [backHref, setBackHref] = useState("/dashboard");
   const [status, setStatus] = useState("Loading your subscription...");
   const [isLoadingPlan, setIsLoadingPlan] = useState<SubscriptionPlan | null>(null);
 
   async function loadSubscription() {
-    const response = await getMySubscription();
+    const [response, profile] = await Promise.all([getMySubscription(), getMe().catch(() => null)]);
     const nextPlan = usablePlan(response.subscription.plan, response.subscription.status);
+    const roles = profile?.roles ?? [];
+
+    if (roles.includes("owner") || roles.includes("admin")) {
+      setBackHref("/admin");
+    } else if (roles.includes("trainer")) {
+      setBackHref("/trainer");
+    } else {
+      setBackHref("/dashboard");
+    }
+
     setActivePlan(nextPlan);
     setStatus(
       nextPlan !== "free"
@@ -65,7 +76,7 @@ export function SubscriptionClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" />
+          <BackButton fallbackHref={backHref} />
           <div>
             <p className="text-sm text-zinc-400">Subscriptions</p>
             <h1 className="text-2xl font-semibold">Upgrade accountability</h1>

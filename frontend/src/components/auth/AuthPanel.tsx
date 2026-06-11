@@ -10,13 +10,15 @@ import { getMe } from "@/lib/ascendApi";
 import { BrandMark } from "@/components/BrandMark";
 
 type Mode = "signup" | "login";
+type SignupRole = "client" | "trainer";
 
 export function AuthPanel() {
   const [mode, setMode] = useState<Mode>("signup");
-  const [fullName, setFullName] = useState("Ahmad Rahman");
-  const [email, setEmail] = useState("ahmad@example.com");
+  const [signupRole, setSignupRole] = useState<SignupRole>("client");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [referralCode, setReferralCode] = useState("TRAINER-JASON");
+  const [referralCode, setReferralCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const firebaseConfigured = Boolean(
@@ -55,16 +57,16 @@ export function AuthPanel() {
         {
           method: "POST",
           body: JSON.stringify({
-            fullName: mode === "signup" ? fullName : undefined,
-            referralCode: mode === "signup" ? referralCode : undefined,
-            primaryRole: "client"
+            fullName: mode === "signup" ? fullName.trim() || undefined : undefined,
+            referralCode: mode === "signup" ? referralCode.trim() || undefined : undefined,
+            primaryRole: mode === "signup" ? signupRole : "client"
           })
         },
         token
       );
 
       const profile = await getMe();
-      window.location.href = mode === "signup" && profile.roles.includes("client") ? "/onboarding" : roleHome(profile.roles);
+      window.location.href = mode === "signup" && signupRole === "client" ? "/onboarding" : roleHome(profile.roles);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to continue. Check Firebase settings and try again.");
     } finally {
@@ -99,21 +101,55 @@ export function AuthPanel() {
               </div>
             ) : null}
             {mode === "signup" ? (
-              <Field label="Full name">
-                <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} />
-              </Field>
+              <>
+                <div>
+                  <p className="mb-2 text-sm font-medium">I am signing up as</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: "client", title: "Client", detail: "Track progress" },
+                      { value: "trainer", title: "Trainer", detail: "Apply for tools" }
+                    ].map((item) => (
+                      <button
+                        key={item.value}
+                        type="button"
+                        onClick={() => setSignupRole(item.value as SignupRole)}
+                        className={`rounded-lg border p-3 text-left ${
+                          signupRole === item.value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-white"
+                        }`}
+                      >
+                        <span className="block text-sm font-semibold">{item.title}</span>
+                        <span className={`mt-1 block text-xs ${signupRole === item.value ? "text-ink/70" : "text-zinc-400"}`}>
+                          {item.detail}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">Owner/admin access is invite-only and cannot be selected here.</p>
+                </div>
+                <Field label="Full name">
+                  <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Your name" />
+                </Field>
+              </>
             ) : null}
             <Field label="Email">
-              <input className={inputClass} value={email} type="email" onChange={(event) => setEmail(event.target.value)} />
+              <input className={inputClass} value={email} type="email" onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
             </Field>
             <Field label="Password" hint="Use at least 6 characters for Firebase email sign-up.">
               <input className={inputClass} value={password} type="password" onChange={(event) => setPassword(event.target.value)} />
             </Field>
             {mode === "signup" ? (
-              <Field label="Referral code" hint="Try AF-AUSTIN, AF-KULAI, TRAINER-JASON, or TRAINER-SITI.">
+              <Field
+                label="Referral code"
+                hint={
+                  signupRole === "trainer"
+                    ? "Use a gym referral code if you have one, for example AF-AUSTIN or AF-KULAI."
+                    : "Use your gym or trainer code, for example AF-AUSTIN, AF-KULAI, or TRAINER-JASON."
+                }
+              >
                 <input
                   className={inputClass}
                   value={referralCode}
+                  placeholder={signupRole === "trainer" ? "AF-AUSTIN" : "TRAINER-JASON"}
                   onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
                 />
               </Field>
@@ -121,7 +157,7 @@ export function AuthPanel() {
             {status ? <p className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">{status}</p> : null}
             <button className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink" disabled={isSubmitting || !firebaseConfigured}>
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
-              {isSubmitting ? "Working..." : mode === "signup" ? "Create account" : "Log in"}
+              {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : "Create client account" : "Log in"}
             </button>
             {!firebaseConfigured ? (
               <button

@@ -18,6 +18,30 @@ Use one account for each type:
 - Premium client account
 - Free client account
 
+## New Signup Test
+
+Test client signup:
+
+- Open `/login`.
+- Choose `Client`.
+- Create a new account with a gym or trainer referral code.
+- Expected: app sends the user to onboarding.
+- After onboarding, expected: dashboard shows `Free Plan` unless upgraded.
+
+Test trainer signup:
+
+- Open `/login`.
+- Choose `Trainer`.
+- Create a new account with a gym referral code such as `AF-AUSTIN` or `AF-KULAI`.
+- Expected: app sends the user to the trainer area, not client onboarding.
+- If Trainer Pro is not active, expected: trainer pages show the Trainer Pro upgrade screen.
+- After activating Trainer Pro, expected: back button from subscription returns to `/trainer`, not `/dashboard`.
+
+Owner/admin:
+
+- Owner/admin should not be selectable on public signup.
+- Owner/admin access should be handled only through the owner bootstrap/admin tools.
+
 ## Owner/Admin Account
 
 Expected account card:

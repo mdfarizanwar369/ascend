@@ -21,6 +21,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: active === "trainer" || active === "admin" },
     { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: active === "admin" }
   ].filter((item) => item.show);
+  const backHref = active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";
 
   useEffect(() => {
     Promise.allSettled([getMe(), getMySubscription()])
@@ -43,7 +44,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
-            <BackButton fallbackHref="/dashboard" />
+            <BackButton fallbackHref={backHref} />
             <Link href="/" className="flex items-center gap-2">
               <BrandMark size="sm" />
               <span>
