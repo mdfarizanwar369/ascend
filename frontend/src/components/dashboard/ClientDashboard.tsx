@@ -143,6 +143,7 @@ export function ClientDashboard() {
   const safeRoles = Array.isArray(roles) ? roles : [];
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
+  const hasPremiumAccess = plan === "premium" || plan === "trainer_pro" || canAdmin;
   const navItems = [
     { href: "/dashboard", label: "Home", selected: true, show: true },
     { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
@@ -274,9 +275,13 @@ export function ClientDashboard() {
           <p className="mt-2 text-sm leading-6 text-zinc-300">Ask for a meal suggestion based on your goal and today's logs.</p>
         </a>
 
-        <a href="/messages" className="mt-4 block rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">Message your trainer</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Ask a quick question or share context about today’s logs.</p>
+        <a href={hasPremiumAccess ? "/messages" : "/subscription"} className="mt-4 block rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm font-semibold">{hasPremiumAccess ? "Message your trainer" : "Unlock trainer messaging"}</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">
+            {hasPremiumAccess
+              ? "Ask a quick question or share context about today's logs."
+              : "Trainer messaging is included with Premium accountability."}
+          </p>
         </a>
 
         <a href="/subscription" className="mt-4 block rounded-lg border border-lime/40 bg-lime/10 p-4">
