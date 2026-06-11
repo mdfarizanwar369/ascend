@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getBurnLogs,
   getComplianceToday,
@@ -63,47 +63,61 @@ export function ClientDashboard() {
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
   const [status, setStatus] = useState("Loading your Ascend profile...");
 
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [me, subscription, foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.all([
+        getMe(),
+        getMySubscription(),
+        getFoodLogs(),
+        getWeightLogs(),
+        getWaterLogs(),
+        getHabits(),
+        getHabitLogs(),
+        getBurnLogs(),
+        getComplianceToday()
+      ]);
+
+      setUser(me.user);
+      setRoles(Array.isArray(me.roles) ? me.roles : []);
+      setPlan(subscription.subscription.status === "active" ? subscription.subscription.plan : "free");
+      setFoodLogs(Array.isArray(foods.foodLogs) ? foods.foodLogs : []);
+      setWeightLogs(Array.isArray(weights.weightLogs) ? weights.weightLogs : []);
+      setWaterLogs(Array.isArray(waters.waterLogs) ? waters.waterLogs : []);
+      setHabits(Array.isArray(nextHabits.habits) ? nextHabits.habits : []);
+      setHabitLogs(Array.isArray(nextHabitLogs.habitLogs) ? nextHabitLogs.habitLogs : []);
+      setBurnLogs(Array.isArray(burns.burnLogs) ? burns.burnLogs : []);
+      setComplianceScore(compliance.compliance?.score ?? null);
+      setStatus("");
+    } catch {
+      setStatus("Log in again if this page does not load your profile.");
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
-    async function loadDashboard() {
-      try {
-        const [me, subscription, foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.all([
-          getMe(),
-          getMySubscription(),
-          getFoodLogs(),
-          getWeightLogs(),
-          getWaterLogs(),
-          getHabits(),
-          getHabitLogs(),
-          getBurnLogs(),
-          getComplianceToday()
-        ]);
+    loadDashboard().catch(() => {
+      if (isMounted) setStatus("Log in again if this page does not load your profile.");
+    });
 
-        if (!isMounted) return;
-        setUser(me.user);
-        setRoles(Array.isArray(me.roles) ? me.roles : []);
-        setPlan(subscription.subscription.status === "active" ? subscription.subscription.plan : "free");
-        setFoodLogs(Array.isArray(foods.foodLogs) ? foods.foodLogs : []);
-        setWeightLogs(Array.isArray(weights.weightLogs) ? weights.weightLogs : []);
-        setWaterLogs(Array.isArray(waters.waterLogs) ? waters.waterLogs : []);
-        setHabits(Array.isArray(nextHabits.habits) ? nextHabits.habits : []);
-        setHabitLogs(Array.isArray(nextHabitLogs.habitLogs) ? nextHabitLogs.habitLogs : []);
-        setBurnLogs(Array.isArray(burns.burnLogs) ? burns.burnLogs : []);
-        setComplianceScore(compliance.compliance?.score ?? null);
-        setStatus("");
-      } catch {
-        if (isMounted) {
-          setStatus("Log in again if this page does not load your profile.");
-        }
-      }
-    }
-
-    loadDashboard();
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    function refreshDashboard() {
+      loadDashboard().catch(() => setStatus("Log in again if this page does not load your profile."));
+    }
+
+    window.addEventListener("focus", refreshDashboard);
+    window.addEventListener("pageshow", refreshDashboard);
+
+    return () => {
+      window.removeEventListener("focus", refreshDashboard);
+      window.removeEventListener("pageshow", refreshDashboard);
+    };
+  }, [loadDashboard]);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const todaysFood = foodLogs.filter((log) => dateKey(log.logged_at) === today);
