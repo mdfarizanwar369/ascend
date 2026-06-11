@@ -285,8 +285,12 @@ export function ClientDashboard() {
         </a>
 
         <a href="/subscription" className="mt-4 block rounded-lg border border-lime/40 bg-lime/10 p-4">
-          <p className="text-sm font-medium text-lime">Premium accountability</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">Upgrade to RM19/month for AI food, weekly reports, and trainer accountability.</p>
+          <p className="text-sm font-medium text-lime">{hasPremiumAccess ? "Premium active" : "Premium accountability"}</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">
+            {hasPremiumAccess
+              ? "AI food, progress photos, nutrition coach, and trainer messaging are unlocked."
+              : "Upgrade to RM19/month for AI food, weekly reports, and trainer accountability."}
+          </p>
         </a>
       </div>
 
