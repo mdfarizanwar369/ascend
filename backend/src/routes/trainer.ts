@@ -2,8 +2,18 @@ import { Router } from "express";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { createWeeklySummary } from "../integrations/openai";
+import { createReadUrl } from "../integrations/s3";
 
 export const trainerRouter = Router();
+
+async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(rows: T[]) {
+  return Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      image_url: await createReadUrl(row.image_s3_key)
+    }))
+  );
+}
 
 trainerRouter.get("/trainer/clients", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
@@ -51,7 +61,7 @@ trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireRo
     `,
     [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
   );
-  res.json({ foodLogs: result.rows });
+  res.json({ foodLogs: await withFoodImageUrls(result.rows) });
 });
 
 trainerRouter.get("/trainer/clients/:clientId/weight-logs", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res) => {

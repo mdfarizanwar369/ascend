@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
-import { createUploadUrl } from "../integrations/s3";
+import { createReadUrl, createUploadUrl } from "../integrations/s3";
 import { estimateFoodFromImage } from "../integrations/openai";
 
 export const logsRouter = Router();
@@ -49,6 +49,15 @@ logsRouter.post("/food-logs/photo-upload-url", requireAuth, async (req, res) => 
   res.json(await createUploadUrl(key, contentType));
 });
 
+async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(rows: T[]) {
+  return Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      image_url: await createReadUrl(row.image_s3_key)
+    }))
+  );
+}
+
 logsRouter.post("/food-logs/estimate", requireAuth, async (req, res, next) => {
   try {
     const imageUrl = z.string().url().parse(req.body.imageUrl);
@@ -70,31 +79,31 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, async (req, res, ne
 logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
   try {
     const input = foodLogSchema.parse(req.body);
-  const result = await query(
-    `
-    insert into food_logs (
-      user_id, image_s3_key, meal_type, description, estimated_food_name, calories,
-      protein_g, carbs_g, fat_g, ai_estimate_raw, was_edited_by_user, logged_at
-    )
-    values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,coalesce($12, now()))
-    returning *
-    `,
-    [
-      req.user!.id,
-      input.imageS3Key ?? null,
-      input.mealType,
-      input.description ?? null,
-      input.estimatedFoodName,
-      input.calories,
-      input.proteinG,
-      input.carbsG,
-      input.fatG,
-      input.aiEstimateRaw ?? null,
-      input.wasEditedByUser,
-      input.loggedAt ?? null
-    ]
-  );
-  res.status(201).json({ foodLog: result.rows[0] });
+    const result = await query(
+      `
+      insert into food_logs (
+        user_id, image_s3_key, meal_type, description, estimated_food_name, calories,
+        protein_g, carbs_g, fat_g, ai_estimate_raw, was_edited_by_user, logged_at
+      )
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,coalesce($12, now()))
+      returning *
+      `,
+      [
+        req.user!.id,
+        input.imageS3Key ?? null,
+        input.mealType,
+        input.description ?? null,
+        input.estimatedFoodName,
+        input.calories,
+        input.proteinG,
+        input.carbsG,
+        input.fatG,
+        input.aiEstimateRaw ?? null,
+        input.wasEditedByUser,
+        input.loggedAt ?? null
+      ]
+    );
+    res.status(201).json({ foodLog: result.rows[0] });
   } catch (error) {
     next(error);
   }
@@ -102,7 +111,7 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
 
 logsRouter.get("/food-logs", requireAuth, async (req, res) => {
   const result = await query("select * from food_logs where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
-  res.json({ foodLogs: result.rows });
+  res.json({ foodLogs: await withFoodImageUrls(result.rows) });
 });
 
 logsRouter.post("/weight-logs", requireAuth, async (req, res, next) => {

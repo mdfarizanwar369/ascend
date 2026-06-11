@@ -54,6 +54,8 @@ export function getFoodLogs() {
   return authed<{
     foodLogs: Array<{
       id: string;
+      image_url?: string | null;
+      image_s3_key?: string | null;
       estimated_food_name: string;
       calories: number;
       protein_g: string | number;
@@ -341,6 +343,8 @@ export function getTrainerClientFoodLogs(clientId: string) {
   return authed<{
     foodLogs: Array<{
       id: string;
+      image_url?: string | null;
+      image_s3_key?: string | null;
       estimated_food_name: string;
       calories: number;
       protein_g: string | number;

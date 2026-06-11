@@ -281,14 +281,20 @@ export function FoodLogClient() {
               {todaysFoodLogs.map((log) => (
                 <article key={log.id} className="rounded-lg bg-ink p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium">{log.estimated_food_name}</p>
-                      <p className="mt-1 text-xs text-zinc-400">
-                        P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F{" "}
-                        {Math.round(Number(log.fat_g))}g
-                      </p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {log.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{log.estimated_food_name}</p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F{" "}
+                          {Math.round(Number(log.fat_g))}g
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-sm font-semibold">{log.calories} kcal</p>
+                    <p className="shrink-0 text-sm font-semibold">{log.calories} kcal</p>
                   </div>
                 </article>
               ))}

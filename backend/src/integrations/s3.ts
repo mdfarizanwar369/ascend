@@ -1,4 +1,4 @@
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env";
 
@@ -24,4 +24,15 @@ export async function createUploadUrl(key: string, contentType: string) {
     key,
     storageConfigured: true
   };
+}
+
+export async function createReadUrl(key?: string | null) {
+  if (!env.AWS_S3_BUCKET || !key) return null;
+
+  const command = new GetObjectCommand({
+    Bucket: env.AWS_S3_BUCKET,
+    Key: key
+  });
+
+  return getSignedUrl(s3, command, { expiresIn: 900 });
 }
