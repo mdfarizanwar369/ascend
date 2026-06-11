@@ -19,6 +19,10 @@ function asNumber(value: string | number | null | undefined) {
   return Number(value);
 }
 
+function safeArray<T>(value: T[] | undefined | null) {
+  return Array.isArray(value) ? value : [];
+}
+
 export function AdminDashboardClient() {
   const [revenue, setRevenue] = useState<Revenue>({ byGym: [], byTrainer: [] });
   const [usage, setUsage] = useState<UsageRow[]>([]);
@@ -37,9 +41,12 @@ export function AdminDashboardClient() {
         ]);
 
         if (!isMounted) return;
-        setRevenue(revenueResponse);
-        setUsage(usageResponse.usage);
-        setCompliance(complianceResponse.compliance);
+        setRevenue({
+          byGym: safeArray(revenueResponse.byGym),
+          byTrainer: safeArray(revenueResponse.byTrainer)
+        });
+        setUsage(safeArray(usageResponse.usage));
+        setCompliance(safeArray(complianceResponse.compliance));
         setStatus("");
       } catch (error) {
         if (isMounted) {
@@ -58,8 +65,10 @@ export function AdminDashboardClient() {
     };
   }, []);
 
-  const totalRevenueCents = revenue.byGym.reduce((total, row) => total + asNumber(row.revenue_cents), 0);
-  const activeSubscriptions = revenue.byGym.reduce((total, row) => total + asNumber(row.active_subscriptions), 0);
+  const byGym = safeArray(revenue.byGym);
+  const byTrainer = safeArray(revenue.byTrainer);
+  const totalRevenueCents = byGym.reduce((total, row) => total + asNumber(row.revenue_cents), 0);
+  const activeSubscriptions = byGym.reduce((total, row) => total + asNumber(row.active_subscriptions), 0);
   const totalClients = usage.reduce((total, row) => total + asNumber(row.clients), 0);
   const averageCompliance = useMemo(() => {
     const scores = compliance.map((row) => asNumber(row.average_compliance)).filter(Boolean);
@@ -89,8 +98,8 @@ export function AdminDashboardClient() {
           <h2 className="text-base font-semibold">Revenue by gym</h2>
         </div>
         <div className="mt-3 space-y-3">
-          {revenue.byGym.length ? (
-            revenue.byGym.map((item) => (
+          {byGym.length ? (
+            byGym.map((item) => (
               <div key={item.gym_name ?? "Unknown gym"} className="flex items-center justify-between rounded-lg bg-ink p-3">
                 <div>
                   <p className="text-sm font-medium">{item.gym_name ?? "Unknown gym"}</p>
@@ -111,8 +120,8 @@ export function AdminDashboardClient() {
           <h2 className="text-base font-semibold">Revenue by trainer</h2>
         </div>
         <div className="mt-3 space-y-3">
-          {revenue.byTrainer.length ? (
-            revenue.byTrainer.map((item) => (
+          {byTrainer.length ? (
+            byTrainer.map((item) => (
               <div key={item.trainer_name ?? "Unknown trainer"} className="flex items-center justify-between rounded-lg bg-ink p-3">
                 <div>
                   <p className="text-sm font-medium">{item.trainer_name ?? "Unknown trainer"}</p>
