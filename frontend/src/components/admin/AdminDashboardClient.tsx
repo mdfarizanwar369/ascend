@@ -33,30 +33,37 @@ export function AdminDashboardClient() {
     let isMounted = true;
 
     async function load() {
-      try {
-        const [revenueResponse, usageResponse, complianceResponse] = await Promise.all([
-          getAdminRevenue(),
-          getAdminUsage(),
-          getAdminCompliance()
-        ]);
+      const failures: string[] = [];
 
+      try {
+        const revenueResponse = await getAdminRevenue();
         if (!isMounted) return;
         setRevenue({
           byGym: safeArray(revenueResponse.byGym),
           byTrainer: safeArray(revenueResponse.byTrainer)
         });
-        setUsage(safeArray(usageResponse.usage));
-        setCompliance(safeArray(complianceResponse.compliance));
-        setStatus("");
       } catch (error) {
-        if (isMounted) {
-          setStatus(
-            error instanceof Error && error.message.includes("403")
-              ? "This login does not have owner/admin access yet."
-              : "Could not load admin dashboard. Please log in again."
-          );
-        }
+        failures.push(error instanceof Error ? `Revenue: ${error.message}` : "Revenue failed");
       }
+
+      try {
+        const usageResponse = await getAdminUsage();
+        if (!isMounted) return;
+        setUsage(safeArray(usageResponse.usage));
+      } catch (error) {
+        failures.push(error instanceof Error ? `Usage: ${error.message}` : "Usage failed");
+      }
+
+      try {
+        const complianceResponse = await getAdminCompliance();
+        if (!isMounted) return;
+        setCompliance(safeArray(complianceResponse.compliance));
+      } catch (error) {
+        failures.push(error instanceof Error ? `Compliance: ${error.message}` : "Compliance failed");
+      }
+
+      if (!isMounted) return;
+      setStatus(failures.length ? `Some admin analytics did not load. ${failures.join(" / ")}` : "");
     }
 
     load();

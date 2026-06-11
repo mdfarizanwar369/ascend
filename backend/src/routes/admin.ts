@@ -36,12 +36,12 @@ adminRouter.get("/admin/analytics/usage", requireAuth, requireRole(["admin", "ow
       count(distinct u.id) filter (where u.primary_role = 'client') as clients,
       count(distinct fl.id) as food_logs,
       count(distinct wl.id) as weight_logs,
-      count(distinct water_logs.id) as water_logs
+      count(distinct wat.id) as water_logs
     from gyms g
     left join users u on u.gym_id = g.id
     left join food_logs fl on fl.user_id = u.id and fl.created_at > now() - interval '30 days'
     left join weight_logs wl on wl.user_id = u.id and wl.created_at > now() - interval '30 days'
-    left join water_logs on water_logs.user_id = u.id and water_logs.created_at > now() - interval '30 days'
+    left join water_logs wat on wat.user_id = u.id and wat.created_at > now() - interval '30 days'
     group by g.id
     order by g.name
   `);
