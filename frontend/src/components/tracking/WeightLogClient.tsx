@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { ArrowLeft, Save, Scale } from "lucide-react";
+import { Save, Scale } from "lucide-react";
 import { getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
 function asNumber(value: string | number | null | undefined) {
@@ -66,9 +67,7 @@ export function WeightLogClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <a href="/dashboard" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to dashboard">
-            <ArrowLeft size={19} />
-          </a>
+          <BackButton fallbackHref="/dashboard" />
           <div>
             <p className="text-sm text-zinc-400">Daily tracking</p>
             <h1 className="text-2xl font-semibold">Weight log</h1>

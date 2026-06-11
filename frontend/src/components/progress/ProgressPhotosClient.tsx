@@ -1,8 +1,9 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Camera, Check, ImagePlus } from "lucide-react";
+import { Camera, Check, ImagePlus } from "lucide-react";
 import { getProgressPhotos, requestProgressUploadUrl, saveProgressPhoto } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type PhotoType = ProgressPhoto["photo_type"];
@@ -96,9 +97,7 @@ export function ProgressPhotosClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <a href="/dashboard" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to dashboard">
-            <ArrowLeft size={19} />
-          </a>
+          <BackButton fallbackHref="/dashboard" />
           <div>
             <p className="text-sm text-zinc-400">Progress photos</p>
             <h1 className="text-2xl font-semibold">Track visible change</h1>

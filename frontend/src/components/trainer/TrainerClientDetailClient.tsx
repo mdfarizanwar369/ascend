@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
+import { AlertTriangle, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
 import {
   createWeeklyCheckin,
   getTrainerClient,
@@ -14,6 +14,7 @@ import {
   sendTrainerClientMessage
 } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
+import { BackButton } from "@/components/BackButton";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -125,9 +126,9 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   return (
     <>
       <section className="mt-3">
-        <Link href="/trainer" className="mb-3 grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to trainer dashboard">
-          <ArrowLeft size={19} />
-        </Link>
+        <div className="mb-3">
+          <BackButton fallbackHref="/trainer" />
+        </div>
         <p className="text-sm text-zinc-400">Client profile</p>
         <h1 className="mt-1 text-2xl font-semibold">{client?.full_name ?? "Client"}</h1>
         <p className="mt-2 text-sm text-zinc-400">

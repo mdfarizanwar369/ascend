@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { getMe, getMessageContacts, getMessages, sendMessage } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 
 type Contact = Awaited<ReturnType<typeof getMessageContacts>>["contacts"][number];
 type Message = Awaited<ReturnType<typeof getMessages>>["messages"][number];
@@ -96,9 +97,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-md flex-col">
         <header className="flex items-center gap-3 py-3">
-          <a href="/dashboard" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to dashboard">
-            <ArrowLeft size={19} />
-          </a>
+          <BackButton fallbackHref="/dashboard" />
           <div>
             <p className="text-sm text-zinc-400">Messages</p>
             <h1 className="text-2xl font-semibold">{selectedContact?.full_name ?? "Trainer chat"}</h1>

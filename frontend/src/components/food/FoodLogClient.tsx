@@ -1,10 +1,11 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
+import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { FoodEstimate } from "@ascend/shared";
 import { estimateFoodFromDataUrl, getFoodLogs, requestFoodUploadUrl, saveFoodLog } from "@/lib/ascendApi";
 import { saveDemoFoodLog } from "@/lib/demoFoodLogs";
+import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
 const demoEstimates: FoodEstimate[] = [
@@ -253,9 +254,7 @@ export function FoodLogClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <a href="/dashboard" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to dashboard">
-            <ArrowLeft size={19} />
-          </a>
+          <BackButton fallbackHref="/dashboard" />
           <div>
             <p className="text-sm text-zinc-400">Food photo AI</p>
             <h1 className="text-2xl font-semibold">Snap, review, save</h1>

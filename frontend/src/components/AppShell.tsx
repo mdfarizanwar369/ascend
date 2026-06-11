@@ -4,6 +4,7 @@ import { Activity, Camera, Home, MessageCircle, Shield, Users } from "lucide-rea
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AccountBar } from "@/components/AccountBar";
+import { BackButton } from "@/components/BackButton";
 import { getMe } from "@/lib/ascendApi";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
@@ -24,15 +25,18 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     <main className="min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-lime text-ink">
-              <Activity size={20} strokeWidth={2.5} />
-            </span>
-            <span>
-              <span className="block text-lg font-semibold leading-5">Ascend</span>
-              <span className="text-xs text-zinc-400">Anytime Fitness launch</span>
-            </span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <BackButton fallbackHref="/dashboard" />
+            <Link href="/" className="flex items-center gap-2">
+              <span className="grid h-9 w-9 place-items-center rounded-lg bg-lime text-ink">
+                <Activity size={20} strokeWidth={2.5} />
+              </span>
+              <span>
+                <span className="block text-lg font-semibold leading-5">Ascend</span>
+                <span className="text-xs text-zinc-400">Anytime Fitness launch</span>
+              </span>
+            </Link>
+          </div>
           <Link href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
             <MessageCircle size={19} />
           </Link>

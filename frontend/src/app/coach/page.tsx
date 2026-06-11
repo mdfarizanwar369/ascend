@@ -1,4 +1,5 @@
 import { Send, Sparkles } from "lucide-react";
+import { BackButton } from "@/components/BackButton";
 
 const messages = [
   { role: "assistant", text: "Your protein is a little low today. Dinner is a good place to recover it." },
@@ -14,6 +15,7 @@ export default function CoachPage() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto flex min-h-screen max-w-md flex-col">
         <header className="flex items-center gap-3 py-3">
+          <BackButton fallbackHref="/dashboard" />
           <span className="grid h-10 w-10 place-items-center rounded-lg bg-calm text-ink">
             <Sparkles size={20} />
           </span>
@@ -46,4 +48,3 @@ export default function CoachPage() {
     </main>
   );
 }
-

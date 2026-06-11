@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
 import { activateDemoSubscription, createCheckout, getMySubscription } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 
 const features: Record<SubscriptionPlan, string[]> = {
   free: ["Weight tracking", "Water tracking", "Basic logs"],
@@ -69,9 +69,7 @@ export function SubscriptionClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <Link href="/dashboard" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to dashboard">
-            <ArrowLeft size={19} />
-          </Link>
+          <BackButton fallbackHref="/dashboard" />
           <div>
             <p className="text-sm text-zinc-400">Subscriptions</p>
             <h1 className="text-2xl font-semibold">Upgrade accountability</h1>

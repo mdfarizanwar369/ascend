@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { createHabit, getHabitLogs, getHabits, saveHabitLog } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
 const starterHabits = ["8,000 steps", "No sugary drinks", "Protein at breakfast", "Sleep before midnight"];
@@ -88,9 +89,7 @@ export function HabitsClient() {
       <div className="mx-auto max-w-md">
         <header className="flex items-center justify-between gap-4 py-3">
           <div className="flex items-center gap-3">
-            <a href="/dashboard" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Back to dashboard">
-              <ArrowLeft size={19} />
-            </a>
+            <BackButton fallbackHref="/dashboard" />
             <div>
               <p className="text-sm text-zinc-400">Daily accountability</p>
               <h1 className="text-2xl font-semibold">Habits</h1>

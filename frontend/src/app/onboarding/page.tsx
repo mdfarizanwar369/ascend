@@ -1,11 +1,13 @@
 import { BadgeCheck, Dumbbell } from "lucide-react";
 import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
+import { BackButton } from "@/components/BackButton";
 
 export default function OnboardingPage() {
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
+          <BackButton fallbackHref="/login" />
           <span className="grid h-10 w-10 place-items-center rounded-lg bg-lime text-ink">
             <Dumbbell size={21} />
           </span>
