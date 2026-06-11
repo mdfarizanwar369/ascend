@@ -5,10 +5,15 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AccountBar } from "@/components/AccountBar";
 import { BackButton } from "@/components/BackButton";
-import { getMe } from "@/lib/ascendApi";
+import { getMe, getMySubscription } from "@/lib/ascendApi";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
-  const [account, setAccount] = useState<{ email?: string; roles?: string[] }>({});
+  const [account, setAccount] = useState<{
+    email?: string;
+    fullName?: string;
+    roles?: string[];
+    plan?: "free" | "premium" | "trainer_pro";
+  }>({});
   const items = [
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
     { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: active === "trainer" || active === "admin" },
@@ -16,8 +21,15 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   ].filter((item) => item.show);
 
   useEffect(() => {
-    getMe()
-      .then((response) => setAccount({ email: response.user.email, roles: response.roles }))
+    Promise.all([getMe(), getMySubscription()])
+      .then(([me, subscription]) =>
+        setAccount({
+          email: me.user.email,
+          fullName: me.user.full_name,
+          roles: me.roles,
+          plan: subscription.subscription.status === "active" ? subscription.subscription.plan : "free"
+        })
+      )
       .catch(() => setAccount({}));
   }, []);
 
@@ -41,7 +53,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
             <MessageCircle size={19} />
           </Link>
         </header>
-        <AccountBar email={account.email} roles={account.roles} />
+        <AccountBar email={account.email} fullName={account.fullName} roles={account.roles} plan={account.plan} />
         {children}
       </div>
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">

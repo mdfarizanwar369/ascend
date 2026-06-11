@@ -8,6 +8,7 @@ import {
   getHabitLogs,
   getHabits,
   getMe,
+  getMySubscription,
   getWaterLogs,
   getWeightLogs
 } from "@/lib/ascendApi";
@@ -59,6 +60,7 @@ export function ClientDashboard() {
   const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
   const [complianceScore, setComplianceScore] = useState<number | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
+  const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
   const [status, setStatus] = useState("Loading your Ascend profile...");
 
   useEffect(() => {
@@ -66,8 +68,9 @@ export function ClientDashboard() {
 
     async function loadDashboard() {
       try {
-        const [me, foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.all([
+        const [me, subscription, foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.all([
           getMe(),
+          getMySubscription(),
           getFoodLogs(),
           getWeightLogs(),
           getWaterLogs(),
@@ -80,6 +83,7 @@ export function ClientDashboard() {
         if (!isMounted) return;
         setUser(me.user);
         setRoles(Array.isArray(me.roles) ? me.roles : []);
+        setPlan(subscription.subscription.status === "active" ? subscription.subscription.plan : "free");
         setFoodLogs(Array.isArray(foods.foodLogs) ? foods.foodLogs : []);
         setWeightLogs(Array.isArray(weights.weightLogs) ? weights.weightLogs : []);
         setWaterLogs(Array.isArray(waters.waterLogs) ? waters.waterLogs : []);
@@ -148,7 +152,7 @@ export function ClientDashboard() {
 
         {status ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
-        <AccountBar email={user?.email} roles={safeRoles} />
+        <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} />
 
         <section className="mt-3 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-4">

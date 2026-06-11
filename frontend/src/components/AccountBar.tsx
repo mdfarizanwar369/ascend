@@ -2,19 +2,46 @@
 
 import { LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
+import { SubscriptionPlan } from "@ascend/shared";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 
-export function AccountBar({ email, roles }: { email?: string | null; roles?: string[] }) {
+function formatPlan(plan?: SubscriptionPlan | null) {
+  if (plan === "trainer_pro") return "Trainer Pro";
+  if (plan === "premium") return "Premium";
+  return "Free Plan";
+}
+
+function displayName(fullName?: string | null, email?: string | null) {
+  const trimmedName = fullName?.trim();
+  if (trimmedName) return trimmedName;
+  return email ?? "Signed in";
+}
+
+export function AccountBar({
+  email,
+  fullName,
+  roles,
+  plan
+}: {
+  email?: string | null;
+  fullName?: string | null;
+  roles?: string[];
+  plan?: SubscriptionPlan | null;
+}) {
   async function handleLogout() {
     await signOut(getFirebaseClientAuth());
     window.location.href = "/login";
   }
 
+  const accessLabel = roles?.some((role) => role === "owner" || role === "admin")
+    ? `Owner access / ${formatPlan(plan)}`
+    : formatPlan(plan);
+
   return (
     <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface p-3">
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{email ?? "Signed in"}</p>
-        <p className="mt-1 text-xs text-zinc-400">{roles?.length ? `Role: ${roles.join(", ")}` : "Role: not loaded yet"}</p>
+        <p className="truncate text-sm font-medium">{displayName(fullName, email)}</p>
+        <p className="mt-1 text-xs text-zinc-400">{accessLabel}</p>
       </div>
       <button
         type="button"
