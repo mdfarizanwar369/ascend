@@ -207,22 +207,20 @@ export function ClientDashboard() {
         <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-lime">{hasPremiumAccess ? "Premium actions" : "Quick log"}</h2>
-              <p className="mt-1 text-sm text-zinc-300">
-                {hasPremiumAccess ? "Use the tools you unlocked today." : "Tap what you want to track."}
-              </p>
+              <h2 className="text-base font-semibold text-lime">Quick log</h2>
+              <p className="mt-1 text-sm text-zinc-300">Tap what you want to track.</p>
             </div>
             <a href="/food-log" className="grid h-10 w-10 place-items-center rounded-lg bg-lime font-bold text-ink" aria-label="Add food">
               +
             </a>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2">
-            {(hasPremiumAccess ? premiumActions : [
-              { href: quickLogHref("Food"), title: "Food", detail: "Photo" },
+            {[
+              { href: quickLogHref("Food"), title: "Food", detail: hasPremiumAccess ? "AI photo" : "Photo" },
               { href: quickLogHref("Weight"), title: "Weight", detail: "Scale" },
               { href: quickLogHref("Water"), title: "Water", detail: "Drink" },
               { href: quickLogHref("Burn"), title: "Burn", detail: "Move" }
-            ]).map((item) => (
+            ].map((item) => (
               <a key={item.title} href={item.href} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-center">
                 <span>
                   <span className="block text-sm font-semibold text-white">{item.title}</span>
@@ -232,6 +230,23 @@ export function ClientDashboard() {
             ))}
           </div>
         </section>
+
+        {hasPremiumAccess ? (
+          <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+            <div>
+              <h2 className="text-base font-semibold text-calm">Premium actions</h2>
+              <p className="mt-1 text-sm text-zinc-300">Use the tools you unlocked today.</p>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {premiumActions.map((item) => (
+                <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
+                  <span className="block text-sm font-semibold text-white">{item.title}</span>
+                  <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {hasPremiumAccess ? (
           <section className="mt-4 rounded-lg border border-line bg-surface p-4">
