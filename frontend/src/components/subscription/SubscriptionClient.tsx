@@ -23,6 +23,12 @@ export function SubscriptionClient() {
     const [response, profile] = await Promise.all([getMySubscription(), getMe().catch(() => null)]);
     const nextPlan = usablePlan(response.subscription.plan, response.subscription.status);
     const roles = profile?.roles ?? [];
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const returnedFromCheckout =
+      params?.has("status_id") ||
+      params?.has("billcode") ||
+      params?.has("transaction_id") ||
+      params?.has("demo_reference");
 
     if (roles.includes("owner") || roles.includes("admin")) {
       setBackHref("/admin");
@@ -33,11 +39,13 @@ export function SubscriptionClient() {
     }
 
     setActivePlan(nextPlan);
-    setStatus(
-      nextPlan !== "free"
-        ? `Current plan: ${formatPlan(nextPlan)}`
-        : "Current plan: Free Plan"
-    );
+    if (nextPlan !== "free") {
+      setStatus(`Current plan: ${formatPlan(nextPlan)}`);
+    } else if (returnedFromCheckout) {
+      setStatus("Payment return received. Your plan will unlock after ToyyibPay confirms the payment callback.");
+    } else {
+      setStatus("Current plan: Free Plan");
+    }
   }
 
   useEffect(() => {

@@ -83,6 +83,18 @@ Optional values for live integrations:
 
 Without OpenAI configured, the backend returns demo AI responses.
 
+Without ToyyibPay configured, checkout returns a safe demo return URL and you can use the in-app test activation button. Real paid subscriptions require these backend variables:
+
+```text
+TOYYIBPAY_BASE_URL=https://toyyibpay.com
+TOYYIBPAY_SECRET_KEY=
+TOYYIBPAY_CATEGORY_CODE=
+TOYYIBPAY_RETURN_URL=https://your-frontend-domain/subscription
+TOYYIBPAY_CALLBACK_URL=https://your-backend-domain/api/v1/webhooks/toyyibpay
+```
+
+ToyyibPay callbacks are accepted as JSON or form-encoded payloads and recorded in `payment_events`.
+
 Without Firebase web app values, `/login` shows a demo-mode button so you can review the MVP screens locally. Real account creation requires filling:
 
 ```text

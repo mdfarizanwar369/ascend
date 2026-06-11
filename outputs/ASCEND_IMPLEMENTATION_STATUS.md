@@ -59,6 +59,9 @@ Implemented structure:
 - Subscription cancellation API.
 - Zod request validation for high-use logging and messaging endpoints.
 - ToyyibPay-first payment provider abstraction.
+- ToyyibPay checkout creation with defensive provider response handling.
+- ToyyibPay webhook/callback handling for JSON and form-encoded callbacks.
+- Payment event recording for ToyyibPay callbacks.
 - OpenAI integration for food analysis, coach chat, and weekly summaries.
 - AWS S3 signed upload integration.
 - Daily compliance job.
@@ -116,6 +119,7 @@ Seed data includes:
 - `npm run lint`
 - Protected daily jobs endpoint builds and type-checks.
 - `npm run test`
+- Backend payment parser tests pass.
 - Next.js production build includes `/login`.
 - Backend TypeScript build passes.
 - Frontend ESLint passes.
@@ -125,7 +129,7 @@ Seed data includes:
 
 - Verify real Firebase production project authorized domains.
 - Verify Railway PostgreSQL backup policy.
-- Connect real ToyyibPay category and callback verification details.
+- Connect real ToyyibPay category and run one low-value live payment callback test.
 - Keep Cloudflare R2/S3 credentials configured for live media uploads.
 - Keep OpenAI API key configured for live food analysis and coach responses.
 - Add end-to-end payment testing.

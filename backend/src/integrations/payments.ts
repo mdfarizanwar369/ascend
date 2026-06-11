@@ -20,6 +20,23 @@ export interface PaymentProvider {
   verifyWebhook(payload: unknown): Promise<{ reference: string; status: "active" | "past_due" | "canceled" }>;
 }
 
+export class PaymentProviderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PaymentProviderError";
+  }
+}
+
+function readPayloadValue(payload: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = payload[key];
+    if (value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
 export class ToyyibPayProvider implements PaymentProvider {
   async createCheckoutSession(request: CheckoutRequest): Promise<CheckoutSession> {
     const reference = `ASC-${request.userId}-${Date.now()}`;
@@ -55,8 +72,25 @@ export class ToyyibPayProvider implements PaymentProvider {
       method: "POST",
       body: form
     });
-    const data = (await response.json()) as Array<{ BillCode: string }>;
+
+    if (!response.ok) {
+      throw new PaymentProviderError("ToyyibPay checkout could not be created. Please try again.");
+    }
+
+    const data = (await response.json().catch(() => null)) as Array<{ BillCode?: string; msg?: string }> | null;
+    if (!Array.isArray(data)) {
+      throw new PaymentProviderError("ToyyibPay returned an unexpected checkout response.");
+    }
+
+    const providerError = data.find((item) => item.msg && !item.BillCode)?.msg;
+    if (providerError) {
+      throw new PaymentProviderError(providerError);
+    }
+
     const billCode = data[0]?.BillCode;
+    if (!billCode) {
+      throw new PaymentProviderError("ToyyibPay did not return a checkout bill code.");
+    }
 
     return {
       provider: "toyyibpay",
@@ -67,9 +101,28 @@ export class ToyyibPayProvider implements PaymentProvider {
 
   async verifyWebhook(payload: unknown) {
     const body = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+    const reference = readPayloadValue(body, [
+      "billExternalReferenceNo",
+      "bill_external_reference_no",
+      "externalReferenceNo",
+      "reference",
+      "refno",
+      "order_id"
+    ]);
+    if (!reference) {
+      throw new PaymentProviderError("ToyyibPay callback is missing the Ascend reference.");
+    }
+
+    const status = readPayloadValue(body, ["status_id", "status", "billpaymentStatus", "payment_status"]);
+    const normalizedStatus = status === "1" || status.toLowerCase() === "success" || status.toLowerCase() === "paid"
+      ? "active"
+      : status === "3" || status.toLowerCase() === "cancelled" || status.toLowerCase() === "canceled"
+        ? "canceled"
+        : "past_due";
+
     return {
-      reference: String(body.billExternalReferenceNo ?? body.reference ?? ""),
-      status: body.status_id === "1" || body.status === "1" ? "active" : "past_due"
+      reference,
+      status: normalizedStatus
     } as const;
   }
 }

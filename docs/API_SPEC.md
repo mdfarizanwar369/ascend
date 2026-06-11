@@ -12,6 +12,8 @@ Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
 - `GET /referrals/validate/:code`
 - `POST /webhooks/toyyibpay`
 
+`POST /webhooks/toyyibpay` accepts JSON or form-encoded ToyyibPay callbacks. It matches subscriptions by Ascend's external reference, records the payload in `payment_events`, and activates the subscription only when the callback status is successful.
+
 ## Auth Provisioning
 
 - `POST /auth/provision`
@@ -47,6 +49,8 @@ Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
 - `POST /subscriptions/checkout`
 - `POST /subscriptions/demo-activate`
 - `POST /subscriptions/cancel`
+
+`POST /subscriptions/checkout` creates a ToyyibPay bill when ToyyibPay credentials are configured. Without live credentials, it returns a safe demo return URL and leaves the subscription pending.
 - `GET /messages/contacts`
 - `GET /messages/:userId`
 - `POST /messages`

@@ -9,6 +9,12 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
     });
   }
 
+  if (error.name === "PaymentProviderError") {
+    return res.status(400).json({
+      error: error.message
+    });
+  }
+
   res.status(500).json({
     error: "Internal server error",
     detail: process.env.NODE_ENV === "production" ? undefined : error.message

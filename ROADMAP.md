@@ -11,7 +11,7 @@ Ascend is deployable as a mobile-first PWA with:
 - PostgreSQL as source of truth.
 - S3/R2-compatible media storage.
 - OpenAI integration with demo fallbacks.
-- ToyyibPay-first subscription abstraction with manual/test activation.
+- ToyyibPay-first subscription abstraction with manual/test activation, checkout creation, callback handling, and payment event records.
 - Daily compliance and risk job endpoint.
 
 ## Before Pilot Launch
@@ -23,7 +23,7 @@ Ascend is deployable as a mobile-first PWA with:
 5. Verify R2/S3 upload and read URLs on production.
 6. Verify OpenAI food image analysis on production.
 7. Configure real ToyyibPay category, return URL, and callback URL.
-8. Run one end-to-end ToyyibPay sandbox or low-value live payment test.
+8. Run one end-to-end ToyyibPay low-value live payment test and confirm the subscription changes to active.
 9. Confirm Railway PostgreSQL backups.
 10. Replace or remove sample seed users before a real public pilot.
 

@@ -75,16 +75,42 @@ subscriptionsRouter.post("/subscriptions/cancel", requireAuth, async (req, res) 
   res.json({ subscription: result.rows[0] ?? null });
 });
 
-subscriptionsRouter.post("/webhooks/toyyibpay", async (req, res) => {
-  const event = await paymentProvider.verifyWebhook(req.body);
-  await query(
-    "update subscriptions set status = $2, updated_at = now(), current_period_start = now(), current_period_end = now() + interval '1 month' where provider_subscription_id = $1",
-    [event.reference, event.status]
-  );
-  await query("insert into payment_events (provider, provider_reference, event_type, payload) values ('toyyibpay', $1, $2, $3)", [
-    event.reference,
-    event.status,
-    req.body
-  ]);
-  res.json({ received: true });
+subscriptionsRouter.post("/webhooks/toyyibpay", async (req, res, next) => {
+  try {
+    const event = await paymentProvider.verifyWebhook(req.body);
+    const update =
+      event.status === "active"
+        ? await query(
+            `
+            update subscriptions
+            set status = 'active',
+              updated_at = now(),
+              current_period_start = coalesce(current_period_start, now()),
+              current_period_end = now() + interval '1 month'
+            where provider = 'toyyibpay' and provider_subscription_id = $1
+            returning id
+            `,
+            [event.reference]
+          )
+        : await query(
+            `
+            update subscriptions
+            set status = $2, updated_at = now()
+            where provider = 'toyyibpay' and provider_subscription_id = $1
+            returning id
+            `,
+            [event.reference, event.status]
+          );
+
+    await query("insert into payment_events (provider, provider_reference, event_type, payload) values ('toyyibpay', $1, $2, $3)", [
+      event.reference,
+      event.status,
+      req.body
+    ]);
+
+    const matchedSubscription = (update.rowCount ?? 0) > 0;
+    res.status(matchedSubscription ? 200 : 202).json({ received: true, matchedSubscription });
+  } catch (error) {
+    next(error);
+  }
 });

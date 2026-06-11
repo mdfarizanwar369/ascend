@@ -35,7 +35,9 @@ Recommended:
 
 - Database backups enabled.
 - S3 bucket private.
-- Payment callback URL verified in ToyyibPay.
+- ToyyibPay return URL points to `/subscription` on the frontend.
+- ToyyibPay callback URL points to `/api/v1/webhooks/toyyibpay` on the backend.
+- One low-value live ToyyibPay payment tested and confirmed as an active subscription in Ascend.
 - Firebase authorized domains configured.
 - API health check passing.
 - Daily compliance/risk job configured against `POST /api/v1/jobs/daily` with `x-cron-secret`.
