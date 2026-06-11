@@ -35,15 +35,29 @@ export function AdminUsersClient() {
   const [referralStatus, setReferralStatus] = useState("");
 
   async function load() {
-    const [userResponse, trainerResponse, gymResponse] = await Promise.all([getAdminUsers(), getAdminTrainers(), getGyms()]);
-    setUsers(userResponse.users);
-    setTrainers(trainerResponse.trainers);
-    setGyms(gymResponse.gyms);
+    const userResponse = await getAdminUsers();
+    setUsers(Array.isArray(userResponse.users) ? userResponse.users : []);
     setStatus("");
+
+    try {
+      const trainerResponse = await getAdminTrainers();
+      setTrainers(Array.isArray(trainerResponse.trainers) ? trainerResponse.trainers : []);
+    } catch {
+      setReferralStatus("Users loaded, but trainers could not load yet.");
+    }
+
+    try {
+      const gymResponse = await getGyms();
+      setGyms(Array.isArray(gymResponse.gyms) ? gymResponse.gyms : []);
+    } catch {
+      setReferralStatus("Users loaded, but gyms could not load yet.");
+    }
   }
 
   useEffect(() => {
-    load().catch(() => setStatus("Could not load users. Use an owner or admin account."));
+    load().catch((error) =>
+      setStatus(error instanceof Error ? `Could not load users: ${error.message}` : "Could not load users. Use an owner or admin account.")
+    );
   }, []);
 
   const clients = useMemo(() => users.filter((user) => user.primary_role === "client"), [users]);

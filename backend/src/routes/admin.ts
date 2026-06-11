@@ -77,16 +77,21 @@ adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "own
 
 adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   const result = await query(`
-    select u.id, u.full_name, u.email, u.primary_role, u.gym_id, g.name as gym_name,
+    select u.id, u.full_name, u.email, u.primary_role::text as primary_role, u.gym_id, g.name as gym_name,
       u.assigned_trainer_id, trainer_user.full_name as assigned_trainer_name,
-      coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles,
+      coalesce(
+        (
+          select array_agg(ur.role::text order by ur.role::text)
+          from user_roles ur
+          where ur.user_id = u.id
+        ),
+        array[u.primary_role::text]
+      ) as roles,
       u.created_at
     from users u
     left join gyms g on g.id = u.gym_id
     left join trainers assigned_trainer on assigned_trainer.id = u.assigned_trainer_id
     left join users trainer_user on trainer_user.id = assigned_trainer.user_id
-    left join user_roles ur on ur.user_id = u.id
-    group by u.id, g.name, trainer_user.full_name
     order by u.created_at desc
   `);
   res.json({ users: result.rows });
