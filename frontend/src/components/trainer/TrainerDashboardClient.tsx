@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, MessageSquare, Sparkles } from "lucide-react";
-import { getTrainerClients, getTrainerRiskAlerts } from "@/lib/ascendApi";
+import { getMe, getTrainerClients, getTrainerRiskAlerts } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
@@ -44,12 +44,22 @@ export function TrainerDashboardClient() {
   const [clients, setClients] = useState<TrainerClient[]>([]);
   const [alerts, setAlerts] = useState<RiskAlert[]>([]);
   const [status, setStatus] = useState("Loading assigned clients...");
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     async function load() {
       try {
+        const profile = await getMe();
+        const isTrainerOnly = profile.roles.includes("trainer") && !profile.roles.some((role) => role === "owner" || role === "admin");
+        if (isTrainerOnly && profile.user.trainer_status && profile.user.trainer_status !== "active") {
+          if (!isMounted) return;
+          setIsPendingApproval(true);
+          setStatus("");
+          return;
+        }
+
         const clientResponse = await getTrainerClients();
         if (!isMounted) return;
         setClients(clientResponse.clients);
@@ -97,6 +107,20 @@ export function TrainerDashboardClient() {
       }),
     [clients]
   );
+
+  if (isPendingApproval) {
+    return (
+      <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
+        <p className="text-sm font-semibold text-amber">Trainer approval pending</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">
+          Your trainer account is created. An owner needs to approve it before clients are assigned.
+        </p>
+        <Link href="/subscription" className="mt-4 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+          View plan
+        </Link>
+      </section>
+    );
+  }
 
   return (
     <>

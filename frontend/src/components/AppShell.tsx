@@ -16,10 +16,13 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     roles?: string[];
     plan?: "free" | "premium" | "trainer_pro";
   }>({});
+  const roles = account.roles ?? [];
+  const canTrain = roles.some((role) => ["trainer", "admin", "owner"].includes(role));
+  const canAdmin = roles.some((role) => ["admin", "owner"].includes(role));
   const items = [
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
-    { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: active === "trainer" || active === "admin" },
-    { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: active === "admin" }
+    { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: active === "trainer" || active === "admin" || canTrain },
+    { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: active === "admin" || canAdmin }
   ].filter((item) => item.show);
   const backHref = active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";
 

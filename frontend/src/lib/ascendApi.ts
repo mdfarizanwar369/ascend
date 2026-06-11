@@ -47,6 +47,7 @@ export function getMe() {
       gym_id?: string | null;
       assigned_trainer_id?: string | null;
       assigned_trainer_name?: string | null;
+      trainer_status?: string | null;
     };
     roles: string[];
   }>("/me");

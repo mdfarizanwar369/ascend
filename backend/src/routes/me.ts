@@ -8,8 +8,9 @@ export const meRouter = Router();
 meRouter.get("/me", requireAuth, async (req, res) => {
   const result = await query(
     `
-    select u.*, trainer_user.full_name as assigned_trainer_name
+    select u.*, trainer_user.full_name as assigned_trainer_name, current_trainer.status as trainer_status
     from users u
+    left join trainers current_trainer on current_trainer.user_id = u.id
     left join trainers t on t.id = u.assigned_trainer_id
     left join users trainer_user on trainer_user.id = t.user_id
     where u.id = $1

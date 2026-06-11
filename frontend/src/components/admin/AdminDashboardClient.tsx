@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BadgeDollarSign, Building2, QrCode, Users } from "lucide-react";
-import { getAdminCompliance, getAdminRevenue, getAdminUsage } from "@/lib/ascendApi";
+import { getAdminCompliance, getAdminRevenue, getAdminTrainers, getAdminUsage, getAdminUsers } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
 type UsageRow = Awaited<ReturnType<typeof getAdminUsage>>["usage"][number];
 type ComplianceRow = Awaited<ReturnType<typeof getAdminCompliance>>["compliance"][number];
+type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
+type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
 
 function money(cents: string | number) {
   return `RM ${(Number(cents) / 100).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -27,6 +29,8 @@ export function AdminDashboardClient() {
   const [revenue, setRevenue] = useState<Revenue>({ byGym: [], byTrainer: [] });
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [compliance, setCompliance] = useState<ComplianceRow[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [status, setStatus] = useState("Loading owner dashboard...");
 
   useEffect(() => {
@@ -62,6 +66,15 @@ export function AdminDashboardClient() {
         failures.push(error instanceof Error ? `Compliance: ${error.message}` : "Compliance failed");
       }
 
+      try {
+        const [userResponse, trainerResponse] = await Promise.all([getAdminUsers(), getAdminTrainers()]);
+        if (!isMounted) return;
+        setUsers(safeArray(userResponse.users));
+        setTrainers(safeArray(trainerResponse.trainers));
+      } catch (error) {
+        failures.push(error instanceof Error ? `Users: ${error.message}` : "Users failed");
+      }
+
       if (!isMounted) return;
       setStatus(failures.length ? `Some admin analytics did not load. ${failures.join(" / ")}` : "");
     }
@@ -77,6 +90,9 @@ export function AdminDashboardClient() {
   const totalRevenueCents = byGym.reduce((total, row) => total + asNumber(row.revenue_cents), 0);
   const activeSubscriptions = byGym.reduce((total, row) => total + asNumber(row.active_subscriptions), 0);
   const totalClients = usage.reduce((total, row) => total + asNumber(row.clients), 0);
+  const unassignedClients = users.filter((user) => user.primary_role === "client" && !user.assigned_trainer_id).length;
+  const pendingTrainers = trainers.filter((trainer) => trainer.status !== "active").length;
+  const activeTrainers = trainers.filter((trainer) => trainer.status === "active").length;
   const averageCompliance = useMemo(() => {
     const scores = compliance.map((row) => asNumber(row.average_compliance)).filter(Boolean);
     if (!scores.length) return 0;
@@ -95,9 +111,23 @@ export function AdminDashboardClient() {
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Revenue" value={money(totalRevenueCents)} detail="Active subscriptions" tone="success" />
         <MetricCard label="Premium" value={String(activeSubscriptions)} detail="Active members" />
-        <MetricCard label="Clients" value={String(totalClients)} detail="Across gyms" />
+        <MetricCard label="Clients" value={String(totalClients || users.filter((user) => user.primary_role === "client").length)} detail={`${unassignedClients} unassigned`} tone={unassignedClients ? "warning" : "success"} />
+        <MetricCard label="Trainers" value={String(activeTrainers)} detail={`${pendingTrainers} pending`} tone={pendingTrainers ? "warning" : "success"} />
         <MetricCard label="Avg score" value={averageCompliance ? String(averageCompliance) : "--"} detail="Compliance" />
       </section>
+
+      {(pendingTrainers || unassignedClients) ? (
+        <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
+          <p className="text-sm font-semibold text-amber">Needs attention</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">
+            {pendingTrainers ? `${pendingTrainers} trainer${pendingTrainers === 1 ? "" : "s"} waiting for approval. ` : ""}
+            {unassignedClients ? `${unassignedClients} client${unassignedClients === 1 ? "" : "s"} need trainer assignment.` : ""}
+          </p>
+          <Link href="/admin/users" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+            Open users
+          </Link>
+        </section>
+      ) : null}
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center gap-2">

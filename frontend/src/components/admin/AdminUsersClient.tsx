@@ -81,6 +81,7 @@ export function AdminUsersClient() {
   }, []);
 
   const clients = useMemo(() => users.filter((user) => user.primary_role === "client"), [users]);
+  const pendingTrainers = useMemo(() => trainers.filter((trainer) => trainer.status !== "active"), [trainers]);
   const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.status === "active"), [trainers]);
   const unassignedClients = useMemo(() => clients.filter((client) => !client.assigned_trainer_id), [clients]);
   const assignedClients = useMemo(() => clients.filter((client) => client.assigned_trainer_id), [clients]);
@@ -141,6 +142,21 @@ export function AdminUsersClient() {
     }
   }
 
+  async function approveTrainer(trainer: AdminTrainer) {
+    setSavingUserId(trainer.user_id);
+    setStatus("");
+
+    try {
+      await updateAdminUserRole({ userId: trainer.user_id, role: "trainer", gymId: trainer.gym_id });
+      await load();
+      setStatus(`${trainer.full_name} approved as an active trainer.`);
+    } catch {
+      setStatus("Could not approve trainer.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
+
   return (
     <>
       <section className="mt-3 flex items-start gap-3">
@@ -163,6 +179,45 @@ export function AdminUsersClient() {
         <div className="rounded-lg border border-line bg-surface p-4">
           <p className="text-xs uppercase text-zinc-400">Unassigned</p>
           <p className="mt-2 text-2xl font-semibold">{unassignedClients.length}</p>
+        </div>
+        <div className="rounded-lg border border-line bg-surface p-4">
+          <p className="text-xs uppercase text-zinc-400">Pending trainers</p>
+          <p className="mt-2 text-2xl font-semibold">{pendingTrainers.length}</p>
+        </div>
+        <div className="rounded-lg border border-line bg-surface p-4">
+          <p className="text-xs uppercase text-zinc-400">Active trainers</p>
+          <p className="mt-2 text-2xl font-semibold">{activeTrainers.length}</p>
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Pending trainers</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">Approve trainers before assigning clients.</p>
+          </div>
+          <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{pendingTrainers.length}</span>
+        </div>
+        <div className="mt-3 space-y-3">
+          {pendingTrainers.map((trainer) => (
+            <article key={trainer.id} className="rounded-lg bg-ink p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{trainer.full_name}</p>
+                  <p className="mt-1 truncate text-xs text-zinc-400">{trainer.gym_name}</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={savingUserId === trainer.user_id}
+                  onClick={() => approveTrainer(trainer)}
+                  className="h-10 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
+                >
+                  Approve
+                </button>
+              </div>
+            </article>
+          ))}
+          {!pendingTrainers.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No trainer approvals waiting.</p> : null}
         </div>
       </section>
 
