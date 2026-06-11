@@ -71,6 +71,7 @@ Implemented structure:
 - Owner/admin action dashboard for pending trainers and unassigned clients.
 - Role-aware navigation across owner, trainer, and client sections.
 - Session guard for account switching, logout, and browser back/forward refresh.
+- Referral analytics and validation show trainer-code gym attribution.
 
 ## Database Implemented
 

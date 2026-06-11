@@ -205,16 +205,17 @@ adminRouter.post("/admin/referral-codes", requireAuth, requireRole(["admin", "ow
 
 adminRouter.get("/admin/referrals/analytics", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   const result = await query(`
-    select rc.code, rc.type, g.name as gym_name, tu.full_name as trainer_name,
+    select rc.code, rc.type, coalesce(g.name, trainer_gym.name) as gym_name, tu.full_name as trainer_name,
       count(u.id) as referred_users,
       coalesce(sum(s.amount_cents) filter (where s.status = 'active'), 0) as active_revenue_cents
     from referral_codes rc
     left join gyms g on g.id = rc.gym_id
     left join trainers t on t.id = rc.trainer_id
+    left join gyms trainer_gym on trainer_gym.id = t.gym_id
     left join users tu on tu.id = t.user_id
     left join users u on u.referred_by_gym_id = rc.gym_id or u.referred_by_trainer_id = rc.trainer_id
     left join subscriptions s on s.user_id = u.id
-    group by rc.id, g.name, tu.full_name
+    group by rc.id, g.name, trainer_gym.name, tu.full_name
     order by active_revenue_cents desc, referred_users desc
   `);
   res.json({ referrals: result.rows });
