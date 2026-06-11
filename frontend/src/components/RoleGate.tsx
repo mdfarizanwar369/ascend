@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getMe } from "@/lib/ascendApi";
 
 export function RoleGate({
@@ -16,14 +16,16 @@ export function RoleGate({
   fallbackMessage: string;
 }) {
   const [state, setState] = useState<"loading" | "allowed" | "blocked">("loading");
+  const allowedRoleKey = useMemo(() => allowedRoles.join("|"), [allowedRoles]);
 
   useEffect(() => {
     let isMounted = true;
+    const allowedRoleSet = new Set(allowedRoleKey.split("|"));
 
     getMe()
       .then((response) => {
         if (!isMounted) return;
-        const allowed = response.roles.some((role) => allowedRoles.includes(role));
+        const allowed = response.roles.some((role) => allowedRoleSet.has(role));
         setState(allowed ? "allowed" : "blocked");
       })
       .catch(() => {
@@ -33,7 +35,7 @@ export function RoleGate({
     return () => {
       isMounted = false;
     };
-  }, [allowedRoles]);
+  }, [allowedRoleKey]);
 
   if (state === "loading") {
     return <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">Checking account access...</p>;

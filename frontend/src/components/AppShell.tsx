@@ -2,28 +2,13 @@
 
 import { Activity, Camera, Home, MessageCircle, Shield, Users } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { getMe } from "@/lib/ascendApi";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
-  const [roles, setRoles] = useState<string[]>([]);
-
-  useEffect(() => {
-    getMe()
-      .then((response) => setRoles(response.roles))
-      .catch(() => setRoles(["client"]));
-  }, []);
-
-  const items = useMemo(() => {
-    const canTrain = roles.some((role) => ["trainer", "admin", "owner"].includes(role));
-    const canAdmin = roles.some((role) => ["admin", "owner"].includes(role));
-
-    return [
-      { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
-      { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: canTrain || active === "trainer" },
-      { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: canAdmin || active === "admin" }
-    ].filter((item) => item.show);
-  }, [active, roles]);
+  const items = [
+    { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
+    { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: active === "trainer" || active === "admin" },
+    { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: active === "admin" }
+  ].filter((item) => item.show);
 
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
