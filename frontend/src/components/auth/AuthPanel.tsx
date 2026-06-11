@@ -6,6 +6,7 @@ import { ArrowRight, Dumbbell, LogIn } from "lucide-react";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { Field, inputClass } from "@/components/Field";
+import { getMe } from "@/lib/ascendApi";
 
 type Mode = "signup" | "login";
 
@@ -23,6 +24,12 @@ export function AuthPanel() {
       process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
       process.env.NEXT_PUBLIC_FIREBASE_APP_ID
   );
+
+  function roleHome(roles: string[]) {
+    if (roles.includes("owner") || roles.includes("admin")) return "/admin";
+    if (roles.includes("trainer")) return "/trainer";
+    return "/dashboard";
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,15 +52,16 @@ export function AuthPanel() {
         {
           method: "POST",
           body: JSON.stringify({
-            fullName,
-            referralCode,
+            fullName: mode === "signup" ? fullName : undefined,
+            referralCode: mode === "signup" ? referralCode : undefined,
             primaryRole: "client"
           })
         },
         token
       );
 
-      window.location.href = "/onboarding";
+      const profile = await getMe();
+      window.location.href = mode === "signup" && profile.roles.includes("client") ? "/onboarding" : roleHome(profile.roles);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to continue. Check Firebase settings and try again.");
     } finally {

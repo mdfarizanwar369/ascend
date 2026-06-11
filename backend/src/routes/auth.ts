@@ -16,6 +16,12 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
   try {
     const input = provisionSchema.parse(req.body);
     const firebaseUser = req.firebaseUser!;
+    const allowedOwnerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
+    const currentEmail = firebaseUser.email?.trim().toLowerCase();
+    const isBootstrapOwner = Boolean(allowedOwnerEmail && currentEmail && allowedOwnerEmail === currentEmail);
+    const primaryRole = isBootstrapOwner ? "owner" : input.primaryRole;
+    const existingUser = await query<{ id: string }>("select id from users where firebase_uid = $1 limit 1", [firebaseUser.firebaseUid]);
+    const isExistingUser = Boolean(existingUser.rows[0]);
     const referral = input.referralCode
       ? await query<{ id: string; gym_id: string | null; trainer_id: string | null }>(
           "select id, gym_id, trainer_id from referral_codes where code = $1 and active = true",
@@ -34,6 +40,7 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
       on conflict (firebase_uid) do update
       set email = excluded.email,
           full_name = coalesce(nullif(excluded.full_name, ''), users.full_name),
+          primary_role = case when $7 = true then 'owner'::user_role else users.primary_role end,
           gym_id = coalesce(excluded.gym_id, users.gym_id),
           assigned_trainer_id = coalesce(excluded.assigned_trainer_id, users.assigned_trainer_id),
           referred_by_gym_id = coalesce(excluded.referred_by_gym_id, users.referred_by_gym_id),
@@ -45,16 +52,19 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
         firebaseUser.firebaseUid,
         firebaseUser.email ?? "",
         input.fullName ?? firebaseUser.name ?? firebaseUser.email ?? "Ascend Member",
-        input.primaryRole,
+        primaryRole,
         referralRow?.gym_id ?? null,
-        referralRow?.trainer_id ?? null
+        referralRow?.trainer_id ?? null,
+        isBootstrapOwner
       ]
     );
 
-    await query("insert into user_roles (user_id, role) values ($1, $2) on conflict do nothing", [
-      result.rows[0].id,
-      input.primaryRole
-    ]);
+    if (isBootstrapOwner) {
+      await query("delete from user_roles where user_id = $1", [result.rows[0].id]);
+      await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [result.rows[0].id]);
+    } else if (!isExistingUser) {
+      await query("insert into user_roles (user_id, role) values ($1, $2) on conflict do nothing", [result.rows[0].id, input.primaryRole]);
+    }
 
     res.status(201).json({ user: result.rows[0], referralApplied: Boolean(referralRow) });
   } catch (error) {
