@@ -75,72 +75,76 @@ async function getTrainerClientThreadContext(clientId: string, currentTrainerId:
   return result.rows[0] ?? null;
 }
 
-messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium"), async (req, res) => {
-  if (req.user!.roles.includes("admin") || req.user!.roles.includes("owner")) {
-    const result = await query(
+messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+  try {
+    if (req.user!.roles.includes("admin") || req.user!.roles.includes("owner")) {
+      const result = await query(
+        `
+        select id, full_name, email, primary_role
+        from users
+        where id <> $1 and status = 'active'
+        order by created_at desc
+        limit 100
+        `,
+        [req.user!.id]
+      );
+      return res.json({ contacts: result.rows });
+    }
+
+    if (req.user!.trainerId) {
+      const result = await query(
+        `
+        select id, full_name, email, primary_role
+        from users
+        where assigned_trainer_id = $1 and status = 'active'
+        order by full_name asc
+        `,
+        [req.user!.trainerId]
+      );
+      return res.json({ contacts: result.rows });
+    }
+
+    const assignedTrainerResult = await query(
       `
-      select id, full_name, email, primary_role
-      from users
-      where id <> $1 and status = 'active'
-      order by created_at desc
-      limit 100
+      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
+      from users client_user
+      join trainers t on t.id = client_user.assigned_trainer_id
+      join users trainer_user on trainer_user.id = t.user_id
+      where client_user.id = $1
+      limit 1
       `,
       [req.user!.id]
     );
-    return res.json({ contacts: result.rows });
-  }
+    if (assignedTrainerResult.rows.length) return res.json({ contacts: assignedTrainerResult.rows });
 
-  if (req.user!.trainerId) {
-    const result = await query(
+    const gymTrainerResult = await query(
       `
-      select id, full_name, email, primary_role
-      from users
-      where assigned_trainer_id = $1 and status = 'active'
-      order by full_name asc
+      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
+      from users client_user
+      join trainers t on t.gym_id = client_user.gym_id and t.status = 'active'
+      join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+      where client_user.id = $1
+      order by trainer_user.full_name asc
+      limit 20
       `,
-      [req.user!.trainerId]
+      [req.user!.id]
     );
-    return res.json({ contacts: result.rows });
+    if (gymTrainerResult.rows.length) return res.json({ contacts: gymTrainerResult.rows });
+
+    const anyTrainerResult = await query(
+      `
+      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
+      from trainers t
+      join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+      where t.status = 'active'
+      order by trainer_user.full_name asc
+      limit 20
+      `
+    );
+    return res.json({ contacts: anyTrainerResult.rows });
+  } catch (error) {
+    next(error);
   }
-
-  const assignedTrainerResult = await query(
-    `
-    select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
-    from users client_user
-    join trainers t on t.id = client_user.assigned_trainer_id
-    join users trainer_user on trainer_user.id = t.user_id
-    where client_user.id = $1
-    limit 1
-    `,
-    [req.user!.id]
-  );
-  if (assignedTrainerResult.rows.length) return res.json({ contacts: assignedTrainerResult.rows });
-
-  const gymTrainerResult = await query(
-    `
-    select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
-    from users client_user
-    join trainers t on t.gym_id = client_user.gym_id and t.status = 'active'
-    join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-    where client_user.id = $1
-    order by trainer_user.full_name asc
-    limit 20
-    `,
-    [req.user!.id]
-  );
-  if (gymTrainerResult.rows.length) return res.json({ contacts: gymTrainerResult.rows });
-
-  const anyTrainerResult = await query(
-    `
-    select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
-    from trainers t
-    join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-    where t.status = 'active'
-    order by trainer_user.full_name asc
-    limit 20
-    `
-  );
-  return res.json({ contacts: anyTrainerResult.rows });
 });
 
 messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res) => {
@@ -193,28 +197,33 @@ messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, requireA
   }
 });
 
-messagesRouter.get("/messages/:userId", requireAuth, requireActivePlan("premium"), async (req, res) => {
-  const allowed = await canMessageUser(req.user!.id, req.user!.trainerId, req.user!.roles, req.params.userId);
-  if (!allowed) return res.status(403).json({ error: "You cannot message this user" });
+messagesRouter.get("/messages/:userId", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+  try {
+    const input = z.string().uuid().parse(req.params.userId);
+    const allowed = await canMessageUser(req.user!.id, req.user!.trainerId, req.user!.roles, input);
+    if (!allowed) return res.status(403).json({ error: "You cannot message this user" });
 
-  const result = await query(
-    `
-    select *
-    from messages
-    where (sender_user_id = $1 and receiver_user_id = $2)
-       or (sender_user_id = $2 and receiver_user_id = $1)
-    order by created_at desc
-    limit 100
-    `,
-    [req.user!.id, req.params.userId]
-  );
+    const result = await query(
+      `
+      select *
+      from messages
+      where (sender_user_id = $1 and receiver_user_id = $2)
+         or (sender_user_id = $2 and receiver_user_id = $1)
+      order by created_at desc
+      limit 100
+      `,
+      [req.user!.id, input]
+    );
 
-  await query("update messages set read_at = now() where sender_user_id = $1 and receiver_user_id = $2 and read_at is null", [
-    req.params.userId,
-    req.user!.id
-  ]);
+    await query("update messages set read_at = now() where sender_user_id = $1 and receiver_user_id = $2 and read_at is null", [
+      input,
+      req.user!.id
+    ]);
 
-  res.json({ messages: result.rows.reverse() });
+    res.json({ messages: result.rows.reverse() });
+  } catch (error) {
+    next(error);
+  }
 });
 
 messagesRouter.post("/messages", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
