@@ -5,6 +5,7 @@ import { Flame, Save } from "lucide-react";
 import { estimateBurnFromText, getBurnLogs, getMe, getMySubscription, saveBurnLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
+import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 
 const burnRates: Record<string, number> = {
@@ -84,9 +85,9 @@ export function BurnLogClient() {
         const logs = await getBurnLogs();
         if (!isMounted) return;
 
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateKey();
         const total = logs.burnLogs
-          .filter((log) => log.created_at.slice(0, 10) === today)
+          .filter((log) => localDateKey(log.created_at) === today)
           .reduce((sum, log) => sum + Number(log.metadata?.caloriesBurned ?? 0), 0);
 
         setTodayCalories(total);

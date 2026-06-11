@@ -15,6 +15,7 @@ import {
 } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { BackButton } from "@/components/BackButton";
+import { localDateKey } from "@/lib/date";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -88,9 +89,9 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     };
   }, [clientId]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const todaysFood = foodLogs.filter((log) => log.logged_at.slice(0, 10) === today);
-  const todaysWaterMl = waterLogs.filter((log) => log.logged_at.slice(0, 10) === today).reduce((total, log) => total + log.amount_ml, 0);
+  const today = useMemo(() => localDateKey(), []);
+  const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
+  const todaysWaterMl = waterLogs.filter((log) => localDateKey(log.logged_at) === today).reduce((total, log) => total + log.amount_ml, 0);
   const latestWeight = weightLogs[0];
   const previousWeight = weightLogs[1];
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : 0;

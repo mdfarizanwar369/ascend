@@ -72,6 +72,7 @@ Implemented structure:
 - Role-aware navigation across owner, trainer, and client sections.
 - Session guard for account switching, logout, and browser back/forward refresh.
 - Referral analytics and validation show trainer-code gym attribution.
+- Local-day dashboard totals for Malaysia/Singapore tracking consistency.
 
 ## Database Implemented
 

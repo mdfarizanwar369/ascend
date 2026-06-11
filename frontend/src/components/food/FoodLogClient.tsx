@@ -7,6 +7,7 @@ import { estimateFoodFromDataUrl, getFoodLogs, requestFoodUploadUrl, saveFoodLog
 import { saveDemoFoodLog } from "@/lib/demoFoodLogs";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
+import { localDateKey } from "@/lib/date";
 
 const demoEstimates: FoodEstimate[] = [
   {
@@ -124,8 +125,8 @@ export function FoodLogClient() {
   }, []);
 
   const todaysFoodLogs = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return foodLogs.filter((log) => log.logged_at.slice(0, 10) === today);
+    const today = localDateKey();
+    return foodLogs.filter((log) => localDateKey(log.logged_at) === today);
   }, [foodLogs]);
 
   const todaysTotals = useMemo(

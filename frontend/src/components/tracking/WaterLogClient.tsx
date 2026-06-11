@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Droplets } from "lucide-react";
 import { getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { localDateKey } from "@/lib/date";
 
 const quickAmounts = [250, 500, 750, 1000];
 const dailyTargetMl = 2500;
@@ -21,9 +22,9 @@ export function WaterLogClient() {
         const logs = await getWaterLogs();
         if (!isMounted) return;
 
-        const today = new Date().toISOString().slice(0, 10);
+        const today = localDateKey();
         const total = logs.waterLogs
-          .filter((log) => log.logged_at.slice(0, 10) === today)
+          .filter((log) => localDateKey(log.logged_at) === today)
           .reduce((sum, log) => sum + log.amount_ml, 0);
 
         setTodayMl(total);

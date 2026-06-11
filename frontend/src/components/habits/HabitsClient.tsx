@@ -5,6 +5,7 @@ import { Check, Plus } from "lucide-react";
 import { createHabit, getHabitLogs, getHabits, saveHabitLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
+import { localDateKey } from "@/lib/date";
 
 const starterHabits = ["8,000 steps", "No sugary drinks", "Protein at breakfast", "Sleep before midnight"];
 
@@ -30,9 +31,9 @@ export function HabitsClient() {
   }, []);
 
   const completedToday = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateKey();
     return new Set(
-      habitLogs.filter((log) => log.completed && log.logged_at.slice(0, 10) === today).map((log) => log.habit_id)
+      habitLogs.filter((log) => log.completed && localDateKey(log.logged_at) === today).map((log) => log.habit_id)
     );
   }, [habitLogs]);
 

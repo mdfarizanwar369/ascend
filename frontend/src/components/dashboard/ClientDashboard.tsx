@@ -14,6 +14,7 @@ import {
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
+import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -38,10 +39,6 @@ function formatGoal(goal?: string | null) {
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
   return Number(value);
-}
-
-function dateKey(value?: string | null) {
-  return String(value ?? "").slice(0, 10);
 }
 
 function quickLogHref(item: string) {
@@ -129,11 +126,11 @@ export function ClientDashboard() {
     };
   }, [loadDashboard]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const todaysFood = foodLogs.filter((log) => dateKey(log.logged_at) === today);
-  const todaysWaterMl = waterLogs.filter((log) => dateKey(log.logged_at) === today).reduce((total, log) => total + Number(log.amount_ml ?? 0), 0);
+  const today = useMemo(() => localDateKey(), []);
+  const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
+  const todaysWaterMl = waterLogs.filter((log) => localDateKey(log.logged_at) === today).reduce((total, log) => total + Number(log.amount_ml ?? 0), 0);
   const todaysBurnCalories = burnLogs
-    .filter((log) => dateKey(log.created_at) === today)
+    .filter((log) => localDateKey(log.created_at) === today)
     .reduce((total, log) => total + Number(log.metadata?.caloriesBurned ?? 0), 0);
   const latestFood = foodLogs[0];
   const latestWeight = weightLogs[0];
@@ -141,7 +138,7 @@ export function ClientDashboard() {
   const completedHabitIds = useMemo(
     () =>
       new Set(
-        habitLogs.filter((log) => log.completed && dateKey(log.logged_at) === today).map((log) => log.habit_id)
+        habitLogs.filter((log) => log.completed && localDateKey(log.logged_at) === today).map((log) => log.habit_id)
       ),
     [habitLogs, today]
   );
