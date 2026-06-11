@@ -51,6 +51,13 @@ function quickLogHref(item: string) {
   return "/dashboard";
 }
 
+function weightTrend(current?: WeightLog, previous?: WeightLog) {
+  if (!current || !previous) return "Add 2 weigh-ins";
+  const diff = asNumber(current.weight_kg) - asNumber(previous.weight_kg);
+  if (Math.abs(diff) < 0.1) return "Stable";
+  return `${diff > 0 ? "+" : ""}${diff.toFixed(1)}kg`;
+}
+
 export function ClientDashboard() {
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -128,6 +135,7 @@ export function ClientDashboard() {
     .reduce((total, log) => total + Number(log.metadata?.caloriesBurned ?? 0), 0);
   const latestFood = foodLogs[0];
   const latestWeight = weightLogs[0];
+  const previousWeight = weightLogs[1];
   const completedHabitIds = useMemo(
     () =>
       new Set(
@@ -144,6 +152,16 @@ export function ClientDashboard() {
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
   const hasPremiumAccess = plan === "premium" || plan === "trainer_pro" || canAdmin;
+  const weeklyFoodCount = foodLogs.filter((log) => {
+    const loggedAt = new Date(log.logged_at).getTime();
+    return Number.isFinite(loggedAt) && Date.now() - loggedAt < 7 * 24 * 60 * 60 * 1000;
+  }).length;
+  const premiumActions = [
+    { href: "/food-log", title: "Snap food", detail: "AI macros" },
+    { href: "/coach", title: "Ask coach", detail: "Meal guidance" },
+    { href: "/messages", title: "Message trainer", detail: user?.assigned_trainer_name ?? "Check in" },
+    { href: "/progress", title: "Progress photo", detail: "Visual tracking" }
+  ];
   const navItems = [
     { href: "/dashboard", label: "Home", selected: true, show: true },
     { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
@@ -189,29 +207,47 @@ export function ClientDashboard() {
         <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-lime">Quick log</h2>
-              <p className="mt-1 text-sm text-zinc-300">Tap what you want to track.</p>
+              <h2 className="text-base font-semibold text-lime">{hasPremiumAccess ? "Premium actions" : "Quick log"}</h2>
+              <p className="mt-1 text-sm text-zinc-300">
+                {hasPremiumAccess ? "Use the tools you unlocked today." : "Tap what you want to track."}
+              </p>
             </div>
             <a href="/food-log" className="grid h-10 w-10 place-items-center rounded-lg bg-lime font-bold text-ink" aria-label="Add food">
               +
             </a>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2">
-            {[
-              ["Food", "Photo"],
-              ["Weight", "Scale"],
-              ["Water", "Drink"],
-              ["Burn", "Move"]
-            ].map(([item, hint]) => (
-              <a key={item} href={quickLogHref(item)} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-center">
+            {(hasPremiumAccess ? premiumActions : [
+              { href: quickLogHref("Food"), title: "Food", detail: "Photo" },
+              { href: quickLogHref("Weight"), title: "Weight", detail: "Scale" },
+              { href: quickLogHref("Water"), title: "Water", detail: "Drink" },
+              { href: quickLogHref("Burn"), title: "Burn", detail: "Move" }
+            ]).map((item) => (
+              <a key={item.title} href={item.href} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-center">
                 <span>
-                  <span className="block text-sm font-semibold text-white">{item}</span>
-                  <span className="mt-1 block text-xs text-zinc-400">{hint}</span>
+                  <span className="block text-sm font-semibold text-white">{item.title}</span>
+                  <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
                 </span>
               </a>
             ))}
           </div>
         </section>
+
+        {hasPremiumAccess ? (
+          <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Trainer status</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                  {user?.assigned_trainer_name ? `Your trainer: ${user.assigned_trainer_name}` : "Waiting for trainer assignment"}
+                </p>
+              </div>
+              <span className={`rounded px-3 py-1 text-xs ${user?.assigned_trainer_name ? "bg-lime text-ink" : "bg-amber text-ink"}`}>
+                {user?.assigned_trainer_name ? "Assigned" : "Pending"}
+              </span>
+            </div>
+          </section>
+        ) : null}
 
         <section className="mt-4 grid grid-cols-2 gap-3">
           {[
@@ -227,6 +263,31 @@ export function ClientDashboard() {
             </div>
           ))}
         </section>
+
+        {hasPremiumAccess ? (
+          <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+            <p className="text-sm font-semibold">Weekly summary</p>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Score</p>
+                <p className="mt-1 text-xl font-semibold">{score}</p>
+              </div>
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Food logs</p>
+                <p className="mt-1 text-xl font-semibold">{weeklyFoodCount}</p>
+              </div>
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Weight</p>
+                <p className="mt-1 text-xl font-semibold">{weightTrend(latestWeight, previousWeight)}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-zinc-400">
+              {todaysFood.length
+                ? "Nice. You have food data today, so your coach and trainer have better context."
+                : "Snap one meal today so your weekly check-in has better nutrition context."}
+            </p>
+          </section>
+        ) : null}
 
         <a href="/food-log" className="mt-4 block rounded-lg border border-line bg-surface p-4">
           <p className="text-sm font-semibold">Latest food log</p>

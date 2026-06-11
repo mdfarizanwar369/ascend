@@ -45,6 +45,7 @@ export function getMe() {
       target_weight_kg?: string | number | null;
       gym_id?: string | null;
       assigned_trainer_id?: string | null;
+      assigned_trainer_name?: string | null;
     };
     roles: string[];
   }>("/me");
