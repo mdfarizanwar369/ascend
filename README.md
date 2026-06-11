@@ -255,6 +255,7 @@ TESTING_CHECKLIST.md
 - Deployment guide: `docs/DEPLOYMENT.md`
 - Railway beginner deployment: `docs/RAILWAY_DEPLOYMENT.md`
 - Pilot launch checklist: `LAUNCH_CHECKLIST.md`
+- Step-by-step unpaid pilot deployment: `STEP_BY_STEP_DEPLOY_NOW.md`
 - Critical bugs and blockers: `CRITICAL_BUGS.md`
 - Deployment checklist: `DEPLOYMENT_CHECKLIST.md`
 - Pilot testing checklist: `TESTING_CHECKLIST.md`
