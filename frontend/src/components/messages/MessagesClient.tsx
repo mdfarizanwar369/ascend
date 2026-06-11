@@ -62,8 +62,8 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
         if (!isMounted) return;
         setMessages(response.messages);
         setStatus("");
-      } catch {
-        if (isMounted) setStatus("Could not load this conversation.");
+      } catch (error) {
+        if (isMounted) setStatus(error instanceof Error ? error.message : "Could not load this conversation.");
       }
     }
 

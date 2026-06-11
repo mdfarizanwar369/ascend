@@ -23,7 +23,7 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
     return Boolean(clientResult.rows[0]);
   }
 
-  const trainerResult = await query(
+  const assignedTrainerResult = await query(
     `
     select trainer_user.id
     from users current_user
@@ -34,7 +34,20 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
     `,
     [currentUserId, otherUserId]
   );
-  return Boolean(trainerResult.rows[0]);
+  if (assignedTrainerResult.rows[0]) return true;
+
+  const gymTrainerResult = await query(
+    `
+    select trainer_user.id
+    from users current_user
+    join trainers t on t.gym_id = current_user.gym_id and t.status = 'active'
+    join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+    where current_user.id = $1 and trainer_user.id = $2
+    limit 1
+    `,
+    [currentUserId, otherUserId]
+  );
+  return Boolean(gymTrainerResult.rows[0]);
 }
 
 async function getTrainerClientThreadContext(clientId: string, currentTrainerId: string | undefined, roles: string[]) {
@@ -90,7 +103,7 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
     return res.json({ contacts: result.rows });
   }
 
-  const result = await query(
+  const assignedTrainerResult = await query(
     `
     select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
     from users client_user
@@ -101,7 +114,33 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
     `,
     [req.user!.id]
   );
-  return res.json({ contacts: result.rows });
+  if (assignedTrainerResult.rows.length) return res.json({ contacts: assignedTrainerResult.rows });
+
+  const gymTrainerResult = await query(
+    `
+    select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
+    from users client_user
+    join trainers t on t.gym_id = client_user.gym_id and t.status = 'active'
+    join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+    where client_user.id = $1
+    order by trainer_user.full_name asc
+    limit 20
+    `,
+    [req.user!.id]
+  );
+  if (gymTrainerResult.rows.length) return res.json({ contacts: gymTrainerResult.rows });
+
+  const anyTrainerResult = await query(
+    `
+    select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
+    from trainers t
+    join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+    where t.status = 'active'
+    order by trainer_user.full_name asc
+    limit 20
+    `
+  );
+  return res.json({ contacts: anyTrainerResult.rows });
 });
 
 messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res) => {
