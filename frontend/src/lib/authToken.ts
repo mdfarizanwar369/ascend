@@ -5,7 +5,7 @@ export async function getFirebaseToken() {
   const auth = getFirebaseClientAuth();
   const user = auth.currentUser ?? (await waitForFirebaseUser());
   if (!user) return undefined;
-  return user.getIdToken();
+  return user.getIdToken(true);
 }
 
 function waitForFirebaseUser() {

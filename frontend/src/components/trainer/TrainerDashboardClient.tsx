@@ -57,11 +57,7 @@ export function TrainerDashboardClient() {
         setStatus("");
       } catch (error) {
         if (isMounted) {
-          setStatus(
-            error instanceof Error && error.message.includes("403")
-              ? "This login is a client account. Log in with a trainer, owner, or admin account to view assigned clients."
-              : "Could not load trainer dashboard. Please log in again."
-          );
+          setStatus(error instanceof Error ? error.message : "Could not load trainer dashboard. Please log in again.");
         }
       }
     }
