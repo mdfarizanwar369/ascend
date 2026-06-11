@@ -232,27 +232,10 @@ export function ClientDashboard() {
         </section>
 
         {hasPremiumAccess ? (
-          <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
-            <div>
-              <h2 className="text-base font-semibold text-calm">Premium actions</h2>
-              <p className="mt-1 text-sm text-zinc-300">Use the tools you unlocked today.</p>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {premiumActions.map((item) => (
-                <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
-                  <span className="block text-sm font-semibold text-white">{item.title}</span>
-                  <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
-                </a>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {hasPremiumAccess ? (
           <section className="mt-4 rounded-lg border border-line bg-surface p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold">Trainer status</p>
+                <p className="text-sm font-semibold text-lime">Premium hub</p>
                 <p className="mt-2 text-sm leading-6 text-zinc-400">
                   {user?.assigned_trainer_name ? `Your trainer: ${user.assigned_trainer_name}` : "Waiting for trainer assignment"}
                 </p>
@@ -261,6 +244,36 @@ export function ClientDashboard() {
                 {user?.assigned_trainer_name ? "Assigned" : "Pending"}
               </span>
             </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {premiumActions.map((item) => (
+                <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
+                  <span className="block text-sm font-semibold text-white">{item.title}</span>
+                  <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
+                </a>
+              ))}
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Score</p>
+                <p className="mt-1 text-xl font-semibold">{score}</p>
+              </div>
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Food logs</p>
+                <p className="mt-1 text-xl font-semibold">{weeklyFoodCount}</p>
+              </div>
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Weight</p>
+                <p className="mt-1 text-xl font-semibold">{weightTrend(latestWeight, previousWeight)}</p>
+              </div>
+            </div>
+
+            <p className="mt-3 text-sm leading-6 text-zinc-400">
+              {todaysFood.length
+                ? "Your trainer has food context today."
+                : "Snap one meal today to improve your weekly check-in."}
+            </p>
           </section>
         ) : null}
 
@@ -279,31 +292,6 @@ export function ClientDashboard() {
           ))}
         </section>
 
-        {hasPremiumAccess ? (
-          <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-            <p className="text-sm font-semibold">Weekly summary</p>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Score</p>
-                <p className="mt-1 text-xl font-semibold">{score}</p>
-              </div>
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Food logs</p>
-                <p className="mt-1 text-xl font-semibold">{weeklyFoodCount}</p>
-              </div>
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Weight</p>
-                <p className="mt-1 text-xl font-semibold">{weightTrend(latestWeight, previousWeight)}</p>
-              </div>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-zinc-400">
-              {todaysFood.length
-                ? "Nice. You have food data today, so your coach and trainer have better context."
-                : "Snap one meal today so your weekly check-in has better nutrition context."}
-            </p>
-          </section>
-        ) : null}
-
         <a href="/food-log" className="mt-4 block rounded-lg border border-line bg-surface p-4">
           <p className="text-sm font-semibold">Latest food log</p>
           <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -313,10 +301,12 @@ export function ClientDashboard() {
           </p>
         </a>
 
-        <a href="/progress" className="mt-4 block rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">Progress photos</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Add front, side, or back photos so your trainer can compare visible changes.</p>
-        </a>
+        {!hasPremiumAccess ? (
+          <a href="/progress" className="mt-4 block rounded-lg border border-line bg-surface p-4">
+            <p className="text-sm font-semibold">Progress photos</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Add front, side, or back photos so your trainer can compare visible changes.</p>
+          </a>
+        ) : null}
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between">
@@ -346,28 +336,26 @@ export function ClientDashboard() {
           </div>
         </section>
 
-        <a href="/coach" className="mt-4 block rounded-lg border border-calm/40 bg-calm/10 p-4">
-          <p className="text-sm font-medium text-calm">AI nutrition coach</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">Ask for a meal suggestion based on your goal and today's logs.</p>
-        </a>
+        {!hasPremiumAccess ? (
+          <>
+            <a href="/coach" className="mt-4 block rounded-lg border border-calm/40 bg-calm/10 p-4">
+              <p className="text-sm font-medium text-calm">AI nutrition coach</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">Ask for a meal suggestion based on your goal and today's logs.</p>
+            </a>
 
-        <a href={hasPremiumAccess ? "/messages" : "/subscription"} className="mt-4 block rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">{hasPremiumAccess ? "Message your trainer" : "Unlock trainer messaging"}</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            {hasPremiumAccess
-              ? "Ask a quick question or share context about today's logs."
-              : "Trainer messaging is included with Premium accountability."}
-          </p>
-        </a>
+            <a href="/subscription" className="mt-4 block rounded-lg border border-line bg-surface p-4">
+              <p className="text-sm font-semibold">Unlock trainer messaging</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">Trainer messaging is included with Premium accountability.</p>
+            </a>
+          </>
+        ) : null}
 
-        <a href="/subscription" className="mt-4 block rounded-lg border border-lime/40 bg-lime/10 p-4">
-          <p className="text-sm font-medium text-lime">{hasPremiumAccess ? "Premium active" : "Premium accountability"}</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">
-            {hasPremiumAccess
-              ? "AI food, progress photos, nutrition coach, and trainer messaging are unlocked."
-              : "Upgrade to RM19/month for AI food, weekly reports, and trainer accountability."}
-          </p>
-        </a>
+        {!hasPremiumAccess ? (
+          <a href="/subscription" className="mt-4 block rounded-lg border border-lime/40 bg-lime/10 p-4">
+            <p className="text-sm font-medium text-lime">Premium accountability</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">Upgrade to RM19/month for AI food, weekly reports, and trainer accountability.</p>
+          </a>
+        ) : null}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
