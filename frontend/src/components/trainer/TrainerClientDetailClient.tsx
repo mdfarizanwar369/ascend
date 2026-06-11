@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowLeft, Sparkles, TrendingDown, Utensils } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
 import {
   createWeeklyCheckin,
   getTrainerClient,
   getTrainerClientFoodLogs,
+  getTrainerClientMessages,
   getTrainerClientProgressPhotos,
   getTrainerClientWaterLogs,
-  getTrainerClientWeightLogs
+  getTrainerClientWeightLogs,
+  sendTrainerClientMessage
 } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
+type Message = Awaited<ReturnType<typeof getTrainerClientMessages>>["messages"][number];
 type ProgressPhoto = Awaited<ReturnType<typeof getTrainerClientProgressPhotos>>["progressPhotos"][number];
 type WeightLog = Awaited<ReturnType<typeof getTrainerClientWeightLogs>>["weightLogs"][number];
 type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs"][number];
@@ -34,21 +37,25 @@ function asNumber(value: string | number | null | undefined) {
 export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messageBody, setMessageBody] = useState("");
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [checkin, setCheckin] = useState("");
   const [status, setStatus] = useState("Loading client accountability...");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     async function load() {
       try {
-        const [profile, foods, progress, weights, waters] = await Promise.all([
+        const [profile, foods, nextMessages, progress, weights, waters] = await Promise.all([
           getTrainerClient(clientId),
           getTrainerClientFoodLogs(clientId),
+          getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
           getTrainerClientWeightLogs(clientId),
           getTrainerClientWaterLogs(clientId)
@@ -57,6 +64,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         if (!isMounted) return;
         setClient(profile.client);
         setFoodLogs(foods.foodLogs);
+        setMessages(nextMessages.messages);
         setProgressPhotos(progress.progressPhotos);
         setWeightLogs(weights.weightLogs);
         setWaterLogs(waters.waterLogs);
@@ -95,6 +103,25 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     }
   }
 
+  async function handleSendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = messageBody.trim();
+    if (!trimmed) return;
+
+    setIsSendingMessage(true);
+    setMessageBody("");
+
+    try {
+      const response = await sendTrainerClientMessage(clientId, trimmed);
+      setMessages((current) => [...current, response.message]);
+    } catch {
+      setMessageBody(trimmed);
+      setStatus("Could not send message. Make sure this client is assigned to this trainer.");
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }
+
   return (
     <>
       <section className="mt-3">
@@ -111,7 +138,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             href={`/messages?userId=${client.id}`}
             className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink"
           >
-            Message client
+            Open full chat
           </Link>
         ) : null}
       </section>
@@ -145,6 +172,43 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Food today" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No food today"} />
         <MetricCard label="Water today" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail="2.5L target" />
+      </section>
+
+      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-base font-semibold">Client messages</h2>
+        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-lg bg-ink p-3">
+          {messages.slice(-8).map((message) => {
+            const fromClient = message.sender_user_id === clientId;
+            return (
+              <article key={message.id} className={`flex ${fromClient ? "justify-start" : "justify-end"}`}>
+                <div className={`max-w-[82%] rounded-lg px-3 py-2 ${fromClient ? "bg-surface text-zinc-100" : "bg-lime text-ink"}`}>
+                  <p className="whitespace-pre-wrap text-sm leading-6">{message.body}</p>
+                  <p className={`mt-1 text-[11px] ${fromClient ? "text-zinc-500" : "text-ink/70"}`}>
+                    {new Date(message.created_at).toLocaleString()}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+          {!messages.length ? <p className="rounded-lg bg-surface p-3 text-sm text-zinc-400">No messages with this client yet.</p> : null}
+        </div>
+        <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">
+          <textarea
+            value={messageBody}
+            onChange={(event) => setMessageBody(event.target.value)}
+            rows={1}
+            placeholder="Reply to client..."
+            className="min-h-12 flex-1 resize-none rounded-lg border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
+          />
+          <button
+            type="submit"
+            disabled={!messageBody.trim() || isSendingMessage}
+            className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink disabled:opacity-60"
+            aria-label="Send message"
+          >
+            <Send size={18} />
+          </button>
+        </form>
       </section>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">

@@ -383,6 +383,34 @@ export function sendMessage(input: { receiverUserId: string; body: string }) {
   });
 }
 
+export function getTrainerClientMessages(clientId: string) {
+  return authed<{
+    messages: Array<{
+      id: string;
+      sender_user_id: string;
+      receiver_user_id: string;
+      body: string;
+      created_at: string;
+      read_at?: string | null;
+    }>;
+  }>(`/trainer/clients/${clientId}/messages`);
+}
+
+export function sendTrainerClientMessage(clientId: string, body: string) {
+  return authed<{
+    message: {
+      id: string;
+      sender_user_id: string;
+      receiver_user_id: string;
+      body: string;
+      created_at: string;
+    };
+  }>(`/trainer/clients/${clientId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ body })
+  });
+}
+
 export function getTrainerClients() {
   return authed<{
     clients: Array<{
