@@ -200,6 +200,11 @@ export function ClientDashboard() {
           </p>
         </a>
 
+        <a href="/progress" className="mt-4 block rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm font-semibold">Progress photos</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Add front, side, or back photos so your trainer can compare visible changes.</p>
+        </a>
+
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold">Habits</h2>

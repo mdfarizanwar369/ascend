@@ -7,6 +7,7 @@ import {
   createWeeklyCheckin,
   getTrainerClient,
   getTrainerClientFoodLogs,
+  getTrainerClientProgressPhotos,
   getTrainerClientWaterLogs,
   getTrainerClientWeightLogs
 } from "@/lib/ascendApi";
@@ -14,6 +15,7 @@ import { MetricCard } from "@/components/MetricCard";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
+type ProgressPhoto = Awaited<ReturnType<typeof getTrainerClientProgressPhotos>>["progressPhotos"][number];
 type WeightLog = Awaited<ReturnType<typeof getTrainerClientWeightLogs>>["weightLogs"][number];
 type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs"][number];
 
@@ -32,6 +34,7 @@ function asNumber(value: string | number | null | undefined) {
 export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [checkin, setCheckin] = useState("");
@@ -43,9 +46,10 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
     async function load() {
       try {
-        const [profile, foods, weights, waters] = await Promise.all([
+        const [profile, foods, progress, weights, waters] = await Promise.all([
           getTrainerClient(clientId),
           getTrainerClientFoodLogs(clientId),
+          getTrainerClientProgressPhotos(clientId),
           getTrainerClientWeightLogs(clientId),
           getTrainerClientWaterLogs(clientId)
         ]);
@@ -53,6 +57,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         if (!isMounted) return;
         setClient(profile.client);
         setFoodLogs(foods.foodLogs);
+        setProgressPhotos(progress.progressPhotos);
         setWeightLogs(weights.weightLogs);
         setWaterLogs(waters.waterLogs);
         setStatus("");
@@ -160,6 +165,29 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             </article>
           ))}
           {!foodLogs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No food logs yet.</p> : null}
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <h2 className="text-base font-semibold">Progress photos</h2>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {progressPhotos.slice(0, 6).map((photo) => (
+            <article key={photo.id} className="overflow-hidden rounded-lg bg-ink">
+              <div className="grid aspect-[3/4] place-items-center">
+                {photo.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photo.image_url} alt={photo.photo_type} className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-xs text-zinc-500">No image</span>
+                )}
+              </div>
+              <div className="p-2">
+                <p className="truncate text-xs font-medium capitalize">{photo.photo_type}</p>
+                <p className="mt-1 text-xs text-zinc-500">{new Date(photo.logged_at).toLocaleDateString()}</p>
+              </div>
+            </article>
+          ))}
+          {!progressPhotos.length ? <p className="col-span-3 rounded-lg bg-ink p-3 text-sm text-zinc-400">No progress photos yet.</p> : null}
         </div>
       </section>
 

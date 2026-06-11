@@ -221,6 +221,39 @@ export function requestFoodUploadUrl(contentType: string) {
   });
 }
 
+export function requestProgressUploadUrl(contentType: string) {
+  return authed<{ uploadUrl: string; key: string; storageConfigured?: boolean }>("/progress-photos/upload-url", {
+    method: "POST",
+    body: JSON.stringify({ contentType })
+  });
+}
+
+export function getProgressPhotos() {
+  return authed<{
+    progressPhotos: Array<{
+      id: string;
+      image_url?: string | null;
+      image_s3_key?: string | null;
+      photo_type: "front" | "side" | "back" | "other";
+      logged_at: string;
+    }>;
+  }>("/progress-photos");
+}
+
+export function saveProgressPhoto(input: { imageS3Key: string; photoType: "front" | "side" | "back" | "other"; loggedAt?: string }) {
+  return authed<{
+    progressPhoto: {
+      id: string;
+      image_s3_key: string;
+      photo_type: string;
+      logged_at: string;
+    };
+  }>("/progress-photos", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function estimateFood(imageUrl: string) {
   return authed<{ estimate: FoodEstimate }>("/food-logs/estimate", {
     method: "POST",
@@ -373,6 +406,18 @@ export function getTrainerClientWaterLogs(clientId: string) {
       logged_at: string;
     }>;
   }>(`/trainer/clients/${clientId}/water-logs`);
+}
+
+export function getTrainerClientProgressPhotos(clientId: string) {
+  return authed<{
+    progressPhotos: Array<{
+      id: string;
+      image_url?: string | null;
+      image_s3_key?: string | null;
+      photo_type: "front" | "side" | "back" | "other";
+      logged_at: string;
+    }>;
+  }>(`/trainer/clients/${clientId}/progress-photos`);
 }
 
 export function getTrainerRiskAlerts() {

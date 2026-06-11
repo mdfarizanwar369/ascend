@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { createReadUrl } from "../integrations/s3";
 
 export const progressRouter = Router();
 
@@ -11,14 +12,23 @@ const progressPhotoSchema = z.object({
   loggedAt: z.string().datetime().optional()
 });
 
+async function withProgressImageUrls<T extends { image_s3_key?: string | null }>(rows: T[]) {
+  return Promise.all(
+    rows.map(async (row) => ({
+      ...row,
+      image_url: await createReadUrl(row.image_s3_key)
+    }))
+  );
+}
+
 progressRouter.post("/progress-photos", requireAuth, async (req, res, next) => {
   try {
     const input = progressPhotoSchema.parse(req.body);
-  const result = await query(
-    "insert into progress_photos (user_id, image_s3_key, photo_type, logged_at) values ($1, $2, coalesce($3, 'front'), coalesce($4, now())) returning *",
-    [req.user!.id, input.imageS3Key, input.photoType, input.loggedAt ?? null]
-  );
-  res.status(201).json({ progressPhoto: result.rows[0] });
+    const result = await query(
+      "insert into progress_photos (user_id, image_s3_key, photo_type, logged_at) values ($1, $2, coalesce($3, 'front'), coalesce($4, now())) returning *",
+      [req.user!.id, input.imageS3Key, input.photoType, input.loggedAt ?? null]
+    );
+    res.status(201).json({ progressPhoto: result.rows[0] });
   } catch (error) {
     next(error);
   }
@@ -26,7 +36,7 @@ progressRouter.post("/progress-photos", requireAuth, async (req, res, next) => {
 
 progressRouter.get("/progress-photos", requireAuth, async (req, res) => {
   const result = await query("select * from progress_photos where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
-  res.json({ progressPhotos: result.rows });
+  res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
 });
 
 progressRouter.get(
@@ -44,6 +54,6 @@ progressRouter.get(
       `,
       [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
     );
-    res.json({ progressPhotos: result.rows });
+    res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
   }
 );
