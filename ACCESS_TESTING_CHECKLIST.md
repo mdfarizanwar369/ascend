@@ -101,6 +101,7 @@ Test these pages:
 - `/dashboard` loads.
 - `/food-log` loads.
 - `/coach` loads.
+- `/reports` loads.
 - `/messages` loads.
 - `/progress` loads.
 - `/trainer` is blocked.
@@ -109,7 +110,7 @@ Test these pages:
 Fail conditions:
 
 - Premium client sees `Free Plan`.
-- Premium client cannot use AI food, coach, messages, or progress photos.
+- Premium client cannot use AI food, coach, weekly reports, messages, or progress photos.
 - Premium client can enter admin/trainer areas.
 
 ## Free Client Account
@@ -128,6 +129,7 @@ Test these pages:
 - `/habits` works.
 - `/food-log` asks for Premium.
 - `/coach` asks for Premium.
+- `/reports` asks for Premium.
 - `/messages` asks for Premium.
 - `/progress` asks for Premium.
 - `/trainer` is blocked.

@@ -140,6 +140,7 @@ Visit:
 - `http://localhost:3000/dashboard`
 - `http://localhost:3000/food-log`
 - `http://localhost:3000/coach`
+- `http://localhost:3000/reports`
 - `http://localhost:3000/subscription`
 - `http://localhost:3000/progress`
 - `http://localhost:3000/habits`
@@ -234,7 +235,9 @@ Manual flow:
 - Save the log.
 - Return to `/dashboard` and confirm the latest demo food log appears.
 - Open `/coach`.
-- Confirm chat layout is usable on mobile.
+- Send a message and confirm the AI coach replies.
+- Open `/reports`.
+- Generate a weekly report and confirm a summary appears.
 - Open `/subscription`.
 - Confirm Free, Premium RM19, and Trainer Pro RM99 appear.
 
@@ -300,13 +303,16 @@ Without `OPENAI_API_KEY`:
 - Food log screen should support demo AI estimates and local demo saving.
 - Food estimate endpoint should return demo Nasi Lemak estimate when called from an authenticated backend flow.
 - Coach endpoint should return demo coaching text.
-- Weekly summary endpoint should return demo summary.
+- Weekly report endpoint should return demo report text.
+- Trainer weekly check-in endpoint should return demo summary.
 
 With `OPENAI_API_KEY`:
 
 - Food image analysis should return structured calories and macros.
 - Malaysia and Singapore foods should be prioritized.
 - User should be able to edit AI estimates before saving.
+- Coach chat should return a relevant response.
+- Weekly report generation should summarize the user's current week.
 
 ## 14. ToyyibPay Checks
 
