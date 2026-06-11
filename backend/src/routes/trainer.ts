@@ -19,13 +19,41 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
 trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res) => {
   const result = await query(
     `
-    select u.id, u.full_name, u.email, u.goal_type, cs.score as compliance_score, max(ra.severity) as risk_severity
+    select u.id, u.full_name, u.email, u.goal_type, cs.score as compliance_score,
+      risk.risk_severity, risk.open_alerts,
+      food.last_food_logged_at,
+      weight.last_weight_logged_at,
+      water.last_water_logged_at,
+      msg.last_client_message_at
     from users u
     left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
-    left join risk_alerts ra on ra.user_id = u.id and ra.status = 'open'
+    left join lateral (
+      select max(severity) as risk_severity, count(*) as open_alerts
+      from risk_alerts
+      where user_id = u.id and status = 'open'
+    ) risk on true
+    left join lateral (
+      select max(logged_at) as last_food_logged_at
+      from food_logs
+      where user_id = u.id
+    ) food on true
+    left join lateral (
+      select max(logged_at) as last_weight_logged_at
+      from weight_logs
+      where user_id = u.id
+    ) weight on true
+    left join lateral (
+      select max(logged_at) as last_water_logged_at
+      from water_logs
+      where user_id = u.id
+    ) water on true
+    left join lateral (
+      select max(created_at) as last_client_message_at
+      from messages
+      where sender_user_id = u.id
+    ) msg on true
     where u.assigned_trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[])
-    group by u.id, cs.score
-    order by risk_severity desc nulls last, compliance_score asc nulls last
+    order by risk.open_alerts desc nulls last, cs.score asc nulls last, food.last_food_logged_at asc nulls first
     `,
     [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
   );

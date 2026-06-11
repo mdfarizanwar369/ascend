@@ -421,6 +421,11 @@ export function getTrainerClients() {
       goal_type?: GoalType | null;
       compliance_score?: number | null;
       risk_severity?: string | null;
+      last_food_logged_at?: string | null;
+      last_weight_logged_at?: string | null;
+      last_water_logged_at?: string | null;
+      last_client_message_at?: string | null;
+      open_alerts?: string | number | null;
     }>;
   }>("/trainer/clients");
 }
