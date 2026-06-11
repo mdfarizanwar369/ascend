@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/AppShell";
+import { RoleGate } from "@/components/RoleGate";
 import { TrainerClientDetailClient } from "@/components/trainer/TrainerClientDetailClient";
 
 export default async function TrainerClientDetailPage({ params }: { params: Promise<{ clientId: string }> }) {
@@ -6,7 +7,13 @@ export default async function TrainerClientDetailPage({ params }: { params: Prom
 
   return (
     <AppShell active="trainer">
-      <TrainerClientDetailClient clientId={clientId} />
+      <RoleGate
+        allowedRoles={["trainer", "admin", "owner"]}
+        fallbackTitle="Trainer access only"
+        fallbackMessage="This account cannot view client trainer records. Use a trainer, owner, or admin login."
+      >
+        <TrainerClientDetailClient clientId={clientId} />
+      </RoleGate>
     </AppShell>
   );
 }
