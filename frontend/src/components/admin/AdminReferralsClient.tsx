@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Copy, QrCode, TrendingUp } from "lucide-react";
 import { getAdminReferrals } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 
 type Referral = Awaited<ReturnType<typeof getAdminReferrals>>["referrals"][number];
 
@@ -39,9 +40,12 @@ export function AdminReferralsClient() {
 
   return (
     <>
-      <section className="mt-3">
-        <p className="text-sm text-zinc-400">Referral attribution</p>
-        <h1 className="mt-1 text-2xl font-semibold">Gym and trainer codes</h1>
+      <section className="mt-3 flex items-start gap-3">
+        <BackButton fallbackHref="/admin" />
+        <div>
+          <p className="text-sm text-zinc-400">Referral attribution</p>
+          <h1 className="mt-1 text-2xl font-semibold">Gym and trainer codes</h1>
+        </div>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}

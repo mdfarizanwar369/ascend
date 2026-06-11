@@ -9,6 +9,7 @@ import {
   getGyms,
   updateAdminUserRole
 } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
 type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
@@ -114,10 +115,13 @@ export function AdminUsersClient() {
 
   return (
     <>
-      <section className="mt-3">
-        <p className="text-sm text-zinc-400">Owner tools</p>
-        <h1 className="mt-1 text-2xl font-semibold">Users</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">Approve trainers, assign clients, and create referral codes.</p>
+      <section className="mt-3 flex items-start gap-3">
+        <BackButton fallbackHref="/admin" />
+        <div>
+          <p className="text-sm text-zinc-400">Owner tools</p>
+          <h1 className="mt-1 text-2xl font-semibold">Users</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Approve trainers, assign clients, and create referral codes.</p>
+        </div>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}

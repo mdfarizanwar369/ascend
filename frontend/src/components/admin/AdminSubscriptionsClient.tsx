@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BadgeCheck, CircleDollarSign } from "lucide-react";
 import { getAdminSubscriptions } from "@/lib/ascendApi";
+import { BackButton } from "@/components/BackButton";
 
 type Subscription = Awaited<ReturnType<typeof getAdminSubscriptions>>["subscriptions"][number];
 
@@ -43,9 +44,12 @@ export function AdminSubscriptionsClient() {
 
   return (
     <>
-      <section className="mt-3">
-        <p className="text-sm text-zinc-400">Subscriptions</p>
-        <h1 className="mt-1 text-2xl font-semibold">Revenue attribution</h1>
+      <section className="mt-3 flex items-start gap-3">
+        <BackButton fallbackHref="/admin" />
+        <div>
+          <p className="text-sm text-zinc-400">Subscriptions</p>
+          <h1 className="mt-1 text-2xl font-semibold">Revenue attribution</h1>
+        </div>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
