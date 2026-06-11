@@ -79,6 +79,7 @@ Optional values for live integrations:
 - AWS S3 credentials in `backend/.env`
 - OpenAI API key in `backend/.env`
 - ToyyibPay values in `backend/.env`
+- `CRON_SECRET` in `backend/.env` for the protected daily compliance/risk job
 
 Without OpenAI configured, the backend returns demo AI responses.
 
@@ -159,6 +160,28 @@ npm run build
 ```powershell
 npm run test
 ```
+
+## Daily Compliance And Risk Jobs
+
+The backend includes a protected endpoint for production schedulers:
+
+```text
+POST /api/v1/jobs/daily
+```
+
+Set this backend variable:
+
+```text
+CRON_SECRET=replace-with-a-long-random-string
+```
+
+Then call the endpoint with:
+
+```text
+x-cron-secret: replace-with-a-long-random-string
+```
+
+It recalculates compliance scores and creates trainer alerts for inactivity, low compliance, missing food logs, and weight trends moving away from goal.
 
 ## Lint / Type Check
 

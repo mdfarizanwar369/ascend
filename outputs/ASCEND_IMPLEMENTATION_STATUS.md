@@ -63,6 +63,10 @@ Implemented structure:
 - AWS S3 signed upload integration.
 - Daily compliance job.
 - Risk alert job.
+- Protected daily jobs endpoint: `POST /api/v1/jobs/daily`.
+- Trainer approval workflow.
+- Owner/admin action dashboard for pending trainers and unassigned clients.
+- Role-aware navigation across owner, trainer, and client sections.
 
 ## Database Implemented
 
@@ -75,7 +79,7 @@ Migration includes:
 - Subscriptions and payment events.
 - Food, weight, water, habit, and progress photo logs.
 - Compliance scores.
-- Risk alerts.
+- Risk alerts including inactivity, low compliance, no food logs, and weight trend off goal.
 - Messages.
 - AI chat history.
 - Weekly reports.
@@ -103,12 +107,14 @@ Seed data includes:
 - API spec.
 - Deployment guide.
 - Architecture and roadmap document.
+- Railway daily job instructions.
 
 ## Verified Locally
 
 - `npm install`
 - `npm run build`
 - `npm run lint`
+- Protected daily jobs endpoint builds and type-checks.
 - `npm run test`
 - Next.js production build includes `/login`.
 - Backend TypeScript build passes.
@@ -117,13 +123,13 @@ Seed data includes:
 
 ## Remaining Before Live Pilot
 
-- Connect real Firebase project.
-- Connect real PostgreSQL database.
+- Verify real Firebase production project authorized domains.
+- Verify Railway PostgreSQL backup policy.
 - Connect real ToyyibPay category and callback verification details.
-- Connect real S3 bucket.
-- Configure OpenAI API key.
-- Replace static dashboard demo data with live API data.
+- Keep Cloudflare R2/S3 credentials configured for live media uploads.
+- Keep OpenAI API key configured for live food analysis and coach responses.
 - Add end-to-end payment testing.
 - Add production monitoring and backups.
+- Configure Railway Cron or external scheduler for `/api/v1/jobs/daily`.
 - Verify `docker compose up` on a machine where Docker Desktop is installed and visible.
-- Verify live browser rendering in a normal desktop browser; this Codex browser surface blocked local navigation.
+- Complete full manual test pass in `ACCESS_TESTING_CHECKLIST.md`.

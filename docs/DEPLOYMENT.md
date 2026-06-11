@@ -25,6 +25,8 @@ Recommended:
 - `DATABASE_URL`
 - `CORS_ORIGIN`
 - Firebase Admin credentials
+- `BOOTSTRAP_OWNER_EMAIL`
+- `CRON_SECRET`
 - AWS S3 credentials and bucket
 - OpenAI API key
 - ToyyibPay secret key, category code, return URL, and callback URL
@@ -36,6 +38,6 @@ Recommended:
 - Payment callback URL verified in ToyyibPay.
 - Firebase authorized domains configured.
 - API health check passing.
+- Daily compliance/risk job configured against `POST /api/v1/jobs/daily` with `x-cron-secret`.
 - PWA manifest and service worker accessible.
 - Seed data removed or replaced with real launch users.
-

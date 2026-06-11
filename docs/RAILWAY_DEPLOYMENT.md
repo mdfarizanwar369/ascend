@@ -74,6 +74,8 @@ AWS_S3_BUCKET=
 FIREBASE_PROJECT_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
+BOOTSTRAP_OWNER_EMAIL=you@example.com
+CRON_SECRET=use-a-long-random-secret
 TOYYIBPAY_BASE_URL=https://toyyibpay.com
 TOYYIBPAY_SECRET_KEY=
 TOYYIBPAY_CATEGORY_CODE=
@@ -181,3 +183,29 @@ Expected:
 }
 ```
 
+## Step 8: Daily Compliance And Risk Alerts
+
+Ascend includes a protected daily job endpoint:
+
+```text
+POST https://your-backend-domain.up.railway.app/api/v1/jobs/daily
+```
+
+Add this variable to the backend service:
+
+```text
+CRON_SECRET=use-a-long-random-secret
+```
+
+Then create a Railway cron job or external scheduler that sends:
+
+```text
+x-cron-secret: use-a-long-random-secret
+```
+
+This job recalculates compliance scores and creates trainer risk alerts for:
+
+- inactive clients for 7 days
+- compliance below 50%
+- no food logs for 3 days
+- weight trend moving away from goal

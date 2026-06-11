@@ -9,6 +9,7 @@ import { authRouter } from "./routes/auth";
 import { gymsRouter } from "./routes/gyms";
 import { habitsRouter } from "./routes/habits";
 import { healthRouter } from "./routes/health";
+import { jobsRouter } from "./routes/jobs";
 import { logsRouter } from "./routes/logs";
 import { meRouter } from "./routes/me";
 import { messagesRouter } from "./routes/messages";
@@ -27,6 +28,7 @@ app.use(express.json({ limit: "2mb" }));
 app.use(rateLimit({ windowMs: 60_000, limit: 120 }));
 
 app.use("/api/v1", healthRouter);
+app.use("/api/v1", jobsRouter);
 app.use("/api/v1", authRouter);
 app.use("/api/v1", meRouter);
 app.use("/api/v1", messagesRouter);
