@@ -90,6 +90,13 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
   const result = await query(`
     select u.id, u.full_name, u.email, u.primary_role::text as primary_role, u.gym_id, g.name as gym_name,
       u.assigned_trainer_id, trainer_user.full_name as assigned_trainer_name,
+      u.referred_by_gym_id, referred_gym.name as referred_gym_name,
+      u.referred_by_trainer_id, referred_trainer_user.full_name as referred_trainer_name,
+      case
+        when u.referred_by_trainer_id is not null then 'trainer'
+        when u.referred_by_gym_id is not null then 'gym'
+        else 'none'
+      end as referral_source,
       coalesce(
         (
           select array_agg(ur.role::text order by ur.role::text)
@@ -103,6 +110,9 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
     left join gyms g on g.id = u.gym_id
     left join trainers assigned_trainer on assigned_trainer.id = u.assigned_trainer_id
     left join users trainer_user on trainer_user.id = assigned_trainer.user_id
+    left join gyms referred_gym on referred_gym.id = u.referred_by_gym_id
+    left join trainers referred_trainer on referred_trainer.id = u.referred_by_trainer_id
+    left join users referred_trainer_user on referred_trainer_user.id = referred_trainer.user_id
     order by u.created_at desc
   `);
   res.json({ users: result.rows });

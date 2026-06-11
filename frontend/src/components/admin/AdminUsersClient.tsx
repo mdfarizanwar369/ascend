@@ -27,6 +27,25 @@ function trainerCode(name: string) {
   return `TRAINER-${name.split(/\s+/)[0]?.replace(/[^a-z0-9]/gi, "").toUpperCase() || "NEW"}`;
 }
 
+function referralLabel(user: AdminUser) {
+  if (user.referral_source === "trainer") return `Trainer referral / ${user.referred_trainer_name ?? "Unknown trainer"}`;
+  if (user.referral_source === "gym") return `Gym referral / ${user.referred_gym_name ?? user.gym_name ?? "Unknown gym"}`;
+  return "No referral / Needs review";
+}
+
+function assignmentLabel(user: AdminUser) {
+  if (user.assigned_trainer_name) return `Assigned to ${user.assigned_trainer_name}`;
+  if (user.referral_source === "gym") return "Needs trainer";
+  if (user.referral_source === "trainer") return "Trainer referral missing assignment";
+  return "Needs review";
+}
+
+function assignmentTone(user: AdminUser) {
+  if (user.assigned_trainer_name) return "bg-lime text-ink";
+  if (user.referral_source === "gym") return "bg-amber text-ink";
+  return "bg-surface text-zinc-300";
+}
+
 export function AdminUsersClient() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
@@ -165,9 +184,9 @@ export function AdminUsersClient() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{client.full_name}</p>
                   <p className="mt-1 truncate text-xs text-zinc-400">{client.email}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{client.gym_name ?? "No gym yet"}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{referralLabel(client)}</p>
                 </div>
-                <span className="rounded bg-amber px-2 py-1 text-xs text-ink">Needs trainer</span>
+                <span className={`rounded px-2 py-1 text-xs ${assignmentTone(client)}`}>{assignmentLabel(client)}</span>
               </div>
               <div className="mt-3">
                 <Field label="Assign trainer">
@@ -219,7 +238,8 @@ export function AdminUsersClient() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{user.full_name}</p>
                   <p className="mt-1 truncate text-xs text-zinc-400">{user.email}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{user.gym_name ?? "No gym"}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{user.primary_role === "client" ? referralLabel(user) : user.gym_name ?? "No gym"}</p>
+                  {user.primary_role === "client" ? <p className="mt-1 text-xs text-zinc-500">{assignmentLabel(user)}</p> : null}
                 </div>
                 <span className="rounded bg-surface px-2 py-1 text-xs text-zinc-300">{formatRole(user.primary_role)}</span>
               </div>

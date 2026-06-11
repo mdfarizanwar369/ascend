@@ -569,6 +569,11 @@ export function getAdminUsers() {
       gym_name: string | null;
       assigned_trainer_id: string | null;
       assigned_trainer_name: string | null;
+      referred_by_gym_id: string | null;
+      referred_gym_name: string | null;
+      referred_by_trainer_id: string | null;
+      referred_trainer_name: string | null;
+      referral_source: "gym" | "trainer" | "none";
       created_at: string;
     }>;
   }>("/admin/users");
