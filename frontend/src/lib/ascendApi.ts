@@ -544,6 +544,76 @@ export function getAdminCompliance() {
   }>("/admin/analytics/compliance");
 }
 
+export function getGyms() {
+  return api<{
+    gyms: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      location: string;
+      country: string;
+      timezone: string;
+    }>;
+  }>("/gyms");
+}
+
+export function getAdminUsers() {
+  return authed<{
+    users: Array<{
+      id: string;
+      full_name: string;
+      email: string;
+      primary_role: "client" | "trainer" | "admin" | "owner";
+      roles: string[];
+      gym_id: string | null;
+      gym_name: string | null;
+      assigned_trainer_id: string | null;
+      assigned_trainer_name: string | null;
+      created_at: string;
+    }>;
+  }>("/admin/users");
+}
+
+export function getAdminTrainers() {
+  return authed<{
+    trainers: Array<{
+      id: string;
+      user_id: string;
+      full_name: string;
+      email: string;
+      gym_name: string;
+      specialties: string[];
+      status: string;
+    }>;
+  }>("/admin/trainers");
+}
+
+export function updateAdminUserRole(input: { userId: string; role: "client" | "trainer" | "admin" | "owner"; gymId?: string }) {
+  return authed<{ user: unknown }>(`/admin/users/${input.userId}/role`, {
+    method: "PATCH",
+    body: JSON.stringify({ role: input.role, gymId: input.gymId })
+  });
+}
+
+export function assignAdminClient(input: { clientId: string; trainerId: string | null }) {
+  return authed<{ user: unknown }>("/admin/assign-client", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function createAdminReferral(input: {
+  code: string;
+  type: "gym" | "trainer";
+  gymId?: string | null;
+  trainerId?: string | null;
+}) {
+  return authed<{ referral: unknown }>("/admin/referral-codes", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function getAdminReferrals() {
   return authed<{
     referrals: Array<{

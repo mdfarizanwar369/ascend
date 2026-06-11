@@ -128,6 +128,10 @@ export function AdminDashboardClient() {
       </section>
 
       <section className="mt-4 grid grid-cols-2 gap-3">
+        <Link href="/admin/users" className="rounded-lg border border-line bg-surface p-4 text-left">
+          <Users className="text-lime" size={20} />
+          <span className="mt-3 block text-sm font-medium">Users</span>
+        </Link>
         <Link href="/admin/subscriptions" className="rounded-lg border border-line bg-surface p-4 text-left">
           <Users className="text-calm" size={20} />
           <span className="mt-3 block text-sm font-medium">Subscriptions</span>

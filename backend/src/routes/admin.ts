@@ -1,9 +1,27 @@
 import { Router } from "express";
-import { query } from "../db/pool";
+import { z } from "zod";
+import { pool, query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { getRevenueByGym, getRevenueByTrainer } from "../services/analyticsService";
 
 export const adminRouter = Router();
+
+const roleSchema = z.object({
+  role: z.enum(["client", "trainer", "admin", "owner"]),
+  gymId: z.string().uuid().optional()
+});
+
+const assignClientSchema = z.object({
+  clientId: z.string().uuid(),
+  trainerId: z.string().uuid().nullable()
+});
+
+const referralSchema = z.object({
+  code: z.string().min(3).max(40),
+  type: z.enum(["gym", "trainer"]),
+  gymId: z.string().uuid().nullable().optional(),
+  trainerId: z.string().uuid().nullable().optional()
+});
 
 adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   res.json({
@@ -44,16 +62,33 @@ adminRouter.get("/admin/analytics/compliance", requireAuth, requireRole(["admin"
   res.json({ compliance: result.rows });
 });
 
-adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
-  const result = await query("update users set assigned_trainer_id = $2, updated_at = now() where id = $1 returning *", [
-    req.body.clientId,
-    req.body.trainerId
-  ]);
-  res.json({ user: result.rows[0] });
+adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
+  try {
+    const input = assignClientSchema.parse(req.body);
+    const result = await query("update users set assigned_trainer_id = $2, updated_at = now() where id = $1 returning *", [
+      input.clientId,
+      input.trainerId
+    ]);
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
 });
 
 adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
-  const result = await query("select id, full_name, email, primary_role, gym_id, assigned_trainer_id, created_at from users order by created_at desc");
+  const result = await query(`
+    select u.id, u.full_name, u.email, u.primary_role, u.gym_id, g.name as gym_name,
+      u.assigned_trainer_id, trainer_user.full_name as assigned_trainer_name,
+      coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles,
+      u.created_at
+    from users u
+    left join gyms g on g.id = u.gym_id
+    left join trainers assigned_trainer on assigned_trainer.id = u.assigned_trainer_id
+    left join users trainer_user on trainer_user.id = assigned_trainer.user_id
+    left join user_roles ur on ur.user_id = u.id
+    group by u.id, g.name, trainer_user.full_name
+    order by u.created_at desc
+  `);
   res.json({ users: result.rows });
 });
 
@@ -66,6 +101,76 @@ adminRouter.get("/admin/trainers", requireAuth, requireRole(["admin", "owner"]),
     order by g.name, u.full_name
   `);
   res.json({ trainers: result.rows });
+});
+
+adminRouter.patch("/admin/users/:userId/role", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
+  const db = await pool.connect();
+  try {
+    const input = roleSchema.parse(req.body);
+
+    await db.query("begin");
+
+    const userResult = await db.query(
+      "update users set primary_role = $2, gym_id = coalesce($3, gym_id), updated_at = now() where id = $1 returning *",
+      [req.params.userId, input.role, input.gymId ?? null]
+    );
+    const user = userResult.rows[0];
+    if (!user) {
+      await db.query("rollback");
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    await db.query("delete from user_roles where user_id = $1", [req.params.userId]);
+    await db.query("insert into user_roles (user_id, role) values ($1, $2)", [req.params.userId, input.role]);
+
+    if (input.role === "trainer") {
+      const gymId = input.gymId ?? user.gym_id;
+      if (!gymId) {
+        await db.query("rollback");
+        return res.status(400).json({ error: "Trainer role requires a gym" });
+      }
+      await db.query(
+        `
+        insert into trainers (user_id, gym_id, specialties)
+        values ($1, $2, '{}')
+        on conflict (user_id) do update set gym_id = excluded.gym_id, status = 'active'
+        `,
+        [req.params.userId, gymId]
+      );
+    } else {
+      await db.query("update trainers set status = 'inactive' where user_id = $1", [req.params.userId]);
+    }
+
+    await db.query("commit");
+    res.json({ user });
+  } catch (error) {
+    await db.query("rollback").catch(() => undefined);
+    next(error);
+  } finally {
+    db.release();
+  }
+});
+
+adminRouter.post("/admin/referral-codes", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
+  try {
+    const input = referralSchema.parse(req.body);
+    const result = await query(
+      `
+      insert into referral_codes (code, type, gym_id, trainer_id, created_by_user_id)
+      values ($1, $2, $3, $4, $5)
+      on conflict (code) do update set
+        type = excluded.type,
+        gym_id = excluded.gym_id,
+        trainer_id = excluded.trainer_id,
+        active = true
+      returning *
+      `,
+      [input.code.toUpperCase(), input.type, input.gymId ?? null, input.trainerId ?? null, req.user!.id]
+    );
+    res.status(201).json({ referral: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
 });
 
 adminRouter.get("/admin/referrals/analytics", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
