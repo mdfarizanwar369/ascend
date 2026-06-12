@@ -25,10 +25,6 @@ type Habit = Awaited<ReturnType<typeof getHabits>>["habits"][number];
 type HabitLog = Awaited<ReturnType<typeof getHabitLogs>>["habitLogs"][number];
 type BurnLog = Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number];
 
-function firstName(fullName?: string) {
-  return fullName?.trim().split(/\s+/)[0] || "there";
-}
-
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
   if (goal === "muscle_gain") return "Muscle gain";
@@ -132,7 +128,7 @@ export function ClientDashboard() {
           habits: Number(nextCompliance?.habit_score ?? 0)
         });
       }
-      setStatus([foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance].some((result) => result.status === "rejected") ? "Some dashboard data is still loading. Your account is active." : "");
+      setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     }
@@ -191,12 +187,6 @@ export function ClientDashboard() {
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = momentumScore ?? fallbackScore;
   const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
-  const encouragement =
-    score >= 80
-      ? "Nice work. Keep the rhythm going today."
-      : score >= 60
-        ? "You are close. One more useful log can move the day forward."
-        : "No pressure. Start small and log one thing now.";
   const safeRoles = Array.isArray(roles) ? roles : [];
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
@@ -275,12 +265,31 @@ export function ClientDashboard() {
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} />
 
         <section className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-4">
-          <p className="text-sm text-zinc-300">{formatGoal(user?.goal_type)}</p>
-          <h1 className="mt-1 text-2xl font-semibold">Hi {firstName(user?.full_name)}, what is your next win?</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">{encouragement}</p>
-          <a href="/food-log" className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-            Log one thing now
-          </a>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm text-zinc-300">{formatGoal(user?.goal_type)}</p>
+              <h1 className="mt-1 text-2xl font-semibold">Quick actions</h1>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">Log one thing now to keep today moving.</p>
+            </div>
+            <a href="/food-log" className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-lime text-xl font-bold text-ink" aria-label="Add food">
+              +
+            </a>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {[
+              { href: quickLogHref("Food"), title: "Food photo", detail: hasPremiumAccess ? "AI estimate" : "Log meal" },
+              { href: quickLogHref("Weight"), title: "Weight", detail: "Scale check-in" },
+              { href: quickLogHref("Water"), title: "Water", detail: "Add drinks" },
+              { href: quickLogHref("Burn"), title: "Activity", detail: "Estimate burn" }
+            ].map((item) => (
+              <a key={item.title} href={item.href} className="grid min-h-24 rounded-lg border border-line bg-ink p-3">
+                <span>
+                  <span className="block text-base font-semibold text-white">{item.title}</span>
+                  <span className="mt-1 block text-sm text-zinc-400">{item.detail}</span>
+                </span>
+              </a>
+            ))}
+          </div>
         </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
@@ -339,33 +348,6 @@ export function ClientDashboard() {
                 <p className="mt-1 text-lg font-semibold">{foodConsistency}/7</p>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-lime">Quick actions</h2>
-              <p className="mt-1 text-sm text-zinc-300">Pick the easiest next step.</p>
-            </div>
-            <a href="/food-log" className="grid h-10 w-10 place-items-center rounded-lg bg-lime font-bold text-ink" aria-label="Add food">
-              +
-            </a>
-          </div>
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            {[
-              { href: quickLogHref("Food"), title: "Food", detail: hasPremiumAccess ? "AI photo" : "Photo" },
-              { href: quickLogHref("Weight"), title: "Weight", detail: "Scale" },
-              { href: quickLogHref("Water"), title: "Water", detail: "Drink" },
-              { href: quickLogHref("Burn"), title: "Activity", detail: "Move" }
-            ].map((item) => (
-              <a key={item.title} href={item.href} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-center">
-                <span>
-                  <span className="block text-sm font-semibold text-white">{item.title}</span>
-                  <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
-                </span>
-              </a>
-            ))}
           </div>
         </section>
 
