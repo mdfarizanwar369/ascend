@@ -133,7 +133,7 @@ export function TrainerDashboardClient() {
 
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Clients" value={String(clients.length)} detail={`${activeToday} active today`} />
-        <MetricCard label="Avg score" value={averageScore} detail="Compliance" tone={averageScore !== "--" && Number(averageScore) < 60 ? "warning" : "success"} />
+        <MetricCard label="Avg score" value={averageScore} detail="Accountability" tone={averageScore !== "--" && Number(averageScore) < 60 ? "warning" : "success"} />
         <MetricCard label="Check-ins" value={String(needsCheckIn)} detail="Need attention" tone={needsCheckIn ? "warning" : "success"} />
         <MetricCard label="Alerts" value={String(alerts.length || highRisk)} detail={`${highRisk} high priority`} tone={highRisk ? "warning" : "success"} />
       </section>

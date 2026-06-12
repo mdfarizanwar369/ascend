@@ -63,7 +63,7 @@ export function AdminDashboardClient() {
         if (!isMounted) return;
         setCompliance(safeArray(complianceResponse.compliance));
       } catch (error) {
-        failures.push(error instanceof Error ? `Compliance: ${error.message}` : "Compliance failed");
+        failures.push(error instanceof Error ? `Accountability: ${error.message}` : "Accountability failed");
       }
 
       try {
@@ -113,7 +113,7 @@ export function AdminDashboardClient() {
         <MetricCard label="Premium" value={String(activeSubscriptions)} detail="Active members" />
         <MetricCard label="Clients" value={String(totalClients || users.filter((user) => user.primary_role === "client").length)} detail={`${unassignedClients} unassigned`} tone={unassignedClients ? "warning" : "success"} />
         <MetricCard label="Trainers" value={String(activeTrainers)} detail={`${pendingTrainers} pending`} tone={pendingTrainers ? "warning" : "success"} />
-        <MetricCard label="Avg score" value={averageCompliance ? String(averageCompliance) : "--"} detail="Compliance" />
+        <MetricCard label="Avg score" value={averageCompliance ? String(averageCompliance) : "--"} detail="Accountability" />
       </section>
 
       {(pendingTrainers || unassignedClients) ? (

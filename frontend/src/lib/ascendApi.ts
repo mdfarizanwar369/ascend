@@ -319,7 +319,7 @@ export function getMySubscription() {
   }>("/subscriptions/me");
 }
 
-export function activateDemoSubscription(plan: Exclude<SubscriptionPlan, "free">) {
+export function activatePilotSubscription(plan: Exclude<SubscriptionPlan, "free">) {
   return authed<{
     subscription: {
       id: string;

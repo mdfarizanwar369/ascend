@@ -96,7 +96,7 @@ export function AuthPanel() {
           <form className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" onSubmit={handleSubmit}>
             {!firebaseConfigured ? (
               <div className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">
-                Firebase is not configured locally yet. Use demo mode to review the MVP screens, or add Firebase web app values to
+                Firebase is not configured locally yet. Use local preview mode to review the MVP screens, or add Firebase web app values to
                 `frontend/.env.local` for real sign-up.
               </div>
             ) : null}
@@ -167,7 +167,7 @@ export function AuthPanel() {
                 }}
                 type="button"
               >
-                Continue in demo mode
+                Continue in local preview mode
               </button>
             ) : null}
           </form>

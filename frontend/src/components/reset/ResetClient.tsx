@@ -19,7 +19,6 @@ export function ResetClient() {
           await Promise.all(keys.map((key) => caches.delete(key)));
         }
 
-        localStorage.removeItem("ascend.demoFoodLogs");
         sessionStorage.clear();
         setMessage("Cache cleared. Opening Ascend...");
 

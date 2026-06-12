@@ -45,7 +45,7 @@ export class ToyyibPayProvider implements PaymentProvider {
       return {
         provider: "toyyibpay",
         providerReference: reference,
-        checkoutUrl: `${env.TOYYIBPAY_RETURN_URL ?? "http://localhost:3000" }?demo_reference=${reference}`
+        checkoutUrl: `${env.TOYYIBPAY_RETURN_URL ?? "http://localhost:3000" }?pilot_reference=${reference}`
       };
     }
 

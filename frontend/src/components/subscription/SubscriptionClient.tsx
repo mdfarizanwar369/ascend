@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
-import { activateDemoSubscription, createCheckout, getMe, getMySubscription } from "@/lib/ascendApi";
+import { activatePilotSubscription, createCheckout, getMe, getMySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 
@@ -28,7 +28,7 @@ export function SubscriptionClient() {
       params?.has("status_id") ||
       params?.has("billcode") ||
       params?.has("transaction_id") ||
-      params?.has("demo_reference");
+      params?.has("pilot_reference");
 
     if (roles.includes("owner") || roles.includes("admin")) {
       setBackHref("/admin");
@@ -65,16 +65,16 @@ export function SubscriptionClient() {
     }
   }
 
-  async function activateDemo(plan: Exclude<SubscriptionPlan, "free">) {
+  async function activatePilot(plan: Exclude<SubscriptionPlan, "free">) {
     setIsLoadingPlan(plan);
-    setStatus("Activating test subscription...");
+    setStatus("Activating pilot access...");
 
     try {
-      const response = await activateDemoSubscription(plan);
+      const response = await activatePilotSubscription(plan);
       setActivePlan(response.subscription.plan);
-      setStatus(`${formatPlan(response.subscription.plan)} is active for testing.`);
+      setStatus(`${formatPlan(response.subscription.plan)} pilot access is active.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not activate test subscription.");
+      setStatus(error instanceof Error ? error.message : "Could not activate pilot access.");
     } finally {
       setIsLoadingPlan(null);
     }
@@ -143,11 +143,11 @@ export function SubscriptionClient() {
                     <button
                       type="button"
                       disabled={isLoadingPlan !== null}
-                      onClick={() => activateDemo(checkoutPlan)}
+                      onClick={() => activatePilot(checkoutPlan)}
                       className="flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white disabled:opacity-60"
                     >
                       <Sparkles className="mr-2" size={18} />
-                      Activate test plan
+                      Activate pilot access
                     </button>
                   </div>
                 ) : (

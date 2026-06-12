@@ -61,7 +61,7 @@ export function WeeklyReportClient() {
             <div>
               <p className="font-semibold text-calm">Turn your logs into next actions.</p>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                Ascend summarizes your week from food, water, weight, habits, burn, and compliance.
+                Ascend summarizes your week from food, water, weight, habits, burn, and accountability.
               </p>
             </div>
           </div>
@@ -87,8 +87,9 @@ export function WeeklyReportClient() {
                 </p>
                 <h2 className="mt-1 text-xl font-semibold">Your accountability summary</h2>
               </div>
-              <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">
-                {report.compliance_score ?? "--"}/100
+              <span className="rounded-lg bg-ink px-3 py-2 text-right text-sm font-semibold text-lime">
+                <span className="block">{report.compliance_score ?? "--"}/100</span>
+                <span className="block text-[11px] font-normal text-zinc-400">Accountability</span>
               </span>
             </div>
             <p className="mt-4 whitespace-pre-line text-sm leading-7 text-zinc-200">{report.summary}</p>

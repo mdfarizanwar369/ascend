@@ -22,7 +22,7 @@ function demoFoodEstimate(): FoodEstimate {
     proteinG: 18,
     carbsG: 72,
     fatG: 28,
-    notes: "Demo estimate. Configure GEMINI_API_KEY or OPENAI_API_KEY to enable live image analysis."
+    notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
   };
 }
 
@@ -155,7 +155,7 @@ export async function estimateFoodFromImage(imageUrl: string): Promise<FoodEstim
 
   return {
     ...demoFoodEstimate(),
-    notes: `${env.AI_PROVIDER} provider is reserved for a future hosted model. Using demo estimate for now.`
+    notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
   };
 }
 

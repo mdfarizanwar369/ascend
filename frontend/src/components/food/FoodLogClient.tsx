@@ -4,12 +4,11 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { FoodEstimate } from "@ascend/shared";
 import { estimateFoodFromDataUrl, getFoodLogs, requestFoodUploadUrl, saveFoodLog } from "@/lib/ascendApi";
-import { saveDemoFoodLog } from "@/lib/demoFoodLogs";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 
-const demoEstimates: FoodEstimate[] = [
+const starterEstimates: FoodEstimate[] = [
   {
     foodName: "Nasi Lemak",
     confidence: 0.82,
@@ -41,11 +40,11 @@ const demoEstimates: FoodEstimate[] = [
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 
-function pickDemoEstimate(fileName: string) {
+function pickStarterEstimate(fileName: string) {
   const name = fileName.toLowerCase();
-  if (name.includes("chicken") || name.includes("rice")) return demoEstimates[1];
-  if (name.includes("roti") || name.includes("canai")) return demoEstimates[2];
-  return demoEstimates[0];
+  if (name.includes("chicken") || name.includes("rice")) return starterEstimates[1];
+  if (name.includes("roti") || name.includes("canai")) return starterEstimates[2];
+  return starterEstimates[0];
 }
 
 function resizeImageToDataUrl(file: File) {
@@ -165,8 +164,8 @@ export function FoodLogClient() {
         setStatus("AI estimate ready. Review, edit if needed, then save.");
       })
       .catch(() => {
-        setEstimate(pickDemoEstimate(file.name));
-        setStatus("Demo estimate ready. Add OPENAI_API_KEY on Railway for live food photo AI.");
+        setEstimate(pickStarterEstimate(file.name));
+        setStatus("AI estimate is unavailable right now. Review this starter estimate before saving.");
       })
       .finally(() => setIsEstimating(false));
   }
@@ -182,8 +181,8 @@ export function FoodLogClient() {
       setStatus("AI estimate ready. Review, edit if needed, then save.");
     } catch {
       if (selectedFile) {
-        setEstimate(pickDemoEstimate(selectedFile.name));
-        setStatus("Demo estimate ready. Add OPENAI_API_KEY on Railway for live food photo AI.");
+        setEstimate(pickStarterEstimate(selectedFile.name));
+        setStatus("AI estimate is unavailable right now. Review this starter estimate before saving.");
       }
     } finally {
       setIsEstimating(false);
@@ -242,10 +241,9 @@ export function FoodLogClient() {
       setEstimate(null);
       setSelectedFile(null);
       setWasEdited(false);
-      setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Add storage credentials later to keep the photo.");
+      setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
     } catch (error) {
-      saveDemoFoodLog(savedLog);
-      setStatus(error instanceof Error ? error.message : "Saved in demo mode. Connect Firebase/backend auth to save to PostgreSQL.");
+      setStatus(error instanceof Error ? error.message : "Could not save food log. Please check your connection and try again.");
     } finally {
       setIsSaving(false);
     }

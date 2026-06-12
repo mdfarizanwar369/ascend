@@ -65,6 +65,12 @@ export function ClientDashboard() {
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
   const [complianceScore, setComplianceScore] = useState<number | null>(null);
+  const [accountabilityBreakdown, setAccountabilityBreakdown] = useState({
+    food: 0,
+    weight: 0,
+    water: 0,
+    habits: 0
+  });
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
   const [status, setStatus] = useState("Loading your Ascend profile...");
@@ -93,7 +99,16 @@ export function ClientDashboard() {
         setHabitLogs(Array.isArray(nextHabitLogs.value.habitLogs) ? nextHabitLogs.value.habitLogs : []);
       }
       if (burns.status === "fulfilled") setBurnLogs(Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : []);
-      if (compliance.status === "fulfilled") setComplianceScore(compliance.value.compliance?.score ?? null);
+      if (compliance.status === "fulfilled") {
+        const nextCompliance = compliance.value.compliance;
+        setComplianceScore(nextCompliance?.score ?? null);
+        setAccountabilityBreakdown({
+          food: Number(nextCompliance?.food_score ?? 0),
+          weight: Number(nextCompliance?.weight_score ?? 0),
+          water: Number(nextCompliance?.water_score ?? 0),
+          habits: Number(nextCompliance?.habit_score ?? 0)
+        });
+      }
       setStatus([foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance].some((result) => result.status === "rejected") ? "Some dashboard data is still loading. Your account is active." : "");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
@@ -147,6 +162,7 @@ export function ClientDashboard() {
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = complianceScore ?? fallbackScore;
+  const scoreLabel = score >= 80 ? "On track" : score >= 60 ? "Needs attention" : "Check in today";
   const safeRoles = Array.isArray(roles) ? roles : [];
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
@@ -194,13 +210,43 @@ export function ClientDashboard() {
               <p className="text-sm text-zinc-400">{formatGoal(user?.goal_type)}</p>
               <h1 className="mt-1 text-2xl font-semibold">Stay on track, {firstName(user?.full_name)}</h1>
               <p className="mt-2 text-sm leading-6 text-zinc-400">Log one thing now. Small check-ins keep your trainer in the loop.</p>
+              <a href="/accountability-score" className="mt-3 inline-flex text-sm font-medium text-lime">
+                How your score works
+              </a>
             </div>
             <div className="grid h-28 w-28 shrink-0 place-items-center rounded-full border-4 border-lime">
               <div className="text-center">
                 <p className="text-3xl font-semibold">{score}</p>
-                <p className="text-xs text-zinc-400">score</p>
+                <p className="text-xs text-zinc-400">accountability</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Accountability Score</p>
+              <p className="mt-1 text-sm text-zinc-400">{scoreLabel}. Based on today&apos;s check-ins.</p>
+            </div>
+            <a href="/accountability-score" className="text-sm font-medium text-lime">
+              Explain
+            </a>
+          </div>
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {[
+              ["Food", accountabilityBreakdown.food, 35],
+              ["Weight", accountabilityBreakdown.weight, 25],
+              ["Water", accountabilityBreakdown.water, 20],
+              ["Habits", accountabilityBreakdown.habits, 20]
+            ].map(([label, value, max]) => (
+              <div key={label} className="rounded-lg bg-ink p-2 text-center">
+                <p className="text-xs text-zinc-400">{label}</p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {value}/{max}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -256,7 +302,7 @@ export function ClientDashboard() {
 
             <div className="mt-4 grid grid-cols-3 gap-2">
               <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Score</p>
+                <p className="text-xs text-zinc-400">Accountability</p>
                 <p className="mt-1 text-xl font-semibold">{score}</p>
               </div>
               <div className="rounded-lg bg-ink p-3">

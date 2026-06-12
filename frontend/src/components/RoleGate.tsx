@@ -123,7 +123,7 @@ export function RoleGate({
             <div className="mt-3 flex items-start gap-2">
               <Sparkles className="mt-0.5 shrink-0 text-lime" size={18} />
               <p className="text-sm leading-6 text-zinc-300">
-                This feature is part of {planLabel(requiredPlan)}. You can activate a test plan from the subscription screen now.
+                This feature is part of {planLabel(requiredPlan)}. You can activate pilot access from the subscription screen now.
               </p>
             </div>
             <Link href="/subscription" className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
