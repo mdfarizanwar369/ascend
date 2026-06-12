@@ -146,14 +146,14 @@ As Premium client:
 
 ## 7. AI Flow
 
-Without OpenAI key:
+Without Gemini or OpenAI key:
 
 - [ ] Food estimate returns demo Nasi Lemak-style estimate.
 - [ ] Coach returns safe demo guidance.
 - [ ] Weekly report returns safe demo summary.
 - [ ] Trainer weekly check-in returns safe demo summary.
 
-With OpenAI key:
+With Gemini key:
 
 - [ ] Nasi Lemak image produces plausible local-food estimate.
 - [ ] Chicken Rice image produces plausible local-food estimate.

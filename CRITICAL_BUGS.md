@@ -118,13 +118,13 @@ Critical items block a live pilot.
 
 Important items should be completed before pilot if possible. They do not necessarily block a small controlled pilot with manual monitoring.
 
-### I1. OpenAI live behavior must be tested with real food photos
+### I1. Gemini live behavior must be tested with real food photos
 
 - Status: Open
 - Area: AI
 - Risk: Food estimates may fall back to demo text or give poor local-food estimates.
 - Fastest resolution:
-  - Add `OPENAI_API_KEY`, upload Nasi Lemak, Chicken Rice, and Roti Canai test images, and verify editable estimates.
+  - Add `AI_PROVIDER=gemini` and `GEMINI_API_KEY`, upload Nasi Lemak, Chicken Rice, and Roti Canai test images, and verify editable estimates.
 
 ### I2. Railway PostgreSQL backup policy must be confirmed
 
@@ -150,14 +150,14 @@ Important items should be completed before pilot if possible. They do not necess
 - Fastest resolution:
   - Keep launch gyms and referral codes, then remove or clearly label sample users before inviting real users.
 
-### I5. Env examples are not perfectly identical
+### I5. Env examples must stay aligned after provider changes
 
-- Status: Open
+- Status: Closed
 - Area: Developer operations
 - Risk: Confusion when copying env values between root and backend examples.
 - Details:
-  - Root `.env.example` does not include `AWS_S3_ENDPOINT` or `AI_PROVIDER`.
-  - Root ToyyibPay return URL uses `/subscription/success`, while the app route is `/subscription`.
+  - Root and backend env examples now include Gemini variables and storage endpoint.
+  - Root ToyyibPay return URL now uses `/subscription`.
 - Fastest resolution:
   - Align env examples before handing the repo to another developer/operator.
 

@@ -34,9 +34,11 @@ Set these on the Railway backend service.
 | `AWS_ACCESS_KEY_ID` | Yes for media uploads | access key | S3/R2 upload credentials. |
 | `AWS_SECRET_ACCESS_KEY` | Yes for media uploads | secret key | S3/R2 upload credentials. |
 | `AWS_S3_BUCKET` | Yes for media uploads | `ascend-photos` | Food/progress photo bucket. |
-| `AI_PROVIDER` | Yes | `openai` | AI provider selector. |
-| `OPENAI_API_KEY` | Important | OpenAI API key | Live food AI, coach, reports, burn estimates. |
-| `OPENAI_MODEL` | Yes | `gpt-4.1-mini` | OpenAI model. |
+| `AI_PROVIDER` | Yes | `gemini` | AI provider selector. |
+| `GEMINI_API_KEY` | Yes for Gemini pilot | Google Gemini API key | Live food AI, coach, reports, burn estimates. |
+| `GEMINI_MODEL` | Yes for Gemini pilot | `gemini-2.5-flash` | Gemini model. |
+| `OPENAI_API_KEY` | Optional | OpenAI API key | Optional fallback if `AI_PROVIDER=openai`. |
+| `OPENAI_MODEL` | Optional | `gpt-4.1-mini` | Optional OpenAI model. |
 | `TOYYIBPAY_BASE_URL` | Yes for billing | `https://toyyibpay.com` | ToyyibPay API and checkout base. |
 | `TOYYIBPAY_SECRET_KEY` | Yes for billing | ToyyibPay key | Creates bills. |
 | `TOYYIBPAY_CATEGORY_CODE` | Yes for billing | ToyyibPay category | Creates bills under merchant category. |
@@ -69,6 +71,4 @@ TOYYIBPAY_CALLBACK_URL=http://localhost:4000/api/v1/webhooks/toyyibpay
 
 Before handing off operations, align `.env.example` and `backend/.env.example`:
 
-- Root `.env.example` should include `AWS_S3_ENDPOINT`.
-- Root `.env.example` should include `AI_PROVIDER`.
-- Root `.env.example` should use `/subscription`, not `/subscription/success`, for ToyyibPay return URL.
+- No known env example mismatch after Gemini update.

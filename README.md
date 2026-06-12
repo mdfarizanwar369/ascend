@@ -15,7 +15,7 @@ Initial launch gyms:
 - Database: PostgreSQL
 - Auth: Firebase Auth
 - Storage: AWS S3
-- AI: OpenAI API
+- AI: Google Gemini for the unpaid pilot, OpenAI-compatible fallback available
 - Payments: ToyyibPay first, Stripe-ready payment abstraction
 - Deployment: Docker, DigitalOcean
 
@@ -77,11 +77,11 @@ Optional values for live integrations:
 - Firebase web app values in `frontend/.env.local`
 - Firebase Admin values in `backend/.env`
 - AWS S3 credentials in `backend/.env`
-- OpenAI API key in `backend/.env`
+- Gemini API key in `backend/.env`
 - ToyyibPay values in `backend/.env`
 - `CRON_SECRET` in `backend/.env` for the protected daily compliance/risk job
 
-Without OpenAI configured, the backend returns demo AI responses.
+Without Gemini/OpenAI configured, the backend returns demo AI responses.
 
 Without ToyyibPay configured, checkout returns a safe demo return URL and you can use the in-app test activation button. Real paid subscriptions require these backend variables:
 
@@ -233,7 +233,7 @@ The npm validation path has been run successfully after Node.js and npm became a
 
 The frontend also includes a browser session guard so account switching, logout, and mobile browser back/forward restores re-check access instead of keeping stale role or plan state.
 
-Premium AI coach chat and weekly progress reports are connected to backend APIs. Without `OPENAI_API_KEY`, the backend returns safe demo coaching/report text.
+Premium AI coach chat and weekly progress reports are connected to backend APIs. Without `GEMINI_API_KEY` or `OPENAI_API_KEY`, the backend returns safe demo coaching/report text.
 
 Before connecting real services, also run:
 

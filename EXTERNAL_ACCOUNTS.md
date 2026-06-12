@@ -49,7 +49,7 @@ Important:
 
 - Roles, permissions, trainer assignments, gym assignments, referrals, subscriptions, and business data must stay in PostgreSQL, not Firebase.
 
-## OpenAI
+## Google Gemini
 
 Purpose:
 
@@ -61,12 +61,12 @@ Purpose:
 
 Required setup:
 
-- [ ] OpenAI platform account created.
-- [ ] API key created.
-- [ ] Billing enabled or sufficient credits available.
+- [ ] Google AI Studio account available.
+- [ ] Gemini API key created.
 - [ ] Usage limits reviewed.
-- [ ] `OPENAI_API_KEY` configured on backend.
-- [ ] `OPENAI_MODEL` configured.
+- [ ] `AI_PROVIDER=gemini` configured on backend.
+- [ ] `GEMINI_API_KEY` configured on backend.
+- [ ] `GEMINI_MODEL=gemini-2.5-flash` configured on backend.
 
 Pilot check:
 

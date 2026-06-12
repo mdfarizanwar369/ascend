@@ -64,7 +64,8 @@ Implemented structure:
 - ToyyibPay checkout creation with defensive provider response handling.
 - ToyyibPay webhook/callback handling for JSON and form-encoded callbacks.
 - Payment event recording for ToyyibPay callbacks.
-- OpenAI integration for food analysis, coach chat, and weekly summaries.
+- Gemini integration for food analysis, coach chat, burn estimates, weekly reports, and trainer summaries.
+- OpenAI integration remains available as an optional fallback provider.
 - Client weekly report generation API.
 - AWS S3 signed upload integration.
 - Daily compliance job.

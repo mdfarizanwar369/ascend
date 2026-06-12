@@ -16,7 +16,7 @@ You need accounts for:
 - GitHub
 - Railway
 - Firebase
-- OpenAI
+- Google Gemini
 - Cloudflare R2
 
 You can skip for this unpaid pilot:
@@ -41,7 +41,7 @@ Railway will host all 3.
 
 Firebase handles login only.
 
-OpenAI powers food photo AI and coach chat.
+Google Gemini powers food photo AI and coach chat.
 
 Cloudflare R2 stores food and progress photos.
 
@@ -129,8 +129,8 @@ DATABASE_URL=${{Postgres.DATABASE_URL}}
 CORS_ORIGIN=https://YOUR-FRONTEND-DOMAIN
 BOOTSTRAP_OWNER_EMAIL=your-owner-email@gmail.com
 CRON_SECRET=make-a-long-random-password-here
-AI_PROVIDER=openai
-OPENAI_MODEL=gpt-4.1-mini
+AI_PROVIDER=gemini
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 Replace:
@@ -373,9 +373,9 @@ Copy the whole thing.
 
 After adding Firebase variables, redeploy both frontend and backend.
 
-## Part 7: Set Up OpenAI
+## Part 7: Set Up Google Gemini
 
-OpenAI powers:
+Google Gemini powers:
 
 - Food photo calories/macros
 - AI nutrition coach
@@ -383,18 +383,27 @@ OpenAI powers:
 - Weekly report
 - Trainer AI check-in
 
-1. Open OpenAI Platform.
-2. Create an API key.
-3. Copy it.
-4. In Railway backend variables, add:
+1. Open Google AI Studio:
 
 ```text
-OPENAI_API_KEY=your-openai-api-key
+https://aistudio.google.com
+```
+
+2. Sign in with your Google account.
+3. Click `Get API key`.
+4. Create an API key.
+5. Copy it.
+6. In Railway backend variables, add:
+
+```text
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 Redeploy backend.
 
-For a real pilot, add a small OpenAI budget limit so costs stay controlled.
+Gemini has a free tier, but you should still watch usage in Google AI Studio during the pilot.
 
 ## Part 8: Set Up Cloudflare R2 Storage
 
