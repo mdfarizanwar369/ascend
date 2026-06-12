@@ -40,12 +40,12 @@ export default function HomePage() {
           </div>
 
           <div className="mx-auto max-w-4xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-lime">The missing link between training and results</p>
-            <h1 className="mt-4 text-4xl font-semibold leading-tight sm:text-6xl">
-              Results are won during the other 166 hours.
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-lime">Built for trainers, clients, and gym owners</p>
+            <h1 className="mt-4 text-4xl font-semibold uppercase leading-tight sm:text-6xl">
+              The missing link between training and results.
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-zinc-300 sm:text-lg">
-              Clients see their trainer a few hours each week. Ascend keeps the trainer, client, and gym connected between sessions, so the plan does not disappear when the member leaves the floor.
+              Clients see their trainer a few hours each week. Ascend keeps the trainer, client, and gym connected during the other 166 hours, so the plan does not disappear when the member leaves the floor.
             </p>
           </div>
 
