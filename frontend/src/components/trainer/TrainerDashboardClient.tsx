@@ -126,14 +126,14 @@ export function TrainerDashboardClient() {
     <>
       <section className="mt-3">
         <h1 className="text-2xl font-semibold">Trainer dashboard</h1>
-        <p className="mt-2 text-sm text-zinc-400">Client accountability, sorted by what needs attention first.</p>
+        <p className="mt-2 text-sm text-zinc-400">Client momentum, sorted by who may need support first.</p>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Clients" value={String(clients.length)} detail={`${activeToday} active today`} />
-        <MetricCard label="Avg score" value={averageScore} detail="Accountability" tone={averageScore !== "--" && Number(averageScore) < 60 ? "warning" : "success"} />
+        <MetricCard label="Avg score" value={averageScore} detail="Momentum" tone={averageScore !== "--" && Number(averageScore) < 60 ? "warning" : "success"} />
         <MetricCard label="Check-ins" value={String(needsCheckIn)} detail="Need attention" tone={needsCheckIn ? "warning" : "success"} />
         <MetricCard label="Alerts" value={String(alerts.length || highRisk)} detail={`${highRisk} high priority`} tone={highRisk ? "warning" : "success"} />
       </section>

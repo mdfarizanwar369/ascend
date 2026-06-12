@@ -45,7 +45,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [checkin, setCheckin] = useState("");
-  const [status, setStatus] = useState("Loading client accountability...");
+  const [status, setStatus] = useState("Loading client momentum...");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
 
@@ -156,7 +156,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard
-          label="Accountability"
+          label="Momentum"
           value={`${score ?? "--"}/100`}
           detail={score === null || score === undefined ? "No score yet" : score < 50 ? "High risk" : score < 70 ? "Watch" : "On track"}
           tone={(score ?? 100) < 50 ? "warning" : "success"}
@@ -173,7 +173,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
           <div className="flex gap-3">
             <AlertTriangle className="mt-0.5 text-amber" size={20} />
-            <p className="text-sm leading-6 text-zinc-300">Accountability is below 50. Send a quick check-in today.</p>
+            <p className="text-sm leading-6 text-zinc-300">Momentum is low today. Send a quick check-in.</p>
           </div>
         </section>
       ) : null}
@@ -295,7 +295,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center gap-3">
           <TrendingDown className="text-lime" size={20} />
-          <p className="text-sm text-zinc-300">Weight, water, food logs, and accountability now come from Ascend records.</p>
+          <p className="text-sm text-zinc-300">Weight, water, food logs, and momentum come from Ascend records.</p>
         </div>
       </section>
     </>

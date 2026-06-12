@@ -20,7 +20,7 @@ export async function generateRiskAlerts() {
   await query(`
     insert into risk_alerts (user_id, trainer_id, gym_id, type, severity, message)
     select u.id, u.assigned_trainer_id, u.gym_id, 'low_compliance', 'high',
-      u.full_name || ' has an accountability score below 50.'
+      u.full_name || ' has low momentum today.'
     from users u
     join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
     where cs.score < 50

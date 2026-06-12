@@ -56,6 +56,29 @@ function weightTrend(current?: WeightLog, previous?: WeightLog) {
   return `${diff > 0 ? "+" : ""}${diff.toFixed(1)}kg`;
 }
 
+function clamp(value: number, min = 0, max = 100) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function progressCopy(goal?: string | null) {
+  if (goal === "fat_loss") return "toward your weight-loss goal";
+  if (goal === "muscle_gain") return "toward your muscle-gain goal";
+  if (goal === "maintenance") return "toward your maintenance range";
+  return "after you set a goal";
+}
+
+function lastSevenDateKeys() {
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    return localDateKey(date.toISOString());
+  });
+}
+
+function uniqueDays<T>(items: T[], getDate: (item: T) => string) {
+  return new Set(items.map((item) => localDateKey(getDate(item))));
+}
+
 export function ClientDashboard() {
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -64,8 +87,8 @@ export function ClientDashboard() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
-  const [complianceScore, setComplianceScore] = useState<number | null>(null);
-  const [accountabilityBreakdown, setAccountabilityBreakdown] = useState({
+  const [momentumScore, setMomentumScore] = useState<number | null>(null);
+  const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
     weight: 0,
     water: 0,
@@ -101,8 +124,8 @@ export function ClientDashboard() {
       if (burns.status === "fulfilled") setBurnLogs(Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : []);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
-        setComplianceScore(nextCompliance?.score ?? null);
-        setAccountabilityBreakdown({
+        setMomentumScore(nextCompliance?.score ?? null);
+        setMomentumBreakdown({
           food: Number(nextCompliance?.food_score ?? 0),
           weight: Number(nextCompliance?.weight_score ?? 0),
           water: Number(nextCompliance?.water_score ?? 0),
@@ -142,6 +165,7 @@ export function ClientDashboard() {
   }, [loadDashboard]);
 
   const today = useMemo(() => localDateKey(), []);
+  const weekKeys = useMemo(() => lastSevenDateKeys(), []);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
   const todaysWaterMl = waterLogs.filter((log) => localDateKey(log.logged_at) === today).reduce((total, log) => total + Number(log.amount_ml ?? 0), 0);
   const todaysBurnCalories = burnLogs
@@ -150,6 +174,9 @@ export function ClientDashboard() {
   const latestFood = foodLogs[0];
   const latestWeight = weightLogs[0];
   const previousWeight = weightLogs[1];
+  const currentWeight = asNumber(latestWeight?.weight_kg);
+  const startWeight = asNumber(user?.starting_weight_kg);
+  const targetWeight = asNumber(user?.target_weight_kg);
   const completedHabitIds = useMemo(
     () =>
       new Set(
@@ -160,23 +187,66 @@ export function ClientDashboard() {
   const dashboardHabits = habits.slice(0, 3);
   const calories = todaysFood.reduce((total, log) => total + Number(log.calories), 0);
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
+  const proteinTarget = Math.round(clamp((currentWeight || startWeight || 70) * 1.6, 80, 180));
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
-  const score = complianceScore ?? fallbackScore;
-  const scoreLabel = score >= 80 ? "On track" : score >= 60 ? "Needs attention" : "Check in today";
+  const score = momentumScore ?? fallbackScore;
+  const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
+  const encouragement =
+    score >= 80
+      ? "Nice work. Keep the rhythm going today."
+      : score >= 60
+        ? "You are close. One more useful log can move the day forward."
+        : "No pressure. Start small and log one thing now.";
   const safeRoles = Array.isArray(roles) ? roles : [];
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
   const hasPremiumAccess = plan === "premium" || plan === "trainer_pro" || canAdmin;
-  const weeklyFoodCount = foodLogs.filter((log) => {
-    const loggedAt = new Date(log.logged_at).getTime();
-    return Number.isFinite(loggedAt) && Date.now() - loggedAt < 7 * 24 * 60 * 60 * 1000;
+
+  const weeklyFoodDays = uniqueDays(foodLogs.filter((log) => weekKeys.includes(localDateKey(log.logged_at))), (log) => log.logged_at);
+  const weeklyWeightDays = uniqueDays(weightLogs.filter((log) => weekKeys.includes(localDateKey(log.logged_at))), (log) => log.logged_at);
+  const weeklyWaterDays = uniqueDays(waterLogs.filter((log) => weekKeys.includes(localDateKey(log.logged_at))), (log) => log.logged_at);
+  const weeklyBurnDays = uniqueDays(burnLogs.filter((log) => weekKeys.includes(localDateKey(log.created_at))), (log) => log.created_at);
+  const weeklyHabitDays = uniqueDays(
+    habitLogs.filter((log) => log.completed && weekKeys.includes(localDateKey(log.logged_at))),
+    (log) => log.logged_at
+  );
+  const weeklyCheckInDays = new Set([
+    ...weeklyFoodDays,
+    ...weeklyWeightDays,
+    ...weeklyWaterDays,
+    ...weeklyBurnDays,
+    ...weeklyHabitDays
+  ]);
+  const foodConsistency = weeklyFoodDays.size;
+  const proteinConsistency = weekKeys.filter((key) => {
+    const dailyProtein = foodLogs
+      .filter((log) => localDateKey(log.logged_at) === key)
+      .reduce((total, log) => total + asNumber(log.protein_g), 0);
+    return dailyProtein >= proteinTarget;
   }).length;
+
+  const goalProgress = useMemo(() => {
+    if (!startWeight || !targetWeight || !currentWeight || startWeight === targetWeight) return null;
+    const totalChangeNeeded = Math.abs(startWeight - targetWeight);
+    const progressChange =
+      user?.goal_type === "muscle_gain"
+        ? currentWeight - startWeight
+        : user?.goal_type === "maintenance"
+          ? Math.max(0, totalChangeNeeded - Math.abs(currentWeight - targetWeight))
+          : startWeight - currentWeight;
+    return clamp(Math.round((progressChange / totalChangeNeeded) * 100));
+  }, [currentWeight, startWeight, targetWeight, user?.goal_type]);
+
+  const remainingWeight = useMemo(() => {
+    if (!targetWeight || !currentWeight) return null;
+    return Math.abs(currentWeight - targetWeight);
+  }, [currentWeight, targetWeight]);
+
   const premiumActions = [
-    { href: "/food-log", title: "Snap food", detail: "AI macros" },
-    { href: "/coach", title: "Ask coach", detail: "Meal guidance" },
-    { href: "/reports", title: "Weekly report", detail: "Progress summary" },
-    { href: "/messages", title: "Message trainer", detail: user?.assigned_trainer_name ?? "Check in" },
-    { href: "/progress", title: "Progress photo", detail: "Visual tracking" }
+    { href: "/messages", title: "Message trainer", detail: user?.assigned_trainer_name ?? "Ask a question" },
+    { href: "/reports", title: "Weekly report", detail: "Review wins" },
+    { href: "/coach", title: "AI coach", detail: "Meal ideas" },
+    { href: "/progress", title: "Progress photo", detail: "Track changes" }
   ];
   const navItems = [
     { href: "/dashboard", label: "Home", selected: true, show: true },
@@ -192,7 +262,7 @@ export function ClientDashboard() {
             <BrandMark size="sm" />
             <span>
               <span className="block text-lg font-semibold leading-5">Ascend</span>
-              <span className="text-xs text-zinc-400">Client dashboard</span>
+              <span className="text-xs text-zinc-400">Daily check-in</span>
             </span>
           </a>
           <a href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
@@ -204,57 +274,79 @@ export function ClientDashboard() {
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} />
 
-        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center justify-between gap-4">
+        <section className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-4">
+          <p className="text-sm text-zinc-300">{formatGoal(user?.goal_type)}</p>
+          <h1 className="mt-1 text-2xl font-semibold">Hi {firstName(user?.full_name)}, what is your next win?</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">{encouragement}</p>
+          <a href="/food-log" className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+            Log one thing now
+          </a>
+        </section>
+
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm text-zinc-400">{formatGoal(user?.goal_type)}</p>
-              <h1 className="mt-1 text-2xl font-semibold">Stay on track, {firstName(user?.full_name)}</h1>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">Log one thing now. Small check-ins keep your trainer in the loop.</p>
-              <a href="/accountability-score" className="mt-3 inline-flex text-sm font-medium text-lime">
-                How your score works
-              </a>
+              <p className="text-sm font-semibold">Weekly goal progress</p>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">
+                {goalProgress === null
+                  ? "Add weight logs to see progress toward your goal."
+                  : `${goalProgress}% ${progressCopy(user?.goal_type)}.`}
+              </p>
             </div>
-            <div className="grid h-28 w-28 shrink-0 place-items-center rounded-full border-4 border-lime">
-              <div className="text-center">
-                <p className="text-3xl font-semibold">{score}</p>
-                <p className="text-xs text-zinc-400">accountability</p>
-              </div>
+            <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">
+              {goalProgress === null ? "--" : `${goalProgress}%`}
+            </span>
+          </div>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink">
+            <div className="h-full rounded-full bg-lime" style={{ width: `${goalProgress ?? 8}%` }} />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Current weight</p>
+              <p className="mt-1 text-lg font-semibold">{currentWeight ? `${currentWeight.toFixed(1)}kg` : "--"}</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">To goal</p>
+              <p className="mt-1 text-lg font-semibold">{remainingWeight === null ? "--" : `${remainingWeight.toFixed(1)}kg`}</p>
             </div>
           </div>
         </section>
 
-        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">Accountability Score</p>
-              <p className="mt-1 text-sm text-zinc-400">{scoreLabel}. Based on today&apos;s check-ins.</p>
+              <p className="text-sm font-semibold">Momentum Score</p>
+              <p className="mt-1 text-sm text-zinc-400">{scoreLabel}</p>
             </div>
-            <a href="/accountability-score" className="text-sm font-medium text-lime">
+            <a href="/momentum-score" className="text-sm font-medium text-lime">
               Explain
             </a>
           </div>
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            {[
-              ["Food", accountabilityBreakdown.food, 35],
-              ["Weight", accountabilityBreakdown.weight, 25],
-              ["Water", accountabilityBreakdown.water, 20],
-              ["Habits", accountabilityBreakdown.habits, 20]
-            ].map(([label, value, max]) => (
-              <div key={label} className="rounded-lg bg-ink p-2 text-center">
-                <p className="text-xs text-zinc-400">{label}</p>
-                <p className="mt-1 text-sm font-semibold text-white">
-                  {value}/{max}
-                </p>
+          <div className="mt-4 flex items-center gap-4">
+            <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full border-4 border-lime">
+              <div className="text-center">
+                <p className="text-3xl font-semibold">{score}</p>
+                <p className="text-xs text-zinc-400">today</p>
               </div>
-            ))}
+            </div>
+            <div className="grid flex-1 grid-cols-2 gap-2">
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Check-in days</p>
+                <p className="mt-1 text-lg font-semibold">{weeklyCheckInDays.size}/7</p>
+              </div>
+              <div className="rounded-lg bg-ink p-3">
+                <p className="text-xs text-zinc-400">Food days</p>
+                <p className="mt-1 text-lg font-semibold">{foodConsistency}/7</p>
+              </div>
+            </div>
           </div>
         </section>
 
         <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-semibold text-lime">Quick log</h2>
-              <p className="mt-1 text-sm text-zinc-300">Tap what you want to track.</p>
+              <h2 className="text-base font-semibold text-lime">Quick actions</h2>
+              <p className="mt-1 text-sm text-zinc-300">Pick the easiest next step.</p>
             </div>
             <a href="/food-log" className="grid h-10 w-10 place-items-center rounded-lg bg-lime font-bold text-ink" aria-label="Add food">
               +
@@ -265,7 +357,7 @@ export function ClientDashboard() {
               { href: quickLogHref("Food"), title: "Food", detail: hasPremiumAccess ? "AI photo" : "Photo" },
               { href: quickLogHref("Weight"), title: "Weight", detail: "Scale" },
               { href: quickLogHref("Water"), title: "Water", detail: "Drink" },
-              { href: quickLogHref("Burn"), title: "Burn", detail: "Move" }
+              { href: quickLogHref("Burn"), title: "Activity", detail: "Move" }
             ].map((item) => (
               <a key={item.title} href={item.href} className="grid h-20 place-items-center rounded-lg border border-line bg-ink text-center">
                 <span>
@@ -277,82 +369,50 @@ export function ClientDashboard() {
           </div>
         </section>
 
-        {hasPremiumAccess ? (
-          <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-lime">Premium hub</p>
-                <p className="mt-2 text-sm leading-6 text-zinc-400">
-                  {user?.assigned_trainer_name ? `Your trainer: ${user.assigned_trainer_name}` : "Waiting for trainer assignment"}
-                </p>
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <h2 className="text-base font-semibold">Today&apos;s progress</h2>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {[
+              ["Calories", calories ? calories.toLocaleString() : "0", todaysFood.length ? `${todaysFood.length} meal${todaysFood.length === 1 ? "" : "s"} logged` : "Snap your first meal"],
+              ["Protein", `${protein}g`, `${proteinTarget}g daily guide`],
+              ["Water", `${(todaysWaterMl / 1000).toFixed(1)}L`, "2.5L daily guide"],
+              ["Activity", `${todaysBurnCalories} kcal`, todaysBurnCalories ? "Movement logged" : "Add movement"]
+            ].map(([label, value, detail]) => (
+              <div key={label} className="rounded-lg bg-ink p-4">
+                <p className="text-xs uppercase text-zinc-400">{label}</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+                <p className="mt-1 text-sm text-zinc-400">{detail}</p>
               </div>
-              <span className={`rounded px-3 py-1 text-xs ${user?.assigned_trainer_name ? "bg-lime text-ink" : "bg-amber text-ink"}`}>
-                {user?.assigned_trainer_name ? "Assigned" : "Pending"}
-              </span>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {premiumActions.map((item) => (
-                <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
-                  <span className="block text-sm font-semibold text-white">{item.title}</span>
-                  <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
-                </a>
-              ))}
-            </div>
-
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Accountability</p>
-                <p className="mt-1 text-xl font-semibold">{score}</p>
-              </div>
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Food logs</p>
-                <p className="mt-1 text-xl font-semibold">{weeklyFoodCount}</p>
-              </div>
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Weight</p>
-                <p className="mt-1 text-xl font-semibold">{weightTrend(latestWeight, previousWeight)}</p>
-              </div>
-            </div>
-
-            <p className="mt-3 text-sm leading-6 text-zinc-400">
-              {todaysFood.length
-                ? "Your trainer has food context today."
-                : "Snap one meal today to improve your weekly check-in."}
-            </p>
-          </section>
-        ) : null}
-
-        <section className="mt-4 grid grid-cols-2 gap-3">
-          {[
-            ["Calories", calories ? calories.toLocaleString() : "0", todaysFood.length ? `${todaysFood.length} food logs today` : "No food logged today"],
-            ["Protein", `${protein}g`, todaysFood.length ? "From food logs" : "Log food to update"],
-            ["Water", `${(todaysWaterMl / 1000).toFixed(1)}L`, "2.5L target"],
-            ["Burn", `${todaysBurnCalories} kcal`, todaysBurnCalories ? "Activity logged today" : "No activity logged"]
-          ].map(([label, value, detail]) => (
-            <div key={label} className="rounded-lg border border-line bg-surface p-4">
-              <p className="text-xs uppercase text-zinc-400">{label}</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-              <p className="mt-1 text-sm text-zinc-400">{detail}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </section>
 
-        <a href="/food-log" className="mt-4 block rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">Latest food log</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            {latestFood
-              ? `${latestFood.estimated_food_name}: ${latestFood.calories} kcal, ${Math.round(asNumber(latestFood.protein_g))}g protein.`
-              : "Log a food photo to estimate calories, protein, carbs, and fat."}
-          </p>
-        </a>
-
-        {!hasPremiumAccess ? (
-          <a href="/progress" className="mt-4 block rounded-lg border border-line bg-surface p-4">
-            <p className="text-sm font-semibold">Progress photos</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Add front, side, or back photos so your trainer can compare visible changes.</p>
-          </a>
-        ) : null}
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Trainer connection</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                {user?.assigned_trainer_name ? `Your trainer: ${user.assigned_trainer_name}` : "You will see your trainer here after assignment."}
+              </p>
+            </div>
+            <span className={`rounded px-3 py-1 text-xs ${user?.assigned_trainer_name ? "bg-lime text-ink" : "bg-amber text-ink"}`}>
+              {user?.assigned_trainer_name ? "Connected" : "Pending"}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {premiumActions.map((item) => (
+              <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
+                <span className="block text-sm font-semibold text-white">{item.title}</span>
+                <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
+              </a>
+            ))}
+          </div>
+          {!hasPremiumAccess ? (
+            <a href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+              Unlock trainer support
+            </a>
+          ) : null}
+        </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between">
@@ -382,26 +442,51 @@ export function ClientDashboard() {
           </div>
         </section>
 
-        {!hasPremiumAccess ? (
-          <>
-            <a href="/coach" className="mt-4 block rounded-lg border border-calm/40 bg-calm/10 p-4">
-              <p className="text-sm font-medium text-calm">AI nutrition coach</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">Ask for a meal suggestion based on your goal and today's logs.</p>
-            </a>
+        <a href="/food-log" className="mt-4 block rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm font-semibold">Latest food log</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">
+            {latestFood
+              ? `${latestFood.estimated_food_name}: ${latestFood.calories} kcal, ${Math.round(asNumber(latestFood.protein_g))}g protein.`
+              : "Snap a food photo to estimate calories, protein, carbs, and fat."}
+          </p>
+        </a>
 
-            <a href="/subscription" className="mt-4 block rounded-lg border border-line bg-surface p-4">
-              <p className="text-sm font-semibold">Unlock trainer messaging</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">Trainer messaging is included with Premium accountability.</p>
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Momentum breakdown</p>
+              <p className="mt-1 text-sm text-zinc-400">Useful for you and your trainer when you want more detail.</p>
+            </div>
+            <a href="/momentum-score" className="text-sm font-medium text-lime">
+              Learn
             </a>
-          </>
-        ) : null}
-
-        {!hasPremiumAccess ? (
-          <a href="/subscription" className="mt-4 block rounded-lg border border-lime/40 bg-lime/10 p-4">
-            <p className="text-sm font-medium text-lime">Premium accountability</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">Upgrade to RM19/month for AI food, weekly reports, and trainer accountability.</p>
-          </a>
-        ) : null}
+          </div>
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {[
+              ["Food", momentumBreakdown.food, 35],
+              ["Weight", momentumBreakdown.weight, 25],
+              ["Water", momentumBreakdown.water, 20],
+              ["Habits", momentumBreakdown.habits, 20]
+            ].map(([label, value, max]) => (
+              <div key={label} className="rounded-lg bg-ink p-2 text-center">
+                <p className="text-xs text-zinc-400">{label}</p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {value}/{max}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Protein days</p>
+              <p className="mt-1 text-lg font-semibold">{proteinConsistency}/7</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Weight trend</p>
+              <p className="mt-1 text-lg font-semibold">{weightTrend(latestWeight, previousWeight)}</p>
+            </div>
+          </div>
+        </section>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
