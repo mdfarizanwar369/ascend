@@ -213,7 +213,10 @@ adminRouter.get("/admin/referrals/analytics", requireAuth, requireRole(["admin",
     left join trainers t on t.id = rc.trainer_id
     left join gyms trainer_gym on trainer_gym.id = t.gym_id
     left join users tu on tu.id = t.user_id
-    left join users u on u.referred_by_gym_id = rc.gym_id or u.referred_by_trainer_id = rc.trainer_id
+    left join users u on (
+      (rc.type = 'gym' and u.referred_by_gym_id = rc.gym_id and u.referred_by_trainer_id is null)
+      or (rc.type = 'trainer' and u.referred_by_trainer_id = rc.trainer_id)
+    )
     left join subscriptions s on s.user_id = u.id
     group by rc.id, g.name, trainer_gym.name, tu.full_name
     order by active_revenue_cents desc, referred_users desc
