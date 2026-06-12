@@ -2,8 +2,18 @@ import { FoodEstimate, GoalType, SubscriptionPlan } from "@ascend/shared";
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
 
+function shouldRefreshToken(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return /401|invalid or expired token|missing bearer token|authentication is still loading/i.test(error.message);
+}
+
 async function authed<T>(path: string, options: RequestInit = {}) {
-  return api<T>(path, options, await getFirebaseToken());
+  try {
+    return await api<T>(path, options, await getFirebaseToken());
+  } catch (error) {
+    if (!shouldRefreshToken(error)) throw error;
+    return api<T>(path, options, await getFirebaseToken(true));
+  }
 }
 
 export function completeOnboarding(input: {

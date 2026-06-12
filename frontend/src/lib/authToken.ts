@@ -1,12 +1,12 @@
 import { onAuthStateChanged, User } from "firebase/auth";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "./firebase";
 
-export async function getFirebaseToken() {
+export async function getFirebaseToken(forceRefresh = false) {
   await waitForFirebasePersistence();
   const auth = getFirebaseClientAuth();
   const user = auth.currentUser ?? (await waitForFirebaseUser());
   if (!user) throw new Error("Authentication is still loading. Please wait a moment and try again.");
-  return user.getIdToken();
+  return user.getIdToken(forceRefresh);
 }
 
 function waitForFirebaseUser() {
