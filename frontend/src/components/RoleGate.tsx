@@ -11,6 +11,10 @@ function planLabel(plan: Exclude<SubscriptionPlan, "free">) {
   return plan === "trainer_pro" ? "Trainer Pro" : "Premium";
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export function RoleGate({
   allowedRoles,
   children,
@@ -52,9 +56,22 @@ export function RoleGate({
       }
     }
 
+    async function checkAccessWithRetry() {
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          return await checkAccess();
+        } catch (error) {
+          lastError = error;
+          await wait(700 * (attempt + 1));
+        }
+      }
+      throw lastError;
+    }
+
     function refreshAccess() {
       setState("loading");
-      checkAccess()
+      checkAccessWithRetry()
       .then((nextState) => {
         if (!isMounted) return;
         setState(nextState);
