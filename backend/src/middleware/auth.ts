@@ -20,8 +20,20 @@ export interface FirebaseTokenUser {
   name?: string;
 }
 
-function normalizeRoles(primaryRole: Role, roles: Role[]) {
-  const roleSet = new Set<Role>(roles.length ? roles : [primaryRole]);
+function parseRoles(roles: Role[] | string | null | undefined): Role[] {
+  if (Array.isArray(roles)) return roles;
+  if (typeof roles !== "string") return [];
+
+  return roles
+    .replace(/^{|}$/g, "")
+    .split(",")
+    .map((role) => role.trim().replace(/^"|"$/g, ""))
+    .filter((role): role is Role => ["client", "trainer", "admin", "owner"].includes(role));
+}
+
+function normalizeRoles(primaryRole: Role, roles: Role[] | string | null | undefined) {
+  const parsedRoles = parseRoles(roles);
+  const roleSet = new Set<Role>(parsedRoles.length ? parsedRoles : [primaryRole]);
   roleSet.add(primaryRole);
 
   if (primaryRole === "owner" || roleSet.has("owner")) {
