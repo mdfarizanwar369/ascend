@@ -8,17 +8,33 @@ import { completeOnboarding } from "@/lib/ascendApi";
 
 export function OnboardingForm() {
   const router = useRouter();
-  const [fullName, setFullName] = useState("Ahmad Rahman");
-  const [referralCode, setReferralCode] = useState("TRAINER-JASON");
+  const [fullName, setFullName] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [goalType, setGoalType] = useState<"fat_loss" | "muscle_gain" | "maintenance">("fat_loss");
-  const [startingWeightKg, setStartingWeightKg] = useState("81.2");
-  const [targetWeightKg, setTargetWeightKg] = useState("75.0");
+  const [startingWeightKg, setStartingWeightKg] = useState("");
+  const [targetWeightKg, setTargetWeightKg] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus(null);
+
+    if (!fullName.trim()) {
+      setStatus("Please enter your name.");
+      return;
+    }
+
+    if (!startingWeightKg || Number.isNaN(Number(startingWeightKg)) || Number(startingWeightKg) <= 0) {
+      setStatus("Please enter your current weight.");
+      return;
+    }
+
+    if (targetWeightKg && (Number.isNaN(Number(targetWeightKg)) || Number(targetWeightKg) <= 0)) {
+      setStatus("Please enter a valid target weight.");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -34,7 +50,7 @@ export function OnboardingForm() {
     } catch (error) {
       setStatus(
         error instanceof Error
-          ? `${error.message}. Please make sure you are logged in and the backend Firebase variables are deployed.`
+          ? `${error.message}. Please log in again and try once more.`
           : "Could not save onboarding. Please try again."
       );
     } finally {
@@ -45,7 +61,7 @@ export function OnboardingForm() {
   return (
     <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
       <Field label="Full name">
-        <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} />
+        <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Your name" required />
       </Field>
       <Field label="Referral code" hint="Examples: AF-AUSTIN, AF-KULAI, TRAINER-JASON">
         <input
@@ -72,6 +88,8 @@ export function OnboardingForm() {
             value={startingWeightKg}
             onChange={(event) => setStartingWeightKg(event.target.value)}
             inputMode="decimal"
+            placeholder="e.g. 82"
+            required
           />
         </Field>
         <Field label="Target weight">
@@ -80,6 +98,7 @@ export function OnboardingForm() {
             value={targetWeightKg}
             onChange={(event) => setTargetWeightKg(event.target.value)}
             inputMode="decimal"
+            placeholder="Optional"
           />
         </Field>
       </div>
