@@ -8,6 +8,7 @@ const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
 type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 type GeminiResponse = {
   candidates?: Array<{
+    finishReason?: string;
     content?: {
       parts?: Array<{ text?: string }>;
     };
@@ -61,7 +62,10 @@ async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
       contents: [{ role: "user", parts }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens
+        maxOutputTokens,
+        thinkingConfig: {
+          thinkingBudget: 0
+        }
       }
     })
   });
@@ -119,7 +123,7 @@ async function estimateFoodWithGemini(imageUrl: string) {
         ". Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. The user can edit the estimate."
     },
     imagePart
-  ], 650);
+  ], 1000);
 
   return parseFoodEstimate(text);
 }
@@ -164,7 +168,7 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   if (!providerConfigured()) return fallback;
 
   if (env.AI_PROVIDER === "gemini") {
-    return callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], 420);
+    return callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], 1200);
   }
 
   if (env.AI_PROVIDER === "openai" && openaiClient) {
