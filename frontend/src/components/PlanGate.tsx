@@ -109,7 +109,7 @@ export function PlanGate({
             <div>
               <p className="font-semibold text-lime">This feature is part of {planLabel(requiredPlan)}.</p>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                You can activate pilot access from the subscription screen now. ToyyibPay live payment can be connected later.
+                For this pilot, you can activate access from the subscription screen.
               </p>
             </div>
           </div>

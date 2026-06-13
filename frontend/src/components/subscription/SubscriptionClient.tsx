@@ -96,7 +96,9 @@ export function SubscriptionClient() {
             <ShieldCheck className="mt-0.5 text-lime" size={20} />
             <div>
               <p className="text-sm font-semibold text-lime">{status}</p>
-              <p className="mt-1 text-sm leading-6 text-zinc-300">Payments are ToyyibPay-first for Malaysia. Stripe can be added later through the same checkout layer.</p>
+              <p className="mt-1 text-sm leading-6 text-zinc-300">
+                For the pilot, selected members and trainers can activate access without payment. Paid checkout will be used for the public launch.
+              </p>
             </div>
           </div>
         </section>
