@@ -49,13 +49,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mx-auto grid w-full max-w-xl gap-3 sm:grid-cols-2">
+          <div className="mx-auto w-full max-w-md">
             <Link href="/login" className="flex h-14 items-center justify-center gap-2 rounded-lg bg-lime px-4 font-semibold text-ink">
               Sign up or log in
-              <ArrowRight size={20} />
-            </Link>
-            <Link href="/onboarding" className="flex h-14 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 font-semibold text-white">
-              Start pilot onboarding
               <ArrowRight size={20} />
             </Link>
           </div>
@@ -100,10 +96,6 @@ export default function HomePage() {
             <p className="mt-4 text-base leading-7 text-zinc-300">
               Food estimates, nutrition chat, and weekly summaries reduce trainer admin work. They do not replace the relationship that drives trust and follow-through.
             </p>
-            <Link href="/dashboard" className="mt-5 flex h-12 items-center justify-center gap-2 rounded-lg bg-lime font-semibold text-ink">
-              Open the app
-              <ArrowRight size={19} />
-            </Link>
           </div>
         </section>
 
