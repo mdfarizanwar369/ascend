@@ -60,7 +60,8 @@ async function callGemini(parts: GeminiPart[]) {
     body: JSON.stringify({
       contents: [{ role: "user", parts }],
       generationConfig: {
-        temperature: 0.3
+        temperature: 0.3,
+        maxOutputTokens: 260
       }
     })
   });
@@ -183,7 +184,7 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
 
 export async function createNutritionCoachReply(message: string, context: string) {
   return createTextReply(
-    "You are Ascend's nutrition coach. Be practical, beginner-friendly, and culturally aware for Malaysia and Singapore. Do not diagnose medical conditions.",
+    "You are Ascend's nutrition coach. Be practical, beginner-friendly, and culturally aware for Malaysia and Singapore. Do not diagnose medical conditions. Keep replies under 120 words. Use 2-4 short bullets when helpful. Give one clear next action.",
     `Client context: ${context}\n\nQuestion: ${message}`,
     "I can help you make the next meal a little easier. Aim for protein first, add vegetables, and keep portions consistent."
   );
