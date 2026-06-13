@@ -223,8 +223,7 @@ async function estimateFoodWithGemini(imageUrl: string) {
     {
       models: foodModels,
       attemptsPerModel: 2,
-      timeoutMs: 16_000,
-      responseMimeType: "application/json"
+      timeoutMs: 16_000
     }
   );
 
