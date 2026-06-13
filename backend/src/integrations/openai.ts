@@ -14,6 +14,12 @@ type GeminiResponse = {
     };
   }>;
 };
+type GeminiCallOptions = {
+  models?: string[];
+  attemptsPerModel?: number;
+  timeoutMs?: number;
+  responseMimeType?: "application/json" | "text/plain";
+};
 
 class GeminiError extends Error {
   constructor(
@@ -87,39 +93,50 @@ function isRetryableGeminiStatus(status: number) {
   return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
-async function callGeminiOnce(parts: GeminiPart[], maxOutputTokens = 700) {
+function uniqueModels(models: string[]) {
+  return Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
+}
+
+async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputTokens = 700, options: GeminiCallOptions = {}) {
   if (!env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured.");
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 35_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
+  const generationConfig: Record<string, unknown> = {
+    temperature: 0.25,
+    maxOutputTokens
+  };
+
+  if (options.responseMimeType) {
+    generationConfig.responseMimeType = options.responseMimeType;
+  }
 
   try {
-    const response = await fetch(`${geminiBaseUrl}/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`, {
+    const response = await fetch(`${geminiBaseUrl}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: controller.signal,
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: {
-          temperature: 0.25,
-          maxOutputTokens,
-          thinkingConfig: {
-            thinkingBudget: 0
-          }
-        }
+        generationConfig
       })
     });
 
     if (!response.ok) {
-      throw new GeminiError(`Gemini request failed with status ${response.status}`, response.status, isRetryableGeminiStatus(response.status));
+      const errorBody = await response.text().catch(() => "");
+      throw new GeminiError(
+        `Gemini ${model} request failed with status ${response.status}${errorBody ? `: ${errorBody.slice(0, 180)}` : ""}`,
+        response.status,
+        isRetryableGeminiStatus(response.status)
+      );
     }
 
     const data = (await response.json()) as GeminiResponse;
     const text = geminiText(data);
     if (!text) {
-      throw new GeminiError("Gemini returned an empty response.", undefined, true);
+      throw new GeminiError(`Gemini ${model} returned an empty response.`, undefined, true);
     }
 
     return text;
@@ -135,16 +152,24 @@ async function callGeminiOnce(parts: GeminiPart[], maxOutputTokens = 700) {
 }
 
 async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
-  let lastError: unknown;
+  return callGeminiWithOptions(parts, maxOutputTokens);
+}
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    try {
-      return await callGeminiOnce(parts, maxOutputTokens);
-    } catch (error) {
-      lastError = error;
-      const retryable = error instanceof GeminiError ? error.retryable : false;
-      if (!retryable || attempt === 3) break;
-      await sleep(900 * (attempt + 1));
+async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700, options: GeminiCallOptions = {}) {
+  let lastError: unknown;
+  const models = uniqueModels(options.models ?? [env.GEMINI_MODEL]);
+  const attemptsPerModel = options.attemptsPerModel ?? 3;
+
+  for (const model of models) {
+    for (let attempt = 0; attempt < attemptsPerModel; attempt += 1) {
+      try {
+        return await callGeminiOnce(model, parts, maxOutputTokens, options);
+      } catch (error) {
+        lastError = error;
+        const retryable = error instanceof GeminiError ? error.retryable : false;
+        if (!retryable || attempt === attemptsPerModel - 1) break;
+        await sleep(700 * (attempt + 1));
+      }
     }
   }
 
@@ -183,15 +208,25 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
 
 async function estimateFoodWithGemini(imageUrl: string) {
   const imagePart = await urlToGeminiPart(imageUrl);
-  const text = await callGemini([
+  const foodModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]);
+  const text = await callGeminiWithOptions(
+    [
+      {
+        text:
+          "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
+          LOCAL_FOODS.join(", ") +
+          ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, or dessert. Do not guess a local food unless it visually matches. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. If unsure, use a lower confidence and explain what needs review in notes. The user can edit the estimate."
+      },
+      imagePart
+    ],
+    900,
     {
-      text:
-        "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
-        LOCAL_FOODS.join(", ") +
-        ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, or dessert. Do not guess a local food unless it visually matches. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. If unsure, use a lower confidence and explain what needs review in notes. The user can edit the estimate."
-    },
-    imagePart
-  ], 1000);
+      models: foodModels,
+      attemptsPerModel: 2,
+      timeoutMs: 16_000,
+      responseMimeType: "application/json"
+    }
+  );
 
   return parseFoodEstimate(text);
 }

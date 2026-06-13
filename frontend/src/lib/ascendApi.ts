@@ -16,6 +16,22 @@ async function authed<T>(path: string, options: RequestInit = {}) {
   }
 }
 
+async function withTimeout<T>(ms: number, action: (signal: AbortSignal) => Promise<T>) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ms);
+
+  try {
+    return await action(controller.signal);
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("AI is taking too long. Please try again.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function completeOnboarding(input: {
   fullName: string;
   referralCode?: string;
@@ -289,10 +305,13 @@ export function estimateFood(imageUrl: string) {
 }
 
 export function estimateFoodFromDataUrl(imageDataUrl: string) {
-  return authed<{ estimate: FoodEstimate }>("/food-logs/estimate-data-url", {
-    method: "POST",
-    body: JSON.stringify({ imageDataUrl })
-  });
+  return withTimeout(75_000, (signal) =>
+    authed<{ estimate: FoodEstimate }>("/food-logs/estimate-data-url", {
+      method: "POST",
+      body: JSON.stringify({ imageDataUrl }),
+      signal
+    })
+  );
 }
 
 export function saveFoodLog(input: {

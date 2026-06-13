@@ -75,6 +75,7 @@ export function FoodLogClient() {
   const [isEstimating, setIsEstimating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [wasEdited, setWasEdited] = useState(false);
+  const [aiFailed, setAiFailed] = useState(false);
 
   async function loadFoodLogs() {
     const response = await getFoodLogs();
@@ -144,6 +145,7 @@ export function FoodLogClient() {
     setSelectedFile(file);
     setEstimate(null);
     setWasEdited(false);
+    setAiFailed(false);
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
 
@@ -154,11 +156,13 @@ export function FoodLogClient() {
       })
       .then((nextEstimate) => {
         setEstimate(nextEstimate);
+        setAiFailed(false);
         setStatus("AI estimate ready. Review, edit if needed, then save.");
       })
       .catch((error) => {
         setEstimate(manualEstimate());
         setWasEdited(true);
+        setAiFailed(true);
         setStatus(
           error instanceof Error && /Premium plan required/i.test(error.message)
             ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
@@ -169,20 +173,24 @@ export function FoodLogClient() {
   }
 
   async function handleEstimate() {
+    if (!selectedFile) return;
     setIsEstimating(true);
+    setAiFailed(false);
+    setEstimate(null);
     setStatus("Estimating food, calories, protein, carbs, and fat...");
 
     try {
-      if (!selectedFile) return;
       const imageDataUrl = await resizeImageToDataUrl(selectedFile);
       setSelectedImageDataUrl(imageDataUrl);
       const nextEstimate = await estimateFoodWithRetry(imageDataUrl);
       setEstimate(nextEstimate);
+      setAiFailed(false);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
     } catch (error) {
       if (selectedFile) {
         setEstimate(manualEstimate());
         setWasEdited(true);
+        setAiFailed(true);
         setStatus(
           error instanceof Error && /Premium plan required/i.test(error.message)
             ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
@@ -251,6 +259,7 @@ export function FoodLogClient() {
       setSelectedFile(null);
       setSelectedImageDataUrl(null);
       setWasEdited(false);
+      setAiFailed(false);
       setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save food log. Please check your connection and try again.");
@@ -355,6 +364,17 @@ export function FoodLogClient() {
           </button>
         ) : (
           <form className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+            {aiFailed ? (
+              <button
+                className="flex h-12 w-full items-center justify-center rounded-lg bg-calm font-semibold text-ink disabled:opacity-60"
+                disabled={isEstimating}
+                onClick={handleEstimate}
+                type="button"
+              >
+                <Sparkles className="mr-2" size={18} />
+                {isEstimating ? "Trying again..." : "Try AI again"}
+              </button>
+            ) : null}
             <Field label="Food name">
               <input className={inputClass} value={estimate.foodName} onChange={(event) => updateEstimate("foodName", event.target.value)} />
             </Field>
