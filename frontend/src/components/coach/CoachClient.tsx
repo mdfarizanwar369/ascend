@@ -37,8 +37,15 @@ export function CoachClient() {
       const response = await sendCoachMessage(trimmed);
       setMessages((current) => [...current, { role: "assistant", text: response.reply }]);
     } catch (error) {
-      setMessages((current) => [...current, { role: "assistant", text: "I could not reply yet. Please try again in a moment." }]);
-      setStatus(error instanceof Error ? error.message : "Could not reach the AI coach.");
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text:
+            "The coach is having a short connection issue. For now, make the next choice simple: pick one protein source, add fruit or vegetables if you can, and keep the portion comfortable. Try sending your question again in a minute."
+        }
+      ]);
+      setStatus(error instanceof Error ? error.message : "AI coach is temporarily busy.");
     } finally {
       setIsSending(false);
     }

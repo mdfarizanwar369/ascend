@@ -8,43 +8,18 @@ import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 
-const starterEstimates: FoodEstimate[] = [
-  {
-    foodName: "Nasi Lemak",
-    confidence: 0.82,
-    calories: 620,
-    proteinG: 18,
-    carbsG: 72,
-    fatG: 28,
-    notes: "Estimate assumes rice, sambal, egg, peanuts, anchovies, and a standard portion."
-  },
-  {
-    foodName: "Chicken Rice",
-    confidence: 0.78,
-    calories: 590,
-    proteinG: 32,
-    carbsG: 68,
-    fatG: 18,
-    notes: "Estimate assumes one plate of rice with steamed or roasted chicken and light sauce."
-  },
-  {
-    foodName: "Roti Canai with Curry",
-    confidence: 0.74,
-    calories: 430,
-    proteinG: 10,
-    carbsG: 48,
-    fatG: 22,
-    notes: "Estimate assumes one roti canai with a small portion of dhal or curry."
-  }
-];
-
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 
-function pickStarterEstimate(fileName: string) {
-  const name = fileName.toLowerCase();
-  if (name.includes("chicken") || name.includes("rice")) return starterEstimates[1];
-  if (name.includes("roti") || name.includes("canai")) return starterEstimates[2];
-  return starterEstimates[0];
+function manualEstimate(): FoodEstimate {
+  return {
+    foodName: "",
+    confidence: 0,
+    calories: 0,
+    proteinG: 0,
+    carbsG: 0,
+    fatG: 0,
+    notes: "AI could not estimate this photo reliably. Please type the food name and macros before saving, or try a clearer photo."
+  };
 }
 
 function resizeImageToDataUrl(file: File) {
@@ -53,7 +28,7 @@ function resizeImageToDataUrl(file: File) {
     const objectUrl = URL.createObjectURL(file);
 
     image.onload = () => {
-      const maxSize = 760;
+      const maxSize = 640;
       const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(image.width * scale));
@@ -68,7 +43,7 @@ function resizeImageToDataUrl(file: File) {
 
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(objectUrl);
-      resolve(canvas.toDataURL("image/jpeg", 0.72));
+      resolve(canvas.toDataURL("image/jpeg", 0.68));
     };
 
     image.onerror = () => {
@@ -126,6 +101,11 @@ export function FoodLogClient() {
     return Math.round(estimate.proteinG * 4 + estimate.carbsG * 4 + estimate.fatG * 9);
   }, [estimate]);
 
+  const canSaveEstimate = useMemo(() => {
+    if (!estimate) return false;
+    return estimate.foodName.trim().length > 0 && Number(estimate.calories) > 0;
+  }, [estimate]);
+
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -148,11 +128,12 @@ export function FoodLogClient() {
         setStatus("AI estimate ready. Review, edit if needed, then save.");
       })
       .catch((error) => {
-        setEstimate(pickStarterEstimate(file.name));
+        setEstimate(manualEstimate());
+        setWasEdited(true);
         setStatus(
           error instanceof Error && /Premium plan required/i.test(error.message)
             ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
-            : "AI estimate is unavailable right now. Review this starter estimate before saving."
+            : "AI could not estimate this photo reliably. Please edit the fields before saving, or try another photo."
         );
       })
       .finally(() => setIsEstimating(false));
@@ -172,11 +153,12 @@ export function FoodLogClient() {
       setStatus("AI estimate ready. Review, edit if needed, then save.");
     } catch (error) {
       if (selectedFile) {
-        setEstimate(pickStarterEstimate(selectedFile.name));
+        setEstimate(manualEstimate());
+        setWasEdited(true);
         setStatus(
           error instanceof Error && /Premium plan required/i.test(error.message)
             ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
-            : "AI estimate is unavailable right now. Review this starter estimate before saving."
+            : "AI could not estimate this photo reliably. Please edit the fields before saving, or try another photo."
         );
       }
     } finally {
@@ -191,7 +173,10 @@ export function FoodLogClient() {
   }
 
   async function handleSave() {
-    if (!estimate) return;
+    if (!estimate || !canSaveEstimate) {
+      setStatus("Please add the food name and calories before saving.");
+      return;
+    }
 
     setIsSaving(true);
     setStatus("Saving food log and photo...");
@@ -391,7 +376,7 @@ export function FoodLogClient() {
               </button>
               <button
                 className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSaving}
+                disabled={isSaving || !canSaveEstimate}
                 onClick={handleSave}
                 type="button"
               >

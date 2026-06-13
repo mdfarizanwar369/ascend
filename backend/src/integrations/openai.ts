@@ -15,29 +15,52 @@ type GeminiResponse = {
   }>;
 };
 
+class GeminiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+    public readonly retryable = false
+  ) {
+    super(message);
+  }
+}
+
 function demoFoodEstimate(): FoodEstimate {
   return {
-    foodName: "Nasi Lemak",
-    confidence: 0.72,
-    calories: 620,
-    proteinG: 18,
-    carbsG: 72,
-    fatG: 28,
-    notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
+    foodName: "Manual food entry",
+    confidence: 0,
+    calories: 0,
+    proteinG: 0,
+    carbsG: 0,
+    fatG: 0,
+    notes: "Live AI image analysis is temporarily unavailable. Please enter the food and macros manually before saving."
   };
 }
 
 function cleanJsonText(text: string) {
-  return text
+  const cleaned = text
     .trim()
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```$/i, "")
     .trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start >= 0 && end > start) return cleaned.slice(start, end + 1);
+  return cleaned;
 }
 
 function parseFoodEstimate(text: string): FoodEstimate {
-  return JSON.parse(cleanJsonText(text)) as FoodEstimate;
+  const parsed = JSON.parse(cleanJsonText(text)) as Partial<Record<keyof FoodEstimate, unknown>>;
+  return {
+    foodName: String(parsed.foodName ?? "Food item").trim() || "Food item",
+    confidence: clampNumber(parsed.confidence, 0, 1),
+    calories: clampNumber(parsed.calories, 0, 5000),
+    proteinG: clampNumber(parsed.proteinG, 0, 500),
+    carbsG: clampNumber(parsed.carbsG, 0, 800),
+    fatG: clampNumber(parsed.fatG, 0, 500),
+    notes: String(parsed.notes ?? "AI estimate. Please review and edit if needed.").trim()
+  };
 }
 
 function providerConfigured() {
@@ -50,37 +73,82 @@ function geminiText(response: GeminiResponse) {
   return response.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
 }
 
-async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
+function clampNumber(value: unknown, min: number, max: number) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return min;
+  return Math.min(max, Math.max(min, number));
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableGeminiStatus(status: number) {
+  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+async function callGeminiOnce(parts: GeminiPart[], maxOutputTokens = 700) {
   if (!env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured.");
   }
 
-  const response = await fetch(`${geminiBaseUrl}/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens,
-        thinkingConfig: {
-          thinkingBudget: 0
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35_000);
+
+  try {
+    const response = await fetch(`${geminiBaseUrl}/models/${env.GEMINI_MODEL}:generateContent?key=${env.GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: {
+          temperature: 0.25,
+          maxOutputTokens,
+          thinkingConfig: {
+            thinkingBudget: 0
+          }
         }
-      }
-    })
-  });
+      })
+    });
 
-  if (!response.ok) {
-    throw new Error(`Gemini request failed with status ${response.status}`);
+    if (!response.ok) {
+      throw new GeminiError(`Gemini request failed with status ${response.status}`, response.status, isRetryableGeminiStatus(response.status));
+    }
+
+    const data = (await response.json()) as GeminiResponse;
+    const text = geminiText(data);
+    if (!text) {
+      throw new GeminiError("Gemini returned an empty response.", undefined, true);
+    }
+
+    return text;
+  } catch (error) {
+    if (error instanceof GeminiError) throw error;
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new GeminiError("Gemini request timed out.", undefined, true);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await callGeminiOnce(parts, maxOutputTokens);
+    } catch (error) {
+      lastError = error;
+      const retryable = error instanceof GeminiError ? error.retryable : false;
+      if (!retryable || attempt === 2) break;
+      await sleep(650 * (attempt + 1));
+    }
   }
 
-  const data = (await response.json()) as GeminiResponse;
-  const text = geminiText(data);
-  if (!text) {
-    throw new Error("Gemini returned an empty response.");
-  }
-
-  return text;
+  throw lastError instanceof Error ? lastError : new Error("Gemini request failed.");
 }
 
 function dataUrlToGeminiPart(imageUrl: string): GeminiPart | null {
@@ -118,9 +186,9 @@ async function estimateFoodWithGemini(imageUrl: string) {
   const text = await callGemini([
     {
       text:
-        "Estimate calories and macros from this food photo. Prioritize Malaysia and Singapore foods such as " +
+        "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
         LOCAL_FOODS.join(", ") +
-        ". Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. The user can edit the estimate."
+        ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, or dessert. Do not guess a local food unless it visually matches. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. If unsure, use a lower confidence and explain what needs review in notes. The user can edit the estimate."
     },
     imagePart
   ], 1000);
@@ -168,7 +236,11 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   if (!providerConfigured()) return fallback;
 
   if (env.AI_PROVIDER === "gemini") {
-    return callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], 1200);
+    try {
+      return await callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], 1400);
+    } catch {
+      return fallback;
+    }
   }
 
   if (env.AI_PROVIDER === "openai" && openaiClient) {
