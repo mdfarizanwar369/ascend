@@ -26,7 +26,7 @@ const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).fi
 
 app.use(helmet());
 app.use(cors({ origin: corsOrigins.length > 1 ? corsOrigins : corsOrigins[0], credentials: true }));
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(rateLimit({ windowMs: 60_000, limit: 120 }));
 

@@ -3,7 +3,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { FoodEstimate } from "@ascend/shared";
-import { estimateFoodFromDataUrl, getFoodLogs, requestFoodUploadUrl, saveFoodLog } from "@/lib/ascendApi";
+import { estimateFoodFromDataUrl, getFoodLogs, saveFoodLog, uploadFoodPhotoDataUrl } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
@@ -53,7 +53,7 @@ function resizeImageToDataUrl(file: File) {
     const objectUrl = URL.createObjectURL(file);
 
     image.onload = () => {
-      const maxSize = 900;
+      const maxSize = 760;
       const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(image.width * scale));
@@ -68,7 +68,7 @@ function resizeImageToDataUrl(file: File) {
 
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(objectUrl);
-      resolve(canvas.toDataURL("image/jpeg", 0.82));
+      resolve(canvas.toDataURL("image/jpeg", 0.72));
     };
 
     image.onerror = () => {
@@ -80,31 +80,10 @@ function resizeImageToDataUrl(file: File) {
   });
 }
 
-async function buildEstimate(file: File) {
-  const imageDataUrl = await resizeImageToDataUrl(file);
-  const response = await estimateFoodFromDataUrl(imageDataUrl);
-  return response.estimate;
-}
-
-async function uploadFoodPhoto(file: File) {
-  const upload = await requestFoodUploadUrl(file.type || "image/jpeg");
-  if (!upload.storageConfigured || !upload.uploadUrl) return null;
-
-  const response = await fetch(upload.uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": file.type || "image/jpeg"
-    },
-    body: file
-  });
-
-  if (!response.ok) throw new Error("Photo upload failed.");
-  return upload.key;
-}
-
 export function FoodLogClient() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<FoodEstimate | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [status, setStatus] = useState("Upload a food photo to estimate calories and macros.");
@@ -158,14 +137,23 @@ export function FoodLogClient() {
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
 
-    buildEstimate(file)
+    resizeImageToDataUrl(file)
+      .then(async (imageDataUrl) => {
+        setSelectedImageDataUrl(imageDataUrl);
+        const response = await estimateFoodFromDataUrl(imageDataUrl);
+        return response.estimate;
+      })
       .then((nextEstimate) => {
         setEstimate(nextEstimate);
         setStatus("AI estimate ready. Review, edit if needed, then save.");
       })
-      .catch(() => {
+      .catch((error) => {
         setEstimate(pickStarterEstimate(file.name));
-        setStatus("AI estimate is unavailable right now. Review this starter estimate before saving.");
+        setStatus(
+          error instanceof Error && /Premium plan required/i.test(error.message)
+            ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
+            : "AI estimate is unavailable right now. Review this starter estimate before saving."
+        );
       })
       .finally(() => setIsEstimating(false));
   }
@@ -176,13 +164,20 @@ export function FoodLogClient() {
 
     try {
       if (!selectedFile) return;
-      const nextEstimate = await buildEstimate(selectedFile);
+      const imageDataUrl = await resizeImageToDataUrl(selectedFile);
+      setSelectedImageDataUrl(imageDataUrl);
+      const response = await estimateFoodFromDataUrl(imageDataUrl);
+      const nextEstimate = response.estimate;
       setEstimate(nextEstimate);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
-    } catch {
+    } catch (error) {
       if (selectedFile) {
         setEstimate(pickStarterEstimate(selectedFile.name));
-        setStatus("AI estimate is unavailable right now. Review this starter estimate before saving.");
+        setStatus(
+          error instanceof Error && /Premium plan required/i.test(error.message)
+            ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
+            : "AI estimate is unavailable right now. Review this starter estimate before saving."
+        );
       }
     } finally {
       setIsEstimating(false);
@@ -217,9 +212,10 @@ export function FoodLogClient() {
 
     try {
       let imageS3Key: string | null = null;
-      if (selectedFile) {
+      if (selectedImageDataUrl) {
         try {
-          imageS3Key = await uploadFoodPhoto(selectedFile);
+          const upload = await uploadFoodPhotoDataUrl(selectedImageDataUrl);
+          imageS3Key = upload.storageConfigured === false ? null : upload.key;
         } catch {
           imageS3Key = null;
         }
@@ -240,6 +236,7 @@ export function FoodLogClient() {
       setPreviewUrl(null);
       setEstimate(null);
       setSelectedFile(null);
+      setSelectedImageDataUrl(null);
       setWasEdited(false);
       setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
     } catch (error) {

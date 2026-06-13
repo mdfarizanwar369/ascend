@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Camera, Check, ImagePlus } from "lucide-react";
-import { getProgressPhotos, requestProgressUploadUrl, saveProgressPhoto } from "@/lib/ascendApi";
+import { getProgressPhotos, saveProgressPhoto, uploadProgressPhotoDataUrl } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
@@ -19,22 +19,37 @@ function formatPhotoType(type: string) {
   return type.charAt(0).toUpperCase() + type.slice(1);
 }
 
-async function uploadProgressPhoto(file: File) {
-  const upload = await requestProgressUploadUrl(file.type || "image/jpeg");
-  if (!upload.storageConfigured || !upload.uploadUrl) {
-    throw new Error("Storage is not configured yet.");
-  }
+function resizeImageToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
 
-  const response = await fetch(upload.uploadUrl, {
-    method: "PUT",
-    headers: {
-      "Content-Type": file.type || "image/jpeg"
-    },
-    body: file
+    image.onload = () => {
+      const maxSize = 900;
+      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Could not prepare image."));
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", 0.75));
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read image."));
+    };
+
+    image.src = objectUrl;
   });
-
-  if (!response.ok) throw new Error("Photo upload failed.");
-  return upload.key;
 }
 
 export function ProgressPhotosClient() {
@@ -80,7 +95,10 @@ export function ProgressPhotosClient() {
     setStatus("Saving progress photo...");
 
     try {
-      const imageS3Key = await uploadProgressPhoto(selectedFile);
+      const imageDataUrl = await resizeImageToDataUrl(selectedFile);
+      const upload = await uploadProgressPhotoDataUrl(imageDataUrl);
+      if (upload.storageConfigured === false) throw new Error("Photo storage is not configured yet.");
+      const imageS3Key = upload.key;
       await saveProgressPhoto({ imageS3Key, photoType });
       await loadPhotos();
       setSelectedFile(null);

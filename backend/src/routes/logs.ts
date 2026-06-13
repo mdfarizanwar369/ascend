@@ -4,7 +4,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { createReadUrl, createUploadUrl } from "../integrations/s3";
+import { createReadUrl, createUploadUrl, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage } from "../integrations/openai";
 
 export const logsRouter = Router();
@@ -24,6 +24,10 @@ const foodLogSchema = z.object({
 });
 
 const foodImageDataSchema = z.object({
+  imageDataUrl: z.string().startsWith("data:image/").max(7_000_000)
+});
+
+const photoUploadDataSchema = z.object({
   imageDataUrl: z.string().startsWith("data:image/").max(7_000_000)
 });
 
@@ -48,6 +52,16 @@ logsRouter.post("/food-logs/photo-upload-url", requireAuth, requireActivePlan("p
   const contentType = String(req.body.contentType ?? "image/jpeg");
   const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
   res.json(await createUploadUrl(key, contentType));
+});
+
+logsRouter.post("/food-logs/photo-upload-data-url", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+  try {
+    const input = photoUploadDataSchema.parse(req.body);
+    const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
+    res.json(await uploadDataUrl(key, input.imageDataUrl));
+  } catch (error) {
+    next(error);
+  }
 });
 
 async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(rows: T[]) {
@@ -191,4 +205,14 @@ logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("p
   const contentType = String(req.body.contentType ?? "image/jpeg");
   const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;
   res.json(await createUploadUrl(key, contentType));
+});
+
+logsRouter.post("/progress-photos/upload-data-url", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+  try {
+    const input = photoUploadDataSchema.parse(req.body);
+    const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;
+    res.json(await uploadDataUrl(key, input.imageDataUrl));
+  } catch (error) {
+    next(error);
+  }
 });

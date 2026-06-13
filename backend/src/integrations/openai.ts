@@ -49,7 +49,7 @@ function geminiText(response: GeminiResponse) {
   return response.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("").trim() ?? "";
 }
 
-async function callGemini(parts: GeminiPart[]) {
+async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
   if (!env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured.");
   }
@@ -61,7 +61,7 @@ async function callGemini(parts: GeminiPart[]) {
       contents: [{ role: "user", parts }],
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 260
+        maxOutputTokens
       }
     })
   });
@@ -119,7 +119,7 @@ async function estimateFoodWithGemini(imageUrl: string) {
         ". Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. The user can edit the estimate."
     },
     imagePart
-  ]);
+  ], 650);
 
   return parseFoodEstimate(text);
 }
@@ -164,7 +164,7 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   if (!providerConfigured()) return fallback;
 
   if (env.AI_PROVIDER === "gemini") {
-    return callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }]);
+    return callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], 420);
   }
 
   if (env.AI_PROVIDER === "openai" && openaiClient) {
@@ -184,7 +184,7 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
 
 export async function createNutritionCoachReply(message: string, context: string) {
   return createTextReply(
-    "You are Ascend's nutrition coach. Be practical, beginner-friendly, and culturally aware for Malaysia and Singapore. Do not diagnose medical conditions. Keep replies under 120 words. Use 2-4 short bullets when helpful. Give one clear next action.",
+    "You are Ascend's nutrition coach. Be practical, warm, beginner-friendly, and culturally aware for Malaysia and Singapore. Do not diagnose medical conditions. Reply in complete sentences, around 80-140 words. If using bullets, use at most 3. End with one clear next action.",
     `Client context: ${context}\n\nQuestion: ${message}`,
     "I can help you make the next meal a little easier. Aim for protein first, add vegetables, and keep portions consistent."
   );

@@ -234,10 +234,24 @@ export function requestFoodUploadUrl(contentType: string) {
   });
 }
 
+export function uploadFoodPhotoDataUrl(imageDataUrl: string) {
+  return authed<{ key: string; storageConfigured?: boolean }>("/food-logs/photo-upload-data-url", {
+    method: "POST",
+    body: JSON.stringify({ imageDataUrl })
+  });
+}
+
 export function requestProgressUploadUrl(contentType: string) {
   return authed<{ uploadUrl: string; key: string; storageConfigured?: boolean }>("/progress-photos/upload-url", {
     method: "POST",
     body: JSON.stringify({ contentType })
+  });
+}
+
+export function uploadProgressPhotoDataUrl(imageDataUrl: string) {
+  return authed<{ key: string; storageConfigured?: boolean }>("/progress-photos/upload-data-url", {
+    method: "POST",
+    body: JSON.stringify({ imageDataUrl })
   });
 }
 

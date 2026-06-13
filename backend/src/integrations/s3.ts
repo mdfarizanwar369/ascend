@@ -26,6 +26,27 @@ export async function createUploadUrl(key: string, contentType: string) {
   };
 }
 
+export async function uploadDataUrl(key: string, imageDataUrl: string) {
+  if (!env.AWS_S3_BUCKET) {
+    return { key, storageConfigured: false };
+  }
+
+  const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) {
+    throw new Error("Invalid image data.");
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: env.AWS_S3_BUCKET,
+    Key: key,
+    ContentType: match[1],
+    Body: Buffer.from(match[2], "base64")
+  });
+
+  await s3.send(command);
+  return { key, storageConfigured: true };
+}
+
 export async function createReadUrl(key?: string | null) {
   if (!env.AWS_S3_BUCKET || !key) return null;
 
