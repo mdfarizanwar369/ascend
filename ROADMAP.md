@@ -10,7 +10,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Owner/admin dashboard, users, trainer approvals, client assignment, referrals, subscriptions, and revenue attribution.
 - PostgreSQL as source of truth.
 - S3/R2-compatible media storage.
-- OpenAI integration with demo fallbacks.
+- Gemini AI integration with starter fallbacks.
 - ToyyibPay-first subscription abstraction with manual/test activation, checkout creation, callback handling, and payment event records.
 - Daily compliance and risk job endpoint.
 - Browser back/forward and logout session refresh handling.
@@ -22,7 +22,7 @@ Ascend is deployable as a mobile-first PWA with:
 3. Configure Railway Cron or an external scheduler for `POST /api/v1/jobs/daily`.
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
-6. Verify OpenAI food image analysis on production.
+6. Verify Gemini food image analysis on production using a real mobile food photo.
 7. Configure real ToyyibPay category, return URL, and callback URL.
 8. Run one end-to-end ToyyibPay low-value live payment test and confirm the subscription changes to active.
 9. Confirm Railway PostgreSQL backups.
