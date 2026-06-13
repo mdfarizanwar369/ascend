@@ -78,6 +78,10 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireActivePlan("premium")
     const imageUrl = z.string().url().parse(req.body.imageUrl);
     res.json({ estimate: await estimateFoodFromImage(imageUrl) });
   } catch (error) {
+    if (error instanceof Error) {
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
+      return;
+    }
     next(error);
   }
 });
@@ -87,6 +91,10 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireActivePlan("
     const input = foodImageDataSchema.parse(req.body);
     res.json({ estimate: await estimateFoodFromImage(input.imageDataUrl) });
   } catch (error) {
+    if (error instanceof Error) {
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
+      return;
+    }
     next(error);
   }
 });
