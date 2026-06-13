@@ -55,6 +55,16 @@ function resizeImageToDataUrl(file: File) {
   });
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function shouldRetryEstimate(error: unknown) {
+  if (!(error instanceof Error)) return true;
+  if (/premium plan required|401|403/i.test(error.message)) return false;
+  return true;
+}
+
 export function FoodLogClient() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -106,6 +116,26 @@ export function FoodLogClient() {
     return estimate.foodName.trim().length > 0 && Number(estimate.calories) > 0;
   }, [estimate]);
 
+  async function estimateFoodWithRetry(imageDataUrl: string) {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        if (attempt > 0) {
+          setStatus("AI is taking another look at the same photo...");
+          await sleep(1200 * attempt);
+        }
+        const response = await estimateFoodFromDataUrl(imageDataUrl);
+        return response.estimate;
+      } catch (error) {
+        lastError = error;
+        if (!shouldRetryEstimate(error) || attempt === 2) break;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("AI estimate failed.");
+  }
+
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -120,8 +150,7 @@ export function FoodLogClient() {
     resizeImageToDataUrl(file)
       .then(async (imageDataUrl) => {
         setSelectedImageDataUrl(imageDataUrl);
-        const response = await estimateFoodFromDataUrl(imageDataUrl);
-        return response.estimate;
+        return estimateFoodWithRetry(imageDataUrl);
       })
       .then((nextEstimate) => {
         setEstimate(nextEstimate);
@@ -147,8 +176,7 @@ export function FoodLogClient() {
       if (!selectedFile) return;
       const imageDataUrl = await resizeImageToDataUrl(selectedFile);
       setSelectedImageDataUrl(imageDataUrl);
-      const response = await estimateFoodFromDataUrl(imageDataUrl);
-      const nextEstimate = response.estimate;
+      const nextEstimate = await estimateFoodWithRetry(imageDataUrl);
       setEstimate(nextEstimate);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
     } catch (error) {

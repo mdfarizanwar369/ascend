@@ -137,14 +137,14 @@ async function callGeminiOnce(parts: GeminiPart[], maxOutputTokens = 700) {
 async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
       return await callGeminiOnce(parts, maxOutputTokens);
     } catch (error) {
       lastError = error;
       const retryable = error instanceof GeminiError ? error.retryable : false;
-      if (!retryable || attempt === 2) break;
-      await sleep(650 * (attempt + 1));
+      if (!retryable || attempt === 3) break;
+      await sleep(900 * (attempt + 1));
     }
   }
 
