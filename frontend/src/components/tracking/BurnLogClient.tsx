@@ -35,8 +35,8 @@ function understandBurnText(text: string) {
 
 export function BurnLogClient() {
   const [activityType, setActivityType] = useState("Strength training");
-  const [durationMinutes, setDurationMinutes] = useState("45");
-  const [activityText, setActivityText] = useState("Ran 30 minutes");
+  const [durationMinutes, setDurationMinutes] = useState("");
+  const [activityText, setActivityText] = useState("");
   const [todayCalories, setTodayCalories] = useState(0);
   const [aiCalories, setAiCalories] = useState<number | null>(null);
   const [estimateNotes, setEstimateNotes] = useState("");
@@ -169,15 +169,15 @@ export function BurnLogClient() {
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
           <Field label="Tell Ascend what you did">
             <div className="space-y-2">
-              <input
-                className={inputClass}
-                value={activityText}
+            <input
+              className={inputClass}
+              value={activityText}
                 onChange={(event) => {
                   setActivityText(event.target.value);
                   setAiCalories(null);
                   setEstimateNotes("");
                 }}
-                placeholder="Ran 30 minutes"
+              placeholder="Ran 30 minutes"
               />
               <button
                 type="button"
