@@ -22,7 +22,7 @@ const schema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4.1-mini"),
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash-lite"),
   AI_MONTHLY_SPEND_LIMIT_CENTS: z.coerce.number().int().positive().default(5000),
   AI_MONTHLY_FOOD_ANALYSIS_LIMIT: z.coerce.number().int().positive().default(1000),
   AI_MONTHLY_CHAT_LIMIT: z.coerce.number().int().positive().default(3000),
