@@ -140,6 +140,188 @@ adminRouter.get("/admin/analytics/ai-usage", requireAuth, requireRole(["admin", 
   });
 });
 
+adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
+  const [summary, trends, referrals] = await Promise.all([
+    query(`
+      with client_base as (
+        select id
+        from users
+        where primary_role = 'client'
+      ),
+      active_today as (
+        select distinct user_id from food_logs where logged_at::date = current_date
+        union select distinct user_id from weight_logs where logged_at::date = current_date
+        union select distinct user_id from water_logs where logged_at::date = current_date
+        union select distinct user_id from habit_logs where logged_at::date = current_date
+        union select distinct user_id from analytics_events where created_at::date = current_date
+        union select distinct sender_user_id as user_id from messages where created_at::date = current_date
+        union select distinct user_id from ai_usage_events where created_at::date = current_date
+      ),
+      active_week as (
+        select distinct user_id from food_logs where logged_at >= now() - interval '7 days'
+        union select distinct user_id from weight_logs where logged_at >= now() - interval '7 days'
+        union select distinct user_id from water_logs where logged_at >= now() - interval '7 days'
+        union select distinct user_id from habit_logs where logged_at >= now() - interval '7 days'
+        union select distinct user_id from analytics_events where created_at >= now() - interval '7 days'
+        union select distinct sender_user_id as user_id from messages where created_at >= now() - interval '7 days'
+        union select distinct user_id from ai_usage_events where created_at >= now() - interval '7 days'
+      ),
+      client_activity as (
+        select
+          (select count(*) from client_base) as total_clients,
+          (select count(*) from active_today a join client_base c on c.id = a.user_id) as daily_active_users,
+          (select count(*) from active_week a join client_base c on c.id = a.user_id) as weekly_active_users,
+          (select count(distinct user_id) from food_logs where logged_at >= now() - interval '7 days') as food_loggers,
+          (select count(distinct user_id) from weight_logs where logged_at >= now() - interval '7 days') as weight_loggers,
+          (select count(distinct user_id) from water_logs where logged_at >= now() - interval '7 days') as water_loggers,
+          (select count(distinct user_id) from habit_logs where completed = true and logged_at >= now() - interval '7 days') as habit_completers,
+          (select round(avg(score)) from compliance_scores where calculated_for_date >= current_date - interval '7 days') as average_compliance_score
+      ),
+      trainer_activity as (
+        select
+          count(distinct m.sender_user_id) filter (where m.created_at::date = current_date and su.primary_role in ('trainer','admin','owner')) as daily_trainer_logins,
+          count(m.id) filter (where su.primary_role in ('trainer','admin','owner') and m.created_at >= now() - interval '7 days') as trainer_replies,
+          count(m.id) filter (where su.primary_role = 'client' and m.created_at >= now() - interval '7 days') as client_messages,
+          (select count(*) from risk_alerts where created_at >= now() - interval '30 days') as risk_alerts_generated,
+          (select count(*) from risk_alerts where resolved_at >= now() - interval '30 days' or (status in ('resolved','acknowledged') and created_at >= now() - interval '30 days')) as risk_alerts_resolved,
+          (select count(distinct id) from users where primary_role = 'client' and assigned_trainer_id is not null) as clients_monitored
+        from messages m
+        join users su on su.id = m.sender_user_id
+      ),
+      business as (
+        select
+          count(cb.id) filter (where coalesce(s.plan::text, 'free') = 'free' or s.id is null) as free_users,
+          count(cb.id) filter (where s.plan = 'premium' and s.status in ('active','trialing')) as premium_users,
+          count(cb.id) filter (where s.plan in ('premium','trainer_pro') and s.status in ('active','trialing')) as trial_conversions,
+          coalesce(sum(s.amount_cents) filter (where s.status in ('active','trialing') and s.plan in ('premium','trainer_pro')), 0) as monthly_recurring_revenue_cents,
+          count(s.id) filter (where s.status in ('canceled','expired') and s.plan in ('premium','trainer_pro')) as churned_subscriptions,
+          count(s.id) filter (where s.plan in ('premium','trainer_pro')) as paid_subscriptions_ever
+        from client_base cb
+        left join lateral (
+          select *
+          from subscriptions s
+          where s.user_id = cb.id
+          order by s.created_at desc
+          limit 1
+        ) s on true
+      ),
+      ai as (
+        select
+          coalesce(sum(estimated_cost_cents) filter (where created_at >= date_trunc('month', now())), 0) as ai_spend_cents,
+          count(*) filter (where cache_hit = true and created_at >= date_trunc('month', now())) as cache_hits,
+          count(*) filter (where event_type = 'food_image_analysis' and created_at >= date_trunc('month', now())) as food_ai_events,
+          coalesce(sum(estimated_cost_cents) filter (where created_at >= date_trunc('month', now())), 0) as monthly_estimated_cost_cents
+        from ai_usage_events
+      )
+      select
+        client_activity.*,
+        trainer_activity.*,
+        business.*,
+        ai.*,
+        case when client_activity.weekly_active_users > 0 then round(ai.ai_spend_cents / client_activity.weekly_active_users) else 0 end as cost_per_active_user_cents
+      from client_activity, trainer_activity, business, ai
+    `),
+    query(`
+      with days as (
+        select generate_series(current_date - interval '13 days', current_date, interval '1 day')::date as period
+      ),
+      activity as (
+        select user_id, logged_at::date as period, 'food' as type from food_logs where logged_at >= current_date - interval '13 days'
+        union all select user_id, logged_at::date, 'weight' from weight_logs where logged_at >= current_date - interval '13 days'
+        union all select user_id, logged_at::date, 'water' from water_logs where logged_at >= current_date - interval '13 days'
+        union all select user_id, logged_at::date, 'habit' from habit_logs where logged_at >= current_date - interval '13 days' and completed = true
+        union all select user_id, created_at::date, 'activity' from analytics_events where created_at >= current_date - interval '13 days'
+        union all select sender_user_id, created_at::date, 'message' from messages where created_at >= current_date - interval '13 days'
+      )
+      select
+        d.period,
+        count(distinct a.user_id) as active_users,
+        count(*) filter (where a.type = 'food') as food_logs,
+        count(*) filter (where a.type = 'weight') as weight_logs,
+        count(*) filter (where a.type = 'water') as water_logs,
+        count(*) filter (where a.type = 'habit') as habit_completions,
+        coalesce(round(avg(cs.score)), 0) as average_compliance_score,
+        coalesce(ai.estimated_cost_cents, 0) as ai_cost_cents
+      from days d
+      left join activity a on a.period = d.period
+      left join compliance_scores cs on cs.calculated_for_date = d.period
+      left join lateral (
+        select sum(estimated_cost_cents) as estimated_cost_cents
+        from ai_usage_events
+        where created_at::date = d.period
+      ) ai on true
+      group by d.period, ai.estimated_cost_cents
+      order by d.period
+    `),
+    query(`
+      select rc.code, rc.type, coalesce(g.name, trainer_gym.name) as gym_name, tu.full_name as trainer_name,
+        count(u.id) as referred_users,
+        count(s.id) filter (where s.status in ('active','trialing') and s.plan in ('premium','trainer_pro')) as converted_users,
+        coalesce(sum(s.amount_cents) filter (where s.status in ('active','trialing')), 0) as revenue_cents
+      from referral_codes rc
+      left join gyms g on g.id = rc.gym_id
+      left join trainers t on t.id = rc.trainer_id
+      left join gyms trainer_gym on trainer_gym.id = t.gym_id
+      left join users tu on tu.id = t.user_id
+      left join users u on (
+        (rc.type = 'gym' and u.referred_by_gym_id = rc.gym_id and u.referred_by_trainer_id is null)
+        or (rc.type = 'trainer' and u.referred_by_trainer_id = rc.trainer_id)
+      )
+      left join subscriptions s on s.user_id = u.id
+      group by rc.id, g.name, trainer_gym.name, tu.full_name
+      order by referred_users desc, revenue_cents desc
+      limit 20
+    `)
+  ]);
+
+  const row = summary.rows[0] ?? {};
+  const totalClients = Number(row.total_clients ?? 0);
+  const weeklyActiveUsers = Number(row.weekly_active_users ?? 0);
+  const trainerReplies = Number(row.trainer_replies ?? 0);
+  const clientMessages = Number(row.client_messages ?? 0);
+  const paidEver = Number(row.paid_subscriptions_ever ?? 0);
+  const churned = Number(row.churned_subscriptions ?? 0);
+  const foodAiEvents = Number(row.food_ai_events ?? 0);
+  const cacheHits = Number(row.cache_hits ?? 0);
+  const monthCost = Number(row.monthly_estimated_cost_cents ?? 0);
+  const dayOfMonth = Math.max(new Date().getDate(), 1);
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+
+  res.json({
+    clients: {
+      dailyActiveUsers: Number(row.daily_active_users ?? 0),
+      weeklyActiveUsers,
+      foodLoggingRate: totalClients ? Math.round((Number(row.food_loggers ?? 0) / totalClients) * 100) : 0,
+      weightLoggingRate: totalClients ? Math.round((Number(row.weight_loggers ?? 0) / totalClients) * 100) : 0,
+      waterLoggingRate: totalClients ? Math.round((Number(row.water_loggers ?? 0) / totalClients) * 100) : 0,
+      habitCompletionRate: totalClients ? Math.round((Number(row.habit_completers ?? 0) / totalClients) * 100) : 0,
+      averageComplianceScore: Number(row.average_compliance_score ?? 0)
+    },
+    trainers: {
+      dailyTrainerLogins: Number(row.daily_trainer_logins ?? 0),
+      trainerResponseRate: clientMessages ? Math.min(100, Math.round((trainerReplies / clientMessages) * 100)) : 0,
+      riskAlertsGenerated: Number(row.risk_alerts_generated ?? 0),
+      riskAlertsResolved: Number(row.risk_alerts_resolved ?? 0),
+      clientsMonitored: Number(row.clients_monitored ?? 0)
+    },
+    business: {
+      freeUsers: Number(row.free_users ?? 0),
+      premiumUsers: Number(row.premium_users ?? 0),
+      trialConversions: Number(row.trial_conversions ?? 0),
+      monthlyRecurringRevenueCents: Number(row.monthly_recurring_revenue_cents ?? 0),
+      churnRate: paidEver ? Math.round((churned / paidEver) * 100) : 0,
+      referralPerformance: referrals.rows
+    },
+    ai: {
+      aiSpendCents: Number(row.ai_spend_cents ?? 0),
+      costPerActiveUserCents: weeklyActiveUsers ? Number(row.cost_per_active_user_cents ?? 0) : 0,
+      cacheHitRate: foodAiEvents ? Math.round((cacheHits / foodAiEvents) * 100) : 0,
+      estimatedMonthlyCostCents: Math.round((monthCost / dayOfMonth) * daysInMonth)
+    },
+    trends: trends.rows
+  });
+});
+
 adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
   try {
     const input = assignClientSchema.parse(req.body);

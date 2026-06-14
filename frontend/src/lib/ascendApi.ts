@@ -651,6 +651,59 @@ export function getAdminAiUsage() {
   }>("/admin/analytics/ai-usage");
 }
 
+export function getAdminPilotMetrics() {
+  return authed<{
+    clients: {
+      dailyActiveUsers: number;
+      weeklyActiveUsers: number;
+      foodLoggingRate: number;
+      weightLoggingRate: number;
+      waterLoggingRate: number;
+      habitCompletionRate: number;
+      averageComplianceScore: number;
+    };
+    trainers: {
+      dailyTrainerLogins: number;
+      trainerResponseRate: number;
+      riskAlertsGenerated: number;
+      riskAlertsResolved: number;
+      clientsMonitored: number;
+    };
+    business: {
+      freeUsers: number;
+      premiumUsers: number;
+      trialConversions: number;
+      monthlyRecurringRevenueCents: number;
+      churnRate: number;
+      referralPerformance: Array<{
+        code: string;
+        type: "gym" | "trainer";
+        gym_name: string | null;
+        trainer_name: string | null;
+        referred_users: string | number;
+        converted_users: string | number;
+        revenue_cents: string | number;
+      }>;
+    };
+    ai: {
+      aiSpendCents: number;
+      costPerActiveUserCents: number;
+      cacheHitRate: number;
+      estimatedMonthlyCostCents: number;
+    };
+    trends: Array<{
+      period: string;
+      active_users: string | number;
+      food_logs: string | number;
+      weight_logs: string | number;
+      water_logs: string | number;
+      habit_completions: string | number;
+      average_compliance_score: string | number;
+      ai_cost_cents: string | number;
+    }>;
+  }>("/admin/analytics/pilot-metrics");
+}
+
 export function getGyms() {
   return api<{
     gyms: Array<{
