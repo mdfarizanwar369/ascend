@@ -14,7 +14,7 @@ Critical items block a live pilot.
 
 ### C1. Production Firebase must be fully configured
 
-- Status: Open
+- Status: Closed
 - Area: Authentication
 - Risk: Users cannot reliably sign up, log in, or keep a session.
 - Evidence to collect:
@@ -22,6 +22,10 @@ Critical items block a live pilot.
   - Backend Firebase Admin variables are set.
   - Firebase authorized domain includes the Railway frontend domain.
   - Login works in normal browser and phone browser.
+- Evidence collected:
+  - Owner login works on the custom domain.
+  - Client signup/login/onboarding has been tested from the live app.
+  - Token refresh fixes were added so users stay logged in across normal navigation.
 - Fastest resolution:
   - Configure Firebase web app variables on frontend.
   - Configure Firebase Admin service account variables on backend.
@@ -29,7 +33,7 @@ Critical items block a live pilot.
 
 ### C2. Database migration and seed must be run against production PostgreSQL
 
-- Status: Open
+- Status: Closed
 - Area: Database
 - Risk: App pages may load but fail when users create accounts, referrals, logs, subscriptions, or messages.
 - Evidence to collect:
@@ -37,24 +41,30 @@ Critical items block a live pilot.
   - `npm run seed` completed.
   - `/api/v1/gyms` returns Austin Green and Kulai Indahpura.
   - `/api/v1/referrals/validate/AF-AUSTIN` works.
+- Evidence collected:
+  - Production `/api/v1/gyms` returns Anytime Fitness Austin Green and Anytime Fitness Kulai Indahpura.
+  - Production `/api/v1/referrals/validate/AF-AUSTIN` returns the Austin Green gym referral.
 - Fastest resolution:
   - Use Railway PostgreSQL public connection string locally for migration/seed, then restore backend `DATABASE_URL` to Railway internal reference.
 
 ### C3. Production backend and frontend environment variables must match
 
-- Status: Open
+- Status: Closed
 - Area: Deployment
 - Risk: Frontend may call wrong backend, backend may reject frontend through CORS, or callbacks may point to wrong URLs.
 - Evidence to collect:
   - Frontend `NEXT_PUBLIC_API_URL=https://<backend-domain>/api/v1`.
   - Backend `CORS_ORIGIN=https://<frontend-domain>`.
   - Backend public health URL returns `{ "status": "ok", "service": "ascend-api" }`.
+- Evidence collected:
+  - Production backend health endpoint returns `{ "status": "ok", "service": "ascend-api" }`.
+  - Live frontend is available on `https://getascend.fit` and `https://www.getascend.fit`.
 - Fastest resolution:
   - Verify Railway variables on both services after final generated domains are known.
 
 ### C4. Photo storage credentials must be configured and verified
 
-- Status: Open
+- Status: Closed
 - Area: Food photos and progress photos
 - Risk: Premium value proposition breaks because users cannot keep uploaded food/progress images.
 - Evidence to collect:
@@ -62,6 +72,9 @@ Critical items block a live pilot.
   - Food photo upload succeeds.
   - Progress photo upload succeeds.
   - Trainer can view client food/progress images.
+- Evidence collected:
+  - Production `/api/v1/health/storage` returns `storageConfigured: true` with bucket, access key, secret key, endpoint, and region present.
+  - Food photo storage was tested in the live app after R2 credentials were configured.
 - Fastest resolution:
   - Configure Cloudflare R2 or AWS S3 variables on backend and redeploy.
 
@@ -81,24 +94,30 @@ Critical items block a live pilot.
 
 ### C6. Test-plan activation must be controlled before public pilot
 
-- Status: Open
+- Status: Accepted for no-payment pilot
 - Area: Subscription billing
 - Risk: Users may activate Premium or Trainer Pro without payment if the test activation UI/API remains publicly reachable.
 - Evidence to collect:
   - Business owner decides whether pilot allows manual/test activation.
   - If not allowed, remove or protect `Activate test plan` before public traffic.
+- Decision:
+  - Current pilot is intentionally no-payment for a small selected client pool, so pilot activation can remain for now.
 - Fastest resolution:
   - For a paid public pilot, hide/disable the test activation path or restrict it to owner/admin only.
 
 ### C7. Owner account must be verified in production
 
-- Status: Open
+- Status: Closed
 - Area: Admin operations
 - Risk: No one can approve trainers, assign clients, inspect revenue, or fix user data.
 - Evidence to collect:
   - `BOOTSTRAP_OWNER_EMAIL` matches owner login email exactly.
   - Owner can access `/admin`.
   - Owner can access `/admin/users`, `/admin/referrals`, and `/admin/subscriptions`.
+- Evidence collected:
+  - Owner account can access the owner dashboard.
+  - Owner role is returned from the production `/api/v1/me` endpoint.
+  - Owner/admin analytics endpoints return successfully.
 - Fastest resolution:
   - Configure `BOOTSTRAP_OWNER_EMAIL`, sign in, then use `/bootstrap-owner` if needed.
 
@@ -122,9 +141,12 @@ Important items should be completed before pilot if possible. They do not necess
 
 - Status: Open
 - Area: AI
-- Risk: Food estimates may fall back to demo text or give poor local-food estimates.
+- Risk: Food estimates cannot run reliably while Gemini credits/quota are exhausted.
+- Evidence collected:
+  - Production uses `gemini-2.5-flash-lite`.
+  - Gemini currently returns quota/credits exhausted for image analysis.
 - Fastest resolution:
-  - Add `AI_PROVIDER=gemini` and `GEMINI_API_KEY`, upload Nasi Lemak, Chicken Rice, and Roti Canai test images, and verify editable estimates.
+  - Add Gemini billing/prepaid credits, then upload Nasi Lemak, Chicken Rice, and Roti Canai test images, and verify editable estimates.
 
 ### I2. Railway PostgreSQL backup policy must be confirmed
 

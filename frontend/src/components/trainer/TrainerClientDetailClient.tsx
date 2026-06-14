@@ -106,7 +106,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       const response = await createWeeklyCheckin(clientId);
       setCheckin(response.summary);
     } catch {
-      setCheckin("Could not generate AI check-in yet. Make sure the OpenAI key is configured on the backend.");
+      setCheckin("Could not generate AI check-in yet. Make sure the AI provider is configured and has available credits.");
     } finally {
       setIsGenerating(false);
     }

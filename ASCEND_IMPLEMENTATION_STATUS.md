@@ -1,6 +1,6 @@
 # Ascend Implementation Status
 
-Last updated: 13 June 2026
+Last updated: 14 June 2026
 
 ## Pilot Readiness Snapshot
 
@@ -31,6 +31,10 @@ The live app is available at:
 - Gym seed API returns the two launch gyms.
 - Backend tests pass.
 - Frontend/backend lint passes.
+- Production `/api/v1/gyms` returns both launch gyms.
+- Production `/api/v1/referrals/validate/AF-AUSTIN` returns the Austin Green gym referral.
+- Backend is configured to use Gemini Flash-Lite by default for lower pilot AI cost.
+- AI usage and pilot metrics dashboards are available for owner review.
 
 ## Fixes Completed In This Pass
 
@@ -41,10 +45,15 @@ The live app is available at:
 - Added a secondary storage health route for easier checks.
 - Polished pilot subscription/access wording.
 - Constrained AI coach replies for mobile-friendly answers.
+- Reduced duplicate Gemini food analysis calls and added AI usage caching/monitoring.
+- Switched default Gemini model to `gemini-2.5-flash-lite`.
+- Updated trainer AI check-in failure copy to refer to the configured AI provider instead of OpenAI.
+- Updated backend test tooling and excluded compiled files from test discovery.
 
 ## Remaining Pilot Risks
 
 - Production database still contains seed/test users and at least one test referral code. This is useful for testing but should be cleaned or separated before real trainers see the system.
 - ToyyibPay paid checkout is not required for the no-payment pilot, but should be fully live-tested before public paid launch.
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
-- Food photo AI upload should be tested with a real meal photo by a real pilot user on mobile before onboarding the full pilot pool.
+- Gemini currently reports exhausted quota/credits. Add Gemini billing/prepaid credits before relying on food photo AI in the pilot.
+- Food photo AI upload should be retested with a real meal photo by a real pilot user on mobile after Gemini credits are active.
