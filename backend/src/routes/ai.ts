@@ -3,6 +3,8 @@ import { createNutritionCoachReply, estimateBurnFromText } from "../integrations
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
+import { logAiUsage } from "../services/aiUsageService";
+import { env } from "../config/env";
 
 export const aiRouter = Router();
 
@@ -13,6 +15,16 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), async (req,
     [req.user!.id]
   );
   const reply = await createNutritionCoachReply(message, JSON.stringify(contextResult.rows[0] ?? {}));
+  await logAiUsage({
+    userId: req.user!.id,
+    gymId: req.user!.gymId,
+    eventType: "ai_chat_message",
+    provider: env.AI_PROVIDER,
+    model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+    status: "success",
+    inputUnits: message.length,
+    outputUnits: reply.length
+  });
 
   await query("insert into ai_chat_messages (user_id, role, message) values ($1, 'user', $2), ($1, 'assistant', $3)", [
     req.user!.id,

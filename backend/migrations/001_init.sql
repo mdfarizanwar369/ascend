@@ -244,10 +244,40 @@ create table local_food_items (
   typical_fat_g numeric(6,2) not null
 );
 
+create table if not exists food_estimate_cache (
+  id uuid primary key default uuid_generate_v4(),
+  image_hash text not null unique,
+  estimate jsonb not null,
+  provider text not null,
+  model text,
+  source text not null default 'ai',
+  hit_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  last_used_at timestamptz not null default now()
+);
+
+create table if not exists ai_usage_events (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references users(id) on delete set null,
+  gym_id uuid references gyms(id) on delete set null,
+  event_type text not null,
+  provider text not null,
+  model text,
+  status text not null,
+  cache_hit boolean not null default false,
+  estimated_cost_cents numeric(10,4) not null default 0,
+  input_units integer not null default 0,
+  output_units integer not null default 0,
+  metadata jsonb not null default '{}',
+  created_at timestamptz not null default now()
+);
+
 create index users_gym_id_idx on users(gym_id);
 create index users_assigned_trainer_id_idx on users(assigned_trainer_id);
 create index food_logs_user_logged_idx on food_logs(user_id, logged_at desc);
 create index weight_logs_user_logged_idx on weight_logs(user_id, logged_at desc);
 create index subscriptions_revenue_idx on subscriptions(status, referred_by_gym_id, referred_by_trainer_id);
 create index risk_alerts_trainer_status_idx on risk_alerts(trainer_id, status);
-
+create index if not exists ai_usage_events_created_idx on ai_usage_events(created_at desc);
+create index if not exists ai_usage_events_type_created_idx on ai_usage_events(event_type, created_at desc);
+create index if not exists food_estimate_cache_hash_idx on food_estimate_cache(image_hash);

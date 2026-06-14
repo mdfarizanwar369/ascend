@@ -625,6 +625,32 @@ export function getAdminCompliance() {
   }>("/admin/analytics/compliance");
 }
 
+export function getAdminAiUsage() {
+  return authed<{
+    summary: {
+      monthly_food_image_analyses: string | number;
+      monthly_ai_chat_messages: string | number;
+      monthly_weekly_reports: string | number;
+      monthly_cache_hits: string | number;
+      monthly_errors: string | number;
+      monthly_estimated_cost_cents: string | number;
+      projected_monthly_cost_cents: string | number;
+      spend_limit_cents: string | number;
+      spend_percent: string | number;
+      warning_level: 50 | 75 | 90 | null;
+      limits: {
+        monthlySpendLimitCents: number;
+        monthlyFoodAnalysisLimit: number;
+        monthlyChatLimit: number;
+        monthlyWeeklyReportLimit: number;
+      };
+    };
+    daily: Array<Record<string, string | number | null>>;
+    weekly: Array<Record<string, string | number | null>>;
+    monthly: Array<Record<string, string | number | null>>;
+  }>("/admin/analytics/ai-usage");
+}
+
 export function getGyms() {
   return api<{
     gyms: Array<{

@@ -83,6 +83,20 @@ Optional values for live integrations:
 
 Without Gemini/OpenAI configured, the backend returns demo AI responses.
 
+AI usage is tracked in PostgreSQL for food image analysis, nutrition coach messages, and weekly report generation. Owner accounts can see monthly usage, projected spend, cache hits, and warning levels on the admin dashboard. Configure monthly limits and per-call estimates with:
+
+```text
+AI_MONTHLY_SPEND_LIMIT_CENTS=5000
+AI_MONTHLY_FOOD_ANALYSIS_LIMIT=1000
+AI_MONTHLY_CHAT_LIMIT=3000
+AI_MONTHLY_WEEKLY_REPORT_LIMIT=500
+AI_FOOD_ANALYSIS_ESTIMATED_COST_CENTS=2
+AI_CHAT_ESTIMATED_COST_CENTS=1
+AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS=2
+```
+
+Food photo estimates are cached by image hash, so repeated analysis of the same image does not call Gemini again.
+
 Without ToyyibPay configured, checkout returns a safe demo return URL and you can use the in-app test activation button. Real paid subscriptions require these backend variables:
 
 ```text

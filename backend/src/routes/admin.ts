@@ -3,6 +3,7 @@ import { z } from "zod";
 import { pool, query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { getRevenueByGym, getRevenueByTrainer } from "../services/analyticsService";
+import { aiLimitConfig } from "../services/aiUsageService";
 
 export const adminRouter = Router();
 
@@ -60,6 +61,83 @@ adminRouter.get("/admin/analytics/compliance", requireAuth, requireRole(["admin"
     order by g.name
   `);
   res.json({ compliance: result.rows });
+});
+
+adminRouter.get("/admin/analytics/ai-usage", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
+  const limits = aiLimitConfig();
+  const [summary, daily, weekly, monthly] = await Promise.all([
+    query(`
+      select
+        count(*) filter (where event_type = 'food_image_analysis' and created_at >= date_trunc('month', now())) as monthly_food_image_analyses,
+        count(*) filter (where event_type = 'ai_chat_message' and created_at >= date_trunc('month', now())) as monthly_ai_chat_messages,
+        count(*) filter (where event_type = 'weekly_report_generation' and created_at >= date_trunc('month', now())) as monthly_weekly_reports,
+        count(*) filter (where cache_hit = true and created_at >= date_trunc('month', now())) as monthly_cache_hits,
+        count(*) filter (where status = 'error' and created_at >= date_trunc('month', now())) as monthly_errors,
+        coalesce(sum(estimated_cost_cents) filter (where created_at >= date_trunc('month', now())), 0) as monthly_estimated_cost_cents
+      from ai_usage_events
+    `),
+    query(`
+      select created_at::date as period,
+        count(*) filter (where event_type = 'food_image_analysis') as food_image_analyses,
+        count(*) filter (where event_type = 'ai_chat_message') as ai_chat_messages,
+        count(*) filter (where event_type = 'weekly_report_generation') as weekly_reports,
+        count(*) filter (where cache_hit = true) as cache_hits,
+        count(*) filter (where status = 'error') as errors,
+        coalesce(sum(estimated_cost_cents), 0) as estimated_cost_cents
+      from ai_usage_events
+      where created_at >= current_date - interval '13 days'
+      group by created_at::date
+      order by period desc
+    `),
+    query(`
+      select date_trunc('week', created_at)::date as period,
+        count(*) filter (where event_type = 'food_image_analysis') as food_image_analyses,
+        count(*) filter (where event_type = 'ai_chat_message') as ai_chat_messages,
+        count(*) filter (where event_type = 'weekly_report_generation') as weekly_reports,
+        count(*) filter (where cache_hit = true) as cache_hits,
+        count(*) filter (where status = 'error') as errors,
+        coalesce(sum(estimated_cost_cents), 0) as estimated_cost_cents
+      from ai_usage_events
+      where created_at >= date_trunc('week', now()) - interval '7 weeks'
+      group by date_trunc('week', created_at)::date
+      order by period desc
+    `),
+    query(`
+      select date_trunc('month', created_at)::date as period,
+        count(*) filter (where event_type = 'food_image_analysis') as food_image_analyses,
+        count(*) filter (where event_type = 'ai_chat_message') as ai_chat_messages,
+        count(*) filter (where event_type = 'weekly_report_generation') as weekly_reports,
+        count(*) filter (where cache_hit = true) as cache_hits,
+        count(*) filter (where status = 'error') as errors,
+        coalesce(sum(estimated_cost_cents), 0) as estimated_cost_cents
+      from ai_usage_events
+      where created_at >= date_trunc('month', now()) - interval '11 months'
+      group by date_trunc('month', created_at)::date
+      order by period desc
+    `)
+  ]);
+
+  const current = summary.rows[0] ?? {};
+  const monthlyCost = Number(current.monthly_estimated_cost_cents ?? 0);
+  const dayOfMonth = Math.max(new Date().getDate(), 1);
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const projectedMonthlyCostCents = Math.round((monthlyCost / dayOfMonth) * daysInMonth);
+  const spendPercent = limits.monthlySpendLimitCents ? Math.round((projectedMonthlyCostCents / limits.monthlySpendLimitCents) * 100) : 0;
+  const warningLevel = spendPercent >= 90 ? 90 : spendPercent >= 75 ? 75 : spendPercent >= 50 ? 50 : null;
+
+  res.json({
+    summary: {
+      ...current,
+      projected_monthly_cost_cents: projectedMonthlyCostCents,
+      spend_limit_cents: limits.monthlySpendLimitCents,
+      spend_percent: spendPercent,
+      warning_level: warningLevel,
+      limits
+    },
+    daily: daily.rows,
+    weekly: weekly.rows,
+    monthly: monthly.rows
+  });
 });
 
 adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {

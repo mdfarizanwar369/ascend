@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { BadgeDollarSign, Building2, QrCode, Users } from "lucide-react";
-import { getAdminCompliance, getAdminRevenue, getAdminTrainers, getAdminUsage, getAdminUsers } from "@/lib/ascendApi";
+import { BadgeDollarSign, Bot, Building2, QrCode, Users } from "lucide-react";
+import { getAdminAiUsage, getAdminCompliance, getAdminRevenue, getAdminTrainers, getAdminUsage, getAdminUsers } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
@@ -11,6 +11,7 @@ type UsageRow = Awaited<ReturnType<typeof getAdminUsage>>["usage"][number];
 type ComplianceRow = Awaited<ReturnType<typeof getAdminCompliance>>["compliance"][number];
 type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
+type AiUsage = Awaited<ReturnType<typeof getAdminAiUsage>>;
 
 function money(cents: string | number) {
   return `RM ${(Number(cents) / 100).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -31,6 +32,7 @@ export function AdminDashboardClient() {
   const [compliance, setCompliance] = useState<ComplianceRow[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
+  const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [status, setStatus] = useState("Loading owner dashboard...");
 
   useEffect(() => {
@@ -67,6 +69,14 @@ export function AdminDashboardClient() {
       }
 
       try {
+        const aiUsageResponse = await getAdminAiUsage();
+        if (!isMounted) return;
+        setAiUsage(aiUsageResponse);
+      } catch (error) {
+        failures.push(error instanceof Error ? `AI usage: ${error.message}` : "AI usage failed");
+      }
+
+      try {
         const [userResponse, trainerResponse] = await Promise.all([getAdminUsers(), getAdminTrainers()]);
         if (!isMounted) return;
         setUsers(safeArray(userResponse.users));
@@ -98,6 +108,8 @@ export function AdminDashboardClient() {
     if (!scores.length) return 0;
     return Math.round(scores.reduce((total, score) => total + score, 0) / scores.length);
   }, [compliance]);
+  const aiSummary = aiUsage?.summary;
+  const aiWarning = aiSummary?.warning_level;
 
   return (
     <>
@@ -128,6 +140,35 @@ export function AdminDashboardClient() {
           </Link>
         </section>
       ) : null}
+
+      <section className={`mt-4 rounded-lg border p-4 ${aiWarning ? "border-amber/40 bg-amber/10" : "border-line bg-surface"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Bot size={19} className={aiWarning ? "text-amber" : "text-calm"} />
+            <h2 className="text-base font-semibold">AI usage monitor</h2>
+          </div>
+          {aiWarning ? <span className="rounded bg-amber px-2 py-1 text-xs font-semibold text-ink">{aiWarning}% warning</span> : null}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <MetricCard
+            label="Projected AI spend"
+            value={money(aiSummary?.projected_monthly_cost_cents ?? 0)}
+            detail={`${asNumber(aiSummary?.spend_percent)}% of ${money(aiSummary?.spend_limit_cents ?? 0)} limit`}
+            tone={aiWarning ? "warning" : "success"}
+          />
+          <MetricCard
+            label="Food AI"
+            value={String(asNumber(aiSummary?.monthly_food_image_analyses))}
+            detail={`${asNumber(aiSummary?.monthly_cache_hits)} cache hits`}
+          />
+          <MetricCard label="AI chat" value={String(asNumber(aiSummary?.monthly_ai_chat_messages))} detail="This month" />
+          <MetricCard label="Reports" value={String(asNumber(aiSummary?.monthly_weekly_reports))} detail="This month" />
+        </div>
+        <div className="mt-3 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">
+          Estimated cost this month: <span className="font-semibold text-white">{money(aiSummary?.monthly_estimated_cost_cents ?? 0)}</span>.
+          {asNumber(aiSummary?.monthly_errors) ? ` ${asNumber(aiSummary?.monthly_errors)} AI errors recorded.` : " No AI errors recorded this month."}
+        </div>
+      </section>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center gap-2">

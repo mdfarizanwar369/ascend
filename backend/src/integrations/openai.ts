@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { FoodEstimate, LOCAL_FOODS } from "@ascend/shared";
 import { env } from "../config/env";
+import { getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
+import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -60,13 +62,23 @@ function parseFoodEstimate(text: string): FoodEstimate {
   const parsed = JSON.parse(cleanJsonText(text)) as Partial<Record<keyof FoodEstimate, unknown>>;
   return {
     foodName: String(parsed.foodName ?? "Food item").trim() || "Food item",
-    confidence: clampNumber(parsed.confidence, 0, 1),
+    confidence: confidenceNumber(parsed.confidence),
     calories: clampNumber(parsed.calories, 0, 5000),
     proteinG: clampNumber(parsed.proteinG, 0, 500),
     carbsG: clampNumber(parsed.carbsG, 0, 800),
     fatG: clampNumber(parsed.fatG, 0, 500),
     notes: String(parsed.notes ?? "AI estimate. Please review and edit if needed.").trim()
   };
+}
+
+function confidenceNumber(value: unknown) {
+  if (typeof value === "string") {
+    const lower = value.toLowerCase();
+    if (lower.includes("high")) return 0.9;
+    if (lower.includes("medium") || lower.includes("moderate")) return 0.65;
+    if (lower.includes("low")) return 0.35;
+  }
+  return clampNumber(value, 0, 1);
 }
 
 function providerConfigured() {
@@ -267,15 +279,83 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
   return parseFoodEstimate(response.output_text);
 }
 
-export async function estimateFoodFromImage(imageUrl: string): Promise<FoodEstimate> {
-  if (!providerConfigured()) return demoFoodEstimate();
-  if (env.AI_PROVIDER === "gemini") return estimateFoodWithGemini(imageUrl);
-  if (env.AI_PROVIDER === "openai") return estimateFoodWithOpenAI(imageUrl);
+export async function estimateFoodFromImage(
+  imageUrl: string,
+  context: { userId?: string | null; gymId?: string | null } = {}
+): Promise<FoodEstimate> {
+  const imageHash = imageUrl.startsWith("data:image/") ? imageHashFromDataUrl(imageUrl) : null;
+  if (imageHash) {
+    const cached = await getCachedFoodEstimate(imageHash);
+    if (cached) {
+      await logAiUsage({
+        ...context,
+        eventType: "food_image_analysis",
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        status: "cache_hit",
+        cacheHit: true,
+        metadata: { imageHash }
+      });
+      return cached;
+    }
+  }
 
-  return {
-    ...demoFoodEstimate(),
-    notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
-  };
+  if (!providerConfigured()) {
+    await logAiUsage({
+      ...context,
+      eventType: "food_image_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "fallback",
+      metadata: { reason: "provider_not_configured", imageHash }
+    });
+    return demoFoodEstimate();
+  }
+
+  try {
+    const rawEstimate =
+      env.AI_PROVIDER === "gemini"
+        ? await estimateFoodWithGemini(imageUrl)
+        : env.AI_PROVIDER === "openai"
+          ? await estimateFoodWithOpenAI(imageUrl)
+          : {
+              ...demoFoodEstimate(),
+              notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
+            };
+    const estimate = await normalizeWithLocalFoodDatabase(rawEstimate);
+
+    if (imageHash && estimate.confidence >= 0.5 && estimate.calories > 0) {
+      await saveFoodEstimateCache({
+        imageHash,
+        estimate,
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        source: estimate.notes.includes("local food database") ? "local_food_match" : "ai"
+      });
+    }
+
+    await logAiUsage({
+      ...context,
+      eventType: "food_image_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "success",
+      metadata: { imageHash, confidence: estimate.confidence, foodName: estimate.foodName }
+    });
+
+    return estimate;
+  } catch (error) {
+    await logAiUsage({
+      ...context,
+      eventType: "food_image_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "error",
+      metadata: { imageHash, error: error instanceof Error ? error.message : "unknown_error" }
+    });
+    throw error;
+  }
+
 }
 
 async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string) {

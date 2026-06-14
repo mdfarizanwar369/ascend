@@ -4,6 +4,8 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { createWeeklySummary } from "../integrations/openai";
 import { createReadUrl } from "../integrations/s3";
+import { logAiUsage } from "../services/aiUsageService";
+import { env } from "../config/env";
 
 export const trainerRouter = Router();
 
@@ -190,7 +192,19 @@ trainerRouter.post("/ai/weekly-checkin/:clientId", requireAuth, requireActivePla
       `,
       [req.params.clientId]
     );
-    const summary = await createWeeklySummary(JSON.stringify(result.rows[0] ?? {}));
+    const context = JSON.stringify(result.rows[0] ?? {});
+    const summary = await createWeeklySummary(context);
+    await logAiUsage({
+      userId: req.user!.id,
+      gymId: req.user!.gymId,
+      eventType: "weekly_report_generation",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "success",
+      inputUnits: context.length,
+      outputUnits: summary.length,
+      metadata: { clientId: req.params.clientId, generatedBy: "trainer" }
+    });
     res.json({ summary });
   } catch (error) {
     next(error);

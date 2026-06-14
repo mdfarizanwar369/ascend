@@ -76,7 +76,7 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
 logsRouter.post("/food-logs/estimate", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const imageUrl = z.string().url().parse(req.body.imageUrl);
-    res.json({ estimate: await estimateFoodFromImage(imageUrl) });
+    res.json({ estimate: await estimateFoodFromImage(imageUrl, { userId: req.user!.id, gymId: req.user!.gymId }) });
   } catch (error) {
     if (error instanceof Error) {
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
@@ -89,7 +89,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireActivePlan("premium")
 logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = foodImageDataSchema.parse(req.body);
-    res.json({ estimate: await estimateFoodFromImage(input.imageDataUrl) });
+    res.json({ estimate: await estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId }) });
   } catch (error) {
     if (error instanceof Error) {
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });

@@ -20,6 +20,7 @@ import { subscriptionsRouter } from "./routes/subscriptions";
 import { trainerRouter } from "./routes/trainer";
 import { complianceRouter } from "./routes/compliance";
 import { errorHandler } from "./middleware/errors";
+import { ensureAiUsageSchema } from "./services/aiUsageService";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -48,6 +49,12 @@ app.use("/api/v1", aiRouter);
 app.use("/api/v1", subscriptionsRouter);
 app.use(errorHandler);
 
-app.listen(env.PORT, () => {
-  console.log(`Ascend API listening on ${env.PORT}`);
-});
+ensureAiUsageSchema()
+  .catch((error) => {
+    console.error("AI usage schema setup failed", error);
+  })
+  .finally(() => {
+    app.listen(env.PORT, () => {
+      console.log(`Ascend API listening on ${env.PORT}`);
+    });
+  });

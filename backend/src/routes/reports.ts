@@ -3,6 +3,8 @@ import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { createClientWeeklyReport } from "../integrations/openai";
+import { logAiUsage } from "../services/aiUsageService";
+import { env } from "../config/env";
 
 export const reportsRouter = Router();
 
@@ -83,6 +85,16 @@ reportsRouter.post("/reports/weekly/generate", requireAuth, requireActivePlan("p
 
     const stats = context.rows[0] ?? {};
     const summary = await createClientWeeklyReport(JSON.stringify({ weekStart, weekEnd, stats }));
+    await logAiUsage({
+      userId: req.user!.id,
+      gymId: req.user!.gymId,
+      eventType: "weekly_report_generation",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "success",
+      inputUnits: JSON.stringify({ weekStart, weekEnd, stats }).length,
+      outputUnits: summary.length
+    });
     const trainerId = typeof stats.assigned_trainer_id === "string" ? stats.assigned_trainer_id : null;
     const complianceScore = stats.compliance_score === null || stats.compliance_score === undefined ? null : Number(stats.compliance_score);
 
