@@ -62,7 +62,18 @@ function sleep(ms: number) {
 function shouldRetryEstimate(error: unknown) {
   if (!(error instanceof Error)) return true;
   if (/premium plan required|401|403/i.test(error.message)) return false;
+  if (/quota|billing|AI provider/i.test(error.message)) return false;
   return true;
+}
+
+function estimateFailureMessage(error: unknown) {
+  if (error instanceof Error && /Premium plan required/i.test(error.message)) {
+    return "Premium access is required for AI food estimates. Activate pilot access from the subscription screen.";
+  }
+  if (error instanceof Error && /quota|billing|AI provider/i.test(error.message)) {
+    return "Food AI has reached today's Gemini limit. You can enter this meal manually now, or the owner can enable Gemini billing for reliable pilot use.";
+  }
+  return "AI could not estimate this photo reliably. Please edit the fields before saving, or try AI again.";
 }
 
 export function FoodLogClient() {
@@ -163,11 +174,7 @@ export function FoodLogClient() {
         setEstimate(manualEstimate());
         setWasEdited(true);
         setAiFailed(true);
-        setStatus(
-          error instanceof Error && /Premium plan required/i.test(error.message)
-            ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
-            : "AI could not estimate this photo reliably. Please edit the fields before saving, or try another photo."
-        );
+        setStatus(estimateFailureMessage(error));
       })
       .finally(() => setIsEstimating(false));
   }
@@ -191,11 +198,7 @@ export function FoodLogClient() {
         setEstimate(manualEstimate());
         setWasEdited(true);
         setAiFailed(true);
-        setStatus(
-          error instanceof Error && /Premium plan required/i.test(error.message)
-            ? "Premium access is required for AI food estimates. Activate pilot access from the subscription screen."
-            : "AI could not estimate this photo reliably. Please edit the fields before saving, or try another photo."
-        );
+        setStatus(estimateFailureMessage(error));
       }
     } finally {
       setIsEstimating(false);

@@ -109,6 +109,10 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
     maxOutputTokens
   };
 
+  if (model.includes("2.5")) {
+    generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  }
+
   if (options.responseMimeType) {
     generationConfig.responseMimeType = options.responseMimeType;
   }
@@ -157,6 +161,7 @@ async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
 
 async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700, options: GeminiCallOptions = {}) {
   let lastError: unknown;
+  const errors: string[] = [];
   const models = uniqueModels(options.models ?? [env.GEMINI_MODEL]);
   const attemptsPerModel = options.attemptsPerModel ?? 3;
 
@@ -166,6 +171,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
         return await callGeminiOnce(model, parts, maxOutputTokens, options);
       } catch (error) {
         lastError = error;
+        if (error instanceof Error) errors.push(error.message);
         const retryable = error instanceof GeminiError ? error.retryable : false;
         if (!retryable || attempt === attemptsPerModel - 1) break;
         await sleep(700 * (attempt + 1));
@@ -173,6 +179,12 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
     }
   }
 
+  if (errors.length) {
+    if (errors.some((message) => /quota|RESOURCE_EXHAUSTED|429/i.test(message))) {
+      throw new Error("Gemini image quota has been reached. Enable billing for the Gemini API key or use another AI provider for reliable food photo estimates.");
+    }
+    throw new Error(`All Gemini models failed: ${errors.join(" | ")}`);
+  }
   throw lastError instanceof Error ? lastError : new Error("Gemini request failed.");
 }
 
@@ -208,7 +220,7 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
 
 async function estimateFoodWithGemini(imageUrl: string) {
   const imagePart = await urlToGeminiPart(imageUrl);
-  const foodModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-flash"]);
+  const foodModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite"]);
   const text = await callGeminiWithOptions(
     [
       {
@@ -219,7 +231,7 @@ async function estimateFoodWithGemini(imageUrl: string) {
       },
       imagePart
     ],
-    900,
+    1400,
     {
       models: foodModels,
       attemptsPerModel: 2,
