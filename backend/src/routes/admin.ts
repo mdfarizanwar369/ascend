@@ -140,6 +140,30 @@ adminRouter.get("/admin/analytics/ai-usage", requireAuth, requireRole(["admin", 
   });
 });
 
+adminRouter.get("/admin/analytics/ai-errors", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
+  const result = await query(`
+    select
+      e.id,
+      e.event_type,
+      e.provider,
+      e.model,
+      e.status,
+      e.metadata,
+      e.created_at,
+      u.email,
+      u.full_name,
+      g.name as gym_name
+    from ai_usage_events e
+    left join users u on u.id = e.user_id
+    left join gyms g on g.id = e.gym_id
+    where e.status = 'error'
+    order by e.created_at desc
+    limit 50
+  `);
+
+  res.json({ errors: result.rows });
+});
+
 adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   const [summary, trends, referrals] = await Promise.all([
     query(`
