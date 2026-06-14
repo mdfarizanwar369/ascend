@@ -193,7 +193,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
 
   if (errors.length) {
     if (errors.some((message) => /quota|RESOURCE_EXHAUSTED|429/i.test(message))) {
-      throw new Error("Gemini image quota has been reached. Enable billing for the Gemini API key or use another AI provider for reliable food photo estimates.");
+      throw new Error("Gemini quota or credits are exhausted. Add Gemini billing credits or use another AI provider for reliable AI responses.");
     }
     throw new Error(`All Gemini models failed: ${errors.join(" | ")}`);
   }
@@ -387,7 +387,7 @@ export async function createNutritionCoachReply(message: string, context: string
   return createTextReply(
     "You are Ascend's nutrition coach. Be practical, warm, beginner-friendly, and culturally aware for Malaysia and Singapore. Do not diagnose medical conditions. Reply in complete sentences, around 80-140 words. If using bullets, use at most 3. End with one clear next action.",
     `Client context: ${context}\n\nQuestion: ${message}`,
-    "I can help you make the next meal a little easier. Aim for protein first, add vegetables, and keep portions consistent."
+    "I can help you make the next meal a little easier. Start with one palm-sized protein, add vegetables or fruit, then choose one controlled portion of rice, noodles, bread, or potatoes. If you are eating Malaysian food, a simple option is grilled chicken or eggs with vegetables and a smaller rice portion. For your next action, send or log your next meal so we can keep your day moving."
   );
 }
 
