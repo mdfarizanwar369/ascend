@@ -28,7 +28,7 @@ function resizeImageToDataUrl(file: File) {
     const objectUrl = URL.createObjectURL(file);
 
     image.onload = () => {
-      const maxSize = 640;
+      const maxSize = 384;
       const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.round(image.width * scale));
@@ -43,7 +43,7 @@ function resizeImageToDataUrl(file: File) {
 
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(objectUrl);
-      resolve(canvas.toDataURL("image/jpeg", 0.68));
+      resolve(canvas.toDataURL("image/jpeg", 0.62));
     };
 
     image.onerror = () => {
@@ -131,7 +131,7 @@ export function FoodLogClient() {
   async function estimateFoodWithRetry(imageDataUrl: string) {
     let lastError: unknown;
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 1; attempt += 1) {
       try {
         if (attempt > 0) {
           setStatus("AI is taking another look at the same photo...");
@@ -141,7 +141,7 @@ export function FoodLogClient() {
         return response.estimate;
       } catch (error) {
         lastError = error;
-        if (!shouldRetryEstimate(error) || attempt === 2) break;
+        if (!shouldRetryEstimate(error) || attempt === 0) break;
       }
     }
 

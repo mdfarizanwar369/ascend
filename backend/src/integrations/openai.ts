@@ -102,7 +102,7 @@ function sleep(ms: number) {
 }
 
 function isRetryableGeminiStatus(status: number) {
-  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return status === 408 || status === 500 || status === 502 || status === 503 || status === 504;
 }
 
 function uniqueModels(models: string[]) {
@@ -175,7 +175,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
   let lastError: unknown;
   const errors: string[] = [];
   const models = uniqueModels(options.models ?? [env.GEMINI_MODEL]);
-  const attemptsPerModel = options.attemptsPerModel ?? 3;
+  const attemptsPerModel = options.attemptsPerModel ?? 1;
 
   for (const model of models) {
     for (let attempt = 0; attempt < attemptsPerModel; attempt += 1) {
@@ -232,21 +232,20 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
 
 async function estimateFoodWithGemini(imageUrl: string) {
   const imagePart = await urlToGeminiPart(imageUrl);
-  const foodModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-001", "gemini-2.0-flash-lite"]);
   const text = await callGeminiWithOptions(
     [
+      imagePart,
       {
         text:
           "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
           LOCAL_FOODS.join(", ") +
           ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, or dessert. Do not guess a local food unless it visually matches. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. If unsure, use a lower confidence and explain what needs review in notes. The user can edit the estimate."
-      },
-      imagePart
+      }
     ],
     1400,
     {
-      models: foodModels,
-      attemptsPerModel: 2,
+      models: [env.GEMINI_MODEL],
+      attemptsPerModel: 1,
       timeoutMs: 16_000
     }
   );
