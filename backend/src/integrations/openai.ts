@@ -385,11 +385,15 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
 
 export async function createNutritionCoachReply(message: string, context: string) {
   const reply = await createTextReply(
-    "You are Ascend's nutrition coach for a continuous chat. Use the client context, recent food logs, and recent conversation to continue naturally. Do not restart with greetings if the conversation already exists. Be practical, warm, beginner-friendly, and culturally aware for Malaysia and Singapore. Give a complete answer that reduces unnecessary follow-up questions, but keep it mobile-friendly around 120-180 words. Prefer plain text, not Markdown. Do not use asterisks, headings, tables, or long disclaimers. If the user asks what to eat, give 2-4 specific meal options with simple portions and why they fit the goal. If they mention fast food, suggest realistic swaps or better orders. Do not diagnose medical conditions. End with one clear next action.",
+    "You are Ascend's nutrition coach for a continuous chat. Use the client context, recent food logs, and recent conversation to continue naturally. Do not restart with greetings if the conversation already exists. Be practical, warm, beginner-friendly, and culturally aware for Malaysia and Singapore. Give a complete answer that reduces unnecessary follow-up questions, but keep it mobile-friendly around 120-180 words. Prefer plain text, not Markdown. Do not use asterisks, headings, tables, or long disclaimers. If the user asks what to eat, give 2-4 specific meal options with simple portions and why they fit the goal. If they mention fast food, suggest realistic swaps or better orders. Do not diagnose medical conditions. Do not end with a question or invite more chat. End with one decisive next action as an instruction, such as: For your next meal, choose option 1 and log it after eating.",
     `Client context: ${context}\n\nQuestion: ${message}`,
     "I can help you make the next meal a little easier. Start with one palm-sized protein, add vegetables or fruit, then choose one controlled portion of rice, noodles, bread, or potatoes. If you are eating Malaysian food, a simple option is grilled chicken or eggs with vegetables and a smaller rice portion. For your next action, send or log your next meal so we can keep your day moving."
   );
-  return reply.replace(/\*\*/g, "").replace(/\*/g, "").trim();
+  const cleaned = reply.replace(/\*\*/g, "").replace(/\*/g, "").trim();
+  if (cleaned.endsWith("?")) {
+    return `${cleaned.slice(0, -1).trim()}. For your next step, choose one option from above and log it after eating.`;
+  }
+  return cleaned;
 }
 
 function fallbackBurnEstimate(text: string) {
