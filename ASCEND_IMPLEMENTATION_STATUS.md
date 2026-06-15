@@ -1,6 +1,6 @@
 # Ascend Implementation Status
 
-Last updated: 15 June 2026
+Last updated: 16 June 2026
 
 ## Pilot Readiness Snapshot
 
@@ -31,6 +31,7 @@ The live app is available at:
 - Gym seed API returns the two launch gyms.
 - Backend tests pass.
 - Frontend/backend lint passes.
+- Full production build passes.
 - Production `/api/v1/gyms` returns both launch gyms.
 - Production `/api/v1/referrals/validate/AF-AUSTIN` returns the Austin Green gym referral.
 - Backend is configured to use Gemini Flash-Lite by default for lower pilot AI cost.
@@ -43,6 +44,7 @@ The live app is available at:
 - Trainer dashboard includes "Clients needing attention today", a top-3 action list that tells trainers who may need a check-in now, with an all-clear state when everyone is steady.
 - Trainer Recognition is available: trainers can tap one button to send automatic praise, and clients see that their trainer noticed their progress.
 - Consistency Streaks are available: clients see a gentle streak celebration based on any meaningful check-in, and trainers see streak badges on client cards.
+- AI food scan guardrails are in place: Free users get 1 scan per week, Premium users get 5 scans per day, Trainer users get 10 scans per day, and owner/admin accounts are unlimited but still tracked.
 
 ## Fixes Completed In This Pass
 
@@ -65,6 +67,10 @@ The live app is available at:
 - Added trainer attention ranking from existing behaviour signals: missed missions, inactivity, food logging gaps, Momentum drops, weight trends, water gaps, and low Momentum.
 - Added the `trainer_recognitions` database table, automatic praise message selection, trainer praise buttons, client dashboard recognition card, and message-thread copy of each praise.
 - Added a streak calculation API based on food, weight, water, habits, activity, and completed missions without adding a new manual workflow.
+- Fixed trainer praise copy so the mission message renders correctly on all devices.
+- Tightened trainer and messaging APIs so inactive/deactivated clients no longer appear in trainer client lists, client detail views, client logs, or trainer-client message threads.
+- Made streak calculations use the database date instead of the browser/server JavaScript date, reducing timezone edge cases for mobile users.
+- Added server-side AI food scan limits and a food-page allowance display so members see usage like `1 / 5 used today` before they scan.
 
 ## Remaining Pilot Risks
 

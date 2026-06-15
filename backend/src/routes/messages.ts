@@ -19,7 +19,10 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
   if (roles.includes("admin") || roles.includes("owner")) return true;
 
   if (currentTrainerId) {
-    const clientResult = await query("select id from users where id = $1 and assigned_trainer_id = $2 limit 1", [otherUserId, currentTrainerId]);
+    const clientResult = await query(
+      "select id from users where id = $1 and assigned_trainer_id = $2 and status = 'active' limit 1",
+      [otherUserId, currentTrainerId]
+    );
     return Boolean(clientResult.rows[0]);
   }
 
@@ -28,8 +31,8 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
     select trainer_user.id
     from users cu
     join trainers t on t.id = cu.assigned_trainer_id
-    join users trainer_user on trainer_user.id = t.user_id
-    where cu.id = $1 and trainer_user.id = $2
+    join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+    where cu.id = $1 and cu.status = 'active' and trainer_user.id = $2
     limit 1
     `,
     [currentUserId, otherUserId]
@@ -42,7 +45,7 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
     from users cu
     join trainers t on t.gym_id = cu.gym_id and t.status = 'active'
     join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-    where cu.id = $1 and trainer_user.id = $2
+    where cu.id = $1 and cu.status = 'active' and trainer_user.id = $2
     limit 1
     `,
     [currentUserId, otherUserId]
@@ -62,6 +65,7 @@ async function getTrainerClientThreadContext(clientId: string, currentTrainerId:
     left join trainers t on t.id = client_user.assigned_trainer_id
     left join users trainer_user on trainer_user.id = t.user_id
     where client_user.id = $1
+      and client_user.status = 'active'
       and (
         client_user.assigned_trainer_id = $2
         or $3 = any($4::text[])
@@ -109,8 +113,8 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
       select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
       from users client_user
       join trainers t on t.id = client_user.assigned_trainer_id
-      join users trainer_user on trainer_user.id = t.user_id
-      where client_user.id = $1
+      join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+      where client_user.id = $1 and client_user.status = 'active'
       limit 1
       `,
       [req.user!.id]
@@ -123,7 +127,7 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
       from users client_user
       join trainers t on t.gym_id = client_user.gym_id and t.status = 'active'
       join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-      where client_user.id = $1
+      where client_user.id = $1 and client_user.status = 'active'
       order by trainer_user.full_name asc
       limit 20
       `,

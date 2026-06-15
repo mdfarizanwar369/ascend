@@ -2,9 +2,28 @@ import { createHash } from "crypto";
 import { FoodEstimate } from "@ascend/shared";
 import { env } from "../config/env";
 import { query } from "../db/pool";
+import { Role, SubscriptionPlan } from "@ascend/shared";
 
 export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation";
 export type AiStatus = "success" | "error" | "cache_hit" | "fallback";
+export type FoodAiAllowance = {
+  period: "week" | "day" | "unlimited";
+  label: string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+};
+
+export class FoodAiLimitError extends Error {
+  constructor(public readonly allowance: FoodAiAllowance) {
+    super(
+      allowance.period === "week"
+        ? "Weekly AI food scan limit reached. You can still log food manually."
+        : "Daily AI food scan limit reached. You can still log food manually."
+    );
+    this.name = "FoodAiLimitError";
+  }
+}
 
 const eventCostCents: Record<AiEventType, number> = {
   food_image_analysis: env.AI_FOOD_ANALYSIS_ESTIMATED_COST_CENTS,
@@ -123,6 +142,96 @@ export async function logAiUsage(input: {
       input.metadata ?? {}
     ]
   );
+}
+
+function parseRoles(roles: Role[] | string | null | undefined): Role[] {
+  if (Array.isArray(roles)) return roles;
+  if (typeof roles !== "string") return [];
+  return roles
+    .replace(/^{|}$/g, "")
+    .split(",")
+    .map((role) => role.trim().replace(/^"|"$/g, ""))
+    .filter((role): role is Role => ["client", "trainer", "admin", "owner"].includes(role));
+}
+
+function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePlan: SubscriptionPlan }): Omit<FoodAiAllowance, "used" | "remaining"> {
+  if (input.primaryRole === "owner" || input.primaryRole === "admin" || input.roles.includes("owner") || input.roles.includes("admin")) {
+    return { period: "unlimited", label: "Unlimited owner/admin AI scans", limit: null };
+  }
+
+  if (input.primaryRole === "trainer" || input.roles.includes("trainer") || input.activePlan === "trainer_pro") {
+    return { period: "day", label: "Trainer AI scans today", limit: 10 };
+  }
+
+  if (input.activePlan === "premium") {
+    return { period: "day", label: "Premium AI scans today", limit: 5 };
+  }
+
+  return { period: "week", label: "Free weekly AI scan", limit: 1 };
+}
+
+export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowance> {
+  const profileResult = await query<{
+    primary_role: Role;
+    roles: Role[] | string | null;
+    active_plan: SubscriptionPlan | null;
+  }>(
+    `
+    select u.primary_role,
+      coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles,
+      (
+        select s.plan
+        from subscriptions s
+        where s.user_id = u.id and s.status in ('active', 'trialing')
+        order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+        limit 1
+      ) as active_plan
+    from users u
+    left join user_roles ur on ur.user_id = u.id
+    where u.id = $1
+    group by u.id
+    `,
+    [userId]
+  );
+  const profile = profileResult.rows[0];
+  const access = allowanceForAccess({
+    primaryRole: profile?.primary_role ?? "client",
+    roles: parseRoles(profile?.roles),
+    activePlan: profile?.active_plan ?? "free"
+  });
+
+  if (access.limit === null) {
+    return { ...access, used: 0, remaining: null };
+  }
+
+  const periodStartSql = access.period === "week" ? "date_trunc('week', now())" : "current_date";
+  const usedResult = await query<{ used: string }>(
+    `
+    select count(*) as used
+    from ai_usage_events
+    where user_id = $1
+      and event_type = 'food_image_analysis'
+      and cache_hit = false
+      and status in ('success', 'error')
+      and created_at >= ${periodStartSql}
+    `,
+    [userId]
+  );
+  const used = Number(usedResult.rows[0]?.used ?? 0);
+
+  return {
+    ...access,
+    used,
+    remaining: Math.max(access.limit - used, 0)
+  };
+}
+
+export async function assertFoodAiAllowance(userId: string) {
+  const allowance = await getFoodAiAllowance(userId);
+  if (allowance.limit !== null && (allowance.remaining ?? 0) <= 0) {
+    throw new FoodAiLimitError(allowance);
+  }
+  return allowance;
 }
 
 export function aiLimitConfig() {

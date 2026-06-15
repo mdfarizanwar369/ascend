@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { FoodEstimate, LOCAL_FOODS } from "@ascend/shared";
 import { env } from "../config/env";
-import { getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
+import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
@@ -309,6 +309,10 @@ export async function estimateFoodFromImage(
       metadata: { reason: "provider_not_configured", imageHash }
     });
     return demoFoodEstimate();
+  }
+
+  if (context.userId) {
+    await assertFoodAiAllowance(context.userId);
   }
 
   try {

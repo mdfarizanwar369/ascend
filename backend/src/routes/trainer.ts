@@ -120,7 +120,7 @@ async function createPraiseMessage(clientId: string) {
   const daysSinceActivity = daysSince(row.last_activity_at);
 
   if (Number(row.completed_mission_today) > 0) {
-    return { signal: "mission", message: "Your trainer noticed you completed today’s mission. Great work." };
+    return { signal: "mission", message: "Your trainer noticed you completed today's mission. Great work." };
   }
   if (Number(row.food_today) > 0) {
     return { signal: "food_logging", message: "Your trainer noticed your food logging today. Great work." };
@@ -377,6 +377,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
           )
       ) streak on true
       where u.primary_role = 'client'
+        and u.status = 'active'
         and (u.assigned_trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[]))
       order by risk.open_alerts desc nulls last, cs.score asc nulls last, food.last_food_logged_at asc nulls first
       `,
@@ -399,6 +400,7 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
       left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
       where u.id = $1
         and u.primary_role = 'client'
+        and u.status = 'active'
         and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
       limit 1
       `,
@@ -419,7 +421,9 @@ trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireAc
       select fl.*
       from food_logs fl
       join users u on u.id = fl.user_id
-      where fl.user_id = $1 and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
+      where fl.user_id = $1
+        and u.status = 'active'
+        and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
       order by fl.logged_at desc
       limit 100
       `,
@@ -438,7 +442,9 @@ trainerRouter.get("/trainer/clients/:clientId/weight-logs", requireAuth, require
       select wl.*
       from weight_logs wl
       join users u on u.id = wl.user_id
-      where wl.user_id = $1 and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
+      where wl.user_id = $1
+        and u.status = 'active'
+        and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
       order by wl.logged_at desc
       limit 100
       `,
@@ -457,7 +463,9 @@ trainerRouter.get("/trainer/clients/:clientId/water-logs", requireAuth, requireA
       select water_logs.*
       from water_logs
       join users u on u.id = water_logs.user_id
-      where water_logs.user_id = $1 and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
+      where water_logs.user_id = $1
+        and u.status = 'active'
+        and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
       order by water_logs.logged_at desc
       limit 100
       `,

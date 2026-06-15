@@ -5,6 +5,12 @@ import { requireAuth, requireRole } from "../middleware/auth";
 
 export const complianceRouter = Router();
 
+function dateKeyDaysAgo(todayKey: string, daysAgo: number) {
+  const date = new Date(`${todayKey}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() - daysAgo);
+  return date.toISOString().slice(0, 10);
+}
+
 complianceRouter.get("/compliance/today", requireAuth, async (req, res) => {
   const [food, weight, water, habits] = await Promise.all([
     query<{ count: string }>(
@@ -76,7 +82,7 @@ complianceRouter.get("/compliance/history", requireAuth, async (req, res) => {
 complianceRouter.get("/streaks/me", requireAuth, async (req, res) => {
   const result = await query<{ activity_date: string }>(
     `
-    select distinct activity_date::date as activity_date
+    select distinct to_char(activity_date::date, 'YYYY-MM-DD') as activity_date
     from (
       select logged_at::date as activity_date from food_logs where user_id = $1
       union all select logged_at::date from weight_logs where user_id = $1
@@ -91,15 +97,13 @@ complianceRouter.get("/streaks/me", requireAuth, async (req, res) => {
     [req.user!.id]
   );
 
-  const activeDays = new Set(result.rows.map((row) => row.activity_date.toString().slice(0, 10)));
-  const today = new Date();
-  const todayKey = today.toISOString().slice(0, 10);
+  const todayResult = await query<{ today: string }>("select to_char(current_date, 'YYYY-MM-DD') as today");
+  const activeDays = new Set(result.rows.map((row) => row.activity_date));
+  const todayKey = todayResult.rows[0]?.today ?? new Date().toISOString().slice(0, 10);
   let currentStreak = 0;
 
   for (let index = 0; index < 120; index += 1) {
-    const date = new Date(today);
-    date.setDate(today.getDate() - index);
-    const key = date.toISOString().slice(0, 10);
+    const key = dateKeyDaysAgo(todayKey, index);
     if (!activeDays.has(key)) break;
     currentStreak += 1;
   }
@@ -107,9 +111,7 @@ complianceRouter.get("/streaks/me", requireAuth, async (req, res) => {
   let bestStreak = 0;
   let runningStreak = 0;
   for (let index = 119; index >= 0; index -= 1) {
-    const date = new Date(today);
-    date.setDate(today.getDate() - index);
-    const key = date.toISOString().slice(0, 10);
+    const key = dateKeyDaysAgo(todayKey, index);
     if (activeDays.has(key)) {
       runningStreak += 1;
       bestStreak = Math.max(bestStreak, runningStreak);
@@ -118,11 +120,9 @@ complianceRouter.get("/streaks/me", requireAuth, async (req, res) => {
     }
   }
 
-  const activeDaysThisWeek = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - index);
-    return date.toISOString().slice(0, 10);
-  }).filter((key) => activeDays.has(key)).length;
+  const activeDaysThisWeek = Array.from({ length: 7 }, (_, index) => dateKeyDaysAgo(todayKey, index)).filter((key) =>
+    activeDays.has(key)
+  ).length;
 
   res.json({
     streak: {

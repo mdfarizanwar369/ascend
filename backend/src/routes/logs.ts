@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl, createUploadUrl, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage } from "../integrations/openai";
+import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
 
 export const logsRouter = Router();
 
@@ -48,13 +49,21 @@ const burnLogSchema = z.object({
   loggedAt: z.string().datetime().optional()
 });
 
-logsRouter.post("/food-logs/photo-upload-url", requireAuth, requireActivePlan("premium"), async (req, res) => {
+logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) => {
+  try {
+    res.json({ allowance: await getFoodAiAllowance(req.user!.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.post("/food-logs/photo-upload-url", requireAuth, async (req, res) => {
   const contentType = String(req.body.contentType ?? "image/jpeg");
   const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
   res.json(await createUploadUrl(key, contentType));
 });
 
-logsRouter.post("/food-logs/photo-upload-data-url", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+logsRouter.post("/food-logs/photo-upload-data-url", requireAuth, async (req, res, next) => {
   try {
     const input = photoUploadDataSchema.parse(req.body);
     const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
@@ -73,11 +82,16 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
   );
 }
 
-logsRouter.post("/food-logs/estimate", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+logsRouter.post("/food-logs/estimate", requireAuth, async (req, res, next) => {
   try {
     const imageUrl = z.string().url().parse(req.body.imageUrl);
-    res.json({ estimate: await estimateFoodFromImage(imageUrl, { userId: req.user!.id, gymId: req.user!.gymId }) });
+    const estimate = await estimateFoodFromImage(imageUrl, { userId: req.user!.id, gymId: req.user!.gymId });
+    res.json({ estimate, allowance: await getFoodAiAllowance(req.user!.id) });
   } catch (error) {
+    if (error instanceof FoodAiLimitError) {
+      res.status(429).json({ error: error.message, allowance: error.allowance });
+      return;
+    }
     if (error instanceof Error) {
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
       return;
@@ -86,11 +100,16 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireActivePlan("premium")
   }
 });
 
-logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+logsRouter.post("/food-logs/estimate-data-url", requireAuth, async (req, res, next) => {
   try {
     const input = foodImageDataSchema.parse(req.body);
-    res.json({ estimate: await estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId }) });
+    const estimate = await estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId });
+    res.json({ estimate, allowance: await getFoodAiAllowance(req.user!.id) });
   } catch (error) {
+    if (error instanceof FoodAiLimitError) {
+      res.status(429).json({ error: error.message, allowance: error.allowance });
+      return;
+    }
     if (error instanceof Error) {
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
       return;

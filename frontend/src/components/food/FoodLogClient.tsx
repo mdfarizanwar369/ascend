@@ -3,7 +3,14 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { FoodEstimate } from "@ascend/shared";
-import { estimateFoodFromDataUrl, getFoodLogs, saveFoodLog, uploadFoodPhotoDataUrl } from "@/lib/ascendApi";
+import {
+  estimateFoodFromDataUrl,
+  FoodAiAllowance,
+  getFoodAiAllowance,
+  getFoodLogs,
+  saveFoodLog,
+  uploadFoodPhotoDataUrl
+} from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
@@ -70,10 +77,27 @@ function estimateFailureMessage(error: unknown) {
   if (error instanceof Error && /Premium plan required/i.test(error.message)) {
     return "Premium access is required for AI food estimates. Activate pilot access from the subscription screen.";
   }
+  if (error instanceof Error && /limit reached/i.test(error.message)) {
+    return error.message;
+  }
   if (error instanceof Error && /quota|billing|AI provider/i.test(error.message)) {
     return "Food AI has reached today's Gemini limit. You can enter this meal manually now, or the owner can enable Gemini billing for reliable pilot use.";
   }
   return "AI could not estimate this photo reliably. Please edit the fields before saving, or try AI again.";
+}
+
+function allowanceText(allowance: FoodAiAllowance | null) {
+  if (!allowance) return "Checking AI scan allowance...";
+  if (allowance.limit === null) return "Unlimited owner/admin AI scans";
+  const used = Math.min(allowance.used, allowance.limit);
+  return `${used} / ${allowance.limit} used ${allowance.period === "week" ? "this week" : "today"}`;
+}
+
+function allowanceHint(allowance: FoodAiAllowance | null) {
+  if (!allowance) return "Your food scan limit will appear here.";
+  if (allowance.limit === null) return "Your scans are still tracked in the owner AI dashboard.";
+  if ((allowance.remaining ?? 0) <= 0) return "You can still save food manually until this allowance resets.";
+  return `${allowance.remaining} AI ${allowance.remaining === 1 ? "scan" : "scans"} remaining.`;
 }
 
 export function FoodLogClient() {
@@ -87,14 +111,20 @@ export function FoodLogClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [wasEdited, setWasEdited] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
+  const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
 
   async function loadFoodLogs() {
     const response = await getFoodLogs();
     setFoodLogs(response.foodLogs);
   }
 
+  async function loadAllowance() {
+    const response = await getFoodAiAllowance();
+    setAllowance(response.allowance);
+  }
+
   useEffect(() => {
-    loadFoodLogs().catch(() => {
+    Promise.allSettled([loadFoodLogs(), loadAllowance()]).catch(() => {
       setStatus("Upload a food photo to estimate calories and macros.");
     });
   }, []);
@@ -138,6 +168,7 @@ export function FoodLogClient() {
           await sleep(1200 * attempt);
         }
         const response = await estimateFoodFromDataUrl(imageDataUrl);
+        if (response.allowance) setAllowance(response.allowance);
         return response.estimate;
       } catch (error) {
         lastError = error;
@@ -175,6 +206,7 @@ export function FoodLogClient() {
         setWasEdited(true);
         setAiFailed(true);
         setStatus(estimateFailureMessage(error));
+        loadAllowance().catch(() => {});
       })
       .finally(() => setIsEstimating(false));
   }
@@ -199,6 +231,7 @@ export function FoodLogClient() {
         setWasEdited(true);
         setAiFailed(true);
         setStatus(estimateFailureMessage(error));
+        loadAllowance().catch(() => {});
       }
     } finally {
       setIsEstimating(false);
@@ -320,6 +353,19 @@ export function FoodLogClient() {
               ))}
             </div>
           ) : null}
+        </section>
+
+        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">AI scans</p>
+              <p className="mt-1 text-xs text-zinc-400">{allowance?.label ?? "Food photo estimate allowance"}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-lime">{allowanceText(allowance)}</p>
+              <p className="mt-1 text-xs text-zinc-500">{allowanceHint(allowance)}</p>
+            </div>
+          </div>
         </section>
 
         <section className="mt-3 grid aspect-[4/3] place-items-center overflow-hidden rounded-lg border border-line bg-surface">

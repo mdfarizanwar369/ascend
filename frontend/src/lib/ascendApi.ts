@@ -348,8 +348,20 @@ export function saveProgressPhoto(input: { imageS3Key: string; photoType: "front
   });
 }
 
+export type FoodAiAllowance = {
+  period: "week" | "day" | "unlimited";
+  label: string;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+};
+
+export function getFoodAiAllowance() {
+  return authed<{ allowance: FoodAiAllowance }>("/food-logs/ai-allowance");
+}
+
 export function estimateFood(imageUrl: string) {
-  return authed<{ estimate: FoodEstimate }>("/food-logs/estimate", {
+  return authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance }>("/food-logs/estimate", {
     method: "POST",
     body: JSON.stringify({ imageUrl })
   });
@@ -357,7 +369,7 @@ export function estimateFood(imageUrl: string) {
 
 export function estimateFoodFromDataUrl(imageDataUrl: string) {
   return withTimeout(75_000, (signal) =>
-    authed<{ estimate: FoodEstimate }>("/food-logs/estimate-data-url", {
+    authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance }>("/food-logs/estimate-data-url", {
       method: "POST",
       body: JSON.stringify({ imageDataUrl }),
       signal
