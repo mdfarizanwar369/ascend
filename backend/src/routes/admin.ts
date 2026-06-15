@@ -24,6 +24,10 @@ const referralSchema = z.object({
   trainerId: z.string().uuid().nullable().optional()
 });
 
+const grantSubscriptionSchema = z.object({
+  plan: z.enum(["free", "premium", "trainer_pro"])
+});
+
 adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   res.json({
     byGym: await getRevenueByGym(),
@@ -389,6 +393,8 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
         ),
         array[u.primary_role::text]
       ) as roles,
+      coalesce(active_subscription.plan::text, 'free') as current_plan,
+      active_subscription.status as subscription_status,
       u.created_at
     from users u
     left join gyms g on g.id = u.gym_id
@@ -397,9 +403,54 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
     left join gyms referred_gym on referred_gym.id = u.referred_by_gym_id
     left join trainers referred_trainer on referred_trainer.id = u.referred_by_trainer_id
     left join users referred_trainer_user on referred_trainer_user.id = referred_trainer.user_id
+    left join lateral (
+      select s.plan, s.status
+      from subscriptions s
+      where s.user_id = u.id and s.status in ('active', 'trialing')
+      order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+      limit 1
+    ) active_subscription on true
     order by u.created_at desc
   `);
   res.json({ users: result.rows });
+});
+
+adminRouter.post("/admin/users/:userId/subscription", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
+  try {
+    const input = grantSubscriptionSchema.parse(req.body);
+    const userResult = await query<{ referred_by_gym_id: string | null; referred_by_trainer_id: string | null }>(
+      "select referred_by_gym_id, referred_by_trainer_id from users where id = $1",
+      [req.params.userId]
+    );
+    const user = userResult.rows[0];
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    await query("update subscriptions set status = 'canceled', updated_at = now() where user_id = $1 and status in ('active', 'trialing')", [
+      req.params.userId
+    ]);
+
+    if (input.plan === "free") {
+      return res.json({ subscription: { plan: "free", status: "active" } });
+    }
+
+    const amountCents = input.plan === "premium" ? 1900 : 9900;
+    const reference = `PILOT-${req.params.userId}-${Date.now()}`;
+    const result = await query(
+      `
+      insert into subscriptions (
+        user_id, plan, provider, provider_subscription_id, status, amount_cents, currency,
+        current_period_start, current_period_end, referred_by_gym_id, referred_by_trainer_id
+      )
+      values ($1, $2, 'manual', $3, 'active', $4, 'MYR', now(), now() + interval '1 month', $5, $6)
+      returning *
+      `,
+      [req.params.userId, input.plan, reference, amountCents, user.referred_by_gym_id, user.referred_by_trainer_id]
+    );
+
+    res.status(201).json({ subscription: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
 });
 
 adminRouter.get("/admin/trainers", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, CreditCard, ShieldCheck, Sparkles } from "lucide-react";
+import { Check, CreditCard, ShieldCheck } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
-import { activatePilotSubscription, createCheckout, getMe, getMySubscription } from "@/lib/ascendApi";
+import { createCheckout, getMe, getMySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 
@@ -65,21 +65,6 @@ export function SubscriptionClient() {
     }
   }
 
-  async function activatePilot(plan: Exclude<SubscriptionPlan, "free">) {
-    setIsLoadingPlan(plan);
-    setStatus("Activating pilot access...");
-
-    try {
-      const response = await activatePilotSubscription(plan);
-      setActivePlan(response.subscription.plan);
-      setStatus(`${formatPlan(response.subscription.plan)} pilot access is active.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not activate pilot access.");
-    } finally {
-      setIsLoadingPlan(null);
-    }
-  }
-
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
@@ -97,7 +82,7 @@ export function SubscriptionClient() {
             <div>
               <p className="text-sm font-semibold text-lime">{status}</p>
               <p className="mt-1 text-sm leading-6 text-zinc-300">
-                For the pilot, selected members and trainers can activate access without payment. Paid checkout will be used for the public launch.
+                For the pilot, selected members and trainers can receive access after trainer or owner approval. Paid checkout will be used for the public launch.
               </p>
             </div>
           </div>
@@ -142,15 +127,9 @@ export function SubscriptionClient() {
                       <CreditCard className="mr-2" size={18} />
                       {isLoadingPlan === plan ? "Opening..." : "Checkout"}
                     </button>
-                    <button
-                      type="button"
-                      disabled={isLoadingPlan !== null}
-                      onClick={() => activatePilot(checkoutPlan)}
-                      className="flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white disabled:opacity-60"
-                    >
-                      <Sparkles className="mr-2" size={18} />
-                      Activate pilot access
-                    </button>
+                    <p className="rounded-lg border border-line bg-ink p-3 text-center text-sm text-zinc-400">
+                      Pilot access is approved by your trainer or gym owner.
+                    </p>
                   </div>
                 ) : (
                   <div className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-300">

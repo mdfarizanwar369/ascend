@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, requireRole } from "../middleware/auth";
 import { createCheckout } from "../services/subscriptionService";
 import { paymentProvider } from "../integrations/payments";
 
@@ -33,7 +33,7 @@ subscriptionsRouter.post("/subscriptions/checkout", requireAuth, async (req, res
   }
 });
 
-subscriptionsRouter.post("/subscriptions/demo-activate", requireAuth, async (req, res, next) => {
+subscriptionsRouter.post("/subscriptions/demo-activate", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
   try {
     const plan = z.enum(["premium", "trainer_pro"]).parse(req.body.plan);
     const amountCents = plan === "premium" ? 1900 : 9900;

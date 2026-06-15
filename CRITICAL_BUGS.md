@@ -94,14 +94,16 @@ Critical items block a live pilot.
 
 ### C6. Test-plan activation must be controlled before public pilot
 
-- Status: Accepted for no-payment pilot
+- Status: Closed
 - Area: Subscription billing
 - Risk: Users may activate Premium or Trainer Pro without payment if the test activation UI/API remains publicly reachable.
 - Evidence to collect:
   - Business owner decides whether pilot allows manual/test activation.
   - If not allowed, remove or protect `Activate test plan` before public traffic.
 - Decision:
-  - Current pilot is intentionally no-payment for a small selected client pool, so pilot activation can remain for now.
+  - Current pilot is intentionally no-payment for a small selected client pool.
+  - Clients can no longer self-activate Premium or Trainer Pro for free.
+  - Owner/admin must grant pilot access from the Users page.
 - Fastest resolution:
   - For a paid public pilot, hide/disable the test activation path or restrict it to owner/admin only.
 

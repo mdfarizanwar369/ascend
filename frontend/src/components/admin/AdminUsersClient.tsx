@@ -7,8 +7,10 @@ import {
   getAdminTrainers,
   getAdminUsers,
   getGyms,
+  grantAdminSubscription,
   updateAdminUserRole
 } from "@/lib/ascendApi";
+import { SubscriptionPlan } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
@@ -21,6 +23,12 @@ const selectClass = `${inputClass} appearance-none`;
 
 function formatRole(role: string) {
   return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+function formatPlan(plan?: string | null) {
+  if (plan === "trainer_pro") return "Trainer Pro";
+  if (plan === "premium") return "Premium";
+  return "Free";
 }
 
 function trainerCode(name: string) {
@@ -152,6 +160,21 @@ export function AdminUsersClient() {
       setStatus(`${trainer.full_name} approved as an active trainer.`);
     } catch {
       setStatus("Could not approve trainer.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
+
+  async function grantPlan(user: AdminUser, plan: SubscriptionPlan) {
+    setSavingUserId(user.id);
+    setStatus("");
+
+    try {
+      await grantAdminSubscription({ userId: user.id, plan });
+      await load();
+      setStatus(`${user.full_name} is now on ${formatPlan(plan)}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update pilot access.");
     } finally {
       setSavingUserId("");
     }
@@ -295,6 +318,7 @@ export function AdminUsersClient() {
                   <p className="mt-1 truncate text-xs text-zinc-400">{user.email}</p>
                   <p className="mt-1 text-xs text-zinc-500">{user.primary_role === "client" ? referralLabel(user) : user.gym_name ?? "No gym"}</p>
                   {user.primary_role === "client" ? <p className="mt-1 text-xs text-zinc-500">{assignmentLabel(user)}</p> : null}
+                  <p className="mt-1 text-xs text-zinc-500">Plan: {formatPlan(user.current_plan)}</p>
                 </div>
                 <span className="rounded bg-surface px-2 py-1 text-xs text-zinc-300">{formatRole(user.primary_role)}</span>
               </div>
@@ -328,6 +352,28 @@ export function AdminUsersClient() {
                     ))}
                   </select>
                 </Field>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-line bg-surface p-3">
+                <p className="text-xs font-semibold uppercase text-zinc-400">Pilot access</p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {(["free", "premium", "trainer_pro"] as SubscriptionPlan[]).map((plan) => {
+                    const isCurrent = user.current_plan === plan;
+                    return (
+                      <button
+                        key={plan}
+                        type="button"
+                        disabled={savingUserId === user.id || isCurrent}
+                        onClick={() => grantPlan(user, plan)}
+                        className={`h-10 rounded-lg text-xs font-semibold disabled:opacity-60 ${
+                          isCurrent ? "border border-lime bg-lime/10 text-lime" : "border border-line bg-ink text-zinc-200"
+                        }`}
+                      >
+                        {formatPlan(plan)}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </article>
           ))}

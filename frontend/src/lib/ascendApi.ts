@@ -734,6 +734,8 @@ export function getAdminUsers() {
       referred_by_trainer_id: string | null;
       referred_trainer_name: string | null;
       referral_source: "gym" | "trainer" | "none";
+      current_plan: SubscriptionPlan;
+      subscription_status: string | null;
       created_at: string;
     }>;
   }>("/admin/users");
@@ -758,6 +760,13 @@ export function updateAdminUserRole(input: { userId: string; role: "client" | "t
   return authed<{ user: unknown }>(`/admin/users/${input.userId}/role`, {
     method: "PATCH",
     body: JSON.stringify({ role: input.role, gymId: input.gymId })
+  });
+}
+
+export function grantAdminSubscription(input: { userId: string; plan: SubscriptionPlan }) {
+  return authed<{ subscription: unknown }>(`/admin/users/${input.userId}/subscription`, {
+    method: "POST",
+    body: JSON.stringify({ plan: input.plan })
   });
 }
 

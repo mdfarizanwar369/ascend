@@ -35,6 +35,7 @@ The live app is available at:
 - Production `/api/v1/referrals/validate/AF-AUSTIN` returns the Austin Green gym referral.
 - Backend is configured to use Gemini Flash-Lite by default for lower pilot AI cost.
 - AI usage and pilot metrics dashboards are available for owner review.
+- Pilot Premium/Trainer Pro access is owner/admin controlled so clients cannot self-upgrade for free from a shared link.
 
 ## Fixes Completed In This Pass
 
@@ -49,6 +50,7 @@ The live app is available at:
 - Switched default Gemini model to `gemini-2.5-flash-lite`.
 - Updated trainer AI check-in failure copy to refer to the configured AI provider instead of OpenAI.
 - Updated backend test tooling and excluded compiled files from test discovery.
+- Removed public pilot self-upgrade and added owner/admin pilot access grants from the Users page.
 
 ## Remaining Pilot Risks
 
