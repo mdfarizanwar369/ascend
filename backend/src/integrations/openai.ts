@@ -384,11 +384,12 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
 }
 
 export async function createNutritionCoachReply(message: string, context: string) {
-  return createTextReply(
-    "You are Ascend's nutrition coach. Be practical, warm, beginner-friendly, and culturally aware for Malaysia and Singapore. Do not diagnose medical conditions. Reply in complete sentences, around 80-140 words. If using bullets, use at most 3. End with one clear next action.",
+  const reply = await createTextReply(
+    "You are Ascend's nutrition coach for a continuous chat. Use the client context, recent food logs, and recent conversation to continue naturally. Do not restart with greetings if the conversation already exists. Be practical, warm, beginner-friendly, and culturally aware for Malaysia and Singapore. Give a complete answer that reduces unnecessary follow-up questions, but keep it mobile-friendly around 120-180 words. Prefer plain text, not Markdown. Do not use asterisks, headings, tables, or long disclaimers. If the user asks what to eat, give 2-4 specific meal options with simple portions and why they fit the goal. If they mention fast food, suggest realistic swaps or better orders. Do not diagnose medical conditions. End with one clear next action.",
     `Client context: ${context}\n\nQuestion: ${message}`,
     "I can help you make the next meal a little easier. Start with one palm-sized protein, add vegetables or fruit, then choose one controlled portion of rice, noodles, bread, or potatoes. If you are eating Malaysian food, a simple option is grilled chicken or eggs with vegetables and a smaller rice portion. For your next action, send or log your next meal so we can keep your day moving."
   );
+  return reply.replace(/\*\*/g, "").replace(/\*/g, "").trim();
 }
 
 function fallbackBurnEstimate(text: string) {
