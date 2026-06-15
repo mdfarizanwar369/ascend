@@ -8,6 +8,7 @@ import {
   getAdminUsers,
   getGyms,
   grantAdminSubscription,
+  updateAdminUserStatus,
   updateAdminUserRole
 } from "@/lib/ascendApi";
 import { SubscriptionPlan } from "@ascend/shared";
@@ -88,9 +89,11 @@ export function AdminUsersClient() {
     );
   }, []);
 
-  const clients = useMemo(() => users.filter((user) => user.primary_role === "client"), [users]);
-  const pendingTrainers = useMemo(() => trainers.filter((trainer) => trainer.status !== "active"), [trainers]);
-  const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.status === "active"), [trainers]);
+  const activeUsers = useMemo(() => users.filter((user) => user.status === "active"), [users]);
+  const inactiveUsers = useMemo(() => users.filter((user) => user.status !== "active"), [users]);
+  const clients = useMemo(() => activeUsers.filter((user) => user.primary_role === "client"), [activeUsers]);
+  const pendingTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status !== "active"), [trainers]);
+  const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status === "active"), [trainers]);
   const unassignedClients = useMemo(() => clients.filter((client) => !client.assigned_trainer_id), [clients]);
   const assignedClients = useMemo(() => clients.filter((client) => client.assigned_trainer_id), [clients]);
   const trainerClientCounts = useMemo(() => {
@@ -180,6 +183,21 @@ export function AdminUsersClient() {
     }
   }
 
+  async function changeUserStatus(user: AdminUser, status: "active" | "inactive") {
+    setSavingUserId(user.id);
+    setStatus("");
+
+    try {
+      await updateAdminUserStatus({ userId: user.id, status });
+      await load();
+      setStatus(status === "active" ? `${user.full_name} can access Ascend again.` : `${user.full_name} has been deactivated.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update user access.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
+
   return (
     <>
       <section className="mt-3 flex items-start gap-3">
@@ -197,7 +215,7 @@ export function AdminUsersClient() {
       <section className="mt-4 grid grid-cols-2 gap-3">
         <div className="rounded-lg border border-line bg-surface p-4">
           <p className="text-xs uppercase text-zinc-400">Users</p>
-          <p className="mt-2 text-2xl font-semibold">{users.length}</p>
+          <p className="mt-2 text-2xl font-semibold">{activeUsers.length}</p>
         </div>
         <div className="rounded-lg border border-line bg-surface p-4">
           <p className="text-xs uppercase text-zinc-400">Unassigned</p>
@@ -211,6 +229,14 @@ export function AdminUsersClient() {
           <p className="text-xs uppercase text-zinc-400">Active trainers</p>
           <p className="mt-2 text-2xl font-semibold">{activeTrainers.length}</p>
         </div>
+      </section>
+
+      <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
+        <h2 className="text-base font-semibold text-amber">Staff access</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">
+          Deactivate users when a trainer resigns or a test account should stop accessing the app. Their history stays saved for reports.
+        </p>
+        <p className="mt-2 text-sm text-zinc-400">{inactiveUsers.length} inactive account{inactiveUsers.length === 1 ? "" : "s"}.</p>
       </section>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
@@ -320,7 +346,12 @@ export function AdminUsersClient() {
                   {user.primary_role === "client" ? <p className="mt-1 text-xs text-zinc-500">{assignmentLabel(user)}</p> : null}
                   <p className="mt-1 text-xs text-zinc-500">Plan: {formatPlan(user.current_plan)}</p>
                 </div>
-                <span className="rounded bg-surface px-2 py-1 text-xs text-zinc-300">{formatRole(user.primary_role)}</span>
+                <div className="flex flex-col items-end gap-2">
+                  <span className="rounded bg-surface px-2 py-1 text-xs text-zinc-300">{formatRole(user.primary_role)}</span>
+                  <span className={`rounded px-2 py-1 text-xs ${user.status === "active" ? "bg-lime text-ink" : "bg-amber text-ink"}`}>
+                    {user.status === "active" ? "Active" : "Inactive"}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -374,6 +405,24 @@ export function AdminUsersClient() {
                     );
                   })}
                 </div>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-line bg-surface p-3">
+                <p className="text-xs font-semibold uppercase text-zinc-400">Account access</p>
+                {user.primary_role === "owner" ? (
+                  <p className="mt-2 rounded-lg bg-ink p-3 text-sm text-zinc-400">Owner accounts are protected from this screen.</p>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={savingUserId === user.id}
+                    onClick={() => changeUserStatus(user, user.status === "active" ? "inactive" : "active")}
+                    className={`mt-2 h-10 w-full rounded-lg text-sm font-semibold disabled:opacity-60 ${
+                      user.status === "active" ? "border border-amber/40 bg-amber/10 text-amber" : "bg-lime text-ink"
+                    }`}
+                  >
+                    {user.status === "active" ? "Deactivate access" : "Reactivate access"}
+                  </button>
+                )}
               </div>
             </article>
           ))}

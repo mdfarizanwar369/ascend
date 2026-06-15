@@ -28,6 +28,10 @@ const grantSubscriptionSchema = z.object({
   plan: z.enum(["free", "premium", "trainer_pro"])
 });
 
+const userStatusSchema = z.object({
+  status: z.enum(["active", "inactive"])
+});
+
 adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   res.json({
     byGym: await getRevenueByGym(),
@@ -354,8 +358,10 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
   const [pendingTrainers, unassignedClients, freeClients, openRiskAlerts, recentAiErrors] = await Promise.all([
     query(`
       select count(*) as count
-      from trainers
-      where status <> 'active'
+      from trainers t
+      join users u on u.id = t.user_id
+      where t.status <> 'active'
+        and u.status = 'active'
     `),
     query(`
       select count(*) as count
@@ -494,6 +500,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
       ) as roles,
       coalesce(active_subscription.plan::text, 'free') as current_plan,
       active_subscription.status as subscription_status,
+      u.status,
       u.created_at
     from users u
     left join gyms g on g.id = u.gym_id
@@ -512,6 +519,55 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
     order by u.created_at desc
   `);
   res.json({ users: result.rows });
+});
+
+adminRouter.patch("/admin/users/:userId/status", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
+  const db = await pool.connect();
+  try {
+    const input = userStatusSchema.parse(req.body);
+    if (req.params.userId === req.user!.id && input.status !== "active") {
+      return res.status(400).json({ error: "You cannot deactivate your own owner account" });
+    }
+
+    await db.query("begin");
+
+    const result = await db.query(
+      `
+      update users
+      set status = $2, updated_at = now()
+      where id = $1
+      returning id, full_name, email, primary_role, status
+      `,
+      [req.params.userId, input.status]
+    );
+    const user = result.rows[0];
+    if (!user) {
+      await db.query("rollback");
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (input.status === "inactive") {
+      await db.query("update trainers set status = 'inactive' where user_id = $1", [req.params.userId]);
+      await db.query(
+        `
+        update users
+        set assigned_trainer_id = null, updated_at = now()
+        where assigned_trainer_id in (select id from trainers where user_id = $1)
+        `,
+        [req.params.userId]
+      );
+    } else if (user.primary_role === "trainer") {
+      await db.query("update trainers set status = 'active' where user_id = $1", [req.params.userId]);
+    }
+
+    await db.query("commit");
+    res.json({ user });
+  } catch (error) {
+    await db.query("rollback").catch(() => undefined);
+    next(error);
+  } finally {
+    db.release();
+  }
 });
 
 adminRouter.post("/admin/users/:userId/subscription", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
@@ -554,7 +610,7 @@ adminRouter.post("/admin/users/:userId/subscription", requireAuth, requireRole([
 
 adminRouter.get("/admin/trainers", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
   const result = await query(`
-    select t.id, t.user_id, t.gym_id, u.full_name, u.email, g.name as gym_name, t.specialties, t.status
+    select t.id, t.user_id, t.gym_id, u.full_name, u.email, u.status as user_status, g.name as gym_name, t.specialties, t.status
     from trainers t
     join users u on u.id = t.user_id
     join gyms g on g.id = t.gym_id

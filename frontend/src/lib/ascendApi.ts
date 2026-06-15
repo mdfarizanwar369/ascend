@@ -755,6 +755,7 @@ export function getAdminUsers() {
       referral_source: "gym" | "trainer" | "none";
       current_plan: SubscriptionPlan;
       subscription_status: string | null;
+      status: "active" | "inactive";
       created_at: string;
     }>;
   }>("/admin/users");
@@ -768,6 +769,7 @@ export function getAdminTrainers() {
       gym_id: string;
       full_name: string;
       email: string;
+      user_status: "active" | "inactive";
       gym_name: string;
       specialties: string[];
       status: string;
@@ -786,6 +788,20 @@ export function grantAdminSubscription(input: { userId: string; plan: Subscripti
   return authed<{ subscription: unknown }>(`/admin/users/${input.userId}/subscription`, {
     method: "POST",
     body: JSON.stringify({ plan: input.plan })
+  });
+}
+
+export function updateAdminUserStatus(input: { userId: string; status: "active" | "inactive" }) {
+  return authed<{
+    user: {
+      id: string;
+      full_name: string;
+      email: string;
+      status: "active" | "inactive";
+    };
+  }>(`/admin/users/${input.userId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: input.status })
   });
 }
 

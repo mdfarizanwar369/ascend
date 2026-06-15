@@ -81,12 +81,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       firebase_uid: string;
       email: string;
       primary_role: Role;
+      status: string;
       gym_id?: string;
       trainer_id?: string;
       roles: Role[];
     }>(
       `
-      select u.id, u.firebase_uid, u.email, u.primary_role, u.gym_id, t.id as trainer_id,
+      select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id, t.id as trainer_id,
         coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles
       from users u
       left join user_roles ur on ur.user_id = u.id
@@ -99,6 +100,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     const dbUser = userResult.rows[0];
     if (!dbUser) return res.status(403).json({ error: "User profile has not been provisioned" });
+    if (dbUser.status !== "active") return res.status(403).json({ error: "This account has been deactivated" });
 
     const ownerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
     if (ownerEmail && dbUser.email.trim().toLowerCase() === ownerEmail) {

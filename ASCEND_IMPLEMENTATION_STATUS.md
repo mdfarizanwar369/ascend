@@ -38,6 +38,7 @@ The live app is available at:
 - Pilot Premium/Trainer Pro access is owner/admin controlled so clients cannot self-upgrade for free from a shared link.
 - Obvious production seed/test users were removed, including `@ascend.test`, `@example.com`, and automated audit/pilot example accounts.
 - Owner notifications are available on the owner dashboard for trainer approvals, unassigned clients, free clients awaiting pilot access, open risk alerts, and recent AI errors.
+- Owners can deactivate or reactivate non-owner user accounts from the Users page when a trainer resigns or a test account should lose access.
 
 ## Fixes Completed In This Pass
 
@@ -55,6 +56,7 @@ The live app is available at:
 - Removed public pilot self-upgrade and added owner/admin pilot access grants from the Users page.
 - Cleaned seed/test users from the production database while preserving real-looking pilot accounts.
 - Added a backend owner notifications API and a mobile-first owner notifications section.
+- Added reversible user deactivation, blocked inactive accounts from API access, protected owner accounts from accidental deactivation, and removed resigned trainers from active assignment lists.
 
 ## Remaining Pilot Risks
 
