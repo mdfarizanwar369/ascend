@@ -207,6 +207,17 @@ export function getComplianceToday() {
   }>("/compliance/today");
 }
 
+export function getMyStreak() {
+  return authed<{
+    streak: {
+      current: number;
+      best: number;
+      activeDaysThisWeek: number;
+      checkedInToday: boolean;
+    };
+  }>("/streaks/me");
+}
+
 export function getBurnLogs() {
   return authed<{
     burnLogs: Array<{
@@ -541,6 +552,7 @@ export function getTrainerClients() {
       last_water_logged_at?: string | null;
       last_client_message_at?: string | null;
       open_alerts?: string | number | null;
+      consistency_streak?: string | number | null;
     }>;
   }>("/trainer/clients");
 }

@@ -10,6 +10,7 @@ import {
   getHabits,
   getLatestRecognition,
   getMe,
+  getMyStreak,
   getMySubscription,
   getTodayMission,
   getWaterLogs,
@@ -29,6 +30,7 @@ type HabitLog = Awaited<ReturnType<typeof getHabitLogs>>["habitLogs"][number];
 type BurnLog = Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number];
 type DailyMission = Awaited<ReturnType<typeof getTodayMission>>["mission"];
 type LatestRecognition = Awaited<ReturnType<typeof getLatestRecognition>>["recognition"];
+type Streak = Awaited<ReturnType<typeof getMyStreak>>["streak"];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -90,6 +92,7 @@ export function ClientDashboard() {
   const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
   const [dailyMission, setDailyMission] = useState<DailyMission>(null);
   const [latestRecognition, setLatestRecognition] = useState<LatestRecognition>(null);
+  const [streak, setStreak] = useState<Streak | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -105,7 +108,7 @@ export function ClientDashboard() {
   const loadDashboard = useCallback(async () => {
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -114,7 +117,8 @@ export function ClientDashboard() {
         getBurnLogs(),
         getComplianceToday(),
         getTodayMission(),
-        getLatestRecognition()
+        getLatestRecognition(),
+        getMyStreak()
       ]);
 
       setUser(me.user);
@@ -130,6 +134,7 @@ export function ClientDashboard() {
       if (burns.status === "fulfilled") setBurnLogs(Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : []);
       if (mission.status === "fulfilled") setDailyMission(mission.value.mission);
       if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
+      if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -212,6 +217,16 @@ export function ClientDashboard() {
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = momentumScore ?? fallbackScore;
   const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
+  const currentStreak = Number(streak?.current ?? 0);
+  const streakTitle = currentStreak >= 2 ? `${currentStreak}-day consistency streak` : currentStreak === 1 ? "You checked in today" : "Start a streak today";
+  const streakCopy =
+    currentStreak >= 5
+      ? "You are building a strong rhythm between sessions."
+      : currentStreak >= 2
+        ? "Keep showing up. Small check-ins are adding up."
+        : streak?.checkedInToday
+          ? "One check-in today counts. Come back tomorrow to build the streak."
+          : "Log one thing today to get moving again.";
   const safeRoles = Array.isArray(roles) ? roles : [];
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
@@ -349,6 +364,32 @@ export function ClientDashboard() {
             {latestRecognition.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {latestRecognition.trainer_name}</p> : null}
           </section>
         ) : null}
+
+        <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-lime">Consistency streak</p>
+              <h2 className="mt-1 text-xl font-semibold">{streakTitle}</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">{streakCopy}</p>
+            </div>
+            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border-2 border-lime bg-ink text-center">
+              <span>
+                <span className="block text-2xl font-semibold">{currentStreak}</span>
+                <span className="block text-[10px] text-zinc-400">days</span>
+              </span>
+            </div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">This week</p>
+              <p className="mt-1 text-lg font-semibold">{streak?.activeDaysThisWeek ?? weeklyCheckInDays.size}/7 days</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Best streak</p>
+              <p className="mt-1 text-lg font-semibold">{streak?.best ?? currentStreak} days</p>
+            </div>
+          </div>
+        </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">

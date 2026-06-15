@@ -13,6 +13,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Trainer Homework / Daily Mission for simple between-session actions.
 - Trainer "Clients needing attention today" list with a top-3 check-in queue and all-clear state.
 - One-tap Trainer Recognition so clients feel noticed without adding trainer admin work.
+- Gentle Consistency Streaks for client motivation and trainer praise cues.
 - PostgreSQL as source of truth.
 - S3/R2-compatible media storage.
 - Gemini AI integration with starter fallbacks.
@@ -39,6 +40,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Observe whether trainers use Daily Mission before expanding it into templates or structured workout programming.
 - Tune attention rules after pilot feedback so trainers see fewer, better check-in prompts instead of noisy alerts.
 - Tune automatic praise wording after trainer/client feedback.
+- Tune streak milestones after pilot feedback, keeping the language encouraging rather than punitive.
 - Add clearer empty states for new gyms with no clients.
 - Add trainer invite links or owner-created trainer invites.
 - Add account settings page for name, gym, and trainer assignment visibility.

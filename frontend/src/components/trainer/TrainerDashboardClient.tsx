@@ -241,6 +241,11 @@ export function TrainerDashboardClient() {
                     <div className="min-w-0">
                       <p className="font-medium">{client.full_name}</p>
                       <p className="mt-1 text-xs text-zinc-400">{formatGoal(client.goal_type)}</p>
+                      {Number(client.consistency_streak ?? 0) >= 2 ? (
+                        <p className="mt-2 inline-flex rounded bg-lime/10 px-2 py-1 text-xs font-semibold text-lime">
+                          {Number(client.consistency_streak)}-day streak
+                        </p>
+                      ) : null}
                       <p className="mt-2 text-xs text-zinc-500">Food: {daysAgo(client.last_food_logged_at)} / Weight: {daysAgo(client.last_weight_logged_at)}</p>
                     </div>
                     <div className="text-right">

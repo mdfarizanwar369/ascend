@@ -42,6 +42,7 @@ The live app is available at:
 - Trainer Homework / Daily Mission is available: trainers can assign one simple action to a client, clients see it on the dashboard, and clients can mark it done.
 - Trainer dashboard includes "Clients needing attention today", a top-3 action list that tells trainers who may need a check-in now, with an all-clear state when everyone is steady.
 - Trainer Recognition is available: trainers can tap one button to send automatic praise, and clients see that their trainer noticed their progress.
+- Consistency Streaks are available: clients see a gentle streak celebration based on any meaningful check-in, and trainers see streak badges on client cards.
 
 ## Fixes Completed In This Pass
 
@@ -63,6 +64,7 @@ The live app is available at:
 - Added the `trainer_missions` database table, client mission dashboard card, trainer mission assignment form, and mission completion API.
 - Added trainer attention ranking from existing behaviour signals: missed missions, inactivity, food logging gaps, Momentum drops, weight trends, water gaps, and low Momentum.
 - Added the `trainer_recognitions` database table, automatic praise message selection, trainer praise buttons, client dashboard recognition card, and message-thread copy of each praise.
+- Added a streak calculation API based on food, weight, water, habits, activity, and completed missions without adding a new manual workflow.
 
 ## Remaining Pilot Risks
 

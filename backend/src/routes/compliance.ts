@@ -73,6 +73,67 @@ complianceRouter.get("/compliance/history", requireAuth, async (req, res) => {
   res.json({ compliance: result.rows });
 });
 
+complianceRouter.get("/streaks/me", requireAuth, async (req, res) => {
+  const result = await query<{ activity_date: string }>(
+    `
+    select distinct activity_date::date as activity_date
+    from (
+      select logged_at::date as activity_date from food_logs where user_id = $1
+      union all select logged_at::date from weight_logs where user_id = $1
+      union all select logged_at::date from water_logs where user_id = $1
+      union all select logged_at::date from habit_logs where user_id = $1 and completed = true
+      union all select created_at::date from analytics_events where user_id = $1 and event_name = 'burn_log'
+      union all select completed_at::date from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at is not null
+    ) activity
+    where activity_date >= current_date - interval '120 days'
+    order by activity_date desc
+    `,
+    [req.user!.id]
+  );
+
+  const activeDays = new Set(result.rows.map((row) => row.activity_date.toString().slice(0, 10)));
+  const today = new Date();
+  const todayKey = today.toISOString().slice(0, 10);
+  let currentStreak = 0;
+
+  for (let index = 0; index < 120; index += 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    const key = date.toISOString().slice(0, 10);
+    if (!activeDays.has(key)) break;
+    currentStreak += 1;
+  }
+
+  let bestStreak = 0;
+  let runningStreak = 0;
+  for (let index = 119; index >= 0; index -= 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    const key = date.toISOString().slice(0, 10);
+    if (activeDays.has(key)) {
+      runningStreak += 1;
+      bestStreak = Math.max(bestStreak, runningStreak);
+    } else {
+      runningStreak = 0;
+    }
+  }
+
+  const activeDaysThisWeek = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - index);
+    return date.toISOString().slice(0, 10);
+  }).filter((key) => activeDays.has(key)).length;
+
+  res.json({
+    streak: {
+      current: currentStreak,
+      best: bestStreak,
+      activeDaysThisWeek,
+      checkedInToday: activeDays.has(todayKey)
+    }
+  });
+});
+
 complianceRouter.get(
   "/trainer/clients/:clientId/compliance",
   requireAuth,

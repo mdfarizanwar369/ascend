@@ -321,7 +321,8 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         food.last_food_logged_at,
         weight.last_weight_logged_at,
         water.last_water_logged_at,
-        msg.last_client_message_at
+        msg.last_client_message_at,
+        coalesce(streak.current_streak, 0) as consistency_streak
       from users u
       left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
       left join lateral (
@@ -349,6 +350,32 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         from messages
         where sender_user_id = u.id
       ) msg on true
+      left join lateral (
+        with days as (
+          select day::date as activity_date, row_number() over (order by day desc) as day_rank
+          from generate_series(current_date - interval '30 days', current_date, interval '1 day') day
+        ),
+        activity_days as (
+          select distinct activity_date::date
+          from (
+            select logged_at::date as activity_date from food_logs where user_id = u.id
+            union all select logged_at::date from weight_logs where user_id = u.id
+            union all select logged_at::date from water_logs where user_id = u.id
+            union all select logged_at::date from habit_logs where user_id = u.id and completed = true
+            union all select created_at::date from analytics_events where user_id = u.id and event_name = 'burn_log'
+            union all select completed_at::date from trainer_missions where client_user_id = u.id and status = 'completed' and completed_at is not null
+          ) activity
+        )
+        select count(*) as current_streak
+        from days d
+        where exists (select 1 from activity_days a where a.activity_date = d.activity_date)
+          and not exists (
+            select 1
+            from days earlier_day
+            where earlier_day.day_rank < d.day_rank
+              and not exists (select 1 from activity_days a where a.activity_date = earlier_day.activity_date)
+          )
+      ) streak on true
       where u.primary_role = 'client'
         and (u.assigned_trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[]))
       order by risk.open_alerts desc nulls last, cs.score asc nulls last, food.last_food_logged_at asc nulls first
