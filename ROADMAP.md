@@ -8,6 +8,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Client onboarding, tracking, AI food logging, habits, progress photos, AI coach chat, weekly reports, and subscriptions.
 - Trainer signup, Trainer Pro gating, trainer approval, client work queue, client detail, messaging, risk alerts, and AI check-ins.
 - Owner/admin dashboard, users, trainer approvals, client assignment, referrals, subscriptions, and revenue attribution.
+- Owner notifications for approvals, unassigned clients, free pilot-access reviews, risk alerts, and recent AI issues.
 - PostgreSQL as source of truth.
 - S3/R2-compatible media storage.
 - Gemini AI integration with starter fallbacks.
@@ -22,11 +23,11 @@ Ascend is deployable as a mobile-first PWA with:
 3. Configure Railway Cron or an external scheduler for `POST /api/v1/jobs/daily`.
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
-6. Add Gemini billing/prepaid credits, then verify food image analysis on production using a real mobile food photo.
+6. Spot-check Gemini food image analysis on production using a real mobile food photo during pilot onboarding.
 7. Configure real ToyyibPay category, return URL, and callback URL.
 8. Run one end-to-end ToyyibPay low-value live payment test and confirm the subscription changes to active.
 9. Confirm Railway PostgreSQL backups.
-10. Replace or remove sample seed users before a real public pilot.
+10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.
 
 ## Phase 1 Polish
 
@@ -35,6 +36,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Add trainer invite links or owner-created trainer invites.
 - Add account settings page for name, gym, and trainer assignment visibility.
 - Add basic audit log for admin role and assignment changes.
+- Add dismissible/read state for owner notifications after real pilot usage patterns are clear.
 - Reassess dependency audit warnings after the next compatible Next.js and Firebase Admin releases.
 
 ## Phase 2

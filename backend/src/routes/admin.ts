@@ -350,6 +350,105 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
   });
 });
 
+adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owner"]), async (_req, res) => {
+  const [pendingTrainers, unassignedClients, freeClients, openRiskAlerts, recentAiErrors] = await Promise.all([
+    query(`
+      select count(*) as count
+      from trainers
+      where status <> 'active'
+    `),
+    query(`
+      select count(*) as count
+      from users
+      where primary_role = 'client'
+        and status = 'active'
+        and assigned_trainer_id is null
+    `),
+    query(`
+      select count(*) as count
+      from users u
+      left join lateral (
+        select s.plan, s.status
+        from subscriptions s
+        where s.user_id = u.id and s.status in ('active', 'trialing')
+        order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+        limit 1
+      ) active_subscription on true
+      where u.primary_role = 'client'
+        and u.status = 'active'
+        and coalesce(active_subscription.plan::text, 'free') = 'free'
+    `),
+    query(`
+      select count(*) as count
+      from risk_alerts
+      where status = 'open'
+    `),
+    query(`
+      select count(*) as count
+      from ai_usage_events
+      where status = 'error'
+        and created_at >= now() - interval '24 hours'
+    `)
+  ]);
+
+  const notifications = [
+    {
+      id: "pending-trainers",
+      type: "trainer_approval",
+      severity: "important",
+      title: "Trainer approvals waiting",
+      body: "Approve new trainers before they can manage clients.",
+      href: "/admin/users",
+      count: Number(pendingTrainers.rows[0]?.count ?? 0)
+    },
+    {
+      id: "unassigned-clients",
+      type: "client_assignment",
+      severity: "critical",
+      title: "Clients need trainer assignment",
+      body: "Gym referrals should be assigned so members have someone accountable for them.",
+      href: "/admin/users",
+      count: Number(unassignedClients.rows[0]?.count ?? 0)
+    },
+    {
+      id: "free-clients",
+      type: "pilot_access",
+      severity: "important",
+      title: "Free clients awaiting pilot access",
+      body: "Upgrade approved pilot members from Free to Premium when they are accepted.",
+      href: "/admin/users",
+      count: Number(freeClients.rows[0]?.count ?? 0)
+    },
+    {
+      id: "risk-alerts",
+      type: "risk_alerts",
+      severity: "important",
+      title: "Open client risk alerts",
+      body: "Review clients who may be inactive, missing logs, or drifting from their goal.",
+      href: "/trainer",
+      count: Number(openRiskAlerts.rows[0]?.count ?? 0)
+    },
+    {
+      id: "ai-errors",
+      type: "ai_errors",
+      severity: "important",
+      title: "AI errors in the last 24 hours",
+      body: "Check this when food estimates or AI coach replies feel unreliable.",
+      href: "/admin",
+      count: Number(recentAiErrors.rows[0]?.count ?? 0)
+    }
+  ].filter((notification) => notification.count > 0);
+
+  res.json({
+    notifications,
+    summary: {
+      total: notifications.reduce((total, notification) => total + notification.count, 0),
+      critical: notifications.filter((notification) => notification.severity === "critical").length,
+      important: notifications.filter((notification) => notification.severity === "important").length
+    }
+  });
+});
+
 adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
   try {
     const input = assignClientSchema.parse(req.body);

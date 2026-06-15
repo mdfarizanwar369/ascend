@@ -704,6 +704,25 @@ export function getAdminPilotMetrics() {
   }>("/admin/analytics/pilot-metrics");
 }
 
+export function getAdminNotifications() {
+  return authed<{
+    notifications: Array<{
+      id: string;
+      type: string;
+      severity: "critical" | "important";
+      title: string;
+      body: string;
+      href: string;
+      count: number;
+    }>;
+    summary: {
+      total: number;
+      critical: number;
+      important: number;
+    };
+  }>("/admin/notifications");
+}
+
 export function getGyms() {
   return api<{
     gyms: Array<{

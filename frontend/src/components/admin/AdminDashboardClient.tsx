@@ -2,8 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Activity, BadgeDollarSign, Bot, Building2, QrCode, TrendingUp, Users } from "lucide-react";
-import { getAdminAiUsage, getAdminCompliance, getAdminPilotMetrics, getAdminRevenue, getAdminTrainers, getAdminUsage, getAdminUsers } from "@/lib/ascendApi";
+import { Activity, BadgeDollarSign, Bell, Bot, Building2, QrCode, TrendingUp, Users } from "lucide-react";
+import {
+  getAdminAiUsage,
+  getAdminCompliance,
+  getAdminNotifications,
+  getAdminPilotMetrics,
+  getAdminRevenue,
+  getAdminTrainers,
+  getAdminUsage,
+  getAdminUsers
+} from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
@@ -13,6 +22,7 @@ type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
 type AiUsage = Awaited<ReturnType<typeof getAdminAiUsage>>;
 type PilotMetrics = Awaited<ReturnType<typeof getAdminPilotMetrics>>;
+type AdminNotifications = Awaited<ReturnType<typeof getAdminNotifications>>;
 
 function money(cents: string | number) {
   return `RM ${(Number(cents) / 100).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -68,6 +78,7 @@ export function AdminDashboardClient() {
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [pilotMetrics, setPilotMetrics] = useState<PilotMetrics | null>(null);
+  const [notifications, setNotifications] = useState<AdminNotifications | null>(null);
   const [status, setStatus] = useState("Loading owner dashboard...");
 
   useEffect(() => {
@@ -120,6 +131,14 @@ export function AdminDashboardClient() {
       }
 
       try {
+        const notificationsResponse = await getAdminNotifications();
+        if (!isMounted) return;
+        setNotifications(notificationsResponse);
+      } catch (error) {
+        failures.push(error instanceof Error ? `Notifications: ${error.message}` : "Notifications failed");
+      }
+
+      try {
         const [userResponse, trainerResponse] = await Promise.all([getAdminUsers(), getAdminTrainers()]);
         if (!isMounted) return;
         setUsers(safeArray(userResponse.users));
@@ -165,6 +184,41 @@ export function AdminDashboardClient() {
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+
+      <section className="mt-4 rounded-lg border border-calm/30 bg-calm/10 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Bell size={19} className="text-calm" />
+            <h2 className="text-base font-semibold">Owner notifications</h2>
+          </div>
+          <span className="rounded bg-ink px-2 py-1 text-xs font-semibold text-zinc-200">{notifications?.summary.total ?? 0} actions</span>
+        </div>
+        <div className="mt-3 space-y-2">
+          {safeArray(notifications?.notifications).length ? (
+            safeArray(notifications?.notifications).map((notification) => (
+              <Link
+                key={notification.id}
+                href={notification.href}
+                className={`block rounded-lg border p-3 ${
+                  notification.severity === "critical" ? "border-amber/40 bg-amber/10" : "border-line bg-ink"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{notification.title}</p>
+                    <p className="mt-1 text-sm leading-5 text-zinc-300">{notification.body}</p>
+                  </div>
+                  <span className={`rounded px-2 py-1 text-sm font-semibold ${notification.severity === "critical" ? "bg-amber text-ink" : "bg-lime text-ink"}`}>
+                    {notification.count}
+                  </span>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-300">No owner actions waiting right now.</p>
+          )}
+        </div>
+      </section>
 
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Revenue" value={money(totalRevenueCents)} detail="Active subscriptions" tone="success" />
@@ -253,19 +307,6 @@ export function AdminDashboardClient() {
           </div>
         </div>
       </section>
-
-      {(pendingTrainers || unassignedClients) ? (
-        <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
-          <p className="text-sm font-semibold text-amber">Needs attention</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">
-            {pendingTrainers ? `${pendingTrainers} trainer${pendingTrainers === 1 ? "" : "s"} waiting for approval. ` : ""}
-            {unassignedClients ? `${unassignedClients} client${unassignedClients === 1 ? "" : "s"} need trainer assignment.` : ""}
-          </p>
-          <Link href="/admin/users" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-            Open users
-          </Link>
-        </section>
-      ) : null}
 
       <section className={`mt-4 rounded-lg border p-4 ${aiWarning ? "border-amber/40 bg-amber/10" : "border-line bg-surface"}`}>
         <div className="flex items-center justify-between gap-3">

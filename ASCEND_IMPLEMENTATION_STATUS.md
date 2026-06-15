@@ -1,6 +1,6 @@
 # Ascend Implementation Status
 
-Last updated: 14 June 2026
+Last updated: 15 June 2026
 
 ## Pilot Readiness Snapshot
 
@@ -36,6 +36,8 @@ The live app is available at:
 - Backend is configured to use Gemini Flash-Lite by default for lower pilot AI cost.
 - AI usage and pilot metrics dashboards are available for owner review.
 - Pilot Premium/Trainer Pro access is owner/admin controlled so clients cannot self-upgrade for free from a shared link.
+- Obvious production seed/test users were removed, including `@ascend.test`, `@example.com`, and automated audit/pilot example accounts.
+- Owner notifications are available on the owner dashboard for trainer approvals, unassigned clients, free clients awaiting pilot access, open risk alerts, and recent AI errors.
 
 ## Fixes Completed In This Pass
 
@@ -51,11 +53,11 @@ The live app is available at:
 - Updated trainer AI check-in failure copy to refer to the configured AI provider instead of OpenAI.
 - Updated backend test tooling and excluded compiled files from test discovery.
 - Removed public pilot self-upgrade and added owner/admin pilot access grants from the Users page.
+- Cleaned seed/test users from the production database while preserving real-looking pilot accounts.
+- Added a backend owner notifications API and a mobile-first owner notifications section.
 
 ## Remaining Pilot Risks
 
-- Production database still contains seed/test users and at least one test referral code. This is useful for testing but should be cleaned or separated before real trainers see the system.
 - ToyyibPay paid checkout is not required for the no-payment pilot, but should be fully live-tested before public paid launch.
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
-- Gemini currently reports exhausted quota/credits. Add Gemini billing/prepaid credits before relying on food photo AI in the pilot.
-- Food photo AI upload should be retested with a real meal photo by a real pilot user on mobile after Gemini credits are active.
+- Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.
