@@ -10,6 +10,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Owner/admin dashboard, users, trainer approvals, client assignment, referrals, subscriptions, and revenue attribution.
 - Owner notifications for approvals, unassigned clients, free pilot-access reviews, risk alerts, and recent AI issues.
 - Owner-controlled account deactivation for resigned trainers and inactive pilot users.
+- Trainer Homework / Daily Mission for simple between-session actions.
 - PostgreSQL as source of truth.
 - S3/R2-compatible media storage.
 - Gemini AI integration with starter fallbacks.
@@ -33,6 +34,7 @@ Ascend is deployable as a mobile-first PWA with:
 ## Phase 1 Polish
 
 - Simplify owner user management copy after first live gym feedback.
+- Observe whether trainers use Daily Mission before expanding it into templates or structured workout programming.
 - Add clearer empty states for new gyms with no clients.
 - Add trainer invite links or owner-created trainer invites.
 - Add account settings page for name, gym, and trainer assignment visibility.

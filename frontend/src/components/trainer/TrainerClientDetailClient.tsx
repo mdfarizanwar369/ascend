@@ -4,9 +4,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
 import {
+  createTrainerClientMission,
   createWeeklyCheckin,
   getTrainerClient,
   getTrainerClientFoodLogs,
+  getTrainerClientMissions,
   getTrainerClientMessages,
   getTrainerClientProgressPhotos,
   getTrainerClientWaterLogs,
@@ -23,6 +25,7 @@ type Message = Awaited<ReturnType<typeof getTrainerClientMessages>>["messages"][
 type ProgressPhoto = Awaited<ReturnType<typeof getTrainerClientProgressPhotos>>["progressPhotos"][number];
 type WeightLog = Awaited<ReturnType<typeof getTrainerClientWeightLogs>>["weightLogs"][number];
 type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs"][number];
+type Mission = Awaited<ReturnType<typeof getTrainerClientMissions>>["missions"][number];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -44,10 +47,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [missionTitle, setMissionTitle] = useState("");
+  const [missionDueDate, setMissionDueDate] = useState("");
   const [checkin, setCheckin] = useState("");
   const [status, setStatus] = useState("Loading client momentum...");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [isSavingMission, setIsSavingMission] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -60,12 +67,13 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         setClient(profile.client);
         setStatus("");
 
-        const [foods, nextMessages, progress, weights, waters] = await Promise.allSettled([
+        const [foods, nextMessages, progress, weights, waters, nextMissions] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
           getTrainerClientWeightLogs(clientId),
-          getTrainerClientWaterLogs(clientId)
+          getTrainerClientWaterLogs(clientId),
+          getTrainerClientMissions(clientId)
         ]);
 
         if (!isMounted) return;
@@ -74,8 +82,9 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         if (progress.status === "fulfilled") setProgressPhotos(progress.value.progressPhotos);
         if (weights.status === "fulfilled") setWeightLogs(weights.value.weightLogs);
         if (waters.status === "fulfilled") setWaterLogs(waters.value.waterLogs);
+        if (nextMissions.status === "fulfilled") setMissions(nextMissions.value.missions);
 
-        if ([foods, nextMessages, progress, weights, waters].some((result) => result.status === "rejected")) {
+        if ([foods, nextMessages, progress, weights, waters, nextMissions].some((result) => result.status === "rejected")) {
           setStatus("Some client sections could not load yet. The main client profile is still available.");
         }
       } catch (error) {
@@ -131,6 +140,31 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     }
   }
 
+  async function handleCreateMission(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = missionTitle.trim();
+    if (!trimmed) return;
+
+    setIsSavingMission(true);
+    setStatus("");
+
+    try {
+      const response = await createTrainerClientMission({
+        clientId,
+        title: trimmed,
+        dueDate: missionDueDate || undefined
+      });
+      setMissions((current) => [response.mission, ...current]);
+      setMissionTitle("");
+      setMissionDueDate("");
+      setStatus("Mission assigned.");
+    } catch {
+      setStatus("Could not assign mission. Make sure this client is assigned to this trainer.");
+    } finally {
+      setIsSavingMission(false);
+    }
+  }
+
   return (
     <>
       <section className="mt-3">
@@ -181,6 +215,50 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Food today" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No food today"} />
         <MetricCard label="Water today" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail="2.5L target" />
+      </section>
+
+      <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+        <h2 className="text-base font-semibold text-calm">Daily mission</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Give one simple action for the client to complete between sessions.</p>
+        <form onSubmit={handleCreateMission} className="mt-4 space-y-3">
+          <textarea
+            value={missionTitle}
+            onChange={(event) => setMissionTitle(event.target.value)}
+            rows={2}
+            maxLength={180}
+            placeholder="Example: Walk 20 minutes today"
+            className="min-h-20 w-full resize-none rounded-lg border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
+          />
+          <input
+            type="date"
+            value={missionDueDate}
+            onChange={(event) => setMissionDueDate(event.target.value)}
+            className="h-12 w-full rounded-lg border border-line bg-ink px-3 text-sm outline-none focus:border-lime"
+          />
+          <button
+            type="submit"
+            disabled={!missionTitle.trim() || isSavingMission}
+            className="h-12 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+          >
+            {isSavingMission ? "Assigning..." : "Assign mission"}
+          </button>
+        </form>
+        <div className="mt-4 space-y-2">
+          {missions.slice(0, 5).map((mission) => (
+            <article key={mission.id} className="rounded-lg bg-ink p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">{mission.title}</p>
+                  <p className="mt-1 text-xs text-zinc-500">Due {new Date(mission.due_date).toLocaleDateString()}</p>
+                </div>
+                <span className={`rounded px-2 py-1 text-xs ${mission.status === "completed" ? "bg-lime text-ink" : "bg-surface text-zinc-300"}`}>
+                  {mission.status === "completed" ? "Done" : "Open"}
+                </span>
+              </div>
+            </article>
+          ))}
+          {!missions.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No missions assigned yet.</p> : null}
+        </div>
       </section>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">

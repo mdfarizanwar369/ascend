@@ -272,6 +272,19 @@ create table if not exists ai_usage_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists trainer_missions (
+  id uuid primary key default uuid_generate_v4(),
+  client_user_id uuid not null references users(id) on delete cascade,
+  trainer_id uuid references trainers(id) on delete set null,
+  created_by_user_id uuid references users(id) on delete set null,
+  title text not null,
+  due_date date not null default current_date,
+  status text not null default 'open',
+  completed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index users_gym_id_idx on users(gym_id);
 create index users_assigned_trainer_id_idx on users(assigned_trainer_id);
 create index food_logs_user_logged_idx on food_logs(user_id, logged_at desc);
@@ -281,3 +294,5 @@ create index risk_alerts_trainer_status_idx on risk_alerts(trainer_id, status);
 create index if not exists ai_usage_events_created_idx on ai_usage_events(created_at desc);
 create index if not exists ai_usage_events_type_created_idx on ai_usage_events(event_type, created_at desc);
 create index if not exists food_estimate_cache_hash_idx on food_estimate_cache(image_hash);
+create index if not exists trainer_missions_client_due_idx on trainer_missions(client_user_id, due_date desc);
+create index if not exists trainer_missions_trainer_due_idx on trainer_missions(trainer_id, due_date desc);

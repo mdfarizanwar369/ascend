@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  completeMission,
   getBurnLogs,
   getComplianceToday,
   getFoodLogs,
@@ -9,6 +10,7 @@ import {
   getHabits,
   getMe,
   getMySubscription,
+  getTodayMission,
   getWaterLogs,
   getWeightLogs
 } from "@/lib/ascendApi";
@@ -24,6 +26,7 @@ type WaterLog = Awaited<ReturnType<typeof getWaterLogs>>["waterLogs"][number];
 type Habit = Awaited<ReturnType<typeof getHabits>>["habits"][number];
 type HabitLog = Awaited<ReturnType<typeof getHabitLogs>>["habitLogs"][number];
 type BurnLog = Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number];
+type DailyMission = Awaited<ReturnType<typeof getTodayMission>>["mission"];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -83,6 +86,7 @@ export function ClientDashboard() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
+  const [dailyMission, setDailyMission] = useState<DailyMission>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -93,18 +97,20 @@ export function ClientDashboard() {
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
   const [status, setStatus] = useState("Loading your Ascend profile...");
+  const [missionStatus, setMissionStatus] = useState("");
 
   const loadDashboard = useCallback(async () => {
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
         getHabits(),
         getHabitLogs(),
         getBurnLogs(),
-        getComplianceToday()
+        getComplianceToday(),
+        getTodayMission()
       ]);
 
       setUser(me.user);
@@ -118,6 +124,7 @@ export function ClientDashboard() {
         setHabitLogs(Array.isArray(nextHabitLogs.value.habitLogs) ? nextHabitLogs.value.habitLogs : []);
       }
       if (burns.status === "fulfilled") setBurnLogs(Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : []);
+      if (mission.status === "fulfilled") setDailyMission(mission.value.mission);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -145,6 +152,19 @@ export function ClientDashboard() {
       isMounted = false;
     };
   }, [loadDashboard]);
+
+  async function markMissionDone() {
+    if (!dailyMission || dailyMission.status === "completed") return;
+    setMissionStatus("Saving mission...");
+
+    try {
+      const response = await completeMission(dailyMission.id);
+      setDailyMission({ ...dailyMission, ...response.mission });
+      setMissionStatus("Mission completed. Nice work.");
+    } catch {
+      setMissionStatus("Could not complete this mission yet. Please try again.");
+    }
+  }
 
   useEffect(() => {
     function refreshDashboard() {
@@ -290,6 +310,31 @@ export function ClientDashboard() {
               </a>
             ))}
           </div>
+        </section>
+
+        <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-calm">Today&apos;s mission</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">
+                {dailyMission
+                  ? dailyMission.title
+                  : user?.assigned_trainer_name
+                    ? "No trainer mission today. Focus on one quick action above."
+                    : "Your trainer can add a simple daily mission after assignment."}
+              </p>
+              {dailyMission?.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {dailyMission.trainer_name}</p> : null}
+            </div>
+            <span className={`rounded px-3 py-1 text-xs ${dailyMission?.status === "completed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}>
+              {dailyMission?.status === "completed" ? "Done" : "Open"}
+            </span>
+          </div>
+          {dailyMission && dailyMission.status !== "completed" ? (
+            <button type="button" onClick={markMissionDone} className="mt-4 h-11 w-full rounded-lg bg-lime font-semibold text-ink">
+              Mark mission done
+            </button>
+          ) : null}
+          {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}
         </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">

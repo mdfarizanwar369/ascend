@@ -39,6 +39,7 @@ The live app is available at:
 - Obvious production seed/test users were removed, including `@ascend.test`, `@example.com`, and automated audit/pilot example accounts.
 - Owner notifications are available on the owner dashboard for trainer approvals, unassigned clients, free clients awaiting pilot access, open risk alerts, and recent AI errors.
 - Owners can deactivate or reactivate non-owner user accounts from the Users page when a trainer resigns or a test account should lose access.
+- Trainer Homework / Daily Mission is available: trainers can assign one simple action to a client, clients see it on the dashboard, and clients can mark it done.
 
 ## Fixes Completed In This Pass
 
@@ -57,6 +58,7 @@ The live app is available at:
 - Cleaned seed/test users from the production database while preserving real-looking pilot accounts.
 - Added a backend owner notifications API and a mobile-first owner notifications section.
 - Added reversible user deactivation, blocked inactive accounts from API access, protected owner accounts from accidental deactivation, and removed resigned trainers from active assignment lists.
+- Added the `trainer_missions` database table, client mission dashboard card, trainer mission assignment form, and mission completion API.
 
 ## Remaining Pilot Risks
 

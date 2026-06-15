@@ -221,6 +221,34 @@ export function getBurnLogs() {
   }>("/burn-logs");
 }
 
+export function getTodayMission() {
+  return authed<{
+    mission: {
+      id: string;
+      title: string;
+      status: "open" | "completed";
+      due_date: string;
+      completed_at?: string | null;
+      trainer_name?: string | null;
+      created_at: string;
+    } | null;
+  }>("/missions/today");
+}
+
+export function completeMission(missionId: string) {
+  return authed<{
+    mission: {
+      id: string;
+      title: string;
+      status: "completed";
+      due_date: string;
+      completed_at?: string | null;
+    };
+  }>(`/missions/${missionId}/complete`, {
+    method: "PATCH"
+  });
+}
+
 export function saveBurnLog(input: {
   activityType: string;
   durationMinutes: number;
@@ -566,6 +594,35 @@ export function getTrainerClientProgressPhotos(clientId: string) {
       logged_at: string;
     }>;
   }>(`/trainer/clients/${clientId}/progress-photos`);
+}
+
+export function getTrainerClientMissions(clientId: string) {
+  return authed<{
+    missions: Array<{
+      id: string;
+      title: string;
+      status: "open" | "completed";
+      due_date: string;
+      completed_at?: string | null;
+      created_by_name?: string | null;
+      created_at: string;
+    }>;
+  }>(`/trainer/clients/${clientId}/missions`);
+}
+
+export function createTrainerClientMission(input: { clientId: string; title: string; dueDate?: string }) {
+  return authed<{
+    mission: {
+      id: string;
+      title: string;
+      status: "open" | "completed";
+      due_date: string;
+      created_at: string;
+    };
+  }>(`/trainer/clients/${input.clientId}/missions`, {
+    method: "POST",
+    body: JSON.stringify({ title: input.title, dueDate: input.dueDate })
+  });
 }
 
 export function getTrainerRiskAlerts() {
