@@ -13,6 +13,7 @@ import {
   getTrainerClientProgressPhotos,
   getTrainerClientWaterLogs,
   getTrainerClientWeightLogs,
+  sendTrainerClientPraise,
   sendTrainerClientMessage
 } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
@@ -55,6 +56,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isSavingMission, setIsSavingMission] = useState(false);
+  const [isSendingPraise, setIsSendingPraise] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -165,6 +167,20 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     }
   }
 
+  async function handleSendPraise() {
+    setIsSendingPraise(true);
+    setStatus("");
+
+    try {
+      await sendTrainerClientPraise(clientId);
+      setStatus("Praise sent. The client will see it on their dashboard.");
+    } catch {
+      setStatus("Could not send praise yet. Make sure this client is assigned to this trainer.");
+    } finally {
+      setIsSendingPraise(false);
+    }
+  }
+
   return (
     <>
       <section className="mt-3">
@@ -177,12 +193,22 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           {formatGoal(client?.goal_type)} / {client?.gym_name ?? "Gym not set"}
         </p>
         {client?.id ? (
-          <Link
-            href={`/messages?userId=${client.id}`}
-            className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink"
-          >
-            Open full chat
-          </Link>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Link
+              href={`/messages?userId=${client.id}`}
+              className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+            >
+              Open chat
+            </Link>
+            <button
+              type="button"
+              disabled={isSendingPraise}
+              onClick={handleSendPraise}
+              className="h-12 rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+            >
+              {isSendingPraise ? "Sending..." : "Send praise"}
+            </button>
+          </div>
         ) : null}
       </section>
 

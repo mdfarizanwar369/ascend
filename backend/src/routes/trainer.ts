@@ -74,6 +74,66 @@ function attentionReason(row: {
   return null;
 }
 
+async function canAccessClient(clientId: string, trainerId: string | undefined, roles: string[]) {
+  const result = await query<{ assigned_trainer_id: string | null; primary_role: string; status: string }>(
+    "select assigned_trainer_id, primary_role, status from users where id = $1",
+    [clientId]
+  );
+  const client = result.rows[0];
+  if (!client || client.primary_role !== "client" || client.status !== "active") return false;
+  return roles.includes("admin") || roles.includes("owner") || (!!trainerId && client.assigned_trainer_id === trainerId);
+}
+
+async function createPraiseMessage(clientId: string) {
+  const result = await query<{
+    food_today: string | number;
+    completed_mission_today: string | number;
+    active_days: string | number;
+    last_activity_at: string | null;
+  }>(
+    `
+    select
+      (select count(*) from food_logs where user_id = $1 and logged_at::date = current_date) as food_today,
+      (select count(*) from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at::date = current_date) as completed_mission_today,
+      (
+        select count(distinct activity_at::date)
+        from (
+          select logged_at as activity_at from food_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
+          union all select logged_at from weight_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
+          union all select logged_at from water_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
+          union all select logged_at from habit_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
+        ) activity
+      ) as active_days,
+      (
+        select max(activity_at)
+        from (
+          select logged_at as activity_at from food_logs where user_id = $1
+          union all select logged_at from weight_logs where user_id = $1
+          union all select logged_at from water_logs where user_id = $1
+          union all select logged_at from habit_logs where user_id = $1
+        ) last_activity
+      ) as last_activity_at
+    `,
+    [clientId]
+  );
+  const row = result.rows[0];
+  const daysSinceActivity = daysSince(row.last_activity_at);
+
+  if (Number(row.completed_mission_today) > 0) {
+    return { signal: "mission", message: "Your trainer noticed you completed today’s mission. Great work." };
+  }
+  if (Number(row.food_today) > 0) {
+    return { signal: "food_logging", message: "Your trainer noticed your food logging today. Great work." };
+  }
+  if (Number(row.active_days) >= 4) {
+    return { signal: "consistency", message: "Your trainer noticed your consistency this week. Keep this momentum." };
+  }
+  if (daysSinceActivity <= 1) {
+    return { signal: "comeback", message: "Your trainer noticed you checked in again. Great comeback." };
+  }
+  return { signal: "effort", message: "Your trainer noticed your effort today. Great work." };
+}
+
 trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
     const result = await query(
@@ -180,6 +240,73 @@ trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_
         allClear: attention.length === 0
       }
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.get("/recognitions/latest", requireAuth, async (req, res, next) => {
+  try {
+    const result = await query(
+      `
+      select r.*, trainer_user.full_name as trainer_name
+      from trainer_recognitions r
+      left join trainers t on t.id = r.trainer_id
+      left join users trainer_user on trainer_user.id = t.user_id
+      where r.client_user_id = $1
+        and r.created_at >= now() - interval '7 days'
+      order by r.created_at desc
+      limit 1
+      `,
+      [req.user!.id]
+    );
+    res.json({ recognition: result.rows[0] ?? null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.post("/trainer/clients/:clientId/praise", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    const allowed = await canAccessClient(req.params.clientId, req.user!.trainerId, req.user!.roles);
+    if (!allowed) return res.status(404).json({ error: "Client not found" });
+
+    const existing = await query(
+      `
+      select *
+      from trainer_recognitions
+      where client_user_id = $1
+        and created_by_user_id = $2
+        and created_at::date = current_date
+      order by created_at desc
+      limit 1
+      `,
+      [req.params.clientId, req.user!.id]
+    );
+    if (existing.rows[0]) return res.json({ recognition: existing.rows[0], reused: true });
+
+    const clientResult = await query<{ assigned_trainer_id: string | null }>("select assigned_trainer_id from users where id = $1", [
+      req.params.clientId
+    ]);
+    const trainerId = req.user!.trainerId ?? clientResult.rows[0]?.assigned_trainer_id ?? null;
+    const praise = await createPraiseMessage(req.params.clientId);
+
+    const recognitionResult = await query(
+      `
+      insert into trainer_recognitions (client_user_id, trainer_id, created_by_user_id, message, signal)
+      values ($1, $2, $3, $4, $5)
+      returning *
+      `,
+      [req.params.clientId, trainerId, req.user!.id, praise.message, praise.signal]
+    );
+
+    await query("insert into messages (sender_user_id, receiver_user_id, body) values ($1, $2, $3)", [
+      req.user!.id,
+      req.params.clientId,
+      praise.message
+    ]);
+
+    res.status(201).json({ recognition: recognitionResult.rows[0], reused: false });
   } catch (error) {
     next(error);
   }

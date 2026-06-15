@@ -8,6 +8,7 @@ import {
   getFoodLogs,
   getHabitLogs,
   getHabits,
+  getLatestRecognition,
   getMe,
   getMySubscription,
   getTodayMission,
@@ -27,6 +28,7 @@ type Habit = Awaited<ReturnType<typeof getHabits>>["habits"][number];
 type HabitLog = Awaited<ReturnType<typeof getHabitLogs>>["habitLogs"][number];
 type BurnLog = Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number];
 type DailyMission = Awaited<ReturnType<typeof getTodayMission>>["mission"];
+type LatestRecognition = Awaited<ReturnType<typeof getLatestRecognition>>["recognition"];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -87,6 +89,7 @@ export function ClientDashboard() {
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
   const [dailyMission, setDailyMission] = useState<DailyMission>(null);
+  const [latestRecognition, setLatestRecognition] = useState<LatestRecognition>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -102,7 +105,7 @@ export function ClientDashboard() {
   const loadDashboard = useCallback(async () => {
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -110,7 +113,8 @@ export function ClientDashboard() {
         getHabitLogs(),
         getBurnLogs(),
         getComplianceToday(),
-        getTodayMission()
+        getTodayMission(),
+        getLatestRecognition()
       ]);
 
       setUser(me.user);
@@ -125,6 +129,7 @@ export function ClientDashboard() {
       }
       if (burns.status === "fulfilled") setBurnLogs(Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : []);
       if (mission.status === "fulfilled") setDailyMission(mission.value.mission);
+      if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -336,6 +341,14 @@ export function ClientDashboard() {
           ) : null}
           {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}
         </section>
+
+        {latestRecognition ? (
+          <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
+            <p className="text-sm font-semibold text-lime">Trainer noticed</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-200">{latestRecognition.message}</p>
+            {latestRecognition.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {latestRecognition.trainer_name}</p> : null}
+          </section>
+        ) : null}
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">

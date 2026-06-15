@@ -41,6 +41,7 @@ The live app is available at:
 - Owners can deactivate or reactivate non-owner user accounts from the Users page when a trainer resigns or a test account should lose access.
 - Trainer Homework / Daily Mission is available: trainers can assign one simple action to a client, clients see it on the dashboard, and clients can mark it done.
 - Trainer dashboard includes "Clients needing attention today", a top-3 action list that tells trainers who may need a check-in now, with an all-clear state when everyone is steady.
+- Trainer Recognition is available: trainers can tap one button to send automatic praise, and clients see that their trainer noticed their progress.
 
 ## Fixes Completed In This Pass
 
@@ -61,6 +62,7 @@ The live app is available at:
 - Added reversible user deactivation, blocked inactive accounts from API access, protected owner accounts from accidental deactivation, and removed resigned trainers from active assignment lists.
 - Added the `trainer_missions` database table, client mission dashboard card, trainer mission assignment form, and mission completion API.
 - Added trainer attention ranking from existing behaviour signals: missed missions, inactivity, food logging gaps, Momentum drops, weight trends, water gaps, and low Momentum.
+- Added the `trainer_recognitions` database table, automatic praise message selection, trainer praise buttons, client dashboard recognition card, and message-thread copy of each praise.
 
 ## Remaining Pilot Risks
 

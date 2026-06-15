@@ -235,6 +235,18 @@ export function getTodayMission() {
   }>("/missions/today");
 }
 
+export function getLatestRecognition() {
+  return authed<{
+    recognition: {
+      id: string;
+      message: string;
+      signal: string;
+      trainer_name?: string | null;
+      created_at: string;
+    } | null;
+  }>("/recognitions/latest");
+}
+
 export function completeMission(missionId: string) {
   return authed<{
     mission: {
@@ -551,6 +563,20 @@ export function getTrainerAttention() {
       allClear: boolean;
     };
   }>("/trainer/attention");
+}
+
+export function sendTrainerClientPraise(clientId: string) {
+  return authed<{
+    recognition: {
+      id: string;
+      message: string;
+      signal: string;
+      created_at: string;
+    };
+    reused: boolean;
+  }>(`/trainer/clients/${clientId}/praise`, {
+    method: "POST"
+  });
 }
 
 export function getTrainerClient(clientId: string) {

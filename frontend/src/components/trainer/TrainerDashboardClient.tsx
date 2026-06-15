@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
-import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts } from "@/lib/ascendApi";
+import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
@@ -47,6 +47,7 @@ export function TrainerDashboardClient() {
   const [attention, setAttention] = useState<TrainerAttention | null>(null);
   const [status, setStatus] = useState("Loading assigned clients...");
   const [isPendingApproval, setIsPendingApproval] = useState(false);
+  const [praisingClientId, setPraisingClientId] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -110,6 +111,20 @@ export function TrainerDashboardClient() {
       }),
     [clients]
   );
+
+  async function sendPraise(clientId: string, clientName: string) {
+    setPraisingClientId(clientId);
+    setStatus("");
+
+    try {
+      await sendTrainerClientPraise(clientId);
+      setStatus(`Praise sent to ${clientName}.`);
+    } catch {
+      setStatus("Could not send praise yet. Make sure this client is assigned to you.");
+    } finally {
+      setPraisingClientId("");
+    }
+  }
 
   if (isPendingApproval) {
     return (
@@ -175,13 +190,21 @@ export function TrainerDashboardClient() {
                       {client.current_score ?? "--"}/100
                     </span>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="mt-3 grid grid-cols-3 gap-2">
                     <Link href={`/messages?userId=${client.id}`} className="flex h-10 items-center justify-center rounded-lg bg-lime text-sm font-semibold text-ink">
                       Message
                     </Link>
                     <Link href={`/trainer/clients/${client.id}`} className="flex h-10 items-center justify-center rounded-lg border border-line bg-surface text-sm font-semibold">
                       View
                     </Link>
+                    <button
+                      type="button"
+                      disabled={praisingClientId === client.id}
+                      onClick={() => sendPraise(client.id, client.full_name)}
+                      className="h-10 rounded-lg border border-lime/40 bg-lime/10 text-sm font-semibold text-lime disabled:opacity-60"
+                    >
+                      Praise
+                    </button>
                   </div>
                 </article>
               ))}
@@ -227,13 +250,21 @@ export function TrainerDashboardClient() {
                       <span className={`mt-2 inline-block rounded px-2 py-1 text-xs ${riskClass(label)}`}>{label}</span>
                     </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="mt-3 grid grid-cols-3 gap-2">
                     <Link href={`/trainer/clients/${client.id}`} className="flex h-10 items-center justify-center rounded-lg border border-line bg-surface text-sm font-semibold">
                       View
                     </Link>
                     <Link href={`/messages?userId=${client.id}`} className="flex h-10 items-center justify-center rounded-lg bg-lime text-sm font-semibold text-ink">
                       Message
                     </Link>
+                    <button
+                      type="button"
+                      disabled={praisingClientId === client.id}
+                      onClick={() => sendPraise(client.id, client.full_name)}
+                      className="h-10 rounded-lg border border-lime/40 bg-lime/10 text-sm font-semibold text-lime disabled:opacity-60"
+                    >
+                      Praise
+                    </button>
                   </div>
                 </article>
               );
