@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, MessageSquare, Sparkles } from "lucide-react";
-import { getMe, getTrainerClients, getTrainerRiskAlerts } from "@/lib/ascendApi";
+import { AlertTriangle, CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
+import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
 type RiskAlert = Awaited<ReturnType<typeof getTrainerRiskAlerts>>["alerts"][number];
+type TrainerAttention = Awaited<ReturnType<typeof getTrainerAttention>>;
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -43,6 +44,7 @@ function daysAgo(value?: string | null) {
 export function TrainerDashboardClient() {
   const [clients, setClients] = useState<TrainerClient[]>([]);
   const [alerts, setAlerts] = useState<RiskAlert[]>([]);
+  const [attention, setAttention] = useState<TrainerAttention | null>(null);
   const [status, setStatus] = useState("Loading assigned clients...");
   const [isPendingApproval, setIsPendingApproval] = useState(false);
 
@@ -60,9 +62,10 @@ export function TrainerDashboardClient() {
           return;
         }
 
-        const clientResponse = await getTrainerClients();
+        const [clientResponse, attentionResponse] = await Promise.all([getTrainerClients(), getTrainerAttention().catch(() => null)]);
         if (!isMounted) return;
         setClients(clientResponse.clients);
+        if (attentionResponse) setAttention(attentionResponse);
         setStatus("");
 
         const alertResponse = await getTrainerRiskAlerts().catch(() => null);
@@ -94,8 +97,8 @@ export function TrainerDashboardClient() {
     return String(Math.round(scored.reduce((total, score) => total + score, 0) / scored.length));
   }, [clients]);
   const needsCheckIn = useMemo(
-    () => clients.filter((client) => riskLabel(client) !== "On track" || !client.last_food_logged_at).length,
-    [clients]
+    () => attention?.summary.needsAttention ?? clients.filter((client) => riskLabel(client) !== "On track" || !client.last_food_logged_at).length,
+    [attention?.summary.needsAttention, clients]
   );
   const sortedClients = useMemo(
     () =>
@@ -126,7 +129,7 @@ export function TrainerDashboardClient() {
     <>
       <section className="mt-3">
         <h1 className="text-2xl font-semibold">Trainer dashboard</h1>
-        <p className="mt-2 text-sm text-zinc-400">Client momentum, sorted by who may need support first.</p>
+        <p className="mt-2 text-sm text-zinc-400">Who needs a quick check-in, and who is steady today.</p>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
@@ -137,6 +140,55 @@ export function TrainerDashboardClient() {
         <MetricCard label="Check-ins" value={String(needsCheckIn)} detail="Need attention" tone={needsCheckIn ? "warning" : "success"} />
         <MetricCard label="Alerts" value={String(alerts.length || highRisk)} detail={`${highRisk} high priority`} tone={highRisk ? "warning" : "success"} />
       </section>
+
+      {attention ? (
+        <section className={`mt-4 rounded-lg border p-4 ${attention.summary.allClear ? "border-lime/40 bg-lime/10" : "border-amber/40 bg-amber/10"}`}>
+          <div className="flex items-start gap-3">
+            {attention.summary.allClear ? (
+              <CheckCircle2 className="mt-0.5 text-lime" size={22} />
+            ) : (
+              <AlertTriangle className="mt-0.5 text-amber" size={22} />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm font-semibold ${attention.summary.allClear ? "text-lime" : "text-amber"}`}>
+                {attention.summary.allClear ? "All clear today" : "Clients needing attention today"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">
+                {attention.summary.allClear
+                  ? "No urgent client check-ins. Your client group is staying connected."
+                  : `${attention.summary.needsAttention} client${attention.summary.needsAttention === 1 ? "" : "s"} may need a quick check-in.`}
+              </p>
+            </div>
+          </div>
+
+          {attention.attention.length ? (
+            <div className="mt-4 space-y-3">
+              {attention.attention.map((client) => (
+                <article key={client.id} className="rounded-lg bg-ink p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-white">{client.full_name}</p>
+                      <p className="mt-1 text-sm text-amber">{client.reason}</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-400">{client.detail}</p>
+                    </div>
+                    <span className="shrink-0 rounded bg-surface px-2 py-1 text-xs text-zinc-300">
+                      {client.current_score ?? "--"}/100
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Link href={`/messages?userId=${client.id}`} className="flex h-10 items-center justify-center rounded-lg bg-lime text-sm font-semibold text-ink">
+                      Message
+                    </Link>
+                    <Link href={`/trainer/clients/${client.id}`} className="flex h-10 items-center justify-center rounded-lg border border-line bg-surface text-sm font-semibold">
+                      View
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {alerts[0] ? (
         <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">

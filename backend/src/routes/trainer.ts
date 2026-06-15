@@ -18,6 +18,173 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
   );
 }
 
+function daysSince(value?: string | Date | null) {
+  if (!value) return 999;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return 999;
+  return Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
+}
+
+function isWeightMovingAway(row: {
+  goal_type?: string | null;
+  latest_weight_kg?: string | number | null;
+  previous_weight_kg?: string | number | null;
+  target_weight_kg?: string | number | null;
+}) {
+  const latest = Number(row.latest_weight_kg);
+  const previous = Number(row.previous_weight_kg);
+  const target = Number(row.target_weight_kg);
+  if (!Number.isFinite(latest) || !Number.isFinite(previous)) return false;
+
+  if (row.goal_type === "fat_loss") return latest > previous + 0.5;
+  if (row.goal_type === "muscle_gain") return latest < previous - 0.5;
+  if (row.goal_type === "maintenance" && Number.isFinite(target)) {
+    return Math.abs(latest - target) > Math.abs(previous - target) + 0.5;
+  }
+  return false;
+}
+
+function attentionReason(row: {
+  current_score?: string | number | null;
+  previous_score?: string | number | null;
+  last_food_logged_at?: string | null;
+  last_water_logged_at?: string | null;
+  last_activity_at?: string | null;
+  missed_missions?: string | number | null;
+  goal_type?: string | null;
+  latest_weight_kg?: string | number | null;
+  previous_weight_kg?: string | number | null;
+  target_weight_kg?: string | number | null;
+}) {
+  const currentScore = Number(row.current_score);
+  const previousScore = Number(row.previous_score);
+  const scoreDrop = Number.isFinite(currentScore) && Number.isFinite(previousScore) ? previousScore - currentScore : 0;
+  const foodGap = daysSince(row.last_food_logged_at);
+  const waterGap = daysSince(row.last_water_logged_at);
+  const inactiveDays = daysSince(row.last_activity_at);
+  const missedMissions = Number(row.missed_missions ?? 0);
+
+  if (missedMissions > 0) return { priority: 95, reason: "Missed trainer mission", detail: "A quick nudge may help them complete the task." };
+  if (inactiveDays >= 7) return { priority: 90, reason: `Quiet for ${inactiveDays} days`, detail: "They may need a simple check-in." };
+  if (foodGap >= 3) return { priority: 85, reason: `No food logs for ${foodGap} days`, detail: "Food logging has gone quiet." };
+  if (scoreDrop >= 30) return { priority: 80, reason: `Momentum dropped ${Math.round(scoreDrop)} points`, detail: "Their routine may have slipped this week." };
+  if (isWeightMovingAway(row)) return { priority: 75, reason: "Weight trend needs review", detail: "Their latest weigh-in is moving away from the goal." };
+  if (waterGap >= 3) return { priority: 60, reason: `No water logs for ${waterGap} days`, detail: "A light reminder may be enough." };
+  if (Number.isFinite(currentScore) && currentScore < 50) return { priority: 55, reason: "Momentum is low", detail: "They may benefit from encouragement." };
+  return null;
+}
+
+trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    const result = await query(
+      `
+      select u.id, u.full_name, u.email, u.goal_type, u.target_weight_kg,
+        current_score.score as current_score,
+        previous_score.score as previous_score,
+        food.last_food_logged_at,
+        water.last_water_logged_at,
+        activity.last_activity_at,
+        latest_weight.weight_kg as latest_weight_kg,
+        previous_weight.weight_kg as previous_weight_kg,
+        coalesce(missions.missed_missions, 0) as missed_missions
+      from users u
+      left join lateral (
+        select score
+        from compliance_scores
+        where user_id = u.id
+        order by calculated_for_date desc
+        limit 1
+      ) current_score on true
+      left join lateral (
+        select score
+        from compliance_scores
+        where user_id = u.id
+          and calculated_for_date < current_date
+        order by calculated_for_date desc
+        limit 1
+      ) previous_score on true
+      left join lateral (
+        select max(logged_at) as last_food_logged_at
+        from food_logs
+        where user_id = u.id
+      ) food on true
+      left join lateral (
+        select max(logged_at) as last_water_logged_at
+        from water_logs
+        where user_id = u.id
+      ) water on true
+      left join lateral (
+        select max(activity_at) as last_activity_at
+        from (
+          select logged_at as activity_at from food_logs where user_id = u.id
+          union all select logged_at from weight_logs where user_id = u.id
+          union all select logged_at from water_logs where user_id = u.id
+          union all select logged_at from habit_logs where user_id = u.id
+          union all select created_at from messages where sender_user_id = u.id
+          union all select created_at from trainer_missions where client_user_id = u.id and status = 'completed'
+        ) activity_union
+      ) activity on true
+      left join lateral (
+        select weight_kg
+        from weight_logs
+        where user_id = u.id
+        order by logged_at desc
+        limit 1
+      ) latest_weight on true
+      left join lateral (
+        select weight_kg
+        from weight_logs
+        where user_id = u.id
+        order by logged_at desc
+        offset 1
+        limit 1
+      ) previous_weight on true
+      left join lateral (
+        select count(*) as missed_missions
+        from trainer_missions
+        where client_user_id = u.id
+          and status = 'open'
+          and due_date < current_date
+      ) missions on true
+      where u.primary_role = 'client'
+        and u.status = 'active'
+        and (u.assigned_trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[]))
+      `,
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+    );
+
+    const attention = result.rows
+      .map((row) => {
+        const signal = attentionReason(row);
+        if (!signal) return null;
+        return {
+          id: row.id,
+          full_name: row.full_name,
+          email: row.email,
+          goal_type: row.goal_type,
+          current_score: row.current_score,
+          reason: signal.reason,
+          detail: signal.detail,
+          priority: signal.priority
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.priority - a!.priority)
+      .slice(0, 3);
+
+    res.json({
+      attention,
+      summary: {
+        totalClients: result.rows.length,
+        needsAttention: attention.length,
+        allClear: attention.length === 0
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
     const result = await query(

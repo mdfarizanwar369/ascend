@@ -533,6 +533,26 @@ export function getTrainerClients() {
   }>("/trainer/clients");
 }
 
+export function getTrainerAttention() {
+  return authed<{
+    attention: Array<{
+      id: string;
+      full_name: string;
+      email: string;
+      goal_type?: GoalType | null;
+      current_score?: string | number | null;
+      reason: string;
+      detail: string;
+      priority: number;
+    }>;
+    summary: {
+      totalClients: number;
+      needsAttention: number;
+      allClear: boolean;
+    };
+  }>("/trainer/attention");
+}
+
 export function getTrainerClient(clientId: string) {
   return authed<{
     client: {

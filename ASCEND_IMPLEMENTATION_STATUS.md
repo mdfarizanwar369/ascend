@@ -40,6 +40,7 @@ The live app is available at:
 - Owner notifications are available on the owner dashboard for trainer approvals, unassigned clients, free clients awaiting pilot access, open risk alerts, and recent AI errors.
 - Owners can deactivate or reactivate non-owner user accounts from the Users page when a trainer resigns or a test account should lose access.
 - Trainer Homework / Daily Mission is available: trainers can assign one simple action to a client, clients see it on the dashboard, and clients can mark it done.
+- Trainer dashboard includes "Clients needing attention today", a top-3 action list that tells trainers who may need a check-in now, with an all-clear state when everyone is steady.
 
 ## Fixes Completed In This Pass
 
@@ -59,6 +60,7 @@ The live app is available at:
 - Added a backend owner notifications API and a mobile-first owner notifications section.
 - Added reversible user deactivation, blocked inactive accounts from API access, protected owner accounts from accidental deactivation, and removed resigned trainers from active assignment lists.
 - Added the `trainer_missions` database table, client mission dashboard card, trainer mission assignment form, and mission completion API.
+- Added trainer attention ranking from existing behaviour signals: missed missions, inactivity, food logging gaps, Momentum drops, weight trends, water gaps, and low Momentum.
 
 ## Remaining Pilot Risks
 
