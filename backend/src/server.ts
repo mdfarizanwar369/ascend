@@ -22,6 +22,7 @@ import { trainerRouter } from "./routes/trainer";
 import { complianceRouter } from "./routes/compliance";
 import { errorHandler } from "./middleware/errors";
 import { ensureAiUsageSchema } from "./services/aiUsageService";
+import { ensureUserProfileSchema } from "./services/userService";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -51,9 +52,9 @@ app.use("/api/v1", aiRouter);
 app.use("/api/v1", subscriptionsRouter);
 app.use(errorHandler);
 
-ensureAiUsageSchema()
+Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema()])
   .catch((error) => {
-    console.error("AI usage schema setup failed", error);
+    console.error("Schema setup failed", error);
   })
   .finally(() => {
     app.listen(env.PORT, () => {

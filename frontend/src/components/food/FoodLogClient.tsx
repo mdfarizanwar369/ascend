@@ -2,12 +2,13 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
-import { FoodEstimate } from "@ascend/shared";
+import { calculateNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
   FoodAiAllowance,
   getFoodAiAllowance,
   getFoodLogs,
+  getMe,
   saveFoodLog,
   uploadFoodPhotoDataUrl
 } from "@/lib/ascendApi";
@@ -16,6 +17,7 @@ import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
+type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
 
 function manualEstimate(): FoodEstimate {
   return {
@@ -106,6 +108,7 @@ export function FoodLogClient() {
   const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<FoodEstimate | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
+  const [user, setUser] = useState<FoodUser | null>(null);
   const [status, setStatus] = useState("Upload a food photo to estimate calories and macros.");
   const [isEstimating, setIsEstimating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -118,13 +121,18 @@ export function FoodLogClient() {
     setFoodLogs(response.foodLogs);
   }
 
+  async function loadUser() {
+    const response = await getMe();
+    setUser(response.user);
+  }
+
   async function loadAllowance() {
     const response = await getFoodAiAllowance();
     setAllowance(response.allowance);
   }
 
   useEffect(() => {
-    Promise.allSettled([loadFoodLogs(), loadAllowance()]).catch(() => {
+    Promise.allSettled([loadFoodLogs(), loadAllowance(), loadUser()]).catch(() => {
       setStatus("Upload a food photo to estimate calories and macros.");
     });
   }, []);
@@ -152,6 +160,19 @@ export function FoodLogClient() {
     if (!estimate) return 0;
     return Math.round(estimate.proteinG * 4 + estimate.carbsG * 4 + estimate.fatG * 9);
   }, [estimate]);
+
+  const nutritionTargets = calculateNutritionTargets({
+    goalType: user?.goal_type,
+    sex: user?.gender === "female" || user?.gender === "male" ? user.gender : "prefer_not_to_say",
+    ageYears: user?.age_years,
+    heightCm: user?.height_cm,
+    weightKg: user?.starting_weight_kg,
+    targetWeightKg: user?.target_weight_kg,
+    activityLevel:
+      user?.activity_level === "low" || user?.activity_level === "moderate" || user?.activity_level === "high"
+        ? user.activity_level
+        : "moderate"
+  });
 
   const canSaveEstimate = useMemo(() => {
     if (!estimate) return false;
@@ -325,9 +346,16 @@ export function FoodLogClient() {
             </div>
             <div className="text-right">
               <p className="text-2xl font-semibold">{todaysTotals.calories}</p>
-              <p className="text-xs text-zinc-400">kcal</p>
+              <p className="text-xs text-zinc-400">of {nutritionTargets.calorieTarget.toLocaleString()} kcal</p>
             </div>
           </div>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-ink">
+            <div
+              className="h-full rounded-full bg-lime"
+              style={{ width: `${Math.min(100, Math.round((todaysTotals.calories / nutritionTargets.calorieTarget) * 100))}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-zinc-500">Daily guide, not a strict limit. Review portions with your trainer if unsure.</p>
 
           {todaysFoodLogs.length ? (
             <div className="mt-4 space-y-2">

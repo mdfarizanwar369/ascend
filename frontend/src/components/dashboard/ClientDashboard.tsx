@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { calculateNutritionTargets } from "@ascend/shared";
 import {
   completeMission,
   getBurnLogs,
@@ -213,7 +214,22 @@ export function ClientDashboard() {
   const dashboardHabits = habits.slice(0, 3);
   const calories = todaysFood.reduce((total, log) => total + Number(log.calories), 0);
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
-  const proteinTarget = Math.round(clamp((currentWeight || startWeight || 70) * 1.6, 80, 180));
+  const nutritionTargets = calculateNutritionTargets({
+    goalType: user?.goal_type,
+    sex: user?.gender === "female" || user?.gender === "male" ? user.gender : "prefer_not_to_say",
+    ageYears: user?.age_years,
+    heightCm: user?.height_cm,
+    weightKg: currentWeight || startWeight,
+    targetWeightKg: targetWeight,
+    activityLevel:
+      user?.activity_level === "low" || user?.activity_level === "moderate" || user?.activity_level === "high"
+        ? user.activity_level
+        : "moderate"
+  });
+  const calorieTarget = nutritionTargets.calorieTarget;
+  const proteinTarget = nutritionTargets.proteinTargetG;
+  const calorieProgress = clamp(Math.round((calories / calorieTarget) * 100));
+  const proteinProgress = clamp(Math.round((protein / proteinTarget) * 100));
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = momentumScore ?? fallbackScore;
   const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
@@ -255,7 +271,7 @@ export function ClientDashboard() {
     return dailyProtein >= proteinTarget;
   }).length;
 
-  const goalProgress = useMemo(() => {
+  const goalProgress = (() => {
     if (!startWeight || !targetWeight || !currentWeight || startWeight === targetWeight) return null;
     const totalChangeNeeded = Math.abs(startWeight - targetWeight);
     const progressChange =
@@ -265,12 +281,9 @@ export function ClientDashboard() {
           ? Math.max(0, totalChangeNeeded - Math.abs(currentWeight - targetWeight))
           : startWeight - currentWeight;
     return clamp(Math.round((progressChange / totalChangeNeeded) * 100));
-  }, [currentWeight, startWeight, targetWeight, user?.goal_type]);
+  })();
 
-  const remainingWeight = useMemo(() => {
-    if (!targetWeight || !currentWeight) return null;
-    return Math.abs(currentWeight - targetWeight);
-  }, [currentWeight, targetWeight]);
+  const remainingWeight = targetWeight && currentWeight ? Math.abs(currentWeight - targetWeight) : null;
 
   const premiumActions = [
     { href: "/messages", title: "Message trainer", detail: user?.assigned_trainer_name ?? "Ask a question" },
@@ -451,20 +464,48 @@ export function ClientDashboard() {
         </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <h2 className="text-base font-semibold">Today&apos;s progress</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {[
-              ["Calories", calories ? calories.toLocaleString() : "0", todaysFood.length ? `${todaysFood.length} meal${todaysFood.length === 1 ? "" : "s"} logged` : "Snap your first meal"],
-              ["Protein", `${protein}g`, `${proteinTarget}g daily guide`],
-              ["Water", `${(todaysWaterMl / 1000).toFixed(1)}L`, "2.5L daily guide"],
-              ["Activity", `${todaysBurnCalories} kcal`, todaysBurnCalories ? "Movement logged" : "Add movement"]
-            ].map(([label, value, detail]) => (
-              <div key={label} className="rounded-lg bg-ink p-4">
-                <p className="text-xs uppercase text-zinc-400">{label}</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-                <p className="mt-1 text-sm text-zinc-400">{detail}</p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Today&apos;s nutrition guide</h2>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">
+                {nutritionTargets.explanation} {nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule."}
+              </p>
+            </div>
+            <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{calorieTarget.toLocaleString()} kcal</span>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            <div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-300">Calories</span>
+                <span className="font-semibold">{calories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal</span>
               </div>
-            ))}
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-ink">
+                <div className="h-full rounded-full bg-lime" style={{ width: `${calorieProgress}%` }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-zinc-300">Protein</span>
+                <span className="font-semibold">{protein} / {proteinTarget}g</span>
+              </div>
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-ink">
+                <div className="h-full rounded-full bg-calm" style={{ width: `${proteinProgress}%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-ink p-4">
+              <p className="text-xs uppercase text-zinc-400">Water</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{(todaysWaterMl / 1000).toFixed(1)}L</p>
+              <p className="mt-1 text-sm text-zinc-400">{(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L daily guide</p>
+            </div>
+            <div className="rounded-lg bg-ink p-4">
+              <p className="text-xs uppercase text-zinc-400">Activity</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{todaysBurnCalories} kcal</p>
+              <p className="mt-1 text-sm text-zinc-400">{todaysBurnCalories ? "Movement logged" : "Add movement"}</p>
+            </div>
           </div>
         </section>
 

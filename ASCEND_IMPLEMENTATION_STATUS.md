@@ -45,6 +45,7 @@ The live app is available at:
 - Trainer Recognition is available: trainers can tap one button to send automatic praise, and clients see that their trainer noticed their progress.
 - Consistency Streaks are available: clients see a gentle streak celebration based on any meaningful check-in, and trainers see streak badges on client cards.
 - AI food scan guardrails are in place: Free users get 1 scan per week, Premium users get 5 scans per day, Trainer users get 10 scans per day, and owner/admin accounts are unlimited but still tracked.
+- Daily nutrition guides are available: onboarding collects age, height, activity level, and sex/prefer-not-to-say, then Ascend estimates calorie, protein, and water guides based on the client's goal.
 
 ## Fixes Completed In This Pass
 
@@ -71,6 +72,7 @@ The live app is available at:
 - Tightened trainer and messaging APIs so inactive/deactivated clients no longer appear in trainer client lists, client detail views, client logs, or trainer-client message threads.
 - Made streak calculations use the database date instead of the browser/server JavaScript date, reducing timezone edge cases for mobile users.
 - Added server-side AI food scan limits and a food-page allowance display so members see usage like `1 / 5 used today` before they scan.
+- Added supportive daily calorie/protein guide displays on the client dashboard and food logging page so food estimates have context without turning Ascend into a strict calorie tracker.
 
 ## Remaining Pilot Risks
 

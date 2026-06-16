@@ -5,10 +5,20 @@ export const onboardingSchema = z.object({
   fullName: z.string().min(2),
   referralCode: z.string().optional(),
   goalType: z.enum(["fat_loss", "muscle_gain", "maintenance"]),
+  gender: z.enum(["female", "male", "prefer_not_to_say"]).optional(),
+  ageYears: z.number().int().min(13).max(100).optional(),
+  activityLevel: z.enum(["low", "moderate", "high"]).optional(),
   heightCm: z.number().positive().optional(),
   startingWeightKg: z.number().positive(),
   targetWeightKg: z.number().positive().optional()
 });
+
+export async function ensureUserProfileSchema() {
+  await query(`
+    alter table users add column if not exists age_years integer;
+    alter table users add column if not exists activity_level text;
+  `);
+}
 
 export async function completeOnboarding(userId: string, input: z.infer<typeof onboardingSchema>) {
   const referral = input.referralCode
@@ -28,10 +38,13 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
         height_cm = $4,
         starting_weight_kg = $5,
         target_weight_kg = $6,
-        gym_id = coalesce($7, gym_id),
-        assigned_trainer_id = coalesce($8, assigned_trainer_id),
-        referred_by_gym_id = coalesce($7, referred_by_gym_id),
-        referred_by_trainer_id = coalesce($8, referred_by_trainer_id),
+        gender = $7,
+        age_years = $8,
+        activity_level = $9,
+        gym_id = coalesce($10, gym_id),
+        assigned_trainer_id = coalesce($11, assigned_trainer_id),
+        referred_by_gym_id = coalesce($10, referred_by_gym_id),
+        referred_by_trainer_id = coalesce($11, referred_by_trainer_id),
         updated_at = now()
     where id = $1
     returning *
@@ -43,6 +56,9 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
       input.heightCm ?? null,
       input.startingWeightKg,
       input.targetWeightKg ?? null,
+      input.gender ?? null,
+      input.ageYears ?? null,
+      input.activityLevel ?? null,
       referralRow?.gym_id ?? null,
       referralRow?.trainer_id ?? null
     ]
@@ -50,4 +66,3 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
 
   return result.rows[0];
 }
-

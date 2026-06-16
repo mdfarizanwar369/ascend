@@ -11,6 +11,10 @@ export function OnboardingForm() {
   const [fullName, setFullName] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [goalType, setGoalType] = useState<"fat_loss" | "muscle_gain" | "maintenance">("fat_loss");
+  const [gender, setGender] = useState<"female" | "male" | "prefer_not_to_say">("prefer_not_to_say");
+  const [ageYears, setAgeYears] = useState("");
+  const [heightCm, setHeightCm] = useState("");
+  const [activityLevel, setActivityLevel] = useState<"low" | "moderate" | "high">("moderate");
   const [startingWeightKg, setStartingWeightKg] = useState("");
   const [targetWeightKg, setTargetWeightKg] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -30,6 +34,16 @@ export function OnboardingForm() {
       return;
     }
 
+    if (!heightCm || Number.isNaN(Number(heightCm)) || Number(heightCm) <= 0) {
+      setStatus("Please enter your height.");
+      return;
+    }
+
+    if (!ageYears || Number.isNaN(Number(ageYears)) || Number(ageYears) < 13 || Number(ageYears) > 100) {
+      setStatus("Please enter an age between 13 and 100.");
+      return;
+    }
+
     if (targetWeightKg && (Number.isNaN(Number(targetWeightKg)) || Number(targetWeightKg) <= 0)) {
       setStatus("Please enter a valid target weight.");
       return;
@@ -42,6 +56,10 @@ export function OnboardingForm() {
         fullName,
         referralCode: referralCode.trim() || undefined,
         goalType,
+        gender,
+        ageYears: Number(ageYears),
+        heightCm: Number(heightCm),
+        activityLevel,
         startingWeightKg: Number(startingWeightKg),
         targetWeightKg: targetWeightKg ? Number(targetWeightKg) : undefined
       });
@@ -79,6 +97,42 @@ export function OnboardingForm() {
           <option value="fat_loss">Fat loss</option>
           <option value="muscle_gain">Muscle gain</option>
           <option value="maintenance">Maintenance</option>
+        </select>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Age">
+          <input
+            className={inputClass}
+            value={ageYears}
+            onChange={(event) => setAgeYears(event.target.value)}
+            inputMode="numeric"
+            placeholder="e.g. 32"
+            required
+          />
+        </Field>
+        <Field label="Height">
+          <input
+            className={inputClass}
+            value={heightCm}
+            onChange={(event) => setHeightCm(event.target.value)}
+            inputMode="decimal"
+            placeholder="cm"
+            required
+          />
+        </Field>
+      </div>
+      <Field label="Activity level">
+        <select className={inputClass} value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as "low" | "moderate" | "high")}>
+          <option value="low">Low - mostly sitting</option>
+          <option value="moderate">Moderate - train/walk a few days weekly</option>
+          <option value="high">High - active most days</option>
+        </select>
+      </Field>
+      <Field label="Sex for calorie estimate">
+        <select className={inputClass} value={gender} onChange={(event) => setGender(event.target.value as "female" | "male" | "prefer_not_to_say")}>
+          <option value="prefer_not_to_say">Prefer not to say</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
         </select>
       </Field>
       <div className="grid grid-cols-2 gap-3">

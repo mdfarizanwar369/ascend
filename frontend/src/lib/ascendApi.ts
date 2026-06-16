@@ -36,6 +36,9 @@ export function completeOnboarding(input: {
   fullName: string;
   referralCode?: string;
   goalType: GoalType;
+  gender?: "female" | "male" | "prefer_not_to_say";
+  ageYears?: number;
+  activityLevel?: "low" | "moderate" | "high";
   heightCm?: number;
   startingWeightKg: number;
   targetWeightKg?: number;
@@ -68,6 +71,10 @@ export function getMe() {
       full_name: string;
       primary_role?: "client" | "trainer" | "admin" | "owner";
       goal_type?: GoalType | null;
+      gender?: "female" | "male" | "prefer_not_to_say" | string | null;
+      age_years?: string | number | null;
+      activity_level?: "low" | "moderate" | "high" | string | null;
+      height_cm?: string | number | null;
       starting_weight_kg?: string | number | null;
       target_weight_kg?: string | number | null;
       gym_id?: string | null;

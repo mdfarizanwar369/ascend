@@ -1,5 +1,7 @@
 export type Role = "client" | "trainer" | "admin" | "owner";
 export type GoalType = "fat_loss" | "muscle_gain" | "maintenance";
+export type Sex = "female" | "male" | "prefer_not_to_say";
+export type ActivityLevel = "low" | "moderate" | "high";
 export type SubscriptionPlan = "free" | "premium" | "trainer_pro";
 export type SubscriptionProvider = "toyyibpay" | "stripe" | "manual";
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired";
@@ -76,3 +78,57 @@ export const COMPLIANCE_WEIGHTS = {
   habits: 20
 } as const;
 
+export interface NutritionTargetInput {
+  goalType?: GoalType | null;
+  sex?: Sex | null;
+  ageYears?: number | string | null;
+  heightCm?: number | string | null;
+  weightKg?: number | string | null;
+  targetWeightKg?: number | string | null;
+  activityLevel?: ActivityLevel | null;
+}
+
+export interface NutritionTargets {
+  calorieTarget: number;
+  proteinTargetG: number;
+  waterTargetMl: number;
+  estimated: boolean;
+  explanation: string;
+}
+
+function toPositiveNumber(value: number | string | null | undefined) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+export function calculateNutritionTargets(input: NutritionTargetInput): NutritionTargets {
+  const weightKg = toPositiveNumber(input.weightKg) ?? toPositiveNumber(input.targetWeightKg) ?? 70;
+  const heightCm = toPositiveNumber(input.heightCm) ?? 170;
+  const ageYears = toPositiveNumber(input.ageYears) ?? 30;
+  const sex = input.sex ?? "prefer_not_to_say";
+  const activityLevel = input.activityLevel ?? "moderate";
+  const goalType = input.goalType ?? "maintenance";
+  const estimated = !input.weightKg || !input.heightCm || !input.ageYears || !input.sex || !input.activityLevel;
+
+  const sexAdjustment = sex === "female" ? -161 : sex === "male" ? 5 : -78;
+  const bmr = 10 * weightKg + 6.25 * heightCm - 5 * ageYears + sexAdjustment;
+  const activityMultiplier = activityLevel === "low" ? 1.35 : activityLevel === "high" ? 1.7 : 1.5;
+  const maintenanceCalories = bmr * activityMultiplier;
+  const goalAdjustment = goalType === "fat_loss" ? -400 : goalType === "muscle_gain" ? 250 : 0;
+  const calorieTarget = Math.round(Math.min(4200, Math.max(1200, maintenanceCalories + goalAdjustment)) / 25) * 25;
+  const proteinMultiplier = goalType === "muscle_gain" ? 1.8 : goalType === "fat_loss" ? 1.7 : 1.5;
+  const proteinTargetG = Math.round(Math.min(220, Math.max(70, weightKg * proteinMultiplier)) / 5) * 5;
+
+  return {
+    calorieTarget,
+    proteinTargetG,
+    waterTargetMl: 2500,
+    estimated,
+    explanation:
+      goalType === "fat_loss"
+        ? "A gentle calorie deficit with higher protein to support fat loss."
+        : goalType === "muscle_gain"
+          ? "A small calorie surplus with higher protein to support muscle gain."
+          : "A steady maintenance guide to support consistency."
+  };
+}

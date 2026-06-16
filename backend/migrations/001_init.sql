@@ -38,6 +38,8 @@ create table users (
   target_weight_kg numeric(5,2),
   date_of_birth date,
   gender text,
+  age_years integer,
+  activity_level text,
   status text not null default 'active',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
