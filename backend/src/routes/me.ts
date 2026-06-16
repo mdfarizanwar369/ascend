@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
-import { completeOnboarding, onboardingSchema } from "../services/userService";
+import { completeOnboarding, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
 
 export const meRouter = Router();
 
@@ -24,6 +24,16 @@ meRouter.post("/me/onboarding", requireAuth, async (req, res, next) => {
   try {
     const input = onboardingSchema.parse(req.body);
     const user = await completeOnboarding(req.user!.id, input);
+    res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.patch("/me/guide-profile", requireAuth, async (req, res, next) => {
+  try {
+    const input = guideProfileSchema.parse(req.body);
+    const user = await updateGuideProfile(req.user!.id, input);
     res.json({ user });
   } catch (error) {
     next(error);

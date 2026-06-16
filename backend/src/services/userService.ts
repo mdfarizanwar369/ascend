@@ -13,6 +13,13 @@ export const onboardingSchema = z.object({
   targetWeightKg: z.number().positive().optional()
 });
 
+export const guideProfileSchema = z.object({
+  gender: z.enum(["female", "male", "prefer_not_to_say"]),
+  ageYears: z.number().int().min(13).max(100),
+  activityLevel: z.enum(["low", "moderate", "high"]),
+  heightCm: z.number().positive()
+});
+
 export async function ensureUserProfileSchema() {
   await query(`
     alter table users add column if not exists age_years integer;
@@ -62,6 +69,24 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
       referralRow?.gym_id ?? null,
       referralRow?.trainer_id ?? null
     ]
+  );
+
+  return result.rows[0];
+}
+
+export async function updateGuideProfile(userId: string, input: z.infer<typeof guideProfileSchema>) {
+  const result = await query(
+    `
+    update users
+    set gender = $2,
+        age_years = $3,
+        activity_level = $4,
+        height_cm = $5,
+        updated_at = now()
+    where id = $1
+    returning *
+    `,
+    [userId, input.gender, input.ageYears, input.activityLevel, input.heightCm]
   );
 
   return result.rows[0];

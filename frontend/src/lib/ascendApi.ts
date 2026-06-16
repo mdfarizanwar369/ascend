@@ -49,6 +49,18 @@ export function completeOnboarding(input: {
   });
 }
 
+export function updateGuideProfile(input: {
+  gender: "female" | "male" | "prefer_not_to_say";
+  ageYears: number;
+  activityLevel: "low" | "moderate" | "high";
+  heightCm: number;
+}) {
+  return authed("/me/guide-profile", {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
 export function bootstrapOwner() {
   return authed<{
     user: {

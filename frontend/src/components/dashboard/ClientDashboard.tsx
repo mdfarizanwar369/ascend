@@ -230,6 +230,7 @@ export function ClientDashboard() {
   const proteinTarget = nutritionTargets.proteinTargetG;
   const calorieProgress = clamp(Math.round((calories / calorieTarget) * 100));
   const proteinProgress = clamp(Math.round((protein / proteinTarget) * 100));
+  const needsGuideProfile = !user?.age_years || !user?.height_cm || !user?.activity_level || !user?.gender;
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = momentumScore ?? fallbackScore;
   const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
@@ -432,6 +433,18 @@ export function ClientDashboard() {
             </div>
           </div>
         </section>
+
+        {needsGuideProfile ? (
+          <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+            <p className="text-sm font-semibold text-calm">Make your daily guide more accurate</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              Add age, height, and activity level so Ascend can give a better calorie and protein guide.
+            </p>
+            <a href="/profile/guide" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+              Improve my daily guide
+            </a>
+          </section>
+        ) : null}
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
