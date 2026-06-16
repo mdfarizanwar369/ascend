@@ -104,6 +104,7 @@ export function getFoodLogs() {
       id: string;
       image_url?: string | null;
       image_s3_key?: string | null;
+      meal_type?: "breakfast" | "lunch" | "dinner" | "snack" | string;
       estimated_food_name: string;
       calories: number;
       protein_g: string | number;

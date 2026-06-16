@@ -83,6 +83,93 @@ function uniqueDays<T>(items: T[], getDate: (item: T) => string) {
   return new Set(items.map((item) => localDateKey(getDate(item))));
 }
 
+function currentMealWindow(hour: number | null) {
+  if (hour === null) return null;
+  if (hour < 11) return "breakfast";
+  if (hour < 15) return "lunch";
+  if (hour < 22) return "dinner";
+  return "snack";
+}
+
+function mealLabel(mealType: string | null) {
+  if (mealType === "breakfast") return "breakfast";
+  if (mealType === "lunch") return "lunch";
+  if (mealType === "dinner") return "dinner";
+  return "meal";
+}
+
+function formatWaterAction(remainingMl: number) {
+  const rounded = Math.min(1000, Math.max(300, Math.ceil(remainingMl / 100) * 100));
+  return `${rounded}ml water`;
+}
+
+function nextBestAction(input: {
+  currentHour: number | null;
+  todaysFood: FoodLog[];
+  caloriesLeft: number;
+  calorieOver: number;
+  proteinLeft: number;
+  waterLeftMl: number;
+  completedHabits: number;
+  totalHabits: number;
+  todaysBurnCalories: number;
+}) {
+  const mealWindow = currentMealWindow(input.currentHour);
+  const mealLogged = mealWindow
+    ? input.todaysFood.some((log) => (log.meal_type ?? "").toLowerCase() === mealWindow)
+    : false;
+
+  if (mealWindow && !mealLogged && input.currentHour !== null && input.currentHour >= 6 && input.currentHour < 22) {
+    const extras: string[] = [];
+    if (input.waterLeftMl >= 500) extras.push(`drink ${formatWaterAction(input.waterLeftMl)}`);
+    if (input.proteinLeft >= 25) extras.push("make it protein-focused");
+    return {
+      title: `Log ${mealLabel(mealWindow)}`,
+      detail: extras.length ? `Next: ${`log ${mealLabel(mealWindow)}`} and ${extras[0]}.` : `Next: log ${mealLabel(mealWindow)}.`
+    };
+  }
+
+  if (input.proteinLeft >= 30 && input.calorieOver <= 150) {
+    return {
+      title: "Add protein next",
+      detail: "Next: choose a higher-protein meal or snack."
+    };
+  }
+
+  if (input.waterLeftMl >= 500) {
+    return {
+      title: "Top up water",
+      detail: `Next: drink ${formatWaterAction(input.waterLeftMl)}.`
+    };
+  }
+
+  if (input.completedHabits < input.totalHabits && input.totalHabits > 0) {
+    return {
+      title: "Finish today's habits",
+      detail: "Next: tick off the habit checks you still want to complete."
+    };
+  }
+
+  if (!input.todaysBurnCalories && input.currentHour !== null && input.currentHour >= 16) {
+    return {
+      title: "Add a little movement",
+      detail: "Next: log a short walk or workout."
+    };
+  }
+
+  if (input.calorieOver > 150) {
+    return {
+      title: "Keep the next meal lighter",
+      detail: "Next: focus on protein, fibre, and water."
+    };
+  }
+
+  return {
+    title: "Keep the momentum going",
+    detail: "Next: one more small check-in keeps today moving well."
+  };
+}
+
 export function ClientDashboard() {
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -105,6 +192,7 @@ export function ClientDashboard() {
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [missionStatus, setMissionStatus] = useState("");
+  const [currentHour, setCurrentHour] = useState<number | null>(null);
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -191,6 +279,16 @@ export function ClientDashboard() {
     };
   }, [loadDashboard]);
 
+  useEffect(() => {
+    function syncClock() {
+      setCurrentHour(new Date().getHours());
+    }
+
+    syncClock();
+    const interval = window.setInterval(syncClock, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const today = useMemo(() => localDateKey(), []);
   const weekKeys = useMemo(() => lastSevenDateKeys(), []);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
@@ -232,6 +330,10 @@ export function ClientDashboard() {
   const proteinTarget = nutritionTargets.proteinTargetG;
   const carbsTarget = nutritionTargets.carbsTargetG;
   const fatTarget = nutritionTargets.fatTargetG;
+  const caloriesLeft = Math.max(calorieTarget - calories, 0);
+  const calorieOver = Math.max(calories - calorieTarget, 0);
+  const proteinLeft = Math.max(proteinTarget - protein, 0);
+  const waterLeftMl = Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0);
   const calorieProgress = clamp(Math.round((calories / calorieTarget) * 100));
   const proteinProgress = clamp(Math.round((protein / proteinTarget) * 100));
   const needsGuideProfile = !user?.age_years || !user?.height_cm || !user?.activity_level || !user?.gender;
@@ -301,6 +403,17 @@ export function ClientDashboard() {
     { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
     { href: "/admin", label: "Admin", selected: false, show: canAdmin }
   ].filter((item) => item.show);
+  const nextAction = nextBestAction({
+    currentHour,
+    todaysFood,
+    caloriesLeft,
+    calorieOver,
+    proteinLeft,
+    waterLeftMl,
+    completedHabits: completedHabitIds.size,
+    totalHabits: habits.length,
+    todaysBurnCalories
+  });
 
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
@@ -322,11 +435,38 @@ export function ClientDashboard() {
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} />
 
+        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-calm">Today&apos;s target</p>
+              <h1 className="mt-1 text-2xl font-semibold">{nextAction.title}</h1>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">{nextAction.detail}</p>
+            </div>
+            <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">
+              {calorieOver > 0 ? `${calorieOver.toLocaleString()} over` : `${caloriesLeft.toLocaleString()} left`}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Calories</p>
+              <p className="mt-1 text-lg font-semibold">{calorieOver > 0 ? `${calorieOver.toLocaleString()} over` : `${caloriesLeft.toLocaleString()} left`}</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Protein</p>
+              <p className="mt-1 text-lg font-semibold">{Math.round(proteinLeft)}g left</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Water</p>
+              <p className="mt-1 text-lg font-semibold">{(waterLeftMl / 1000).toFixed(1)}L left</p>
+            </div>
+          </div>
+        </section>
+
         <section className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm text-zinc-300">{formatGoal(user?.goal_type)}</p>
-              <h1 className="mt-1 text-2xl font-semibold">Quick actions</h1>
+              <h2 className="mt-1 text-2xl font-semibold">Quick actions</h2>
               <p className="mt-2 text-sm leading-6 text-zinc-300">Log one thing now to keep today moving.</p>
             </div>
             <a href="/food-log" className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-lime text-xl font-bold text-ink" aria-label="Add food">
