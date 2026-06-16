@@ -91,6 +91,8 @@ export interface NutritionTargetInput {
 export interface NutritionTargets {
   calorieTarget: number;
   proteinTargetG: number;
+  carbsTargetG: number;
+  fatTargetG: number;
   waterTargetMl: number;
   estimated: boolean;
   explanation: string;
@@ -118,10 +120,16 @@ export function calculateNutritionTargets(input: NutritionTargetInput): Nutritio
   const calorieTarget = Math.round(Math.min(4200, Math.max(1200, maintenanceCalories + goalAdjustment)) / 25) * 25;
   const proteinMultiplier = goalType === "muscle_gain" ? 1.8 : goalType === "fat_loss" ? 1.7 : 1.5;
   const proteinTargetG = Math.round(Math.min(220, Math.max(70, weightKg * proteinMultiplier)) / 5) * 5;
+  const fatCalorieRatio = goalType === "fat_loss" ? 0.28 : goalType === "muscle_gain" ? 0.25 : 0.3;
+  const fatTargetG = Math.round(Math.max(40, (calorieTarget * fatCalorieRatio) / 9) / 5) * 5;
+  const remainingCalories = Math.max(0, calorieTarget - proteinTargetG * 4 - fatTargetG * 9);
+  const carbsTargetG = Math.round(Math.max(80, remainingCalories / 4) / 5) * 5;
 
   return {
     calorieTarget,
     proteinTargetG,
+    carbsTargetG,
+    fatTargetG,
     waterTargetMl: 2500,
     estimated,
     explanation:

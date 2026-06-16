@@ -214,6 +214,8 @@ export function ClientDashboard() {
   const dashboardHabits = habits.slice(0, 3);
   const calories = todaysFood.reduce((total, log) => total + Number(log.calories), 0);
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
+  const carbs = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.carbs_g), 0));
+  const fat = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.fat_g), 0));
   const nutritionTargets = calculateNutritionTargets({
     goalType: user?.goal_type,
     sex: user?.gender === "female" || user?.gender === "male" ? user.gender : "prefer_not_to_say",
@@ -228,6 +230,8 @@ export function ClientDashboard() {
   });
   const calorieTarget = nutritionTargets.calorieTarget;
   const proteinTarget = nutritionTargets.proteinTargetG;
+  const carbsTarget = nutritionTargets.carbsTargetG;
+  const fatTarget = nutritionTargets.fatTargetG;
   const calorieProgress = clamp(Math.round((calories / calorieTarget) * 100));
   const proteinProgress = clamp(Math.round((protein / proteinTarget) * 100));
   const needsGuideProfile = !user?.age_years || !user?.height_cm || !user?.activity_level || !user?.gender;
@@ -509,6 +513,16 @@ export function ClientDashboard() {
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-ink p-4">
+              <p className="text-xs uppercase text-zinc-400">Carbs</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{carbs}g</p>
+              <p className="mt-1 text-sm text-zinc-400">of {carbsTarget}g guide</p>
+            </div>
+            <div className="rounded-lg bg-ink p-4">
+              <p className="text-xs uppercase text-zinc-400">Fat</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{fat}g</p>
+              <p className="mt-1 text-sm text-zinc-400">of {fatTarget}g guide</p>
+            </div>
             <div className="rounded-lg bg-ink p-4">
               <p className="text-xs uppercase text-zinc-400">Water</p>
               <p className="mt-2 text-2xl font-semibold text-white">{(todaysWaterMl / 1000).toFixed(1)}L</p>

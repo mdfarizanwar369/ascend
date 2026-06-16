@@ -14,6 +14,8 @@ describe("nutrition targets", () => {
 
     expect(target.calorieTarget).toBeGreaterThanOrEqual(1200);
     expect(target.proteinTargetG).toBeGreaterThanOrEqual(150);
+    expect(target.carbsTargetG).toBeGreaterThanOrEqual(80);
+    expect(target.fatTargetG).toBeGreaterThanOrEqual(40);
     expect(target.explanation).toContain("deficit");
     expect(target.estimated).toBe(false);
   });
@@ -30,6 +32,7 @@ describe("nutrition targets", () => {
 
     expect(target.calorieTarget).toBeGreaterThan(1800);
     expect(target.proteinTargetG).toBeGreaterThanOrEqual(105);
+    expect(target.carbsTargetG).toBeGreaterThan(target.fatTargetG);
     expect(target.explanation).toContain("surplus");
   });
 
@@ -38,6 +41,8 @@ describe("nutrition targets", () => {
 
     expect(target.calorieTarget).toBeGreaterThanOrEqual(1200);
     expect(target.proteinTargetG).toBeGreaterThanOrEqual(70);
+    expect(target.carbsTargetG).toBeGreaterThanOrEqual(80);
+    expect(target.fatTargetG).toBeGreaterThanOrEqual(40);
     expect(target.estimated).toBe(true);
   });
 });

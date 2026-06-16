@@ -355,6 +355,20 @@ export function FoodLogClient() {
               style={{ width: `${Math.min(100, Math.round((todaysTotals.calories / nutritionTargets.calorieTarget) * 100))}%` }}
             />
           </div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-ink p-2">
+              <p className="text-[10px] uppercase text-zinc-500">Protein</p>
+              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.proteinG)} / {nutritionTargets.proteinTargetG}g</p>
+            </div>
+            <div className="rounded-lg bg-ink p-2">
+              <p className="text-[10px] uppercase text-zinc-500">Carbs</p>
+              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.carbsG)} / {nutritionTargets.carbsTargetG}g</p>
+            </div>
+            <div className="rounded-lg bg-ink p-2">
+              <p className="text-[10px] uppercase text-zinc-500">Fat</p>
+              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.fatG)} / {nutritionTargets.fatTargetG}g</p>
+            </div>
+          </div>
           <p className="mt-2 text-xs text-zinc-500">Daily guide, not a strict limit. Review portions with your trainer if unsure.</p>
 
           {todaysFoodLogs.length ? (
