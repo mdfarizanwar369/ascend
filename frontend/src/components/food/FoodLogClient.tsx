@@ -102,6 +102,54 @@ function allowanceHint(allowance: FoodAiAllowance | null) {
   return `${allowance.remaining} AI ${allowance.remaining === 1 ? "scan" : "scans"} remaining.`;
 }
 
+function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculateNutritionTargets>) {
+  const calorieShare = estimate.calories / targets.calorieTarget;
+  const proteinCalories = estimate.proteinG * 4;
+  const proteinRatio = estimate.calories > 0 ? proteinCalories / estimate.calories : 0;
+  const fatShare = estimate.fatG / targets.fatTargetG;
+  const carbsShare = estimate.carbsG / targets.carbsTargetG;
+
+  if (estimate.calories <= 0) {
+    return {
+      title: "Add meal details",
+      detail: "Enter the food name and macros so Ascend can guide the rest of your day."
+    };
+  }
+
+  if (proteinRatio < 0.16 && estimate.proteinG < 25) {
+    return {
+      title: "Protein looks low",
+      detail: "Add chicken, eggs, tofu, fish, tempeh, or Greek yogurt later today to support recovery."
+    };
+  }
+
+  if (fatShare >= 0.55) {
+    return {
+      title: "High-fat meal",
+      detail: "This uses a lot of today's fat guide. Keep the next meal leaner and add vegetables or fruit."
+    };
+  }
+
+  if (carbsShare >= 0.5 && calorieShare < 0.45) {
+    return {
+      title: "Carb-heavy meal",
+      detail: "Useful for training energy. Balance the next meal with more protein and lighter fats."
+    };
+  }
+
+  if (calorieShare >= 0.45) {
+    return {
+      title: "Big meal",
+      detail: "This uses a larger part of today's calorie guide. Keep the next meal simple and protein-focused."
+    };
+  }
+
+  return {
+    title: "Balanced enough",
+    detail: "Good start. Keep the next meal aligned with your protein and water guide."
+  };
+}
+
 export function FoodLogClient() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -178,6 +226,8 @@ export function FoodLogClient() {
     if (!estimate) return false;
     return estimate.foodName.trim().length > 0 && Number(estimate.calories) > 0;
   }, [estimate]);
+
+  const currentMealInsight = estimate ? mealInsight(estimate, nutritionTargets) : null;
 
   async function estimateFoodWithRetry(imageDataUrl: string) {
     let lastError: unknown;
@@ -508,6 +558,12 @@ export function FoodLogClient() {
               <br />
               {estimate.notes}
             </div>
+            {currentMealInsight ? (
+              <div className="rounded-lg border border-lime/30 bg-lime/10 p-3">
+                <p className="text-sm font-semibold text-lime">{currentMealInsight.title}</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-200">{currentMealInsight.detail}</p>
+              </div>
+            ) : null}
             <div className="grid grid-cols-2 gap-3">
               <button className="flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white" type="button">
                 <Pencil className="mr-2" size={18} />

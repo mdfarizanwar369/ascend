@@ -74,6 +74,7 @@ The live app is available at:
 - Made streak calculations use the database date instead of the browser/server JavaScript date, reducing timezone edge cases for mobile users.
 - Added server-side AI food scan limits and a food-page allowance display so members see usage like `1 / 5 used today` before they scan.
 - Added supportive daily calorie/protein/carb/fat guide displays on the client dashboard and food logging page so food estimates have context without turning Ascend into a strict calorie tracker.
+- Added local meal insights after food estimates, using existing macro numbers to give one simple label and next step without any extra AI call or Gemini cost.
 - Added a lightweight guide profile update page for existing clients, plus a backend endpoint and regression test for saving nutrition guide details.
 
 ## Remaining Pilot Risks
