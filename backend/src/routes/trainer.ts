@@ -316,10 +316,17 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
   try {
     const result = await query(
       `
-      select u.id, u.full_name, u.email, u.goal_type, cs.score as compliance_score,
+      select u.id, u.full_name, u.email, u.goal_type, u.gender, u.age_years, u.activity_level,
+        u.height_cm, u.starting_weight_kg, u.target_weight_kg,
+        cs.score as compliance_score,
         risk.risk_severity, risk.open_alerts,
         food.last_food_logged_at,
+        coalesce(food_today.calories, 0) as calories_today,
+        coalesce(food_today.protein_g, 0) as protein_g_today,
+        coalesce(food_today.carbs_g, 0) as carbs_g_today,
+        coalesce(food_today.fat_g, 0) as fat_g_today,
         weight.last_weight_logged_at,
+        weight.latest_weight_kg,
         water.last_water_logged_at,
         msg.last_client_message_at,
         coalesce(streak.current_streak, 0) as consistency_streak
@@ -336,7 +343,16 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         where user_id = u.id
       ) food on true
       left join lateral (
-        select max(logged_at) as last_weight_logged_at
+        select
+          coalesce(sum(calories), 0) as calories,
+          coalesce(sum(protein_g), 0) as protein_g,
+          coalesce(sum(carbs_g), 0) as carbs_g,
+          coalesce(sum(fat_g), 0) as fat_g
+        from food_logs
+        where user_id = u.id and logged_at::date = current_date
+      ) food_today on true
+      left join lateral (
+        select max(logged_at) as last_weight_logged_at, (array_agg(weight_kg order by logged_at desc))[1] as latest_weight_kg
         from weight_logs
         where user_id = u.id
       ) weight on true
@@ -393,7 +409,8 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
   try {
     const result = await query(
       `
-      select u.id, u.full_name, u.email, u.goal_type, u.starting_weight_kg, u.target_weight_kg,
+      select u.id, u.full_name, u.email, u.goal_type, u.gender, u.age_years, u.activity_level,
+        u.height_cm, u.starting_weight_kg, u.target_weight_kg,
         g.name as gym_name, cs.score as compliance_score
       from users u
       left join gyms g on g.id = u.gym_id

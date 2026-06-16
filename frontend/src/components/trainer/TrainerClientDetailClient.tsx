@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { calculateNutritionTargets } from "@ascend/shared";
 import { AlertTriangle, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
 import {
   createTrainerClientMission,
@@ -102,12 +103,33 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
   const today = useMemo(() => localDateKey(), []);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
+  const todaysNutrition = todaysFood.reduce(
+    (total, log) => ({
+      calories: total.calories + Number(log.calories ?? 0),
+      proteinG: total.proteinG + asNumber(log.protein_g),
+      carbsG: total.carbsG + asNumber(log.carbs_g),
+      fatG: total.fatG + asNumber(log.fat_g)
+    }),
+    { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+  );
   const todaysWaterMl = waterLogs.filter((log) => localDateKey(log.logged_at) === today).reduce((total, log) => total + log.amount_ml, 0);
   const latestWeight = weightLogs[0];
   const previousWeight = weightLogs[1];
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : 0;
   const score = client?.compliance_score;
   const latestFood = foodLogs[0];
+  const nutritionTargets = calculateNutritionTargets({
+    goalType: client?.goal_type,
+    sex: client?.gender === "female" || client?.gender === "male" ? client.gender : "prefer_not_to_say",
+    ageYears: client?.age_years,
+    heightCm: client?.height_cm,
+    weightKg: latestWeight?.weight_kg ?? client?.starting_weight_kg,
+    targetWeightKg: client?.target_weight_kg,
+    activityLevel:
+      client?.activity_level === "low" || client?.activity_level === "moderate" || client?.activity_level === "high"
+        ? client.activity_level
+        : "moderate"
+  });
 
   async function generateCheckin() {
     setIsGenerating(true);
@@ -241,6 +263,30 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Food today" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No food today"} />
         <MetricCard label="Water today" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail="2.5L target" />
+      </section>
+
+      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Nutrition today</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">Client intake compared with their daily guide.</p>
+          </div>
+          <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{todaysFood.length} logs</span>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {[
+            ["Calories", todaysNutrition.calories.toLocaleString(), `${nutritionTargets.calorieTarget.toLocaleString()} kcal`],
+            ["Protein", `${Math.round(todaysNutrition.proteinG)}g`, `${nutritionTargets.proteinTargetG}g guide`],
+            ["Carbs", `${Math.round(todaysNutrition.carbsG)}g`, `${nutritionTargets.carbsTargetG}g guide`],
+            ["Fat", `${Math.round(todaysNutrition.fatG)}g`, `${nutritionTargets.fatTargetG}g guide`]
+          ].map(([label, value, detail]) => (
+            <div key={label} className="rounded-lg bg-ink p-3">
+              <p className="text-xs uppercase text-zinc-400">{label}</p>
+              <p className="mt-2 text-xl font-semibold text-white">{value}</p>
+              <p className="mt-1 text-xs text-zinc-500">of {detail}</p>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">

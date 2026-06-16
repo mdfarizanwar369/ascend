@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { calculateNutritionTargets } from "@ascend/shared";
 import { AlertTriangle, CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
 import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
@@ -39,6 +40,41 @@ function daysAgo(value?: string | null) {
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   return `${days} days ago`;
+}
+
+function asNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return 0;
+  return Number(value);
+}
+
+function nutritionSummary(client: TrainerClient) {
+  const calories = asNumber(client.calories_today);
+  if (!calories) return "No food yet";
+
+  const targets = calculateNutritionTargets({
+    goalType: client.goal_type,
+    sex: client.gender === "female" || client.gender === "male" ? client.gender : "prefer_not_to_say",
+    ageYears: client.age_years,
+    heightCm: client.height_cm,
+    weightKg: client.latest_weight_kg ?? client.starting_weight_kg,
+    targetWeightKg: client.target_weight_kg,
+    activityLevel:
+      client.activity_level === "low" || client.activity_level === "moderate" || client.activity_level === "high"
+        ? client.activity_level
+        : "moderate"
+  });
+  const labels: string[] = [];
+  if (calories > targets.calorieTarget * 1.08) labels.push("Over calories");
+  if (asNumber(client.protein_g_today) < targets.proteinTargetG * 0.55 && calories > targets.calorieTarget * 0.35) labels.push("Low protein");
+  if (asNumber(client.fat_g_today) > targets.fatTargetG * 0.75) labels.push("High fat");
+  if (asNumber(client.carbs_g_today) > targets.carbsTargetG * 0.8) labels.push("High carbs");
+  return labels.length ? labels.slice(0, 2).join(", ") : "On track";
+}
+
+function nutritionSummaryClass(summary: string) {
+  if (summary === "On track") return "text-lime";
+  if (summary === "No food yet") return "text-zinc-500";
+  return "text-amber";
 }
 
 export function TrainerDashboardClient() {
@@ -246,6 +282,9 @@ export function TrainerDashboardClient() {
                           {Number(client.consistency_streak)}-day streak
                         </p>
                       ) : null}
+                      <p className={`mt-2 text-xs font-semibold ${nutritionSummaryClass(nutritionSummary(client))}`}>
+                        Nutrition: {nutritionSummary(client)}
+                      </p>
                       <p className="mt-2 text-xs text-zinc-500">Food: {daysAgo(client.last_food_logged_at)} / Weight: {daysAgo(client.last_weight_logged_at)}</p>
                     </div>
                     <div className="text-right">
