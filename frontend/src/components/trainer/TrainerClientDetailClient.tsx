@@ -102,6 +102,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   const today = useMemo(() => localDateKey(), []);
+  const checkedInToday = client?.last_trainer_message_at ? localDateKey(client.last_trainer_message_at) === today : false;
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
   const todaysNutrition = todaysFood.reduce(
     (total, log) => ({
@@ -156,6 +157,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     try {
       const response = await sendTrainerClientMessage(clientId, trimmed);
       setMessages((current) => [...current, response.message]);
+      setClient((current) => (current ? { ...current, last_trainer_message_at: response.message.created_at } : current));
+      setStatus("Check-in sent.");
     } catch {
       setMessageBody(trimmed);
       setStatus("Could not send message. Make sure this client is assigned to this trainer.");
@@ -252,10 +255,12 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       </section>
 
       {(score ?? 100) < 50 ? (
-        <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
+        <section className={`mt-4 rounded-lg p-4 ${checkedInToday ? "border border-calm/40 bg-calm/10" : "border border-amber/40 bg-amber/10"}`}>
           <div className="flex gap-3">
-            <AlertTriangle className="mt-0.5 text-amber" size={20} />
-            <p className="text-sm leading-6 text-zinc-300">Momentum is low today. Send a quick check-in.</p>
+            <AlertTriangle className={`mt-0.5 ${checkedInToday ? "text-calm" : "text-amber"}`} size={20} />
+            <p className="text-sm leading-6 text-zinc-300">
+              {checkedInToday ? "Momentum is still low, but you already checked in with this client today." : "Momentum is low today. Send a quick check-in."}
+            </p>
           </div>
         </section>
       ) : null}

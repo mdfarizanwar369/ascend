@@ -411,17 +411,24 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
       `
       select u.id, u.full_name, u.email, u.goal_type, u.gender, u.age_years, u.activity_level,
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
-        g.name as gym_name, cs.score as compliance_score
+        g.name as gym_name, cs.score as compliance_score,
+        trainer_message.last_trainer_message_at
       from users u
       left join gyms g on g.id = u.gym_id
       left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+      left join lateral (
+        select max(created_at) as last_trainer_message_at
+        from messages
+        where sender_user_id = $6
+          and receiver_user_id = u.id
+      ) trainer_message on true
       where u.id = $1
         and u.primary_role = 'client'
         and u.status = 'active'
         and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
       limit 1
       `,
-      [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+      [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", req.user!.id]
     );
 
     if (!result.rows[0]) return res.status(404).json({ error: "Client not found" });

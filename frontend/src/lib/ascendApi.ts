@@ -648,6 +648,7 @@ export function getTrainerClient(clientId: string) {
       target_weight_kg?: string | number | null;
       gym_name?: string | null;
       compliance_score?: number | null;
+      last_trainer_message_at?: string | null;
     };
   }>(`/trainer/clients/${clientId}`);
 }
