@@ -13,6 +13,11 @@ import { BrandMark } from "@/components/BrandMark";
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
 const authDraftKey = "ascend.authDraft.v1";
+const firebaseWebApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "";
+const firebaseAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "";
+const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "";
+const firebaseAppId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "";
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -204,7 +209,7 @@ export function AuthPanel() {
             ) : null}
             {mode === "signup" ? (
               <>
-                <div>
+                <div id="ascend-role-field">
                   <p className="mb-2 text-sm font-medium">I am signing up as</p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
@@ -213,6 +218,8 @@ export function AuthPanel() {
                     ].map((item) => (
                       <button
                         key={item.value}
+                        id={`ascend-role-${item.value}`}
+                        data-ascend-role={item.value}
                         type="button"
                         onClick={() => setSignupRole(item.value as SignupRole)}
                         className={`rounded-lg border p-3 text-left ${
@@ -228,8 +235,10 @@ export function AuthPanel() {
                   </div>
                   <p className="mt-2 text-xs leading-5 text-zinc-500">Owner/admin access is invite-only and cannot be selected here.</p>
                 </div>
-                <Field label="Full name">
+                <div id="ascend-full-name-field">
+                  <Field label="Full name">
                   <input
+                    id="ascend-full-name"
                     autoComplete="name"
                     className={inputClass}
                     required
@@ -237,11 +246,13 @@ export function AuthPanel() {
                     onChange={(event) => setFullName(event.target.value)}
                     placeholder="Your name"
                   />
-                </Field>
+                  </Field>
+                </div>
               </>
             ) : null}
             <Field label="Email">
               <input
+                id="ascend-email"
                 autoComplete="email"
                 className={inputClass}
                 required
@@ -253,6 +264,7 @@ export function AuthPanel() {
             </Field>
             <Field label="Password" hint="Use at least 6 characters for Firebase email sign-up.">
               <input
+                id="ascend-password"
                 autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 className={inputClass}
                 minLength={6}
@@ -263,6 +275,7 @@ export function AuthPanel() {
               />
             </Field>
             {mode === "signup" ? (
+              <div id="ascend-referral-field">
               <Field
                 label="Referral code"
                 hint={
@@ -272,6 +285,7 @@ export function AuthPanel() {
                 }
               >
                 <input
+                  id="ascend-referral"
                   autoComplete="off"
                   className={inputClass}
                   value={referralCode}
@@ -279,9 +293,16 @@ export function AuthPanel() {
                   onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
                 />
               </Field>
+              </div>
             ) : null}
-            {status ? <p className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">{status}</p> : null}
+            <p
+              id="ascend-auth-status"
+              className={`rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber ${status ? "" : "hidden"}`}
+            >
+              {status}
+            </p>
             <button
+              id="ascend-auth-action"
               type="button"
               className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting || !firebaseConfigured}
@@ -304,12 +325,205 @@ export function AuthPanel() {
           </form>
 
           <button
+            id="ascend-auth-toggle"
             className="mt-4 text-sm font-medium text-lime"
             onClick={() => setMode(mode === "signup" ? "login" : "signup")}
             type="button"
           >
             {mode === "signup" ? "Already have an account? Log in" : "Need an account? Sign up"}
           </button>
+          <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" async={false} />
+          <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" async={false} />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+(() => {
+  if (window.__ascendAuthFallbackInstalled) return;
+  window.__ascendAuthFallbackInstalled = true;
+
+  const firebaseApiKey = ${JSON.stringify(firebaseWebApiKey)};
+  const firebaseConfig = {
+    apiKey: firebaseApiKey,
+    authDomain: ${JSON.stringify(firebaseAuthDomain)},
+    projectId: ${JSON.stringify(firebaseProjectId)},
+    appId: ${JSON.stringify(firebaseAppId)}
+  };
+  const apiBaseUrl = ${JSON.stringify(apiBaseUrl)};
+  let mode = "signup";
+  let role = "client";
+  let busy = false;
+
+  const $ = (id) => document.getElementById(id);
+  const status = $("ascend-auth-status");
+  const action = $("ascend-auth-action");
+  const toggle = $("ascend-auth-toggle");
+  const roleField = $("ascend-role-field");
+  const fullNameField = $("ascend-full-name-field");
+  const referralField = $("ascend-referral-field");
+  const fullName = $("ascend-full-name");
+  const email = $("ascend-email");
+  const password = $("ascend-password");
+  const referral = $("ascend-referral");
+  const clientRole = $("ascend-role-client");
+  const trainerRole = $("ascend-role-trainer");
+
+  if (!action || !toggle || !email || !password) return;
+
+  function showStatus(message) {
+    if (!status) return;
+    status.textContent = message || "";
+    status.classList.toggle("hidden", !message);
+  }
+
+  function setRole(nextRole) {
+    role = nextRole === "trainer" ? "trainer" : "client";
+    [clientRole, trainerRole].forEach((button) => {
+      if (!button) return;
+      const active = button.dataset.ascendRole === role;
+      button.className = active
+        ? "rounded-lg border p-3 text-left border-lime bg-lime text-ink"
+        : "rounded-lg border p-3 text-left border-line bg-ink text-white";
+      const detail = button.querySelector("span:nth-child(2)");
+      if (detail) detail.className = active ? "mt-1 block text-xs text-ink/70" : "mt-1 block text-xs text-zinc-400";
+    });
+    action.textContent = role === "trainer" ? "Create trainer account" : "Create client account";
+  }
+
+  function setMode(nextMode) {
+    mode = nextMode === "login" ? "login" : "signup";
+    const signingUp = mode === "signup";
+    if (roleField) roleField.classList.toggle("hidden", !signingUp);
+    if (fullNameField) fullNameField.classList.toggle("hidden", !signingUp);
+    if (referralField) referralField.classList.toggle("hidden", !signingUp);
+    action.textContent = signingUp ? (role === "trainer" ? "Create trainer account" : "Create client account") : "Log in";
+    toggle.textContent = signingUp ? "Already have an account? Log in" : "Need an account? Sign up";
+    showStatus("");
+  }
+
+  async function firebaseRequest(path, body) {
+    const response = await fetch("https://identitytoolkit.googleapis.com/v1/" + path + "?key=" + encodeURIComponent(firebaseApiKey), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const code = payload && payload.error && payload.error.message;
+      if (code === "EMAIL_EXISTS") throw new Error("This email already has an account. Please log in instead.");
+      if (code === "INVALID_EMAIL") throw new Error("Please enter a valid email address.");
+      if (code === "WEAK_PASSWORD : Password should be at least 6 characters") throw new Error("Please use a password with at least 6 characters.");
+      if (code === "EMAIL_NOT_FOUND" || code === "INVALID_PASSWORD" || code === "INVALID_LOGIN_CREDENTIALS") throw new Error("Email or password is not correct.");
+      throw new Error("Firebase could not continue. Please refresh and try again.");
+    }
+    return payload;
+  }
+
+  async function authenticateWithFirebaseSdk(emailValue, passwordValue, nameValue) {
+    if (!window.firebase || !window.firebase.auth) return null;
+    if (!window.firebase.apps || window.firebase.apps.length === 0) {
+      window.firebase.initializeApp(firebaseConfig);
+    }
+    const auth = window.firebase.auth();
+    try {
+      await auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL);
+    } catch (_) {
+      // Some Safari privacy modes reject persistence changes. Firebase still keeps the current session if possible.
+    }
+    const credential =
+      mode === "signup"
+        ? await auth.createUserWithEmailAndPassword(emailValue, passwordValue)
+        : await auth.signInWithEmailAndPassword(emailValue, passwordValue);
+    if (mode === "signup" && nameValue && credential.user) {
+      await credential.user.updateProfile({ displayName: nameValue });
+    }
+    return credential.user ? credential.user.getIdToken() : null;
+  }
+
+  async function provision(token) {
+    const response = await fetch(apiBaseUrl + "/auth/provision", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer " + token
+      },
+      body: JSON.stringify({
+        fullName: mode === "signup" && fullName ? fullName.value.trim() : undefined,
+        referralCode: mode === "signup" && referral ? referral.value.trim().toUpperCase() || undefined : undefined,
+        primaryRole: mode === "signup" ? role : "client"
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Ascend profile setup failed. Please try again.");
+    return payload;
+  }
+
+  async function runAuth(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (busy) return;
+
+    const emailValue = email.value.trim();
+    const passwordValue = password.value;
+    const nameValue = fullName ? fullName.value.trim() : "";
+
+    if (!firebaseApiKey) {
+      showStatus("Firebase is not ready. Please refresh and try again.");
+      return;
+    }
+    if (!emailValue || !passwordValue) {
+      showStatus("Please enter your email and password.");
+      return;
+    }
+    if (mode === "signup" && !nameValue) {
+      showStatus("Please enter your full name.");
+      return;
+    }
+
+    busy = true;
+    action.disabled = true;
+    action.textContent = "Working...";
+
+    try {
+      showStatus(mode === "signup" ? "Creating your Ascend account..." : "Logging you in...");
+      let idToken = await authenticateWithFirebaseSdk(emailValue, passwordValue, nameValue);
+      if (!idToken) {
+        const authPayload = await firebaseRequest(mode === "signup" ? "accounts:signUp" : "accounts:signInWithPassword", {
+          email: emailValue,
+          password: passwordValue,
+          displayName: mode === "signup" ? nameValue : undefined,
+          returnSecureToken: true
+        });
+        idToken = authPayload.idToken;
+      }
+      showStatus("Setting up your Ascend profile...");
+      await provision(idToken);
+      window.location.href = mode === "signup" && role === "client" ? "/onboarding" : role === "trainer" ? "/trainer" : "/dashboard";
+    } catch (error) {
+      showStatus(error && error.message ? error.message : "Unable to continue. Please refresh and try again.");
+      busy = false;
+      action.disabled = false;
+      action.textContent = mode === "signup" ? (role === "trainer" ? "Create trainer account" : "Create client account") : "Log in";
+    }
+  }
+
+  clientRole && clientRole.addEventListener("click", (event) => {
+    event.preventDefault();
+    setRole("client");
+  }, true);
+  trainerRole && trainerRole.addEventListener("click", (event) => {
+    event.preventDefault();
+    setRole("trainer");
+  }, true);
+  toggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    setMode(mode === "signup" ? "login" : "signup");
+  }, true);
+  action.addEventListener("click", runAuth, true);
+  action.closest("form")?.addEventListener("submit", runAuth, true);
+})();
+`
+            }}
+          />
         </section>
       </div>
     </main>
