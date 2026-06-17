@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { KeyboardEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { ArrowRight, LogIn } from "lucide-react";
@@ -36,9 +36,8 @@ export function AuthPanel() {
     return "/dashboard";
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    event.stopPropagation();
+  async function handleAuthAction() {
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setStatus(null);
 
@@ -91,6 +90,13 @@ export function AuthPanel() {
     }
   }
 
+  function handleAuthKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    event.stopPropagation();
+    void handleAuthAction();
+  }
+
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto flex min-h-screen max-w-md flex-col">
@@ -110,7 +116,7 @@ export function AuthPanel() {
             </h1>
           </div>
 
-          <form className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" onSubmit={handleSubmit}>
+          <div className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" onKeyDown={handleAuthKeyDown}>
             {!firebaseConfigured ? (
               <div className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">
                 Firebase is not configured locally yet. Use local preview mode to review the MVP screens, or add Firebase web app values to
@@ -197,9 +203,10 @@ export function AuthPanel() {
             ) : null}
             {status ? <p className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">{status}</p> : null}
             <button
-              type="submit"
+              type="button"
               className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting || !firebaseConfigured}
+              onClick={() => void handleAuthAction()}
             >
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
               {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : "Create client account" : "Log in"}
@@ -215,7 +222,7 @@ export function AuthPanel() {
                 Continue in local preview mode
               </button>
             ) : null}
-          </form>
+          </div>
 
           <button
             className="mt-4 text-sm font-medium text-lime"

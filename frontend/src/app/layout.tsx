@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AuthStateGuard } from "@/components/AuthStateGuard";
+import { CanonicalDomainGuard } from "@/components/CanonicalDomainGuard";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
 import "./globals.css";
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <body>
+        <CanonicalDomainGuard />
         <AuthStateGuard />
         <PwaRegistrar />
         {children}
