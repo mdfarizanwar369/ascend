@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { ArrowRight, LogIn } from "lucide-react";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
@@ -13,6 +14,7 @@ type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
 
 export function AuthPanel() {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("signup");
   const [signupRole, setSignupRole] = useState<SignupRole>("client");
   const [fullName, setFullName] = useState("");
@@ -36,19 +38,34 @@ export function AuthPanel() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    event.stopPropagation();
     setIsSubmitting(true);
     setStatus(null);
 
     try {
+      const normalizedEmail = email.trim();
+      const normalizedFullName = fullName.trim();
+      const normalizedReferralCode = referralCode.trim();
+
+      if (!normalizedEmail || !password) {
+        setStatus("Please enter your email and password.");
+        return;
+      }
+
+      if (mode === "signup" && !normalizedFullName) {
+        setStatus("Please enter your full name.");
+        return;
+      }
+
       await waitForFirebasePersistence();
       const auth = getFirebaseClientAuth();
       const credential =
         mode === "signup"
-          ? await createUserWithEmailAndPassword(auth, email, password)
-          : await signInWithEmailAndPassword(auth, email, password);
+          ? await createUserWithEmailAndPassword(auth, normalizedEmail, password)
+          : await signInWithEmailAndPassword(auth, normalizedEmail, password);
 
-      if (mode === "signup" && fullName) {
-        await updateProfile(credential.user, { displayName: fullName });
+      if (mode === "signup" && normalizedFullName) {
+        await updateProfile(credential.user, { displayName: normalizedFullName });
       }
 
       const token = await credential.user.getIdToken();
@@ -57,8 +74,8 @@ export function AuthPanel() {
         {
           method: "POST",
           body: JSON.stringify({
-            fullName: mode === "signup" ? fullName.trim() || undefined : undefined,
-            referralCode: mode === "signup" ? referralCode.trim() || undefined : undefined,
+            fullName: mode === "signup" ? normalizedFullName : undefined,
+            referralCode: mode === "signup" ? normalizedReferralCode || undefined : undefined,
             primaryRole: mode === "signup" ? signupRole : "client"
           })
         },
@@ -66,7 +83,7 @@ export function AuthPanel() {
       );
 
       const profile = await getMe();
-      window.location.href = mode === "signup" && signupRole === "client" ? "/onboarding" : roleHome(profile.roles);
+      router.replace(mode === "signup" && signupRole === "client" ? "/onboarding" : roleHome(profile.roles));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Unable to continue. Check Firebase settings and try again.");
     } finally {
@@ -127,15 +144,38 @@ export function AuthPanel() {
                   <p className="mt-2 text-xs leading-5 text-zinc-500">Owner/admin access is invite-only and cannot be selected here.</p>
                 </div>
                 <Field label="Full name">
-                  <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Your name" />
+                  <input
+                    autoComplete="name"
+                    className={inputClass}
+                    required
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                    placeholder="Your name"
+                  />
                 </Field>
               </>
             ) : null}
             <Field label="Email">
-              <input className={inputClass} value={email} type="email" onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" />
+              <input
+                autoComplete="email"
+                className={inputClass}
+                required
+                value={email}
+                type="email"
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+              />
             </Field>
             <Field label="Password" hint="Use at least 6 characters for Firebase email sign-up.">
-              <input className={inputClass} value={password} type="password" onChange={(event) => setPassword(event.target.value)} />
+              <input
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                className={inputClass}
+                minLength={6}
+                required
+                value={password}
+                type="password"
+                onChange={(event) => setPassword(event.target.value)}
+              />
             </Field>
             {mode === "signup" ? (
               <Field
@@ -147,6 +187,7 @@ export function AuthPanel() {
                 }
               >
                 <input
+                  autoComplete="off"
                   className={inputClass}
                   value={referralCode}
                   placeholder={signupRole === "trainer" ? "AF-AUSTIN" : "TRAINER-JASON"}
@@ -155,7 +196,11 @@ export function AuthPanel() {
               </Field>
             ) : null}
             {status ? <p className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">{status}</p> : null}
-            <button className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink" disabled={isSubmitting || !firebaseConfigured}>
+            <button
+              type="submit"
+              className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting || !firebaseConfigured}
+            >
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
               {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : "Create client account" : "Log in"}
             </button>
