@@ -45,6 +45,18 @@ function demoFoodEstimate(): FoodEstimate {
   };
 }
 
+function starterFoodEstimate(reason: string): FoodEstimate {
+  return {
+    foodName: "Mixed meal or snack plate",
+    confidence: 0.25,
+    calories: 450,
+    proteinG: 18,
+    carbsG: 35,
+    fatG: 25,
+    notes: `AI had trouble reading this photo clearly, so Ascend filled a conservative starter estimate. Please edit the food name, portion, and macros before saving. ${reason}`
+  };
+}
+
 function cleanJsonText(text: string) {
   const cleaned = text
     .trim()
@@ -246,26 +258,36 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
 
 async function estimateFoodWithGemini(imageUrl: string) {
   const imagePart = await urlToGeminiPart(imageUrl);
-  const text = await callGeminiWithOptions(
-    [
-      imagePart,
-      {
-        text:
-          "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
-          LOCAL_FOODS.join(", ") +
-          ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, dessert, chicken nuggets, sausage, hot dog, fries, burger, or mixed snack plate. Do not guess a local food unless it visually matches. If there are multiple visible foods, name the main items together, estimate the full visible portion, and mention portion assumptions in notes. Always return your best editable starter estimate for recognizable food; use lower confidence when unsure instead of refusing. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. The user can edit the estimate."
-      }
-    ],
-    1400,
+  const parts: GeminiPart[] = [
+    imagePart,
     {
+      text:
+        "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
+        LOCAL_FOODS.join(", ") +
+        ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, dessert, chicken nuggets, sausage, hot dog, fries, burger, or mixed snack plate. Do not guess a local food unless it visually matches. If there are multiple visible foods, name the main items together, estimate the full visible portion, and mention portion assumptions in notes. Always return your best editable starter estimate for recognizable food; use lower confidence when unsure instead of refusing. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. The user can edit the estimate."
+    }
+  ];
+
+  try {
+    const text = await callGeminiWithOptions(parts, 1400, {
       models: [env.GEMINI_MODEL],
       attemptsPerModel: 1,
       timeoutMs: 22_000,
       responseMimeType: "application/json"
-    }
-  );
-
-  return parseFoodEstimate(text);
+    });
+    return parseFoodEstimate(text);
+  } catch {
+    const text = await callGeminiWithOptions(parts, 1400, {
+      models: [env.GEMINI_MODEL],
+      attemptsPerModel: 1,
+      timeoutMs: 22_000
+    });
+    const estimate = parseFoodEstimate(text);
+    return {
+      ...estimate,
+      notes: `${estimate.notes} Ascend retried the scan with a more flexible response format.`
+    };
+  }
 }
 
 async function estimateFoodWithOpenAI(imageUrl: string) {
@@ -363,15 +385,31 @@ export async function estimateFoodFromImage(
 
     return estimate;
   } catch (error) {
+    const fallbackEstimate = starterFoodEstimate(
+      error instanceof Error && /quota|billing|RESOURCE_EXHAUSTED|429/i.test(error.message)
+        ? "Gemini quota or billing appears unavailable right now."
+        : "The AI scan did not complete reliably."
+    );
+
+    if (imageHash) {
+      await saveFoodEstimateCache({
+        imageHash,
+        estimate: fallbackEstimate,
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        source: "fallback"
+      });
+    }
+
     await logAiUsage({
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-      status: "error",
+      status: "fallback",
       metadata: { imageHash, error: error instanceof Error ? error.message : "unknown_error" }
     });
-    throw error;
+    return fallbackEstimate;
   }
 
 }
