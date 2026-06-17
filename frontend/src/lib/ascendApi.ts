@@ -1,4 +1,4 @@
-import { FoodEstimate, GoalType, SubscriptionPlan } from "@ascend/shared";
+import { CoachingMode, FoodEstimate, GoalType, SubscriptionPlan } from "@ascend/shared";
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
 
@@ -35,6 +35,7 @@ async function withTimeout<T>(ms: number, action: (signal: AbortSignal) => Promi
 export function completeOnboarding(input: {
   fullName: string;
   referralCode?: string;
+  coachingMode?: CoachingMode;
   goalType: GoalType;
   gender?: "female" | "male" | "prefer_not_to_say";
   ageYears?: number;
@@ -82,6 +83,7 @@ export function getMe() {
       email: string;
       full_name: string;
       primary_role?: "client" | "trainer" | "admin" | "owner";
+      coaching_mode?: CoachingMode | string | null;
       goal_type?: GoalType | null;
       gender?: "female" | "male" | "prefer_not_to_say" | string | null;
       age_years?: string | number | null;
@@ -916,6 +918,7 @@ export function getAdminUsers() {
       referred_by_trainer_id: string | null;
       referred_trainer_name: string | null;
       referral_source: "gym" | "trainer" | "none";
+      coaching_mode: CoachingMode | string | null;
       current_plan: SubscriptionPlan;
       subscription_status: string | null;
       status: "active" | "inactive";

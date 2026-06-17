@@ -1,5 +1,6 @@
 export type Role = "client" | "trainer" | "admin" | "owner";
 export type GoalType = "fat_loss" | "muscle_gain" | "maintenance";
+export type CoachingMode = "self_coached" | "ai_coach" | "human_coach";
 export type Sex = "female" | "male" | "prefer_not_to_say";
 export type ActivityLevel = "low" | "moderate" | "high";
 export type SubscriptionPlan = "free" | "premium" | "trainer_pro";
@@ -30,6 +31,7 @@ export interface UserProfile {
   gymId?: string;
   assignedTrainerId?: string;
   goalType?: GoalType;
+  coachingMode?: CoachingMode;
 }
 
 export interface FoodEstimate {

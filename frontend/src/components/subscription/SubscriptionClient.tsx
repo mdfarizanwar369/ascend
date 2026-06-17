@@ -9,7 +9,7 @@ import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 
 const features: Record<SubscriptionPlan, string[]> = {
   free: ["Weight tracking", "Water tracking", "Basic logs"],
-  premium: ["AI food photo estimates", "AI nutrition coach", "Weekly reports", "Trainer accountability"],
+  premium: ["AI food photo estimates", "AI Coach guidance", "Weekly reports", "Human Coach ready"],
   trainer_pro: ["Trainer dashboard", "Client risk alerts", "AI weekly check-ins", "Client messaging"]
 };
 

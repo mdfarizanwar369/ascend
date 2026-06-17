@@ -40,6 +40,7 @@ create table users (
   gender text,
   age_years integer,
   activity_level text,
+  coaching_mode text not null default 'self_coached',
   status text not null default 'active',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -296,6 +297,25 @@ create table if not exists trainer_recognitions (
   signal text not null default 'effort',
   created_at timestamptz not null default now()
 );
+
+alter table users add column if not exists coaching_mode text not null default 'self_coached';
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'users_coaching_mode_check'
+  ) then
+    alter table users add constraint users_coaching_mode_check
+      check (coaching_mode in ('self_coached', 'ai_coach', 'human_coach'));
+  end if;
+end $$;
+
+update users
+set coaching_mode = 'human_coach'
+where assigned_trainer_id is not null
+  and coaching_mode <> 'human_coach';
 
 create index users_gym_id_idx on users(gym_id);
 create index users_assigned_trainer_id_idx on users(assigned_trainer_id);

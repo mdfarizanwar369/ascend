@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { calculateNutritionTargets } from "@ascend/shared";
+import { calculateNutritionTargets, CoachingMode } from "@ascend/shared";
 import {
   completeMission,
   getBurnLogs,
@@ -38,6 +38,18 @@ function formatGoal(goal?: string | null) {
   if (goal === "muscle_gain") return "Muscle gain";
   if (goal === "maintenance") return "Maintenance";
   return "Goal not set";
+}
+
+function effectiveCoachingMode(user: DashboardUser | null): CoachingMode {
+  if (user?.assigned_trainer_id) return "human_coach";
+  if (user?.coaching_mode === "ai_coach" || user?.coaching_mode === "human_coach" || user?.coaching_mode === "self_coached") return user.coaching_mode;
+  return "self_coached";
+}
+
+function coachingLabel(mode: CoachingMode) {
+  if (mode === "human_coach") return "Human Coach";
+  if (mode === "ai_coach") return "AI Coach";
+  return "Self-Coached";
 }
 
 function asNumber(value: string | number | null | undefined) {
@@ -354,6 +366,7 @@ export function ClientDashboard() {
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
   const hasPremiumAccess = plan === "premium" || plan === "trainer_pro" || canAdmin;
+  const coachingMode = effectiveCoachingMode(user);
 
   const weeklyFoodDays = uniqueDays(foodLogs.filter((log) => weekKeys.includes(localDateKey(log.logged_at))), (log) => log.logged_at);
   const weeklyWeightDays = uniqueDays(weightLogs.filter((log) => weekKeys.includes(localDateKey(log.logged_at))), (log) => log.logged_at);
@@ -423,7 +436,7 @@ export function ClientDashboard() {
             <BrandMark size="sm" />
             <span>
               <span className="block text-lg font-semibold leading-5">Ascend</span>
-              <span className="text-xs text-zinc-400">Daily check-in</span>
+              <span className="text-xs text-zinc-400">{coachingLabel(coachingMode)}</span>
             </span>
           </a>
           <a href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
@@ -681,11 +694,17 @@ export function ClientDashboard() {
             <div>
               <p className="text-sm font-semibold">Trainer connection</p>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
-                {user?.assigned_trainer_name ? `Your trainer: ${user.assigned_trainer_name}` : "You will see your trainer here after assignment."}
+                {user?.assigned_trainer_name
+                  ? `Your trainer: ${user.assigned_trainer_name}`
+                  : coachingMode === "human_coach"
+                    ? "Human Coach selected. Your gym can assign a trainer when ready."
+                    : coachingMode === "ai_coach"
+                      ? "AI Coach is active. A trainer can still be assigned later."
+                      : "Self-Coached mode. You can still connect with a trainer later."}
               </p>
             </div>
-            <span className={`rounded px-3 py-1 text-xs ${user?.assigned_trainer_name ? "bg-lime text-ink" : "bg-amber text-ink"}`}>
-              {user?.assigned_trainer_name ? "Connected" : "Pending"}
+            <span className={`rounded px-3 py-1 text-xs ${user?.assigned_trainer_name ? "bg-lime text-ink" : "bg-surface text-zinc-300"}`}>
+              {user?.assigned_trainer_name ? "Connected" : coachingLabel(coachingMode)}
             </span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">

@@ -4,6 +4,7 @@ import { query } from "../db/pool";
 export const onboardingSchema = z.object({
   fullName: z.string().min(2),
   referralCode: z.string().optional(),
+  coachingMode: z.enum(["self_coached", "ai_coach", "human_coach"]).default("self_coached"),
   goalType: z.enum(["fat_loss", "muscle_gain", "maintenance"]),
   gender: z.enum(["female", "male", "prefer_not_to_say"]).optional(),
   ageYears: z.number().int().min(13).max(100).optional(),
@@ -24,6 +25,22 @@ export async function ensureUserProfileSchema() {
   await query(`
     alter table users add column if not exists age_years integer;
     alter table users add column if not exists activity_level text;
+    alter table users add column if not exists coaching_mode text not null default 'self_coached';
+    do $$
+    begin
+      if not exists (
+        select 1
+        from pg_constraint
+        where conname = 'users_coaching_mode_check'
+      ) then
+        alter table users add constraint users_coaching_mode_check
+          check (coaching_mode in ('self_coached', 'ai_coach', 'human_coach'));
+      end if;
+    end $$;
+    update users
+    set coaching_mode = 'human_coach'
+    where assigned_trainer_id is not null
+      and coaching_mode <> 'human_coach';
   `);
 }
 
@@ -52,6 +69,10 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
         assigned_trainer_id = coalesce($11, assigned_trainer_id),
         referred_by_gym_id = coalesce($10, referred_by_gym_id),
         referred_by_trainer_id = coalesce($11, referred_by_trainer_id),
+        coaching_mode = case
+          when coalesce($11, assigned_trainer_id) is not null then 'human_coach'
+          else $12
+        end,
         updated_at = now()
     where id = $1
     returning *
@@ -67,7 +88,8 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
       input.ageYears ?? null,
       input.activityLevel ?? null,
       referralRow?.gym_id ?? null,
-      referralRow?.trainer_id ?? null
+      referralRow?.trainer_id ?? null,
+      input.coachingMode
     ]
   );
 

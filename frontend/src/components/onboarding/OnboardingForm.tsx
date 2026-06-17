@@ -3,13 +3,21 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { CoachingMode } from "@ascend/shared";
 import { Field, inputClass } from "@/components/Field";
 import { completeOnboarding } from "@/lib/ascendApi";
+
+const coachingOptions: Array<{ value: CoachingMode; title: string; detail: string }> = [
+  { value: "self_coached", title: "Self-Coached", detail: "Track targets, habits, and progress on your own." },
+  { value: "ai_coach", title: "AI Coach", detail: "Use AI guidance with clear usage limits." },
+  { value: "human_coach", title: "Human Coach", detail: "Connect with a trainer for accountability." }
+];
 
 export function OnboardingForm() {
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [referralCode, setReferralCode] = useState("");
+  const [coachingMode, setCoachingMode] = useState<CoachingMode>("self_coached");
   const [goalType, setGoalType] = useState<"fat_loss" | "muscle_gain" | "maintenance">("fat_loss");
   const [gender, setGender] = useState<"female" | "male" | "prefer_not_to_say">("prefer_not_to_say");
   const [ageYears, setAgeYears] = useState("");
@@ -55,6 +63,7 @@ export function OnboardingForm() {
       await completeOnboarding({
         fullName,
         referralCode: referralCode.trim() || undefined,
+        coachingMode,
         goalType,
         gender,
         ageYears: Number(ageYears),
@@ -88,6 +97,28 @@ export function OnboardingForm() {
           onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
         />
       </Field>
+      <section>
+        <p className="text-sm font-medium text-zinc-200">How do you want to use Ascend?</p>
+        <div className="mt-2 grid gap-2">
+          {coachingOptions.map((option) => {
+            const selected = coachingMode === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setCoachingMode(option.value)}
+                className={`rounded-lg border p-3 text-left ${
+                  selected ? "border-lime bg-lime/10 text-white" : "border-line bg-ink text-zinc-300"
+                }`}
+              >
+                <span className="block text-sm font-semibold">{option.title}</span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-400">{option.detail}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">Trainer referral codes automatically connect you to Human Coach mode.</p>
+      </section>
       <Field label="Goal">
         <select
           className={inputClass}

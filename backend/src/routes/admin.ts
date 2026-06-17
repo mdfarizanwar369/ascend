@@ -466,6 +466,10 @@ adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "own
             when $2::uuid is null then gym_id
             else coalesce(gym_id, (select gym_id from trainers where id = $2))
           end,
+          coaching_mode = case
+            when $2::uuid is null then coaching_mode
+            else 'human_coach'
+          end,
           updated_at = now()
       where id = $1 and primary_role = 'client'
       returning *
@@ -485,6 +489,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
       u.assigned_trainer_id, trainer_user.full_name as assigned_trainer_name,
       u.referred_by_gym_id, referred_gym.name as referred_gym_name,
       u.referred_by_trainer_id, referred_trainer_user.full_name as referred_trainer_name,
+      u.coaching_mode,
       case
         when u.referred_by_trainer_id is not null then 'trainer'
         when u.referred_by_gym_id is not null then 'gym'

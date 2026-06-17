@@ -11,7 +11,7 @@ import {
   updateAdminUserStatus,
   updateAdminUserRole
 } from "@/lib/ascendApi";
-import { SubscriptionPlan } from "@ascend/shared";
+import { CoachingMode, SubscriptionPlan } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
@@ -30,6 +30,13 @@ function formatPlan(plan?: string | null) {
   if (plan === "trainer_pro") return "Trainer Pro";
   if (plan === "premium") return "Premium";
   return "Free";
+}
+
+function formatCoachingMode(mode?: CoachingMode | string | null, assignedTrainerName?: string | null) {
+  if (assignedTrainerName) return "Human Coach";
+  if (mode === "human_coach") return "Human Coach";
+  if (mode === "ai_coach") return "AI Coach";
+  return "Self-Coached";
 }
 
 function trainerCode(name: string) {
@@ -345,6 +352,9 @@ export function AdminUsersClient() {
                   <p className="mt-1 text-xs text-zinc-500">{user.primary_role === "client" ? referralLabel(user) : user.gym_name ?? "No gym"}</p>
                   {user.primary_role === "client" ? <p className="mt-1 text-xs text-zinc-500">{assignmentLabel(user)}</p> : null}
                   <p className="mt-1 text-xs text-zinc-500">Plan: {formatPlan(user.current_plan)}</p>
+                  {user.primary_role === "client" ? (
+                    <p className="mt-1 text-xs text-zinc-500">Mode: {formatCoachingMode(user.coaching_mode, user.assigned_trainer_name)}</p>
+                  ) : null}
                 </div>
                 <div className="flex flex-col items-end gap-2">
                   <span className="rounded bg-surface px-2 py-1 text-xs text-zinc-300">{formatRole(user.primary_role)}</span>
