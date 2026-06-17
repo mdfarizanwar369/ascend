@@ -400,6 +400,27 @@ export function AuthPanel() {
     showStatus("");
   }
 
+  function syncModeFromVisibleScreen() {
+    const actionText = (action.textContent || "").toLowerCase();
+    const toggleText = (toggle.textContent || "").toLowerCase();
+    const looksLikeLogin =
+      actionText.includes("log in") ||
+      toggleText.includes("need an account") ||
+      (!fullNameField && !referralField);
+    const looksLikeSignup =
+      actionText.includes("create") ||
+      toggleText.includes("already have an account") ||
+      Boolean(fullNameField && !fullNameField.classList.contains("hidden"));
+
+    if (looksLikeLogin) {
+      mode = "login";
+      return;
+    }
+    if (looksLikeSignup) {
+      mode = "signup";
+    }
+  }
+
   async function firebaseRequest(path, body) {
     const response = await fetch("https://identitytoolkit.googleapis.com/v1/" + path + "?key=" + encodeURIComponent(firebaseApiKey), {
       method: "POST",
@@ -460,6 +481,7 @@ export function AuthPanel() {
   async function runAuth(event) {
     event.preventDefault();
     event.stopPropagation();
+    syncModeFromVisibleScreen();
     if (busy) return;
 
     const emailValue = email.value.trim();
@@ -518,6 +540,7 @@ export function AuthPanel() {
     event.preventDefault();
     setMode(mode === "signup" ? "login" : "signup");
   }, true);
+  syncModeFromVisibleScreen();
   action.addEventListener("click", runAuth, true);
   action.closest("form")?.addEventListener("submit", runAuth, true);
 })();
