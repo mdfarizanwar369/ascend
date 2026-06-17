@@ -497,7 +497,7 @@ export function AuthPanel() {
       }
       showStatus("Setting up your Ascend profile...");
       await provision(idToken);
-      window.location.href = mode === "signup" && role === "client" ? "/onboarding" : role === "trainer" ? "/trainer" : "/dashboard";
+      window.location.href = mode === "signup" && role === "client" ? "/onboarding" : "/launch";
     } catch (error) {
       showStatus(error && error.message ? error.message : "Unable to continue. Please refresh and try again.");
       busy = false;

@@ -12,6 +12,15 @@ function roleHome(roles: string[]) {
   return "/dashboard";
 }
 
+function withTimeout<T>(promise: Promise<T>, ms = 10_000) {
+  let timeoutId = 0;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error("Launch timed out.")), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 export default function LaunchPage() {
   const [message, setMessage] = useState("Opening Ascend...");
 
@@ -21,11 +30,18 @@ export default function LaunchPage() {
 
     async function launch() {
       try {
-        await waitForFirebasePersistence();
+        await withTimeout(waitForFirebasePersistence());
         const auth = getFirebaseClientAuth();
+
+        const noUserTimeout = window.setTimeout(() => {
+          if (!isMounted) return;
+          setMessage("Login session could not be found. Please log in again.");
+          window.location.replace("/login");
+        }, 12_000);
 
         unsubscribe = onAuthStateChanged(auth, async (user) => {
           if (!isMounted) return;
+          window.clearTimeout(noUserTimeout);
 
           if (!user) {
             window.location.replace("/login");
@@ -34,7 +50,7 @@ export default function LaunchPage() {
 
           try {
             setMessage("Checking your account...");
-            const profile = await getMe();
+            const profile = await withTimeout(getMe());
             window.location.replace(roleHome(Array.isArray(profile.roles) ? profile.roles : []));
           } catch {
             window.location.replace("/dashboard");

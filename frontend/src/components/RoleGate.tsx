@@ -15,6 +15,15 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function withTimeout<T>(promise: Promise<T>, ms = 12_000) {
+  let timeoutId = 0;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error("Account check timed out.")), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 export function RoleGate({
   allowedRoles,
   children,
@@ -38,7 +47,7 @@ export function RoleGate({
     const allowedRoleSet = new Set(allowedRoleKey.split("|"));
 
     async function checkAccess() {
-      const me = await getMe();
+      const me = await withTimeout(getMe());
       const roles = Array.isArray(me.roles) ? me.roles : [];
       const primaryRole = me.user.primary_role;
       const hasRole = roles.some((role) => allowedRoleSet.has(role)) || Boolean(primaryRole && allowedRoleSet.has(primaryRole));
@@ -48,7 +57,7 @@ export function RoleGate({
       if (!requiredPlan || isOwnerOrAdmin) return "allowed";
 
       try {
-        const subscription = await getMySubscription();
+        const subscription = await withTimeout(getMySubscription());
         const activePlan = usablePlan(subscription.subscription.plan, subscription.subscription.status);
         return planRank[activePlan] >= planRank[requiredPlan] ? "allowed" : "plan-blocked";
       } catch {
@@ -58,7 +67,7 @@ export function RoleGate({
 
     async function checkAccessWithRetry() {
       let lastError: unknown;
-      for (let attempt = 0; attempt < 4; attempt += 1) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           return await checkAccess();
         } catch (error) {
