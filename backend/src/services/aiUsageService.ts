@@ -77,6 +77,7 @@ export async function getCachedFoodEstimate(imageHash: string) {
     update food_estimate_cache
     set hit_count = hit_count + 1, last_used_at = now()
     where image_hash = $1
+      and source <> 'fallback'
     returning estimate
     `,
     [imageHash]

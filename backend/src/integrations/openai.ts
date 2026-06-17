@@ -65,8 +65,36 @@ function cleanJsonText(text: string) {
     .replace(/```$/i, "")
     .trim();
   const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start >= 0 && end > start) return cleaned.slice(start, end + 1);
+  if (start >= 0) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let index = start; index < cleaned.length; index += 1) {
+      const char = cleaned[index];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (inString) continue;
+
+      if (char === "{") depth += 1;
+      if (char === "}") depth -= 1;
+      if (depth === 0) return cleaned.slice(start, index + 1);
+    }
+  }
   return cleaned;
 }
 
