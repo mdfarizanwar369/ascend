@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { ArrowRight, LogIn } from "lucide-react";
@@ -13,6 +13,26 @@ import { BrandMark } from "@/components/BrandMark";
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
 const authDraftKey = "ascend.authDraft.v1";
+
+function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
+}
+
+function getFriendlyAuthError(error: unknown) {
+  if (!(error instanceof Error)) return "Unable to continue. Please refresh and try again.";
+  if (/auth\/email-already-in-use/i.test(error.message)) return "This email already has an account. Please log in instead.";
+  if (/auth\/invalid-email/i.test(error.message)) return "Please enter a valid email address.";
+  if (/auth\/weak-password/i.test(error.message)) return "Please use a password with at least 6 characters.";
+  if (/network|fetch|timeout|timed out|taking too long/i.test(error.message)) {
+    return "The connection is taking too long. Please check internet connection, refresh, and try again.";
+  }
+  return error.message;
+}
 
 export function AuthPanel() {
   const router = useRouter();
@@ -86,19 +106,35 @@ export function AuthPanel() {
         return;
       }
 
-      await waitForFirebasePersistence();
+      setStatus(mode === "signup" ? "Creating your Ascend account..." : "Logging you in...");
+      await withTimeout(
+        waitForFirebasePersistence(),
+        "Firebase is taking too long to start. Please refresh Safari and try again.",
+        15_000
+      );
       const auth = getFirebaseClientAuth();
       const credential =
         mode === "signup"
-          ? await createUserWithEmailAndPassword(auth, normalizedEmail, password)
-          : await signInWithEmailAndPassword(auth, normalizedEmail, password);
+          ? await withTimeout(
+              createUserWithEmailAndPassword(auth, normalizedEmail, password),
+              "Account creation is taking too long. Please check internet connection and try again."
+            )
+          : await withTimeout(
+              signInWithEmailAndPassword(auth, normalizedEmail, password),
+              "Login is taking too long. Please check internet connection and try again."
+            );
 
       if (mode === "signup" && normalizedFullName) {
-        await updateProfile(credential.user, { displayName: normalizedFullName });
+        await withTimeout(
+          updateProfile(credential.user, { displayName: normalizedFullName }),
+          "Your account was created, but the name update took too long. Please continue."
+        );
       }
 
       const token = await credential.user.getIdToken();
-      await api(
+      setStatus("Setting up your Ascend profile...");
+      await withTimeout(
+        api(
         "/auth/provision",
         {
           method: "POST",
@@ -109,23 +145,28 @@ export function AuthPanel() {
           })
         },
         token
+        ),
+        "Ascend profile setup is taking too long. Please refresh and log in."
       );
 
       window.sessionStorage.removeItem(authDraftKey);
 
-      const profile = await getMe();
-      router.replace(mode === "signup" && signupRole === "client" ? "/onboarding" : roleHome(profile.roles));
+      if (mode === "signup" && signupRole === "client") {
+        router.replace("/onboarding");
+        return;
+      }
+
+      const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please refresh.");
+      router.replace(roleHome(profile.roles));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Unable to continue. Check Firebase settings and try again.");
+      setStatus(getFriendlyAuthError(error));
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  function handleAuthKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Enter") return;
+  function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    event.stopPropagation();
     void handleAuthAction();
   }
 
@@ -148,7 +189,7 @@ export function AuthPanel() {
             </h1>
           </div>
 
-          <div className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" onKeyDown={handleAuthKeyDown}>
+          <form className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" onSubmit={handleAuthSubmit}>
             {!firebaseConfigured ? (
               <div className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">
                 Firebase is not configured locally yet. Use local preview mode to review the MVP screens, or add Firebase web app values to
@@ -235,10 +276,9 @@ export function AuthPanel() {
             ) : null}
             {status ? <p className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">{status}</p> : null}
             <button
-              type="button"
+              type="submit"
               className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting || !firebaseConfigured}
-              onClick={() => void handleAuthAction()}
             >
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
               {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : "Create client account" : "Log in"}
@@ -254,7 +294,7 @@ export function AuthPanel() {
                 Continue in local preview mode
               </button>
             ) : null}
-          </div>
+          </form>
 
           <button
             className="mt-4 text-sm font-medium text-lime"
