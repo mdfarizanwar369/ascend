@@ -58,16 +58,30 @@ function cleanJsonText(text: string) {
   return cleaned;
 }
 
+function firstValue(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null) return source[key];
+  }
+  return undefined;
+}
+
 function parseFoodEstimate(text: string): FoodEstimate {
-  const parsed = JSON.parse(cleanJsonText(text)) as Partial<Record<keyof FoodEstimate, unknown>>;
+  const json = JSON.parse(cleanJsonText(text)) as unknown;
+  const parsed =
+    Array.isArray(json) && json[0] && typeof json[0] === "object"
+      ? (json[0] as Record<string, unknown>)
+      : json && typeof json === "object"
+        ? (json as Record<string, unknown>)
+        : {};
+
   return {
-    foodName: String(parsed.foodName ?? "Food item").trim() || "Food item",
-    confidence: confidenceNumber(parsed.confidence),
-    calories: clampNumber(parsed.calories, 0, 5000),
-    proteinG: clampNumber(parsed.proteinG, 0, 500),
-    carbsG: clampNumber(parsed.carbsG, 0, 800),
-    fatG: clampNumber(parsed.fatG, 0, 500),
-    notes: String(parsed.notes ?? "AI estimate. Please review and edit if needed.").trim()
+    foodName: String(firstValue(parsed, ["foodName", "food_name", "name", "dishName"]) ?? "Food item").trim() || "Food item",
+    confidence: confidenceNumber(firstValue(parsed, ["confidence", "confidenceScore", "confidence_score"])),
+    calories: clampNumber(firstValue(parsed, ["calories", "kcal", "calorieEstimate"]), 0, 5000),
+    proteinG: clampNumber(firstValue(parsed, ["proteinG", "protein_g", "protein", "proteinGrams"]), 0, 500),
+    carbsG: clampNumber(firstValue(parsed, ["carbsG", "carbs_g", "carbs", "carbohydrates", "carbohydrateG"]), 0, 800),
+    fatG: clampNumber(firstValue(parsed, ["fatG", "fat_g", "fat", "fats", "fatGrams"]), 0, 500),
+    notes: String(firstValue(parsed, ["notes", "note", "explanation"]) ?? "AI estimate. Please review and edit if needed.").trim()
   };
 }
 
@@ -239,14 +253,15 @@ async function estimateFoodWithGemini(imageUrl: string) {
         text:
           "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
           LOCAL_FOODS.join(", ") +
-          ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, or dessert. Do not guess a local food unless it visually matches. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. If unsure, use a lower confidence and explain what needs review in notes. The user can edit the estimate."
+          ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, dessert, chicken nuggets, sausage, hot dog, fries, burger, or mixed snack plate. Do not guess a local food unless it visually matches. If there are multiple visible foods, name the main items together, estimate the full visible portion, and mention portion assumptions in notes. Always return your best editable starter estimate for recognizable food; use lower confidence when unsure instead of refusing. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. The user can edit the estimate."
       }
     ],
     1400,
     {
       models: [env.GEMINI_MODEL],
       attemptsPerModel: 1,
-      timeoutMs: 16_000
+      timeoutMs: 22_000,
+      responseMimeType: "application/json"
     }
   );
 
