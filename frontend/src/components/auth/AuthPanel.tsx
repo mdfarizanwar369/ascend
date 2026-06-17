@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, useState } from "react";
+import { KeyboardEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { ArrowRight, LogIn } from "lucide-react";
@@ -12,6 +12,7 @@ import { BrandMark } from "@/components/BrandMark";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
+const authDraftKey = "ascend.authDraft.v1";
 
 export function AuthPanel() {
   const router = useRouter();
@@ -29,6 +30,35 @@ export function AuthPanel() {
       process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID &&
       process.env.NEXT_PUBLIC_FIREBASE_APP_ID
   );
+
+  useEffect(() => {
+    try {
+      const draft = window.sessionStorage.getItem(authDraftKey);
+      if (!draft) return;
+      const parsed = JSON.parse(draft) as Partial<{
+        mode: Mode;
+        signupRole: SignupRole;
+        fullName: string;
+        email: string;
+        referralCode: string;
+      }>;
+      if (parsed.mode === "signup" || parsed.mode === "login") setMode(parsed.mode);
+      if (parsed.signupRole === "client" || parsed.signupRole === "trainer") setSignupRole(parsed.signupRole);
+      if (typeof parsed.fullName === "string") setFullName(parsed.fullName);
+      if (typeof parsed.email === "string") setEmail(parsed.email);
+      if (typeof parsed.referralCode === "string") setReferralCode(parsed.referralCode);
+    } catch {
+      window.sessionStorage.removeItem(authDraftKey);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(authDraftKey, JSON.stringify({ mode, signupRole, fullName, email, referralCode }));
+    } catch {
+      // Safari private browsing can reject storage. The form still works without drafts.
+    }
+  }, [email, fullName, mode, referralCode, signupRole]);
 
   function roleHome(roles: string[]) {
     if (roles.includes("owner") || roles.includes("admin")) return "/admin";
@@ -80,6 +110,8 @@ export function AuthPanel() {
         },
         token
       );
+
+      window.sessionStorage.removeItem(authDraftKey);
 
       const profile = await getMe();
       router.replace(mode === "signup" && signupRole === "client" ? "/onboarding" : roleHome(profile.roles));
