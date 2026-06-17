@@ -12,6 +12,15 @@ function planLabel(plan: Exclude<SubscriptionPlan, "free">) {
   return plan === "trainer_pro" ? "Trainer Pro" : "Premium";
 }
 
+function withTimeout<T>(promise: Promise<T>, ms = 12_000) {
+  let timeoutId = 0;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error("Plan check timed out.")), ms);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 export function PlanGate({
   requiredPlan,
   children,
@@ -29,7 +38,7 @@ export function PlanGate({
   const [isLoading, setIsLoading] = useState(true);
 
   async function loadAccess() {
-    const [subscriptionResult, profileResult] = await Promise.allSettled([getMySubscription(), getMe()]);
+    const [subscriptionResult, profileResult] = await Promise.allSettled([withTimeout(getMySubscription()), withTimeout(getMe())]);
 
     if (subscriptionResult.status === "fulfilled") {
       setActivePlan(usablePlan(subscriptionResult.value.subscription.plan, subscriptionResult.value.subscription.status));

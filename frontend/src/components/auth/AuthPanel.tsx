@@ -421,43 +421,58 @@ export function AuthPanel() {
     }
   }
 
-  async function firebaseRequest(path, body) {
-    const response = await fetch("https://identitytoolkit.googleapis.com/v1/" + path + "?key=" + encodeURIComponent(firebaseApiKey), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+  function friendlyFallbackFirebaseError(error) {
+    const message = error && error.message ? error.message : "";
+    const code = error && error.code ? error.code : "";
+    if (code.includes("email-already-in-use") || message.includes("EMAIL_EXISTS")) return "This email already has an account. Please log in instead.";
+    if (code.includes("invalid-email") || message.includes("INVALID_EMAIL")) return "Please enter a valid email address.";
+    if (code.includes("weak-password") || message.includes("WEAK_PASSWORD")) return "Please use a password with at least 6 characters.";
+    if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential")) return "Email or password is not correct.";
+    return "Firebase could not continue. Please refresh Safari and try again.";
+  }
+
+  function waitForFirebaseCompat() {
+    return new Promise((resolve, reject) => {
+      let attempts = 0;
+      const check = () => {
+        if (window.firebase && window.firebase.auth) {
+          resolve(window.firebase);
+          return;
+        }
+        attempts += 1;
+        if (attempts >= 40) {
+          reject(new Error("Firebase could not load on this browser. Please refresh Safari and try again."));
+          return;
+        }
+        window.setTimeout(check, 250);
+      };
+      check();
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const code = payload && payload.error && payload.error.message;
-      if (code === "EMAIL_EXISTS") throw new Error("This email already has an account. Please log in instead.");
-      if (code === "INVALID_EMAIL") throw new Error("Please enter a valid email address.");
-      if (code === "WEAK_PASSWORD : Password should be at least 6 characters") throw new Error("Please use a password with at least 6 characters.");
-      if (code === "EMAIL_NOT_FOUND" || code === "INVALID_PASSWORD" || code === "INVALID_LOGIN_CREDENTIALS") throw new Error("Email or password is not correct.");
-      throw new Error("Firebase could not continue. Please refresh and try again.");
-    }
-    return payload;
   }
 
   async function authenticateWithFirebaseSdk(emailValue, passwordValue, nameValue) {
-    if (!window.firebase || !window.firebase.auth) return null;
-    if (!window.firebase.apps || window.firebase.apps.length === 0) {
-      window.firebase.initializeApp(firebaseConfig);
-    }
-    const auth = window.firebase.auth();
     try {
-      await auth.setPersistence(window.firebase.auth.Auth.Persistence.LOCAL);
-    } catch (_) {
-      // Some Safari privacy modes reject persistence changes. Firebase still keeps the current session if possible.
+      const firebase = await waitForFirebaseCompat();
+      if (!firebase.apps || firebase.apps.length === 0) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      const auth = firebase.auth();
+      try {
+        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+      } catch (_) {
+        // Some Safari privacy modes reject persistence changes. Firebase still keeps the current session if possible.
+      }
+      const credential =
+        mode === "signup"
+          ? await auth.createUserWithEmailAndPassword(emailValue, passwordValue)
+          : await auth.signInWithEmailAndPassword(emailValue, passwordValue);
+      if (mode === "signup" && nameValue && credential.user) {
+        await credential.user.updateProfile({ displayName: nameValue });
+      }
+      return credential.user ? credential.user.getIdToken() : null;
+    } catch (error) {
+      throw new Error(friendlyFallbackFirebaseError(error));
     }
-    const credential =
-      mode === "signup"
-        ? await auth.createUserWithEmailAndPassword(emailValue, passwordValue)
-        : await auth.signInWithEmailAndPassword(emailValue, passwordValue);
-    if (mode === "signup" && nameValue && credential.user) {
-      await credential.user.updateProfile({ displayName: nameValue });
-    }
-    return credential.user ? credential.user.getIdToken() : null;
   }
 
   async function provision(token) {
@@ -507,16 +522,7 @@ export function AuthPanel() {
 
     try {
       showStatus(mode === "signup" ? "Creating your Ascend account..." : "Logging you in...");
-      let idToken = await authenticateWithFirebaseSdk(emailValue, passwordValue, nameValue);
-      if (!idToken) {
-        const authPayload = await firebaseRequest(mode === "signup" ? "accounts:signUp" : "accounts:signInWithPassword", {
-          email: emailValue,
-          password: passwordValue,
-          displayName: mode === "signup" ? nameValue : undefined,
-          returnSecureToken: true
-        });
-        idToken = authPayload.idToken;
-      }
+      const idToken = await authenticateWithFirebaseSdk(emailValue, passwordValue, nameValue);
       showStatus("Setting up your Ascend profile...");
       await provision(idToken);
       window.location.href = mode === "signup" && role === "client" ? "/onboarding" : "/launch";
