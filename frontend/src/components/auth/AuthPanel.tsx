@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { ArrowRight, LogIn } from "lucide-react";
@@ -170,6 +170,12 @@ export function AuthPanel() {
     void handleAuthAction();
   }
 
+  function handleAuthButtonClick(event: MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    void handleAuthAction();
+  }
+
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto flex min-h-screen max-w-md flex-col">
@@ -189,7 +195,7 @@ export function AuthPanel() {
             </h1>
           </div>
 
-          <form className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" onSubmit={handleAuthSubmit}>
+          <form className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" noValidate onSubmit={handleAuthSubmit}>
             {!firebaseConfigured ? (
               <div className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">
                 Firebase is not configured locally yet. Use local preview mode to review the MVP screens, or add Firebase web app values to
@@ -276,9 +282,10 @@ export function AuthPanel() {
             ) : null}
             {status ? <p className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">{status}</p> : null}
             <button
-              type="submit"
+              type="button"
               className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting || !firebaseConfigured}
+              onClick={handleAuthButtonClick}
             >
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
               {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : "Create client account" : "Log in"}
