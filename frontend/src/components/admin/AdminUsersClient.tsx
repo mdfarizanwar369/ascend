@@ -69,6 +69,7 @@ export function AdminUsersClient() {
   const [status, setStatus] = useState("Loading users...");
   const [savingUserId, setSavingUserId] = useState("");
   const [referralStatus, setReferralStatus] = useState("");
+  const [userView, setUserView] = useState<"active" | "inactive">("active");
 
   async function load() {
     const userResponse = await getAdminUsers();
@@ -98,6 +99,7 @@ export function AdminUsersClient() {
 
   const activeUsers = useMemo(() => users.filter((user) => user.status === "active"), [users]);
   const inactiveUsers = useMemo(() => users.filter((user) => user.status !== "active"), [users]);
+  const visibleUsers = userView === "active" ? activeUsers : inactiveUsers;
   const clients = useMemo(() => activeUsers.filter((user) => user.primary_role === "client"), [activeUsers]);
   const pendingTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status !== "active"), [trainers]);
   const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status === "active"), [trainers]);
@@ -243,7 +245,9 @@ export function AdminUsersClient() {
         <p className="mt-2 text-sm leading-6 text-zinc-300">
           Deactivate users when a trainer resigns or a test account should stop accessing the app. Their history stays saved for reports.
         </p>
-        <p className="mt-2 text-sm text-zinc-400">{inactiveUsers.length} inactive account{inactiveUsers.length === 1 ? "" : "s"}.</p>
+        <p className="mt-2 text-sm text-zinc-400">
+          Inactive accounts are hidden from the normal user list. {inactiveUsers.length} inactive account{inactiveUsers.length === 1 ? "" : "s"} saved.
+        </p>
       </section>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
@@ -341,9 +345,34 @@ export function AdminUsersClient() {
       </section>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <h2 className="text-base font-semibold">Approve roles</h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">{userView === "active" ? "Active users" : "Deactivated users"}</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">
+              {userView === "active"
+                ? "Manage people who can currently access Ascend."
+                : "Reactivate an account only when that person should use Ascend again."}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 rounded-lg bg-ink p-1">
+            <button
+              type="button"
+              onClick={() => setUserView("active")}
+              className={`h-10 rounded-md px-3 text-sm font-semibold ${userView === "active" ? "bg-lime text-ink" : "text-zinc-300"}`}
+            >
+              Active {activeUsers.length}
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserView("inactive")}
+              className={`h-10 rounded-md px-3 text-sm font-semibold ${userView === "inactive" ? "bg-lime text-ink" : "text-zinc-300"}`}
+            >
+              Inactive {inactiveUsers.length}
+            </button>
+          </div>
+        </div>
         <div className="mt-3 space-y-3">
-          {users.map((user) => (
+          {visibleUsers.map((user) => (
             <article key={user.id} className="rounded-lg bg-ink p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -436,7 +465,11 @@ export function AdminUsersClient() {
               </div>
             </article>
           ))}
-          {!users.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No users found yet.</p> : null}
+          {!visibleUsers.length ? (
+            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">
+              {userView === "active" ? "No active users found yet." : "No deactivated users found."}
+            </p>
+          ) : null}
         </div>
       </section>
 
