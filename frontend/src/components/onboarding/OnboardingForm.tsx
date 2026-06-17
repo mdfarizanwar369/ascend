@@ -8,9 +8,9 @@ import { Field, inputClass } from "@/components/Field";
 import { completeOnboarding } from "@/lib/ascendApi";
 
 const coachingOptions: Array<{ value: CoachingMode; title: string; detail: string }> = [
-  { value: "self_coached", title: "Self-Coached", detail: "Track targets, habits, and progress on your own." },
-  { value: "ai_coach", title: "AI Coach", detail: "Use AI guidance with clear usage limits." },
-  { value: "human_coach", title: "Human Coach", detail: "Connect with a trainer for accountability." }
+  { value: "self_coached", title: "Self-Coached", detail: "Start with free tracking, targets, habits, and progress." },
+  { value: "ai_coach", title: "AI Coach", detail: "Choose AI guidance. Premium access unlocks AI chat and reports." },
+  { value: "human_coach", title: "Human Coach", detail: "Choose trainer accountability. Your gym or trainer connects you." }
 ];
 
 export function OnboardingForm() {

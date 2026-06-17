@@ -536,6 +536,27 @@ export function ClientDashboard() {
           </section>
         ) : null}
 
+        {coachingMode === "ai_coach" && !hasPremiumAccess ? (
+          <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+            <p className="text-sm font-semibold text-calm">AI Coach selected</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              Free tracking is active now. Premium unlocks AI coach chat, weekly reports, progress photos, and AI food guidance.
+            </p>
+            <a href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+              Unlock AI Coach
+            </a>
+          </section>
+        ) : null}
+
+        {coachingMode === "human_coach" && !user?.assigned_trainer_name ? (
+          <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
+            <p className="text-sm font-semibold text-lime">Human Coach selected</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              Your account is ready for trainer accountability. Use a trainer referral code during signup or ask the gym owner to assign a trainer.
+            </p>
+          </section>
+        ) : null}
+
         <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
