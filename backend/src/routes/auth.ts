@@ -45,9 +45,9 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
       `
       insert into users (
         firebase_uid, email, full_name, primary_role, gym_id, assigned_trainer_id,
-        referred_by_gym_id, referred_by_trainer_id
+        referred_by_gym_id, referred_by_trainer_id, coaching_mode
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, case when $6::uuid is not null then 'human_coach' else 'self_coached' end)
       on conflict (firebase_uid) do update
       set email = excluded.email,
           full_name = coalesce(nullif(excluded.full_name, ''), users.full_name),
@@ -56,6 +56,10 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
           assigned_trainer_id = coalesce(excluded.assigned_trainer_id, users.assigned_trainer_id),
           referred_by_gym_id = coalesce(excluded.referred_by_gym_id, users.referred_by_gym_id),
           referred_by_trainer_id = coalesce(excluded.referred_by_trainer_id, users.referred_by_trainer_id),
+          coaching_mode = case
+            when coalesce(excluded.assigned_trainer_id, users.assigned_trainer_id) is not null then 'human_coach'
+            else users.coaching_mode
+          end,
           updated_at = now()
       returning *
       `,
