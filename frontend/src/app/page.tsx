@@ -1,12 +1,12 @@
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 
 export default function HomePage() {
-  const signals = [
-    "Members know what to do today.",
-    "Trainers see who needs attention.",
-    "Gyms see who is staying engaged."
+  const previewSignals = [
+    { label: "Member", value: "Next: log lunch and drink 500ml water.", icon: CheckCircle2, color: "text-lime" },
+    { label: "Trainer", value: "Sally needs attention: no food logs for 3 days.", icon: AlertTriangle, color: "text-amber" },
+    { label: "Gym", value: "Engagement is up this week across active members.", icon: TrendingUp, color: "text-calm" }
   ];
 
   return (
@@ -50,16 +50,24 @@ export default function HomePage() {
             <div className="relative rounded-lg border border-line bg-surface/80 p-5 shadow-2xl shadow-black/30">
               <BrandMark size="lg" showWordmark />
               <div className="mt-5 rounded-lg border border-calm/30 bg-calm/10 p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-calm">One promise</p>
-                <p className="mt-2 text-2xl font-semibold leading-tight text-white">Keep the plan alive after the session ends.</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-calm">What Ascend makes visible</p>
+                <p className="mt-2 text-2xl font-semibold leading-tight text-white">
+                  The next action, the client at risk, and the signal that progress is happening.
+                </p>
               </div>
               <div className="mt-3 space-y-2">
-                {signals.map((signal) => (
-                  <div key={signal} className="flex items-center gap-3 rounded-lg bg-ink p-3 text-sm font-medium text-zinc-200">
-                    <CheckCircle2 className="shrink-0 text-lime" size={17} />
-                    {signal}
-                  </div>
-                ))}
+                {previewSignals.map((signal) => {
+                  const Icon = signal.icon;
+                  return (
+                    <div key={signal.label} className="flex items-start gap-3 rounded-lg bg-ink p-3 text-sm font-medium text-zinc-200">
+                      <Icon className={`mt-0.5 shrink-0 ${signal.color}`} size={17} />
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">{signal.label}</p>
+                        <p className="mt-1 leading-5">{signal.value}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -69,15 +77,15 @@ export default function HomePage() {
           <div className="grid gap-5 md:grid-cols-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">For members</p>
-              <p className="mt-2 text-xl font-semibold">Know the next best action.</p>
+              <p className="mt-2 text-xl font-semibold">Know what to do today.</p>
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">For trainers</p>
-              <p className="mt-2 text-xl font-semibold">Know who needs attention today.</p>
+              <p className="mt-2 text-xl font-semibold">Know who needs attention.</p>
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">For gyms</p>
-              <p className="mt-2 text-xl font-semibold">Know whether members are staying engaged.</p>
+              <p className="mt-2 text-xl font-semibold">Know if accountability is working.</p>
             </div>
           </div>
         </section>
