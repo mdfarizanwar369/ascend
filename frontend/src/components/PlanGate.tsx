@@ -109,7 +109,7 @@ export function PlanGate({
             <div>
               <p className="font-semibold text-lime">This feature is part of {planLabel(requiredPlan)}.</p>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                For this pilot, you can activate access from the subscription screen.
+                Ask your trainer or gym owner to approve access, or view the available plans.
               </p>
             </div>
           </div>

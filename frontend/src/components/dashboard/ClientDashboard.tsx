@@ -616,7 +616,7 @@ export function ClientDashboard() {
           <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
             <p className="text-sm font-semibold text-calm">Make your daily guide more accurate</p>
             <p className="mt-2 text-sm leading-6 text-zinc-300">
-              Add age, height, and activity level so Ascend can give a better calorie and protein guide.
+              Add age, height, and activity level so Ascend can make your daily targets more personal.
             </p>
             <a href="/profile/guide" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
               Improve my daily guide
@@ -783,8 +783,8 @@ export function ClientDashboard() {
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">Momentum breakdown</p>
-              <p className="mt-1 text-sm text-zinc-400">Useful for you and your trainer when you want more detail.</p>
+              <p className="text-sm font-semibold">What is driving your momentum</p>
+              <p className="mt-1 text-sm text-zinc-400">A simple look at the habits behind today&apos;s score.</p>
             </div>
             <a href="/momentum-score" className="text-sm font-medium text-lime">
               Learn

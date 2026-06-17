@@ -82,7 +82,7 @@ export function SubscriptionClient() {
             <div>
               <p className="text-sm font-semibold text-lime">{status}</p>
               <p className="mt-1 text-sm leading-6 text-zinc-300">
-                For the pilot, selected members and trainers can receive access after trainer or owner approval. Paid checkout will be used for the public launch.
+                Selected members and trainers can receive approved access from a trainer or gym owner. Paid monthly checkout can be enabled when you are ready.
               </p>
             </div>
           </div>
@@ -128,7 +128,7 @@ export function SubscriptionClient() {
                       {isLoadingPlan === plan ? "Opening..." : "Checkout"}
                     </button>
                     <p className="rounded-lg border border-line bg-ink p-3 text-center text-sm text-zinc-400">
-                      Pilot access is approved by your trainer or gym owner.
+                      Access can be approved by your trainer or gym owner.
                     </p>
                   </div>
                 ) : (

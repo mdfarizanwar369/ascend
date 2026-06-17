@@ -98,7 +98,7 @@ export function AuthPanel() {
           <BrandMark />
           <div>
             <p className="text-lg font-semibold">Ascend</p>
-            <p className="text-xs text-zinc-400">Austin Green and Kulai Indahpura launch</p>
+            <p className="text-xs text-zinc-400">The missing link between training and results</p>
           </div>
         </header>
 
@@ -106,7 +106,7 @@ export function AuthPanel() {
           <div>
             <p className="text-sm text-zinc-400">{mode === "signup" ? "Create account" : "Welcome back"}</p>
             <h1 className="mt-2 text-4xl font-semibold leading-tight">
-              {mode === "signup" ? "Start your accountability profile." : "Continue your progress."}
+              {mode === "signup" ? "Start your Ascend journey." : "Continue your progress."}
             </h1>
           </div>
 
@@ -123,8 +123,8 @@ export function AuthPanel() {
                   <p className="mb-2 text-sm font-medium">I am signing up as</p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { value: "client", title: "Client", detail: "Track progress" },
-                      { value: "trainer", title: "Trainer", detail: "Apply for tools" }
+                      { value: "client", title: "Client", detail: "Stay consistent" },
+                      { value: "trainer", title: "Trainer", detail: "Coach clients" }
                     ].map((item) => (
                       <button
                         key={item.value}
@@ -182,8 +182,8 @@ export function AuthPanel() {
                 label="Referral code"
                 hint={
                   signupRole === "trainer"
-                    ? "Use a gym referral code if you have one, for example AF-AUSTIN or AF-KULAI."
-                    : "Use your gym or trainer code, for example AF-AUSTIN, AF-KULAI, or TRAINER-JASON."
+                    ? "Use your gym code if you have one."
+                    : "Use your gym or trainer code if you have one."
                 }
               >
                 <input

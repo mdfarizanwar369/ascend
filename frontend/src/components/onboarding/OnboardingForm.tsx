@@ -8,9 +8,9 @@ import { Field, inputClass } from "@/components/Field";
 import { completeOnboarding } from "@/lib/ascendApi";
 
 const coachingOptions: Array<{ value: CoachingMode; title: string; detail: string }> = [
-  { value: "self_coached", title: "Self-Coached", detail: "Start with free tracking, targets, habits, and progress." },
-  { value: "ai_coach", title: "AI Coach", detail: "Choose AI guidance. Premium access unlocks AI chat and reports." },
-  { value: "human_coach", title: "Human Coach", detail: "Choose trainer accountability. Your gym or trainer connects you." }
+  { value: "self_coached", title: "Self-Coached", detail: "Use Ascend to stay consistent on your own." },
+  { value: "ai_coach", title: "AI Coach", detail: "Add AI guidance for meals, check-ins, and weekly support." },
+  { value: "human_coach", title: "Human Coach", detail: "Connect with a real trainer between sessions." }
 ];
 
 export function OnboardingForm() {
@@ -90,7 +90,7 @@ export function OnboardingForm() {
       <Field label="Full name">
         <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Your name" required />
       </Field>
-      <Field label="Referral code" hint="Examples: AF-AUSTIN, AF-KULAI, TRAINER-JASON">
+      <Field label="Referral code" hint="Optional. Use your gym or trainer code if you have one.">
         <input
           className={inputClass}
           value={referralCode}
@@ -117,7 +117,7 @@ export function OnboardingForm() {
             );
           })}
         </div>
-        <p className="mt-2 text-xs leading-5 text-zinc-500">Trainer referral codes automatically connect you to Human Coach mode.</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">Trainer codes connect you to Human Coach mode automatically.</p>
       </section>
       <Field label="Goal">
         <select

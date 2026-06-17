@@ -184,7 +184,7 @@ export function AdminUsersClient() {
       await load();
       setStatus(`${user.full_name} is now on ${formatPlan(plan)}.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update pilot access.");
+      setStatus(error instanceof Error ? error.message : "Could not update plan access.");
     } finally {
       setSavingUserId("");
     }
@@ -396,7 +396,7 @@ export function AdminUsersClient() {
               </div>
 
               <div className="mt-3 rounded-lg border border-line bg-surface p-3">
-                <p className="text-xs font-semibold uppercase text-zinc-400">Pilot access</p>
+                <p className="text-xs font-semibold uppercase text-zinc-400">Plan access</p>
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {(["free", "premium", "trainer_pro"] as SubscriptionPlan[]).map((plan) => {
                     const isCurrent = user.current_plan === plan;

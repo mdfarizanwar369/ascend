@@ -12,7 +12,7 @@ export default function OnboardingPage() {
           <BrandMark />
           <div>
             <p className="text-lg font-semibold">Ascend setup</p>
-            <p className="text-xs text-zinc-400">Goal, referral, and accountability profile</p>
+            <p className="text-xs text-zinc-400">Goal, support, and daily targets</p>
           </div>
         </header>
 
@@ -20,7 +20,7 @@ export default function OnboardingPage() {
           <div className="flex items-start gap-3">
             <BadgeCheck className="mt-0.5 text-lime" size={20} />
             <p className="text-sm leading-6 text-zinc-300">
-              Referral codes connect every subscription to the right gym and trainer revenue dashboard.
+              Referral codes connect you to the right gym or trainer. You can skip this if you do not have one yet.
             </p>
           </div>
         </section>

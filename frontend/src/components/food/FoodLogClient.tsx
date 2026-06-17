@@ -77,13 +77,13 @@ function shouldRetryEstimate(error: unknown) {
 
 function estimateFailureMessage(error: unknown) {
   if (error instanceof Error && /Premium plan required/i.test(error.message)) {
-    return "Premium access is required for AI food estimates. Activate pilot access from the subscription screen.";
+    return "Premium access is required for AI food estimates. Ask your trainer or gym owner for approved access, or open plans.";
   }
   if (error instanceof Error && /limit reached/i.test(error.message)) {
     return error.message;
   }
   if (error instanceof Error && /quota|billing|AI provider/i.test(error.message)) {
-    return "Food AI has reached today's Gemini limit. You can enter this meal manually now, or the owner can enable Gemini billing for reliable pilot use.";
+    return "Food AI is temporarily unavailable. You can enter this meal manually now, then try AI again later.";
   }
   return "AI could not estimate this photo reliably. Please edit the fields before saving, or try AI again.";
 }

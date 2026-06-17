@@ -67,7 +67,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
               <BrandMark size="sm" />
               <span>
                 <span className="block text-lg font-semibold leading-5">Ascend</span>
-                <span className="text-xs text-zinc-400">Anytime Fitness launch</span>
+                <span className="text-xs text-zinc-400">Accountability between sessions</span>
               </span>
             </Link>
           </div>

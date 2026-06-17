@@ -127,7 +127,7 @@ export function AdminDashboardClient() {
         if (!isMounted) return;
         setPilotMetrics(pilotMetricsResponse);
       } catch (error) {
-        failures.push(error instanceof Error ? `Pilot metrics: ${error.message}` : "Pilot metrics failed");
+        failures.push(error instanceof Error ? `Business metrics: ${error.message}` : "Business metrics failed");
       }
 
       try {
@@ -179,8 +179,8 @@ export function AdminDashboardClient() {
   return (
     <>
       <section className="mt-3">
-        <h1 className="text-2xl font-semibold">Owner dashboard</h1>
-        <p className="mt-2 text-sm text-zinc-400">Multi-gym revenue, trainer attribution, and client accountability.</p>
+        <h1 className="text-2xl font-semibold">Owner command center</h1>
+        <p className="mt-2 text-sm text-zinc-400">Member engagement, trainer follow-up, revenue, and AI usage in one place.</p>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
@@ -231,9 +231,9 @@ export function AdminDashboardClient() {
       <section className="mt-4 rounded-lg border border-calm/30 bg-calm/10 p-4">
         <div className="flex items-center gap-2">
           <Activity size={19} className="text-calm" />
-          <h2 className="text-base font-semibold">Pilot metrics dashboard</h2>
+          <h2 className="text-base font-semibold">Growth and engagement</h2>
         </div>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Signals for retention, trainer value, business viability, and AI cost control.</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">The signals that show whether Ascend is helping members stay active and supported.</p>
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <MetricCard label="DAU" value={String(pilotMetrics?.clients.dailyActiveUsers ?? 0)} detail="Active today" tone="success" />
