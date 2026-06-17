@@ -2,6 +2,8 @@ import { AlertTriangle, ArrowRight, CheckCircle2, TrendingUp } from "lucide-reac
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 
+const appLoginUrl = "https://www.getascend.fit/login";
+
 export default function HomePage() {
   const previewSignals = [
     { label: "Member", value: "Next: log lunch and drink 500ml water.", icon: CheckCircle2, color: "text-lime" },
@@ -15,11 +17,11 @@ export default function HomePage() {
 
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-5 sm:px-8 lg:py-7">
         <header className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3" aria-label="Ascend homepage">
+          <Link href="https://www.getascend.fit" className="flex items-center gap-3" aria-label="Ascend homepage">
             <BrandMark size="sm" />
             <span className="text-xl font-semibold tracking-tight">Ascend</span>
           </Link>
-          <Link href="/login" className="rounded-lg border border-line bg-surface/80 px-4 py-2 text-sm font-semibold text-zinc-100 shadow-lg shadow-black/20">
+          <Link href={appLoginUrl} className="rounded-lg border border-line bg-surface/80 px-4 py-2 text-sm font-semibold text-zinc-100 shadow-lg shadow-black/20">
             Login
           </Link>
         </header>
@@ -35,7 +37,7 @@ export default function HomePage() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/login" className="flex h-14 items-center justify-center gap-2 rounded-lg bg-calm px-6 font-bold text-ink shadow-xl shadow-calm/20">
+              <Link href={appLoginUrl} className="flex h-14 items-center justify-center gap-2 rounded-lg bg-calm px-6 font-bold text-ink shadow-xl shadow-calm/20">
                 Start Ascend
                 <ArrowRight size={20} />
               </Link>
