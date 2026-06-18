@@ -298,6 +298,19 @@ create table if not exists trainer_recognitions (
   created_at timestamptz not null default now()
 );
 
+create table if not exists waitlist_leads (
+  id uuid primary key default uuid_generate_v4(),
+  full_name text not null,
+  contact text not null,
+  role text not null,
+  gym_or_company text,
+  country text,
+  source text not null default 'homepage',
+  status text not null default 'new',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table users add column if not exists coaching_mode text not null default 'self_coached';
 
 do $$
@@ -330,3 +343,5 @@ create index if not exists trainer_missions_client_due_idx on trainer_missions(c
 create index if not exists trainer_missions_trainer_due_idx on trainer_missions(trainer_id, due_date desc);
 create index if not exists trainer_recognitions_client_created_idx on trainer_recognitions(client_user_id, created_at desc);
 create index if not exists trainer_recognitions_trainer_created_idx on trainer_recognitions(trainer_id, created_at desc);
+create unique index if not exists waitlist_leads_contact_role_idx on waitlist_leads(lower(contact), role);
+create index if not exists waitlist_leads_created_idx on waitlist_leads(created_at desc);

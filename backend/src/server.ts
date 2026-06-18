@@ -19,10 +19,12 @@ import { referralsRouter } from "./routes/referrals";
 import { reportsRouter } from "./routes/reports";
 import { subscriptionsRouter } from "./routes/subscriptions";
 import { trainerRouter } from "./routes/trainer";
+import { waitlistRouter } from "./routes/waitlist";
 import { complianceRouter } from "./routes/compliance";
 import { errorHandler } from "./middleware/errors";
 import { ensureAiUsageSchema } from "./services/aiUsageService";
 import { ensureUserProfileSchema } from "./services/userService";
+import { ensureWaitlistSchema } from "./services/waitlistService";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -47,12 +49,13 @@ app.use("/api/v1", progressRouter);
 app.use("/api/v1", complianceRouter);
 app.use("/api/v1", reportsRouter);
 app.use("/api/v1", trainerRouter);
+app.use("/api/v1", waitlistRouter);
 app.use("/api/v1", adminRouter);
 app.use("/api/v1", aiRouter);
 app.use("/api/v1", subscriptionsRouter);
 app.use(errorHandler);
 
-Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema()])
+Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema(), ensureWaitlistSchema()])
   .catch((error) => {
     console.error("Schema setup failed", error);
   })
