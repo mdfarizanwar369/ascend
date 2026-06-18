@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { calculateNutritionTargets, CoachingMode } from "@ascend/shared";
 import {
   completeMission,
@@ -205,8 +205,13 @@ export function ClientDashboard() {
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [missionStatus, setMissionStatus] = useState("");
   const [currentHour, setCurrentHour] = useState<number | null>(null);
+  const lastDashboardLoadRef = useRef(0);
 
   const loadDashboard = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastDashboardLoadRef.current < 2500) return;
+    lastDashboardLoadRef.current = now;
+
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
       const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak] = await Promise.allSettled([
@@ -279,6 +284,7 @@ export function ClientDashboard() {
 
   useEffect(() => {
     function refreshDashboard() {
+      if (document.visibilityState === "hidden") return;
       loadDashboard().catch(() => setStatus("Log in again if this page does not load your profile."));
     }
 

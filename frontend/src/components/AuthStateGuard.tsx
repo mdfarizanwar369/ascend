@@ -10,6 +10,9 @@ export function AuthStateGuard() {
   useEffect(() => {
     let auth;
     let isReady = false;
+    const publicPaths = new Set(["/", "/login", "/launch", "/reset"]);
+    if (publicPaths.has(window.location.pathname)) return;
+
     try {
       auth = getFirebaseClientAuth();
     } catch {

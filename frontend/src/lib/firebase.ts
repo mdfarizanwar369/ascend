@@ -22,8 +22,8 @@ export function getFirebaseClientAuth() {
   const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   const auth = getAuth(firebaseApp);
 
-  persistenceReady ??= setPersistence(auth, indexedDBLocalPersistence)
-    .catch(() => setPersistence(auth, browserLocalPersistence))
+  persistenceReady ??= setPersistence(auth, browserLocalPersistence)
+    .catch(() => setPersistence(auth, indexedDBLocalPersistence))
     .catch(() => {});
   return auth;
 }
@@ -32,6 +32,9 @@ export async function waitForFirebasePersistence() {
   const auth = getFirebaseClientAuth();
   await persistenceReady;
   if ("authStateReady" in auth && typeof auth.authStateReady === "function") {
-    await auth.authStateReady();
+    await Promise.race([
+      auth.authStateReady(),
+      new Promise((resolve) => window.setTimeout(resolve, 3500))
+    ]);
   }
 }

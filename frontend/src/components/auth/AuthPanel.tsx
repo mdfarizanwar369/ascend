@@ -13,11 +13,6 @@ import { BrandMark } from "@/components/BrandMark";
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
 const authDraftKey = "ascend.authDraft.v1";
-const firebaseWebApiKey = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "";
-const firebaseAuthDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ?? "";
-const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "";
-const firebaseAppId = process.env.NEXT_PUBLIC_FIREBASE_APP_ID ?? "";
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -29,12 +24,12 @@ function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
 }
 
 function getFriendlyAuthError(error: unknown) {
-  if (!(error instanceof Error)) return "Unable to continue. Please refresh and try again.";
+  if (!(error instanceof Error)) return "Unable to continue. Please try again.";
   if (/auth\/email-already-in-use/i.test(error.message)) return "This email already has an account. Please log in instead.";
   if (/auth\/invalid-email/i.test(error.message)) return "Please enter a valid email address.";
   if (/auth\/weak-password/i.test(error.message)) return "Please use a password with at least 6 characters.";
   if (/network|fetch|timeout|timed out|taking too long/i.test(error.message)) {
-    return "The connection is taking too long. Please check internet connection, refresh, and try again.";
+    return "The connection is taking too long. Please check your internet connection and try again.";
   }
   return error.message;
 }
@@ -114,7 +109,7 @@ export function AuthPanel() {
       setStatus(mode === "signup" ? "Creating your Ascend account..." : "Logging you in...");
       await withTimeout(
         waitForFirebasePersistence(),
-        "Firebase is taking too long to start. Please refresh Safari and try again.",
+        "Secure login is taking too long to start. Please check your connection and try again.",
         15_000
       );
       const auth = getFirebaseClientAuth();
@@ -151,7 +146,7 @@ export function AuthPanel() {
         },
         token
         ),
-        "Ascend profile setup is taking too long. Please refresh and log in."
+        "Ascend profile setup is taking too long. Please try logging in again."
       );
 
       window.sessionStorage.removeItem(authDraftKey);
@@ -161,7 +156,7 @@ export function AuthPanel() {
         return;
       }
 
-      const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please refresh.");
+      const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please open Ascend again.");
       router.replace(roleHome(profile.roles));
     } catch (error) {
       setStatus(getFriendlyAuthError(error));
@@ -332,227 +327,6 @@ export function AuthPanel() {
           >
             {mode === "signup" ? "Already have an account? Log in" : "Need an account? Sign up"}
           </button>
-          <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" async={false} />
-          <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" async={false} />
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-(() => {
-  if (window.__ascendAuthFallbackInstalled) return;
-  window.__ascendAuthFallbackInstalled = true;
-
-  const firebaseApiKey = ${JSON.stringify(firebaseWebApiKey)};
-  const firebaseConfig = {
-    apiKey: firebaseApiKey,
-    authDomain: ${JSON.stringify(firebaseAuthDomain)},
-    projectId: ${JSON.stringify(firebaseProjectId)},
-    appId: ${JSON.stringify(firebaseAppId)}
-  };
-  const apiBaseUrl = ${JSON.stringify(apiBaseUrl)};
-  let mode = "signup";
-  let role = "client";
-  let busy = false;
-
-  const $ = (id) => document.getElementById(id);
-  const status = $("ascend-auth-status");
-  const action = $("ascend-auth-action");
-  const toggle = $("ascend-auth-toggle");
-  const roleField = $("ascend-role-field");
-  const fullNameField = $("ascend-full-name-field");
-  const referralField = $("ascend-referral-field");
-  const fullName = $("ascend-full-name");
-  const email = $("ascend-email");
-  const password = $("ascend-password");
-  const referral = $("ascend-referral");
-  const clientRole = $("ascend-role-client");
-  const trainerRole = $("ascend-role-trainer");
-
-  if (!action || !toggle || !email || !password) return;
-
-  function showStatus(message) {
-    if (!status) return;
-    status.textContent = message || "";
-    status.classList.toggle("hidden", !message);
-  }
-
-  function setRole(nextRole) {
-    role = nextRole === "trainer" ? "trainer" : "client";
-    [clientRole, trainerRole].forEach((button) => {
-      if (!button) return;
-      const active = button.dataset.ascendRole === role;
-      button.className = active
-        ? "rounded-lg border p-3 text-left border-lime bg-lime text-ink"
-        : "rounded-lg border p-3 text-left border-line bg-ink text-white";
-      const detail = button.querySelector("span:nth-child(2)");
-      if (detail) detail.className = active ? "mt-1 block text-xs text-ink/70" : "mt-1 block text-xs text-zinc-400";
-    });
-    action.textContent = role === "trainer" ? "Create trainer account" : "Create client account";
-  }
-
-  function setMode(nextMode) {
-    mode = nextMode === "login" ? "login" : "signup";
-    const signingUp = mode === "signup";
-    if (roleField) roleField.classList.toggle("hidden", !signingUp);
-    if (fullNameField) fullNameField.classList.toggle("hidden", !signingUp);
-    if (referralField) referralField.classList.toggle("hidden", !signingUp);
-    action.textContent = signingUp ? (role === "trainer" ? "Create trainer account" : "Create client account") : "Log in";
-    toggle.textContent = signingUp ? "Already have an account? Log in" : "Need an account? Sign up";
-    showStatus("");
-  }
-
-  function syncModeFromVisibleScreen() {
-    const actionText = (action.textContent || "").toLowerCase();
-    const toggleText = (toggle.textContent || "").toLowerCase();
-    const looksLikeLogin =
-      actionText.includes("log in") ||
-      toggleText.includes("need an account") ||
-      (!fullNameField && !referralField);
-    const looksLikeSignup =
-      actionText.includes("create") ||
-      toggleText.includes("already have an account") ||
-      Boolean(fullNameField && !fullNameField.classList.contains("hidden"));
-
-    if (looksLikeLogin) {
-      mode = "login";
-      return;
-    }
-    if (looksLikeSignup) {
-      mode = "signup";
-    }
-  }
-
-  function friendlyFallbackFirebaseError(error) {
-    const message = error && error.message ? error.message : "";
-    const code = error && error.code ? error.code : "";
-    if (code.includes("email-already-in-use") || message.includes("EMAIL_EXISTS")) return "This email already has an account. Please log in instead.";
-    if (code.includes("invalid-email") || message.includes("INVALID_EMAIL")) return "Please enter a valid email address.";
-    if (code.includes("weak-password") || message.includes("WEAK_PASSWORD")) return "Please use a password with at least 6 characters.";
-    if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential")) return "Email or password is not correct.";
-    return "Firebase could not continue. Please refresh Safari and try again.";
-  }
-
-  function waitForFirebaseCompat() {
-    return new Promise((resolve, reject) => {
-      let attempts = 0;
-      const check = () => {
-        if (window.firebase && window.firebase.auth) {
-          resolve(window.firebase);
-          return;
-        }
-        attempts += 1;
-        if (attempts >= 40) {
-          reject(new Error("Firebase could not load on this browser. Please refresh Safari and try again."));
-          return;
-        }
-        window.setTimeout(check, 250);
-      };
-      check();
-    });
-  }
-
-  async function authenticateWithFirebaseSdk(emailValue, passwordValue, nameValue) {
-    try {
-      const firebase = await waitForFirebaseCompat();
-      if (!firebase.apps || firebase.apps.length === 0) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      const auth = firebase.auth();
-      try {
-        await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-      } catch (_) {
-        // Some Safari privacy modes reject persistence changes. Firebase still keeps the current session if possible.
-      }
-      const credential =
-        mode === "signup"
-          ? await auth.createUserWithEmailAndPassword(emailValue, passwordValue)
-          : await auth.signInWithEmailAndPassword(emailValue, passwordValue);
-      if (mode === "signup" && nameValue && credential.user) {
-        await credential.user.updateProfile({ displayName: nameValue });
-      }
-      return credential.user ? credential.user.getIdToken() : null;
-    } catch (error) {
-      throw new Error(friendlyFallbackFirebaseError(error));
-    }
-  }
-
-  async function provision(token) {
-    const response = await fetch(apiBaseUrl + "/auth/provision", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + token
-      },
-      body: JSON.stringify({
-        fullName: mode === "signup" && fullName ? fullName.value.trim() : undefined,
-        referralCode: mode === "signup" && referral ? referral.value.trim().toUpperCase() || undefined : undefined,
-        primaryRole: mode === "signup" ? role : "client"
-      })
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "Ascend profile setup failed. Please try again.");
-    return payload;
-  }
-
-  async function runAuth(event) {
-    event.preventDefault();
-    event.stopPropagation();
-    syncModeFromVisibleScreen();
-    if (busy) return;
-
-    const emailValue = email.value.trim();
-    const passwordValue = password.value;
-    const nameValue = fullName ? fullName.value.trim() : "";
-
-    if (!firebaseApiKey) {
-      showStatus("Firebase is not ready. Please refresh and try again.");
-      return;
-    }
-    if (!emailValue || !passwordValue) {
-      showStatus("Please enter your email and password.");
-      return;
-    }
-    if (mode === "signup" && !nameValue) {
-      showStatus("Please enter your full name.");
-      return;
-    }
-
-    busy = true;
-    action.disabled = true;
-    action.textContent = "Working...";
-
-    try {
-      showStatus(mode === "signup" ? "Creating your Ascend account..." : "Logging you in...");
-      const idToken = await authenticateWithFirebaseSdk(emailValue, passwordValue, nameValue);
-      showStatus("Setting up your Ascend profile...");
-      await provision(idToken);
-      window.location.href = mode === "signup" && role === "client" ? "/onboarding" : "/launch";
-    } catch (error) {
-      showStatus(error && error.message ? error.message : "Unable to continue. Please refresh and try again.");
-      busy = false;
-      action.disabled = false;
-      action.textContent = mode === "signup" ? (role === "trainer" ? "Create trainer account" : "Create client account") : "Log in";
-    }
-  }
-
-  clientRole && clientRole.addEventListener("click", (event) => {
-    event.preventDefault();
-    setRole("client");
-  }, true);
-  trainerRole && trainerRole.addEventListener("click", (event) => {
-    event.preventDefault();
-    setRole("trainer");
-  }, true);
-  toggle.addEventListener("click", (event) => {
-    event.preventDefault();
-    setMode(mode === "signup" ? "login" : "signup");
-  }, true);
-  syncModeFromVisibleScreen();
-  action.addEventListener("click", runAuth, true);
-  action.closest("form")?.addEventListener("submit", runAuth, true);
-})();
-`
-            }}
-          />
         </section>
       </div>
     </main>

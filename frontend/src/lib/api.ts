@@ -13,7 +13,7 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
       }
     });
   } catch {
-    throw new Error("Could not reach the Ascend backend. Please wait for Railway to finish redeploying, then refresh.");
+    throw new Error("Could not reach Ascend right now. Please check your internet connection and try again in a moment.");
   }
 
   if (!response.ok) {
