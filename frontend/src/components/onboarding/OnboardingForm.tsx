@@ -1,11 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { CoachingMode } from "@ascend/shared";
 import { Field, inputClass } from "@/components/Field";
 import { completeOnboarding } from "@/lib/ascendApi";
+
+const draftKey = "ascend:onboarding:draft";
 
 const coachingOptions: Array<{ value: CoachingMode; title: string; detail: string }> = [
   { value: "self_coached", title: "Self-Coached", detail: "Use Ascend to stay consistent on your own." },
@@ -28,8 +30,60 @@ export function OnboardingForm() {
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(draftKey) || window.sessionStorage.getItem(draftKey);
+      if (!saved) return;
+      const draft = JSON.parse(saved) as Partial<{
+        fullName: string;
+        referralCode: string;
+        coachingMode: CoachingMode;
+        goalType: "fat_loss" | "muscle_gain" | "maintenance";
+        gender: "female" | "male" | "prefer_not_to_say";
+        ageYears: string;
+        heightCm: string;
+        activityLevel: "low" | "moderate" | "high";
+        startingWeightKg: string;
+        targetWeightKg: string;
+      }>;
+      setFullName(draft.fullName ?? "");
+      setReferralCode(draft.referralCode ?? "");
+      setCoachingMode(draft.coachingMode ?? "self_coached");
+      setGoalType(draft.goalType ?? "fat_loss");
+      setGender(draft.gender ?? "prefer_not_to_say");
+      setAgeYears(draft.ageYears ?? "");
+      setHeightCm(draft.heightCm ?? "");
+      setActivityLevel(draft.activityLevel ?? "moderate");
+      setStartingWeightKg(draft.startingWeightKg ?? "");
+      setTargetWeightKg(draft.targetWeightKg ?? "");
+    } catch {
+      // Some older Safari modes can reject storage. Onboarding still works without drafts.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const draft = JSON.stringify({
+        fullName,
+        referralCode,
+        coachingMode,
+        goalType,
+        gender,
+        ageYears,
+        heightCm,
+        activityLevel,
+        startingWeightKg,
+        targetWeightKg
+      });
+      window.localStorage.setItem(draftKey, draft);
+      window.sessionStorage.setItem(draftKey, draft);
+    } catch {
+      // Draft restore is best effort only.
+    }
+  }, [activityLevel, ageYears, coachingMode, fullName, gender, goalType, heightCm, referralCode, startingWeightKg, targetWeightKg]);
+
+  async function saveOnboarding() {
+    if (isSaving) return;
     setStatus(null);
 
     if (!fullName.trim()) {
@@ -73,6 +127,12 @@ export function OnboardingForm() {
         targetWeightKg: targetWeightKg ? Number(targetWeightKg) : undefined
       });
 
+      try {
+        window.localStorage.removeItem(draftKey);
+        window.sessionStorage.removeItem(draftKey);
+      } catch {
+        // Ignore draft cleanup failures.
+      }
       router.push("/dashboard");
     } catch (error) {
       setStatus(
@@ -86,7 +146,11 @@ export function OnboardingForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+    <form
+      noValidate
+      onSubmit={(event) => event.preventDefault()}
+      className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4"
+    >
       <Field label="Full name">
         <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Your name" required />
       </Field>
@@ -191,7 +255,8 @@ export function OnboardingForm() {
       {status ? <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100">{status}</p> : null}
 
       <button
-        type="submit"
+        type="button"
+        onClick={saveOnboarding}
         disabled={isSaving}
         className="flex h-12 w-full items-center justify-center rounded-lg bg-lime px-4 font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
       >
