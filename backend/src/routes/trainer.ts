@@ -6,6 +6,8 @@ import { createWeeklySummary } from "../integrations/openai";
 import { createReadUrl } from "../integrations/s3";
 import { logAiUsage } from "../services/aiUsageService";
 import { env } from "../config/env";
+import { getAdminGymScope } from "../services/adminScopeService";
+import { canManageClient } from "../services/clientAccessService";
 
 export const trainerRouter = Router();
 
@@ -74,16 +76,6 @@ function attentionReason(row: {
   return null;
 }
 
-async function canAccessClient(clientId: string, trainerId: string | undefined, roles: string[]) {
-  const result = await query<{ assigned_trainer_id: string | null; primary_role: string; status: string }>(
-    "select assigned_trainer_id, primary_role, status from users where id = $1",
-    [clientId]
-  );
-  const client = result.rows[0];
-  if (!client || client.primary_role !== "client" || client.status !== "active") return false;
-  return roles.includes("admin") || roles.includes("owner") || (!!trainerId && client.assigned_trainer_id === trainerId);
-}
-
 async function createPraiseMessage(clientId: string) {
   const result = await query<{
     food_today: string | number;
@@ -136,6 +128,7 @@ async function createPraiseMessage(clientId: string) {
 
 trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
       select u.id, u.full_name, u.email, u.goal_type, u.target_weight_kg,
@@ -208,9 +201,9 @@ trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_
       ) missions on true
       where u.primary_role = 'client'
         and u.status = 'active'
-        and (u.assigned_trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[]))
+        and (u.assigned_trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or u.gym_id = any($5))))
       `,
-      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
 
     const attention = result.rows
@@ -268,7 +261,7 @@ trainerRouter.get("/recognitions/latest", requireAuth, async (req, res, next) =>
 
 trainerRouter.post("/trainer/clients/:clientId/praise", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
-    const allowed = await canAccessClient(req.params.clientId, req.user!.trainerId, req.user!.roles);
+    const allowed = await canManageClient(req.user!, req.params.clientId);
     if (!allowed) return res.status(404).json({ error: "Client not found" });
 
     const existing = await query(
@@ -314,6 +307,7 @@ trainerRouter.post("/trainer/clients/:clientId/praise", requireAuth, requireActi
 
 trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
       select u.id, u.full_name, u.email, u.goal_type, u.gender, u.age_years, u.activity_level,
@@ -394,10 +388,10 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
       ) streak on true
       where u.primary_role = 'client'
         and u.status = 'active'
-        and (u.assigned_trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[]))
+        and (u.assigned_trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or u.gym_id = any($5))))
       order by risk.open_alerts desc nulls last, cs.score asc nulls last, food.last_food_logged_at asc nulls first
       `,
-      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
     res.json({ clients: result.rows });
   } catch (error) {
@@ -407,6 +401,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
 
 trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
       select u.id, u.full_name, u.email, u.goal_type, u.gender, u.age_years, u.activity_level,
@@ -440,6 +435,7 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
 
 trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
       select fl.*
@@ -461,6 +457,7 @@ trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireAc
 
 trainerRouter.get("/trainer/clients/:clientId/weight-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
       select wl.*
@@ -482,6 +479,7 @@ trainerRouter.get("/trainer/clients/:clientId/weight-logs", requireAuth, require
 
 trainerRouter.get("/trainer/clients/:clientId/water-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
       select water_logs.*
@@ -503,9 +501,10 @@ trainerRouter.get("/trainer/clients/:clientId/water-logs", requireAuth, requireA
 
 trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    const scope = await getAdminGymScope(req.user!);
     const result = await query(
-      "select * from risk_alerts where (trainer_id = $1 or $2 = any($3::text[]) or $4 = any($3::text[])) and status = 'open' order by created_at desc",
-      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+      "select * from risk_alerts where (trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or gym_id = any($5)))) and status = 'open' order by created_at desc",
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
     res.json({ alerts: result.rows });
   } catch (error) {
@@ -515,14 +514,15 @@ trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("traine
 
 trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
       update risk_alerts
       set status = $2, resolved_at = case when $2 = 'resolved' then now() else resolved_at end
-      where id = $1 and (trainer_id = $3 or $4 = any($5::text[]) or $6 = any($5::text[]))
+      where id = $1 and (trainer_id = $3 or (($4 = any($5::text[]) or $6 = any($5::text[])) and ($7::uuid[] is null or gym_id = any($7))))
       returning *
       `,
-      [req.params.id, req.body.status ?? "acknowledged", req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+      [req.params.id, req.body.status ?? "acknowledged", req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
     res.json({ alert: result.rows[0] });
   } catch (error) {
@@ -532,6 +532,7 @@ trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireActivePlan("
 
 trainerRouter.post("/ai/weekly-checkin/:clientId", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
       select u.full_name, u.goal_type, cs.score, count(fl.id) as food_logs

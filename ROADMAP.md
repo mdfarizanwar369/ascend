@@ -22,6 +22,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Browser back/forward and logout session refresh handling.
 - Public legal, refund, and support pages for subscription launch readiness.
 - Owner-only permanent deletion for inactive accounts, including Firebase login and stored media cleanup.
+- Platform owner and gym-owner tenancy: one Ascend deployment supports multiple gym owners, with backend-enforced access to assigned gyms only.
 
 ## Before Pilot Launch
 
@@ -36,6 +37,7 @@ Ascend is deployable as a mobile-first PWA with:
 9. Confirm Railway PostgreSQL backups.
 10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.
 11. Run the first weekly review with `PILOT_WEEKLY_REVIEW.md` and capture feedback with `PILOT_FEEDBACK_QUESTIONNAIRE.md`.
+12. Before onboarding an external owner, verify Gym A cannot read or modify Gym B using the multi-gym isolation checklist.
 
 ## Pilot Materials Ready
 

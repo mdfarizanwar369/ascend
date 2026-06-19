@@ -191,6 +191,20 @@ With Gemini key:
 - [ ] Gym referral analytics separate from trainer referral analytics.
 - [ ] Subscriptions page shows plan, provider, status, gym attribution, trainer attribution.
 
+### Multi-Gym Owner Isolation
+
+- [ ] Platform owner sees Austin Green and Kulai Indahpura.
+- [ ] Platform owner can appoint a new gym owner.
+- [ ] Platform owner can assign one or multiple gyms to that owner.
+- [ ] Austin-only owner sees Austin users, trainers, clients, referrals, subscriptions, notifications, and analytics only.
+- [ ] Austin-only owner cannot open a Kulai client through a copied URL.
+- [ ] Austin-only owner cannot assign, deactivate, delete, message, grant a plan to, or change the role of a Kulai user.
+- [ ] Austin-only owner cannot create a Kulai gym or trainer referral.
+- [ ] Austin-only owner cannot see Kulai clients from the Trainer tab.
+- [ ] Kulai-only owner receives the same isolation in reverse.
+- [ ] Multi-gym owner sees the union of only their assigned gyms.
+- [ ] Removing a gym assignment removes access after the next authenticated request.
+
 ## 10. Subscription Flow
 
 Test activation, if allowed during pilot:

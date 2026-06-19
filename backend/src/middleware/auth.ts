@@ -12,6 +12,7 @@ export interface AuthUser {
   primaryRole: Role;
   gymId?: string;
   trainerId?: string;
+  isPlatformOwner: boolean;
 }
 
 export interface FirebaseTokenUser {
@@ -113,6 +114,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     const roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
 
+    const isPlatformOwner = Boolean(ownerEmail && dbUser.email.trim().toLowerCase() === ownerEmail);
+
     req.user = {
       id: dbUser.id,
       firebaseUid: dbUser.firebase_uid,
@@ -120,7 +123,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       primaryRole: dbUser.primary_role,
       roles,
       gymId: dbUser.gym_id,
-      trainerId: dbUser.trainer_id
+      trainerId: dbUser.trainer_id,
+      isPlatformOwner
     };
 
     next();

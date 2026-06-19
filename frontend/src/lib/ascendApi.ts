@@ -907,6 +907,7 @@ export function getGyms() {
 
 export function getAdminUsers() {
   return authed<{
+    canManageOwnerGyms: boolean;
     users: Array<{
       id: string;
       full_name: string;
@@ -923,6 +924,7 @@ export function getAdminUsers() {
       referred_trainer_name: string | null;
       referral_source: "gym" | "trainer" | "none";
       coaching_mode: CoachingMode | string | null;
+      owner_gym_ids: string[];
       current_plan: SubscriptionPlan;
       subscription_status: string | null;
       status: "active" | "inactive";
@@ -973,6 +975,17 @@ export function updateAdminUserStatus(input: { userId: string; status: "active" 
     method: "PATCH",
     body: JSON.stringify({ status: input.status })
   });
+}
+
+export function assignOwnerGym(userId: string, gymId: string) {
+  return authed<{ assigned: true }>(`/admin/owners/${userId}/gyms`, {
+    method: "POST",
+    body: JSON.stringify({ gymId })
+  });
+}
+
+export function removeOwnerGym(userId: string, gymId: string) {
+  return authed<{ assigned: false }>(`/admin/owners/${userId}/gyms/${gymId}`, { method: "DELETE" });
 }
 
 export function deleteAdminUser(userId: string) {

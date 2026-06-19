@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
+import { canManageClient } from "../services/clientAccessService";
 
 export const missionsRouter = Router();
 
@@ -10,20 +11,6 @@ const missionSchema = z.object({
   title: z.string().trim().min(3).max(180),
   dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()
 });
-
-function canOversee(roles: string[]) {
-  return roles.includes("admin") || roles.includes("owner");
-}
-
-async function canAccessClient(clientId: string, trainerId: string | undefined, roles: string[]) {
-  const result = await query<{ assigned_trainer_id: string | null; primary_role: string; status: string }>(
-    "select assigned_trainer_id, primary_role, status from users where id = $1",
-    [clientId]
-  );
-  const client = result.rows[0];
-  if (!client || client.primary_role !== "client" || client.status !== "active") return false;
-  return canOversee(roles) || (!!trainerId && client.assigned_trainer_id === trainerId);
-}
 
 missionsRouter.get("/missions/today", requireAuth, async (req, res, next) => {
   try {
@@ -73,7 +60,7 @@ missionsRouter.get(
   requireRole(["trainer", "admin", "owner"]),
   async (req, res, next) => {
     try {
-      const allowed = await canAccessClient(req.params.clientId, req.user!.trainerId, req.user!.roles);
+      const allowed = await canManageClient(req.user!, req.params.clientId);
       if (!allowed) return res.status(404).json({ error: "Client not found" });
 
       const result = await query(
@@ -102,7 +89,7 @@ missionsRouter.post(
   async (req, res, next) => {
     try {
       const input = missionSchema.parse(req.body);
-      const allowed = await canAccessClient(req.params.clientId, req.user!.trainerId, req.user!.roles);
+      const allowed = await canManageClient(req.user!, req.params.clientId);
       if (!allowed) return res.status(404).json({ error: "Client not found" });
 
       const clientResult = await query<{ assigned_trainer_id: string | null }>("select assigned_trainer_id from users where id = $1", [

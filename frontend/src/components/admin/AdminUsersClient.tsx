@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   assignAdminClient,
+  assignOwnerGym,
   createAdminReferral,
   deleteAdminUser,
   getAdminTrainers,
   getAdminUsers,
   getGyms,
   grantAdminSubscription,
+  removeOwnerGym,
   updateAdminUserStatus,
   updateAdminUserRole
 } from "@/lib/ascendApi";
@@ -72,10 +74,12 @@ export function AdminUsersClient() {
   const [savingUserId, setSavingUserId] = useState("");
   const [referralStatus, setReferralStatus] = useState("");
   const [userView, setUserView] = useState<"active" | "inactive">("active");
+  const [canManageOwnerGyms, setCanManageOwnerGyms] = useState(false);
 
   async function load() {
     const userResponse = await getAdminUsers();
     setUsers(Array.isArray(userResponse.users) ? userResponse.users : []);
+    setCanManageOwnerGyms(Boolean(userResponse.canManageOwnerGyms));
     setStatus("");
 
     try {
@@ -121,7 +125,7 @@ export function AdminUsersClient() {
 
     try {
       const gymId = user.gym_id ?? gyms[0]?.id;
-      await updateAdminUserRole({ userId: user.id, role, gymId: role === "trainer" ? gymId : undefined });
+      await updateAdminUserRole({ userId: user.id, role, gymId: role === "trainer" || role === "owner" ? gymId : undefined });
       await load();
       setStatus(`${user.full_name} is now ${formatRole(role)}.`);
     } catch {
@@ -141,6 +145,21 @@ export function AdminUsersClient() {
       setStatus("Client assignment updated.");
     } catch {
       setStatus("Could not assign trainer.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
+
+  async function toggleOwnerGym(user: AdminUser, gymId: string) {
+    setSavingUserId(user.id);
+    setStatus("");
+    try {
+      if ((user.owner_gym_ids ?? []).includes(gymId)) await removeOwnerGym(user.id, gymId);
+      else await assignOwnerGym(user.id, gymId);
+      await load();
+      setStatus(`${user.full_name}'s gym access was updated.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update owner gym access.");
     } finally {
       setSavingUserId("");
     }
@@ -450,7 +469,7 @@ export function AdminUsersClient() {
                     <option value="client">Client</option>
                     <option value="trainer">Trainer</option>
                     <option value="admin">Admin</option>
-                    <option value="owner">Owner</option>
+                    {canManageOwnerGyms || user.primary_role === "owner" ? <option value="owner">Owner</option> : null}
                   </select>
                 </Field>
                 <Field label="Trainer">
@@ -491,6 +510,28 @@ export function AdminUsersClient() {
                   })}
                 </div>
               </div>
+
+              {user.primary_role === "owner" && canManageOwnerGyms ? (
+                <div className="mt-3 rounded-lg border border-line bg-surface p-3">
+                  <p className="text-xs font-semibold uppercase text-zinc-400">Owner gym access</p>
+                  <div className="mt-2 grid gap-2">
+                    {gyms.map((gym) => {
+                      const assigned = (user.owner_gym_ids ?? []).includes(gym.id);
+                      return (
+                        <button
+                          key={gym.id}
+                          type="button"
+                          disabled={savingUserId === user.id}
+                          onClick={() => toggleOwnerGym(user, gym.id)}
+                          className={`h-10 rounded-lg border text-sm font-semibold disabled:opacity-60 ${assigned ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-zinc-300"}`}
+                        >
+                          {assigned ? "Assigned: " : "Add: "}{gym.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-3 rounded-lg border border-line bg-surface p-3">
                 <p className="text-xs font-semibold uppercase text-zinc-400">Account access</p>

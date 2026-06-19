@@ -2,6 +2,7 @@ import { Router } from "express";
 import { query } from "../db/pool";
 import { calculateComplianceScore } from "../domain/compliance";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { canManageClient } from "../services/clientAccessService";
 
 export const complianceRouter = Router();
 
@@ -139,6 +140,7 @@ complianceRouter.get(
   requireAuth,
   requireRole(["trainer", "admin", "owner"]),
   async (req, res) => {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
       select cs.*

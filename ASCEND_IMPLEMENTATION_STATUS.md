@@ -55,6 +55,9 @@ The live app is available at:
 - Signup now records clear Terms/Privacy consent context, and login, onboarding, and authenticated app screens expose support links.
 - Mobile layout checks passed at 390x844 and 412x915 with no horizontal overflow or browser console errors on login, onboarding, and subscriptions.
 - Client, trainer, and owner pilot guides, a feedback questionnaire, and a weekly pilot review template are available in the repository root.
+- Multi-gym owner isolation is implemented. The bootstrap owner retains platform-wide access, while appointed gym owners are restricted to one or more assigned gyms across admin analytics, users, trainers, referrals, subscriptions, notifications, messaging, risk alerts, and trainer client views.
+- Platform owner controls can appoint a gym owner and add or remove gym assignments from the Users page.
+- Database migrations are now versioned and run safely during backend startup; the ownership migration was applied twice successfully to verify idempotency.
 
 ## Fixes Completed In This Pass
 
@@ -90,3 +93,4 @@ The live app is available at:
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
 - Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.
 - Lemon Squeezy production payments remain blocked until the store identity review is approved; test mode and manual pilot access can be used meanwhile.
+- Before inviting the first external gym owner, run the cross-gym manual checks in `TESTING_CHECKLIST.md` using two temporary owner accounts.

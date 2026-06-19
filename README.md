@@ -2,6 +2,8 @@
 
 Ascend is a mobile-first PWA SaaS MVP for fitness accountability across gym members, trainers, and gym owners.
 
+Ascend uses one multi-gym application, not separate copies per gym. The bootstrap owner is the platform owner and can access every gym. Other owner/admin accounts are restricted by backend-enforced gym assignments and may be assigned to one or multiple gyms.
+
 Owner account cleanup uses a two-step process: deactivate first, then permanently delete from the Inactive users tab. Permanent deletion removes the Firebase login, PostgreSQL user data, messages, and stored user photos. Live Lemon Squeezy subscriptions must be cancelled before deletion.
 
 Initial launch gyms:
@@ -126,6 +128,15 @@ Use these short guides when onboarding the first gyms:
 - `PILOT_WEEKLY_REVIEW.md`
 
 Signup links the Terms and Privacy Policy, and authenticated screens provide a direct support route to `support@getascend.fit`.
+
+### Adding A Gym Owner
+
+1. Have the person create a normal account.
+2. From **Admin > Users**, change the account role to **Owner**.
+3. Under **Owner gym access**, assign one or more gyms.
+4. Ask the owner to log out and back in.
+
+Only the platform owner configured by `BOOTSTRAP_OWNER_EMAIL` can appoint owners or change their gym access. Gym owners see only users, trainers, clients, referrals, subscriptions, notifications, analytics, messages, and trainer data belonging to their assigned gyms.
 
 Without Firebase web app values, `/login` shows a demo-mode button so you can review the MVP screens locally. Real account creation requires filling:
 

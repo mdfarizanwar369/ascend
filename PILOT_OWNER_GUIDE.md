@@ -18,6 +18,16 @@ This guide covers the minimum needed to run a controlled pilot at Austin Green a
 4. Grant Trainer Pro pilot access if required.
 5. Ask the trainer to log out and back in once, then confirm the Trainer dashboard opens.
 
+## Add Another Gym Owner
+
+Only the Ascend platform owner can do this.
+
+1. Ask the new owner to create an account.
+2. Open **Admin > Users** and change that account to **Owner**.
+3. Use **Owner gym access** to assign the correct gym or gyms.
+4. Ask them to log out and back in.
+5. Confirm they see only their assigned gyms, members, trainers, subscriptions, and analytics.
+
 ## Assign A Client
 
 1. Open **Admin > Users**.

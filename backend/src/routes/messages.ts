@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
-import { requireAuth } from "../middleware/auth";
+import { AuthUser, requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
+import { getAdminGymScope } from "../services/adminScopeService";
+import { canManageClient } from "../services/clientAccessService";
 
 export const messagesRouter = Router();
 
@@ -15,13 +17,17 @@ const trainerClientMessageSchema = z.object({
   body: z.string().min(1).max(4000)
 });
 
-async function canMessageUser(currentUserId: string, currentTrainerId: string | undefined, roles: string[], otherUserId: string) {
-  if (roles.includes("admin") || roles.includes("owner")) return true;
+async function canMessageUser(currentUser: AuthUser, otherUserId: string) {
+  if (currentUser.roles.includes("admin") || currentUser.roles.includes("owner")) {
+    const other = await query<{ gym_id: string | null }>("select gym_id from users where id = $1 and status = 'active'", [otherUserId]);
+    const scope = await getAdminGymScope(currentUser);
+    return scope.gymIds === null || Boolean(other.rows[0]?.gym_id && scope.gymIds.includes(other.rows[0].gym_id));
+  }
 
-  if (currentTrainerId) {
+  if (currentUser.trainerId) {
     const clientResult = await query(
       "select id from users where id = $1 and assigned_trainer_id = $2 and status = 'active' limit 1",
-      [otherUserId, currentTrainerId]
+      [otherUserId, currentUser.trainerId]
     );
     return Boolean(clientResult.rows[0]);
   }
@@ -35,7 +41,7 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
     where cu.id = $1 and cu.status = 'active' and trainer_user.id = $2
     limit 1
     `,
-    [currentUserId, otherUserId]
+    [currentUser.id, otherUserId]
   );
   if (assignedTrainerResult.rows[0]) return true;
 
@@ -48,12 +54,13 @@ async function canMessageUser(currentUserId: string, currentTrainerId: string | 
     where cu.id = $1 and cu.status = 'active' and trainer_user.id = $2
     limit 1
     `,
-    [currentUserId, otherUserId]
+    [currentUser.id, otherUserId]
   );
   return Boolean(gymTrainerResult.rows[0]);
 }
 
-async function getTrainerClientThreadContext(clientId: string, currentTrainerId: string | undefined, roles: string[]) {
+async function getTrainerClientThreadContext(clientId: string, currentUser: AuthUser) {
+  if (!await canManageClient(currentUser, clientId)) return null;
   const result = await query<{
     client_user_id: string;
     trainer_id: string | null;
@@ -73,7 +80,7 @@ async function getTrainerClientThreadContext(clientId: string, currentTrainerId:
       )
     limit 1
     `,
-    [clientId, currentTrainerId ?? null, "admin", roles, "owner"]
+    [clientId, currentUser.trainerId ?? null, "admin", currentUser.roles, "owner"]
   );
 
   return result.rows[0] ?? null;
@@ -82,15 +89,17 @@ async function getTrainerClientThreadContext(clientId: string, currentTrainerId:
 messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     if (req.user!.roles.includes("admin") || req.user!.roles.includes("owner")) {
+      const scope = await getAdminGymScope(req.user!);
       const result = await query(
         `
         select id, full_name, email, primary_role
         from users
         where id <> $1 and status = 'active'
+          and ($2::uuid[] is null or gym_id = any($2))
         order by created_at desc
         limit 100
         `,
-        [req.user!.id]
+        [req.user!.id, scope.gymIds]
       );
       return res.json({ contacts: result.rows });
     }
@@ -153,7 +162,7 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
 
 messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res, next) => {
   try {
-    const context = await getTrainerClientThreadContext(req.params.clientId, req.user!.trainerId, req.user!.roles);
+    const context = await getTrainerClientThreadContext(req.params.clientId, req.user!);
     if (!context) return res.status(404).json({ error: "Client not found" });
 
     const participantIds = [context.client_user_id, req.user!.id];
@@ -192,7 +201,7 @@ messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireAc
 messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res, next) => {
   try {
     const input = trainerClientMessageSchema.parse(req.body);
-    const context = await getTrainerClientThreadContext(req.params.clientId, req.user!.trainerId, req.user!.roles);
+    const context = await getTrainerClientThreadContext(req.params.clientId, req.user!);
     if (!context) return res.status(404).json({ error: "Client not found" });
 
     const result = await query(
@@ -208,7 +217,7 @@ messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, requireA
 messagesRouter.get("/messages/:userId", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = z.string().uuid().parse(req.params.userId);
-    const allowed = await canMessageUser(req.user!.id, req.user!.trainerId, req.user!.roles, input);
+    const allowed = await canMessageUser(req.user!, input);
     if (!allowed) return res.status(403).json({ error: "You cannot message this user" });
 
     const result = await query(
@@ -237,7 +246,7 @@ messagesRouter.get("/messages/:userId", requireAuth, requireActivePlan("premium"
 messagesRouter.post("/messages", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = messageSchema.parse(req.body);
-    const allowed = await canMessageUser(req.user!.id, req.user!.trainerId, req.user!.roles, input.receiverUserId);
+    const allowed = await canMessageUser(req.user!, input.receiverUserId);
     if (!allowed) return res.status(403).json({ error: "You cannot message this user" });
 
     const result = await query(
