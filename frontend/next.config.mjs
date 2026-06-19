@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@ascend/shared"],
+  poweredByHeader: false,
   async headers() {
     return [
       {
