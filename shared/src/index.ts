@@ -98,6 +98,13 @@ export interface NutritionTargets {
   waterTargetMl: number;
   estimated: boolean;
   explanation: string;
+  adaptiveAdjustment: number;
+  adaptationReason?: string;
+}
+
+export interface WeightTrendEntry {
+  weightKg: number | string;
+  loggedAt: string;
 }
 
 function toPositiveNumber(value: number | string | null | undefined) {
@@ -134,6 +141,7 @@ export function calculateNutritionTargets(input: NutritionTargetInput): Nutritio
     fatTargetG,
     waterTargetMl: 2500,
     estimated,
+    adaptiveAdjustment: 0,
     explanation:
       goalType === "fat_loss"
         ? "A gentle calorie deficit with higher protein to support fat loss."
@@ -141,4 +149,68 @@ export function calculateNutritionTargets(input: NutritionTargetInput): Nutritio
           ? "A small calorie surplus with higher protein to support muscle gain."
           : "A steady maintenance guide to support consistency."
   };
+}
+
+export function calculateAdaptiveNutritionTargets(input: NutritionTargetInput, entries: WeightTrendEntry[]): NutritionTargets {
+  const base = calculateNutritionTargets(input);
+  const valid = entries
+    .map((entry) => ({ weightKg: Number(entry.weightKg), loggedAt: new Date(entry.loggedAt).getTime() }))
+    .filter((entry) => Number.isFinite(entry.weightKg) && entry.weightKg > 0 && Number.isFinite(entry.loggedAt))
+    .sort((a, b) => a.loggedAt - b.loggedAt);
+
+  if (valid.length < 3 || Number(input.ageYears ?? 18) < 18) return base;
+
+  const first = valid[0];
+  const latest = valid[valid.length - 1];
+  const elapsedWeeks = (latest.loggedAt - first.loggedAt) / (7 * 24 * 60 * 60 * 1000);
+  if (elapsedWeeks < 2) return base;
+
+  const weeklyPercentChange = ((latest.weightKg - first.weightKg) / first.weightKg / elapsedWeeks) * 100;
+  const goal = input.goalType ?? "maintenance";
+  let adaptiveAdjustment = 0;
+  let adaptationReason: string | undefined;
+
+  if (goal === "fat_loss") {
+    if (weeklyPercentChange > -0.1) {
+      adaptiveAdjustment = -100;
+      adaptationReason = "Your recent weight trend is steady, so the guide has been gently reduced by 100 kcal.";
+    } else if (weeklyPercentChange < -1) {
+      adaptiveAdjustment = 100;
+      adaptationReason = "Your recent weight trend is moving quickly, so the guide has been gently increased by 100 kcal.";
+    }
+  } else if (goal === "muscle_gain") {
+    if (weeklyPercentChange < 0.05) {
+      adaptiveAdjustment = 100;
+      adaptationReason = "Your recent weight trend is steady, so the guide has been gently increased by 100 kcal.";
+    } else if (weeklyPercentChange > 0.75) {
+      adaptiveAdjustment = -100;
+      adaptationReason = "Your recent weight trend is moving quickly, so the guide has been gently reduced by 100 kcal.";
+    }
+  } else if (weeklyPercentChange > 0.5) {
+    adaptiveAdjustment = -100;
+    adaptationReason = "Your recent weight trend is above your maintenance range, so the guide has been gently reduced by 100 kcal.";
+  } else if (weeklyPercentChange < -0.5) {
+    adaptiveAdjustment = 100;
+    adaptationReason = "Your recent weight trend is below your maintenance range, so the guide has been gently increased by 100 kcal.";
+  }
+
+  if (!adaptiveAdjustment) return base;
+
+  const calorieTarget = Math.round(Math.min(4200, Math.max(1200, base.calorieTarget + adaptiveAdjustment)) / 25) * 25;
+  const remainingCalories = Math.max(0, calorieTarget - base.proteinTargetG * 4 - base.fatTargetG * 9);
+
+  return {
+    ...base,
+    calorieTarget,
+    carbsTargetG: Math.round(Math.max(80, remainingCalories / 4) / 5) * 5,
+    adaptiveAdjustment,
+    adaptationReason
+  };
+}
+
+export function hasReachedWeightGoal(goalType: GoalType | null | undefined, weightKg: number, targetWeightKg: number) {
+  if (!Number.isFinite(weightKg) || !Number.isFinite(targetWeightKg)) return false;
+  if (goalType === "fat_loss") return weightKg <= targetWeightKg;
+  if (goalType === "muscle_gain") return weightKg >= targetWeightKg;
+  return false;
 }

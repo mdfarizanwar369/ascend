@@ -16,6 +16,9 @@ The live app is available at:
 
 ## Verified This Pass
 
+- Clients can change between Fat Loss, Muscle Gain, and Maintenance without losing old logs; each change starts a versioned goal journey from the latest weigh-in.
+- Daily calories and macros now use the latest logged weight and may adjust gently by 100 kcal only after at least three weigh-ins spanning two weeks.
+- Fat-loss and muscle-gain targets create a one-time milestone celebration when reached, with a clear next-goal path and trainer visibility.
 - Food-log reads now bypass browser and proxy caches, successful saves update immediately from the database response, and stale overlapping dashboard requests cannot hide newer records.
 - Public landing page loads on the custom domain.
 - Root domain forwards to the live Ascend app.

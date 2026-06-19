@@ -17,6 +17,7 @@ export function WeightLogClient() {
   const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null);
   const [status, setStatus] = useState("Loading your latest weight...");
   const [isSaving, setIsSaving] = useState(false);
+  const [milestone, setMilestone] = useState<Awaited<ReturnType<typeof saveWeightLog>>["milestone"]>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -55,7 +56,8 @@ export function WeightLogClient() {
       const nextWeight = asNumber(saved.weightLog.weight_kg);
       setLatestWeightKg(nextWeight);
       setWeightKg(nextWeight.toFixed(1));
-      setStatus("Weight saved to Ascend.");
+      setMilestone(saved.milestone ?? null);
+      setStatus(saved.milestone ? "Goal achieved. This weigh-in marks a new milestone!" : "Weight saved to Ascend.");
     } catch {
       setStatus("Could not save weight. Please make sure you are logged in.");
     } finally {
@@ -88,6 +90,17 @@ export function WeightLogClient() {
             {targetWeightKg ? `Target: ${targetWeightKg.toFixed(1)}kg` : "Set a target during onboarding to track progress."}
           </p>
         </section>
+
+        {milestone ? (
+          <section className="mt-4 rounded-lg border border-lime bg-lime/15 p-4 text-center">
+            <p className="text-sm font-semibold uppercase text-lime">Goal achieved</p>
+            <h2 className="mt-2 text-2xl font-semibold">You reached {Number(milestone.target_weight_kg).toFixed(1)}kg!</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">Take the win. Your consistency made this happen.</p>
+            <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+              Choose what comes next
+            </a>
+          </section>
+        ) : null}
 
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
           <Field label="Today's weight">

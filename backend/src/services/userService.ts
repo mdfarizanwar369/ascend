@@ -18,7 +18,13 @@ export const guideProfileSchema = z.object({
   gender: z.enum(["female", "male", "prefer_not_to_say"]),
   ageYears: z.number().int().min(13).max(100),
   activityLevel: z.enum(["low", "moderate", "high"]),
-  heightCm: z.number().positive()
+  heightCm: z.number().positive(),
+  goalType: z.enum(["fat_loss", "muscle_gain", "maintenance"]),
+  targetWeightKg: z.number().positive().nullable().optional()
+}).superRefine((input, ctx) => {
+  if (input.goalType !== "maintenance" && !input.targetWeightKg) {
+    ctx.addIssue({ code: "custom", path: ["targetWeightKg"], message: "A target weight is required for this goal" });
+  }
 });
 
 export async function ensureUserProfileSchema() {
@@ -73,6 +79,7 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
         gender = $7,
         age_years = $8,
         activity_level = $9,
+        goal_updated_at = now(),
         gym_id = coalesce($10, gym_id),
         assigned_trainer_id = coalesce($11, assigned_trainer_id),
         referred_by_gym_id = coalesce($10, referred_by_gym_id),
@@ -107,17 +114,97 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
 export async function updateGuideProfile(userId: string, input: z.infer<typeof guideProfileSchema>) {
   const result = await query(
     `
-    update users
-    set gender = $2,
-        age_years = $3,
-        activity_level = $4,
-        height_cm = $5,
-        updated_at = now()
-    where id = $1
-    returning *
+    with current_profile as (
+      select goal_type, target_weight_kg, goal_version, starting_weight_kg
+      from users
+      where id = $1
+    ),
+    updated as (
+      update users u
+      set gender = $2,
+          age_years = $3,
+          activity_level = $4,
+          height_cm = $5,
+          goal_type = $6,
+          target_weight_kg = $7,
+          starting_weight_kg = case
+            when u.goal_type is distinct from $6::goal_type or u.target_weight_kg is distinct from $7::numeric
+              then coalesce((select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1), u.starting_weight_kg)
+            else u.starting_weight_kg
+          end,
+          goal_version = case
+            when u.goal_type is distinct from $6::goal_type or u.target_weight_kg is distinct from $7::numeric
+              then u.goal_version + 1
+            else u.goal_version
+          end,
+          goal_updated_at = case
+            when u.goal_type is distinct from $6::goal_type or u.target_weight_kg is distinct from $7::numeric
+              then now()
+            else u.goal_updated_at
+          end,
+          updated_at = now()
+      where u.id = $1
+        and (
+          (u.goal_type is not distinct from $6::goal_type and u.target_weight_kg is not distinct from $7::numeric)
+          or $6::goal_type = 'maintenance'
+          or ($6::goal_type = 'fat_loss' and $7::numeric < coalesce((select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1), u.starting_weight_kg))
+          or ($6::goal_type = 'muscle_gain' and $7::numeric > coalesce((select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1), u.starting_weight_kg))
+        )
+      returning u.*
+    ),
+    history as (
+      insert into goal_changes (
+        user_id, goal_version, previous_goal_type, goal_type, previous_target_weight_kg,
+        target_weight_kg, journey_start_weight_kg
+      )
+      select u.id, u.goal_version, p.goal_type, u.goal_type, p.target_weight_kg,
+        u.target_weight_kg, u.starting_weight_kg
+      from updated u
+      cross join current_profile p
+      where u.goal_version <> p.goal_version
+      on conflict (user_id, goal_version) do nothing
+    )
+    select * from updated
     `,
-    [userId, input.gender, input.ageYears, input.activityLevel, input.heightCm]
+    [userId, input.gender, input.ageYears, input.activityLevel, input.heightCm, input.goalType, input.targetWeightKg ?? null]
   );
 
+  if (!result.rows[0]) {
+    throw new z.ZodError([{ code: "custom", path: ["targetWeightKg"], message: "Choose a target weight in the direction of your goal" }]);
+  }
+
+  return result.rows[0];
+}
+
+export async function getGoalStatus(userId: string) {
+  const result = await query(
+    `
+    select u.goal_type, u.goal_version, u.goal_updated_at, u.starting_weight_kg, u.target_weight_kg,
+      latest.weight_kg as current_weight_kg,
+      milestone.id as milestone_id, milestone.goal_type as milestone_goal_type,
+      milestone.target_weight_kg as milestone_target_weight_kg,
+      milestone.achieved_weight_kg, milestone.achieved_at, milestone.acknowledged_at
+    from users u
+    left join lateral (
+      select weight_kg from weight_logs where user_id = u.id order by logged_at desc limit 1
+    ) latest on true
+    left join lateral (
+      select * from goal_milestones
+      where user_id = u.id and goal_version = u.goal_version and milestone_type = 'target_reached'
+      order by achieved_at desc limit 1
+    ) milestone on true
+    where u.id = $1
+    `,
+    [userId]
+  );
+  return result.rows[0];
+}
+
+export async function acknowledgeGoalMilestone(userId: string, milestoneId: string) {
+  const result = await query(
+    `update goal_milestones set acknowledged_at = coalesce(acknowledged_at, now())
+     where id = $1 and user_id = $2 returning *`,
+    [milestoneId, userId]
+  );
   return result.rows[0];
 }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
-import { completeOnboarding, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
+import { acknowledgeGoalMilestone, completeOnboarding, getGoalStatus, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
 
 export const meRouter = Router();
 
@@ -35,6 +35,24 @@ meRouter.patch("/me/guide-profile", requireAuth, async (req, res, next) => {
     const input = guideProfileSchema.parse(req.body);
     const user = await updateGuideProfile(req.user!.id, input);
     res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.get("/me/goal-status", requireAuth, async (req, res, next) => {
+  try {
+    res.json({ goalStatus: await getGoalStatus(req.user!.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.patch("/me/goal-milestones/:milestoneId/acknowledge", requireAuth, async (req, res, next) => {
+  try {
+    const milestone = await acknowledgeGoalMilestone(req.user!.id, req.params.milestoneId);
+    if (!milestone) return res.status(404).json({ error: "Milestone not found" });
+    res.json({ milestone });
   } catch (error) {
     next(error);
   }

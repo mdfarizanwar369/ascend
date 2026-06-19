@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { calculateNutritionTargets, CoachingMode } from "@ascend/shared";
+import { calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
 import {
+  acknowledgeGoalMilestone,
   completeMission,
   getBurnLogs,
   getComplianceToday,
@@ -11,6 +12,7 @@ import {
   getHabits,
   getLatestRecognition,
   getMe,
+  getGoalStatus,
   getMyStreak,
   getMySubscription,
   getTodayMission,
@@ -32,6 +34,7 @@ type BurnLog = Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number];
 type DailyMission = Awaited<ReturnType<typeof getTodayMission>>["mission"];
 type LatestRecognition = Awaited<ReturnType<typeof getLatestRecognition>>["recognition"];
 type Streak = Awaited<ReturnType<typeof getMyStreak>>["streak"];
+type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -193,6 +196,7 @@ export function ClientDashboard() {
   const [dailyMission, setDailyMission] = useState<DailyMission>(null);
   const [latestRecognition, setLatestRecognition] = useState<LatestRecognition>(null);
   const [streak, setStreak] = useState<Streak | null>(null);
+  const [goalStatus, setGoalStatus] = useState<GoalStatus | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -216,7 +220,7 @@ export function ClientDashboard() {
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -226,7 +230,8 @@ export function ClientDashboard() {
         getComplianceToday(),
         getTodayMission(),
         getLatestRecognition(),
-        getMyStreak()
+        getMyStreak(),
+        getGoalStatus()
       ]);
 
       if (requestId !== dashboardRequestRef.current) return;
@@ -249,6 +254,7 @@ export function ClientDashboard() {
       if (mission.status === "fulfilled") setDailyMission(mission.value.mission);
       if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
       if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
+      if (nextGoalStatus.status === "fulfilled") setGoalStatus(nextGoalStatus.value.goalStatus);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -287,6 +293,16 @@ export function ClientDashboard() {
       setMissionStatus("Mission completed. Nice work.");
     } catch {
       setMissionStatus("Could not complete this mission yet. Please try again.");
+    }
+  }
+
+  async function acknowledgeMilestone() {
+    if (!goalStatus?.milestone_id) return;
+    try {
+      await acknowledgeGoalMilestone(goalStatus.milestone_id);
+      setGoalStatus({ ...goalStatus, acknowledged_at: new Date().toISOString() });
+    } catch {
+      setStatus("Your milestone is safe, but Ascend could not close this message yet.");
     }
   }
 
@@ -340,7 +356,7 @@ export function ClientDashboard() {
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
   const carbs = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.carbs_g), 0));
   const fat = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.fat_g), 0));
-  const nutritionTargets = calculateNutritionTargets({
+  const nutritionTargets = calculateAdaptiveNutritionTargets({
     goalType: user?.goal_type,
     sex: user?.gender === "female" || user?.gender === "male" ? user.gender : "prefer_not_to_say",
     ageYears: user?.age_years,
@@ -351,7 +367,7 @@ export function ClientDashboard() {
       user?.activity_level === "low" || user?.activity_level === "moderate" || user?.activity_level === "high"
         ? user.activity_level
         : "moderate"
-  });
+  }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
   const calorieTarget = nutritionTargets.calorieTarget;
   const proteinTarget = nutritionTargets.proteinTargetG;
   const carbsTarget = nutritionTargets.carbsTargetG;
@@ -461,6 +477,24 @@ export function ClientDashboard() {
         {status ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} />
+
+        {goalStatus?.milestone_id && !goalStatus.acknowledged_at ? (
+          <section className="mt-3 rounded-lg border border-lime bg-lime/15 p-4 text-center">
+            <p className="text-sm font-semibold uppercase text-lime">Goal achieved</p>
+            <h1 className="mt-2 text-3xl font-semibold">You reached {Number(goalStatus.milestone_target_weight_kg).toFixed(1)}kg!</h1>
+            <p className="mt-2 text-sm leading-6 text-zinc-200">
+              This milestone came from consistent work. Celebrate it, then choose whether to maintain your result or begin a new journey.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button type="button" onClick={acknowledgeMilestone} className="h-11 rounded-lg border border-lime/50 bg-ink font-semibold text-lime">
+                Celebrate
+              </button>
+              <a href="/profile/guide" className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+                Choose next goal
+              </a>
+            </div>
+          </section>
+        ) : null}
 
         <section className="mt-3 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
@@ -624,6 +658,7 @@ export function ClientDashboard() {
               <p className="mt-1 text-lg font-semibold">{remainingWeight === null ? "--" : `${remainingWeight.toFixed(1)}kg`}</p>
             </div>
           </div>
+          <a href="/profile/guide" className="mt-3 block text-center text-sm font-semibold text-lime">Change goal or target</a>
         </section>
 
         {needsGuideProfile ? (
@@ -673,11 +708,14 @@ export function ClientDashboard() {
             <div>
               <h2 className="text-base font-semibold">Today&apos;s nutrition guide</h2>
               <p className="mt-1 text-sm leading-6 text-zinc-400">
-                {nutritionTargets.explanation} {nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule."}
+                {nutritionTargets.explanation} {nutritionTargets.adaptationReason ?? (nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule.")}
               </p>
             </div>
             <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{calorieTarget.toLocaleString()} kcal</span>
           </div>
+          <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink text-sm font-semibold text-lime">
+            Review goal and daily guide
+          </a>
 
           <div className="mt-4 space-y-4">
             <div>

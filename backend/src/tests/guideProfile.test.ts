@@ -19,7 +19,9 @@ describe("guide profile", () => {
           gender: "male",
           age_years: 35,
           activity_level: "moderate",
-          height_cm: 175
+          height_cm: 175,
+          goal_type: "fat_loss",
+          target_weight_kg: 80
         }
       ]
     });
@@ -29,11 +31,13 @@ describe("guide profile", () => {
       gender: "male",
       ageYears: 35,
       activityLevel: "moderate",
-      heightCm: 175
+      heightCm: 175,
+      goalType: "fat_loss",
+      targetWeightKg: 80
     });
 
     expect(user.age_years).toBe(35);
-    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("activity_level = $4"), ["user-1", "male", 35, "moderate", 175]);
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("goal_version + 1"), ["user-1", "male", 35, "moderate", 175, "fat_loss", 80]);
   });
 
   it("keeps trainer-referred clients in human coach mode", async () => {

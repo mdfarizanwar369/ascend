@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { calculateNutritionTargets } from "@ascend/shared";
+import { calculateAdaptiveNutritionTargets } from "@ascend/shared";
 import { AlertTriangle, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
 import {
   createTrainerClientMission,
@@ -119,7 +119,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : 0;
   const score = client?.compliance_score;
   const latestFood = foodLogs[0];
-  const nutritionTargets = calculateNutritionTargets({
+  const nutritionTargets = calculateAdaptiveNutritionTargets({
     goalType: client?.goal_type,
     sex: client?.gender === "female" || client?.gender === "male" ? client.gender : "prefer_not_to_say",
     ageYears: client?.age_years,
@@ -130,7 +130,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       client?.activity_level === "low" || client?.activity_level === "moderate" || client?.activity_level === "high"
         ? client.activity_level
         : "moderate"
-  });
+  }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
 
   async function generateCheckin() {
     setIsGenerating(true);
@@ -217,6 +217,13 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         <p className="mt-2 text-sm text-zinc-400">
           {formatGoal(client?.goal_type)} / {client?.gym_name ?? "Gym not set"}
         </p>
+        {client?.goal_achieved_at ? (
+          <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm font-semibold text-lime">
+            Goal achieved. This is a great moment to celebrate and agree on the next goal.
+          </p>
+        ) : client?.goal_updated_at ? (
+          <p className="mt-3 text-xs text-zinc-500">Goal last updated {new Date(client.goal_updated_at).toLocaleDateString()}</p>
+        ) : null}
         {client?.id ? (
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Link

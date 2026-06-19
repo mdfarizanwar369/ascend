@@ -310,7 +310,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
-      select u.id, u.full_name, u.email, u.goal_type, u.gender, u.age_years, u.activity_level,
+      select u.id, u.full_name, u.email, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
         cs.score as compliance_score,
         risk.risk_severity, risk.open_alerts,
@@ -323,6 +323,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         weight.latest_weight_kg,
         water.last_water_logged_at,
         msg.last_client_message_at,
+        goal_milestone.achieved_at as goal_achieved_at,
         coalesce(streak.current_streak, 0) as consistency_streak
       from users u
       left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
@@ -360,6 +361,11 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         from messages
         where sender_user_id = u.id
       ) msg on true
+      left join lateral (
+        select achieved_at from goal_milestones
+        where user_id = u.id and goal_version = u.goal_version and milestone_type = 'target_reached'
+        order by achieved_at desc limit 1
+      ) goal_milestone on true
       left join lateral (
         with days as (
           select day::date as activity_date, row_number() over (order by day desc) as day_rank
@@ -404,10 +410,11 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
-      select u.id, u.full_name, u.email, u.goal_type, u.gender, u.age_years, u.activity_level,
+      select u.id, u.full_name, u.email, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
         g.name as gym_name, cs.score as compliance_score,
-        trainer_message.last_trainer_message_at
+        trainer_message.last_trainer_message_at,
+        goal_milestone.achieved_at as goal_achieved_at
       from users u
       left join gyms g on g.id = u.gym_id
       left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
@@ -417,6 +424,11 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
         where sender_user_id = $6
           and receiver_user_id = u.id
       ) trainer_message on true
+      left join lateral (
+        select achieved_at from goal_milestones
+        where user_id = u.id and goal_version = u.goal_version and milestone_type = 'target_reached'
+        order by achieved_at desc limit 1
+      ) goal_milestone on true
       where u.id = $1
         and u.primary_role = 'client'
         and u.status = 'active'

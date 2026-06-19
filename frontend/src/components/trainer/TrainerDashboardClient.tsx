@@ -42,6 +42,12 @@ function daysAgo(value?: string | null) {
   return `${days} days ago`;
 }
 
+function isRecent(value?: string | null, days = 7) {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && Date.now() - time <= days * 24 * 60 * 60 * 1000;
+}
+
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
   return Number(value);
@@ -277,6 +283,11 @@ export function TrainerDashboardClient() {
                     <div className="min-w-0">
                       <p className="font-medium">{client.full_name}</p>
                       <p className="mt-1 text-xs text-zinc-400">{formatGoal(client.goal_type)}</p>
+                      {client.goal_achieved_at ? (
+                        <p className="mt-2 inline-flex rounded bg-lime px-2 py-1 text-xs font-semibold text-ink">Goal achieved</p>
+                      ) : isRecent(client.goal_updated_at) ? (
+                        <p className="mt-2 inline-flex rounded bg-calm/15 px-2 py-1 text-xs font-semibold text-calm">Goal updated</p>
+                      ) : null}
                       {Number(client.consistency_streak ?? 0) >= 2 ? (
                         <p className="mt-2 inline-flex rounded bg-lime/10 px-2 py-1 text-xs font-semibold text-lime">
                           {Number(client.consistency_streak)}-day streak

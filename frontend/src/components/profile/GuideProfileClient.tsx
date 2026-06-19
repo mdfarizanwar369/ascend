@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Save, Sparkles } from "lucide-react";
+import { calculateAdaptiveNutritionTargets, GoalType } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
-import { getMe, updateGuideProfile } from "@/lib/ascendApi";
+import { getMe, getWeightLogs, updateGuideProfile } from "@/lib/ascendApi";
 
 function toInputValue(value: string | number | null | undefined) {
   if (value === null || value === undefined) return "";
@@ -16,14 +17,19 @@ export function GuideProfileClient() {
   const [ageYears, setAgeYears] = useState("");
   const [heightCm, setHeightCm] = useState("");
   const [activityLevel, setActivityLevel] = useState<"low" | "moderate" | "high">("moderate");
+  const [goalType, setGoalType] = useState<GoalType>("maintenance");
+  const [targetWeightKg, setTargetWeightKg] = useState("");
+  const [currentWeightKg, setCurrentWeightKg] = useState<number | null>(null);
+  const [weightLogs, setWeightLogs] = useState<Array<{ weight_kg: string | number; logged_at: string }>>([]);
   const [status, setStatus] = useState("Loading your guide profile...");
   const [isSaving, setIsSaving] = useState(false);
+  const initialGoalRef = useRef<{ goalType: GoalType; targetWeightKg: number | null }>({ goalType: "maintenance", targetWeightKg: null });
 
   useEffect(() => {
     let isMounted = true;
 
-    getMe()
-      .then((response) => {
+    Promise.all([getMe(), getWeightLogs()])
+      .then(([response, logs]) => {
         if (!isMounted) return;
         const user = response.user;
         setGender(user.gender === "female" || user.gender === "male" ? user.gender : "prefer_not_to_say");
@@ -34,6 +40,15 @@ export function GuideProfileClient() {
             ? user.activity_level
             : "moderate"
         );
+        setGoalType(user.goal_type ?? "maintenance");
+        setTargetWeightKg(toInputValue(user.target_weight_kg));
+        initialGoalRef.current = {
+          goalType: user.goal_type ?? "maintenance",
+          targetWeightKg: user.target_weight_kg ? Number(user.target_weight_kg) : null
+        };
+        const latestWeight = Number(logs.weightLogs[0]?.weight_kg ?? user.starting_weight_kg);
+        setCurrentWeightKg(Number.isFinite(latestWeight) && latestWeight > 0 ? latestWeight : null);
+        setWeightLogs(logs.weightLogs);
         setStatus("");
       })
       .catch(() => {
@@ -44,6 +59,16 @@ export function GuideProfileClient() {
       isMounted = false;
     };
   }, []);
+
+  const targetPreview = calculateAdaptiveNutritionTargets({
+    goalType,
+    sex: gender,
+    ageYears,
+    heightCm,
+    weightKg: currentWeightKg,
+    targetWeightKg,
+    activityLevel
+  }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,6 +83,23 @@ export function GuideProfileClient() {
       return;
     }
 
+    if (goalType !== "maintenance" && (!targetWeightKg || Number(targetWeightKg) <= 0)) {
+      setStatus("Please enter a target weight for this goal.");
+      return;
+    }
+
+    const goalChanged = goalType !== initialGoalRef.current.goalType || Number(targetWeightKg || 0) !== Number(initialGoalRef.current.targetWeightKg ?? 0);
+
+    if (goalChanged && currentWeightKg && goalType === "fat_loss" && Number(targetWeightKg) >= currentWeightKg) {
+      setStatus("For fat loss, choose a target below your current weight.");
+      return;
+    }
+
+    if (goalChanged && currentWeightKg && goalType === "muscle_gain" && Number(targetWeightKg) <= currentWeightKg) {
+      setStatus("For muscle gain, choose a target above your current weight.");
+      return;
+    }
+
     setIsSaving(true);
     setStatus("Saving your daily guide...");
 
@@ -66,8 +108,11 @@ export function GuideProfileClient() {
         gender,
         ageYears: Number(ageYears),
         activityLevel,
-        heightCm: Number(heightCm)
+        heightCm: Number(heightCm),
+        goalType,
+        targetWeightKg: targetWeightKg ? Number(targetWeightKg) : currentWeightKg
       });
+      initialGoalRef.current = { goalType, targetWeightKg: targetWeightKg ? Number(targetWeightKg) : currentWeightKg };
       setStatus("Daily guide updated.");
       window.setTimeout(() => {
         window.location.href = "/dashboard";
@@ -100,6 +145,22 @@ export function GuideProfileClient() {
         </section>
 
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+          <Field label="Current goal">
+            <select className={inputClass} value={goalType} onChange={(event) => setGoalType(event.target.value as GoalType)}>
+              <option value="fat_loss">Fat loss</option>
+              <option value="muscle_gain">Muscle gain</option>
+              <option value="maintenance">Maintain my result</option>
+            </select>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Current weight">
+              <div className={`${inputClass} flex items-center text-zinc-300`}>{currentWeightKg ? `${currentWeightKg.toFixed(1)} kg` : "Log weight first"}</div>
+            </Field>
+            <Field label={goalType === "maintenance" ? "Maintenance weight" : "Target weight"}>
+              <input className={inputClass} value={targetWeightKg} onChange={(event) => setTargetWeightKg(event.target.value)} inputMode="decimal" placeholder={currentWeightKg ? currentWeightKg.toFixed(1) : "kg"} />
+            </Field>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Age">
               <input className={inputClass} value={ageYears} onChange={(event) => setAgeYears(event.target.value)} inputMode="numeric" placeholder="e.g. 32" required />
@@ -124,6 +185,22 @@ export function GuideProfileClient() {
               <option value="male">Male</option>
             </select>
           </Field>
+
+          <div className="rounded-lg border border-lime/30 bg-lime/10 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-lime">Updated daily guide</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-300">{targetPreview.explanation}</p>
+              </div>
+              <span className="shrink-0 rounded-lg bg-ink px-3 py-2 text-sm font-semibold">{targetPreview.calorieTarget.toLocaleString()} kcal</span>
+            </div>
+            <p className="mt-2 text-xs text-zinc-400">Protein {targetPreview.proteinTargetG}g / Carbs {targetPreview.carbsTargetG}g / Fat {targetPreview.fatTargetG}g</p>
+            {targetPreview.adaptationReason ? <p className="mt-2 text-xs leading-5 text-calm">{targetPreview.adaptationReason}</p> : null}
+          </div>
+
+          <p className="text-xs leading-5 text-zinc-400">
+            Changing your goal or target starts a fresh progress journey from your latest logged weight. Your previous records stay safe.
+          </p>
 
           {status ? <p className="rounded-lg border border-calm/40 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">{status}</p> : null}
 

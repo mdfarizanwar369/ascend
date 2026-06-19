@@ -159,12 +159,34 @@ logsRouter.get("/food-logs", requireAuth, async (req, res) => {
 logsRouter.post("/weight-logs", requireAuth, async (req, res, next) => {
   try {
     const input = weightLogSchema.parse(req.body);
-  const result = await query("insert into weight_logs (user_id, weight_kg, logged_at) values ($1, $2, coalesce($3, now())) returning *", [
-    req.user!.id,
-    input.weightKg,
-    input.loggedAt ?? null
-  ]);
-  res.status(201).json({ weightLog: result.rows[0] });
+    const result = await query(
+      `
+      with saved as (
+        insert into weight_logs (user_id, weight_kg, logged_at)
+        values ($1, $2, coalesce($3, now()))
+        returning *
+      ),
+      milestone as (
+        insert into goal_milestones (
+          user_id, goal_version, milestone_type, goal_type, target_weight_kg, achieved_weight_kg, achieved_at
+        )
+        select u.id, u.goal_version, 'target_reached', u.goal_type, u.target_weight_kg, s.weight_kg, s.logged_at
+        from users u
+        cross join saved s
+        where u.id = $1
+          and u.target_weight_kg is not null
+          and ((u.goal_type = 'fat_loss' and s.weight_kg <= u.target_weight_kg)
+            or (u.goal_type = 'muscle_gain' and s.weight_kg >= u.target_weight_kg))
+        on conflict (user_id, goal_version, milestone_type) do nothing
+        returning *
+      )
+      select row_to_json(saved) as weight_log,
+        (select row_to_json(milestone) from milestone) as milestone
+      from saved
+      `,
+      [req.user!.id, input.weightKg, input.loggedAt ?? null]
+    );
+    res.status(201).json({ weightLog: result.rows[0].weight_log, milestone: result.rows[0].milestone ?? null });
   } catch (error) {
     next(error);
   }

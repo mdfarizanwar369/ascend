@@ -79,6 +79,20 @@ Owner login:
 - [ ] `/admin` loads.
 - [ ] Account card shows owner/admin access.
 
+## 5. Goal Journey And Daily Guide
+
+- [ ] Open `/profile/guide` and confirm the latest logged weight is shown.
+- [ ] Change Fat Loss to Muscle Gain with a target above the current weight.
+- [ ] Confirm the calorie and protein preview changes before saving.
+- [ ] Save and confirm the dashboard immediately shows Muscle Gain and the new target.
+- [ ] Confirm previous weight and food records remain visible.
+- [ ] Confirm a trainer sees a recent Goal updated badge for the client.
+- [ ] Log a weight below a Fat Loss target or above a Muscle Gain target.
+- [ ] Confirm the milestone appears once on the weight screen and client dashboard.
+- [ ] Confirm the trainer sees Goal achieved for that client.
+- [ ] Select Maintain my result after reaching the target and confirm a fresh journey begins.
+- [ ] Confirm invalid target directions are rejected with a clear message.
+
 ## 5. Plan And Access Matrix
 
 Free client:

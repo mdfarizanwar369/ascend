@@ -55,6 +55,8 @@ export function updateGuideProfile(input: {
   ageYears: number;
   activityLevel: "low" | "moderate" | "high";
   heightCm: number;
+  goalType: GoalType;
+  targetWeightKg?: number | null;
 }) {
   return authed("/me/guide-profile", {
     method: "PATCH",
@@ -85,12 +87,14 @@ export function getMe() {
       primary_role?: "client" | "trainer" | "admin" | "owner";
       coaching_mode?: CoachingMode | string | null;
       goal_type?: GoalType | null;
+      goal_updated_at?: string | null;
       gender?: "female" | "male" | "prefer_not_to_say" | string | null;
       age_years?: string | number | null;
       activity_level?: "low" | "moderate" | "high" | string | null;
       height_cm?: string | number | null;
       starting_weight_kg?: string | number | null;
       target_weight_kg?: string | number | null;
+      goal_version?: string | number | null;
       gym_id?: string | null;
       assigned_trainer_id?: string | null;
       assigned_trainer_name?: string | null;
@@ -144,10 +148,40 @@ export function saveWeightLog(input: { weightKg: number; loggedAt?: string }) {
       weight_kg: string | number;
       logged_at: string;
     };
+    milestone?: {
+      id: string;
+      goal_type: GoalType;
+      target_weight_kg: string | number;
+      achieved_weight_kg: string | number;
+      achieved_at: string;
+    } | null;
   }>("/weight-logs", {
     method: "POST",
     body: JSON.stringify(input)
   });
+}
+
+export function getGoalStatus() {
+  return authed<{
+    goalStatus: {
+      goal_type?: GoalType | null;
+      goal_updated_at?: string | null;
+      goal_version?: string | number | null;
+      starting_weight_kg?: string | number | null;
+      target_weight_kg?: string | number | null;
+      current_weight_kg?: string | number | null;
+      milestone_id?: string | null;
+      milestone_goal_type?: GoalType | null;
+      milestone_target_weight_kg?: string | number | null;
+      achieved_weight_kg?: string | number | null;
+      achieved_at?: string | null;
+      acknowledged_at?: string | null;
+    };
+  }>("/me/goal-status");
+}
+
+export function acknowledgeGoalMilestone(milestoneId: string) {
+  return authed(`/me/goal-milestones/${milestoneId}/acknowledge`, { method: "PATCH" });
 }
 
 export function saveWaterLog(input: { amountMl: number; loggedAt?: string }) {
@@ -595,6 +629,8 @@ export function getTrainerClients() {
       full_name: string;
       email: string;
       goal_type?: GoalType | null;
+      goal_updated_at?: string | null;
+      goal_achieved_at?: string | null;
       gender?: "female" | "male" | "prefer_not_to_say" | string | null;
       age_years?: string | number | null;
       activity_level?: "low" | "moderate" | "high" | string | null;
@@ -659,6 +695,8 @@ export function getTrainerClient(clientId: string) {
       full_name: string;
       email: string;
       goal_type?: GoalType | null;
+      goal_updated_at?: string | null;
+      goal_achieved_at?: string | null;
       gender?: "female" | "male" | "prefer_not_to_say" | string | null;
       age_years?: string | number | null;
       activity_level?: "low" | "moderate" | "high" | string | null;

@@ -2,13 +2,14 @@
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
-import { calculateNutritionTargets, FoodEstimate } from "@ascend/shared";
+import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
   FoodAiAllowance,
   getFoodAiAllowance,
   getFoodLogs,
   getMe,
+  getWeightLogs,
   saveFoodLog,
   uploadFoodPhotoDataUrl
 } from "@/lib/ascendApi";
@@ -18,6 +19,7 @@ import { localDateKey } from "@/lib/date";
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
+type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
 
 function manualEstimate(): FoodEstimate {
   return {
@@ -102,7 +104,7 @@ function allowanceHint(allowance: FoodAiAllowance | null) {
   return `${allowance.remaining} AI ${allowance.remaining === 1 ? "scan" : "scans"} remaining.`;
 }
 
-function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculateNutritionTargets>) {
+function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>) {
   const calorieShare = estimate.calories / targets.calorieTarget;
   const proteinCalories = estimate.proteinG * 4;
   const proteinRatio = estimate.calories > 0 ? proteinCalories / estimate.calories : 0;
@@ -157,6 +159,7 @@ export function FoodLogClient() {
   const [estimate, setEstimate] = useState<FoodEstimate | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [user, setUser] = useState<FoodUser | null>(null);
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [status, setStatus] = useState("Upload a food photo to estimate calories and macros.");
   const [isEstimating, setIsEstimating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -174,8 +177,9 @@ export function FoodLogClient() {
   }
 
   async function loadUser() {
-    const response = await getMe();
+    const [response, weights] = await Promise.all([getMe(), getWeightLogs()]);
     setUser(response.user);
+    setWeightLogs(weights.weightLogs);
   }
 
   async function loadAllowance() {
@@ -213,18 +217,18 @@ export function FoodLogClient() {
     return Math.round(estimate.proteinG * 4 + estimate.carbsG * 4 + estimate.fatG * 9);
   }, [estimate]);
 
-  const nutritionTargets = calculateNutritionTargets({
+  const nutritionTargets = calculateAdaptiveNutritionTargets({
     goalType: user?.goal_type,
     sex: user?.gender === "female" || user?.gender === "male" ? user.gender : "prefer_not_to_say",
     ageYears: user?.age_years,
     heightCm: user?.height_cm,
-    weightKg: user?.starting_weight_kg,
+    weightKg: weightLogs[0]?.weight_kg ?? user?.starting_weight_kg,
     targetWeightKg: user?.target_weight_kg,
     activityLevel:
       user?.activity_level === "low" || user?.activity_level === "moderate" || user?.activity_level === "high"
         ? user.activity_level
         : "moderate"
-  });
+  }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
 
   const canSaveEstimate = useMemo(() => {
     if (!estimate) return false;
