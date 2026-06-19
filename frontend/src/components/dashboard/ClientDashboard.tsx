@@ -25,6 +25,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
+import { clearPendingFoodLog, readPendingFoodLog } from "@/lib/dataSync";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -214,14 +215,14 @@ export function ClientDashboard() {
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [missionStatus, setMissionStatus] = useState("");
   const [currentHour, setCurrentHour] = useState<number | null>(null);
-  const lastDashboardLoadRef = useRef(0);
   const dashboardRequestRef = useRef(0);
 
   const loadDashboard = useCallback(async () => {
-    const now = Date.now();
-    if (now - lastDashboardLoadRef.current < 2500) return;
-    lastDashboardLoadRef.current = now;
     const requestId = ++dashboardRequestRef.current;
+    const pendingFoodLog = readPendingFoodLog();
+    if (pendingFoodLog) {
+      setFoodLogs((current) => [pendingFoodLog as FoodLog, ...current.filter((log) => log.id !== pendingFoodLog.id)]);
+    }
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
@@ -248,7 +249,16 @@ export function ClientDashboard() {
         subscription.subscription.status,
         subscription.subscription.current_period_end
       ));
-      if (foods.status === "fulfilled") setFoodLogs(Array.isArray(foods.value.foodLogs) ? foods.value.foodLogs : []);
+      if (foods.status === "fulfilled") {
+        const fetchedFoodLogs = Array.isArray(foods.value.foodLogs) ? foods.value.foodLogs : [];
+        const includesPendingLog = pendingFoodLog && fetchedFoodLogs.some((log) => log.id === pendingFoodLog.id);
+        setFoodLogs(
+          pendingFoodLog && !includesPendingLog
+            ? [pendingFoodLog as FoodLog, ...fetchedFoodLogs]
+            : fetchedFoodLogs
+        );
+        if (pendingFoodLog && includesPendingLog) clearPendingFoodLog(pendingFoodLog.id);
+      }
       if (weights.status === "fulfilled") setWeightLogs(Array.isArray(weights.value.weightLogs) ? weights.value.weightLogs : []);
       if (waters.status === "fulfilled") setWaterLogs(Array.isArray(waters.value.waterLogs) ? waters.value.waterLogs : []);
       if (nextHabits.status === "fulfilled") setHabits(Array.isArray(nextHabits.value.habits) ? nextHabits.value.habits : []);

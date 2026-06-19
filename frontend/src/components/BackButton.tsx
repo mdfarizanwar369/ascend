@@ -3,10 +3,11 @@
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export function BackButton({ fallbackHref = "/dashboard" }: { fallbackHref?: string }) {
+export function BackButton({ fallbackHref = "/dashboard", disabled = false }: { fallbackHref?: string; disabled?: boolean }) {
   const router = useRouter();
 
   function goBack() {
+    if (disabled) return;
     router.push(fallbackHref);
   }
 
@@ -14,8 +15,9 @@ export function BackButton({ fallbackHref = "/dashboard" }: { fallbackHref?: str
     <button
       type="button"
       onClick={goBack}
-      className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-surface"
-      aria-label="Go back"
+      disabled={disabled}
+      className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-surface disabled:cursor-wait disabled:opacity-40"
+      aria-label={disabled ? "Saving in progress" : "Go back"}
     >
       <ArrowLeft size={19} />
     </button>

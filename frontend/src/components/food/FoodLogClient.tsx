@@ -14,6 +14,7 @@ import {
   uploadFoodPhotoDataUrl
 } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { rememberSavedFoodLog } from "@/lib/dataSync";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 
@@ -369,6 +370,10 @@ export function FoodLogClient() {
         wasEditedByUser: wasEdited
       });
       foodLogsRequestRef.current += 1;
+      rememberSavedFoodLog({
+        ...response.foodLog,
+        image_url: null
+      });
       setFoodLogs((current) => [
         {
           ...response.foodLog,
@@ -395,7 +400,7 @@ export function FoodLogClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" />
+          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
           <div>
             <p className="text-sm text-zinc-400">Food photo AI</p>
             <h1 className="text-2xl font-semibold">Snap, review, save</h1>
