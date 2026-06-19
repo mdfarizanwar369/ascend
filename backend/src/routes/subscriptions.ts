@@ -14,7 +14,7 @@ subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
     from subscriptions
     where user_id = $1
     order by
-      case when status in ('active', 'trialing') then 0 else 1 end,
+      case when status in ('active', 'trialing') or (status = 'canceled' and current_period_end > now()) then 0 else 1 end,
       case plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc,
       created_at desc
     limit 1
@@ -88,7 +88,8 @@ subscriptionsRouter.get("/subscriptions/billing-portal", requireAuth, async (req
       `
       select provider, provider_subscription_id
       from subscriptions
-      where user_id = $1 and status in ('active', 'trialing', 'past_due')
+      where user_id = $1
+        and (status in ('active', 'trialing', 'past_due') or (status = 'canceled' and current_period_end > now()))
       order by created_at desc
       limit 1
       `,

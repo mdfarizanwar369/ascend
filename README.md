@@ -16,10 +16,10 @@ Initial launch gyms:
 - Shared package: TypeScript types and constants
 - Database: PostgreSQL
 - Auth: Firebase Auth
-- Storage: AWS S3
+- Storage: Cloudflare R2 or AWS S3-compatible object storage
 - AI: Google Gemini for the unpaid pilot, OpenAI-compatible fallback available
 - Payments: Lemon Squeezy recurring subscriptions, with manual pilot access
-- Deployment: Docker, DigitalOcean
+- Deployment: Railway for the live pilot; Docker remains available for local/self-hosted deployments
 
 ## Required Local Tools For Windows
 
@@ -101,6 +101,8 @@ Food photo estimates are cached by image hash, so repeated analysis of the same 
 
 Real paid subscriptions use Lemon Squeezy. Manual owner-approved pilot access remains available when payment variables are not configured.
 
+Paid access remains active through the end of a cancelled billing period. The subscription page shows renewal, cancellation, expiry, and payment-attention states and links Lemon Squeezy customers to the billing portal.
+
 ```text
 PAYMENT_PROVIDER=lemonsqueezy
 FRONTEND_URL=https://www.getascend.fit
@@ -112,6 +114,18 @@ LEMONSQUEEZY_WEBHOOK_SECRET=
 ```
 
 Set the Lemon Squeezy webhook URL to `https://your-backend-domain/api/v1/webhooks/lemonsqueezy`. Signed webhook events activate, renew, downgrade, or expire plans and are recorded in `payment_events`. See `LEMON_SQUEEZY_SETUP.md`.
+
+## Pilot Operations
+
+Use these short guides when onboarding the first gyms:
+
+- `PILOT_CLIENT_GUIDE.md`
+- `PILOT_TRAINER_GUIDE.md`
+- `PILOT_OWNER_GUIDE.md`
+- `PILOT_FEEDBACK_QUESTIONNAIRE.md`
+- `PILOT_WEEKLY_REVIEW.md`
+
+Signup links the Terms and Privacy Policy, and authenticated screens provide a direct support route to `support@getascend.fit`.
 
 Without Firebase web app values, `/login` shows a demo-mode button so you can review the MVP screens locally. Real account creation requires filling:
 

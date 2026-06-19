@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Check, CreditCard, ExternalLink, ShieldCheck } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
 import { createCheckout, getBillingPortal, getMe, getMySubscription } from "@/lib/ascendApi";
@@ -14,16 +14,29 @@ const features: Record<SubscriptionPlan, string[]> = {
   trainer_pro: ["Trainer dashboard", "Client risk alerts", "AI weekly check-ins", "Client messaging"]
 };
 
+function formatBillingDate(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(date);
+}
+
 export function SubscriptionClient() {
   const [activePlan, setActivePlan] = useState<SubscriptionPlan>("free");
   const [backHref, setBackHref] = useState("/dashboard");
   const [status, setStatus] = useState("Loading your subscription...");
   const [isLoadingPlan, setIsLoadingPlan] = useState<SubscriptionPlan | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
+  const [billingStatus, setBillingStatus] = useState("active");
+  const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
 
-  async function loadSubscription() {
+  const loadSubscription = useCallback(async () => {
     const [response, profile] = await Promise.all([getMySubscription(), getMe().catch(() => null)]);
-    const nextPlan = usablePlan(response.subscription.plan, response.subscription.status);
+    const nextPlan = usablePlan(
+      response.subscription.plan,
+      response.subscription.status,
+      response.subscription.current_period_end
+    );
     const roles = profile?.roles ?? [];
     const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
     const returnedFromCheckout =
@@ -43,18 +56,47 @@ export function SubscriptionClient() {
 
     setActivePlan(nextPlan);
     setProvider(response.subscription.provider ?? null);
-    if (nextPlan !== "free") {
-      setStatus(`Current plan: ${formatPlan(nextPlan)}`);
+    setBillingStatus(response.subscription.status);
+    setCurrentPeriodEnd(response.subscription.current_period_end ?? null);
+    const billingDate = formatBillingDate(response.subscription.current_period_end ?? null);
+    if (response.subscription.status === "canceled" && nextPlan !== "free") {
+      setStatus(`Subscription cancelled. ${formatPlan(nextPlan)} access remains until ${billingDate ?? "the end of your paid period"}.`);
+    } else if (response.subscription.status === "past_due") {
+      setStatus("Payment needs attention. Open billing to update your payment method or complete checkout.");
+    } else if (response.subscription.status === "expired") {
+      setStatus("Your paid subscription has ended. Choose a plan below to restart it.");
+    } else if (nextPlan !== "free") {
+      setStatus(`Current plan: ${formatPlan(nextPlan)}${billingDate ? `. Renews on ${billingDate}.` : "."}`);
     } else if (returnedFromCheckout) {
       setStatus("Payment received. Your plan will unlock as soon as Lemon Squeezy confirms the subscription.");
     } else {
       setStatus("Current plan: Free Plan");
     }
-  }
+  }, []);
 
   useEffect(() => {
-    loadSubscription().catch(() => setStatus("Log in to manage your subscription."));
-  }, []);
+    let isMounted = true;
+    const returnedFromCheckout = new URLSearchParams(window.location.search).get("checkout") === "success";
+
+    async function refresh() {
+      const attempts = returnedFromCheckout ? 5 : 1;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        if (!isMounted) return;
+        try {
+          await loadSubscription();
+          if (!returnedFromCheckout) return;
+          const latest = await getMySubscription();
+          if (["active", "trialing"].includes(latest.subscription.status)) return;
+        } catch {
+          if (attempt === attempts - 1 && isMounted) setStatus("Log in to manage your subscription.");
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+      }
+    }
+
+    void refresh();
+    return () => { isMounted = false; };
+  }, [loadSubscription]);
 
   async function startCheckout(plan: Exclude<SubscriptionPlan, "free">) {
     setIsLoadingPlan(plan);
@@ -90,7 +132,7 @@ export function SubscriptionClient() {
           </div>
         </header>
 
-        <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
+        <section aria-live="polite" className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
           <div className="flex items-start gap-3">
             <ShieldCheck className="mt-0.5 text-lime" size={20} />
             <div>
@@ -146,13 +188,23 @@ export function SubscriptionClient() {
                   <div className="mt-4 grid grid-cols-1 gap-2">
                     <button
                       type="button"
-                      disabled={isLoadingPlan !== null}
+                      disabled={isLoadingPlan !== null || (provider === "lemonsqueezy" && billingStatus === "past_due")}
                       onClick={() => startCheckout(checkoutPlan)}
                       className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
                     >
                       <CreditCard className="mr-2" size={18} />
                       {isLoadingPlan === plan ? "Opening..." : "Subscribe monthly"}
                     </button>
+                    {provider === "lemonsqueezy" && billingStatus === "past_due" ? (
+                      <button
+                        type="button"
+                        onClick={openBillingPortal}
+                        className="flex h-11 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200"
+                      >
+                        <ExternalLink className="mr-2" size={18} />
+                        Fix payment
+                      </button>
+                    ) : null}
                     <p className="rounded-lg border border-line bg-ink p-3 text-center text-sm text-zinc-400">
                       Pilot access can still be approved manually by a trainer or gym owner.
                     </p>
@@ -169,6 +221,9 @@ export function SubscriptionClient() {
         <p className="mt-5 text-center text-xs leading-5 text-zinc-500">
           By subscribing, you agree to the monthly renewal and cancellation terms shown at checkout.
         </p>
+        {billingStatus === "canceled" && currentPeriodEnd ? (
+          <p className="mt-2 text-center text-xs text-zinc-500">You can reactivate from Manage billing before access ends.</p>
+        ) : null}
         <PublicFooter compact />
       </div>
     </main>

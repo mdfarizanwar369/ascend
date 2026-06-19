@@ -2,6 +2,7 @@
 
 import { FormEvent, MouseEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { ArrowRight, LogIn } from "lucide-react";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
@@ -9,6 +10,7 @@ import { api } from "@/lib/api";
 import { Field, inputClass } from "@/components/Field";
 import { getMe } from "@/lib/ascendApi";
 import { BrandMark } from "@/components/BrandMark";
+import { PublicFooter } from "@/components/legal/PublicFooter";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
@@ -216,6 +218,7 @@ export function AuthPanel() {
                         id={`ascend-role-${item.value}`}
                         data-ascend-role={item.value}
                         type="button"
+                        aria-pressed={signupRole === item.value}
                         onClick={() => setSignupRole(item.value as SignupRole)}
                         className={`rounded-lg border p-3 text-left ${
                           signupRole === item.value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-white"
@@ -292,6 +295,8 @@ export function AuthPanel() {
             ) : null}
             <p
               id="ascend-auth-status"
+              role="alert"
+              aria-live="polite"
               className={`rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber ${status ? "" : "hidden"}`}
             >
               {status}
@@ -306,6 +311,13 @@ export function AuthPanel() {
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
               {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : "Create client account" : "Log in"}
             </button>
+            {mode === "signup" ? (
+              <p className="text-center text-xs leading-5 text-zinc-500">
+                By creating an account, you agree to Ascend&apos;s{" "}
+                <Link href="/terms" className="text-calm hover:underline">Terms</Link> and{" "}
+                <Link href="/privacy" className="text-calm hover:underline">Privacy Policy</Link>.
+              </p>
+            ) : null}
             {!firebaseConfigured ? (
               <button
                 className="flex h-12 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white"
@@ -328,6 +340,7 @@ export function AuthPanel() {
             {mode === "signup" ? "Already have an account? Log in" : "Need an account? Sign up"}
           </button>
         </section>
+        <PublicFooter compact />
       </div>
     </main>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Home, MessageCircle, Shield, Users } from "lucide-react";
+import { Camera, CircleHelp, Home, MessageCircle, Shield, Users } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AccountBar } from "@/components/AccountBar";
@@ -40,7 +40,9 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           email: me?.user.email,
           fullName: me?.user.full_name,
           roles: me?.roles ?? [],
-          plan: subscription ? usablePlan(subscription.subscription.plan, subscription.subscription.status) : "free"
+          plan: subscription
+            ? usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end)
+            : "free"
         });
       })
       .catch(() => {
@@ -71,14 +73,19 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
               </span>
             </Link>
           </div>
-          <Link href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
-            <MessageCircle size={19} />
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/contact" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Get support">
+              <CircleHelp size={19} />
+            </Link>
+            <Link href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
+              <MessageCircle size={19} />
+            </Link>
+          </div>
         </header>
         <AccountBar email={account.email} fullName={account.fullName} roles={account.roles} plan={account.plan} />
         {children}
       </div>
-      <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
+      <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
         <div className={`mx-auto grid max-w-md gap-2 ${items.length === 1 ? "grid-cols-1" : items.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
           {items.map((item) => {
             const Icon = item.icon;
@@ -87,6 +94,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
               <Link
                 key={item.href}
                 href={item.href}
+                aria-current={selected ? "page" : undefined}
                 className={`flex h-14 flex-col items-center justify-center gap-1 rounded-lg text-xs ${
                   selected ? "bg-lime text-ink" : "text-zinc-400"
                 }`}

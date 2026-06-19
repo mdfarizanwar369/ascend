@@ -111,7 +111,11 @@ export function BurnLogClient() {
     Promise.all([getMySubscription(), getMe()])
       .then(([subscriptionResponse, meResponse]) => {
         if (!isMounted) return;
-        const plan = usablePlan(subscriptionResponse.subscription.plan, subscriptionResponse.subscription.status);
+        const plan = usablePlan(
+          subscriptionResponse.subscription.plan,
+          subscriptionResponse.subscription.status,
+          subscriptionResponse.subscription.current_period_end
+        );
         setCanUseAiEstimate(plan === "premium" || plan === "trainer_pro" || meResponse.roles.includes("admin") || meResponse.roles.includes("owner"));
       })
       .catch(() => {

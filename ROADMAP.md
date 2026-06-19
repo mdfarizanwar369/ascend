@@ -25,16 +25,25 @@ Ascend is deployable as a mobile-first PWA with:
 
 ## Before Pilot Launch
 
-1. Complete a full manual pass using `ACCESS_TESTING_CHECKLIST.md`.
+1. Complete a full manual pass using `ACCESS_TESTING_CHECKLIST.md` and the role-specific pilot guides.
 2. Configure Railway backend `CRON_SECRET`.
 3. Configure Railway Cron or an external scheduler for `POST /api/v1/jobs/daily`.
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
 6. Spot-check Gemini food image analysis on production using a real mobile food photo during pilot onboarding.
-7. Configure Lemon Squeezy store, monthly variants, API key, and webhook secret.
-8. Run one end-to-end Lemon Squeezy test-mode payment and confirm the subscription changes to active.
+7. After Lemon Squeezy identity approval, run one low-value live payment and cancellation-through-period-end check.
+8. Continue using the verified test-mode payment flow or manual owner-approved pilot access until approval.
 9. Confirm Railway PostgreSQL backups.
 10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.
+11. Run the first weekly review with `PILOT_WEEKLY_REVIEW.md` and capture feedback with `PILOT_FEEDBACK_QUESTIONNAIRE.md`.
+
+## Pilot Materials Ready
+
+- Client quick-start and daily routine
+- Trainer five-minute workflow
+- Owner setup and operating guide
+- Role-based feedback questionnaire
+- Weekly adoption, engagement, cost, and decision review
 
 ## Phase 1 Polish
 

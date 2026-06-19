@@ -379,7 +379,8 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
       left join lateral (
         select s.plan, s.status
         from subscriptions s
-        where s.user_id = u.id and s.status in ('active', 'trialing')
+        where s.user_id = u.id
+          and (s.status in ('active', 'trialing') or (s.status = 'canceled' and s.current_period_end > now()))
         order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
         limit 1
       ) active_subscription on true
@@ -520,7 +521,8 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
     left join lateral (
       select s.plan, s.status
       from subscriptions s
-      where s.user_id = u.id and s.status in ('active', 'trialing')
+      where s.user_id = u.id
+        and (s.status in ('active', 'trialing') or (s.status = 'canceled' and s.current_period_end > now()))
       order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
       limit 1
     ) active_subscription on true

@@ -102,12 +102,13 @@ Optional items should not block the pilot.
 
 ### Subscription And Payment
 
-- [ ] Subscription page shows Free, Premium RM19/month, and Trainer Pro RM99/month.
-- [ ] ToyyibPay checkout creates a bill with the correct amount.
-- [ ] Return URL points to frontend `/subscription`.
-- [ ] Callback URL points to backend `/api/v1/webhooks/toyyibpay`.
-- [ ] Successful callback activates the subscription.
-- [ ] Failed/cancelled callback does not activate subscription.
+- [ ] Subscription page shows Free, Premium RM19.99/month, and Trainer Pro RM99.99/month.
+- [ ] Lemon Squeezy checkout creates the correct recurring subscription.
+- [ ] Return URL points to frontend `/subscription?checkout=success`.
+- [ ] Webhook URL points to backend `/api/v1/webhooks/lemonsqueezy`.
+- [ ] Signed successful webhook activates the subscription.
+- [ ] Failed payment shows a billing-recovery state without granting paid access.
+- [ ] Cancelled renewal preserves access through the paid period end.
 - [ ] Payment event is recorded in PostgreSQL.
 - [ ] Revenue remains attributed to referred gym and trainer.
 - [ ] Test-plan activation is disabled or operationally restricted before a public pilot if real payments are required.
@@ -136,8 +137,8 @@ Optional items should not block the pilot.
 - [ ] Railway account
 - [ ] GitHub account connected to Railway
 - [ ] Firebase project
-- [ ] OpenAI platform account
-- [ ] ToyyibPay merchant account
+- [ ] Google AI Studio / Gemini account
+- [ ] Lemon Squeezy merchant account
 - [ ] Cloudflare account with R2 bucket, or AWS account with S3 bucket
 
 ## Required Production Services
@@ -146,8 +147,8 @@ Optional items should not block the pilot.
 - [ ] Railway backend service
 - [ ] Railway frontend service
 - [ ] Firebase Authentication
-- [ ] OpenAI API key
-- [ ] ToyyibPay bill category
+- [ ] Gemini API key and billing/quota configuration
+- [ ] Lemon Squeezy store, variants, API key, and webhook
 - [ ] R2/S3 bucket for food and progress photos
 - [ ] Cron scheduler for daily job
 - [ ] PostgreSQL backup policy

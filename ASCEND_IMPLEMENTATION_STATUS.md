@@ -50,6 +50,11 @@ The live app is available at:
 - Lemon Squeezy recurring billing is implemented with secure checkout, signed webhooks, automatic plan synchronization, and a customer billing portal. Manual pilot approvals remain available.
 - Public Privacy, Terms, Refund and Cancellation, and Support pages are available and linked from the homepage and subscription screen.
 - Owners can permanently delete inactive client or trainer accounts after confirmation. Owner/admin accounts and users with live Lemon Squeezy billing are protected.
+- Paid access now remains available until the end of a cancelled Lemon Squeezy billing period instead of ending immediately.
+- The subscription screen explains renewals, cancellations, expired plans, and payment issues, polls for checkout confirmation, and opens the billing portal for account recovery.
+- Signup now records clear Terms/Privacy consent context, and login, onboarding, and authenticated app screens expose support links.
+- Mobile layout checks passed at 390x844 and 412x915 with no horizontal overflow or browser console errors on login, onboarding, and subscriptions.
+- Client, trainer, and owner pilot guides, a feedback questionnaire, and a weekly pilot review template are available in the repository root.
 
 ## Fixes Completed In This Pass
 
@@ -82,7 +87,6 @@ The live app is available at:
 
 ## Remaining Pilot Risks
 
-- Lemon Squeezy must be configured in Railway and tested with one test-mode subscription before public paid launch.
-- `support@getascend.fit` must be configured as a working mailbox or forwarding address before public paid launch.
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
 - Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.
+- Lemon Squeezy production payments remain blocked until the store identity review is approved; test mode and manual pilot access can be used meanwhile.

@@ -185,10 +185,10 @@ Checks:
 - [ ] Progress photo upload works.
 - [ ] Uploaded image can be viewed through trainer/client screens.
 
-## OpenAI Setup
+## Gemini AI Setup
 
-- [ ] `OPENAI_API_KEY` set.
-- [ ] `OPENAI_MODEL` set.
+- [ ] `GEMINI_API_KEY` set.
+- [ ] `GEMINI_MODEL=gemini-2.5-flash-lite` set, unless a newer tested model is intentionally selected.
 - [ ] Food photo estimate tested with local foods.
 - [ ] Coach chat tested.
 - [ ] Burn estimate tested.

@@ -58,7 +58,11 @@ export function RoleGate({
 
       try {
         const subscription = await withTimeout(getMySubscription());
-        const activePlan = usablePlan(subscription.subscription.plan, subscription.subscription.status);
+        const activePlan = usablePlan(
+          subscription.subscription.plan,
+          subscription.subscription.status,
+          subscription.subscription.current_period_end
+        );
         return planRank[activePlan] >= planRank[requiredPlan] ? "allowed" : "plan-blocked";
       } catch {
         return "plan-blocked";

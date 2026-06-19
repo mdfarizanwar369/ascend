@@ -170,6 +170,7 @@ export function OnboardingForm() {
               <button
                 key={option.value}
                 type="button"
+                aria-pressed={selected}
                 onClick={() => setCoachingMode(option.value)}
                 className={`rounded-lg border p-3 text-left ${
                   selected ? "border-lime bg-lime/10 text-white" : "border-line bg-ink text-zinc-300"
@@ -252,7 +253,7 @@ export function OnboardingForm() {
         </Field>
       </div>
 
-      {status ? <p className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100">{status}</p> : null}
+      {status ? <p role="alert" aria-live="polite" className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100">{status}</p> : null}
 
       <button
         type="button"

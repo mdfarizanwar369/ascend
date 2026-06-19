@@ -201,14 +201,17 @@ Test activation, if allowed during pilot:
 - [ ] Activate Trainer Pro test plan for trainer.
 - [ ] Trainer dashboard unlocks.
 
-ToyyibPay:
+Lemon Squeezy:
 
-- [ ] Premium checkout opens ToyyibPay.
-- [ ] Trainer Pro checkout opens ToyyibPay.
-- [ ] Return from ToyyibPay goes to `/subscription`.
-- [ ] Callback activates paid subscription.
+- [ ] Premium checkout opens Lemon Squeezy with RM19.99 monthly pricing.
+- [ ] Trainer Pro checkout opens Lemon Squeezy with RM99.99 monthly pricing.
+- [ ] Return from checkout goes to `/subscription?checkout=success`.
+- [ ] Signed webhook activates the paid subscription.
 - [ ] Cancelled/failed payment does not activate subscription.
 - [ ] Admin subscription view shows payment attribution.
+- [ ] Cancelling renewal keeps paid access until `current_period_end`.
+- [ ] Subscription screen shows the cancellation end date.
+- [ ] Billing portal opens for active, past-due, and cancelled-current-period accounts.
 
 ## 11. Daily Job
 
@@ -243,6 +246,9 @@ PWA:
 - [ ] Logo appears.
 - [ ] Bottom navigation is usable.
 - [ ] No horizontal scroll on key pages.
+- [ ] Signup role buttons work on Safari and Android Chrome.
+- [ ] Signup shows Terms and Privacy links.
+- [ ] Login, onboarding, and authenticated headers expose Support.
 
 ## 13. Final Pilot Acceptance
 

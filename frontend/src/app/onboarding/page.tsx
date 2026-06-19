@@ -2,6 +2,7 @@ import { BadgeCheck } from "lucide-react";
 import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
 import { BackButton } from "@/components/BackButton";
 import { BrandMark } from "@/components/BrandMark";
+import { PublicFooter } from "@/components/legal/PublicFooter";
 
 export default function OnboardingPage() {
   return (
@@ -26,6 +27,7 @@ export default function OnboardingPage() {
         </section>
 
         <OnboardingForm />
+        <PublicFooter compact />
       </div>
     </main>
   );

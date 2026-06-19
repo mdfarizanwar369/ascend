@@ -41,7 +41,11 @@ export function PlanGate({
     const [subscriptionResult, profileResult] = await Promise.allSettled([withTimeout(getMySubscription()), withTimeout(getMe())]);
 
     if (subscriptionResult.status === "fulfilled") {
-      setActivePlan(usablePlan(subscriptionResult.value.subscription.plan, subscriptionResult.value.subscription.status));
+      setActivePlan(usablePlan(
+        subscriptionResult.value.subscription.plan,
+        subscriptionResult.value.subscription.status,
+        subscriptionResult.value.subscription.current_period_end
+      ));
     }
 
     if (profileResult.status === "fulfilled") {

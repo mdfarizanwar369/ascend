@@ -229,7 +229,11 @@ export function ClientDashboard() {
 
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);
-      setPlan(usablePlan(subscription.subscription.plan, subscription.subscription.status));
+      setPlan(usablePlan(
+        subscription.subscription.plan,
+        subscription.subscription.status,
+        subscription.subscription.current_period_end
+      ));
       if (foods.status === "fulfilled") setFoodLogs(Array.isArray(foods.value.foodLogs) ? foods.value.foodLogs : []);
       if (weights.status === "fulfilled") setWeightLogs(Array.isArray(weights.value.weightLogs) ? weights.value.weightLogs : []);
       if (waters.status === "fulfilled") setWaterLogs(Array.isArray(waters.value.waterLogs) ? waters.value.waterLogs : []);
