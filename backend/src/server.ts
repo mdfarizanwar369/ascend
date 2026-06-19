@@ -31,7 +31,10 @@ export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
 
 app.set("trust proxy", 1);
-app.use(helmet());
+app.disable("x-powered-by");
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors({ origin: corsOrigins.length > 1 ? corsOrigins : corsOrigins[0], credentials: true }));
 app.use(express.json({
   limit: "10mb",
@@ -39,8 +42,14 @@ app.use(express.json({
     (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
   }
 }));
-app.use(express.urlencoded({ extended: false }));
-app.use(rateLimit({ windowMs: 60_000, limit: 120 }));
+app.use(express.urlencoded({ extended: false, limit: "64kb" }));
+app.use(rateLimit({
+  windowMs: 60_000,
+  limit: 120,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please wait a moment and try again." }
+}));
 app.use("/api/v1", (_req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.set("Pragma", "no-cache");

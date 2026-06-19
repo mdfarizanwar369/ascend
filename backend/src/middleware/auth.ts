@@ -54,9 +54,15 @@ declare global {
   }
 }
 
+export function parseBearerToken(header: string | undefined) {
+  const match = header?.match(/^Bearer\s+([^\s]+)$/i);
+  if (!match || match[1].length > 16_384) return null;
+  return match[1];
+}
+
 export async function requireFirebaseToken(req: Request, res: Response, next: NextFunction) {
   try {
-    const token = req.header("Authorization")?.replace("Bearer ", "");
+    const token = parseBearerToken(req.header("Authorization"));
     if (!token) return res.status(401).json({ error: "Missing bearer token" });
 
     const decoded = await getFirebaseAuth().verifyIdToken(token);
@@ -73,7 +79,7 @@ export async function requireFirebaseToken(req: Request, res: Response, next: Ne
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    const token = req.header("Authorization")?.replace("Bearer ", "");
+    const token = parseBearerToken(req.header("Authorization"));
     if (!token) return res.status(401).json({ error: "Missing bearer token" });
 
     const decoded = await getFirebaseAuth().verifyIdToken(token);

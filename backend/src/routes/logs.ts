@@ -7,6 +7,8 @@ import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl, createUploadUrl, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
+import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
+import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
 
 export const logsRouter = Router();
 
@@ -25,11 +27,11 @@ const foodLogSchema = z.object({
 });
 
 const foodImageDataSchema = z.object({
-  imageDataUrl: z.string().startsWith("data:image/").max(7_000_000)
+  imageDataUrl: imageDataUrlSchema
 });
 
 const photoUploadDataSchema = z.object({
-  imageDataUrl: z.string().startsWith("data:image/").max(7_000_000)
+  imageDataUrl: imageDataUrlSchema
 });
 
 const weightLogSchema = z.object({
@@ -57,13 +59,13 @@ logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) =>
   }
 });
 
-logsRouter.post("/food-logs/photo-upload-url", requireAuth, async (req, res) => {
-  const contentType = String(req.body.contentType ?? "image/jpeg");
+logsRouter.post("/food-logs/photo-upload-url", requireAuth, uploadRateLimit, async (req, res) => {
+  const contentType = imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
   const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
   res.json(await createUploadUrl(key, contentType));
 });
 
-logsRouter.post("/food-logs/photo-upload-data-url", requireAuth, async (req, res, next) => {
+logsRouter.post("/food-logs/photo-upload-data-url", requireAuth, uploadRateLimit, async (req, res, next) => {
   try {
     const input = photoUploadDataSchema.parse(req.body);
     const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
@@ -82,7 +84,7 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
   );
 }
 
-logsRouter.post("/food-logs/estimate", requireAuth, async (req, res, next) => {
+logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     const imageUrl = z.string().url().parse(req.body.imageUrl);
     const estimate = await estimateFoodFromImage(imageUrl, { userId: req.user!.id, gymId: req.user!.gymId });
@@ -100,7 +102,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, async (req, res, next) => {
   }
 });
 
-logsRouter.post("/food-logs/estimate-data-url", requireAuth, async (req, res, next) => {
+logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     const input = foodImageDataSchema.parse(req.body);
     const estimate = await estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId });
@@ -250,13 +252,13 @@ logsRouter.get("/burn-logs", requireAuth, async (req, res) => {
   res.json({ burnLogs: result.rows });
 });
 
-logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("premium"), async (req, res) => {
-  const contentType = String(req.body.contentType ?? "image/jpeg");
+logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res) => {
+  const contentType = imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
   const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;
   res.json(await createUploadUrl(key, contentType));
 });
 
-logsRouter.post("/progress-photos/upload-data-url", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+logsRouter.post("/progress-photos/upload-data-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res, next) => {
   try {
     const input = photoUploadDataSchema.parse(req.body);
     const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;

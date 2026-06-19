@@ -1,6 +1,7 @@
 import { DeleteObjectsCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env";
+import { imageContentTypeSchema, parseImageDataUrl } from "../utils/images";
 
 const s3 = new S3Client({
   region: env.AWS_REGION,
@@ -13,10 +14,11 @@ export async function createUploadUrl(key: string, contentType: string) {
     return { uploadUrl: "", key, storageConfigured: false };
   }
 
+  const safeContentType = imageContentTypeSchema.parse(contentType);
   const command = new PutObjectCommand({
     Bucket: env.AWS_S3_BUCKET,
     Key: key,
-    ContentType: contentType
+    ContentType: safeContentType
   });
 
   return {
@@ -31,16 +33,13 @@ export async function uploadDataUrl(key: string, imageDataUrl: string) {
     return { key, storageConfigured: false };
   }
 
-  const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) {
-    throw new Error("Invalid image data.");
-  }
+  const image = parseImageDataUrl(imageDataUrl);
 
   const command = new PutObjectCommand({
     Bucket: env.AWS_S3_BUCKET,
     Key: key,
-    ContentType: match[1],
-    Body: Buffer.from(match[2], "base64")
+    ContentType: image.contentType,
+    Body: image.buffer
   });
 
   await s3.send(command);

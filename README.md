@@ -1,5 +1,7 @@
 # Ascend
 
+Security issues should be reported privately using the process in [SECURITY.md](SECURITY.md). Never place production credentials in source files; keep them in Railway environment variables.
+
 Ascend is a mobile-first PWA SaaS MVP for fitness accountability across gym members, trainers, and gym owners.
 
 Ascend uses one multi-gym application, not separate copies per gym. The bootstrap owner is the platform owner and can access every gym. Other owner/admin accounts are restricted by backend-enforced gym assignments and may be assigned to one or multiple gyms.

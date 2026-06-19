@@ -4,6 +4,7 @@ import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { createCheckout } from "../services/subscriptionService";
 import { LemonSqueezyProvider, paymentProvider, ToyyibPayProvider } from "../integrations/payments";
+import { env } from "../config/env";
 
 export const subscriptionsRouter = Router();
 
@@ -112,6 +113,9 @@ subscriptionsRouter.get("/subscriptions/billing-portal", requireAuth, async (req
 
 subscriptionsRouter.post("/webhooks/toyyibpay", async (req, res, next) => {
   try {
+    if (env.PAYMENT_PROVIDER !== "toyyibpay") {
+      return res.status(404).json({ error: "Not found" });
+    }
     const event = await new ToyyibPayProvider().verifyWebhook({ payload: req.body });
     const update =
       event.status === "active"

@@ -8,9 +8,14 @@ healthRouter.get("/health", (_req, res) => {
 });
 
 function storageHealth() {
+  const storageConfigured = Boolean(env.AWS_S3_BUCKET && env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY);
+  if (env.NODE_ENV === "production") {
+    return { status: "ok", storageConfigured };
+  }
+
   return {
     status: "ok",
-    storageConfigured: Boolean(env.AWS_S3_BUCKET && env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY),
+    storageConfigured,
     hasBucket: Boolean(env.AWS_S3_BUCKET),
     hasAccessKey: Boolean(env.AWS_ACCESS_KEY_ID),
     hasSecretKey: Boolean(env.AWS_SECRET_ACCESS_KEY),

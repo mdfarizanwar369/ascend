@@ -3,6 +3,7 @@ import { z } from "zod";
 import { env } from "../config/env";
 import { query } from "../db/pool";
 import { requireFirebaseToken } from "../middleware/auth";
+import { authRateLimit } from "../middleware/rateLimits";
 
 export const authRouter = Router();
 
@@ -12,7 +13,7 @@ const provisionSchema = z.object({
   primaryRole: z.enum(["client", "trainer"]).default("client")
 });
 
-authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) => {
+authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (req, res, next) => {
   try {
     const input = provisionSchema.parse(req.body);
     const firebaseUser = req.firebaseUser!;
@@ -100,7 +101,7 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
   }
 });
 
-authRouter.post("/auth/bootstrap-owner", requireFirebaseToken, async (req, res, next) => {
+authRouter.post("/auth/bootstrap-owner", authRateLimit, requireFirebaseToken, async (req, res, next) => {
   try {
     const firebaseUser = req.firebaseUser!;
     const allowedEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();

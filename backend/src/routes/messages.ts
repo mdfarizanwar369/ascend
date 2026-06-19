@@ -45,18 +45,7 @@ async function canMessageUser(currentUser: AuthUser, otherUserId: string) {
   );
   if (assignedTrainerResult.rows[0]) return true;
 
-  const gymTrainerResult = await query(
-    `
-    select trainer_user.id
-    from users cu
-    join trainers t on t.gym_id = cu.gym_id and t.status = 'active'
-    join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-    where cu.id = $1 and cu.status = 'active' and trainer_user.id = $2
-    limit 1
-    `,
-    [currentUser.id, otherUserId]
-  );
-  return Boolean(gymTrainerResult.rows[0]);
+  return false;
 }
 
 async function getTrainerClientThreadContext(clientId: string, currentUser: AuthUser) {
@@ -130,31 +119,7 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
     );
     if (assignedTrainerResult.rows.length) return res.json({ contacts: assignedTrainerResult.rows });
 
-    const gymTrainerResult = await query(
-      `
-      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
-      from users client_user
-      join trainers t on t.gym_id = client_user.gym_id and t.status = 'active'
-      join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-      where client_user.id = $1 and client_user.status = 'active'
-      order by trainer_user.full_name asc
-      limit 20
-      `,
-      [req.user!.id]
-    );
-    if (gymTrainerResult.rows.length) return res.json({ contacts: gymTrainerResult.rows });
-
-    const anyTrainerResult = await query(
-      `
-      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
-      from trainers t
-      join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
-      where t.status = 'active'
-      order by trainer_user.full_name asc
-      limit 20
-      `
-    );
-    return res.json({ contacts: anyTrainerResult.rows });
+    return res.json({ contacts: [] });
   } catch (error) {
     next(error);
   }

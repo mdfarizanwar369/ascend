@@ -10,7 +10,7 @@ function hasValidJobSecret(value: string | undefined) {
 
 jobsRouter.post("/jobs/daily", async (req, res, next) => {
   try {
-    const token = req.header("x-cron-secret") ?? req.query.secret?.toString();
+    const token = req.header("x-cron-secret");
 
     if (!hasValidJobSecret(token)) {
       return res.status(401).json({ error: "Invalid daily jobs secret" });

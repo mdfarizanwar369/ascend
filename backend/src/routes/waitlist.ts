@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { pool } from "../db/pool";
+import { waitlistRateLimit } from "../middleware/rateLimits";
 
 const waitlistSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
@@ -12,7 +13,7 @@ const waitlistSchema = z.object({
 
 export const waitlistRouter = Router();
 
-waitlistRouter.post("/waitlist", async (req, res, next) => {
+waitlistRouter.post("/waitlist", waitlistRateLimit, async (req, res, next) => {
   try {
     const input = waitlistSchema.parse(req.body);
     const contact = input.contact.toLowerCase();
