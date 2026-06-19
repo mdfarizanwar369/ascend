@@ -25,6 +25,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Platform owner and gym-owner tenancy: one Ascend deployment supports multiple gym owners, with backend-enforced access to assigned gyms only.
 - Food-history consistency safeguards prevent cached or out-of-order responses from temporarily hiding newly saved meals.
 - Versioned client goal journeys support editable goals, latest-weight nutrition recalculation, evidence-based 100 kcal adjustments, target celebrations, and trainer visibility.
+- A compact 30-day “Look How Far You’ve Come” card motivates clients using only their own weight, Momentum, and check-in history; trainers see the same summary during reviews.
 - Latest release audit: production mobile routes, session persistence, database relationships, subscription consistency, AI cache behavior, builds, lint, and automated tests verified.
 
 ## Before Pilot Launch

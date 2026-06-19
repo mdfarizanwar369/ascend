@@ -6,6 +6,8 @@ Ascend uses one multi-gym application, not separate copies per gym. The bootstra
 
 Client nutrition guides use age, height, sex, activity level, latest logged weight, and goal. Clients can start a new Fat Loss, Muscle Gain, or Maintenance journey from the guide profile. After at least three weigh-ins across two weeks, Ascend may apply a conservative 100 kcal trend adjustment. These numbers are practical estimates, not medical prescriptions.
 
+The client dashboard also provides a lightweight 30-day self-comparison. It compares only the member with their own earlier records and highlights positive changes in goal-aligned weight, Momentum Score, and weekly check-in consistency. It does not use AI or compare members with one another.
+
 Owner account cleanup uses a two-step process: deactivate first, then permanently delete from the Inactive users tab. Permanent deletion removes the Firebase login, PostgreSQL user data, messages, and stored user photos. Live Lemon Squeezy subscriptions must be cancelled before deletion.
 
 Initial launch gyms:

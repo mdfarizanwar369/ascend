@@ -12,6 +12,7 @@ import {
   getHabits,
   getLatestRecognition,
   getMe,
+  getMyProgressComparison,
   getGoalStatus,
   getMyStreak,
   getMySubscription,
@@ -23,6 +24,7 @@ import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
+import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -35,6 +37,7 @@ type DailyMission = Awaited<ReturnType<typeof getTodayMission>>["mission"];
 type LatestRecognition = Awaited<ReturnType<typeof getLatestRecognition>>["recognition"];
 type Streak = Awaited<ReturnType<typeof getMyStreak>>["streak"];
 type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
+type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -197,6 +200,7 @@ export function ClientDashboard() {
   const [latestRecognition, setLatestRecognition] = useState<LatestRecognition>(null);
   const [streak, setStreak] = useState<Streak | null>(null);
   const [goalStatus, setGoalStatus] = useState<GoalStatus | null>(null);
+  const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -282,6 +286,18 @@ export function ClientDashboard() {
       isMounted = false;
     };
   }, [loadDashboard]);
+
+  useEffect(() => {
+    let isMounted = true;
+    getMyProgressComparison()
+      .then((response) => {
+        if (isMounted) setProgressComparison(response.comparison);
+      })
+      .catch(() => undefined);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function markMissionDone() {
     if (!dailyMission || dailyMission.status === "completed") return;
@@ -660,6 +676,12 @@ export function ClientDashboard() {
           </div>
           <a href="/profile/guide" className="mt-3 block text-center text-sm font-semibold text-lime">Change goal or target</a>
         </section>
+
+        {progressComparison ? (
+          <div className="mt-4">
+            <ProgressComparisonCard comparison={progressComparison} />
+          </div>
+        ) : null}
 
         {needsGuideProfile ? (
           <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">

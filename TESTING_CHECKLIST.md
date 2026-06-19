@@ -93,6 +93,16 @@ Owner login:
 - [ ] Select Maintain my result after reaching the target and confirm a fresh journey begins.
 - [ ] Confirm invalid target directions are rejected with a clear message.
 
+## 6. Look How Far You've Come
+
+- [ ] A client with fewer than 30 days of usable history sees a short comparison-building message.
+- [ ] A client with 30 days of history sees 30 days ago versus today for available weight, Momentum, and check-in days.
+- [ ] Only positive or steady progress is highlighted; changes moving away from the goal are not described as wins or failures.
+- [ ] The card links to progress photos without loading duplicate images.
+- [ ] The assigned trainer sees the same comparison on the client profile.
+- [ ] Another trainer cannot access the comparison endpoint for an unassigned client.
+- [ ] Dashboard and trainer profile still load if the comparison request fails.
+
 ## 5. Plan And Access Matrix
 
 Free client:

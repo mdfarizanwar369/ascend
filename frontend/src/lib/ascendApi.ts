@@ -2,6 +2,15 @@ import { CoachingMode, FoodEstimate, GoalType, SubscriptionPlan } from "@ascend/
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
 
+export interface ProgressComparison {
+  periodDays: number;
+  daysTracked: number;
+  hasComparison: boolean;
+  current: { weightKg: number | null; momentum: number | null; checkinDays: number };
+  baseline: { weightKg: number | null; momentum: number | null; checkinDays: number };
+  highlights: Array<{ key: string; label: string; message: string }>;
+}
+
 function shouldRefreshToken(error: unknown) {
   if (!(error instanceof Error)) return false;
   return /401|invalid or expired token|missing bearer token|authentication is still loading/i.test(error.message);
@@ -178,6 +187,10 @@ export function getGoalStatus() {
       acknowledged_at?: string | null;
     };
   }>("/me/goal-status");
+}
+
+export function getMyProgressComparison() {
+  return authed<{ comparison: ProgressComparison }>("/me/progress-comparison");
 }
 
 export function acknowledgeGoalMilestone(milestoneId: string) {
@@ -708,6 +721,10 @@ export function getTrainerClient(clientId: string) {
       last_trainer_message_at?: string | null;
     };
   }>(`/trainer/clients/${clientId}`);
+}
+
+export function getTrainerClientProgressComparison(clientId: string) {
+  return authed<{ comparison: ProgressComparison }>(`/trainer/clients/${clientId}/progress-comparison`);
 }
 
 export function getTrainerClientFoodLogs(clientId: string) {

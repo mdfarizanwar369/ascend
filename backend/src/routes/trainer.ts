@@ -8,6 +8,7 @@ import { logAiUsage } from "../services/aiUsageService";
 import { env } from "../config/env";
 import { getAdminGymScope } from "../services/adminScopeService";
 import { canManageClient } from "../services/clientAccessService";
+import { getProgressComparison } from "../services/progressComparisonService";
 
 export const trainerRouter = Router();
 
@@ -400,6 +401,15 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
       [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
     res.json({ clients: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.get("/trainer/clients/:clientId/progress-comparison", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    res.json({ comparison: await getProgressComparison(req.params.clientId) });
   } catch (error) {
     next(error);
   }

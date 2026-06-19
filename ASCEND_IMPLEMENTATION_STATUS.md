@@ -16,6 +16,7 @@ The live app is available at:
 
 ## Verified This Pass
 
+- “Look How Far You’ve Come” gives clients and trainers a lightweight 30-day self-comparison for goal-aligned weight, Momentum Score, and weekly check-in consistency, with no leaderboard or AI usage.
 - Clients can change between Fat Loss, Muscle Gain, and Maintenance without losing old logs; each change starts a versioned goal journey from the latest weigh-in.
 - Daily calories and macros now use the latest logged weight and may adjust gently by 100 kcal only after at least three weigh-ins spanning two weeks.
 - Fat-loss and muscle-gain targets create a one-time milestone celebration when reached, with a clear next-goal path and trainer visibility.

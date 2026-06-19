@@ -12,6 +12,7 @@ import {
   getTrainerClientMissions,
   getTrainerClientMessages,
   getTrainerClientProgressPhotos,
+  getTrainerClientProgressComparison,
   getTrainerClientWaterLogs,
   getTrainerClientWeightLogs,
   sendTrainerClientPraise,
@@ -20,6 +21,7 @@ import {
 import { MetricCard } from "@/components/MetricCard";
 import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
+import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -28,6 +30,7 @@ type ProgressPhoto = Awaited<ReturnType<typeof getTrainerClientProgressPhotos>>[
 type WeightLog = Awaited<ReturnType<typeof getTrainerClientWeightLogs>>["weightLogs"][number];
 type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs"][number];
 type Mission = Awaited<ReturnType<typeof getTrainerClientMissions>>["missions"][number];
+type ProgressComparison = Awaited<ReturnType<typeof getTrainerClientProgressComparison>>["comparison"];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -50,6 +53,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [missionTitle, setMissionTitle] = useState("");
   const [missionDueDate, setMissionDueDate] = useState("");
   const [checkin, setCheckin] = useState("");
@@ -70,13 +74,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         setClient(profile.client);
         setStatus("");
 
-        const [foods, nextMessages, progress, weights, waters, nextMissions] = await Promise.allSettled([
+        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
           getTrainerClientWeightLogs(clientId),
           getTrainerClientWaterLogs(clientId),
-          getTrainerClientMissions(clientId)
+          getTrainerClientMissions(clientId),
+          getTrainerClientProgressComparison(clientId)
         ]);
 
         if (!isMounted) return;
@@ -86,6 +91,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         if (weights.status === "fulfilled") setWeightLogs(weights.value.weightLogs);
         if (waters.status === "fulfilled") setWaterLogs(waters.value.waterLogs);
         if (nextMissions.status === "fulfilled") setMissions(nextMissions.value.missions);
+        if (comparison.status === "fulfilled") setProgressComparison(comparison.value.comparison);
 
         if ([foods, nextMessages, progress, weights, waters, nextMissions].some((result) => result.status === "rejected")) {
           setStatus("Some client sections could not load yet. The main client profile is still available.");
@@ -261,6 +267,12 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         />
       </section>
 
+      {progressComparison ? (
+        <div className="mt-4">
+          <ProgressComparisonCard comparison={progressComparison} photoHref="#progress-photos" />
+        </div>
+      ) : null}
+
       {(score ?? 100) < 50 ? (
         <section className={`mt-4 rounded-lg p-4 ${checkedInToday ? "border border-calm/40 bg-calm/10" : "border border-amber/40 bg-amber/10"}`}>
           <div className="flex gap-3">
@@ -411,7 +423,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section id="progress-photos" className="mt-4 scroll-mt-20 rounded-lg border border-line bg-surface p-4">
         <h2 className="text-base font-semibold">Progress photos</h2>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {progressPhotos.slice(0, 6).map((photo) => (

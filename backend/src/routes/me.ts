@@ -2,6 +2,7 @@ import { Router } from "express";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { acknowledgeGoalMilestone, completeOnboarding, getGoalStatus, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
+import { getProgressComparison } from "../services/progressComparisonService";
 
 export const meRouter = Router();
 
@@ -43,6 +44,14 @@ meRouter.patch("/me/guide-profile", requireAuth, async (req, res, next) => {
 meRouter.get("/me/goal-status", requireAuth, async (req, res, next) => {
   try {
     res.json({ goalStatus: await getGoalStatus(req.user!.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.get("/me/progress-comparison", requireAuth, async (req, res, next) => {
+  try {
+    res.json({ comparison: await getProgressComparison(req.user!.id) });
   } catch (error) {
     next(error);
   }
