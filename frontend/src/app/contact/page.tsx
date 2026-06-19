@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Mail, MessageCircle, ReceiptText, ShieldCheck } from "lucide-react";
+import { ArrowLeft, Mail, MessageCircle, ReceiptText, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { PublicFooter } from "@/components/legal/PublicFooter";
@@ -21,7 +21,13 @@ export default function ContactPage() {
             <BrandMark size="sm" />
             <span className="text-xl font-semibold">Ascend</span>
           </Link>
-          <Link href="/login" className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold text-zinc-200">Open Ascend</Link>
+          <Link
+            href="/launch"
+            className="flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-zinc-200"
+          >
+            <ArrowLeft size={17} />
+            Back to account
+          </Link>
         </header>
 
         <section className="py-12 sm:py-16">

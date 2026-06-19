@@ -28,9 +28,9 @@ export function LegalPage({
             <BrandMark size="sm" />
             <span className="text-xl font-semibold">Ascend</span>
           </Link>
-          <Link href="/" className="flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-zinc-200">
+          <Link href="/launch" className="flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-zinc-200">
             <ArrowLeft size={17} />
-            Home
+            Back to Ascend
           </Link>
         </header>
 
