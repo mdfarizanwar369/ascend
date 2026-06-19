@@ -2,6 +2,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, TrendingUp } from "lucide-reac
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
+import { PublicFooter } from "@/components/legal/PublicFooter";
 
 const appLoginUrl = "https://www.getascend.fit/login";
 
@@ -107,6 +108,7 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+        <PublicFooter />
       </div>
     </main>
   );

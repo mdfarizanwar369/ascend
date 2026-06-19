@@ -20,6 +20,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Lemon Squeezy subscription billing with manual pilot activation, secure checkout, signed webhooks, billing portal, and payment event records.
 - Daily compliance and risk job endpoint.
 - Browser back/forward and logout session refresh handling.
+- Public legal, refund, and support pages for subscription launch readiness.
 
 ## Before Pilot Launch
 

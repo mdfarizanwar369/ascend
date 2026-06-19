@@ -48,6 +48,7 @@ The live app is available at:
 - Daily nutrition guides are available: onboarding collects age, height, activity level, and sex/prefer-not-to-say, then Ascend estimates calorie, protein, carbs, fat, and water guides based on the client's goal.
 - Existing clients with incomplete nutrition profiles see an "Improve my daily guide" prompt and can update the missing details without repeating onboarding.
 - Lemon Squeezy recurring billing is implemented with secure checkout, signed webhooks, automatic plan synchronization, and a customer billing portal. Manual pilot approvals remain available.
+- Public Privacy, Terms, Refund and Cancellation, and Support pages are available and linked from the homepage and subscription screen.
 
 ## Fixes Completed In This Pass
 
@@ -81,5 +82,6 @@ The live app is available at:
 ## Remaining Pilot Risks
 
 - Lemon Squeezy must be configured in Railway and tested with one test-mode subscription before public paid launch.
+- `support@getascend.fit` must be configured as a working mailbox or forwarding address before public paid launch.
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
 - Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.

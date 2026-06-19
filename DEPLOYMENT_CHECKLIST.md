@@ -55,6 +55,14 @@ Use this for Railway production deployment.
   - IAM access key with bucket read/write permissions.
   - Region.
 
+### Support Email
+
+- Purpose: account, privacy, cancellation, and refund requests.
+- Required:
+  - Configure `support@getascend.fit` as a mailbox or Cloudflare Email Routing address.
+  - Forward it to an inbox monitored by the Ascend owner.
+  - Send one test message and reply before enabling live payments.
+
 ## Railway Services
 
 ### PostgreSQL

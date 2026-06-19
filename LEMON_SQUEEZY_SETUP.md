@@ -80,3 +80,18 @@ Redeploy the backend after saving the variables. The frontend does not need a Le
 10. Repeat with a trainer account and Trainer Pro.
 
 Only switch the Lemon Squeezy store and credentials to live mode after both tests pass.
+
+## 7. Store URLs
+
+Use these URLs in Lemon Squeezy store settings:
+
+```text
+Website: https://www.getascend.fit
+Privacy policy: https://www.getascend.fit/privacy
+Terms: https://www.getascend.fit/terms
+Refund policy: https://www.getascend.fit/refund-policy
+Support: https://www.getascend.fit/contact
+Support email: support@getascend.fit
+```
+
+Configure the support email as a real mailbox or forwarding address before accepting live payments.

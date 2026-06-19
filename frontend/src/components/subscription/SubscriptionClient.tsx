@@ -6,6 +6,7 @@ import { PLANS, SubscriptionPlan } from "@ascend/shared";
 import { createCheckout, getBillingPortal, getMe, getMySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
+import { PublicFooter } from "@/components/legal/PublicFooter";
 
 const features: Record<SubscriptionPlan, string[]> = {
   free: ["Weight tracking", "Water tracking", "Basic logs"],
@@ -165,6 +166,10 @@ export function SubscriptionClient() {
             );
           })}
         </section>
+        <p className="mt-5 text-center text-xs leading-5 text-zinc-500">
+          By subscribing, you agree to the monthly renewal and cancellation terms shown at checkout.
+        </p>
+        <PublicFooter compact />
       </div>
     </main>
   );
