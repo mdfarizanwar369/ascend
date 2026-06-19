@@ -16,6 +16,7 @@ The live app is available at:
 
 ## Verified This Pass
 
+- Food-log reads now bypass browser and proxy caches, successful saves update immediately from the database response, and stale overlapping dashboard requests cannot hide newer records.
 - Public landing page loads on the custom domain.
 - Root domain forwards to the live Ascend app.
 - Firebase email/password login works from the custom domain.

@@ -41,6 +41,12 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 app.use(rateLimit({ windowMs: 60_000, limit: 120 }));
+app.use("/api/v1", (_req, res, next) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  next();
+});
 
 app.use("/api/v1", healthRouter);
 app.use("/api/v1", jobsRouter);

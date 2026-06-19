@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
 import { calculateNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
@@ -163,10 +163,14 @@ export function FoodLogClient() {
   const [wasEdited, setWasEdited] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
+  const foodLogsRequestRef = useRef(0);
 
   async function loadFoodLogs() {
+    const requestId = ++foodLogsRequestRef.current;
     const response = await getFoodLogs();
-    setFoodLogs(response.foodLogs);
+    if (requestId === foodLogsRequestRef.current) {
+      setFoodLogs(response.foodLogs);
+    }
   }
 
   async function loadUser() {
@@ -349,7 +353,7 @@ export function FoodLogClient() {
         }
       }
 
-      await saveFoodLog({
+      const response = await saveFoodLog({
         imageS3Key: imageS3Key ?? undefined,
         mealType: savedLog.mealType,
         estimatedFoodName: savedLog.estimatedFoodName,
@@ -360,7 +364,15 @@ export function FoodLogClient() {
         aiEstimateRaw: estimate,
         wasEditedByUser: wasEdited
       });
-      await loadFoodLogs();
+      foodLogsRequestRef.current += 1;
+      setFoodLogs((current) => [
+        {
+          ...response.foodLog,
+          image_url: previewUrl
+        },
+        ...current.filter((log) => log.id !== response.foodLog.id)
+      ]);
+      loadFoodLogs().catch(() => {});
       setPreviewUrl(null);
       setEstimate(null);
       setSelectedFile(null);

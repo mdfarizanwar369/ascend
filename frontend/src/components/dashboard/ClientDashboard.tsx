@@ -206,11 +206,13 @@ export function ClientDashboard() {
   const [missionStatus, setMissionStatus] = useState("");
   const [currentHour, setCurrentHour] = useState<number | null>(null);
   const lastDashboardLoadRef = useRef(0);
+  const dashboardRequestRef = useRef(0);
 
   const loadDashboard = useCallback(async () => {
     const now = Date.now();
     if (now - lastDashboardLoadRef.current < 2500) return;
     lastDashboardLoadRef.current = now;
+    const requestId = ++dashboardRequestRef.current;
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
@@ -226,6 +228,8 @@ export function ClientDashboard() {
         getLatestRecognition(),
         getMyStreak()
       ]);
+
+      if (requestId !== dashboardRequestRef.current) return;
 
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);

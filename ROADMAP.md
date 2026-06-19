@@ -23,6 +23,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Public legal, refund, and support pages for subscription launch readiness.
 - Owner-only permanent deletion for inactive accounts, including Firebase login and stored media cleanup.
 - Platform owner and gym-owner tenancy: one Ascend deployment supports multiple gym owners, with backend-enforced access to assigned gyms only.
+- Food-history consistency safeguards prevent cached or out-of-order responses from temporarily hiding newly saved meals.
 - Latest release audit: production mobile routes, session persistence, database relationships, subscription consistency, AI cache behavior, builds, lint, and automated tests verified.
 
 ## Before Pilot Launch

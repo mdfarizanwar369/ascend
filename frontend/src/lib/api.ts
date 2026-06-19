@@ -6,6 +6,7 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
   try {
     response = await fetch(`${API_URL}${path}`, {
       ...options,
+      cache: options.cache ?? "no-store",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

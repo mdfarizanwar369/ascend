@@ -410,7 +410,19 @@ export function saveFoodLog(input: {
   aiEstimateRaw?: FoodEstimate;
   wasEditedByUser: boolean;
 }) {
-  return authed("/food-logs", {
+  return authed<{
+    foodLog: {
+      id: string;
+      image_s3_key?: string | null;
+      meal_type: string;
+      estimated_food_name: string;
+      calories: number;
+      protein_g: string | number;
+      carbs_g: string | number;
+      fat_g: string | number;
+      logged_at: string;
+    };
+  }>("/food-logs", {
     method: "POST",
     body: JSON.stringify(input)
   });
