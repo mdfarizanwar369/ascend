@@ -6,9 +6,9 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#07090d",
-        surface: "#121721",
-        line: "#263042",
+        ink: "rgb(var(--color-ink) / <alpha-value>)",
+        surface: "rgb(var(--color-surface) / <alpha-value>)",
+        line: "rgb(var(--color-line) / <alpha-value>)",
         lime: "#35f2d0",
         teal: "#35f2d0",
         violet: "#8b5cf6",

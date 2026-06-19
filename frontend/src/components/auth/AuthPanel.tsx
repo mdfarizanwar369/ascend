@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { Field, inputClass } from "@/components/Field";
 import { getMe } from "@/lib/ascendApi";
 import { BrandMark } from "@/components/BrandMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 
 type Mode = "signup" | "login";
@@ -196,12 +197,15 @@ export function AuthPanel() {
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto flex min-h-screen max-w-md flex-col">
-        <header className="flex items-center gap-3 py-3">
-          <BrandMark />
-          <div>
-            <p className="text-lg font-semibold">Ascend</p>
-            <p className="text-xs text-zinc-400">The missing link between training and results</p>
+        <header className="flex items-center justify-between gap-3 py-3">
+          <div className="flex items-center gap-3">
+            <BrandMark />
+            <div>
+              <p className="text-lg font-semibold">Ascend</p>
+              <p className="text-xs text-zinc-400">The missing link between training and results</p>
+            </div>
           </div>
+          <ThemeToggle />
         </header>
 
         <section className="flex flex-1 flex-col justify-center">

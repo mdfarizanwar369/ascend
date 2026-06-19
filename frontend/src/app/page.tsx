@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
 import { PublicFooter } from "@/components/legal/PublicFooter";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const appLoginUrl = "https://www.getascend.fit/login";
 
@@ -15,7 +16,7 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen overflow-hidden bg-ink text-white">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-8%,rgba(53,242,208,0.16),transparent_34rem),radial-gradient(circle_at_10%_22%,rgba(139,92,246,0.14),transparent_28rem)]" />
+      <div className="ascend-theme-glow pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-8%,rgba(53,242,208,0.16),transparent_34rem),radial-gradient(circle_at_10%_22%,rgba(139,92,246,0.14),transparent_28rem)]" />
 
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-5 sm:px-8 lg:py-7">
         <header className="flex items-center justify-between">
@@ -23,9 +24,12 @@ export default function HomePage() {
             <BrandMark size="sm" />
             <span className="text-xl font-semibold tracking-tight">Ascend</span>
           </Link>
-          <Link href={appLoginUrl} className="rounded-lg border border-line bg-surface/80 px-4 py-2 text-sm font-semibold text-zinc-100 shadow-lg shadow-black/20">
-            Pilot login
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link href={appLoginUrl} className="rounded-lg border border-line bg-surface/80 px-4 py-2 text-sm font-semibold text-zinc-100 shadow-lg shadow-black/20">
+              Pilot login
+            </Link>
+          </div>
         </header>
 
         <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[1.03fr_0.97fr] lg:py-14">

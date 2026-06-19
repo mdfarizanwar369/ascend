@@ -22,6 +22,7 @@ import {
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
@@ -485,9 +486,12 @@ export function ClientDashboard() {
               <span className="text-xs text-zinc-400">{coachingLabel(coachingMode)}</span>
             </span>
           </a>
-          <a href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
-            AI
-          </a>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <a href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
+              AI
+            </a>
+          </div>
         </header>
 
         {status ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}

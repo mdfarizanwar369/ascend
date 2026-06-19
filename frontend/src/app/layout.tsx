@@ -26,9 +26,23 @@ export const viewport: Viewport = {
   viewportFit: "cover"
 };
 
+const themeBootScript = `
+  (function () {
+    try {
+      var saved = localStorage.getItem("ascend-theme");
+      document.documentElement.dataset.theme = saved === "light" ? "light" : "dark";
+    } catch (_) {
+      document.documentElement.dataset.theme = "dark";
+    }
+  })();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body>
         <CanonicalDomainGuard />
         <AuthStateGuard />

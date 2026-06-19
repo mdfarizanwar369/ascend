@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AccountBar } from "@/components/AccountBar";
 import { BackButton } from "@/components/BackButton";
 import { BrandMark } from "@/components/BrandMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
 import { usablePlan } from "@/lib/subscriptionPlan";
 
@@ -74,6 +75,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
             </Link>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Link href="/contact" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Get support">
               <CircleHelp size={19} />
             </Link>
