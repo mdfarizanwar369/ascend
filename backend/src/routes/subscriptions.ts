@@ -36,7 +36,7 @@ subscriptionsRouter.post("/subscriptions/checkout", requireAuth, async (req, res
 subscriptionsRouter.post("/subscriptions/demo-activate", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
   try {
     const plan = z.enum(["premium", "trainer_pro"]).parse(req.body.plan);
-    const amountCents = plan === "premium" ? 1900 : 9900;
+    const amountCents = plan === "premium" ? 1999 : 9999;
     const reference = `DEMO-${req.user!.id}-${Date.now()}`;
     const userResult = await query<{ referred_by_gym_id: string | null; referred_by_trainer_id: string | null }>(
       "select referred_by_gym_id, referred_by_trainer_id from users where id = $1",
@@ -183,7 +183,7 @@ subscriptionsRouter.post("/webhooks/lemonsqueezy", async (req, res, next) => {
           [event.userId]
         );
         if (user.rows[0]) {
-          const amountCents = event.plan === "premium" ? 1900 : 9900;
+          const amountCents = event.plan === "premium" ? 1999 : 9999;
           const inserted = await query<{ id: string }>(
             `
             insert into subscriptions (

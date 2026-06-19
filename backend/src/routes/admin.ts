@@ -593,7 +593,7 @@ adminRouter.post("/admin/users/:userId/subscription", requireAuth, requireRole([
       return res.json({ subscription: { plan: "free", status: "active" } });
     }
 
-    const amountCents = input.plan === "premium" ? 1900 : 9900;
+    const amountCents = input.plan === "premium" ? 1999 : 9999;
     const reference = `PILOT-${req.params.userId}-${Date.now()}`;
     const result = await query(
       `

@@ -235,7 +235,7 @@ export class ToyyibPayProvider implements PaymentProvider {
       billDescription: `Ascend ${request.plan} monthly subscription`,
       billPriceSetting: "1",
       billPayorInfo: "1",
-      billAmount: String(request.amountRm * 100),
+      billAmount: String(Math.round(request.amountRm * 100)),
       billReturnUrl: env.TOYYIBPAY_RETURN_URL ?? "",
       billCallbackUrl: env.TOYYIBPAY_CALLBACK_URL ?? "",
       billExternalReferenceNo: reference,

@@ -194,8 +194,8 @@ Checks:
 - [ ] Premium and Trainer Pro monthly variant IDs are set.
 - [ ] Signed webhook URL is set to backend `/api/v1/webhooks/lemonsqueezy`.
 - [ ] Webhook signing secret is set in Railway.
-- [ ] Premium RM19 checkout tested.
-- [ ] Trainer Pro RM99 checkout tested.
+- [ ] Premium RM19.99 checkout tested.
+- [ ] Trainer Pro RM99.99 checkout tested.
 - [ ] Successful payment activates subscription.
 - [ ] Failed/cancelled payment does not activate subscription.
 - [ ] Payment event appears in database/admin subscription view.

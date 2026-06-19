@@ -54,8 +54,8 @@ export interface ComplianceBreakdown {
 
 export const PLANS: Record<SubscriptionPlan, { label: string; priceRm: number; audience: string }> = {
   free: { label: "Free", priceRm: 0, audience: "Client" },
-  premium: { label: "Premium", priceRm: 19, audience: "Client" },
-  trainer_pro: { label: "Trainer Pro", priceRm: 99, audience: "Trainer" }
+  premium: { label: "Premium", priceRm: 19.99, audience: "Client" },
+  trainer_pro: { label: "Trainer Pro", priceRm: 99.99, audience: "Trainer" }
 };
 
 export const LOCAL_FOODS = [

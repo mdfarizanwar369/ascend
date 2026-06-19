@@ -39,7 +39,7 @@ export async function createCheckout(userId: string, plan: SubscriptionPlan) {
       plan,
       session.provider,
       session.providerReference,
-      amountRm * 100,
+      Math.round(amountRm * 100),
       user.referred_by_gym_id,
       user.referred_by_trainer_id
     ]

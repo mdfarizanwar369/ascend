@@ -15,10 +15,10 @@ Create two subscription products:
 
 1. `Ascend Premium`
    - Billing: monthly
-   - Pilot price: RM19 or the chosen launch price
+   - Monthly price: RM19.99
 2. `Ascend Trainer Pro`
    - Billing: monthly
-   - Pilot price: RM99 or the chosen launch price
+   - Monthly price: RM99.99
 
 Copy the variant ID for each monthly price. Ascend needs the variant IDs, not only the product IDs.
 
