@@ -25,7 +25,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
-import { clearPendingFoodLog, readPendingFoodLog } from "@/lib/dataSync";
+import { clearDashboardRecord, readDashboardRecord } from "@/lib/dataSync";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -214,15 +214,28 @@ export function ClientDashboard() {
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [missionStatus, setMissionStatus] = useState("");
+  const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
   const dashboardRequestRef = useRef(0);
+  const hasLoadedDashboardRef = useRef(false);
+  const missionLockRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
+    if (hasLoadedDashboardRef.current) setStatus("Updating today's progress...");
     const requestId = ++dashboardRequestRef.current;
-    const pendingFoodLog = readPendingFoodLog();
+    const comparisonRequest = getMyProgressComparison();
+    const pendingFoodLog = readDashboardRecord<FoodLog>("food");
+    const pendingWeightLog = readDashboardRecord<WeightLog>("weight");
+    const pendingWaterLog = readDashboardRecord<WaterLog>("water");
+    const pendingBurnLog = readDashboardRecord<BurnLog>("burn");
+    const pendingHabitLog = readDashboardRecord<HabitLog>("habit");
     if (pendingFoodLog) {
-      setFoodLogs((current) => [pendingFoodLog as FoodLog, ...current.filter((log) => log.id !== pendingFoodLog.id)]);
+      setFoodLogs((current) => [pendingFoodLog, ...current.filter((log) => log.id !== pendingFoodLog.id)]);
     }
+    if (pendingWeightLog) setWeightLogs((current) => [pendingWeightLog, ...current.filter((log) => log.id !== pendingWeightLog.id)]);
+    if (pendingWaterLog) setWaterLogs((current) => [pendingWaterLog, ...current.filter((log) => log.id !== pendingWaterLog.id)]);
+    if (pendingBurnLog) setBurnLogs((current) => [pendingBurnLog, ...current.filter((log) => log.id !== pendingBurnLog.id)]);
+    if (pendingHabitLog) setHabitLogs((current) => [pendingHabitLog, ...current.filter((log) => log.id !== pendingHabitLog.id)]);
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
@@ -254,18 +267,36 @@ export function ClientDashboard() {
         const includesPendingLog = pendingFoodLog && fetchedFoodLogs.some((log) => log.id === pendingFoodLog.id);
         setFoodLogs(
           pendingFoodLog && !includesPendingLog
-            ? [pendingFoodLog as FoodLog, ...fetchedFoodLogs]
+            ? [pendingFoodLog, ...fetchedFoodLogs]
             : fetchedFoodLogs
         );
-        if (pendingFoodLog && includesPendingLog) clearPendingFoodLog(pendingFoodLog.id);
+        if (pendingFoodLog && includesPendingLog) clearDashboardRecord("food", pendingFoodLog.id);
       }
-      if (weights.status === "fulfilled") setWeightLogs(Array.isArray(weights.value.weightLogs) ? weights.value.weightLogs : []);
-      if (waters.status === "fulfilled") setWaterLogs(Array.isArray(waters.value.waterLogs) ? waters.value.waterLogs : []);
+      if (weights.status === "fulfilled") {
+        const fetched = Array.isArray(weights.value.weightLogs) ? weights.value.weightLogs : [];
+        const includesPending = pendingWeightLog && fetched.some((log) => log.id === pendingWeightLog.id);
+        setWeightLogs(pendingWeightLog && !includesPending ? [pendingWeightLog, ...fetched] : fetched);
+        if (pendingWeightLog && includesPending) clearDashboardRecord("weight", pendingWeightLog.id);
+      }
+      if (waters.status === "fulfilled") {
+        const fetched = Array.isArray(waters.value.waterLogs) ? waters.value.waterLogs : [];
+        const includesPending = pendingWaterLog && fetched.some((log) => log.id === pendingWaterLog.id);
+        setWaterLogs(pendingWaterLog && !includesPending ? [pendingWaterLog, ...fetched] : fetched);
+        if (pendingWaterLog && includesPending) clearDashboardRecord("water", pendingWaterLog.id);
+      }
       if (nextHabits.status === "fulfilled") setHabits(Array.isArray(nextHabits.value.habits) ? nextHabits.value.habits : []);
       if (nextHabitLogs.status === "fulfilled") {
-        setHabitLogs(Array.isArray(nextHabitLogs.value.habitLogs) ? nextHabitLogs.value.habitLogs : []);
+        const fetched = Array.isArray(nextHabitLogs.value.habitLogs) ? nextHabitLogs.value.habitLogs : [];
+        const includesPending = pendingHabitLog && fetched.some((log) => log.id === pendingHabitLog.id);
+        setHabitLogs(pendingHabitLog && !includesPending ? [pendingHabitLog, ...fetched] : fetched);
+        if (pendingHabitLog && includesPending) clearDashboardRecord("habit", pendingHabitLog.id);
       }
-      if (burns.status === "fulfilled") setBurnLogs(Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : []);
+      if (burns.status === "fulfilled") {
+        const fetched = Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : [];
+        const includesPending = pendingBurnLog && fetched.some((log) => log.id === pendingBurnLog.id);
+        setBurnLogs(pendingBurnLog && !includesPending ? [pendingBurnLog, ...fetched] : fetched);
+        if (pendingBurnLog && includesPending) clearDashboardRecord("burn", pendingBurnLog.id);
+      }
       if (mission.status === "fulfilled") setDailyMission(mission.value.mission);
       if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
       if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
@@ -280,7 +311,13 @@ export function ClientDashboard() {
           habits: Number(nextCompliance?.habit_score ?? 0)
         });
       }
+      hasLoadedDashboardRef.current = true;
       setStatus("");
+      comparisonRequest
+        .then((response) => {
+          if (requestId === dashboardRequestRef.current) setProgressComparison(response.comparison);
+        })
+        .catch(() => undefined);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     }
@@ -298,20 +335,11 @@ export function ClientDashboard() {
     };
   }, [loadDashboard]);
 
-  useEffect(() => {
-    let isMounted = true;
-    getMyProgressComparison()
-      .then((response) => {
-        if (isMounted) setProgressComparison(response.comparison);
-      })
-      .catch(() => undefined);
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
   async function markMissionDone() {
     if (!dailyMission || dailyMission.status === "completed") return;
+    if (missionLockRef.current) return;
+    missionLockRef.current = true;
+    setIsCompletingMission(true);
     setMissionStatus("Saving mission...");
 
     try {
@@ -320,6 +348,9 @@ export function ClientDashboard() {
       setMissionStatus("Mission completed. Nice work.");
     } catch {
       setMissionStatus("Could not complete this mission yet. Please try again.");
+    } finally {
+      missionLockRef.current = false;
+      setIsCompletingMission(false);
     }
   }
 
@@ -599,8 +630,13 @@ export function ClientDashboard() {
             </span>
           </div>
           {dailyMission && dailyMission.status !== "completed" ? (
-            <button type="button" onClick={markMissionDone} className="mt-4 h-11 w-full rounded-lg bg-lime font-semibold text-ink">
-              Mark mission done
+            <button
+              type="button"
+              disabled={isCompletingMission}
+              onClick={markMissionDone}
+              className="mt-4 h-11 w-full rounded-lg bg-lime font-semibold text-ink disabled:cursor-wait disabled:opacity-60"
+            >
+              {isCompletingMission ? "Saving..." : "Mark mission done"}
             </button>
           ) : null}
           {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, ImagePlus } from "lucide-react";
 import { getProgressPhotos, saveProgressPhoto, uploadProgressPhotoDataUrl } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
@@ -59,6 +59,7 @@ export function ProgressPhotosClient() {
   const [photoType, setPhotoType] = useState<PhotoType>("front");
   const [status, setStatus] = useState("Add a clear progress photo so your trainer can compare changes over time.");
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   async function loadPhotos() {
     const response = await getProgressPhotos();
@@ -90,6 +91,8 @@ export function ProgressPhotosClient() {
 
   async function handleSave() {
     if (!selectedFile) return;
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
 
     setIsSaving(true);
     setStatus("Saving progress photo...");
@@ -99,14 +102,19 @@ export function ProgressPhotosClient() {
       const upload = await uploadProgressPhotoDataUrl(imageDataUrl);
       if (upload.storageConfigured === false) throw new Error("Photo storage is not configured yet.");
       const imageS3Key = upload.key;
-      await saveProgressPhoto({ imageS3Key, photoType });
-      await loadPhotos();
+      const saved = await saveProgressPhoto({ imageS3Key, photoType });
+      setPhotos((current) => [
+        { ...saved.progressPhoto, photo_type: photoType, image_url: previewUrl },
+        ...current.filter((photo) => photo.id !== saved.progressPhoto.id)
+      ]);
+      loadPhotos().catch(() => undefined);
       setSelectedFile(null);
       setPreviewUrl(null);
       setStatus("Progress photo saved.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save progress photo. Please try again.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }
@@ -115,7 +123,7 @@ export function ProgressPhotosClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" />
+          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
           <div>
             <p className="text-sm text-zinc-400">Progress photos</p>
             <h1 className="text-2xl font-semibold">Track visible change</h1>

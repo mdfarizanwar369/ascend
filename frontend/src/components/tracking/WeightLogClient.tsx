@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Save, Scale } from "lucide-react";
 import { getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
+import { rememberDashboardRecord } from "@/lib/dataSync";
 
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -18,6 +19,7 @@ export function WeightLogClient() {
   const [status, setStatus] = useState("Loading your latest weight...");
   const [isSaving, setIsSaving] = useState(false);
   const [milestone, setMilestone] = useState<Awaited<ReturnType<typeof saveWeightLog>>["milestone"]>(null);
+  const saveLockRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -48,11 +50,14 @@ export function WeightLogClient() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     setStatus("Saving weight...");
 
     try {
       const saved = await saveWeightLog({ weightKg: Number(weightKg) });
+      rememberDashboardRecord("weight", saved.weightLog);
       const nextWeight = asNumber(saved.weightLog.weight_kg);
       setLatestWeightKg(nextWeight);
       setWeightKg(nextWeight.toFixed(1));
@@ -61,6 +66,7 @@ export function WeightLogClient() {
     } catch {
       setStatus("Could not save weight. Please make sure you are logged in.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }
@@ -69,7 +75,7 @@ export function WeightLogClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" />
+          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
           <div>
             <p className="text-sm text-zinc-400">Daily tracking</p>
             <h1 className="text-2xl font-semibold">Weight log</h1>

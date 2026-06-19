@@ -168,6 +168,7 @@ export function FoodLogClient() {
   const [aiFailed, setAiFailed] = useState(false);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
   const foodLogsRequestRef = useRef(0);
+  const saveLockRef = useRef(false);
 
   async function loadFoodLogs() {
     const requestId = ++foodLogsRequestRef.current;
@@ -325,11 +326,13 @@ export function FoodLogClient() {
   }
 
   async function handleSave() {
+    if (saveLockRef.current) return;
     if (!estimate || !canSaveEstimate) {
       setStatus("Please add the food name and calories before saving.");
       return;
     }
 
+    saveLockRef.current = true;
     setIsSaving(true);
     setStatus("Saving food log and photo...");
 
@@ -392,6 +395,7 @@ export function FoodLogClient() {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save food log. Please check your connection and try again.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }

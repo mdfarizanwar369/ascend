@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Plus } from "lucide-react";
 import { createHabit, getHabitLogs, getHabits, saveHabitLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
+import { rememberDashboardRecord } from "@/lib/dataSync";
 
 const starterHabits = ["8,000 steps", "No sugary drinks", "Protein at breakfast", "Sleep before midnight"];
 
@@ -18,6 +19,7 @@ export function HabitsClient() {
   const [newHabit, setNewHabit] = useState("");
   const [status, setStatus] = useState("Loading habits...");
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   async function loadHabits() {
     const [nextHabits, nextLogs] = await Promise.all([getHabits(), getHabitLogs()]);
@@ -38,49 +40,64 @@ export function HabitsClient() {
   }, [habitLogs]);
 
   async function createStarterHabits() {
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     setStatus("Creating starter habits...");
 
     try {
-      await Promise.all(starterHabits.map((name) => createHabit({ name, frequency: "daily" })));
-      await loadHabits();
+      const created = await Promise.all(starterHabits.map((name) => createHabit({ name, frequency: "daily" })));
+      setHabits((current) => [
+        ...created.map((response) => response.habit),
+        ...current.filter((habit) => !created.some((response) => response.habit.id === habit.id))
+      ]);
+      loadHabits().catch(() => undefined);
       setStatus("Starter habits created.");
     } catch {
       setStatus("Could not create habits. Please try again.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }
 
   async function addHabit() {
     if (!newHabit.trim()) return;
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
 
     setIsSaving(true);
     setStatus("Adding habit...");
 
     try {
-      await createHabit({ name: newHabit.trim(), frequency: "daily" });
+      const created = await createHabit({ name: newHabit.trim(), frequency: "daily" });
+      setHabits((current) => [created.habit, ...current.filter((habit) => habit.id !== created.habit.id)]);
       setNewHabit("");
-      await loadHabits();
+      loadHabits().catch(() => undefined);
       setStatus("Habit added.");
     } catch {
       setStatus("Could not add habit. Please try again.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }
 
   async function markComplete(habitId: string) {
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     setStatus("Saving habit...");
 
     try {
       const saved = await saveHabitLog({ habitId, completed: true });
+      rememberDashboardRecord("habit", saved.habitLog);
       setHabitLogs((current) => [saved.habitLog, ...current]);
       setStatus("Habit saved for today.");
     } catch {
       setStatus("Could not save habit. Please make sure you are logged in.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }
@@ -90,7 +107,7 @@ export function HabitsClient() {
       <div className="mx-auto max-w-md">
         <header className="flex items-center justify-between gap-4 py-3">
           <div className="flex items-center gap-3">
-            <BackButton fallbackHref="/dashboard" />
+            <BackButton fallbackHref="/dashboard" disabled={isSaving} />
             <div>
               <p className="text-sm text-zinc-400">Daily accountability</p>
               <h1 className="text-2xl font-semibold">Habits</h1>

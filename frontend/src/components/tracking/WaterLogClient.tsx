@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Droplets } from "lucide-react";
 import { getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
+import { rememberDashboardRecord } from "@/lib/dataSync";
 
 const quickAmounts = [250, 500, 750, 1000];
 const dailyTargetMl = 2500;
@@ -13,6 +14,7 @@ export function WaterLogClient() {
   const [todayMl, setTodayMl] = useState(0);
   const [status, setStatus] = useState("Loading today's water...");
   const [isSaving, setIsSaving] = useState(false);
+  const saveLockRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -43,16 +45,20 @@ export function WaterLogClient() {
   const progress = useMemo(() => Math.min(100, Math.round((todayMl / dailyTargetMl) * 100)), [todayMl]);
 
   async function addWater(amountMl: number) {
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     setStatus(`Saving ${amountMl}ml...`);
 
     try {
-      await saveWaterLog({ amountMl });
+      const saved = await saveWaterLog({ amountMl });
+      rememberDashboardRecord("water", saved.waterLog);
       setTodayMl((current) => current + amountMl);
       setStatus(`${amountMl}ml saved to Ascend.`);
     } catch {
       setStatus("Could not save water. Please make sure you are logged in.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }
@@ -61,7 +67,7 @@ export function WaterLogClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" />
+          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
           <div>
             <p className="text-sm text-zinc-400">Daily tracking</p>
             <h1 className="text-2xl font-semibold">Water log</h1>

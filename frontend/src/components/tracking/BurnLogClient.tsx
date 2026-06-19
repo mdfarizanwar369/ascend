@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Flame, Save } from "lucide-react";
 import { estimateBurnFromText, getBurnLogs, getMe, getMySubscription, saveBurnLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
+import { rememberDashboardRecord } from "@/lib/dataSync";
 
 const burnRates: Record<string, number> = {
   Walking: 4,
@@ -44,6 +45,7 @@ export function BurnLogClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [isEstimating, setIsEstimating] = useState(false);
   const [canUseAiEstimate, setCanUseAiEstimate] = useState(false);
+  const saveLockRef = useRef(false);
 
   const estimatedCalories = useMemo(() => {
     return aiCalories ?? Math.round((burnRates[activityType] ?? 6) * Number(durationMinutes || 0));
@@ -129,20 +131,24 @@ export function BurnLogClient() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
     setIsSaving(true);
     setStatus("Saving activity...");
 
     try {
-      await saveBurnLog({
+      const saved = await saveBurnLog({
         activityType,
         durationMinutes: Number(durationMinutes),
         caloriesBurned: estimatedCalories
       });
+      rememberDashboardRecord("burn", saved.burnLog);
       setTodayCalories((current) => current + estimatedCalories);
       setStatus("Activity burn saved to Ascend.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save activity. Please make sure you are logged in.");
     } finally {
+      saveLockRef.current = false;
       setIsSaving(false);
     }
   }
@@ -151,7 +157,7 @@ export function BurnLogClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" />
+          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
           <div>
             <p className="text-sm text-zinc-400">Daily tracking</p>
             <h1 className="text-2xl font-semibold">Activity burn</h1>
