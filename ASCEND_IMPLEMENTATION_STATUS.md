@@ -61,6 +61,17 @@ The live app is available at:
 
 ## Fixes Completed In This Pass
 
+- Completed a production release audit across public pages and authenticated client routes at mobile width with no browser console errors or horizontal overflow.
+- Removed Trainer/Admin navigation tabs from accounts that do not have those roles; access was already blocked, but the visible tabs were misleading.
+- Closed three obsolete manual pilot subscriptions on the platform-owner account and retained the newest Trainer Pro plan, restoring one-live-plan data consistency.
+- Updated manual pilot activation so it cancels an existing live plan before creating another one.
+- Stopped writing failed AI starter estimates into the food cache and removed the existing failed cache entry, ensuring retries can always reach the live provider.
+- Updated vulnerable `form-data` dependencies to patched releases; no critical or high npm advisories remain.
+- Replaced `Array.at()` and `crypto.randomUUID()` usage in browser code with older-Safari-compatible equivalents.
+- Configured Express to trust Railway's first proxy hop so rate limiting uses each member's real client IP instead of potentially grouping many pilot users together.
+- Trainer signup now requires and validates a gym/trainer referral code before creating the Firebase account, preventing silent assignment to the wrong gym.
+- Onboarding now validates referral codes and correctly derives the gym from trainer referral codes before assigning the client.
+
 - Removed confusing landing-page buttons that bypassed the normal login/signup flow.
 - Removed fake onboarding defaults such as sample names, referral codes, and weights.
 - Added validation for onboarding name and weight.

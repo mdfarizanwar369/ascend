@@ -47,12 +47,20 @@ export async function ensureUserProfileSchema() {
 export async function completeOnboarding(userId: string, input: z.infer<typeof onboardingSchema>) {
   const referral = input.referralCode
     ? await query<{ gym_id: string | null; trainer_id: string | null; id: string }>(
-        "select id, gym_id, trainer_id from referral_codes where code = $1 and active = true",
+        `
+        select rc.id, coalesce(rc.gym_id, t.gym_id) as gym_id, rc.trainer_id
+        from referral_codes rc
+        left join trainers t on t.id = rc.trainer_id
+        where rc.code = $1 and rc.active = true
+        `,
         [input.referralCode.toUpperCase()]
       )
     : undefined;
 
   const referralRow = referral?.rows[0];
+  if (input.referralCode && !referralRow) {
+    throw new z.ZodError([{ code: "custom", path: ["referralCode"], message: "Referral code not found" }]);
+  }
 
   const result = await query(
     `

@@ -60,6 +60,7 @@ describe("guide profile", () => {
     });
 
     expect(user.coaching_mode).toBe("human_coach");
+    expect(queryMock).toHaveBeenNthCalledWith(1, expect.stringContaining("coalesce(rc.gym_id, t.gym_id)"), ["TRAINER-JASON"]);
     expect(queryMock).toHaveBeenLastCalledWith(expect.stringContaining("coaching_mode = case"), [
       "user-1",
       "Sally",
@@ -74,5 +75,20 @@ describe("guide profile", () => {
       "trainer-1",
       "self_coached"
     ]);
+  });
+
+  it("rejects an invalid onboarding referral instead of silently ignoring it", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    const { completeOnboarding } = await import("../services/userService");
+
+    await expect(completeOnboarding("user-1", {
+      fullName: "Sally",
+      referralCode: "NOT-A-REAL-CODE",
+      coachingMode: "self_coached",
+      goalType: "fat_loss",
+      startingWeightKg: 75
+    })).rejects.toThrow("Referral code not found");
+
+    expect(queryMock).toHaveBeenCalledTimes(1);
   });
 });

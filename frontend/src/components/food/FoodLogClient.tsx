@@ -325,7 +325,7 @@ export function FoodLogClient() {
     setStatus("Saving food log and photo...");
 
     const savedLog = {
-      id: crypto.randomUUID(),
+      id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       imagePreviewUrl: previewUrl,
       mealType: "lunch",
       estimatedFoodName: estimate.foodName,

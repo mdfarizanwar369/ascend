@@ -282,7 +282,7 @@ export function AdminDashboardClient() {
             <div>Spend: <span className="font-semibold text-white">{money(pilotMetrics?.ai.aiSpendCents ?? 0)}</span></div>
             <div>Projected: <span className="font-semibold text-white">{money(pilotMetrics?.ai.estimatedMonthlyCostCents ?? 0)}</span></div>
             <div>Cache hit rate: <span className="font-semibold text-white">{percent(pilotMetrics?.ai.cacheHitRate ?? 0)}</span></div>
-            <div>Compliance trend: <span className="font-semibold text-white">{complianceTrend.at(-1) ?? 0}</span></div>
+            <div>Compliance trend: <span className="font-semibold text-white">{complianceTrend[complianceTrend.length - 1] ?? 0}</span></div>
           </div>
         </div>
 

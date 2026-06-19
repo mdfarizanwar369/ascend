@@ -44,6 +44,11 @@ subscriptionsRouter.post("/subscriptions/demo-activate", requireAuth, requireRol
     );
     const user = userResult.rows[0];
 
+    await query(
+      "update subscriptions set status = 'canceled', updated_at = now() where user_id = $1 and status in ('active', 'trialing')",
+      [req.user!.id]
+    );
+
     const result = await query(
       `
       insert into subscriptions (

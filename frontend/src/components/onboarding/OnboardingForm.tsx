@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { CoachingMode } from "@ascend/shared";
 import { Field, inputClass } from "@/components/Field";
-import { completeOnboarding } from "@/lib/ascendApi";
+import { completeOnboarding, validateReferral } from "@/lib/ascendApi";
 
 const draftKey = "ascend:onboarding:draft";
 
@@ -114,6 +114,10 @@ export function OnboardingForm() {
     setIsSaving(true);
 
     try {
+      if (referralCode.trim()) {
+        setStatus("Checking your referral code...");
+        await validateReferral(referralCode.trim());
+      }
       await completeOnboarding({
         fullName,
         referralCode: referralCode.trim() || undefined,

@@ -30,6 +30,7 @@ function getFriendlyAuthError(error: unknown) {
   if (/auth\/email-already-in-use/i.test(error.message)) return "This email already has an account. Please log in instead.";
   if (/auth\/invalid-email/i.test(error.message)) return "Please enter a valid email address.";
   if (/auth\/weak-password/i.test(error.message)) return "Please use a password with at least 6 characters.";
+  if (/API request failed: 404/i.test(error.message)) return "That referral code was not found. Please check it with your gym or trainer.";
   if (/network|fetch|timeout|timed out|taking too long/i.test(error.message)) {
     return "The connection is taking too long. Please check your internet connection and try again.";
   }
@@ -106,6 +107,20 @@ export function AuthPanel() {
       if (mode === "signup" && !normalizedFullName) {
         setStatus("Please enter your full name.");
         return;
+      }
+
+      if (mode === "signup" && signupRole === "trainer" && !normalizedReferralCode) {
+        setStatus("Please enter the gym or trainer referral code provided by the gym owner.");
+        return;
+      }
+
+      if (mode === "signup" && normalizedReferralCode) {
+        setStatus("Checking your referral code...");
+        await withTimeout(
+          api(`/referrals/validate/${encodeURIComponent(normalizedReferralCode)}`),
+          "The referral code check is taking too long. Please check your connection and try again.",
+          15_000
+        );
       }
 
       setStatus(mode === "signup" ? "Creating your Ascend account..." : "Logging you in...");

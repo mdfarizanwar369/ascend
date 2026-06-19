@@ -905,6 +905,18 @@ export function getGyms() {
   }>("/gyms");
 }
 
+export function validateReferral(code: string) {
+  return api<{
+    referral: {
+      id: string;
+      code: string;
+      type: "gym" | "trainer";
+      gym_name: string | null;
+      trainer_name: string | null;
+    };
+  }>(`/referrals/validate/${encodeURIComponent(code)}`);
+}
+
 export function getAdminUsers() {
   return authed<{
     canManageOwnerGyms: boolean;

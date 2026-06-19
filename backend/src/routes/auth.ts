@@ -34,11 +34,10 @@ authRouter.post("/auth/provision", requireFirebaseToken, async (req, res, next) 
         )
       : undefined;
     const referralRow = referral?.rows[0];
-    const fallbackGym =
-      primaryRole === "trainer" && !referralRow?.gym_id
-        ? await query<{ id: string }>("select id from gyms order by created_at asc limit 1")
-        : undefined;
-    const gymId = referralRow?.gym_id ?? fallbackGym?.rows[0]?.id ?? null;
+    if (primaryRole === "trainer" && !referralRow?.gym_id) {
+      return res.status(400).json({ error: "Trainer signup requires a valid gym or trainer referral code" });
+    }
+    const gymId = referralRow?.gym_id ?? null;
     const assignedTrainerId = primaryRole === "client" ? referralRow?.trainer_id ?? null : null;
 
     const result = await query(

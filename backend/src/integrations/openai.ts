@@ -435,16 +435,6 @@ export async function estimateFoodFromImage(
         : "The AI scan did not complete reliably."
     );
 
-    if (imageHash) {
-      await saveFoodEstimateCache({
-        imageHash,
-        estimate: fallbackEstimate,
-        provider: env.AI_PROVIDER,
-        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-        source: "fallback"
-      });
-    }
-
     await logAiUsage({
       ...context,
       eventType: "food_image_analysis",

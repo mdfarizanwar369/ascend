@@ -30,6 +30,7 @@ import { ensureSubscriptionSchema } from "./services/subscriptionSchemaService";
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
 
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(cors({ origin: corsOrigins.length > 1 ? corsOrigins : corsOrigins[0], credentials: true }));
 app.use(express.json({

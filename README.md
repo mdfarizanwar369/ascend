@@ -216,6 +216,14 @@ npm run build
 npm run test
 ```
 
+The release verification baseline is:
+
+- production build succeeds
+- frontend and backend lint/type checks succeed
+- backend automated tests pass
+- `npm audit --omit=dev` has no critical or high advisories
+- production database integrity checks show no cross-gym assignments or duplicate live plans
+
 ## Daily Compliance And Risk Jobs
 
 The backend includes a protected endpoint for production schedulers:

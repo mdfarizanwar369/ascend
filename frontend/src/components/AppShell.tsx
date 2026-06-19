@@ -21,8 +21,8 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   const canAdmin = roles.some((role) => ["admin", "owner"].includes(role));
   const items = [
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
-    { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: active === "trainer" || active === "admin" || canTrain },
-    { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: active === "admin" || canAdmin }
+    { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: canTrain },
+    { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: canAdmin }
   ].filter((item) => item.show);
   const backHref = active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";
 
