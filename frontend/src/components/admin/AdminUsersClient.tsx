@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   assignAdminClient,
   createAdminReferral,
+  deleteAdminUser,
   getAdminTrainers,
   getAdminUsers,
   getGyms,
@@ -12,6 +13,7 @@ import {
   updateAdminUserRole
 } from "@/lib/ascendApi";
 import { CoachingMode, SubscriptionPlan } from "@ascend/shared";
+import { Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 
@@ -207,6 +209,25 @@ export function AdminUsersClient() {
     }
   }
 
+  async function permanentlyDeleteUser(user: AdminUser) {
+    const confirmed = window.confirm(
+      `Permanently delete ${user.full_name} (${user.email})?\n\nThis removes their login, logs, messages, photos, and subscription history. This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setSavingUserId(user.id);
+    setStatus("");
+    try {
+      await deleteAdminUser(user.id);
+      await load();
+      setStatus(`${user.full_name} was permanently deleted.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not permanently delete this user.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
+
   return (
     <>
       <section className="mt-3 flex items-start gap-3">
@@ -393,6 +414,31 @@ export function AdminUsersClient() {
                 </div>
               </div>
 
+              {user.status !== "active" ? (
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    disabled={savingUserId === user.id}
+                    onClick={() => changeUserStatus(user, "active")}
+                    className="h-10 rounded-lg bg-lime text-sm font-semibold text-ink disabled:opacity-60"
+                  >
+                    Reactivate access
+                  </button>
+                  <button
+                    type="button"
+                    disabled={savingUserId === user.id || user.primary_role === "owner" || user.primary_role === "admin"}
+                    onClick={() => permanentlyDeleteUser(user)}
+                    className="flex h-10 items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-400/10 text-sm font-semibold text-red-300 disabled:opacity-40"
+                  >
+                    <Trash2 size={16} />
+                    Delete permanently
+                  </button>
+                  <p className="text-xs leading-5 text-zinc-500 sm:col-span-2">
+                    Permanent deletion removes this account and its Ascend history. Paid Lemon Squeezy subscriptions must be cancelled first.
+                  </p>
+                </div>
+              ) : (
+                <>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Field label="Role">
                   <select
@@ -463,6 +509,8 @@ export function AdminUsersClient() {
                   </button>
                 )}
               </div>
+                </>
+              )}
             </article>
           ))}
           {!visibleUsers.length ? (

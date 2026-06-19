@@ -2,6 +2,8 @@
 
 Ascend is a mobile-first PWA SaaS MVP for fitness accountability across gym members, trainers, and gym owners.
 
+Owner account cleanup uses a two-step process: deactivate first, then permanently delete from the Inactive users tab. Permanent deletion removes the Firebase login, PostgreSQL user data, messages, and stored user photos. Live Lemon Squeezy subscriptions must be cancelled before deletion.
+
 Initial launch gyms:
 
 - Anytime Fitness Austin Green

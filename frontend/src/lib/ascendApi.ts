@@ -975,6 +975,12 @@ export function updateAdminUserStatus(input: { userId: string; status: "active" 
   });
 }
 
+export function deleteAdminUser(userId: string) {
+  return authed<{
+    deleted: { id: string; full_name: string; email: string };
+  }>(`/admin/users/${userId}`, { method: "DELETE" });
+}
+
 export function assignAdminClient(input: { clientId: string; trainerId: string | null }) {
   return authed<{ user: unknown }>("/admin/assign-client", {
     method: "POST",

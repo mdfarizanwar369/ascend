@@ -49,6 +49,7 @@ The live app is available at:
 - Existing clients with incomplete nutrition profiles see an "Improve my daily guide" prompt and can update the missing details without repeating onboarding.
 - Lemon Squeezy recurring billing is implemented with secure checkout, signed webhooks, automatic plan synchronization, and a customer billing portal. Manual pilot approvals remain available.
 - Public Privacy, Terms, Refund and Cancellation, and Support pages are available and linked from the homepage and subscription screen.
+- Owners can permanently delete inactive client or trainer accounts after confirmation. Owner/admin accounts and users with live Lemon Squeezy billing are protected.
 
 ## Fixes Completed In This Pass
 

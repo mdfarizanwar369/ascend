@@ -21,6 +21,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Daily compliance and risk job endpoint.
 - Browser back/forward and logout session refresh handling.
 - Public legal, refund, and support pages for subscription launch readiness.
+- Owner-only permanent deletion for inactive accounts, including Firebase login and stored media cleanup.
 
 ## Before Pilot Launch
 

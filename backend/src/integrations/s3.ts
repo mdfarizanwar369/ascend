@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectsCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env";
 
@@ -56,4 +56,16 @@ export async function createReadUrl(key?: string | null) {
   });
 
   return getSignedUrl(s3, command, { expiresIn: 900 });
+}
+
+export async function deleteStoredObjects(keys: Array<string | null | undefined>) {
+  const uniqueKeys = Array.from(new Set(keys.filter((key): key is string => Boolean(key))));
+  if (!env.AWS_S3_BUCKET || !uniqueKeys.length) return;
+
+  for (let index = 0; index < uniqueKeys.length; index += 1000) {
+    await s3.send(new DeleteObjectsCommand({
+      Bucket: env.AWS_S3_BUCKET,
+      Delete: { Objects: uniqueKeys.slice(index, index + 1000).map((Key) => ({ Key })), Quiet: true }
+    }));
+  }
 }
