@@ -21,7 +21,7 @@ You need accounts for:
 
 You can skip for this unpaid pilot:
 
-- ToyyibPay live setup
+- Lemon Squeezy live setup
 - Stripe
 - Docker
 - Local PostgreSQL
@@ -451,9 +451,9 @@ You want to see:
 storageConfigured: true
 ```
 
-## Part 9: Skip ToyyibPay For This Pilot
+## Part 9: Skip Paid Checkout For This Pilot
 
-Because this is a small unpaid pilot, you can skip ToyyibPay for now.
+Because this is a small unpaid pilot, you can skip Lemon Squeezy checkout for now and use owner-approved access.
 
 Do not invite public users yet.
 
@@ -972,7 +972,7 @@ Do not advertise widely yet.
 
 Do not invite too many users before:
 
-- ToyyibPay is tested
+- Lemon Squeezy test-mode subscriptions are tested
 - Test-plan activation is restricted
 - Daily job is scheduled
 - Production backup is confirmed

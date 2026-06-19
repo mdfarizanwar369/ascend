@@ -4,7 +4,7 @@ export type CoachingMode = "self_coached" | "ai_coach" | "human_coach";
 export type Sex = "female" | "male" | "prefer_not_to_say";
 export type ActivityLevel = "low" | "moderate" | "high";
 export type SubscriptionPlan = "free" | "premium" | "trainer_pro";
-export type SubscriptionProvider = "toyyibpay" | "stripe" | "manual";
+export type SubscriptionProvider = "lemonsqueezy" | "toyyibpay" | "stripe" | "manual";
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired";
 export type RiskAlertType =
   | "inactive_7_days"

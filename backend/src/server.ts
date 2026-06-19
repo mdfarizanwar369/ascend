@@ -25,13 +25,19 @@ import { errorHandler } from "./middleware/errors";
 import { ensureAiUsageSchema } from "./services/aiUsageService";
 import { ensureUserProfileSchema } from "./services/userService";
 import { ensureWaitlistSchema } from "./services/waitlistService";
+import { ensureSubscriptionSchema } from "./services/subscriptionSchemaService";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
 
 app.use(helmet());
 app.use(cors({ origin: corsOrigins.length > 1 ? corsOrigins : corsOrigins[0], credentials: true }));
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({
+  limit: "10mb",
+  verify: (req, _res, buffer) => {
+    (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+  }
+}));
 app.use(express.urlencoded({ extended: false }));
 app.use(rateLimit({ windowMs: 60_000, limit: 120 }));
 
@@ -55,7 +61,7 @@ app.use("/api/v1", aiRouter);
 app.use("/api/v1", subscriptionsRouter);
 app.use(errorHandler);
 
-Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema(), ensureWaitlistSchema()])
+Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema(), ensureWaitlistSchema(), ensureSubscriptionSchema()])
   .catch((error) => {
     console.error("Schema setup failed", error);
   })

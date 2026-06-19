@@ -31,12 +31,13 @@ export async function createCheckout(userId: string, plan: SubscriptionPlan) {
       user_id, plan, provider, provider_subscription_id, status, amount_cents, currency,
       referred_by_gym_id, referred_by_trainer_id
     )
-    values ($1, $2, 'toyyibpay', $3, 'past_due', $4, 'MYR', $5, $6)
+    values ($1, $2, $3, $4, 'past_due', $5, 'MYR', $6, $7)
     on conflict (provider, provider_subscription_id) do nothing
     `,
     [
       userId,
       plan,
+      session.provider,
       session.providerReference,
       amountRm * 100,
       user.referred_by_gym_id,

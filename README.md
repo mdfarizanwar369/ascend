@@ -16,7 +16,7 @@ Initial launch gyms:
 - Auth: Firebase Auth
 - Storage: AWS S3
 - AI: Google Gemini for the unpaid pilot, OpenAI-compatible fallback available
-- Payments: ToyyibPay first, Stripe-ready payment abstraction
+- Payments: Lemon Squeezy recurring subscriptions, with manual pilot access
 - Deployment: Docker, DigitalOcean
 
 ## Required Local Tools For Windows
@@ -78,7 +78,7 @@ Optional values for live integrations:
 - Firebase Admin values in `backend/.env`
 - AWS S3 credentials in `backend/.env`
 - Gemini API key in `backend/.env`
-- ToyyibPay values in `backend/.env`
+- Lemon Squeezy values in `backend/.env`
 - `CRON_SECRET` in `backend/.env` for the protected daily compliance/risk job
 
 Without Gemini/OpenAI configured, the backend returns demo AI responses.
@@ -97,17 +97,19 @@ AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS=2
 
 Food photo estimates are cached by image hash, so repeated analysis of the same image does not call Gemini again.
 
-Without ToyyibPay configured, checkout returns a safe demo return URL and you can use the in-app test activation button. Real paid subscriptions require these backend variables:
+Real paid subscriptions use Lemon Squeezy. Manual owner-approved pilot access remains available when payment variables are not configured.
 
 ```text
-TOYYIBPAY_BASE_URL=https://toyyibpay.com
-TOYYIBPAY_SECRET_KEY=
-TOYYIBPAY_CATEGORY_CODE=
-TOYYIBPAY_RETURN_URL=https://your-frontend-domain/subscription
-TOYYIBPAY_CALLBACK_URL=https://your-backend-domain/api/v1/webhooks/toyyibpay
+PAYMENT_PROVIDER=lemonsqueezy
+FRONTEND_URL=https://www.getascend.fit
+LEMONSQUEEZY_API_KEY=
+LEMONSQUEEZY_STORE_ID=
+LEMONSQUEEZY_PREMIUM_VARIANT_ID=
+LEMONSQUEEZY_TRAINER_PRO_VARIANT_ID=
+LEMONSQUEEZY_WEBHOOK_SECRET=
 ```
 
-ToyyibPay callbacks are accepted as JSON or form-encoded payloads and recorded in `payment_events`.
+Set the Lemon Squeezy webhook URL to `https://your-backend-domain/api/v1/webhooks/lemonsqueezy`. Signed webhook events activate, renew, downgrade, or expire plans and are recorded in `payment_events`. See `LEMON_SQUEEZY_SETUP.md`.
 
 Without Firebase web app values, `/login` shows a demo-mode button so you can review the MVP screens locally. Real account creation requires filling:
 

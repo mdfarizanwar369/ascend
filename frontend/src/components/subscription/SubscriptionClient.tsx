@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, CreditCard, ShieldCheck } from "lucide-react";
+import { Check, CreditCard, ExternalLink, ShieldCheck } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
-import { createCheckout, getMe, getMySubscription } from "@/lib/ascendApi";
+import { createCheckout, getBillingPortal, getMe, getMySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 
@@ -18,6 +18,7 @@ export function SubscriptionClient() {
   const [backHref, setBackHref] = useState("/dashboard");
   const [status, setStatus] = useState("Loading your subscription...");
   const [isLoadingPlan, setIsLoadingPlan] = useState<SubscriptionPlan | null>(null);
+  const [provider, setProvider] = useState<string | null>(null);
 
   async function loadSubscription() {
     const [response, profile] = await Promise.all([getMySubscription(), getMe().catch(() => null)]);
@@ -28,7 +29,8 @@ export function SubscriptionClient() {
       params?.has("status_id") ||
       params?.has("billcode") ||
       params?.has("transaction_id") ||
-      params?.has("pilot_reference");
+      params?.has("pilot_reference") ||
+      params?.get("checkout") === "success";
 
     if (roles.includes("owner") || roles.includes("admin")) {
       setBackHref("/admin");
@@ -39,10 +41,11 @@ export function SubscriptionClient() {
     }
 
     setActivePlan(nextPlan);
+    setProvider(response.subscription.provider ?? null);
     if (nextPlan !== "free") {
       setStatus(`Current plan: ${formatPlan(nextPlan)}`);
     } else if (returnedFromCheckout) {
-      setStatus("Payment return received. Your plan will unlock after ToyyibPay confirms the payment callback.");
+      setStatus("Payment received. Your plan will unlock as soon as Lemon Squeezy confirms the subscription.");
     } else {
       setStatus("Current plan: Free Plan");
     }
@@ -54,7 +57,7 @@ export function SubscriptionClient() {
 
   async function startCheckout(plan: Exclude<SubscriptionPlan, "free">) {
     setIsLoadingPlan(plan);
-    setStatus("Creating ToyyibPay checkout...");
+    setStatus("Opening secure Lemon Squeezy checkout...");
 
     try {
       const response = await createCheckout(plan);
@@ -62,6 +65,16 @@ export function SubscriptionClient() {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not create checkout.");
       setIsLoadingPlan(null);
+    }
+  }
+
+  async function openBillingPortal() {
+    setStatus("Opening your billing portal...");
+    try {
+      const response = await getBillingPortal();
+      window.location.href = response.url;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not open the billing portal.");
     }
   }
 
@@ -82,7 +95,7 @@ export function SubscriptionClient() {
             <div>
               <p className="text-sm font-semibold text-lime">{status}</p>
               <p className="mt-1 text-sm leading-6 text-zinc-300">
-                Selected members and trainers can receive approved access from a trainer or gym owner. Paid monthly checkout can be enabled when you are ready.
+                Pay securely by card. Lemon Squeezy manages recurring billing, receipts, renewals, and cancellations.
               </p>
             </div>
           </div>
@@ -112,9 +125,21 @@ export function SubscriptionClient() {
                 </div>
 
                 {isActive ? (
-                  <div className="mt-4 flex h-11 items-center justify-center rounded-lg border border-lime/40 bg-ink font-semibold text-lime">
-                    <ShieldCheck className="mr-2" size={18} />
-                    Current plan
+                  <div className="mt-4 space-y-2">
+                    <div className="flex h-11 items-center justify-center rounded-lg border border-lime/40 bg-ink font-semibold text-lime">
+                      <ShieldCheck className="mr-2" size={18} />
+                      Current plan
+                    </div>
+                    {provider === "lemonsqueezy" ? (
+                      <button
+                        type="button"
+                        onClick={openBillingPortal}
+                        className="flex h-11 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200"
+                      >
+                        <ExternalLink className="mr-2" size={18} />
+                        Manage billing
+                      </button>
+                    ) : null}
                   </div>
                 ) : paidPlan ? (
                   <div className="mt-4 grid grid-cols-1 gap-2">
@@ -125,10 +150,10 @@ export function SubscriptionClient() {
                       className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
                     >
                       <CreditCard className="mr-2" size={18} />
-                      {isLoadingPlan === plan ? "Opening..." : "Checkout"}
+                      {isLoadingPlan === plan ? "Opening..." : "Subscribe monthly"}
                     </button>
                     <p className="rounded-lg border border-line bg-ink p-3 text-center text-sm text-zinc-400">
-                      Access can be approved by your trainer or gym owner.
+                      Pilot access can still be approved manually by a trainer or gym owner.
                     </p>
                   </div>
                 ) : (

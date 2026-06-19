@@ -437,6 +437,10 @@ export function getMySubscription() {
   }>("/subscriptions/me");
 }
 
+export function getBillingPortal() {
+  return authed<{ url: string }>("/subscriptions/billing-portal");
+}
+
 export function activatePilotSubscription(plan: Exclude<SubscriptionPlan, "free">) {
   return authed<{
     subscription: {

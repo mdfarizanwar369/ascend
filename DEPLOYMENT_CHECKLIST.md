@@ -33,15 +33,15 @@ Use this for Railway production deployment.
   - Billing/usage limits configured.
   - Model available for the configured `OPENAI_MODEL`.
 
-### ToyyibPay
+### Lemon Squeezy
 
-- Purpose: Malaysia subscription payments.
+- Purpose: international monthly subscription payments and tax-compliant checkout.
 - Required:
-  - Merchant account.
-  - Category code.
-  - Secret key.
-  - Return URL set to frontend `/subscription`.
-  - Callback URL set to backend `/api/v1/webhooks/toyyibpay`.
+  - Activated Lemon Squeezy store.
+  - API key and store ID.
+  - Premium and Trainer Pro monthly variant IDs.
+  - Webhook signing secret.
+  - Webhook URL set to backend `/api/v1/webhooks/lemonsqueezy`.
 
 ### Cloudflare R2 Or AWS S3
 
@@ -94,11 +94,13 @@ AWS_S3_BUCKET=
 AI_PROVIDER=openai
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
-TOYYIBPAY_BASE_URL=https://toyyibpay.com
-TOYYIBPAY_SECRET_KEY=
-TOYYIBPAY_CATEGORY_CODE=
-TOYYIBPAY_RETURN_URL=https://your-frontend-domain.up.railway.app/subscription
-TOYYIBPAY_CALLBACK_URL=https://your-backend-domain.up.railway.app/api/v1/webhooks/toyyibpay
+PAYMENT_PROVIDER=lemonsqueezy
+FRONTEND_URL=https://www.getascend.fit
+LEMONSQUEEZY_API_KEY=
+LEMONSQUEEZY_STORE_ID=
+LEMONSQUEEZY_PREMIUM_VARIANT_ID=
+LEMONSQUEEZY_TRAINER_PRO_VARIANT_ID=
+LEMONSQUEEZY_WEBHOOK_SECRET=
 ```
 
 Backend checks:
@@ -185,12 +187,13 @@ Checks:
 - [ ] Weekly report generation tested.
 - [ ] Trainer weekly check-in tested.
 
-## ToyyibPay Setup
+## Lemon Squeezy Setup
 
-- [ ] Secret key set.
-- [ ] Category code set.
-- [ ] Return URL set to frontend `/subscription`.
-- [ ] Callback URL set to backend `/api/v1/webhooks/toyyibpay`.
+- [ ] Store is activated or test mode is enabled.
+- [ ] API key and store ID are set.
+- [ ] Premium and Trainer Pro monthly variant IDs are set.
+- [ ] Signed webhook URL is set to backend `/api/v1/webhooks/lemonsqueezy`.
+- [ ] Webhook signing secret is set in Railway.
 - [ ] Premium RM19 checkout tested.
 - [ ] Trainer Pro RM99 checkout tested.
 - [ ] Successful payment activates subscription.

@@ -17,7 +17,7 @@ Ascend is deployable as a mobile-first PWA with:
 - PostgreSQL as source of truth.
 - S3/R2-compatible media storage.
 - Gemini AI integration with starter fallbacks.
-- ToyyibPay-first subscription abstraction with manual/test activation, checkout creation, callback handling, and payment event records.
+- Lemon Squeezy subscription billing with manual pilot activation, secure checkout, signed webhooks, billing portal, and payment event records.
 - Daily compliance and risk job endpoint.
 - Browser back/forward and logout session refresh handling.
 
@@ -29,8 +29,8 @@ Ascend is deployable as a mobile-first PWA with:
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
 6. Spot-check Gemini food image analysis on production using a real mobile food photo during pilot onboarding.
-7. Configure real ToyyibPay category, return URL, and callback URL.
-8. Run one end-to-end ToyyibPay low-value live payment test and confirm the subscription changes to active.
+7. Configure Lemon Squeezy store, monthly variants, API key, and webhook secret.
+8. Run one end-to-end Lemon Squeezy test-mode payment and confirm the subscription changes to active.
 9. Confirm Railway PostgreSQL backups.
 10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.
 
@@ -52,7 +52,7 @@ Ascend is deployable as a mobile-first PWA with:
 
 - WhatsApp reminders and food photo submission.
 - WhatsApp trainer alerts.
-- Stripe provider implementation.
+- Additional local Malaysia/Singapore payment methods if pilot demand justifies them.
 - Weekly report email or PDF export.
 - Gym-specific branded referral landing pages.
 - Production monitoring dashboard.

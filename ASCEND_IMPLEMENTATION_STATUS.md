@@ -1,6 +1,6 @@
 # Ascend Implementation Status
 
-Last updated: 16 June 2026
+Last updated: 19 June 2026
 
 ## Pilot Readiness Snapshot
 
@@ -47,6 +47,7 @@ The live app is available at:
 - AI food scan guardrails are in place: Free users get 1 scan per week, Premium users get 5 scans per day, Trainer users get 10 scans per day, and owner/admin accounts are unlimited but still tracked.
 - Daily nutrition guides are available: onboarding collects age, height, activity level, and sex/prefer-not-to-say, then Ascend estimates calorie, protein, carbs, fat, and water guides based on the client's goal.
 - Existing clients with incomplete nutrition profiles see an "Improve my daily guide" prompt and can update the missing details without repeating onboarding.
+- Lemon Squeezy recurring billing is implemented with secure checkout, signed webhooks, automatic plan synchronization, and a customer billing portal. Manual pilot approvals remain available.
 
 ## Fixes Completed In This Pass
 
@@ -79,6 +80,6 @@ The live app is available at:
 
 ## Remaining Pilot Risks
 
-- ToyyibPay paid checkout is not required for the no-payment pilot, but should be fully live-tested before public paid launch.
+- Lemon Squeezy must be configured in Railway and tested with one test-mode subscription before public paid launch.
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
 - Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.
