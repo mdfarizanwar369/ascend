@@ -116,17 +116,21 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     if (dbUser.status !== "active") return res.status(403).json({ error: "This account has been deactivated" });
 
     const ownerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
-    if (ownerEmail && dbUser.email.trim().toLowerCase() === ownerEmail) {
-      await query("update users set primary_role = 'owner', updated_at = now() where id = $1", [dbUser.id]);
-      await query("delete from user_roles where user_id = $1", [dbUser.id]);
-      await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [dbUser.id]);
-      dbUser.primary_role = "owner";
-      dbUser.roles = ["owner", "admin"];
-    }
-
-    const roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
-
     const isPlatformOwner = Boolean(ownerEmail && dbUser.email.trim().toLowerCase() === ownerEmail);
+    let roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
+
+    if (isPlatformOwner) {
+      const needsRoleRepair = dbUser.primary_role !== "owner" || !roles.includes("owner") || !roles.includes("admin");
+      if (needsRoleRepair) {
+        await query("update users set primary_role = 'owner', updated_at = now() where id = $1 and primary_role <> 'owner'", [dbUser.id]);
+        await query(
+          "insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin') on conflict (user_id, role) do nothing",
+          [dbUser.id]
+        );
+      }
+      dbUser.primary_role = "owner";
+      roles = normalizeRoles("owner", [...roles, "owner", "admin"]);
+    }
 
     req.user = {
       id: dbUser.id,

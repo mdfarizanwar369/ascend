@@ -13,6 +13,10 @@ vi.mock("../db/pool", () => ({
   query: dbQuery
 }));
 
+vi.mock("../config/env", () => ({
+  env: { BOOTSTRAP_OWNER_EMAIL: "owner@example.com" }
+}));
+
 import { requireAuth } from "../middleware/auth";
 
 function request() {
@@ -56,5 +60,28 @@ describe("authentication error boundaries", () => {
 
     expect(res.status).not.toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith(databaseError);
+  });
+
+  it("does not rewrite roles on every request for an established owner", async () => {
+    verifyIdToken.mockResolvedValue({ uid: "owner-firebase-user" });
+    dbQuery.mockResolvedValue({
+      rows: [{
+        id: "owner-user",
+        firebase_uid: "owner-firebase-user",
+        email: "owner@example.com",
+        primary_role: "owner",
+        status: "active",
+        roles: ["owner", "admin"]
+      }]
+    });
+    const req = request() as { user?: { roles: string[] } };
+    const res = response();
+    const next = vi.fn();
+
+    await requireAuth(req as never, res.value, next);
+
+    expect(dbQuery).toHaveBeenCalledTimes(1);
+    expect(req.user?.roles).toEqual(expect.arrayContaining(["owner", "admin"]));
+    expect(next).toHaveBeenCalledWith();
   });
 });
