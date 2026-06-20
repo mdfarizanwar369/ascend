@@ -109,5 +109,5 @@ The live app is available at:
 
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
 - Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.
-- Stripe production charging remains blocked until Stripe account activation, identity verification, payout details, and a complete test-mode checkout are confirmed.
+- Stripe test mode is connected end to end: Premium RM19.99 and Trainer Pro RM99.99 monthly prices, hosted Checkout, signed webhook delivery, and the customer portal have been verified. Production charging remains disabled until Stripe payouts/bank details are enabled, the live Premium price is corrected from RM19.90 to RM19.99, and permanent live API credentials replace the temporary CLI credential.
 - Before inviting the first external gym owner, run the cross-gym manual checks in `TESTING_CHECKLIST.md` using two temporary owner accounts.

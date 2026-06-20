@@ -36,7 +36,7 @@ Ascend is deployable as a mobile-first PWA with:
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
 6. Spot-check Gemini food image analysis on production using a real mobile food photo during pilot onboarding.
-7. After Stripe account activation, run one low-value live payment and cancellation-through-period-end check.
+7. Enable Stripe payouts/bank details, create the corrected RM19.99 live Premium price and live webhook with permanent credentials, then run one low-value live payment and cancellation-through-period-end check.
 8. Continue using the verified test-mode payment flow or manual owner-approved pilot access until approval.
 9. Confirm Railway PostgreSQL backups.
 10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.

@@ -60,3 +60,5 @@ Enable the Stripe customer portal with payment-method updates, invoice history, 
 7. Repeat once for Trainer Pro with a trainer account.
 
 Only replace test keys and test price IDs with live values after Stripe account activation, identity checks, payout details, tax settings, and the full test flow are complete.
+
+The Stripe CLI login credential expires after 90 days. It is acceptable for temporary test-mode validation only. Before enabling live payments, use a permanent live secret or appropriately scoped restricted key stored only in the Railway backend service.
