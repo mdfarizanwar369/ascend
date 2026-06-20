@@ -78,11 +78,17 @@ export async function requireFirebaseToken(req: Request, res: Response, next: Ne
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  try {
-    const token = parseBearerToken(req.header("Authorization"));
-    if (!token) return res.status(401).json({ error: "Missing bearer token" });
+  const token = parseBearerToken(req.header("Authorization"));
+  if (!token) return res.status(401).json({ error: "Missing bearer token" });
 
-    const decoded = await getFirebaseAuth().verifyIdToken(token);
+  let decoded: Awaited<ReturnType<ReturnType<typeof getFirebaseAuth>["verifyIdToken"]>>;
+  try {
+    decoded = await getFirebaseAuth().verifyIdToken(token);
+  } catch {
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  try {
     const userResult = await query<{
       id: string;
       firebase_uid: string;
@@ -135,7 +141,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     next();
   } catch (error) {
-    res.status(401).json({ error: "Invalid or expired token" });
+    next(error);
   }
 }
 

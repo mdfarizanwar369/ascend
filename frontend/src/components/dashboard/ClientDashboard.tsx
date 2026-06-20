@@ -217,10 +217,13 @@ export function ClientDashboard() {
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
   const dashboardRequestRef = useRef(0);
+  const dashboardLoadInFlightRef = useRef(false);
   const hasLoadedDashboardRef = useRef(false);
   const missionLockRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
+    if (dashboardLoadInFlightRef.current) return;
+    dashboardLoadInFlightRef.current = true;
     if (hasLoadedDashboardRef.current) setStatus("Updating today's progress...");
     const requestId = ++dashboardRequestRef.current;
     const comparisonRequest = getMyProgressComparison();
@@ -320,6 +323,8 @@ export function ClientDashboard() {
         .catch(() => undefined);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
+    } finally {
+      dashboardLoadInFlightRef.current = false;
     }
   }, []);
 
