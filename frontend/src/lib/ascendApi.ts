@@ -108,9 +108,21 @@ export function getMe() {
       assigned_trainer_id?: string | null;
       assigned_trainer_name?: string | null;
       trainer_status?: string | null;
+      profile_photo_url?: string | null;
     };
     roles: string[];
   }>("/me");
+}
+
+export function saveProfilePhoto(imageDataUrl: string) {
+  return authed<{ profilePhotoUrl: string }>("/me/profile-photo", {
+    method: "POST",
+    body: JSON.stringify({ imageDataUrl })
+  });
+}
+
+export function removeProfilePhoto() {
+  return authed<{ removed: boolean }>("/me/profile-photo", { method: "DELETE" });
 }
 
 export function getFoodLogs() {
@@ -575,6 +587,7 @@ export function getMessageContacts() {
       full_name: string;
       email: string;
       primary_role: string;
+      profile_photo_url?: string | null;
     }>;
   }>("/messages/contacts");
 }
@@ -663,6 +676,7 @@ export function getTrainerClients() {
       last_client_message_at?: string | null;
       open_alerts?: string | number | null;
       consistency_streak?: string | number | null;
+      profile_photo_url?: string | null;
     }>;
   }>("/trainer/clients");
 }
@@ -678,6 +692,7 @@ export function getTrainerAttention() {
       reason: string;
       detail: string;
       priority: number;
+      profile_photo_url?: string | null;
     }>;
     summary: {
       totalClients: number;
@@ -719,6 +734,7 @@ export function getTrainerClient(clientId: string) {
       gym_name?: string | null;
       compliance_score?: number | null;
       last_trainer_message_at?: string | null;
+      profile_photo_url?: string | null;
     };
   }>(`/trainer/clients/${clientId}`);
 }
@@ -814,6 +830,8 @@ export function getTrainerRiskAlerts() {
       message: string;
       status: string;
       created_at: string;
+      full_name?: string | null;
+      profile_photo_url?: string | null;
     }>;
   }>("/trainer/risk-alerts");
 }

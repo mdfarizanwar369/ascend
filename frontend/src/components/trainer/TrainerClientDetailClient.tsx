@@ -22,6 +22,7 @@ import { MetricCard } from "@/components/MetricCard";
 import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -218,11 +219,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         <div className="mb-3">
           <BackButton fallbackHref="/trainer" />
         </div>
-        <p className="text-sm text-zinc-400">Client profile</p>
-        <h1 className="mt-1 text-2xl font-semibold">{client?.full_name ?? "Client"}</h1>
-        <p className="mt-2 text-sm text-zinc-400">
-          {formatGoal(client?.goal_type)} / {client?.gym_name ?? "Gym not set"}
-        </p>
+        <div className="flex items-center gap-3">
+          <ProfileAvatar src={client?.profile_photo_url} name={client?.full_name} size="md" />
+          <div className="min-w-0">
+            <p className="text-sm text-zinc-400">Client profile</p>
+            <h1 className="mt-1 truncate text-2xl font-semibold">{client?.full_name ?? "Client"}</h1>
+            <p className="mt-1 text-sm text-zinc-400">{formatGoal(client?.goal_type)} / {client?.gym_name ?? "Gym not set"}</p>
+          </div>
+        </div>
         {client?.goal_achieved_at ? (
           <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm font-semibold text-lime">
             Goal achieved. This is a great moment to celebrate and agree on the next goal.

@@ -6,6 +6,7 @@ import { createWeeklySummary } from "../integrations/openai";
 import { createReadUrl } from "../integrations/s3";
 import { logAiUsage } from "../services/aiUsageService";
 import { env } from "../config/env";
+import { withProfilePhotoUrl, withProfilePhotoUrls } from "../services/profilePhotoService";
 import { getAdminGymScope } from "../services/adminScopeService";
 import { canManageClient } from "../services/clientAccessService";
 import { getProgressComparison } from "../services/progressComparisonService";
@@ -132,7 +133,7 @@ trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
-      select u.id, u.full_name, u.email, u.goal_type, u.target_weight_kg,
+      select u.id, u.full_name, u.email, u.profile_photo_s3_key, u.goal_type, u.target_weight_kg,
         current_score.score as current_score,
         previous_score.score as previous_score,
         food.last_food_logged_at,
@@ -208,26 +209,26 @@ trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_
     );
 
     const attention = result.rows
-      .map((row) => {
+      .flatMap((row) => {
         const signal = attentionReason(row);
-        if (!signal) return null;
-        return {
+        if (!signal) return [];
+        return [{
           id: row.id,
           full_name: row.full_name,
           email: row.email,
+          profile_photo_s3_key: row.profile_photo_s3_key,
           goal_type: row.goal_type,
           current_score: row.current_score,
           reason: signal.reason,
           detail: signal.detail,
           priority: signal.priority
-        };
+        }];
       })
-      .filter(Boolean)
-      .sort((a, b) => b!.priority - a!.priority)
+      .sort((a, b) => b.priority - a.priority)
       .slice(0, 3);
 
     res.json({
-      attention,
+      attention: await withProfilePhotoUrls(attention),
       summary: {
         totalClients: result.rows.length,
         needsAttention: attention.length,
@@ -311,7 +312,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
-      select u.id, u.full_name, u.email, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
+      select u.id, u.full_name, u.email, u.profile_photo_s3_key, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
         cs.score as compliance_score,
         risk.risk_severity, risk.open_alerts,
@@ -400,7 +401,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
       `,
       [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
-    res.json({ clients: result.rows });
+    res.json({ clients: await withProfilePhotoUrls(result.rows) });
   } catch (error) {
     next(error);
   }
@@ -420,7 +421,7 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const result = await query(
       `
-      select u.id, u.full_name, u.email, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
+      select u.id, u.full_name, u.email, u.profile_photo_s3_key, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
         g.name as gym_name, cs.score as compliance_score,
         trainer_message.last_trainer_message_at,
@@ -449,7 +450,7 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
     );
 
     if (!result.rows[0]) return res.status(404).json({ error: "Client not found" });
-    res.json({ client: result.rows[0] });
+    res.json({ client: await withProfilePhotoUrl(result.rows[0]) });
   } catch (error) {
     next(error);
   }
@@ -525,10 +526,17 @@ trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("traine
   try {
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
-      "select * from risk_alerts where (trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or gym_id = any($5)))) and status = 'open' order by created_at desc",
+      `
+      select ra.*, u.full_name, u.profile_photo_s3_key
+      from risk_alerts ra
+      join users u on u.id = ra.user_id
+      where (ra.trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or ra.gym_id = any($5))))
+        and ra.status = 'open'
+      order by ra.created_at desc
+      `,
       [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
-    res.json({ alerts: result.rows });
+    res.json({ alerts: await withProfilePhotoUrls(result.rows) });
   } catch (error) {
     next(error);
   }

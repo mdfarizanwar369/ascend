@@ -6,6 +6,7 @@ import { calculateNutritionTargets } from "@ascend/shared";
 import { AlertTriangle, CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
 import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
 type RiskAlert = Awaited<ReturnType<typeof getTrainerRiskAlerts>>["alerts"][number];
@@ -223,10 +224,13 @@ export function TrainerDashboardClient() {
               {attention.attention.map((client) => (
                 <article key={client.id} className="rounded-lg bg-ink p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-white">{client.full_name}</p>
-                      <p className="mt-1 text-sm text-amber">{client.reason}</p>
-                      <p className="mt-1 text-xs leading-5 text-zinc-400">{client.detail}</p>
+                    <div className="flex min-w-0 gap-3">
+                      <ProfileAvatar src={client.profile_photo_url} name={client.full_name} size="sm" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">{client.full_name}</p>
+                        <p className="mt-1 text-sm text-amber">{client.reason}</p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-400">{client.detail}</p>
+                      </div>
                     </div>
                     <span className="shrink-0 rounded bg-surface px-2 py-1 text-xs text-zinc-300">
                       {client.current_score ?? "--"}/100
@@ -258,9 +262,10 @@ export function TrainerDashboardClient() {
       {alerts[0] ? (
         <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 text-amber" size={20} />
+            <ProfileAvatar src={alerts[0].profile_photo_url} name={alerts[0].full_name} size="sm" />
             <div>
               <p className="text-sm font-semibold text-amber">Client risk alert</p>
+              {alerts[0].full_name ? <p className="mt-1 text-sm font-medium text-white">{alerts[0].full_name}</p> : null}
               <p className="mt-1 text-sm leading-6 text-zinc-300">{alerts[0].message}</p>
             </div>
           </div>
@@ -280,7 +285,9 @@ export function TrainerDashboardClient() {
               return (
                 <article key={client.id} className="rounded-lg bg-ink p-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 gap-3">
+                      <ProfileAvatar src={client.profile_photo_url} name={client.full_name} size="sm" />
+                      <div className="min-w-0">
                       <p className="font-medium">{client.full_name}</p>
                       <p className="mt-1 text-xs text-zinc-400">{formatGoal(client.goal_type)}</p>
                       {client.goal_achieved_at ? (
@@ -297,6 +304,7 @@ export function TrainerDashboardClient() {
                         Nutrition: {nutritionSummary(client)}
                       </p>
                       <p className="mt-2 text-xs text-zinc-500">Food: {daysAgo(client.last_food_logged_at)} / Weight: {daysAgo(client.last_weight_logged_at)}</p>
+                      </div>
                     </div>
                     <div className="text-right">
                       <p className={(score ?? 100) < 50 ? "font-semibold text-amber" : "font-semibold text-lime"}>

@@ -60,7 +60,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Tune streak milestones after pilot feedback, keeping the language encouraging rather than punitive.
 - Add clearer empty states for new gyms with no clients.
 - Add trainer invite links or owner-created trainer invites.
-- Add account settings page for name, gym, and trainer assignment visibility.
+- Extend the new profile page with name, gym, and trainer assignment visibility only if pilot feedback shows it is needed.
 - Add basic audit log for admin role, access, and assignment changes.
 - Add dismissible/read state for owner notifications after real pilot usage patterns are clear.
 - Reassess dependency audit warnings after the next compatible Next.js and Firebase Admin releases.

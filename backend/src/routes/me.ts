@@ -1,8 +1,15 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
+import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
+import { requireActivePlan } from "../middleware/subscription";
+import { uploadRateLimit } from "../middleware/rateLimits";
 import { acknowledgeGoalMilestone, completeOnboarding, getGoalStatus, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
 import { getProgressComparison } from "../services/progressComparisonService";
+import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
+import { imageDataUrlSchema, parseImageDataUrl } from "../utils/images";
+import { withProfilePhotoUrl } from "../services/profilePhotoService";
 
 export const meRouter = Router();
 
@@ -18,7 +25,73 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     `,
     [req.user!.id]
   );
-  res.json({ user: result.rows[0], roles: req.user!.roles });
+  res.json({ user: await withProfilePhotoUrl(result.rows[0]), roles: req.user!.roles });
+});
+
+const MAX_PROFILE_PHOTO_BYTES = 400 * 1024;
+const profilePhotoSchema = z.object({
+  imageDataUrl: imageDataUrlSchema.refine(
+    (value) => parseImageDataUrl(value).buffer.byteLength <= MAX_PROFILE_PHOTO_BYTES,
+    "Profile photo must be compressed to 400 KB or smaller."
+  )
+});
+
+meRouter.post("/me/profile-photo", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res, next) => {
+  let newKey: string | null = null;
+  let profileUpdated = false;
+  try {
+    const input = profilePhotoSchema.parse(req.body);
+    const { contentType } = parseImageDataUrl(input.imageDataUrl);
+    const extension = contentType === "image/webp" ? "webp" : contentType === "image/png" ? "png" : "jpg";
+    newKey = `profiles/${req.user!.id}/${randomUUID()}.${extension}`;
+    const upload = await uploadDataUrl(newKey, input.imageDataUrl);
+    if (upload.storageConfigured === false) return res.status(503).json({ error: "Profile photo storage is unavailable." });
+
+    const previous = await query<{ profile_photo_s3_key: string | null }>(
+      "select profile_photo_s3_key from users where id = $1",
+      [req.user!.id]
+    );
+    const oldKey = previous.rows[0]?.profile_photo_s3_key;
+    const result = await query<{ profile_photo_s3_key: string | null }>(
+      `
+      update users
+      set profile_photo_s3_key = $2, updated_at = now()
+      where id = $1
+      returning profile_photo_s3_key
+      `,
+      [req.user!.id, newKey]
+    );
+    if (!result.rows[0]) throw new Error("Profile could not be updated.");
+    profileUpdated = true;
+    if (oldKey && oldKey !== newKey) deleteStoredObjects([oldKey]).catch(() => undefined);
+
+    res.json({ profilePhotoUrl: await createReadUrl(newKey) });
+  } catch (error) {
+    if (newKey && !profileUpdated) await deleteStoredObjects([newKey]).catch(() => undefined);
+    next(error);
+  }
+});
+
+meRouter.delete("/me/profile-photo", requireAuth, async (req, res, next) => {
+  try {
+    const previous = await query<{ profile_photo_s3_key: string | null }>(
+      "select profile_photo_s3_key from users where id = $1",
+      [req.user!.id]
+    );
+    const oldKey = previous.rows[0]?.profile_photo_s3_key;
+    await query(
+      `
+      update users
+      set profile_photo_s3_key = null, updated_at = now()
+      where id = $1
+      `,
+      [req.user!.id]
+    );
+    if (oldKey) await deleteStoredObjects([oldKey]).catch(() => undefined);
+    res.json({ removed: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 meRouter.post("/me/onboarding", requireAuth, async (req, res, next) => {

@@ -542,7 +542,7 @@ export function ClientDashboard() {
 
         {status ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
-        <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} />
+        <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
 
         {goalStatus?.milestone_id && !goalStatus.acknowledged_at ? (
           <section className="mt-3 rounded-lg border border-lime bg-lime/15 p-4 text-center">

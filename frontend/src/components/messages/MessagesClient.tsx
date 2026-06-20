@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import { getMe, getMessageContacts, getMessages, sendMessage } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 
 type Contact = Awaited<ReturnType<typeof getMessageContacts>>["contacts"][number];
 type Message = Awaited<ReturnType<typeof getMessages>>["messages"][number];
@@ -98,9 +99,10 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
       <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-md flex-col">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref="/dashboard" />
-          <div>
+          <ProfileAvatar src={selectedContact?.profile_photo_url} name={selectedContact?.full_name} size="sm" />
+          <div className="min-w-0">
             <p className="text-sm text-zinc-400">Messages</p>
-            <h1 className="text-2xl font-semibold">{selectedContact?.full_name ?? "Trainer chat"}</h1>
+            <h1 className="truncate text-2xl font-semibold">{selectedContact?.full_name ?? "Trainer chat"}</h1>
           </div>
         </header>
 
@@ -115,8 +117,10 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
                   selectedContact?.id === contact.id ? "border-lime bg-lime text-ink" : "border-line bg-surface text-white"
                 }`}
               >
-                <span className="block text-sm font-semibold">{contact.full_name}</span>
-                <span className="text-xs opacity-75">{roleLabel(contact.primary_role)}</span>
+                <span className="flex items-center gap-2">
+                  <ProfileAvatar src={contact.profile_photo_url} name={contact.full_name} size="sm" />
+                  <span><span className="block text-sm font-semibold">{contact.full_name}</span><span className="text-xs opacity-75">{roleLabel(contact.primary_role)}</span></span>
+                </span>
               </button>
             ))}
           </section>

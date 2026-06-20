@@ -16,6 +16,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     fullName?: string;
     roles?: string[];
     plan?: "free" | "premium" | "trainer_pro";
+    profilePhotoUrl?: string | null;
   }>({});
   const roles = account.roles ?? [];
   const canTrain = roles.some((role) => ["trainer", "admin", "owner"].includes(role));
@@ -41,6 +42,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           email: me?.user.email,
           fullName: me?.user.full_name,
           roles: me?.roles ?? [],
+          profilePhotoUrl: me?.user.profile_photo_url,
           plan: subscription
             ? usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end)
             : "free"
@@ -84,7 +86,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
             </Link>
           </div>
         </header>
-        <AccountBar email={account.email} fullName={account.fullName} roles={account.roles} plan={account.plan} />
+        <AccountBar email={account.email} fullName={account.fullName} roles={account.roles} plan={account.plan} profilePhotoUrl={account.profilePhotoUrl} />
         {children}
       </div>
       <nav aria-label="Primary navigation" className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">

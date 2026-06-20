@@ -5,6 +5,7 @@ import { AuthUser, requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { getAdminGymScope } from "../services/adminScopeService";
 import { canManageClient } from "../services/clientAccessService";
+import { withProfilePhotoUrls } from "../services/profilePhotoService";
 
 export const messagesRouter = Router();
 
@@ -81,7 +82,7 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
       const scope = await getAdminGymScope(req.user!);
       const result = await query(
         `
-        select id, full_name, email, primary_role
+        select id, full_name, email, primary_role, profile_photo_s3_key
         from users
         where id <> $1 and status = 'active'
           and ($2::uuid[] is null or gym_id = any($2))
@@ -90,25 +91,25 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
         `,
         [req.user!.id, scope.gymIds]
       );
-      return res.json({ contacts: result.rows });
+      return res.json({ contacts: await withProfilePhotoUrls(result.rows) });
     }
 
     if (req.user!.trainerId) {
       const result = await query(
         `
-        select id, full_name, email, primary_role
+        select id, full_name, email, primary_role, profile_photo_s3_key
         from users
         where assigned_trainer_id = $1 and status = 'active'
         order by full_name asc
         `,
         [req.user!.trainerId]
       );
-      return res.json({ contacts: result.rows });
+      return res.json({ contacts: await withProfilePhotoUrls(result.rows) });
     }
 
     const assignedTrainerResult = await query(
       `
-      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role
+      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role, trainer_user.profile_photo_s3_key
       from users client_user
       join trainers t on t.id = client_user.assigned_trainer_id
       join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
@@ -117,7 +118,7 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
       `,
       [req.user!.id]
     );
-    if (assignedTrainerResult.rows.length) return res.json({ contacts: assignedTrainerResult.rows });
+    if (assignedTrainerResult.rows.length) return res.json({ contacts: await withProfilePhotoUrls(assignedTrainerResult.rows) });
 
     return res.json({ contacts: [] });
   } catch (error) {

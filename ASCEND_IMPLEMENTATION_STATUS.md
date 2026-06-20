@@ -103,6 +103,7 @@ The live app is available at:
 - Added supportive daily calorie/protein/carb/fat guide displays on the client dashboard and food logging page so food estimates have context without turning Ascend into a strict calorie tracker.
 - Added local meal insights after food estimates, using existing macro numbers to give one simple label and next step without any extra AI call or Gemini cost.
 - Added a lightweight guide profile update page for existing clients, plus a backend endpoint and regression test for saving nutrition guide details.
+- Added compressed profile photos for Premium clients, Trainer Pro users, owners, and admins. Photos are cropped and compressed in the browser, oversized payloads are rejected server-side, replaced/removed photos are deleted from storage, and trainer attention, risk, client, detail, and messaging views show recognizable thumbnails.
 
 ## Remaining Pilot Risks
 

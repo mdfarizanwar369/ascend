@@ -711,6 +711,8 @@ adminRouter.delete("/admin/users/:userId", requireAuth, requireRole(["owner"]), 
       select image_s3_key from food_logs where user_id = $1 and image_s3_key is not null
       union
       select image_s3_key from progress_photos where user_id = $1 and image_s3_key is not null
+      union
+      select profile_photo_s3_key as image_s3_key from users where id = $1 and profile_photo_s3_key is not null
       `,
       [target.id]
     );
