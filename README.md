@@ -113,7 +113,7 @@ Paid access remains active through the end of a cancelled billing period. The su
 
 ```text
 PAYMENT_PROVIDER=lemonsqueezy
-FRONTEND_URL=https://getascend.fit
+FRONTEND_URL=https://www.getascend.fit
 LEMONSQUEEZY_API_KEY=
 LEMONSQUEEZY_STORE_ID=
 LEMONSQUEEZY_PREMIUM_VARIANT_ID=
