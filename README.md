@@ -4,6 +4,8 @@ Security issues should be reported privately using the process in [SECURITY.md](
 
 Ascend is a mobile-first PWA SaaS MVP for fitness accountability across gym members, trainers, and gym owners.
 
+Optional Athlete Mode can be enabled by an owner for selected serious clients. It adds event countdowns, readiness check-ins, weekly training targets, deterministic coach reviews, and trainer-only private notes without changing the standard client experience.
+
 Ascend uses one multi-gym application, not separate copies per gym. The bootstrap owner is the platform owner and can access every gym. Other owner/admin accounts are restricted by backend-enforced gym assignments and may be assigned to one or multiple gyms.
 
 Client nutrition guides use age, height, sex, activity level, latest logged weight, and goal. Clients can start a new Fat Loss, Muscle Gain, or Maintenance journey from the guide profile. After at least three weigh-ins across two weeks, Ascend may apply a conservative 100 kcal trend adjustment. These numbers are practical estimates, not medical prescriptions.
@@ -290,6 +292,12 @@ The npm validation path has been run successfully after Node.js and npm became a
 The frontend also includes a browser session guard so account switching, logout, and mobile browser back/forward restores re-check access instead of keeping stale role or plan state.
 
 Premium AI coach chat and weekly progress reports are connected to backend APIs. Without `GEMINI_API_KEY` or `OPENAI_API_KEY`, the backend returns safe demo coaching/report text.
+
+## Athlete Mode Pilot
+
+Athlete Mode is isolated and off for every member until an owner enables it from **Admin > Users**. Enabled athletes receive an **Athlete Mode** card on their client dashboard. Their assigned trainer sees a compact coach panel on the existing client-detail page.
+
+Set `ATHLETE_MODE_ENABLED=false` on the backend to disable the entire module immediately. Existing food, weight, water, habits, messages, subscriptions, and trainer dashboards continue operating independently.
 
 Before connecting real services, also run:
 

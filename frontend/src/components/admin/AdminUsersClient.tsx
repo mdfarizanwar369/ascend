@@ -11,6 +11,7 @@ import {
   getGyms,
   grantAdminSubscription,
   removeOwnerGym,
+  setAdminAthleteMode,
   updateAdminUserStatus,
   updateAdminUserRole
 } from "@/lib/ascendApi";
@@ -223,6 +224,20 @@ export function AdminUsersClient() {
       setStatus(status === "active" ? `${user.full_name} can access Ascend again.` : `${user.full_name} has been deactivated.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not update user access.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
+
+  async function toggleAthleteMode(user: AdminUser) {
+    setSavingUserId(user.id);
+    setStatus("");
+    try {
+      await setAdminAthleteMode(user.id, !user.athlete_mode_enabled);
+      await load();
+      setStatus(`Athlete Mode ${user.athlete_mode_enabled ? "disabled" : "enabled"} for ${user.full_name}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update Athlete Mode.");
     } finally {
       setSavingUserId("");
     }
@@ -510,6 +525,27 @@ export function AdminUsersClient() {
                   })}
                 </div>
               </div>
+
+              {user.primary_role === "client" ? (
+                <div className="mt-3 rounded-lg border border-purple-400/30 bg-purple-400/10 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-purple-300">Athlete Mode</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-400">Owner-controlled pilot access for event preparation and readiness.</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={savingUserId === user.id}
+                      onClick={() => toggleAthleteMode(user)}
+                      className={`h-10 shrink-0 rounded-lg px-3 text-xs font-semibold disabled:opacity-60 ${
+                        user.athlete_mode_enabled ? "bg-purple-400 text-ink" : "border border-purple-400/40 text-purple-300"
+                      }`}
+                    >
+                      {user.athlete_mode_enabled ? "Enabled" : "Enable"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               {user.primary_role === "owner" && canManageOwnerGyms ? (
                 <div className="mt-3 rounded-lg border border-line bg-surface p-3">

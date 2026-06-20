@@ -27,6 +27,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Versioned client goal journeys support editable goals, latest-weight nutrition recalculation, evidence-based 100 kcal adjustments, target celebrations, and trainer visibility.
 - A compact 30-day “Look How Far You’ve Come” card motivates clients using only their own weight, Momentum, and check-in history; trainers see the same summary during reviews.
 - Latest release audit: production mobile routes, session persistence, database relationships, subscription consistency, AI cache behavior, builds, lint, and automated tests verified.
+- Owner-gated Athlete Mode core: event countdown, readiness check-in, numeric weekly training targets, readiness/compliance dashboard, deterministic weekly coach review, and trainer-only private notes.
 
 ## Before Pilot Launch
 
@@ -36,8 +37,8 @@ Ascend is deployable as a mobile-first PWA with:
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
 6. Spot-check Gemini food image analysis on production using a real mobile food photo during pilot onboarding.
-7. Enable Stripe payouts/bank details, create the corrected RM19.99 live Premium price and live webhook with permanent credentials, then run one low-value live payment and cancellation-through-period-end check.
-8. Continue using the verified test-mode payment flow or manual owner-approved pilot access until approval.
+7. Complete one low-value live Stripe payment and cancellation-through-period-end check; live Checkout, prices, webhook destination, payouts, and permanent credentials are already configured.
+8. Pilot Athlete Mode with one owner-enabled athlete and one trainer before exposing a paid Athlete plan.
 9. Confirm Railway PostgreSQL backups.
 10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.
 11. Run the first weekly review with `PILOT_WEEKLY_REVIEW.md` and capture feedback with `PILOT_FEEDBACK_QUESTIONNAIRE.md`.
@@ -73,3 +74,4 @@ Ascend is deployable as a mobile-first PWA with:
 - Weekly report email or PDF export.
 - Gym-specific branded referral landing pages.
 - Production monitoring dashboard.
+- Athlete Mode performance logs, calendar, and decision alerts only after coaches validate the readiness/compliance core.

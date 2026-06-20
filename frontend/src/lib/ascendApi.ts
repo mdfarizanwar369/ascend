@@ -109,6 +109,7 @@ export function getMe() {
       assigned_trainer_name?: string | null;
       trainer_status?: string | null;
       profile_photo_url?: string | null;
+      athlete_mode_enabled?: boolean;
     };
     roles: string[];
   }>("/me");
@@ -1021,6 +1022,7 @@ export function getAdminUsers() {
       referred_trainer_name: string | null;
       referral_source: "gym" | "trainer" | "none";
       coaching_mode: CoachingMode | string | null;
+      athlete_mode_enabled: boolean;
       owner_gym_ids: string[];
       current_plan: SubscriptionPlan;
       subscription_status: string | null;
@@ -1095,6 +1097,143 @@ export function assignAdminClient(input: { clientId: string; trainerId: string |
   return authed<{ user: unknown }>("/admin/assign-client", {
     method: "POST",
     body: JSON.stringify(input)
+  });
+}
+
+export function setAdminAthleteMode(userId: string, enabled: boolean) {
+  return authed<{ athleteProfile: AthleteProfile }>(`/admin/users/${userId}/athlete-mode`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled })
+  });
+}
+
+export type AthleteProfile = {
+  user_id: string;
+  enabled: boolean;
+  sport?: string | null;
+  division?: string | null;
+  competition_name?: string | null;
+  competition_date?: string | null;
+  coach_name?: string | null;
+  goal_weight_kg?: string | number | null;
+  current_weight_kg?: string | number | null;
+};
+
+export type AthleteCheckin = {
+  id: string;
+  checkin_date: string;
+  sleep_hours: string | number;
+  energy: number;
+  soreness: number;
+  stress: number;
+  hunger: number;
+  motivation: number;
+  readiness_score: number;
+  readiness_band: "green" | "yellow" | "red";
+};
+
+export type AthleteTarget = {
+  id: string;
+  target_type: string;
+  target_value: number;
+  completed_value: number;
+  unit: string;
+  notes?: string | null;
+  week_start: string;
+};
+
+export type AthleteReview = {
+  id: string;
+  week_start: string;
+  week_end: string;
+  readiness_average?: string | number | null;
+  compliance_percent: string | number;
+  checkins_completed: number;
+  summary: string;
+  coach_comment?: string | null;
+};
+
+export type AthleteDashboard = {
+  profile: AthleteProfile;
+  countdown: { days: number; weeks: number; milestone?: string | null } | null;
+  latestCheckin: AthleteCheckin | null;
+  checkins: AthleteCheckin[];
+  targets: AthleteTarget[];
+  compliancePercent: number;
+  latestReview: AthleteReview | null;
+  progressPhotos: Array<{ id: string; photo_type: string; image_url?: string | null; logged_at: string }>;
+};
+
+export function getAthleteDashboard() {
+  return authed<{ athlete: AthleteDashboard }>("/athlete/me");
+}
+
+export function updateAthleteProfile(input: {
+  sport: string;
+  division?: string | null;
+  competitionName?: string | null;
+  competitionDate?: string | null;
+  coachName?: string | null;
+  goalWeightKg?: number | null;
+}) {
+  return authed<{ profile: AthleteProfile }>("/athlete/me/profile", { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function saveAthleteCheckin(input: {
+  sleepHours: number;
+  energy: number;
+  soreness: number;
+  stress: number;
+  hunger: number;
+  motivation: number;
+}) {
+  return authed<{ checkin: AthleteCheckin }>("/athlete/me/checkins", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function saveAthleteTargetProgress(targetId: string, completedValue: number) {
+  return authed<{ progress: unknown }>(`/athlete/me/targets/${targetId}/progress`, {
+    method: "PUT",
+    body: JSON.stringify({ completedValue })
+  });
+}
+
+export function generateAthleteWeeklyReview() {
+  return authed<{ review: AthleteReview }>("/athlete/me/reviews/generate", { method: "POST" });
+}
+
+export function getTrainerAthleteDashboard(clientId: string) {
+  return authed<{ athlete: AthleteDashboard }>(`/trainer/clients/${clientId}/athlete`);
+}
+
+export function createAthleteTarget(clientId: string, input: {
+  targetType: string;
+  targetValue: number;
+  unit: string;
+  notes?: string;
+}) {
+  return authed<{ target: AthleteTarget }>(`/trainer/clients/${clientId}/athlete/targets`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getAthleteCoachNotes(clientId: string) {
+  return authed<{ notes: Array<{ id: string; body: string; author_name: string; created_at: string }> }>(
+    `/trainer/clients/${clientId}/athlete/notes`
+  );
+}
+
+export function createAthleteCoachNote(clientId: string, body: string) {
+  return authed<{ note: { id: string; body: string; created_at: string } }>(`/trainer/clients/${clientId}/athlete/notes`, {
+    method: "POST",
+    body: JSON.stringify({ body })
+  });
+}
+
+export function updateAthleteReviewComment(clientId: string, coachComment: string | null) {
+  return authed<{ review: AthleteReview }>(`/trainer/clients/${clientId}/athlete/review`, {
+    method: "PATCH",
+    body: JSON.stringify({ coachComment })
   });
 }
 

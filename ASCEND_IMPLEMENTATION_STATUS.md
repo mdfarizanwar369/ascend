@@ -63,6 +63,9 @@ The live app is available at:
 - Multi-gym owner isolation is implemented. The bootstrap owner retains platform-wide access, while appointed gym owners are restricted to one or more assigned gyms across admin analytics, users, trainers, referrals, subscriptions, notifications, messaging, risk alerts, and trainer client views.
 - Platform owner controls can appoint a gym owner and add or remove gym assignments from the Users page.
 - Database migrations are now versioned and run safely during backend startup; the ownership migration was applied twice successfully to verify idempotency.
+- Athlete Mode core is implemented behind owner activation and a global kill switch. It includes event countdowns, readiness scoring, weekly numeric targets, athlete progress entry, deterministic weekly reviews, coach comments, and trainer-only private notes.
+- Athlete Mode uses additive tables and isolated `/athlete` APIs. Standard client, trainer, owner, subscription, media, and tracking tables were not modified.
+- Stripe live mode is configured and verified for RM19.99 Premium and RM99.99 Trainer Pro monthly Checkout sessions. Charges and payouts are enabled; the live webhook destination is enabled for all six required subscription events.
 
 ## Fixes Completed In This Pass
 
@@ -109,5 +112,6 @@ The live app is available at:
 
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
 - Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.
-- Stripe test mode is connected end to end: Premium RM19.99 and Trainer Pro RM99.99 monthly prices, hosted Checkout, signed webhook delivery, and the customer portal have been verified. Production charging remains disabled until Stripe payouts/bank details are enabled, the live Premium price is corrected from RM19.90 to RM19.99, and permanent live API credentials replace the temporary CLI credential.
+- Stripe live Checkout creation is verified without charging a card. One small real payment remains the final confirmation that the signed live webhook activates access and that cancellation preserves access through period end.
+- Athlete Mode should remain limited to one athlete/trainer pilot until its readiness and compliance workflow has been observed in real use.
 - Before inviting the first external gym owner, run the cross-gym manual checks in `TESTING_CHECKLIST.md` using two temporary owner accounts.

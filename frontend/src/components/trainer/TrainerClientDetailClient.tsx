@@ -23,6 +23,7 @@ import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { AthleteCoachPanel } from "@/components/athlete/AthleteCoachPanel";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -255,6 +256,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+
+      <AthleteCoachPanel clientId={clientId} />
 
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard

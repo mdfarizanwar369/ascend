@@ -16,11 +16,13 @@ export const meRouter = Router();
 meRouter.get("/me", requireAuth, async (req, res) => {
   const result = await query(
     `
-    select u.*, trainer_user.full_name as assigned_trainer_name, current_trainer.status as trainer_status
+    select u.*, trainer_user.full_name as assigned_trainer_name, current_trainer.status as trainer_status,
+      coalesce(athlete_profile.enabled, false) as athlete_mode_enabled
     from users u
     left join trainers current_trainer on current_trainer.user_id = u.id
     left join trainers t on t.id = u.assigned_trainer_id
     left join users trainer_user on trainer_user.id = t.user_id
+    left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
     where u.id = $1
     `,
     [req.user!.id]

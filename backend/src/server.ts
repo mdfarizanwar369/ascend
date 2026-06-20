@@ -18,6 +18,7 @@ import { progressRouter } from "./routes/progress";
 import { referralsRouter } from "./routes/referrals";
 import { reportsRouter } from "./routes/reports";
 import { subscriptionsRouter } from "./routes/subscriptions";
+import { athleteRouter } from "./routes/athlete";
 import { trainerRouter } from "./routes/trainer";
 import { waitlistRouter } from "./routes/waitlist";
 import { complianceRouter } from "./routes/compliance";
@@ -75,6 +76,7 @@ app.use("/api/v1", waitlistRouter);
 app.use("/api/v1", adminRouter);
 app.use("/api/v1", aiRouter);
 app.use("/api/v1", subscriptionsRouter);
+app.use("/api/v1", athleteRouter);
 app.use(errorHandler);
 
 Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema(), ensureWaitlistSchema(), ensureSubscriptionSchema()])

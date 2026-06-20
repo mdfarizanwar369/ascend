@@ -11,6 +11,7 @@ Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
 - `GET /gyms`
 - `GET /referrals/validate/:code`
 - `POST /webhooks/toyyibpay`
+- `POST /webhooks/stripe`
 
 `POST /webhooks/toyyibpay` accepts JSON or form-encoded ToyyibPay callbacks. It matches subscriptions by Ascend's external reference, records the payload in `payment_events`, and activates the subscription only when the callback status is successful.
 
@@ -52,7 +53,7 @@ Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
 - `POST /subscriptions/demo-activate`
 - `POST /subscriptions/cancel`
 
-`POST /subscriptions/checkout` creates a ToyyibPay bill when ToyyibPay credentials are configured. Without live credentials, it returns a safe demo return URL and leaves the subscription pending.
+`POST /subscriptions/checkout` creates a hosted Stripe subscription Checkout session for the selected paid plan.
 - `GET /messages/contacts`
 - `GET /messages/:userId`
 - `POST /messages`
@@ -72,6 +73,23 @@ Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
 - `POST /trainer/clients/:clientId/messages`
 - `POST /ai/weekly-checkin/:clientId`
 
+## Athlete Mode
+
+Athlete endpoints return `404` until an owner enables Athlete Mode for the client. `ATHLETE_MODE_ENABLED=false` disables the module globally without affecting standard Ascend features.
+
+- `GET /athlete/me`
+- `PATCH /athlete/me/profile`
+- `POST /athlete/me/checkins`
+- `PUT /athlete/me/targets/:targetId/progress`
+- `POST /athlete/me/reviews/generate`
+- `GET /trainer/clients/:clientId/athlete`
+- `POST /trainer/clients/:clientId/athlete/targets`
+- `GET /trainer/clients/:clientId/athlete/notes`
+- `POST /trainer/clients/:clientId/athlete/notes`
+- `PATCH /trainer/clients/:clientId/athlete/review`
+
+Coach notes are never returned by client endpoints. They are restricted to the assigned trainer and gym-scoped owner/admin access.
+
 ## Admin / Owner
 
 - `POST /admin/gyms`
@@ -86,6 +104,7 @@ Protected endpoints require `Authorization: Bearer <firebase_id_token>`.
 - `GET /admin/analytics/revenue`
 - `GET /admin/analytics/usage`
 - `GET /admin/analytics/compliance`
+- `PATCH /admin/users/:userId/athlete-mode` (owner only)
 
 ## Operations
 

@@ -36,6 +36,7 @@ const schema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PREMIUM_PRICE_ID: z.string().optional(),
   STRIPE_TRAINER_PRO_PRICE_ID: z.string().optional(),
+  ATHLETE_MODE_ENABLED: z.string().default("true").transform((value) => value.toLowerCase() !== "false"),
   LEMONSQUEEZY_API_BASE_URL: z.string().default("https://api.lemonsqueezy.com/v1"),
   LEMONSQUEEZY_API_KEY: z.string().optional(),
   LEMONSQUEEZY_STORE_ID: z.string().optional(),

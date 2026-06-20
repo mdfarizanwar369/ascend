@@ -530,6 +530,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
       u.referred_by_gym_id, referred_gym.name as referred_gym_name,
       u.referred_by_trainer_id, referred_trainer_user.full_name as referred_trainer_name,
       u.coaching_mode,
+      coalesce(athlete_profile.enabled, false) as athlete_mode_enabled,
       coalesce((select array_agg(goa.gym_id) from gym_owner_assignments goa where goa.user_id = u.id), '{}') as owner_gym_ids,
       case
         when u.referred_by_trainer_id is not null then 'trainer'
@@ -555,6 +556,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
     left join gyms referred_gym on referred_gym.id = u.referred_by_gym_id
     left join trainers referred_trainer on referred_trainer.id = u.referred_by_trainer_id
     left join users referred_trainer_user on referred_trainer_user.id = referred_trainer.user_id
+    left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
     left join lateral (
       select s.plan, s.status
       from subscriptions s

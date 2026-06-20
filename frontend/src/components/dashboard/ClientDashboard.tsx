@@ -617,6 +617,18 @@ export function ClientDashboard() {
           </div>
         </section>
 
+        {user?.athlete_mode_enabled ? (
+          <a href="/athlete" className="mt-4 block rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-purple-300">Athlete Mode</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-300">Check readiness, event countdown, and this week&apos;s training targets.</p>
+              </div>
+              <span className="rounded-lg bg-purple-400 px-3 py-2 text-sm font-semibold text-ink">Open</span>
+            </div>
+          </a>
+        ) : null}
+
         <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
