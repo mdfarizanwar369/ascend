@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import Stripe from "stripe";
 import { SubscriptionPlan, SubscriptionProvider, SubscriptionStatus } from "@ascend/shared";
 import { env } from "../config/env";
 
@@ -11,7 +12,7 @@ export interface CheckoutRequest {
 }
 
 export interface CheckoutSession {
-  provider: Extract<SubscriptionProvider, "lemonsqueezy" | "toyyibpay">;
+  provider: Extract<SubscriptionProvider, "stripe" | "lemonsqueezy" | "toyyibpay">;
   checkoutUrl: string;
   providerReference: string;
 }
@@ -23,7 +24,7 @@ export interface PaymentWebhookInput {
 }
 
 export interface PaymentWebhookEvent {
-  provider: Extract<SubscriptionProvider, "lemonsqueezy" | "toyyibpay">;
+  provider: Extract<SubscriptionProvider, "stripe" | "lemonsqueezy" | "toyyibpay">;
   eventType: string;
   reference: string;
   subscriptionId?: string;
@@ -90,6 +91,146 @@ function mapLemonEventStatus(eventType: string, status: unknown): SubscriptionSt
 
 function parsePaidPlan(value: unknown): Exclude<SubscriptionPlan, "free"> | undefined {
   return value === "premium" || value === "trainer_pro" ? value : undefined;
+}
+
+function stripeClient() {
+  if (!env.STRIPE_SECRET_KEY) {
+    throw new PaymentProviderError("Stripe is not configured yet. Add the secret key in Railway.");
+  }
+  return new Stripe(env.STRIPE_SECRET_KEY);
+}
+
+function stripeObjectId(value: unknown) {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "id" in value) return String((value as { id: unknown }).id);
+  return undefined;
+}
+
+function stripeTimestamp(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? new Date(value * 1000).toISOString() : null;
+}
+
+function mapStripeStatus(value: unknown): SubscriptionStatus {
+  switch (String(value ?? "").toLowerCase()) {
+    case "active": return "active";
+    case "trialing": return "trialing";
+    case "canceled": return "canceled";
+    case "incomplete_expired": return "expired";
+    default: return "past_due";
+  }
+}
+
+type StripeSubscriptionShape = {
+  id: string;
+  customer?: unknown;
+  status?: unknown;
+  metadata?: Record<string, string>;
+  current_period_start?: number;
+  current_period_end?: number;
+  items?: { data?: Array<{ current_period_start?: number; current_period_end?: number }> };
+};
+
+function stripeSubscriptionPeriod(subscription: StripeSubscriptionShape) {
+  const firstItem = subscription.items?.data?.[0];
+  return {
+    start: stripeTimestamp(subscription.current_period_start ?? firstItem?.current_period_start),
+    end: stripeTimestamp(subscription.current_period_end ?? firstItem?.current_period_end)
+  };
+}
+
+export class StripeProvider implements PaymentProvider {
+  readonly provider = "stripe" as const;
+
+  async createCheckoutSession(request: CheckoutRequest): Promise<CheckoutSession> {
+    const priceId = request.plan === "premium" ? env.STRIPE_PREMIUM_PRICE_ID : env.STRIPE_TRAINER_PRO_PRICE_ID;
+    if (!priceId) {
+      throw new PaymentProviderError(`Stripe ${request.plan === "premium" ? "Premium" : "Trainer Pro"} price is not configured yet.`);
+    }
+
+    const metadata = { ascend_user_id: request.userId, ascend_plan: request.plan };
+    const frontendUrl = env.FRONTEND_URL.replace(/\/$/, "");
+    const session = await stripeClient().checkout.sessions.create({
+      mode: "subscription",
+      customer_email: request.email,
+      client_reference_id: request.userId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      allow_promotion_codes: true,
+      success_url: `${frontendUrl}/subscription?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}/subscription?checkout=cancelled`,
+      metadata,
+      subscription_data: { metadata }
+    });
+
+    if (!session.url) throw new PaymentProviderError("Stripe returned an incomplete checkout response.");
+    return { provider: this.provider, checkoutUrl: session.url, providerReference: session.id };
+  }
+
+  async verifyWebhook(input: PaymentWebhookInput): Promise<PaymentWebhookEvent> {
+    if (!env.STRIPE_WEBHOOK_SECRET) throw new PaymentProviderError("Stripe webhook secret is not configured.");
+    if (!input.rawBody || !input.signature) throw new PaymentProviderError("Stripe webhook signature is missing.");
+
+    const stripe = stripeClient();
+    let event: Stripe.Event;
+    try {
+      event = stripe.webhooks.constructEvent(input.rawBody, input.signature, env.STRIPE_WEBHOOK_SECRET);
+    } catch {
+      throw new PaymentProviderError("Stripe webhook signature is invalid.");
+    }
+
+    let subscription: StripeSubscriptionShape | null = null;
+    let userId: string | undefined;
+    let plan: Exclude<SubscriptionPlan, "free"> | undefined;
+
+    if (event.type.startsWith("customer.subscription.")) {
+      subscription = event.data.object as unknown as StripeSubscriptionShape;
+    } else if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      userId = session.metadata?.ascend_user_id ?? session.client_reference_id ?? undefined;
+      plan = parsePaidPlan(session.metadata?.ascend_plan);
+      const subscriptionId = stripeObjectId(session.subscription);
+      if (subscriptionId) subscription = await stripe.subscriptions.retrieve(subscriptionId) as unknown as StripeSubscriptionShape;
+    } else if (event.type === "invoice.paid" || event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as unknown as Record<string, unknown>;
+      const parent = invoice.parent as { subscription_details?: { subscription?: unknown } } | undefined;
+      const subscriptionId = stripeObjectId(invoice.subscription ?? parent?.subscription_details?.subscription);
+      if (subscriptionId) subscription = await stripe.subscriptions.retrieve(subscriptionId) as unknown as StripeSubscriptionShape;
+    }
+
+    if (!subscription) {
+      throw new PaymentProviderError(`Stripe event ${event.type} is not supported by this webhook.`);
+    }
+
+    userId = userId ?? subscription.metadata?.ascend_user_id;
+    plan = plan ?? parsePaidPlan(subscription.metadata?.ascend_plan);
+    const period = stripeSubscriptionPeriod(subscription);
+    const status = event.type === "invoice.payment_failed" ? "past_due" : mapStripeStatus(subscription.status);
+
+    return {
+      provider: this.provider,
+      eventType: event.type,
+      reference: event.id,
+      subscriptionId: subscription.id,
+      customerId: stripeObjectId(subscription.customer),
+      userId,
+      plan,
+      status,
+      currentPeriodStart: period.start,
+      currentPeriodEnd: period.end,
+      payload: event
+    };
+  }
+
+  async getCustomerPortalUrl(subscriptionId: string) {
+    const stripe = stripeClient();
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId) as unknown as StripeSubscriptionShape;
+    const customerId = stripeObjectId(subscription.customer);
+    if (!customerId) throw new PaymentProviderError("Stripe customer could not be found for this subscription.");
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: `${env.FRONTEND_URL.replace(/\/$/, "")}/subscription`
+    });
+    return session.url;
+  }
 }
 
 export class LemonSqueezyProvider implements PaymentProvider {
@@ -266,6 +407,10 @@ export class ToyyibPayProvider implements PaymentProvider {
   }
 }
 
-export const paymentProvider: PaymentProvider = env.PAYMENT_PROVIDER === "toyyibpay"
-  ? new ToyyibPayProvider()
-  : new LemonSqueezyProvider();
+export function getPaymentProvider(provider: "stripe" | "lemonsqueezy" | "toyyibpay" = env.PAYMENT_PROVIDER): PaymentProvider {
+  if (provider === "stripe") return new StripeProvider();
+  if (provider === "toyyibpay") return new ToyyibPayProvider();
+  return new LemonSqueezyProvider();
+}
+
+export const paymentProvider: PaymentProvider = getPaymentProvider();

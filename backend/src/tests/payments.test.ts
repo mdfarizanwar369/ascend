@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("ToyyibPay provider", () => {
@@ -145,5 +146,69 @@ describe("Lemon Squeezy provider", () => {
       subscriptionId: "123",
       status: "active"
     });
+  });
+});
+
+describe("Stripe provider", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("DATABASE_URL", "postgres://test:test@localhost:5432/test");
+    vi.stubEnv("PAYMENT_PROVIDER", "stripe");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_ascend");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_ascend_test");
+    vi.stubEnv("STRIPE_PREMIUM_PRICE_ID", "price_premium");
+    vi.stubEnv("STRIPE_TRAINER_PRO_PRICE_ID", "price_trainer");
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("accepts a signed subscription update with Ascend metadata", async () => {
+    const payload = JSON.stringify({
+      id: "evt_subscription_updated",
+      object: "event",
+      api_version: "2026-03-25.basil",
+      created: 1_750_000_000,
+      livemode: false,
+      pending_webhooks: 1,
+      request: null,
+      type: "customer.subscription.updated",
+      data: {
+        object: {
+          id: "sub_ascend",
+          object: "subscription",
+          customer: "cus_ascend",
+          status: "active",
+          metadata: { ascend_user_id: "user-123", ascend_plan: "premium" },
+          items: { data: [{ current_period_start: 1_750_000_000, current_period_end: 1_752_592_000 }] }
+        }
+      }
+    });
+    const stripe = new Stripe("sk_test_ascend");
+    const signature = stripe.webhooks.generateTestHeaderString({ payload, secret: "whsec_ascend_test" });
+    const { StripeProvider } = await import("../integrations/payments");
+
+    await expect(new StripeProvider().verifyWebhook({
+      payload: JSON.parse(payload),
+      rawBody: Buffer.from(payload),
+      signature
+    })).resolves.toMatchObject({
+      provider: "stripe",
+      eventType: "customer.subscription.updated",
+      reference: "evt_subscription_updated",
+      subscriptionId: "sub_ascend",
+      customerId: "cus_ascend",
+      userId: "user-123",
+      plan: "premium",
+      status: "active"
+    });
+  });
+
+  it("rejects an invalid Stripe signature", async () => {
+    const { StripeProvider } = await import("../integrations/payments");
+    await expect(new StripeProvider().verifyWebhook({
+      payload: {},
+      rawBody: Buffer.from("{}"),
+      signature: "bad"
+    })).rejects.toThrow("signature is invalid");
   });
 });

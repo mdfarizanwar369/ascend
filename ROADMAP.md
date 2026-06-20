@@ -17,7 +17,7 @@ Ascend is deployable as a mobile-first PWA with:
 - PostgreSQL as source of truth.
 - S3/R2-compatible media storage.
 - Gemini AI integration with starter fallbacks.
-- Lemon Squeezy subscription billing with manual pilot activation, secure checkout, signed webhooks, billing portal, and payment event records.
+- Stripe subscription billing with manual pilot activation, hosted checkout, signed webhooks, billing portal, and payment event records.
 - Daily compliance and risk job endpoint.
 - Browser back/forward and logout session refresh handling.
 - Public legal, refund, and support pages for subscription launch readiness.
@@ -36,7 +36,7 @@ Ascend is deployable as a mobile-first PWA with:
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
 6. Spot-check Gemini food image analysis on production using a real mobile food photo during pilot onboarding.
-7. After Lemon Squeezy identity approval, run one low-value live payment and cancellation-through-period-end check.
+7. After Stripe account activation, run one low-value live payment and cancellation-through-period-end check.
 8. Continue using the verified test-mode payment flow or manual owner-approved pilot access until approval.
 9. Confirm Railway PostgreSQL backups.
 10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.

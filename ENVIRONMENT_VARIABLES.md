@@ -51,8 +51,10 @@ These are placeholders for future Stripe support and should not be needed for th
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `STRIPE_SECRET_KEY` | No | Future Stripe provider. |
-| `STRIPE_WEBHOOK_SECRET` | No | Future Stripe webhook verification. |
+| `STRIPE_SECRET_KEY` | Yes for paid launch | Stripe server secret. Backend only. |
+| `STRIPE_WEBHOOK_SECRET` | Yes for paid launch | Verifies Stripe webhook signatures. |
+| `STRIPE_PREMIUM_PRICE_ID` | Yes for paid launch | Monthly MYR Premium price ID. |
+| `STRIPE_TRAINER_PRO_PRICE_ID` | Yes for paid launch | Monthly MYR Trainer Pro price ID. |
 
 ## Local Development Variables
 

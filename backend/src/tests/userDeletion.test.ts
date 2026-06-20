@@ -23,8 +23,8 @@ describe("permanent user deletion safeguards", () => {
     expect(permanentDeletionBlock({ ...inactiveClient, primaryRole: "owner", roles: ["owner", "admin"] }, "owner-2")).toContain("Owner and admin");
   });
 
-  it("blocks deletion while Lemon Squeezy billing is live", () => {
-    expect(permanentDeletionBlock({ ...inactiveClient, hasLivePaidSubscription: true }, "owner-1")).toContain("Lemon Squeezy");
+  it("blocks deletion while paid billing is live", () => {
+    expect(permanentDeletionBlock({ ...inactiveClient, hasLivePaidSubscription: true }, "owner-1")).toContain("paid subscription");
   });
 
   it("cannot delete the requesting account", () => {

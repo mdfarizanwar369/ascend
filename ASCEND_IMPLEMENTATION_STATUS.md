@@ -52,10 +52,10 @@ The live app is available at:
 - AI food scan guardrails are in place: Free users get 1 scan per week, Premium users get 5 scans per day, Trainer users get 10 scans per day, and owner/admin accounts are unlimited but still tracked.
 - Daily nutrition guides are available: onboarding collects age, height, activity level, and sex/prefer-not-to-say, then Ascend estimates calorie, protein, carbs, fat, and water guides based on the client's goal.
 - Existing clients with incomplete nutrition profiles see an "Improve my daily guide" prompt and can update the missing details without repeating onboarding.
-- Lemon Squeezy recurring billing is implemented with secure checkout, signed webhooks, automatic plan synchronization, and a customer billing portal. Manual pilot approvals remain available.
+- Stripe recurring billing is implemented with hosted checkout, signed webhooks, automatic plan synchronization, and a customer billing portal. Manual pilot approvals remain available.
 - Public Privacy, Terms, Refund and Cancellation, and Support pages are available and linked from the homepage and subscription screen.
-- Owners can permanently delete inactive client or trainer accounts after confirmation. Owner/admin accounts and users with live Lemon Squeezy billing are protected.
-- Paid access now remains available until the end of a cancelled Lemon Squeezy billing period instead of ending immediately.
+- Owners can permanently delete inactive client or trainer accounts after confirmation. Owner/admin accounts and users with live paid billing are protected.
+- Paid access remains available until the end of a cancelled billing period instead of ending immediately.
 - The subscription screen explains renewals, cancellations, expired plans, and payment issues, polls for checkout confirmation, and opens the billing portal for account recovery.
 - Signup now records clear Terms/Privacy consent context, and login, onboarding, and authenticated app screens expose support links.
 - Mobile layout checks passed at 390x844 and 412x915 with no horizontal overflow or browser console errors on login, onboarding, and subscriptions.
@@ -109,5 +109,5 @@ The live app is available at:
 
 - Daily compliance/risk jobs need a scheduler if they are expected to run automatically every day during pilot.
 - Food photo AI should be spot-checked on mobile during the first pilot day because Gemini availability and image quality can still affect estimates.
-- Lemon Squeezy production payments remain blocked until the store identity review is approved; test mode and manual pilot access can be used meanwhile.
+- Stripe production charging remains blocked until Stripe account activation, identity verification, payout details, and a complete test-mode checkout are confirmed.
 - Before inviting the first external gym owner, run the cross-gym manual checks in `TESTING_CHECKLIST.md` using two temporary owner accounts.

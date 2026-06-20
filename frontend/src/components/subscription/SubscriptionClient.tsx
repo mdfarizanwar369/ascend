@@ -29,6 +29,7 @@ export function SubscriptionClient() {
   const [provider, setProvider] = useState<string | null>(null);
   const [billingStatus, setBillingStatus] = useState("active");
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
+  const hasHostedBilling = provider === "stripe" || provider === "lemonsqueezy";
 
   const loadSubscription = useCallback(async () => {
     const [response, profile] = await Promise.all([getMySubscription(), getMe().catch(() => null)]);
@@ -68,7 +69,7 @@ export function SubscriptionClient() {
     } else if (nextPlan !== "free") {
       setStatus(`Current plan: ${formatPlan(nextPlan)}${billingDate ? `. Renews on ${billingDate}.` : "."}`);
     } else if (returnedFromCheckout) {
-      setStatus("Payment received. Your plan will unlock as soon as Lemon Squeezy confirms the subscription.");
+      setStatus("Payment received. Your plan will unlock as soon as the payment provider confirms the subscription.");
     } else {
       setStatus("Current plan: Free Plan");
     }
@@ -100,7 +101,7 @@ export function SubscriptionClient() {
 
   async function startCheckout(plan: Exclude<SubscriptionPlan, "free">) {
     setIsLoadingPlan(plan);
-    setStatus("Opening secure Lemon Squeezy checkout...");
+    setStatus("Opening secure checkout...");
 
     try {
       const response = await createCheckout(plan);
@@ -138,7 +139,7 @@ export function SubscriptionClient() {
             <div>
               <p className="text-sm font-semibold text-lime">{status}</p>
               <p className="mt-1 text-sm leading-6 text-zinc-300">
-                Pay securely by card. Lemon Squeezy manages recurring billing, receipts, renewals, and cancellations.
+                Pay securely by card. Stripe manages checkout, recurring billing, receipts, renewals, and cancellations.
               </p>
             </div>
           </div>
@@ -173,7 +174,7 @@ export function SubscriptionClient() {
                       <ShieldCheck className="mr-2" size={18} />
                       Current plan
                     </div>
-                    {provider === "lemonsqueezy" ? (
+                    {hasHostedBilling ? (
                       <button
                         type="button"
                         onClick={openBillingPortal}
@@ -188,14 +189,14 @@ export function SubscriptionClient() {
                   <div className="mt-4 grid grid-cols-1 gap-2">
                     <button
                       type="button"
-                      disabled={isLoadingPlan !== null || (provider === "lemonsqueezy" && billingStatus === "past_due")}
+                      disabled={isLoadingPlan !== null || (hasHostedBilling && billingStatus === "past_due")}
                       onClick={() => startCheckout(checkoutPlan)}
                       className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
                     >
                       <CreditCard className="mr-2" size={18} />
                       {isLoadingPlan === plan ? "Opening..." : "Subscribe monthly"}
                     </button>
-                    {provider === "lemonsqueezy" && billingStatus === "past_due" ? (
+                    {hasHostedBilling && billingStatus === "past_due" ? (
                       <button
                         type="button"
                         onClick={openBillingPortal}

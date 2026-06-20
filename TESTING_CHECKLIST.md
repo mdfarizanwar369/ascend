@@ -239,10 +239,10 @@ Test activation, if allowed during pilot:
 - [ ] Activate Trainer Pro test plan for trainer.
 - [ ] Trainer dashboard unlocks.
 
-Lemon Squeezy:
+Stripe:
 
-- [ ] Premium checkout opens Lemon Squeezy with RM19.99 monthly pricing.
-- [ ] Trainer Pro checkout opens Lemon Squeezy with RM99.99 monthly pricing.
+- [ ] Premium checkout opens Stripe with RM19.99 monthly pricing.
+- [ ] Trainer Pro checkout opens Stripe with RM99.99 monthly pricing.
 - [ ] Return from checkout goes to `/subscription?checkout=success`.
 - [ ] Signed webhook activates the paid subscription.
 - [ ] Cancelled/failed payment does not activate subscription.

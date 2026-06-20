@@ -453,7 +453,7 @@ export function AdminUsersClient() {
                     Delete permanently
                   </button>
                   <p className="text-xs leading-5 text-zinc-500 sm:col-span-2">
-                    Permanent deletion removes this account and its Ascend history. Paid Lemon Squeezy subscriptions must be cancelled first.
+                    Permanent deletion removes this account and its Ascend history. Live paid subscriptions must be cancelled first.
                   </p>
                 </div>
               ) : (

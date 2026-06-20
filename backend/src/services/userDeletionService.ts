@@ -15,7 +15,7 @@ export function permanentDeletionBlock(target: DeletionTarget, requestingUserId:
     return "Owner and admin accounts cannot be permanently deleted from this screen.";
   }
   if (target.hasLivePaidSubscription) {
-    return "Cancel this user's live Lemon Squeezy subscription before permanently deleting the account.";
+    return "Cancel this user's live paid subscription before permanently deleting the account.";
   }
   return null;
 }

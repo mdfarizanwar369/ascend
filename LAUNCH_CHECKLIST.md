@@ -103,9 +103,9 @@ Optional items should not block the pilot.
 ### Subscription And Payment
 
 - [ ] Subscription page shows Free, Premium RM19.99/month, and Trainer Pro RM99.99/month.
-- [ ] Lemon Squeezy checkout creates the correct recurring subscription.
+- [ ] Stripe Checkout creates the correct recurring subscription.
 - [ ] Return URL points to frontend `/subscription?checkout=success`.
-- [ ] Webhook URL points to backend `/api/v1/webhooks/lemonsqueezy`.
+- [ ] Webhook URL points to backend `/api/v1/webhooks/stripe`.
 - [ ] Signed successful webhook activates the subscription.
 - [ ] Failed payment shows a billing-recovery state without granting paid access.
 - [ ] Cancelled renewal preserves access through the paid period end.
@@ -138,7 +138,7 @@ Optional items should not block the pilot.
 - [ ] GitHub account connected to Railway
 - [ ] Firebase project
 - [ ] Google AI Studio / Gemini account
-- [ ] Lemon Squeezy merchant account
+- [ ] Stripe merchant account
 - [ ] Cloudflare account with R2 bucket, or AWS account with S3 bucket
 
 ## Required Production Services
@@ -148,7 +148,7 @@ Optional items should not block the pilot.
 - [ ] Railway frontend service
 - [ ] Firebase Authentication
 - [ ] Gemini API key and billing/quota configuration
-- [ ] Lemon Squeezy store, variants, API key, and webhook
+- [ ] Stripe account, prices, secret key, customer portal, and webhook
 - [ ] R2/S3 bucket for food and progress photos
 - [ ] Cron scheduler for daily job
 - [ ] PostgreSQL backup policy

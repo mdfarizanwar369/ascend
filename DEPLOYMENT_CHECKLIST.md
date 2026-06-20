@@ -33,15 +33,15 @@ Use this for Railway production deployment.
   - Billing/usage limits configured.
   - Model available for the configured `OPENAI_MODEL`.
 
-### Lemon Squeezy
+### Stripe
 
-- Purpose: international monthly subscription payments and tax-compliant checkout.
+- Purpose: international monthly card subscriptions and hosted checkout.
 - Required:
-  - Activated Lemon Squeezy store.
-  - API key and store ID.
-  - Premium and Trainer Pro monthly variant IDs.
+  - Activated Stripe account.
+  - Backend secret key.
+  - Premium and Trainer Pro monthly price IDs.
   - Webhook signing secret.
-  - Webhook URL set to backend `/api/v1/webhooks/lemonsqueezy`.
+  - Webhook URL set to backend `/api/v1/webhooks/stripe`.
 
 ### Cloudflare R2 Or AWS S3
 
@@ -102,13 +102,12 @@ AWS_S3_BUCKET=
 AI_PROVIDER=openai
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4.1-mini
-PAYMENT_PROVIDER=lemonsqueezy
+PAYMENT_PROVIDER=stripe
 FRONTEND_URL=https://www.getascend.fit
-LEMONSQUEEZY_API_KEY=
-LEMONSQUEEZY_STORE_ID=
-LEMONSQUEEZY_PREMIUM_VARIANT_ID=
-LEMONSQUEEZY_TRAINER_PRO_VARIANT_ID=
-LEMONSQUEEZY_WEBHOOK_SECRET=
+STRIPE_SECRET_KEY=
+STRIPE_PREMIUM_PRICE_ID=
+STRIPE_TRAINER_PRO_PRICE_ID=
+STRIPE_WEBHOOK_SECRET=
 ```
 
 Backend checks:
@@ -195,12 +194,12 @@ Checks:
 - [ ] Weekly report generation tested.
 - [ ] Trainer weekly check-in tested.
 
-## Lemon Squeezy Setup
+## Stripe Setup
 
-- [ ] Store is activated or test mode is enabled.
-- [ ] API key and store ID are set.
-- [ ] Premium and Trainer Pro monthly variant IDs are set.
-- [ ] Signed webhook URL is set to backend `/api/v1/webhooks/lemonsqueezy`.
+- [ ] Stripe test mode is enabled; live mode is activated only after verification.
+- [ ] Backend secret key is set.
+- [ ] Premium and Trainer Pro monthly price IDs are set.
+- [ ] Signed webhook URL is set to backend `/api/v1/webhooks/stripe`.
 - [ ] Webhook signing secret is set in Railway.
 - [ ] Premium RM19.99 checkout tested.
 - [ ] Trainer Pro RM99.99 checkout tested.

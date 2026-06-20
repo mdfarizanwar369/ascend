@@ -10,7 +10,7 @@ Client nutrition guides use age, height, sex, activity level, latest logged weig
 
 The client dashboard also provides a lightweight 30-day self-comparison. It compares only the member with their own earlier records and highlights positive changes in goal-aligned weight, Momentum Score, and weekly check-in consistency. It does not use AI or compare members with one another.
 
-Owner account cleanup uses a two-step process: deactivate first, then permanently delete from the Inactive users tab. Permanent deletion removes the Firebase login, PostgreSQL user data, messages, and stored user photos. Live Lemon Squeezy subscriptions must be cancelled before deletion.
+Owner account cleanup uses a two-step process: deactivate first, then permanently delete from the Inactive users tab. Permanent deletion removes the Firebase login, PostgreSQL user data, messages, and stored user photos. Live paid subscriptions must be cancelled before deletion.
 
 Initial launch gyms:
 
@@ -26,7 +26,7 @@ Initial launch gyms:
 - Auth: Firebase Auth
 - Storage: Cloudflare R2 or AWS S3-compatible object storage
 - AI: Google Gemini for the unpaid pilot, OpenAI-compatible fallback available
-- Payments: Lemon Squeezy recurring subscriptions, with manual pilot access
+- Payments: Stripe Checkout and recurring subscriptions, with manual pilot access
 - Deployment: Railway for the live pilot; Docker remains available for local/self-hosted deployments
 
 ## Required Local Tools For Windows
@@ -88,7 +88,7 @@ Optional values for live integrations:
 - Firebase Admin values in `backend/.env`
 - AWS S3 credentials in `backend/.env`
 - Gemini API key in `backend/.env`
-- Lemon Squeezy values in `backend/.env`
+- Stripe values in `backend/.env`
 - `CRON_SECRET` in `backend/.env` for the protected daily compliance/risk job
 
 Without Gemini/OpenAI configured, the backend returns demo AI responses.
@@ -107,21 +107,20 @@ AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS=2
 
 Food photo estimates are cached by image hash, so repeated analysis of the same image does not call Gemini again.
 
-Real paid subscriptions use Lemon Squeezy. Manual owner-approved pilot access remains available when payment variables are not configured.
+Real paid subscriptions use Stripe Checkout. Manual owner-approved pilot access remains available when payment variables are not configured.
 
-Paid access remains active through the end of a cancelled billing period. The subscription page shows renewal, cancellation, expiry, and payment-attention states and links Lemon Squeezy customers to the billing portal.
+Paid access remains active through the end of a cancelled billing period. The subscription page shows renewal, cancellation, expiry, and payment-attention states and links Stripe customers to the hosted billing portal.
 
 ```text
-PAYMENT_PROVIDER=lemonsqueezy
+PAYMENT_PROVIDER=stripe
 FRONTEND_URL=https://www.getascend.fit
-LEMONSQUEEZY_API_KEY=
-LEMONSQUEEZY_STORE_ID=
-LEMONSQUEEZY_PREMIUM_VARIANT_ID=
-LEMONSQUEEZY_TRAINER_PRO_VARIANT_ID=
-LEMONSQUEEZY_WEBHOOK_SECRET=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+STRIPE_PREMIUM_PRICE_ID=
+STRIPE_TRAINER_PRO_PRICE_ID=
 ```
 
-Set the Lemon Squeezy webhook URL to `https://your-backend-domain/api/v1/webhooks/lemonsqueezy`. Signed webhook events activate, renew, downgrade, or expire plans and are recorded in `payment_events`. See `LEMON_SQUEEZY_SETUP.md`.
+Set the Stripe webhook URL to `https://your-backend-domain/api/v1/webhooks/stripe`. Signed webhook events activate, renew, cancel, or place plans into payment-attention states and are recorded in `payment_events`. See `STRIPE_SETUP.md`.
 
 ## Pilot Operations
 

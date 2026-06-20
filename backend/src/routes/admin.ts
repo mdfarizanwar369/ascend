@@ -678,7 +678,7 @@ adminRouter.delete("/admin/users/:userId", requireAuth, requireRole(["owner"]), 
         exists (
           select 1 from subscriptions s
           where s.user_id = u.id
-            and s.provider = 'lemonsqueezy'
+            and s.provider in ('stripe', 'lemonsqueezy')
             and s.status in ('active', 'trialing', 'past_due')
         ) as has_live_paid_subscription
       from users u

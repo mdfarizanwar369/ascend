@@ -42,7 +42,7 @@ export default function TermsPage() {
           title: "Subscriptions and billing",
           bullets: [
             "Paid plans renew monthly until cancelled through the billing portal.",
-            "Lemon Squeezy acts as Merchant of Record for supported purchases and handles checkout, payment receipts, applicable transaction taxes, and payment processing.",
+            "Ascend uses Stripe to process card payments, recurring billing, and payment receipts. Ascend remains responsible for its subscriptions, applicable taxes, cancellations, and refunds.",
             "Prices, taxes, and currency details are displayed before purchase. Plan access begins after successful payment confirmation.",
             "If payment fails, paid features may be restricted until billing is resolved. Cancellation and refund details are explained in the Refund and Cancellation Policy."
           ]

@@ -39,7 +39,7 @@ export default function PrivacyPage() {
         {
           title: "AI and service providers",
           paragraphs: [
-            "Ascend uses specialist providers to operate the service, including Firebase for authentication, Railway and PostgreSQL infrastructure, Cloudflare R2 or compatible storage, Google Gemini for configured AI features, and Lemon Squeezy for subscription billing. Relevant data is shared only as needed to provide these services.",
+            "Ascend uses specialist providers to operate the service, including Firebase for authentication, Railway and PostgreSQL infrastructure, Cloudflare R2 or compatible storage, Google Gemini for configured AI features, and Stripe for subscription payment processing. Relevant data is shared only as needed to provide these services.",
             "Food photos and AI coach messages may be processed by the configured AI provider. AI estimates can be inaccurate and should be reviewed before you rely on or save them."
           ]
         },
