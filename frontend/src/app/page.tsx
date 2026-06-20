@@ -5,7 +5,7 @@ import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-const appLoginUrl = "https://www.getascend.fit/login";
+const appLoginUrl = "https://getascend.fit/login";
 
 export default function HomePage() {
   const previewSignals = [
@@ -20,7 +20,7 @@ export default function HomePage() {
 
       <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-5 sm:px-8 lg:py-7">
         <header className="flex items-center justify-between">
-          <Link href="https://www.getascend.fit" className="flex items-center gap-3" aria-label="Ascend homepage">
+          <Link href="https://getascend.fit" className="flex items-center gap-3" aria-label="Ascend homepage">
             <BrandMark size="sm" />
             <span className="text-xl font-semibold tracking-tight">Ascend</span>
           </Link>
