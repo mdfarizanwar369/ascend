@@ -78,9 +78,30 @@ html[data-theme="light"] .ascend-theme-glow {
   opacity: 0.55;
 }
 
+@keyframes ascend-install-step {
+  0%, 24% {
+    border-color: rgba(139, 92, 246, 0.9);
+    box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.25), 0 0 28px rgba(139, 92, 246, 0.18);
+    transform: translateY(-2px);
+  }
+  42%, 100% {
+    border-color: rgb(var(--color-line));
+    box-shadow: none;
+    transform: translateY(0);
+  }
+}
+
+.ascend-install-step {
+  animation: ascend-install-step 2.1s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body {
     transition: none;
+  }
+
+  .ascend-install-step {
+    animation: none;
   }
 }
 

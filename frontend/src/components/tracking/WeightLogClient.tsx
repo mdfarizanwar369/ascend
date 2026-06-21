@@ -6,6 +6,7 @@ import { getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { rememberDashboardRecord } from "@/lib/dataSync";
+import { markInstallEligible } from "@/lib/installAscend";
 
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -63,6 +64,7 @@ export function WeightLogClient() {
       setWeightKg(nextWeight.toFixed(1));
       setMilestone(saved.milestone ?? null);
       setStatus(saved.milestone ? "Goal achieved. This weigh-in marks a new milestone!" : "Weight saved to Ascend.");
+      markInstallEligible("first_action");
     } catch {
       setStatus("Could not save weight. Please make sure you are logged in.");
     } finally {

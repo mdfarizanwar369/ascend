@@ -15,6 +15,7 @@ import {
 } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { rememberSavedFoodLog } from "@/lib/dataSync";
+import { markInstallEligible } from "@/lib/installAscend";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 
@@ -392,6 +393,7 @@ export function FoodLogClient() {
       setWasEdited(false);
       setAiFailed(false);
       setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
+      markInstallEligible("first_action");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save food log. Please check your connection and try again.");
     } finally {

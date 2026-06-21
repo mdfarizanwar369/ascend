@@ -1,6 +1,6 @@
 # Ascend Implementation Status
 
-Last updated: 21 June 2026
+Last updated: 22 June 2026
 
 ## Pilot Readiness Snapshot
 
@@ -16,6 +16,11 @@ The live app is available at:
 
 ## Verified This Pass
 
+- Smart PWA installation is implemented across iOS, Android, and desktop. Ascend waits until successful signup or a saved food, weight, water, habit, or athlete check-in before offering installation.
+- Android and compatible desktop browsers use the native `beforeinstallprompt` flow. iOS receives a full-screen animated Share > Add to Home Screen guide under the clearer product label `Install Ascend`.
+- Installation, postponement, and reminder snoozes are remembered locally. The full automatic prompt appears once, postponed users receive a small dismissible reminder, and Profile & Settings always provides a manual `Install Ascend` control.
+- Installed and standalone display modes suppress prompts; a fresh native install event clears stale status after an uninstall.
+- PWA platform/eligibility tests cover iPhone, iPadOS, Android, desktop, public-page suppression, installed state, and repeat-prompt prevention.
 - Release-candidate audit completed across all 33 production frontend routes, 20 authenticated mobile app screens, public APIs, CORS, storage health, Stripe webhook rejection, database integrity, responsive layouts, light mode, session restoration, and a live Gemini coach response.
 - All seven production migrations are applied. No orphaned roles, assignments, subscriptions, habit records, athlete records, cross-gym assignments, duplicate active subscriptions, or future-dated logs were found.
 - Habit completions now require the habit to belong to the authenticated member, closing a cross-account data-integrity weakness.

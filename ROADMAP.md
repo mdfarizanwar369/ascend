@@ -20,6 +20,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Stripe subscription billing with manual pilot activation, hosted checkout, signed webhooks, billing portal, and payment event records.
 - Daily compliance and risk job endpoint.
 - Browser back/forward and logout session refresh handling.
+- Earned PWA installation: native Android/desktop install prompts, animated iOS guidance, remembered postponement, and permanent Profile & Settings access.
 - Public legal, refund, and support pages for subscription launch readiness.
 - Owner-only permanent deletion for inactive accounts, including Firebase login and stored media cleanup.
 - Platform owner and gym-owner tenancy: one Ascend deployment supports multiple gym owners, with backend-enforced access to assigned gyms only.

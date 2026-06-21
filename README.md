@@ -30,6 +30,7 @@ Initial launch gyms:
 - AI: Google Gemini for the unpaid pilot, OpenAI-compatible fallback available
 - Payments: Stripe Checkout and recurring subscriptions, with manual pilot access
 - Deployment: Railway for the live pilot; Docker remains available for local/self-hosted deployments
+- Installation: Ascend offers `Install Ascend` only after signup or a successful tracking action, uses the native Android/desktop prompt, and gives iPhone users guided Safari instructions. The option is always available under Profile & Settings.
 
 Latest release audit (21 June 2026): all 53 automated tests, lint, production builds, production database integrity, mobile route rendering, owner session restoration, storage health, Stripe webhook rejection, and live Gemini coach response passed. See `ASCEND_IMPLEMENTATION_STATUS.md` for the exact evidence and remaining human checks.
 

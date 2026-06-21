@@ -10,6 +10,7 @@ import {
   updateAthleteProfile,
   updateAthleteTimezone
 } from "@/lib/ascendApi";
+import { markInstallEligible } from "@/lib/installAscend";
 
 function labelTarget(type: string) {
   return type.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
@@ -107,6 +108,7 @@ export function AthleteDashboardClient() {
       });
       await load();
       setStatus("Today's readiness check-in is saved.");
+      markInstallEligible("first_action");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save check-in.");
     } finally {

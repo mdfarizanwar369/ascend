@@ -6,6 +6,24 @@ export type ActivityLevel = "low" | "moderate" | "high";
 export type SubscriptionPlan = "free" | "premium" | "trainer_pro";
 export type SubscriptionProvider = "lemonsqueezy" | "toyyibpay" | "stripe" | "manual";
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired";
+export type InstallPlatform = "ios" | "android" | "desktop";
+
+export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {
+  const isIpadOs = platform === "MacIntel" && maxTouchPoints > 1;
+  if (/iPad|iPhone|iPod/i.test(userAgent) || isIpadOs) return "ios";
+  if (/Android/i.test(userAgent)) return "android";
+  return "desktop";
+}
+
+export function canAutoOfferInstall(input: {
+  eligible: boolean;
+  installed: boolean;
+  alreadyPrompted: boolean;
+  pathname: string;
+}) {
+  const deferredPaths = new Set(["/", "/login", "/launch", "/reset", "/onboarding"]);
+  return input.eligible && !input.installed && !input.alreadyPrompted && !deferredPaths.has(input.pathname);
+}
 export type RiskAlertType =
   | "inactive_7_days"
   | "low_compliance"

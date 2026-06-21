@@ -13,7 +13,7 @@
     "dev": "concurrently \"npm run dev --workspace backend\" \"npm run dev --workspace frontend\"",
     "build": "npm run build --workspace shared && npm run build --workspace backend && npm run build --workspace frontend",
     "test": "npm run build --workspace shared && npm run test --workspace backend",
-    "lint": "npm run lint --workspace frontend && npm run lint --workspace backend",
+    "lint": "npm run build --workspace shared && npm run lint --workspace frontend && npm run lint --workspace backend",
     "migrate": "npm run db:migrate --workspace backend",
     "seed": "npm run db:seed --workspace backend"
   },

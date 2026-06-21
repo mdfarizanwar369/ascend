@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { AuthStateGuard } from "@/components/AuthStateGuard";
 import { CanonicalDomainGuard } from "@/components/CanonicalDomainGuard";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
+import { PwaInstallCoordinator } from "@/components/PwaInstallCoordinator";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <CanonicalDomainGuard />
         <AuthStateGuard />
         <PwaRegistrar />
+        <PwaInstallCoordinator />
         {children}
       </body>
     </html>

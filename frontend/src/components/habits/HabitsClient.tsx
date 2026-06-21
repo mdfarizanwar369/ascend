@@ -7,6 +7,7 @@ import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { rememberDashboardRecord } from "@/lib/dataSync";
+import { markInstallEligible } from "@/lib/installAscend";
 
 const starterHabits = ["8,000 steps", "No sugary drinks", "Protein at breakfast", "Sleep before midnight"];
 
@@ -94,6 +95,7 @@ export function HabitsClient() {
       rememberDashboardRecord("habit", saved.habitLog);
       setHabitLogs((current) => [saved.habitLog, ...current]);
       setStatus("Habit saved for today.");
+      markInstallEligible("first_action");
     } catch {
       setStatus("Could not save habit. Please make sure you are logged in.");
     } finally {

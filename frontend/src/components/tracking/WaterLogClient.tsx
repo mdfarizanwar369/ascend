@@ -6,6 +6,7 @@ import { getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
 import { rememberDashboardRecord } from "@/lib/dataSync";
+import { markInstallEligible } from "@/lib/installAscend";
 
 const quickAmounts = [250, 500, 750, 1000];
 const dailyTargetMl = 2500;
@@ -55,6 +56,7 @@ export function WaterLogClient() {
       rememberDashboardRecord("water", saved.waterLog);
       setTodayMl((current) => current + amountMl);
       setStatus(`${amountMl}ml saved to Ascend.`);
+      markInstallEligible("first_action");
     } catch {
       setStatus("Could not save water. Please make sure you are logged in.");
     } finally {

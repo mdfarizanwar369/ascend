@@ -12,6 +12,7 @@ import { getMe } from "@/lib/ascendApi";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicFooter } from "@/components/legal/PublicFooter";
+import { markInstallEligible } from "@/lib/installAscend";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
@@ -168,6 +169,8 @@ export function AuthPanel() {
       );
 
       window.sessionStorage.removeItem(authDraftKey);
+
+      if (mode === "signup") markInstallEligible("signup");
 
       if (mode === "signup" && signupRole === "client") {
         router.replace("/onboarding");

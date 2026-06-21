@@ -38,6 +38,23 @@ Expected:
 - [ ] Frontend loads without the Railway app error page.
 - [ ] PWA manifest loads.
 
+## 2A. Smart PWA Installation
+
+Fresh browser profile:
+
+- [ ] Landing and login pages do not show an install prompt.
+- [ ] Successful signup makes installation eligible, but client onboarding is not interrupted.
+- [ ] The first successful food, weight, water, habit, or athlete check-in makes installation eligible.
+- [ ] Android shows Ascend's install screen, then the browser-native prompt after `Install Ascend` is tapped.
+- [ ] iPhone Safari shows the full-screen Share > Add to Home Screen instructions.
+- [ ] Desktop Chrome/Edge uses the native prompt when available and browser-menu guidance otherwise.
+- [ ] `Not now` prevents the full-screen prompt from repeating.
+- [ ] Postponed users see a small dismissible banner on app screens.
+- [ ] Dismissing the banner snoozes it for seven days.
+- [ ] Profile & Settings always contains `Install Ascend` until the app is installed.
+- [ ] Standalone mode does not show either prompt or banner.
+- [ ] Light and dark themes remain readable at 390px mobile width and desktop width.
+
 ## 3. Public API Smoke Test
 
 Open or call:
