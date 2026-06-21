@@ -297,6 +297,8 @@ Premium AI coach chat and weekly progress reports are connected to backend APIs.
 
 Athlete Mode is isolated and off for every member until an owner enables it from **Admin > Users**. Enabled athletes receive an **Athlete Mode** card on their client dashboard. Their assigned trainer sees a compact coach panel on the existing client-detail page.
 
+Athlete inputs are daily by default and clearly labelled. Coaches explicitly choose daily or weekly targets. Serious readiness signals override the average score and display a reason, seven-day readiness is visible to coaches, competition countdowns use the athlete/gym timezone, and weekly reviews update automatically when opened.
+
 Set `ATHLETE_MODE_ENABLED=false` on the backend to disable the entire module immediately. Existing food, weight, water, habits, messages, subscriptions, and trainer dashboards continue operating independently.
 
 Before connecting real services, also run:

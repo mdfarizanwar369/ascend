@@ -65,6 +65,9 @@ The live app is available at:
 - Database migrations are now versioned and run safely during backend startup; the ownership migration was applied twice successfully to verify idempotency.
 - Athlete Mode core is implemented behind owner activation and a global kill switch. It includes event countdowns, readiness scoring, weekly numeric targets, athlete progress entry, deterministic weekly reviews, coach comments, and trainer-only private notes.
 - Athlete Mode uses additive tables and isolated `/athlete` APIs. Standard client, trainer, owner, subscription, media, and tracking tables were not modified.
+- Athlete Mode pilot safety pass completed: severe soreness, sleep under five hours, very low energy, high stress, two missed check-in days, repeated low sleep, and rapid weight movement can force `Coach review recommended` with visible reasons.
+- Athlete target logging now distinguishes daily and weekly cadence. Entries are explicitly today's contribution, session targets support one-tap `+1`, and daily/weekly compliance are calculated separately.
+- Athlete countdowns use the stored browser/gym timezone, coaches receive a seven-day readiness trend, weekly reviews refresh automatically, and private notes remain optional with a clear empty state.
 - Stripe live mode is configured and verified for RM19.99 Premium and RM99.99 Trainer Pro monthly Checkout sessions. Charges and payouts are enabled; the live webhook destination is enabled for all six required subscription events.
 
 ## Fixes Completed In This Pass

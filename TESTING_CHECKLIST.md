@@ -298,3 +298,17 @@ PWA:
 - [ ] Storage path is verified.
 - [ ] AI path is verified.
 - [ ] Database backup is confirmed.
+# Athlete Mode Controlled Beta
+
+- [ ] Owner can enable Athlete Mode for one active client and disable it again.
+- [ ] Non-enabled clients do not see an Athlete Mode dashboard card.
+- [ ] Athlete sees separate Today's targets and Weekly targets sections.
+- [ ] Saving today's target twice replaces today's value instead of double-counting it.
+- [ ] A weekly target adds separate daily contributions across the week.
+- [ ] Session targets support `+1 session completed`.
+- [ ] Soreness 9-10, sleep below 5 hours, energy 1-2, or stress 9-10 displays `Coach review recommended` and a reason.
+- [ ] Coach sees seven-day readiness direction and warning patterns.
+- [ ] Weekly review appears automatically without an athlete generate button.
+- [ ] Athlete cannot read trainer private notes.
+- [ ] Trainer can leave notes empty and sees `No notes added yet`.
+- [ ] Competition countdown remains correct near midnight in Malaysia, Singapore, and Bali.

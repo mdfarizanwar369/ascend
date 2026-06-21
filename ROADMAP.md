@@ -28,6 +28,7 @@ Ascend is deployable as a mobile-first PWA with:
 - A compact 30-day “Look How Far You’ve Come” card motivates clients using only their own weight, Momentum, and check-in history; trainers see the same summary during reviews.
 - Latest release audit: production mobile routes, session persistence, database relationships, subscription consistency, AI cache behavior, builds, lint, and automated tests verified.
 - Owner-gated Athlete Mode core: event countdown, readiness check-in, numeric weekly training targets, readiness/compliance dashboard, deterministic weekly coach review, and trainer-only private notes.
+- Athlete Mode pilot hardening: local-time countdowns, explicit daily/weekly targets, today-only inputs, one-tap session completion, readiness safety overrides, seven-day coach trends, automatic reviews, and optional private notes.
 
 ## Before Pilot Launch
 

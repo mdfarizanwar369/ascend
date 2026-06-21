@@ -1117,6 +1117,7 @@ export type AthleteProfile = {
   coach_name?: string | null;
   goal_weight_kg?: string | number | null;
   current_weight_kg?: string | number | null;
+  timezone?: string | null;
 };
 
 export type AthleteCheckin = {
@@ -1135,8 +1136,11 @@ export type AthleteCheckin = {
 export type AthleteTarget = {
   id: string;
   target_type: string;
+  cadence: "daily" | "weekly";
   target_value: number;
   completed_value: number;
+  today_completed_value: number;
+  weekly_completed_value: number;
   unit: string;
   notes?: string | null;
   week_start: string;
@@ -1157,9 +1161,22 @@ export type AthleteDashboard = {
   profile: AthleteProfile;
   countdown: { days: number; weeks: number; milestone?: string | null } | null;
   latestCheckin: AthleteCheckin | null;
+  readiness: {
+    score: number | null;
+    band: "green" | "yellow" | "red" | null;
+    status: string;
+    warningReasons: string[];
+  };
+  readinessTrend: {
+    direction: "improving" | "steady" | "declining";
+    warningPatterns: string[];
+    days: Array<{ date: string; score: number; band: "green" | "yellow" | "red" }>;
+  };
   checkins: AthleteCheckin[];
   targets: AthleteTarget[];
   compliancePercent: number;
+  dailyCompliancePercent: number;
+  weeklyCompliancePercent: number;
   latestReview: AthleteReview | null;
   progressPhotos: Array<{ id: string; photo_type: string; image_url?: string | null; logged_at: string }>;
 };
@@ -1169,14 +1186,22 @@ export function getAthleteDashboard() {
 }
 
 export function updateAthleteProfile(input: {
-  sport: string;
+  sport?: string;
   division?: string | null;
   competitionName?: string | null;
   competitionDate?: string | null;
   coachName?: string | null;
   goalWeightKg?: number | null;
+  timezone?: string;
 }) {
   return authed<{ profile: AthleteProfile }>("/athlete/me/profile", { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function updateAthleteTimezone(timezone: string) {
+  return authed<{ timezone: string }>("/athlete/me/timezone", {
+    method: "PATCH",
+    body: JSON.stringify({ timezone })
+  });
 }
 
 export function saveAthleteCheckin(input: {
@@ -1207,6 +1232,7 @@ export function getTrainerAthleteDashboard(clientId: string) {
 
 export function createAthleteTarget(clientId: string, input: {
   targetType: string;
+  cadence: "daily" | "weekly";
   targetValue: number;
   unit: string;
   notes?: string;

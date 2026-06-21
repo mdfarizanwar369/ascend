@@ -4,11 +4,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { CalendarDays, CheckCircle2, Flag, Gauge, Target } from "lucide-react";
 import {
   AthleteDashboard,
-  generateAthleteWeeklyReview,
   getAthleteDashboard,
   saveAthleteCheckin,
   saveAthleteTargetProgress,
-  updateAthleteProfile
+  updateAthleteProfile,
+  updateAthleteTimezone
 } from "@/lib/ascendApi";
 
 function labelTarget(type: string) {
@@ -21,6 +21,27 @@ function bandClasses(band?: string) {
   return "border-red-400/40 bg-red-400/10 text-red-300";
 }
 
+const sliderLabels: Record<string, [string, string]> = {
+  energy: ["Very low", "Excellent"],
+  hunger: ["None", "Extreme"],
+  soreness: ["None", "Severe"],
+  stress: ["Calm", "Very stressed"],
+  motivation: ["Low", "High"]
+};
+
+function targetInputLabel(type: string) {
+  if (type === "steps") return "Today's steps";
+  if (type === "cardio_minutes") return "Today's cardio minutes";
+  if (type === "water_ml") return "Today's water intake (ml)";
+  if (type.includes("session") || type === "runs") return "Today's completed sessions";
+  if (type === "recovery_days") return "Today's recovery completed";
+  return "Today's completed amount";
+}
+
+function isSessionTarget(type: string) {
+  return type.includes("session") || type === "runs";
+}
+
 export function AthleteDashboardClient() {
   const [data, setData] = useState<AthleteDashboard | null>(null);
   const [status, setStatus] = useState("Loading Athlete Mode...");
@@ -30,7 +51,12 @@ export function AthleteDashboardClient() {
   const [targetValues, setTargetValues] = useState<Record<string, string>>({});
 
   async function load() {
-    const response = await getAthleteDashboard();
+    let response = await getAthleteDashboard();
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (browserTimezone && response.athlete.profile.timezone !== browserTimezone) {
+      await updateAthleteTimezone(browserTimezone);
+      response = await getAthleteDashboard();
+    }
     setData(response.athlete);
     const next = response.athlete.profile;
     setProfile({
@@ -41,7 +67,7 @@ export function AthleteDashboardClient() {
       coachName: next.coach_name ?? "",
       goalWeightKg: next.goal_weight_kg ? String(next.goal_weight_kg) : ""
     });
-    setTargetValues(Object.fromEntries(response.athlete.targets.map((target) => [target.id, String(target.completed_value)])));
+    setTargetValues(Object.fromEntries(response.athlete.targets.map((target) => [target.id, String(target.today_completed_value)])));
     setStatus("");
   }
 
@@ -59,7 +85,8 @@ export function AthleteDashboardClient() {
         competitionName: profile.competitionName || null,
         competitionDate: profile.competitionDate || null,
         coachName: profile.coachName || null,
-        goalWeightKg: profile.goalWeightKg ? Number(profile.goalWeightKg) : null
+        goalWeightKg: profile.goalWeightKg ? Number(profile.goalWeightKg) : null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
       await load();
       setStatus("Athlete profile saved.");
@@ -87,27 +114,14 @@ export function AthleteDashboardClient() {
     }
   }
 
-  async function saveProgress(targetId: string) {
+  async function saveProgress(targetId: string, explicitValue?: number) {
     setSaving(true);
     try {
-      await saveAthleteTargetProgress(targetId, Number(targetValues[targetId] ?? 0));
+      await saveAthleteTargetProgress(targetId, explicitValue ?? Number(targetValues[targetId] ?? 0));
       await load();
       setStatus("Training progress updated.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not update target.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function generateReview() {
-    setSaving(true);
-    try {
-      await generateAthleteWeeklyReview();
-      await load();
-      setStatus("Weekly review updated.");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update weekly review.");
     } finally {
       setSaving(false);
     }
@@ -134,11 +148,11 @@ export function AthleteDashboardClient() {
           <p className="mt-1 text-3xl font-semibold">{data.countdown ? Math.max(0, data.countdown.days) : "--"}</p>
           <p className="mt-1 text-xs text-zinc-400">{data.countdown ? `${data.countdown.weeks} weeks out` : "Add an event date"}</p>
         </div>
-        <div className={`rounded-lg border p-4 ${bandClasses(data.latestCheckin?.readiness_band)}`}>
+        <div className={`rounded-lg border p-4 ${bandClasses(data.readiness.band ?? undefined)}`}>
           <Gauge size={20} />
           <p className="mt-3 text-xs uppercase text-zinc-400">Readiness</p>
-          <p className="mt-1 text-3xl font-semibold">{data.latestCheckin?.readiness_score ?? "--"}</p>
-          <p className="mt-1 text-xs capitalize text-zinc-400">{data.latestCheckin?.readiness_band ?? "Check in today"}</p>
+          <p className="mt-1 text-3xl font-semibold">{data.readiness.score ?? "--"}</p>
+          <p className="mt-1 text-xs text-zinc-400">{data.readiness.status}</p>
         </div>
       </section>
 
@@ -146,8 +160,15 @@ export function AthleteDashboardClient() {
         <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-center text-sm font-semibold text-lime">{data.countdown.milestone}</p>
       ) : null}
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <div className="flex items-center gap-3"><CalendarDays className="text-purple-300" size={20} /><h2 className="font-semibold">Athlete profile</h2></div>
+      {data.readiness.warningReasons.length ? (
+        <section className="mt-3 rounded-lg border border-red-400/40 bg-red-400/10 p-3">
+          <p className="text-sm font-semibold text-red-300">Coach review recommended</p>
+          <ul className="mt-2 space-y-1 text-sm text-zinc-300">{data.readiness.warningReasons.map((reason) => <li key={reason}>• {reason}</li>)}</ul>
+        </section>
+      ) : null}
+
+      <details className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <summary className="flex cursor-pointer list-none items-center gap-3"><CalendarDays className="text-purple-300" size={20} /><span className="font-semibold">Event and athlete profile</span></summary>
         <form onSubmit={saveProfile} className="mt-4 grid grid-cols-2 gap-3">
           {[
             ["Sport", "sport", "HYROX, running, bodybuilding"], ["Division", "division", "Open, age group, class"],
@@ -159,7 +180,7 @@ export function AthleteDashboardClient() {
           <label className="text-xs text-zinc-400">Goal weight (kg)<input type="number" min="25" max="400" step="0.1" value={profile.goalWeightKg} onChange={(e) => setProfile((current) => ({ ...current, goalWeightKg: e.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-line bg-ink px-3 text-sm text-white" /></label>
           <button disabled={saving || !profile.sport.trim()} className="col-span-2 h-11 rounded-lg bg-purple-400 font-semibold text-ink disabled:opacity-60">Save athlete profile</button>
         </form>
-      </section>
+      </details>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <h2 className="font-semibold">Daily readiness check-in</h2>
@@ -167,31 +188,38 @@ export function AthleteDashboardClient() {
         <form onSubmit={saveCheckin} className="mt-4 space-y-4">
           <label className="block text-sm text-zinc-300">Sleep hours<input type="number" min="0" max="16" step="0.5" value={checkin.sleepHours} onChange={(e) => setCheckin((current) => ({ ...current, sleepHours: e.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-line bg-ink px-3" /></label>
           {["energy", "soreness", "stress", "hunger", "motivation"].map((key) => (
-            <label key={key} className="block text-sm capitalize text-zinc-300">{key}: <span className="font-semibold text-purple-300">{checkin[key as keyof typeof checkin]}/10</span><input type="range" min="1" max="10" value={checkin[key as keyof typeof checkin]} onChange={(e) => setCheckin((current) => ({ ...current, [key]: e.target.value }))} className="mt-2 w-full accent-purple-400" /></label>
+            <label key={key} className="block text-sm capitalize text-zinc-300">{key}: <span className="font-semibold text-purple-300">{checkin[key as keyof typeof checkin]}/10</span><input type="range" min="1" max="10" value={checkin[key as keyof typeof checkin]} onChange={(e) => setCheckin((current) => ({ ...current, [key]: e.target.value }))} className="mt-2 w-full accent-purple-400" /><span className="mt-1 flex justify-between text-xs text-zinc-500"><span>{sliderLabels[key][0]}</span><span>{sliderLabels[key][1]}</span></span></label>
           ))}
           <button disabled={saving} className="h-11 w-full rounded-lg bg-purple-400 font-semibold text-ink disabled:opacity-60">Save readiness</button>
         </form>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <div className="flex items-center justify-between"><div><h2 className="font-semibold">Training compliance</h2><p className="mt-1 text-sm text-zinc-400">This week&apos;s coach targets.</p></div><span className="text-2xl font-semibold text-purple-300">{data.compliancePercent}%</span></div>
+      {(["daily", "weekly"] as const).map((cadence) => {
+        const targets = data.targets.filter((target) => target.cadence === cadence);
+        const compliance = cadence === "daily" ? data.dailyCompliancePercent : data.weeklyCompliancePercent;
+        return (
+      <section key={cadence} className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <div className="flex items-center justify-between"><div><h2 className="font-semibold">{cadence === "daily" ? "Today's targets" : "Weekly targets"}</h2><p className="mt-1 text-sm text-zinc-400">{cadence === "daily" ? "Enter only what you completed today." : "Today’s entries add toward this week’s goal."}</p></div><span className="text-2xl font-semibold text-purple-300">{compliance}%</span></div>
         <div className="mt-4 space-y-3">
-          {data.targets.map((target) => (
+          {targets.map((target) => (
             <div key={target.id} className="rounded-lg bg-ink p-3">
-              <div className="flex justify-between gap-3"><p className="text-sm font-medium">{labelTarget(target.target_type)}</p><p className="text-sm text-zinc-400">/ {target.target_value} {target.unit}</p></div>
+              <div className="flex justify-between gap-3"><p className="text-sm font-medium">{labelTarget(target.target_type)}</p><p className="text-sm text-zinc-400">{cadence === "daily" ? `Daily target: ${target.target_value}` : `This week: ${target.weekly_completed_value}/${target.target_value}`} {target.unit}</p></div>
               {target.notes ? <p className="mt-1 text-xs text-zinc-500">{target.notes}</p> : null}
-              <div className="mt-3 flex gap-2"><input type="number" min="0" step="0.1" value={targetValues[target.id] ?? ""} onChange={(e) => setTargetValues((current) => ({ ...current, [target.id]: e.target.value }))} className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3" /><button type="button" disabled={saving} onClick={() => saveProgress(target.id)} className="h-10 rounded-lg bg-purple-400 px-3 text-sm font-semibold text-ink">Update</button></div>
+              <label className="mt-3 block text-xs text-zinc-400">{targetInputLabel(target.target_type)}<div className="mt-1 flex gap-2"><input aria-label={targetInputLabel(target.target_type)} type="number" min="0" step="0.1" value={targetValues[target.id] ?? ""} onChange={(e) => setTargetValues((current) => ({ ...current, [target.id]: e.target.value }))} className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-white" /><button type="button" disabled={saving} onClick={() => saveProgress(target.id)} className="h-10 rounded-lg bg-purple-400 px-3 text-sm font-semibold text-ink">Save today</button></div></label>
+              {isSessionTarget(target.target_type) ? <button type="button" disabled={saving} onClick={() => saveProgress(target.id, Number(target.today_completed_value) + 1)} className="mt-2 h-10 w-full rounded-lg border border-purple-400/50 text-sm font-semibold text-purple-300">+1 session completed</button> : null}
             </div>
           ))}
-          {!data.targets.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Your coach has not assigned weekly targets yet.</p> : null}
+          {!targets.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No {cadence} targets assigned.</p> : null}
         </div>
       </section>
+        );
+      })}
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center gap-3"><CheckCircle2 className="text-purple-300" size={20} /><h2 className="font-semibold">Weekly coach review</h2></div>
-        <p className="mt-3 text-sm leading-6 text-zinc-300">{data.latestReview?.summary ?? "Generate a clear summary once you have started checking in."}</p>
+        <p className="mt-3 text-sm leading-6 text-zinc-300">{data.latestReview?.summary ?? "Your review will appear automatically."}</p>
         {data.latestReview?.coach_comment ? <p className="mt-3 rounded-lg bg-ink p-3 text-sm text-zinc-200"><span className="font-semibold text-purple-300">Coach:</span> {data.latestReview.coach_comment}</p> : null}
-        <button type="button" disabled={saving} onClick={generateReview} className="mt-4 h-11 w-full rounded-lg border border-purple-400/50 text-sm font-semibold text-purple-300">Update weekly review</button>
+        <p className="mt-3 text-xs text-zinc-500">Updates automatically whenever Athlete Mode opens.</p>
       </section>
 
       {data.progressPhotos.length ? (

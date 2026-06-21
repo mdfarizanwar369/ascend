@@ -79,6 +79,7 @@ Athlete endpoints return `404` until an owner enables Athlete Mode for the clien
 
 - `GET /athlete/me`
 - `PATCH /athlete/me/profile`
+- `PATCH /athlete/me/timezone`
 - `POST /athlete/me/checkins`
 - `PUT /athlete/me/targets/:targetId/progress`
 - `POST /athlete/me/reviews/generate`
@@ -89,6 +90,8 @@ Athlete endpoints return `404` until an owner enables Athlete Mode for the clien
 - `PATCH /trainer/clients/:clientId/athlete/review`
 
 Coach notes are never returned by client endpoints. They are restricted to the assigned trainer and gym-scoped owner/admin access.
+
+Athlete check-ins and target progress always apply to the athlete's current local date. Targets explicitly use `daily` or `weekly` cadence. Daily compliance uses today's value; weekly compliance sums the athlete's daily contributions for the current Monday-Sunday week. Opening either athlete dashboard automatically refreshes the deterministic weekly review.
 
 ## Admin / Owner
 
