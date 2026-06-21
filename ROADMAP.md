@@ -32,13 +32,13 @@ Ascend is deployable as a mobile-first PWA with:
 
 ## Before Pilot Launch
 
-1. Complete a full manual pass using `ACCESS_TESTING_CHECKLIST.md` and the role-specific pilot guides.
+1. Complete one final human signup on the oldest supported iPhone/Safari device using `ACCESS_TESTING_CHECKLIST.md`; automated mobile and owner-session route sweeps are complete.
 2. Configure Railway backend `CRON_SECRET`.
 3. Configure Railway Cron or an external scheduler for `POST /api/v1/jobs/daily`.
 4. Verify Firebase authorized domains for the Railway frontend domain.
 5. Verify R2/S3 upload and read URLs on production.
 6. Spot-check Gemini food image analysis on production using a real mobile food photo during pilot onboarding.
-7. Complete one low-value live Stripe payment and cancellation-through-period-end check; live Checkout, prices, webhook destination, payouts, and permanent credentials are already configured.
+7. Before accepting paid customers, complete one low-value live Stripe payment and cancellation-through-period-end check; live Checkout, prices, webhook destination, payouts, and permanent credentials are already configured. This does not block the free controlled pilot.
 8. Pilot Athlete Mode with one owner-enabled athlete and one trainer before exposing a paid Athlete plan.
 9. Confirm Railway PostgreSQL backups.
 10. Keep production data clean by removing future throwaway accounts after each pilot test cycle.

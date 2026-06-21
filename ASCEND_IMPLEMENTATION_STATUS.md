@@ -1,6 +1,6 @@
 # Ascend Implementation Status
 
-Last updated: 19 June 2026
+Last updated: 21 June 2026
 
 ## Pilot Readiness Snapshot
 
@@ -15,6 +15,16 @@ The live app is available at:
 - https://getascend.fit
 
 ## Verified This Pass
+
+- Release-candidate audit completed across all 33 production frontend routes, 20 authenticated mobile app screens, public APIs, CORS, storage health, Stripe webhook rejection, database integrity, responsive layouts, light mode, session restoration, and a live Gemini coach response.
+- All seven production migrations are applied. No orphaned roles, assignments, subscriptions, habit records, athlete records, cross-gym assignments, duplicate active subscriptions, or future-dated logs were found.
+- Habit completions now require the habit to belong to the authenticated member, closing a cross-account data-integrity weakness.
+- Habit edits and trainer risk-alert updates now validate input and return `404` when the scoped record does not exist.
+- Frontend responses now include one-year HSTS protection in addition to frame, MIME, referrer, and permissions headers.
+- Production mobile route sweep found no horizontal overflow, stuck access checks, internal-server messages, failed-load states, or browser console errors after session hydration.
+- Live owner navigation between Home, Trainer, Admin, and all owner subpages survives reload and direct navigation. A real water save appeared immediately after the normal Back flow; temporary audit data was removed.
+- Live Gemini coach check returned a complete response. No food-analysis error has been recorded since 17 June; later scans are successful or cache hits.
+- Automated gate: 13 test files and 53 tests pass; frontend/backend lint and the full production build pass.
 
 - “Look How Far You’ve Come” gives clients and trainers a lightweight 30-day self-comparison for goal-aligned weight, Momentum Score, and weekly check-in consistency, with no leaderboard or AI usage.
 - Clients can change between Fat Loss, Muscle Gain, and Maintenance without losing old logs; each change starts a versioned goal journey from the latest weigh-in.

@@ -25,13 +25,13 @@ Use this for Railway production deployment.
   - Backend service account JSON.
   - Railway frontend domain added under Authentication authorized domains.
 
-### OpenAI
+### Google Gemini
 
 - Purpose: food image analysis, nutrition coach, burn estimate, weekly summaries.
 - Required:
-  - API key.
+  - Gemini API key with billing enabled for reliable pilot volume.
   - Billing/usage limits configured.
-  - Model available for the configured `OPENAI_MODEL`.
+  - Model available for the configured `GEMINI_MODEL`.
 
 ### Stripe
 

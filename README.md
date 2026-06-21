@@ -31,6 +31,8 @@ Initial launch gyms:
 - Payments: Stripe Checkout and recurring subscriptions, with manual pilot access
 - Deployment: Railway for the live pilot; Docker remains available for local/self-hosted deployments
 
+Latest release audit (21 June 2026): all 53 automated tests, lint, production builds, production database integrity, mobile route rendering, owner session restoration, storage health, Stripe webhook rejection, and live Gemini coach response passed. See `ASCEND_IMPLEMENTATION_STATUS.md` for the exact evidence and remaining human checks.
+
 ## Required Local Tools For Windows
 
 Install these first:

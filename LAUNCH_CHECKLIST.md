@@ -12,9 +12,9 @@ Use this as the single go/no-go checklist before inviting real Austin Green or K
   - Firebase Auth for identity
   - PostgreSQL as business data source of truth
   - Railway frontend, backend, and PostgreSQL
-  - OpenAI food analysis, coach chat, burn estimates, weekly reports
+  - Gemini food analysis, coach chat, burn estimates, weekly reports
   - Cloudflare R2 or AWS S3 photo storage
-  - ToyyibPay-first subscription path
+  - Stripe recurring subscription path, with owner-approved free pilot access
 
 ## Go / No-Go Summary
 

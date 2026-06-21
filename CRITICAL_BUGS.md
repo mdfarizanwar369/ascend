@@ -78,19 +78,19 @@ Critical items block a live pilot.
 - Fastest resolution:
   - Configure Cloudflare R2 or AWS S3 variables on backend and redeploy.
 
-### C5. ToyyibPay live checkout/callback must be tested before charging real users
+### C5. Stripe live checkout/webhook must be tested before charging real users
 
-- Status: Open
+- Status: Accepted for the free controlled pilot; Open before paid launch
 - Area: Subscription billing
 - Risk: User pays but subscription does not unlock, or unpaid user unlocks incorrectly.
 - Evidence to collect:
-  - Premium checkout creates RM19 bill.
-  - Trainer Pro checkout creates RM99 bill.
-  - ToyyibPay callback reaches backend.
+  - Premium checkout creates the configured RM19.99 monthly subscription.
+  - Trainer Pro checkout creates the configured RM99.99 monthly subscription.
+  - Signed Stripe webhook reaches the backend.
   - Subscription changes to `active`.
   - Payment event appears in `payment_events`.
 - Fastest resolution:
-  - Run one low-value live payment or ToyyibPay-approved test flow before inviting pilot users.
+  - Run one low-value live Stripe payment and cancellation-through-period-end flow before accepting paid users. The free controlled pilot can proceed with owner-approved access.
 
 ### C6. Test-plan activation must be controlled before public pilot
 

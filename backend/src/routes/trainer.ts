@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
@@ -544,6 +545,7 @@ trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("traine
 
 trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    const status = z.enum(["acknowledged", "resolved"]).default("acknowledged").parse(req.body.status);
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
@@ -552,8 +554,9 @@ trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireActivePlan("
       where id = $1 and (trainer_id = $3 or (($4 = any($5::text[]) or $6 = any($5::text[])) and ($7::uuid[] is null or gym_id = any($7))))
       returning *
       `,
-      [req.params.id, req.body.status ?? "acknowledged", req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
+      [req.params.id, status, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
+    if (!result.rows[0]) return res.status(404).json({ error: "Risk alert not found" });
     res.json({ alert: result.rows[0] });
   } catch (error) {
     next(error);
