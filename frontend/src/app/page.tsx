@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, TrendingUp } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Play, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
@@ -49,6 +49,9 @@ export default function HomePage() {
               </a>
               <Link href={appLoginUrl} className="flex min-h-14 items-center justify-center rounded-lg border border-line bg-surface/85 px-5 text-center text-sm font-semibold text-zinc-200">
                 Pilot login
+              </Link>
+              <Link href="/demo" className="flex min-h-14 items-center justify-center gap-2 rounded-lg border border-calm/40 bg-calm/10 px-5 text-center text-sm font-semibold text-zinc-100">
+                <Play size={17} /> Watch 30-sec demo
               </Link>
             </div>
           </div>

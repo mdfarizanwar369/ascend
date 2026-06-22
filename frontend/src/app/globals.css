@@ -91,6 +91,36 @@ html[data-theme="light"] .ascend-theme-glow {
   }
 }
 
+@keyframes ascend-demo-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ascend-demo-scan {
+  0% { top: 18%; opacity: 0.45; }
+  50% { top: 78%; opacity: 1; }
+  100% { top: 18%; opacity: 0.45; }
+}
+
+@keyframes ascend-demo-pop {
+  0% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes ascend-demo-grow {
+  from { width: 0; }
+}
+
+@keyframes ascend-demo-bar {
+  from { height: 0; }
+}
+
+.ascend-demo-enter { animation: ascend-demo-enter 280ms ease-out both; }
+.ascend-demo-scan { animation: ascend-demo-scan 1.4s ease-in-out infinite; }
+.ascend-demo-pop { animation: ascend-demo-pop 280ms ease-out both; }
+.ascend-demo-grow { animation: ascend-demo-grow 650ms ease-out both; }
+.ascend-demo-bar { animation: ascend-demo-bar 560ms ease-out both; }
+
 .ascend-install-step {
   animation: ascend-install-step 2.1s ease-in-out infinite;
 }
@@ -101,6 +131,14 @@ html[data-theme="light"] .ascend-theme-glow {
   }
 
   .ascend-install-step {
+    animation: none;
+  }
+
+  .ascend-demo-enter,
+  .ascend-demo-scan,
+  .ascend-demo-pop,
+  .ascend-demo-grow,
+  .ascend-demo-bar {
     animation: none;
   }
 }

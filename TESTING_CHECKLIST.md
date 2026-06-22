@@ -317,6 +317,18 @@ PWA:
 - [ ] Storage path is verified.
 - [ ] AI path is verified.
 - [ ] Database backup is confirmed.
+## 14. Public Marketing Demo
+
+- [ ] `/demo` opens without login and does not make authenticated API requests.
+- [ ] Intro remains on scene one until **Start demo** is pressed.
+- [ ] Story advances through all eight scenes in 30 seconds and loops cleanly.
+- [ ] Pause, replay, previous, next, and scene controls work.
+- [ ] `/demo?record=1` starts automatically in a vertical, distraction-free layout.
+- [ ] Mobile and desktop layouts have no horizontal overflow or overlapping text.
+- [ ] Reduced-motion devices receive a stable manual experience.
+- [ ] Final call to action opens the main Ascend pilot waitlist.
+- [ ] `demo.getascend.fit` opens the demo after Railway and Cloudflare DNS are connected.
+
 # Athlete Mode Controlled Beta
 
 - [ ] Owner can enable Athlete Mode for one active client and disable it again.

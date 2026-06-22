@@ -304,6 +304,16 @@ Athlete inputs are daily by default and clearly labelled. Coaches explicitly cho
 
 Set `ATHLETE_MODE_ENABLED=false` on the backend to disable the entire module immediately. Existing food, weight, water, habits, messages, subscriptions, and trainer dashboards continue operating independently.
 
+## Public Product Demo
+
+Ascend includes a public, read-only 30-second product story at `http://localhost:3000/demo`. It uses fixed sample data and never connects to Firebase, PostgreSQL, storage, Gemini, or Stripe.
+
+- Standard demo: `/demo`
+- Autoplay vertical recording view: `/demo?record=1`
+- Production subdomain: `https://demo.getascend.fit`
+
+The demo supports autoplay, looping, pause, replay, scene navigation, reduced-motion preferences, and a direct pilot waitlist link. The frontend proxy rewrites only the root of `demo.getascend.fit` to `/demo`; authenticated routes remain on the main application domain.
+
 Before connecting real services, also run:
 
 ```powershell

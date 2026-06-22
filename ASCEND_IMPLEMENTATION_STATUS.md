@@ -84,6 +84,8 @@ The live app is available at:
 - Athlete target logging now distinguishes daily and weekly cadence. Entries are explicitly today's contribution, session targets support one-tap `+1`, and daily/weekly compliance are calculated separately.
 - Athlete countdowns use the stored browser/gym timezone, coaches receive a seven-day readiness trend, weekly reviews refresh automatically, and private notes remain optional with a clear empty state.
 - Stripe live mode is configured and verified for RM19.99 Premium and RM99.99 Trainer Pro monthly Checkout sessions. Charges and payouts are enabled; the live webhook destination is enabled for all six required subscription events.
+- Public Marketing Demo Mode is complete. It presents an isolated 30-second member-to-trainer-to-owner story with realistic fixed data, autoplay/looping, manual scene controls, a vertical recording view, and no production API or account dependencies.
+- `demo.getascend.fit` routing is implemented in the frontend proxy and rewrites only the demo subdomain root to the public `/demo` experience.
 
 ## Fixes Completed In This Pass
 

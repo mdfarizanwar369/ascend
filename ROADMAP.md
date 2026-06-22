@@ -30,6 +30,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Latest release audit: production mobile routes, session persistence, database relationships, subscription consistency, AI cache behavior, builds, lint, and automated tests verified.
 - Owner-gated Athlete Mode core: event countdown, readiness check-in, numeric weekly training targets, readiness/compliance dashboard, deterministic weekly coach review, and trainer-only private notes.
 - Athlete Mode pilot hardening: local-time countdowns, explicit daily/weekly targets, today-only inputs, one-tap session completion, readiness safety overrides, seven-day coach trends, automatic reviews, and optional private notes.
+- Public 30-second Marketing Demo Mode with fixed sample data, recording view, autoplay/looping, manual controls, homepage entry point, and `demo.getascend.fit` host routing.
 
 ## Before Pilot Launch
 

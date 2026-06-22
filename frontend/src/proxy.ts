@@ -11,6 +11,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url, 308);
   }
 
+  if (host === "demo.getascend.fit" && request.nextUrl.pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/demo";
+    return NextResponse.rewrite(url);
+  }
+
   return NextResponse.next();
 }
 
