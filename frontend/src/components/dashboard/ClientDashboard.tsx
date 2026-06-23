@@ -294,6 +294,7 @@ export function ClientDashboard() {
   const hasLoadedDashboardRef = useRef(false);
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
+  const progressDetailsRef = useRef<HTMLDivElement | null>(null);
 
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
@@ -678,6 +679,23 @@ export function ClientDashboard() {
     });
   }
 
+  function revealTodayProgress() {
+    setShowProgressDetails(true);
+    try {
+      window.localStorage.setItem("ascend:client-progress-expanded", "true");
+    } catch {
+      // The progress section still opens even if storage is unavailable.
+    }
+
+    window.setTimeout(() => {
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      progressDetailsRef.current?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start"
+      });
+    }, 80);
+  }
+
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
@@ -757,7 +775,7 @@ export function ClientDashboard() {
           {recentCelebration ? (
             <button
               type="button"
-              onClick={toggleProgressDetails}
+              onClick={revealTodayProgress}
               className="mt-5 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
             >
               View Today&apos;s Progress
@@ -765,7 +783,7 @@ export function ClientDashboard() {
           ) : nextAction.href === "/dashboard" ? (
             <button
               type="button"
-              onClick={toggleProgressDetails}
+              onClick={revealTodayProgress}
               className="mt-5 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
             >
               {nextAction.cta}
@@ -864,6 +882,7 @@ export function ClientDashboard() {
 
         <div
           id="client-progress-details"
+          ref={progressDetailsRef}
           className={`overflow-hidden transition-all duration-300 ease-out ${
             showProgressDetails ? "max-h-[20000px] translate-y-0 opacity-100" : "max-h-0 -translate-y-2 opacity-0"
           }`}
