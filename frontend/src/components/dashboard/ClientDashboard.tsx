@@ -16,6 +16,7 @@ import {
   getGoalStatus,
   getMyStreak,
   getMySubscription,
+  getProgressPhotos,
   getTodayMission,
   getWaterLogs,
   getWeightLogs
@@ -40,6 +41,7 @@ type LatestRecognition = Awaited<ReturnType<typeof getLatestRecognition>>["recog
 type Streak = Awaited<ReturnType<typeof getMyStreak>>["streak"];
 type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
+type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -103,24 +105,11 @@ function uniqueDays<T>(items: T[], getDate: (item: T) => string) {
   return new Set(items.map((item) => localDateKey(getDate(item))));
 }
 
-function currentMealWindow(hour: number | null) {
-  if (hour === null) return null;
-  if (hour < 11) return "breakfast";
-  if (hour < 15) return "lunch";
-  if (hour < 22) return "dinner";
-  return "snack";
-}
-
-function mealLabel(mealType: string | null) {
-  if (mealType === "breakfast") return "breakfast";
-  if (mealType === "lunch") return "lunch";
-  if (mealType === "dinner") return "dinner";
-  return "meal";
-}
-
-function formatWaterAction(remainingMl: number) {
-  const rounded = Math.min(1000, Math.max(300, Math.ceil(remainingMl / 100) * 100));
-  return `${rounded}ml water`;
+function waterCoachAction(remainingMl: number, currentHour: number | null) {
+  if (remainingMl <= 250) return "Take a small sip break.";
+  if (remainingMl <= 500) return "Drink 250ml water.";
+  if (currentHour !== null && currentHour >= 21) return "Take a small sip break.";
+  return "Drink another 500ml water.";
 }
 
 function nextBestAction(input: {
@@ -133,60 +122,87 @@ function nextBestAction(input: {
   completedHabits: number;
   totalHabits: number;
   todaysBurnCalories: number;
+  latestWeightLoggedToday: boolean;
+  progressPhotoDue: boolean;
+  currentStreak: number;
 }) {
-  const mealWindow = currentMealWindow(input.currentHour);
-  const mealLogged = mealWindow
-    ? input.todaysFood.some((log) => (log.meal_type ?? "").toLowerCase() === mealWindow)
-    : false;
-
-  if (mealWindow && !mealLogged && input.currentHour !== null && input.currentHour >= 6 && input.currentHour < 22) {
-    const extras: string[] = [];
-    if (input.waterLeftMl >= 500) extras.push(`drink ${formatWaterAction(input.waterLeftMl)}`);
-    if (input.proteinLeft >= 25) extras.push("make it protein-focused");
+  if (!input.todaysFood.length) {
     return {
-      title: `Log ${mealLabel(mealWindow)}`,
-      detail: extras.length ? `Next: ${`log ${mealLabel(mealWindow)}`} and ${extras[0]}.` : `Next: log ${mealLabel(mealWindow)}.`
+      title: "Log your first meal.",
+      detail: "One meal is enough to restart today's momentum. It usually takes under a minute.",
+      href: "/food-log",
+      cta: "Log Food"
     };
   }
 
-  if (input.proteinLeft >= 30 && input.calorieOver <= 150) {
+  if (input.proteinLeft >= 25 && input.calorieOver <= 150) {
     return {
-      title: "Add protein next",
-      detail: "Next: choose a higher-protein meal or snack."
+      title: "Add a protein-rich meal.",
+      detail: `You have ${Math.round(input.proteinLeft)}g protein remaining today. One protein-focused choice can close the gap.`,
+      href: "/food-log",
+      cta: "Log Food"
     };
   }
 
-  if (input.waterLeftMl >= 500) {
+  if (input.caloriesLeft >= 450 && input.calorieOver <= 150) {
     return {
-      title: "Top up water",
-      detail: `Next: drink ${formatWaterAction(input.waterLeftMl)}.`
+      title: "Add another balanced meal.",
+      detail: "You're one meal away from today's nutrition goal. Keep it simple and log what you eat.",
+      href: "/food-log",
+      cta: "Log Food"
+    };
+  }
+
+  if (input.waterLeftMl >= 250) {
+    return {
+      title: waterCoachAction(input.waterLeftMl, input.currentHour),
+      detail: "Small water breaks are easier to repeat than forcing a huge amount at once.",
+      href: "/water-log",
+      cta: "Log Water"
+    };
+  }
+
+  if (!input.latestWeightLoggedToday) {
+    return {
+      title: "Record today's weight.",
+      detail: "Small updates create better long-term progress. This takes less than 30 seconds.",
+      href: "/weight-log",
+      cta: "Log Weight"
     };
   }
 
   if (input.completedHabits < input.totalHabits && input.totalHabits > 0) {
     return {
-      title: "Finish today's habits",
-      detail: "Next: tick off the habit checks you still want to complete."
+      title: "Complete today's habit.",
+      detail: input.currentStreak > 0 ? "One minute now keeps your streak alive." : "One minute now helps build the rhythm.",
+      href: "/habits",
+      cta: "Open Habits"
     };
   }
 
   if (!input.todaysBurnCalories && input.currentHour !== null && input.currentHour >= 16) {
     return {
-      title: "Add a little movement",
-      detail: "Next: log a short walk or workout."
+      title: "Log today's activity.",
+      detail: "If you moved today, capture it now so your progress reflects the work.",
+      href: "/burn-log",
+      cta: "Log Activity"
     };
   }
 
-  if (input.calorieOver > 150) {
+  if (input.progressPhotoDue) {
     return {
-      title: "Keep the next meal lighter",
-      detail: "Next: focus on protein, fibre, and water."
+      title: "Capture today's progress.",
+      detail: "Small changes become visible over time. A quick photo helps you compare later.",
+      href: "/progress",
+      cta: "Add Photo"
     };
   }
 
   return {
-    title: "Keep the momentum going",
-    detail: "Next: one more small check-in keeps today moving well."
+    title: "Amazing work.",
+    detail: "You've completed today's priorities. View today's progress when you want the full picture.",
+    href: "/dashboard",
+    cta: "View Progress"
   };
 }
 
@@ -203,6 +219,7 @@ export function ClientDashboard() {
   const [streak, setStreak] = useState<Streak | null>(null);
   const [goalStatus, setGoalStatus] = useState<GoalStatus | null>(null);
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -243,7 +260,7 @@ export function ClientDashboard() {
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -254,7 +271,8 @@ export function ClientDashboard() {
         getTodayMission(),
         getLatestRecognition(),
         getMyStreak(),
-        getGoalStatus()
+        getGoalStatus(),
+        getProgressPhotos()
       ]);
 
       if (requestId !== dashboardRequestRef.current) return;
@@ -305,6 +323,7 @@ export function ClientDashboard() {
       if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
       if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
       if (nextGoalStatus.status === "fulfilled") setGoalStatus(nextGoalStatus.value.goalStatus);
+      if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -413,6 +432,8 @@ export function ClientDashboard() {
   const latestFood = foodLogs[0];
   const latestWeight = weightLogs[0];
   const previousWeight = weightLogs[1];
+  const latestWeightLoggedToday = latestWeight ? localDateKey(latestWeight.logged_at) === today : false;
+  const latestProgressPhoto = progressPhotos[0];
   const currentWeight = asNumber(latestWeight?.weight_kg);
   const startWeight = asNumber(user?.starting_weight_kg);
   const targetWeight = asNumber(user?.target_weight_kg);
@@ -473,6 +494,14 @@ export function ClientDashboard() {
   const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
   const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
   const hasPremiumAccess = plan === "premium" || plan === "trainer_pro" || canAdmin;
+  const progressPhotoDue = (() => {
+    if (!hasPremiumAccess) return false;
+    if (!latestProgressPhoto) return true;
+    const latestPhotoDate = new Date(latestProgressPhoto.logged_at);
+    if (Number.isNaN(latestPhotoDate.getTime())) return false;
+    const daysSincePhoto = Math.floor((Date.now() - latestPhotoDate.getTime()) / 86_400_000);
+    return daysSincePhoto >= 7;
+  })();
   const coachingMode = effectiveCoachingMode(user);
 
   const weeklyFoodDays = uniqueDays(foodLogs.filter((log) => weekKeys.includes(localDateKey(log.logged_at))), (log) => log.logged_at);
@@ -532,9 +561,21 @@ export function ClientDashboard() {
     waterLeftMl,
     completedHabits: completedHabitIds.size,
     totalHabits: habits.length,
-    todaysBurnCalories
+    todaysBurnCalories,
+    latestWeightLoggedToday,
+    progressPhotoDue,
+    currentStreak
   });
-  const greeting = currentHour === null ? "Good day" : currentHour < 12 ? "Good morning" : currentHour < 18 ? "Good afternoon" : "Good evening";
+  const greeting =
+    currentHour === null
+      ? "Welcome back"
+      : currentHour < 5
+        ? "Finishing strong"
+        : currentHour < 12
+          ? "Good morning"
+          : currentHour < 18
+            ? "Good afternoon"
+            : "Good evening";
   const todayProgressItems = [
     { label: "Food", value: `${todaysFood.length}`, detail: todaysFood.length === 1 ? "meal" : "meals" },
     { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
@@ -572,7 +613,7 @@ export function ClientDashboard() {
           </div>
         </header>
 
-        {status ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+        {status ? <p className="mt-3 overflow-hidden break-words rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
 
@@ -598,21 +639,27 @@ export function ClientDashboard() {
           <p className="text-sm text-zinc-400">{greeting}</p>
           <div className="mt-2 flex flex-col gap-4">
             <div>
-              <h1 className="text-3xl font-semibold leading-tight">Your next best move.</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-lime">Next Best Move</p>
+              <h1 className="mt-2 text-3xl font-semibold leading-tight">{nextAction.title}</h1>
               <p className="mt-3 text-sm leading-6 text-zinc-300">{nextAction.detail}</p>
             </div>
+            <span className="w-fit rounded-full border border-lime/50 bg-lime/10 px-3 py-2 text-sm font-semibold leading-tight text-lime">
+              {momentumHeadline}
+            </span>
+          </div>
+          {nextAction.href === "/dashboard" ? (
             <button
               type="button"
               onClick={toggleProgressDetails}
-              className="w-fit rounded-full border border-lime/50 bg-lime/10 px-3 py-2 text-sm font-semibold leading-tight text-lime"
-              aria-expanded={showProgressDetails}
+              className="mt-5 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
             >
-              {momentumHeadline}
+              {nextAction.cta}
             </button>
-          </div>
-          <a href="/food-log" className="mt-5 flex h-14 items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
-            Log food
-          </a>
+          ) : (
+            <a href={nextAction.href} className="mt-5 flex h-14 items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+              {nextAction.cta}
+            </a>
+          )}
         </section>
 
         <section className="mt-4 rounded-2xl border border-lime/40 bg-lime/10 p-5 shadow-soft">
