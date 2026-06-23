@@ -1,7 +1,9 @@
 import { getFirebaseClientAuth } from "@/lib/firebase";
 
 export type DashboardRecordType = "food" | "water" | "weight" | "burn" | "habit";
+export type DashboardActionType = DashboardRecordType | "progress_photo";
 const MAX_PENDING_AGE_MS = 2 * 60_000;
+const MAX_RECENT_ACTION_AGE_MS = 25 * 60_000;
 
 interface StoredDashboardRecord<T> {
   record: T;
@@ -11,6 +13,10 @@ interface StoredDashboardRecord<T> {
 
 function recordKey(type: DashboardRecordType) {
   return `ascend:pending-${type}-log`;
+}
+
+function actionKey() {
+  return "ascend:recent-dashboard-action";
 }
 
 export interface PendingFoodLog {
@@ -40,6 +46,37 @@ export function rememberDashboardRecord<T>(type: DashboardRecordType, record: T)
     window.sessionStorage.setItem(recordKey(type), JSON.stringify(stored));
   } catch {
     // Storage can be unavailable in restrictive browser modes; the API refresh remains the fallback.
+  }
+  rememberDashboardAction(type);
+}
+
+export function rememberDashboardAction(type: DashboardActionType) {
+  try {
+    const stored = {
+      type,
+      savedAt: Date.now(),
+      ownerUid: getFirebaseClientAuth().currentUser?.uid ?? null
+    };
+    window.localStorage.setItem(actionKey(), JSON.stringify(stored));
+  } catch {
+    // Celebration state is optional; saving the actual record remains the important path.
+  }
+}
+
+export function readRecentDashboardAction(): { type: DashboardActionType; savedAt: number } | null {
+  try {
+    const value = window.localStorage.getItem(actionKey());
+    if (!value) return null;
+    const stored = JSON.parse(value) as { type?: DashboardActionType; savedAt?: number; ownerUid?: string | null };
+    if (!stored.type || !stored.savedAt) return null;
+    const currentUid = getFirebaseClientAuth().currentUser?.uid ?? null;
+    if (Date.now() - stored.savedAt > MAX_RECENT_ACTION_AGE_MS || (stored.ownerUid && stored.ownerUid !== currentUid)) {
+      window.localStorage.removeItem(actionKey());
+      return null;
+    }
+    return { type: stored.type, savedAt: stored.savedAt };
+  } catch {
+    return null;
   }
 }
 

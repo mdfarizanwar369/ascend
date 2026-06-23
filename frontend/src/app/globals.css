@@ -115,11 +115,37 @@ html[data-theme="light"] .ascend-theme-glow {
   from { height: 0; }
 }
 
+@keyframes ascend-goal-glow {
+  0% { box-shadow: 0 0 0 rgba(53, 242, 208, 0); transform: scale(1); }
+  45% { box-shadow: 0 0 0 1px rgba(53, 242, 208, 0.5), 0 0 44px rgba(53, 242, 208, 0.2); transform: scale(1.01); }
+  100% { box-shadow: 0 0 0 rgba(53, 242, 208, 0); transform: scale(1); }
+}
+
+@keyframes ascend-confetti-fall {
+  0% { opacity: 0; transform: translateY(-18px) rotate(0deg); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(180px) rotate(230deg); }
+}
+
 .ascend-demo-enter { animation: ascend-demo-enter 280ms ease-out both; }
 .ascend-demo-scan { animation: ascend-demo-scan 1.4s ease-in-out infinite; }
 .ascend-demo-pop { animation: ascend-demo-pop 280ms ease-out both; }
 .ascend-demo-grow { animation: ascend-demo-grow 650ms ease-out both; }
 .ascend-demo-bar { animation: ascend-demo-bar 560ms ease-out both; }
+
+.ascend-goal-celebrating {
+  animation: ascend-goal-glow 2s ease-out both;
+}
+
+.ascend-confetti-piece {
+  position: absolute;
+  top: 0;
+  width: 7px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: ascend-confetti-fall 1.35s ease-out forwards;
+}
 
 .ascend-install-step {
   animation: ascend-install-step 2.1s ease-in-out infinite;
@@ -138,7 +164,9 @@ html[data-theme="light"] .ascend-theme-glow {
   .ascend-demo-scan,
   .ascend-demo-pop,
   .ascend-demo-grow,
-  .ascend-demo-bar {
+  .ascend-demo-bar,
+  .ascend-goal-celebrating,
+  .ascend-confetti-piece {
     animation: none;
   }
 }

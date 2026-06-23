@@ -4,6 +4,7 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, Check, ImagePlus } from "lucide-react";
 import { getProgressPhotos, saveProgressPhoto, uploadProgressPhotoDataUrl } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { rememberDashboardAction } from "@/lib/dataSync";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type PhotoType = ProgressPhoto["photo_type"];
@@ -111,6 +112,7 @@ export function ProgressPhotosClient() {
       setSelectedFile(null);
       setPreviewUrl(null);
       setStatus("Progress photo saved.");
+      rememberDashboardAction("progress_photo");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save progress photo. Please try again.");
     } finally {

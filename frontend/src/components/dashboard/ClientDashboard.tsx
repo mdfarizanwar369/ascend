@@ -26,7 +26,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
-import { clearDashboardRecord, readDashboardRecord } from "@/lib/dataSync";
+import { clearDashboardRecord, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -42,6 +42,57 @@ type Streak = Awaited<ReturnType<typeof getMyStreak>>["streak"];
 type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
+
+const goalCelebrationMessages = [
+  "This is what consistency looks like.",
+  "You earned this moment, one check-in at a time.",
+  "Small wins stacked into a real result.",
+  "Proof that showing up works.",
+  "Celebrate this, then choose the next climb."
+];
+
+function celebrationForAction(type: DashboardActionType) {
+  if (type === "food") {
+    return {
+      title: "Food logged.",
+      detail: "Nice work. One honest meal log is a vote for the result you want.",
+      secondary: "When you're ready, check whether protein or water needs a small top-up."
+    };
+  }
+  if (type === "weight") {
+    return {
+      title: "Weight recorded.",
+      detail: "That update makes your long-term trend clearer. Progress is easier to coach when it is visible.",
+      secondary: "No rush. Your next small move can be food, water, or a habit."
+    };
+  }
+  if (type === "water") {
+    return {
+      title: "Water logged.",
+      detail: "Good check-in. Hydration is one of the simplest ways to support energy and consistency.",
+      secondary: "Keep the next sip easy, not forced."
+    };
+  }
+  if (type === "habit") {
+    return {
+      title: "Habit completed.",
+      detail: "That is the kind of small repeatable action that makes tomorrow easier.",
+      secondary: "Take the win. You can review your progress when you want the detail."
+    };
+  }
+  if (type === "progress_photo") {
+    return {
+      title: "Progress photo saved.",
+      detail: "Great move. Visible change is easier to notice when you capture it consistently.",
+      secondary: "Your future self gets a clearer comparison."
+    };
+  }
+  return {
+    title: "Action completed.",
+    detail: "Consistency beats perfection. You just made today count.",
+    secondary: "When you're ready, review today's progress."
+  };
+}
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -234,10 +285,15 @@ export function ClientDashboard() {
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
   const [showProgressDetails, setShowProgressDetails] = useState(false);
+  const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
+  const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
+  const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
+  const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
   const dashboardRequestRef = useRef(0);
   const dashboardLoadInFlightRef = useRef(false);
   const hasLoadedDashboardRef = useRef(false);
   const missionLockRef = useRef(false);
+  const goalCelebrateLockRef = useRef(false);
 
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
@@ -381,10 +437,24 @@ export function ClientDashboard() {
 
   async function acknowledgeMilestone() {
     if (!goalStatus?.milestone_id) return;
+    if (goalCelebrateLockRef.current) return;
+    goalCelebrateLockRef.current = true;
+    setHasCelebratedGoal(true);
+    setGoalCelebrationMessage(goalCelebrationMessages[Math.floor(Math.random() * goalCelebrationMessages.length)]);
+    setIsCelebratingGoal(true);
+    if (typeof window !== "undefined" && "navigator" in window) {
+      window.navigator.vibrate?.([18, 30, 18]);
+    }
     try {
       await acknowledgeGoalMilestone(goalStatus.milestone_id);
-      setGoalStatus({ ...goalStatus, acknowledged_at: new Date().toISOString() });
+      window.setTimeout(() => {
+        setGoalStatus((current) => current ? { ...current, acknowledged_at: new Date().toISOString() } : current);
+        setIsCelebratingGoal(false);
+      }, 2000);
     } catch {
+      goalCelebrateLockRef.current = false;
+      setHasCelebratedGoal(false);
+      setIsCelebratingGoal(false);
       setStatus("Your milestone is safe, but Ascend could not close this message yet.");
     }
   }
@@ -420,7 +490,17 @@ export function ClientDashboard() {
     } catch {
       setShowProgressDetails(false);
     }
+    setRecentAction(readRecentDashboardAction());
   }, []);
+
+  useEffect(() => {
+    if (!recentAction) return;
+    const remainingMs = Math.max(0, recentAction.savedAt + 25 * 60_000 - Date.now());
+    const timeout = window.setTimeout(() => {
+      setRecentAction(readRecentDashboardAction());
+    }, remainingMs + 250);
+    return () => window.clearTimeout(timeout);
+  }, [recentAction]);
 
   const today = useMemo(() => localDateKey(), []);
   const weekKeys = useMemo(() => lastSevenDateKeys(), []);
@@ -566,6 +646,8 @@ export function ClientDashboard() {
     progressPhotoDue,
     currentStreak
   });
+  const recentCelebration = recentAction ? celebrationForAction(recentAction.type) : null;
+  const goalCompletedToday = Boolean(goalStatus?.milestone_id);
   const greeting =
     currentHour === null
       ? "Welcome back"
@@ -577,7 +659,9 @@ export function ClientDashboard() {
             ? "Good afternoon"
             : "Good evening";
   const todayProgressItems = [
-    { label: "Food", value: `${todaysFood.length}`, detail: todaysFood.length === 1 ? "meal" : "meals" },
+    goalCompletedToday
+      ? { label: "Goal", value: "Done", detail: "completed" }
+      : { label: "Food", value: `${todaysFood.length}`, detail: todaysFood.length === 1 ? "meal" : "meals" },
     { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
     { label: "Activity", value: `${todaysBurnCalories}`, detail: "kcal burn" }
   ];
@@ -618,15 +702,35 @@ export function ClientDashboard() {
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
 
         {goalStatus?.milestone_id && !goalStatus.acknowledged_at ? (
-          <section className="mt-3 rounded-lg border border-lime bg-lime/15 p-4 text-center">
+          <section className={`relative mt-3 overflow-hidden rounded-2xl border border-lime bg-lime/15 p-4 text-center ${isCelebratingGoal ? "ascend-goal-celebrating" : ""}`}>
+            {isCelebratingGoal ? (
+              <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+                {Array.from({ length: 16 }, (_, index) => (
+                  <span
+                    key={index}
+                    className="ascend-confetti-piece"
+                    style={{
+                      left: `${8 + ((index * 23) % 84)}%`,
+                      animationDelay: `${(index % 5) * 70}ms`,
+                      backgroundColor: index % 3 === 0 ? "#35f2d0" : index % 3 === 1 ? "#8b5cf6" : "#f8b84e"
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
             <p className="text-sm font-semibold uppercase text-lime">Goal achieved</p>
             <h1 className="mt-2 text-3xl font-semibold">You reached {Number(goalStatus.milestone_target_weight_kg).toFixed(1)}kg!</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-200">
-              This milestone came from consistent work. Celebrate it, then choose whether to maintain your result or begin a new journey.
+              {isCelebratingGoal ? goalCelebrationMessage : "This milestone came from consistent work. Celebrate it, then choose whether to maintain your result or begin a new journey."}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <button type="button" onClick={acknowledgeMilestone} className="h-11 rounded-lg border border-lime/50 bg-ink font-semibold text-lime">
-                Celebrate
+              <button
+                type="button"
+                disabled={hasCelebratedGoal}
+                onClick={acknowledgeMilestone}
+                className="h-11 rounded-lg border border-lime/50 bg-ink font-semibold text-lime disabled:cursor-default disabled:opacity-100"
+              >
+                {hasCelebratedGoal ? "🎉 Celebrated" : "Celebrate"}
               </button>
               <a href="/profile/guide" className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
                 Choose next goal
@@ -639,15 +743,26 @@ export function ClientDashboard() {
           <p className="text-sm text-zinc-400">{greeting}</p>
           <div className="mt-2 flex flex-col gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-lime">Next Best Move</p>
-              <h1 className="mt-2 text-3xl font-semibold leading-tight">{nextAction.title}</h1>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">{nextAction.detail}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-lime">
+                {recentCelebration ? "Nice Work" : "Next Best Move"}
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold leading-tight">{recentCelebration?.title ?? nextAction.title}</h1>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">{recentCelebration?.detail ?? nextAction.detail}</p>
+              {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-500">{recentCelebration.secondary}</p> : null}
             </div>
             <span className="w-fit rounded-full border border-lime/50 bg-lime/10 px-3 py-2 text-sm font-semibold leading-tight text-lime">
               {momentumHeadline}
             </span>
           </div>
-          {nextAction.href === "/dashboard" ? (
+          {recentCelebration ? (
+            <button
+              type="button"
+              onClick={toggleProgressDetails}
+              className="mt-5 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
+            >
+              View Today&apos;s Progress
+            </button>
+          ) : nextAction.href === "/dashboard" ? (
             <button
               type="button"
               onClick={toggleProgressDetails}
@@ -666,9 +781,11 @@ export function ClientDashboard() {
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-sm font-semibold text-lime">Today&apos;s mission</p>
-              <h2 className="mt-1 text-xl font-semibold">{dailyMission ? dailyMission.title : nextAction.title}</h2>
+              <h2 className="mt-1 text-xl font-semibold">
+                {recentCelebration ? "Consistency is building." : dailyMission ? dailyMission.title : nextAction.title}
+              </h2>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                {dailyMission ? "Complete this simple check-in today." : momentumSummary}
+                {recentCelebration ? "Take the win first. Ascend will bring back the next recommendation naturally." : dailyMission ? "Complete this simple check-in today." : momentumSummary}
               </p>
               {dailyMission?.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {dailyMission.trainer_name}</p> : null}
             </div>
