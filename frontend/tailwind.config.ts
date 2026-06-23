@@ -14,6 +14,9 @@ const config: Config = {
         violet: "#8b5cf6",
         amber: "#f8b84e",
         calm: "#8b5cf6"
+      },
+      boxShadow: {
+        soft: "0 18px 60px rgba(0, 0, 0, 0.22)"
       }
     }
   },

@@ -216,6 +216,7 @@ export function ClientDashboard() {
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [currentHour, setCurrentHour] = useState<number | null>(null);
+  const [showProgressDetails, setShowProgressDetails] = useState(false);
   const dashboardRequestRef = useRef(0);
   const dashboardLoadInFlightRef = useRef(false);
   const hasLoadedDashboardRef = useRef(false);
@@ -394,6 +395,14 @@ export function ClientDashboard() {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    try {
+      setShowProgressDetails(window.localStorage.getItem("ascend:client-progress-expanded") === "true");
+    } catch {
+      setShowProgressDetails(false);
+    }
+  }, []);
+
   const today = useMemo(() => localDateKey(), []);
   const weekKeys = useMemo(() => lastSevenDateKeys(), []);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
@@ -445,6 +454,11 @@ export function ClientDashboard() {
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = momentumScore ?? fallbackScore;
   const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
+  const momentumHeadline = score >= 70 ? "You're on track" : "Let's get back on track";
+  const momentumSummary =
+    score >= 70
+      ? "Your check-ins are building consistency today."
+      : "Start with one small action. Food, water, or weight is enough.";
   const currentStreak = Number(streak?.current ?? 0);
   const streakTitle = currentStreak >= 2 ? `${currentStreak}-day consistency streak` : currentStreak === 1 ? "You checked in today" : "Start a streak today";
   const streakCopy =
@@ -520,6 +534,24 @@ export function ClientDashboard() {
     totalHabits: habits.length,
     todaysBurnCalories
   });
+  const greeting = currentHour === null ? "Good day" : currentHour < 12 ? "Good morning" : currentHour < 18 ? "Good afternoon" : "Good evening";
+  const todayProgressItems = [
+    { label: "Food", value: `${todaysFood.length}`, detail: todaysFood.length === 1 ? "meal" : "meals" },
+    { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
+    { label: "Activity", value: `${todaysBurnCalories}`, detail: "kcal burn" }
+  ];
+
+  function toggleProgressDetails() {
+    setShowProgressDetails((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem("ascend:client-progress-expanded", String(next));
+      } catch {
+        // Private browsers can block storage. The dashboard still expands for this session.
+      }
+      return next;
+    });
+  }
 
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
@@ -561,6 +593,118 @@ export function ClientDashboard() {
             </div>
           </section>
         ) : null}
+
+        <section className="mt-3 rounded-2xl border border-line bg-surface p-5 shadow-soft">
+          <p className="text-sm text-zinc-400">{greeting}</p>
+          <div className="mt-2 flex flex-col gap-4">
+            <div>
+              <h1 className="text-3xl font-semibold leading-tight">Your next best move.</h1>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">{nextAction.detail}</p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleProgressDetails}
+              className="w-fit rounded-full border border-lime/50 bg-lime/10 px-3 py-2 text-sm font-semibold leading-tight text-lime"
+              aria-expanded={showProgressDetails}
+            >
+              {momentumHeadline}
+            </button>
+          </div>
+          <a href="/food-log" className="mt-5 flex h-14 items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+            Log food
+          </a>
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-lime/40 bg-lime/10 p-5 shadow-soft">
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-semibold text-lime">Today&apos;s mission</p>
+              <h2 className="mt-1 text-xl font-semibold">{dailyMission ? dailyMission.title : nextAction.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">
+                {dailyMission ? "Complete this simple check-in today." : momentumSummary}
+              </p>
+              {dailyMission?.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {dailyMission.trainer_name}</p> : null}
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${dailyMission?.status === "completed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}>
+              {dailyMission?.status === "completed" ? "Done" : "Today"}
+            </span>
+          </div>
+          {dailyMission && dailyMission.status !== "completed" ? (
+            <button
+              type="button"
+              disabled={isCompletingMission}
+              onClick={markMissionDone}
+              className="mt-4 h-12 w-full rounded-xl bg-lime font-semibold text-ink disabled:cursor-wait disabled:opacity-60"
+            >
+              {isCompletingMission ? "Saving..." : "Mark mission done"}
+            </button>
+          ) : null}
+          {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-soft">
+          <div className="flex flex-col gap-3">
+            <div>
+              <p className="text-sm font-semibold">Today&apos;s progress</p>
+              <p className="mt-1 text-sm text-zinc-400">A quick glance, no overthinking.</p>
+            </div>
+            <button
+              type="button"
+              onClick={toggleProgressDetails}
+              className="w-fit rounded-full bg-ink px-3 py-2 text-sm font-semibold leading-tight text-lime"
+              aria-expanded={showProgressDetails}
+            >
+              {momentumHeadline}
+            </button>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {todayProgressItems.map((item) => (
+              <div key={item.label} className="rounded-xl bg-ink p-3">
+                <p className="text-xs text-zinc-400">{item.label}</p>
+                <p className="mt-1 text-lg font-semibold">{item.value}</p>
+                <p className="mt-1 text-[11px] text-zinc-500">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {latestRecognition ? (
+          <section className="mt-4 rounded-2xl border border-lime/40 bg-lime/10 p-5 shadow-soft">
+            <p className="text-sm font-semibold text-lime">Coach message</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-200">{latestRecognition.message}</p>
+            {latestRecognition.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {latestRecognition.trainer_name}</p> : null}
+          </section>
+        ) : user?.assigned_trainer_name ? (
+          <a href="/messages" className="mt-4 block rounded-2xl border border-line bg-surface p-5 shadow-soft">
+            <p className="text-sm font-semibold">Coach message</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Message {user.assigned_trainer_name} when you need help between sessions.</p>
+          </a>
+        ) : null}
+
+        {hasPremiumAccess ? (
+          <a href="/reports" className="mt-4 block rounded-2xl border border-purple-400/40 bg-purple-400/10 p-5 shadow-soft">
+            <p className="text-sm font-semibold text-purple-300">Weekly report</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">Your weekly wins and consistency summary are ready when you want the detail.</p>
+          </a>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={toggleProgressDetails}
+          className="mt-5 flex h-14 w-full items-center justify-center rounded-2xl border border-line bg-surface text-base font-semibold text-lime shadow-soft transition duration-300 hover:border-lime/60"
+          aria-expanded={showProgressDetails}
+          aria-controls="client-progress-details"
+        >
+          {showProgressDetails ? "Show Less" : "Show My Progress"}
+        </button>
+
+        <div
+          id="client-progress-details"
+          className={`overflow-hidden transition-all duration-300 ease-out ${
+            showProgressDetails ? "max-h-[20000px] translate-y-0 opacity-100" : "max-h-0 -translate-y-2 opacity-0"
+          }`}
+        >
+          <div className="pb-2 pt-1">
 
         <section className="mt-3 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
@@ -957,6 +1101,8 @@ export function ClientDashboard() {
             </div>
           </div>
         </section>
+          </div>
+        </div>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
