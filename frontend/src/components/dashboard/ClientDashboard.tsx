@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
+import { AscendDNAService, AscendDnaEvent, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -50,49 +50,6 @@ const goalCelebrationMessages = [
   "Proof that showing up works.",
   "Celebrate this, then choose the next climb."
 ];
-
-function celebrationForAction(type: DashboardActionType) {
-  if (type === "food") {
-    return {
-      title: "Food logged.",
-      detail: "Nice work. One honest meal log is a vote for the result you want.",
-      secondary: "When you're ready, check whether protein or water needs a small top-up."
-    };
-  }
-  if (type === "weight") {
-    return {
-      title: "Weight recorded.",
-      detail: "That update makes your long-term trend clearer. Progress is easier to coach when it is visible.",
-      secondary: "No rush. Your next small move can be food, water, or a habit."
-    };
-  }
-  if (type === "water") {
-    return {
-      title: "Water logged.",
-      detail: "Good check-in. Hydration is one of the simplest ways to support energy and consistency.",
-      secondary: "Keep the next sip easy, not forced."
-    };
-  }
-  if (type === "habit") {
-    return {
-      title: "Habit completed.",
-      detail: "That is the kind of small repeatable action that makes tomorrow easier.",
-      secondary: "Take the win. You can review your progress when you want the detail."
-    };
-  }
-  if (type === "progress_photo") {
-    return {
-      title: "Progress photo saved.",
-      detail: "Great move. Visible change is easier to notice when you capture it consistently.",
-      secondary: "Your future self gets a clearer comparison."
-    };
-  }
-  return {
-    title: "Action completed.",
-    detail: "Consistency beats perfection. You just made today count.",
-    secondary: "When you're ready, review today's progress."
-  };
-}
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -156,105 +113,8 @@ function uniqueDays<T>(items: T[], getDate: (item: T) => string) {
   return new Set(items.map((item) => localDateKey(getDate(item))));
 }
 
-function waterCoachAction(remainingMl: number, currentHour: number | null) {
-  if (remainingMl <= 250) return "Take a small sip break.";
-  if (remainingMl <= 500) return "Drink 250ml water.";
-  if (currentHour !== null && currentHour >= 21) return "Take a small sip break.";
-  return "Drink another 500ml water.";
-}
-
-function nextBestAction(input: {
-  currentHour: number | null;
-  todaysFood: FoodLog[];
-  caloriesLeft: number;
-  calorieOver: number;
-  proteinLeft: number;
-  waterLeftMl: number;
-  completedHabits: number;
-  totalHabits: number;
-  todaysBurnCalories: number;
-  latestWeightLoggedToday: boolean;
-  progressPhotoDue: boolean;
-  currentStreak: number;
-}) {
-  if (!input.todaysFood.length) {
-    return {
-      title: "Log your first meal.",
-      detail: "One meal is enough to restart today's momentum. It usually takes under a minute.",
-      href: "/food-log",
-      cta: "Log Food"
-    };
-  }
-
-  if (input.proteinLeft >= 25 && input.calorieOver <= 150) {
-    return {
-      title: "Add a protein-rich meal.",
-      detail: `You have ${Math.round(input.proteinLeft)}g protein remaining today. One protein-focused choice can close the gap.`,
-      href: "/food-log",
-      cta: "Log Food"
-    };
-  }
-
-  if (input.caloriesLeft >= 450 && input.calorieOver <= 150) {
-    return {
-      title: "Add another balanced meal.",
-      detail: "You're one meal away from today's nutrition goal. Keep it simple and log what you eat.",
-      href: "/food-log",
-      cta: "Log Food"
-    };
-  }
-
-  if (input.waterLeftMl >= 250) {
-    return {
-      title: waterCoachAction(input.waterLeftMl, input.currentHour),
-      detail: "Small water breaks are easier to repeat than forcing a huge amount at once.",
-      href: "/water-log",
-      cta: "Log Water"
-    };
-  }
-
-  if (!input.latestWeightLoggedToday) {
-    return {
-      title: "Record today's weight.",
-      detail: "Small updates create better long-term progress. This takes less than 30 seconds.",
-      href: "/weight-log",
-      cta: "Log Weight"
-    };
-  }
-
-  if (input.completedHabits < input.totalHabits && input.totalHabits > 0) {
-    return {
-      title: "Complete today's habit.",
-      detail: input.currentStreak > 0 ? "One minute now keeps your streak alive." : "One minute now helps build the rhythm.",
-      href: "/habits",
-      cta: "Open Habits"
-    };
-  }
-
-  if (!input.todaysBurnCalories && input.currentHour !== null && input.currentHour >= 16) {
-    return {
-      title: "Log today's activity.",
-      detail: "If you moved today, capture it now so your progress reflects the work.",
-      href: "/burn-log",
-      cta: "Log Activity"
-    };
-  }
-
-  if (input.progressPhotoDue) {
-    return {
-      title: "Capture today's progress.",
-      detail: "Small changes become visible over time. A quick photo helps you compare later.",
-      href: "/progress",
-      cta: "Add Photo"
-    };
-  }
-
-  return {
-    title: "Amazing work.",
-    detail: "You've completed today's priorities. View today's progress when you want the full picture.",
-    href: "/dashboard",
-    cta: "View Progress"
-  };
+function toDnaAction(type: DashboardActionType): "food" | "water" | "weight" | "habit" | "activity" | "progress_photo" {
+  return type === "burn" ? "activity" : type;
 }
 
 export function ClientDashboard() {
@@ -283,7 +143,6 @@ export function ClientDashboard() {
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
-  const [currentHour, setCurrentHour] = useState<number | null>(null);
   const [showProgressDetails, setShowProgressDetails] = useState(false);
   const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
   const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
@@ -476,16 +335,6 @@ export function ClientDashboard() {
   }, [loadDashboard]);
 
   useEffect(() => {
-    function syncClock() {
-      setCurrentHour(new Date().getHours());
-    }
-
-    syncClock();
-    const interval = window.setInterval(syncClock, 60_000);
-    return () => window.clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
     try {
       setShowProgressDetails(window.localStorage.getItem("ascend:client-progress-expanded") === "true");
     } catch {
@@ -526,6 +375,23 @@ export function ClientDashboard() {
     [habitLogs, today]
   );
   const dashboardHabits = habits.slice(0, 3);
+  const habitNameById = useMemo(() => new Map(habits.map((habit) => [habit.id, habit.name])), [habits]);
+  const dnaEvents = useMemo<AscendDnaEvent[]>(
+    () => [
+      ...foodLogs.map((log) => ({ type: "food" as const, occurredAt: log.logged_at })),
+      ...waterLogs.map((log) => ({ type: "water" as const, occurredAt: log.logged_at })),
+      ...weightLogs.map((log) => ({ type: "weight" as const, occurredAt: log.logged_at })),
+      ...burnLogs.map((log) => ({ type: "activity" as const, occurredAt: log.created_at })),
+      ...progressPhotos.map((photo) => ({ type: "progress_photo" as const, occurredAt: photo.logged_at })),
+      ...habitLogs.map((log) => ({
+        type: "habit" as const,
+        occurredAt: log.logged_at,
+        completed: Boolean(log.completed),
+        habitName: habitNameById.get(log.habit_id) ?? null
+      }))
+    ],
+    [burnLogs, foodLogs, habitLogs, habitNameById, progressPhotos, waterLogs, weightLogs]
+  );
   const calories = todaysFood.reduce((total, log) => total + Number(log.calories), 0);
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
   const carbs = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.carbs_g), 0));
@@ -633,9 +499,21 @@ export function ClientDashboard() {
     { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
     { href: "/admin", label: "Admin", selected: false, show: canAdmin }
   ].filter((item) => item.show);
-  const nextAction = nextBestAction({
-    currentHour,
-    todaysFood,
+  const dnaProfile = useMemo(
+    () =>
+      AscendDNAService.buildProfile({
+        now: new Date(),
+        events: dnaEvents,
+        currentStreak,
+        bestStreak: streak?.best ?? currentStreak,
+        momentumScores: momentumScore === null ? [] : [{ score: momentumScore, occurredAt: new Date() }]
+      }),
+    [currentStreak, dnaEvents, momentumScore, streak?.best]
+  );
+  const nextAction = AscendDNAService.getNextBestMove({
+    now: new Date(),
+    dna: dnaProfile,
+    todaysFoodCount: todaysFood.length,
     caloriesLeft,
     calorieOver,
     proteinLeft,
@@ -644,21 +522,11 @@ export function ClientDashboard() {
     totalHabits: habits.length,
     todaysBurnCalories,
     latestWeightLoggedToday,
-    progressPhotoDue,
-    currentStreak
+    progressPhotoDue
   });
-  const recentCelebration = recentAction ? celebrationForAction(recentAction.type) : null;
+  const recentCelebration = recentAction ? AscendDNAService.getCelebration(toDnaAction(recentAction.type)) : null;
   const goalCompletedToday = Boolean(goalStatus?.milestone_id);
-  const greeting =
-    currentHour === null
-      ? "Welcome back"
-      : currentHour < 5
-        ? "Finishing strong"
-        : currentHour < 12
-          ? "Good morning"
-          : currentHour < 18
-            ? "Good afternoon"
-            : "Good evening";
+  const greeting = AscendDNAService.getGreeting(dnaProfile, new Date());
   const todayProgressItems = [
     goalCompletedToday
       ? { label: "Goal", value: "Done", detail: "completed" }

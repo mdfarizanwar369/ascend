@@ -8,6 +8,8 @@ export type SubscriptionProvider = "lemonsqueezy" | "toyyibpay" | "stripe" | "ma
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired";
 export type InstallPlatform = "ios" | "android" | "desktop";
 
+export * from "./ascendDna";
+
 export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {
   const isIpadOs = platform === "MacIntel" && maxTouchPoints > 1;
   if (/iPad|iPhone|iPod/i.test(userAgent) || isIpadOs) return "ios";
