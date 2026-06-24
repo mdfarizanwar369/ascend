@@ -11,6 +11,7 @@ import { withProfilePhotoUrl, withProfilePhotoUrls } from "../services/profilePh
 import { getAdminGymScope } from "../services/adminScopeService";
 import { canManageClient } from "../services/clientAccessService";
 import { getProgressComparison } from "../services/progressComparisonService";
+import { notifyHumanCoachEvent } from "../services/notificationService";
 
 export const trainerRouter = Router();
 
@@ -301,6 +302,7 @@ trainerRouter.post("/trainer/clients/:clientId/praise", requireAuth, requireActi
       req.params.clientId,
       praise.message
     ]);
+    await notifyHumanCoachEvent({ userId: req.params.clientId, event: "praise", senderName: req.user!.email });
 
     res.status(201).json({ recognition: recognitionResult.rows[0], reused: false });
   } catch (error) {

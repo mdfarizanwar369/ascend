@@ -6,6 +6,7 @@ import { Camera, Check, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { InstallAscendButton } from "@/components/InstallAscendButton";
+import { EnableCoachNotificationsButton } from "@/components/EnableCoachNotificationsButton";
 import { getMe, getMySubscription, removeProfilePhoto, saveProfilePhoto } from "@/lib/ascendApi";
 import { compressProfileImage } from "@/lib/profileImage";
 import { usablePlan } from "@/lib/subscriptionPlan";
@@ -141,7 +142,10 @@ export function ProfileClient() {
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <p className="text-sm font-semibold">App settings</p>
           <p className="mt-2 text-sm leading-6 text-zinc-400">Install Ascend on this device for faster access and a full-screen app experience.</p>
-          <div className="mt-4"><InstallAscendButton /></div>
+          <div className="mt-4 space-y-3">
+            <InstallAscendButton />
+            <EnableCoachNotificationsButton />
+          </div>
         </section>
         {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
       </div>

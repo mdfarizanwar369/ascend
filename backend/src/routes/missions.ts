@@ -4,6 +4,7 @@ import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { canManageClient } from "../services/clientAccessService";
+import { notifyHumanCoachEvent } from "../services/notificationService";
 
 export const missionsRouter = Router();
 
@@ -105,6 +106,12 @@ missionsRouter.post(
         `,
         [req.params.clientId, trainerId, req.user!.id, input.title, input.dueDate ?? null]
       );
+      await notifyHumanCoachEvent({
+        userId: req.params.clientId,
+        event: "mission",
+        senderName: req.user!.email,
+        missionTitle: input.title
+      });
       res.status(201).json({ mission: result.rows[0] });
     } catch (error) {
       next(error);

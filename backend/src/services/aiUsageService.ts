@@ -168,7 +168,7 @@ function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePla
     return { period: "day", label: "Premium AI scans today", limit: 5 };
   }
 
-  return { period: "week", label: "Free weekly AI scan", limit: 1 };
+  return { period: "week", label: "Free weekly AI scans", limit: 5 };
 }
 
 export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowance> {

@@ -11,7 +11,7 @@ describe("AI food scan allowance", () => {
     queryMock.mockReset();
   });
 
-  it("gives free clients one weekly scan", async () => {
+  it("gives free clients five weekly scans", async () => {
     queryMock
       .mockResolvedValueOnce({ rows: [{ primary_role: "client", roles: ["client"], active_plan: null }] })
       .mockResolvedValueOnce({ rows: [{ used: "0" }] });
@@ -19,9 +19,9 @@ describe("AI food scan allowance", () => {
     const { getFoodAiAllowance } = await import("../services/aiUsageService");
     await expect(getFoodAiAllowance("00000000-0000-0000-0000-000000000001")).resolves.toMatchObject({
       period: "week",
-      limit: 1,
+      limit: 5,
       used: 0,
-      remaining: 1
+      remaining: 5
     });
   });
 

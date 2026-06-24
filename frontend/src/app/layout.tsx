@@ -3,6 +3,7 @@ import { AuthStateGuard } from "@/components/AuthStateGuard";
 import { CanonicalDomainGuard } from "@/components/CanonicalDomainGuard";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
 import { PwaInstallCoordinator } from "@/components/PwaInstallCoordinator";
+import { CoachNotificationCoordinator } from "@/components/CoachNotificationCoordinator";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthStateGuard />
         <PwaRegistrar />
         <PwaInstallCoordinator />
+        <CoachNotificationCoordinator />
         {children}
       </body>
     </html>

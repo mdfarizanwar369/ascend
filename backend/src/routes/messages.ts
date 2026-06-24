@@ -6,6 +6,7 @@ import { requireActivePlan } from "../middleware/subscription";
 import { getAdminGymScope } from "../services/adminScopeService";
 import { canManageClient } from "../services/clientAccessService";
 import { withProfilePhotoUrls } from "../services/profilePhotoService";
+import { notifyHumanCoachEvent } from "../services/notificationService";
 
 export const messagesRouter = Router();
 
@@ -174,6 +175,7 @@ messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, requireA
       "insert into messages (sender_user_id, receiver_user_id, body) values ($1, $2, $3) returning *",
       [req.user!.id, context.client_user_id, input.body]
     );
+    await notifyHumanCoachEvent({ userId: context.client_user_id, event: "message", senderName: req.user!.email });
     res.status(201).json({ message: result.rows[0] });
   } catch (error) {
     next(error);
@@ -219,6 +221,7 @@ messagesRouter.post("/messages", requireAuth, requireActivePlan("premium"), asyn
       "insert into messages (sender_user_id, receiver_user_id, body) values ($1, $2, $3) returning *",
       [req.user!.id, input.receiverUserId, input.body]
     );
+    await notifyHumanCoachEvent({ userId: input.receiverUserId, event: "message", senderName: req.user!.email });
     res.status(201).json({ message: result.rows[0] });
   } catch (error) {
     next(error);

@@ -978,6 +978,27 @@ export function getAdminNotifications() {
   }>("/admin/notifications");
 }
 
+export function registerNotificationDevice(input: { fcmToken: string; platform: "android" | "ios" | "desktop" | "web" }) {
+  return authed<{ device: { id: string; platform: string; enabled: boolean; last_seen_at: string } }>("/notifications/devices", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function unregisterNotificationDevice(fcmToken: string) {
+  return authed<{ disabled: boolean }>("/notifications/devices", {
+    method: "DELETE",
+    body: JSON.stringify({ fcmToken })
+  });
+}
+
+export function recordNotificationActivity(screenName: string) {
+  return authed<{ recorded: boolean }>("/notifications/activity", {
+    method: "POST",
+    body: JSON.stringify({ screenName })
+  });
+}
+
 export function getGyms() {
   return api<{
     gyms: Array<{
