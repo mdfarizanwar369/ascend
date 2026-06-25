@@ -185,6 +185,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const foodLogsRequestRef = useRef(0);
   const saveLockRef = useRef(false);
+  const userEditedDuringEstimateRef = useRef(false);
 
   async function loadFoodLogs() {
     const requestId = ++foodLogsRequestRef.current;
@@ -283,8 +284,12 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
     setPreviewUrl(URL.createObjectURL(file));
     setSelectedFile(file);
-    setEstimate(null);
+    setEstimate({
+      ...manualEstimate(),
+      notes: "AI is estimating this photo now. You can wait for the estimate or type the meal details manually."
+    });
     setWasEdited(false);
+    userEditedDuringEstimateRef.current = false;
     setAiFailed(false);
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
@@ -295,6 +300,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         return estimateFoodWithRetry(imageDataUrl);
       })
       .then((nextEstimate) => {
+        if (userEditedDuringEstimateRef.current) {
+          setStatus("AI estimate is ready, but Ascend kept your manual edits. Review and save when ready.");
+          return;
+        }
         setEstimate(nextEstimate);
         setAiFailed(false);
         setStatus("AI estimate ready. Review, edit if needed, then save.");
@@ -323,7 +332,15 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     if (!selectedFile) return;
     setIsEstimating(true);
     setAiFailed(false);
-    setEstimate(null);
+    userEditedDuringEstimateRef.current = false;
+    setEstimate((current) =>
+      current
+        ? { ...current, notes: "AI is taking another look. You can still edit the fields manually." }
+        : {
+            ...manualEstimate(),
+            notes: "AI is estimating this photo now. You can wait for the estimate or type the meal details manually."
+          }
+    );
     setStatus("Estimating food, calories, protein, carbs, and fat...");
 
     try {
@@ -348,6 +365,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
   function updateEstimate<K extends keyof FoodEstimate>(key: K, value: FoodEstimate[K]) {
     if (!estimate) return;
+    if (isEstimating) userEditedDuringEstimateRef.current = true;
     setEstimate({ ...estimate, [key]: value });
     setWasEdited(true);
   }

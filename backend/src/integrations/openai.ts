@@ -21,6 +21,7 @@ type GeminiCallOptions = {
   attemptsPerModel?: number;
   timeoutMs?: number;
   responseMimeType?: "application/json" | "text/plain";
+  responseSchema?: Record<string, unknown>;
 };
 
 class GeminiError extends Error {
@@ -183,6 +184,10 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
     generationConfig.responseMimeType = options.responseMimeType;
   }
 
+  if (options.responseSchema) {
+    generationConfig.responseSchema = options.responseSchema;
+  }
+
   try {
     const response = await fetch(`${geminiBaseUrl}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
       method: "POST",
@@ -286,50 +291,48 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
 
 async function estimateFoodWithGemini(imageUrl: string) {
   const imagePart = await urlToGeminiPart(imageUrl);
+  const foodEstimateSchema = {
+    type: "OBJECT",
+    properties: {
+      foodName: { type: "STRING" },
+      confidence: { type: "NUMBER" },
+      calories: { type: "NUMBER" },
+      proteinG: { type: "NUMBER" },
+      carbsG: { type: "NUMBER" },
+      fatG: { type: "NUMBER" },
+      notes: { type: "STRING" }
+    },
+    required: ["foodName", "confidence", "calories", "proteinG", "carbsG", "fatG", "notes"]
+  };
   const parts: GeminiPart[] = [
     imagePart,
     {
       text:
         "You are estimating food for a fitness accountability app. Identify the visible food and portion size from this photo, then estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the image, such as " +
         LOCAL_FOODS.join(", ") +
-        ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, dessert, chicken nuggets, sausage, hot dog, fries, burger, or mixed snack plate. Do not guess a local food unless it visually matches. If there are multiple visible foods, name the main items together, estimate the full visible portion, and mention portion assumptions in notes. Always return your best editable starter estimate for recognizable food; use lower confidence when unsure instead of refusing. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. The user can edit the estimate."
+        ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, dessert, chicken nuggets, sausage, hot dog, fries, burger, nuggets and sausages, fried snacks, or mixed snack plate. Do not guess a local food unless it visually matches. If there are multiple visible foods, name the main visible items together and estimate the full visible portion. Never refuse recognizable food. If unsure, return the most likely editable estimate with lower confidence. Keep notes short and include portion assumptions. Return only JSON with foodName, confidence, calories, proteinG, carbsG, fatG, notes."
     }
   ];
-  const strongerModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"]);
+  const fallbackModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.0-flash"]);
 
-  async function generateEstimate(models: string[], responseMimeType?: "application/json") {
-    const text = await callGeminiWithOptions(parts, 1400, {
+  async function generateEstimate(models: string[], timeoutMs: number) {
+    const text = await callGeminiWithOptions(parts, 750, {
       models,
       attemptsPerModel: 1,
-      timeoutMs: 22_000,
-      responseMimeType
+      timeoutMs,
+      responseMimeType: "application/json",
+      responseSchema: foodEstimateSchema
     });
     return parseFoodEstimate(text);
   }
 
   try {
-    return await generateEstimate([env.GEMINI_MODEL], "application/json");
-  } catch {}
-
-  try {
-    const estimate = await generateEstimate([env.GEMINI_MODEL]);
-    return {
-      ...estimate,
-      notes: `${estimate.notes} Ascend retried the scan with a more flexible response format.`
-    };
-  } catch {}
-
-  try {
-    const estimate = await generateEstimate(strongerModels, "application/json");
-    return {
-      ...estimate,
-      notes: `${estimate.notes} Ascend used a stronger backup AI model because the first scan was unclear.`
-    };
+    return await generateEstimate([env.GEMINI_MODEL], 12_000);
   } catch {
-    const estimate = await generateEstimate(strongerModels);
+    const estimate = await generateEstimate(fallbackModels, 16_000);
     return {
       ...estimate,
-      notes: `${estimate.notes} Ascend used a stronger backup AI model with a flexible response format.`
+      notes: `${estimate.notes} Ascend used a backup scan because the first scan was unclear.`
     };
   }
 }
