@@ -1149,14 +1149,14 @@ export function ClientDashboard() {
               <p className="text-sm font-semibold">Latest meals</p>
               <p className="mt-1 text-sm text-zinc-400">A quick preview of today&apos;s food context.</p>
             </div>
-            <a href="/food-log" className="text-sm font-semibold text-lime">
+            <a href="/food-log?view=history" className="text-sm font-semibold text-lime">
               View All Meals ({foodLogs.length})
             </a>
           </div>
           <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
             {latestMealsPreview.length ? (
               latestMealsPreview.map((log) => (
-                <a key={log.id} href="/food-log" className="w-44 shrink-0 rounded-lg bg-ink p-3">
+                <a key={log.id} href="/food-log?view=history" className="w-44 shrink-0 rounded-lg bg-ink p-3">
                   <div className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-surface">
                     {log.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element

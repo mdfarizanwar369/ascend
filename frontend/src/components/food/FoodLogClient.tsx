@@ -154,7 +154,19 @@ function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculat
   };
 }
 
-export function FoodLogClient() {
+function formatLogDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date);
+}
+
+function formatLogTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "history" }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
@@ -168,6 +180,7 @@ export function FoodLogClient() {
   const [wasEdited, setWasEdited] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
+  const [view, setView] = useState<"log" | "history">(initialView);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const foodLogsRequestRef = useRef(0);
@@ -422,9 +435,26 @@ export function FoodLogClient() {
           <BackButton fallbackHref="/dashboard" disabled={isSaving} />
           <div>
             <p className="text-sm text-zinc-400">Food photo AI</p>
-            <h1 className="text-2xl font-semibold">Snap, review, save</h1>
+            <h1 className="text-2xl font-semibold">{view === "history" ? "All meals" : "Snap, review, save"}</h1>
           </div>
         </header>
+
+        <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface p-1">
+          <button
+            type="button"
+            onClick={() => setView("log")}
+            className={`h-10 rounded-md text-sm font-semibold ${view === "log" ? "bg-lime text-ink" : "text-zinc-300"}`}
+          >
+            Log Food
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("history")}
+            className={`h-10 rounded-md text-sm font-semibold ${view === "history" ? "bg-lime text-ink" : "text-zinc-300"}`}
+          >
+            Meal History
+          </button>
+        </div>
 
         <section className="mt-3 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
@@ -487,6 +517,59 @@ export function FoodLogClient() {
           ) : null}
         </section>
 
+        {view === "history" ? (
+          <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">All meal logs</h2>
+                <p className="mt-1 text-sm text-zinc-400">{foodLogs.length ? `${foodLogs.length} meals saved` : "No saved meals yet"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setView("log")}
+                className="rounded-lg bg-lime px-3 py-2 text-sm font-semibold text-ink"
+              >
+                Add meal
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {foodLogs.map((log) => (
+                <article key={log.id} className="rounded-lg bg-ink p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {log.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                      ) : (
+                        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-surface text-xs text-zinc-500">No photo</div>
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{log.estimated_food_name}</p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          {formatLogDate(log.logged_at)} at {formatLogTime(log.logged_at)}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-400">
+                          P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F {Math.round(Number(log.fat_g))}g
+                        </p>
+                      </div>
+                    </div>
+                    <p className="shrink-0 text-sm font-semibold">{Number(log.calories).toLocaleString()} kcal</p>
+                  </div>
+                </article>
+              ))}
+              {!foodLogs.length ? (
+                <button
+                  type="button"
+                  onClick={() => setView("log")}
+                  className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+                >
+                  Log your first meal
+                </button>
+              ) : null}
+            </div>
+          </section>
+        ) : (
+          <>
         <section className="mt-3 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -675,6 +758,8 @@ export function FoodLogClient() {
               </button>
             </div>
           </form>
+        )}
+          </>
         )}
       </div>
     </main>
