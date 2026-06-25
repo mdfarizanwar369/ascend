@@ -41,6 +41,21 @@ describe("NotificationEngine", () => {
     expect(selected).toBeNull();
   });
 
+  it("notifies clients when a coach updates nutrition targets", () => {
+    const selected = NotificationEngine.select({
+      now: "2026-06-24T23:30:00+08:00",
+      dna,
+      openedToday: true,
+      prioritiesComplete: true,
+      sentToday: { coaching: false, celebration: false, trainerMessage: false },
+      trainerEvent: { type: "nutrition_plan", senderName: "Jason" }
+    });
+
+    expect(selected?.type).toBe("trainer_nutrition_plan");
+    expect(selected?.title).toContain("nutrition targets");
+    expect(selected?.bypassQuietHours).toBe(true);
+  });
+
   it("does not coach if the user already opened today", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T19:00:00+08:00",

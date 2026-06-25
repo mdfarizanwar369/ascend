@@ -11,10 +11,12 @@ import {
   getTrainerClientFoodLogs,
   getTrainerClientMissions,
   getTrainerClientMessages,
+  getTrainerClientNutritionPlan,
   getTrainerClientProgressPhotos,
   getTrainerClientProgressComparison,
   getTrainerClientWaterLogs,
   getTrainerClientWeightLogs,
+  saveTrainerClientNutritionPlan,
   sendTrainerClientPraise,
   sendTrainerClientMessage
 } from "@/lib/ascendApi";
@@ -33,6 +35,7 @@ type WeightLog = Awaited<ReturnType<typeof getTrainerClientWeightLogs>>["weightL
 type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs"][number];
 type Mission = Awaited<ReturnType<typeof getTrainerClientMissions>>["missions"][number];
 type ProgressComparison = Awaited<ReturnType<typeof getTrainerClientProgressComparison>>["comparison"];
+type CoachNutritionPlan = Awaited<ReturnType<typeof getTrainerClientNutritionPlan>>["coachPlan"];
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -56,6 +59,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
+  const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
+  const [nutritionCalories, setNutritionCalories] = useState("");
+  const [nutritionProtein, setNutritionProtein] = useState("");
+  const [nutritionCarbs, setNutritionCarbs] = useState("");
+  const [nutritionFat, setNutritionFat] = useState("");
+  const [nutritionLabel, setNutritionLabel] = useState("");
+  const [nutritionNote, setNutritionNote] = useState("");
+  const [nutritionStatus, setNutritionStatus] = useState("");
   const [missionTitle, setMissionTitle] = useState("");
   const [missionDueDate, setMissionDueDate] = useState("");
   const [checkin, setCheckin] = useState("");
@@ -64,6 +75,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isSavingMission, setIsSavingMission] = useState(false);
   const [isSendingPraise, setIsSendingPraise] = useState(false);
+  const [isSavingNutrition, setIsSavingNutrition] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -76,14 +88,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         setClient(profile.client);
         setStatus("");
 
-        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison] = await Promise.allSettled([
+        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison, nutritionPlan] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
           getTrainerClientWeightLogs(clientId),
           getTrainerClientWaterLogs(clientId),
           getTrainerClientMissions(clientId),
-          getTrainerClientProgressComparison(clientId)
+          getTrainerClientProgressComparison(clientId),
+          getTrainerClientNutritionPlan(clientId)
         ]);
 
         if (!isMounted) return;
@@ -94,6 +107,18 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         if (waters.status === "fulfilled") setWaterLogs(waters.value.waterLogs);
         if (nextMissions.status === "fulfilled") setMissions(nextMissions.value.missions);
         if (comparison.status === "fulfilled") setProgressComparison(comparison.value.comparison);
+        if (nutritionPlan.status === "fulfilled") {
+          const plan = nutritionPlan.value.coachPlan;
+          setCoachNutritionPlan(plan);
+          if (plan) {
+            setNutritionCalories(String(plan.calories));
+            setNutritionProtein(String(plan.protein_g));
+            setNutritionCarbs(String(plan.carbs_g));
+            setNutritionFat(String(plan.fat_g));
+            setNutritionLabel(plan.plan_label ?? "");
+            setNutritionNote(plan.coach_note ?? "");
+          }
+        }
 
         if ([foods, nextMessages, progress, weights, waters, nextMissions].some((result) => result.status === "rejected")) {
           setStatus("Some client sections could not load yet. The main client profile is still available.");
@@ -139,6 +164,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ? client.activity_level
         : "moderate"
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
+
+  useEffect(() => {
+    if (coachNutritionPlan) return;
+    if (nutritionCalories || nutritionProtein || nutritionCarbs || nutritionFat) return;
+    setNutritionCalories(String(nutritionTargets.calorieTarget));
+    setNutritionProtein(String(nutritionTargets.proteinTargetG));
+    setNutritionCarbs(String(nutritionTargets.carbsTargetG));
+    setNutritionFat(String(nutritionTargets.fatTargetG));
+  }, [coachNutritionPlan, nutritionCalories, nutritionProtein, nutritionCarbs, nutritionFat, nutritionTargets]);
 
   async function generateCheckin() {
     setIsGenerating(true);
@@ -211,6 +245,38 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       setStatus("Could not send praise yet. Make sure this client is assigned to this trainer.");
     } finally {
       setIsSendingPraise(false);
+    }
+  }
+
+  async function handleSaveNutritionPlan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const calories = Number(nutritionCalories);
+    const proteinG = Number(nutritionProtein);
+    const carbsG = Number(nutritionCarbs);
+    const fatG = Number(nutritionFat);
+
+    if (![calories, proteinG, carbsG, fatG].every((value) => Number.isFinite(value) && value >= 0)) {
+      setNutritionStatus("Enter valid numbers for calories, protein, carbs, and fat.");
+      return;
+    }
+
+    setIsSavingNutrition(true);
+    setNutritionStatus("Saving coach plan...");
+    try {
+      const response = await saveTrainerClientNutritionPlan(clientId, {
+        calories,
+        proteinG,
+        carbsG,
+        fatG,
+        planLabel: nutritionLabel || null,
+        coachNote: nutritionNote || null
+      });
+      setCoachNutritionPlan(response.coachPlan);
+      setNutritionStatus("Coach Plan saved. The client will be notified.");
+    } catch (error) {
+      setNutritionStatus(error instanceof Error ? error.message : "Could not save Coach Plan.");
+    } finally {
+      setIsSavingNutrition(false);
     }
   }
 
@@ -318,6 +384,75 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-calm">Customize Nutrition Plan</p>
+            <h2 className="mt-1 text-lg font-semibold">Coach Plan</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              Ascend keeps its recommendation in the background. Saving a Coach Plan makes the client dashboard follow your targets.
+            </p>
+          </div>
+          <span className="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-calm">
+            {coachNutritionPlan ? "Active" : "Optional"}
+          </span>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-line bg-ink p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Ascend Recommendation</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">
+            {nutritionTargets.calorieTarget.toLocaleString()} kcal / Protein {nutritionTargets.proteinTargetG}g / Carbs {nutritionTargets.carbsTargetG}g / Fat {nutritionTargets.fatTargetG}g
+          </p>
+        </div>
+
+        <form onSubmit={handleSaveNutritionPlan} className="mt-4 space-y-3">
+          <input
+            value={nutritionLabel}
+            onChange={(event) => setNutritionLabel(event.target.value)}
+            placeholder="Plan label, e.g. Fat Loss Phase"
+            maxLength={80}
+            className="h-12 w-full rounded-lg border border-line bg-ink px-3 text-sm outline-none focus:border-lime"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <label className="grid gap-1 text-sm font-medium text-zinc-300">
+              Calories
+              <input value={nutritionCalories} onChange={(event) => setNutritionCalories(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-300">
+              Protein
+              <input value={nutritionProtein} onChange={(event) => setNutritionProtein(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-300">
+              Carbohydrates
+              <input value={nutritionCarbs} onChange={(event) => setNutritionCarbs(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-300">
+              Fat
+              <input value={nutritionFat} onChange={(event) => setNutritionFat(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+            </label>
+          </div>
+          <textarea
+            value={nutritionNote}
+            onChange={(event) => setNutritionNote(event.target.value)}
+            rows={3}
+            maxLength={800}
+            placeholder="Optional coach note, e.g. Lean bulk, contest preparation, medical clearance received, custom goal."
+            className="min-h-24 w-full resize-none rounded-lg border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
+          />
+          <button
+            type="submit"
+            disabled={isSavingNutrition}
+            className="h-12 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+          >
+            {isSavingNutrition ? "Saving..." : "Save Changes"}
+          </button>
+        </form>
+        {coachNutritionPlan?.updated_at ? (
+          <p className="mt-3 text-xs text-zinc-500">Last updated {new Date(coachNutritionPlan.updated_at).toLocaleString()}</p>
+        ) : null}
+        {nutritionStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300">{nutritionStatus}</p> : null}
       </section>
 
       <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">

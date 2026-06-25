@@ -13,6 +13,7 @@ import {
   getLatestRecognition,
   getMe,
   getMyProgressComparison,
+  getMyNutritionPlan,
   getGoalStatus,
   getMyStreak,
   getMySubscription,
@@ -42,6 +43,7 @@ type Streak = Awaited<ReturnType<typeof getMyStreak>>["streak"];
 type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
+type CoachNutritionPlan = Awaited<ReturnType<typeof getMyNutritionPlan>>["coachPlan"];
 
 const goalCelebrationMessages = [
   "This is what consistency looks like.",
@@ -117,6 +119,12 @@ function toDnaAction(type: DashboardActionType): "food" | "water" | "weight" | "
   return type === "burn" ? "activity" : type;
 }
 
+function formatMealTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+}
+
 export function ClientDashboard() {
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -131,6 +139,7 @@ export function ClientDashboard() {
   const [goalStatus, setGoalStatus] = useState<GoalStatus | null>(null);
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
+  const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -176,7 +185,7 @@ export function ClientDashboard() {
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -188,7 +197,8 @@ export function ClientDashboard() {
         getLatestRecognition(),
         getMyStreak(),
         getGoalStatus(),
-        getProgressPhotos()
+        getProgressPhotos(),
+        getMyNutritionPlan()
       ]);
 
       if (requestId !== dashboardRequestRef.current) return;
@@ -240,6 +250,7 @@ export function ClientDashboard() {
       if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
       if (nextGoalStatus.status === "fulfilled") setGoalStatus(nextGoalStatus.value.goalStatus);
       if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
+      if (nutritionPlan.status === "fulfilled") setCoachNutritionPlan(nutritionPlan.value.coachPlan);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -359,7 +370,7 @@ export function ClientDashboard() {
   const todaysBurnCalories = burnLogs
     .filter((log) => localDateKey(log.created_at) === today)
     .reduce((total, log) => total + Number(log.metadata?.caloriesBurned ?? 0), 0);
-  const latestFood = foodLogs[0];
+  const latestMealsPreview = foodLogs.slice(0, 3);
   const latestWeight = weightLogs[0];
   const previousWeight = weightLogs[1];
   const latestWeightLoggedToday = latestWeight ? localDateKey(latestWeight.logged_at) === today : false;
@@ -408,10 +419,13 @@ export function ClientDashboard() {
         ? user.activity_level
         : "moderate"
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
-  const calorieTarget = nutritionTargets.calorieTarget;
-  const proteinTarget = nutritionTargets.proteinTargetG;
-  const carbsTarget = nutritionTargets.carbsTargetG;
-  const fatTarget = nutritionTargets.fatTargetG;
+  const hasCoachNutritionPlan = Boolean(coachNutritionPlan);
+  const calorieTarget = coachNutritionPlan?.calories ?? nutritionTargets.calorieTarget;
+  const proteinTarget = coachNutritionPlan?.protein_g ?? nutritionTargets.proteinTargetG;
+  const carbsTarget = coachNutritionPlan?.carbs_g ?? nutritionTargets.carbsTargetG;
+  const fatTarget = coachNutritionPlan?.fat_g ?? nutritionTargets.fatTargetG;
+  const nutritionSourceLabel = hasCoachNutritionPlan ? "Coach Plan" : "Ascend Recommendation";
+  const nutritionSourceTone = hasCoachNutritionPlan ? "text-calm" : "text-lime";
   const caloriesLeft = Math.max(calorieTarget - calories, 0);
   const calorieOver = Math.max(calories - calorieTarget, 0);
   const proteinLeft = Math.max(proteinTarget - protein, 0);
@@ -991,15 +1005,37 @@ export function ClientDashboard() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">Today&apos;s nutrition guide</h2>
-              <p className="mt-1 text-sm leading-6 text-zinc-400">
-                {nutritionTargets.explanation} {nutritionTargets.adaptationReason ?? (nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule.")}
+              <p className={`mt-1 text-xs font-bold uppercase tracking-[0.16em] ${nutritionSourceTone}`}>
+                {nutritionSourceLabel}
               </p>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">
+                {hasCoachNutritionPlan
+                  ? "Your trainer customised these targets for your current phase."
+                  : `${nutritionTargets.explanation} ${nutritionTargets.adaptationReason ?? (nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule.")}`}
+              </p>
+              {coachNutritionPlan?.updated_by_name ? (
+                <p className="mt-2 text-xs text-zinc-500">
+                  Last updated by {coachNutritionPlan.updated_by_name} on {new Date(coachNutritionPlan.updated_at).toLocaleDateString()}.
+                </p>
+              ) : null}
             </div>
             <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{calorieTarget.toLocaleString()} kcal</span>
           </div>
-          <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink text-sm font-semibold text-lime">
-            Review goal and daily guide
-          </a>
+          {coachNutritionPlan?.coach_note ? (
+            <div className="mt-4 rounded-lg border border-calm/30 bg-calm/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-calm">Coach note</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-200">{coachNutritionPlan.coach_note}</p>
+            </div>
+          ) : null}
+          {hasCoachNutritionPlan ? (
+            <div className="mt-4 rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-400">
+              Ascend still keeps an automatic recommendation in the background. Your dashboard follows your Coach Plan until your trainer updates it.
+            </div>
+          ) : (
+            <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink text-sm font-semibold text-lime">
+              Review goal and daily guide
+            </a>
+          )}
 
           <div className="mt-4 space-y-4">
             <div>
@@ -1107,14 +1143,42 @@ export function ClientDashboard() {
           </div>
         </section>
 
-        <a href="/food-log" className="mt-4 block rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">Latest food log</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">
-            {latestFood
-              ? `${latestFood.estimated_food_name}: ${latestFood.calories} kcal, ${Math.round(asNumber(latestFood.protein_g))}g protein.`
-              : "Snap a food photo to estimate calories, protein, carbs, and fat."}
-          </p>
-        </a>
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Latest meals</p>
+              <p className="mt-1 text-sm text-zinc-400">A quick preview of today&apos;s food context.</p>
+            </div>
+            <a href="/food-log" className="text-sm font-semibold text-lime">
+              View All Meals ({foodLogs.length})
+            </a>
+          </div>
+          <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+            {latestMealsPreview.length ? (
+              latestMealsPreview.map((log) => (
+                <a key={log.id} href="/food-log" className="w-44 shrink-0 rounded-lg bg-ink p-3">
+                  <div className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-surface">
+                    {log.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={log.image_url} alt={log.estimated_food_name} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xs text-zinc-500">No photo</span>
+                    )}
+                  </div>
+                  <p className="mt-3 truncate text-sm font-semibold">{log.estimated_food_name}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-xs text-zinc-400">
+                    <span>{Number(log.calories).toLocaleString()} kcal</span>
+                    <span>{formatMealTime(log.logged_at)}</span>
+                  </div>
+                </a>
+              ))
+            ) : (
+              <a href="/food-log" className="block w-full rounded-lg bg-ink p-4 text-sm leading-6 text-zinc-400">
+                Snap a food photo to estimate calories, protein, carbs, and fat.
+              </a>
+            )}
+          </div>
+        </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center justify-between gap-3">

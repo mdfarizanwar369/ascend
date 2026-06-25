@@ -171,7 +171,7 @@ export async function sendNotificationToUser(userId: string, candidate: Notifica
 
 export async function notifyHumanCoachEvent(input: {
   userId: string;
-  event: "message" | "praise" | "mission";
+  event: "message" | "praise" | "mission" | "nutrition_plan";
   senderName?: string | null;
   missionTitle?: string | null;
 }) {
@@ -237,7 +237,7 @@ export async function runCoachNotificationJob(limit = 500) {
         select
           count(*) filter (where notification_type in ('next_best_move', 'weekly_reflection')) as coaching,
           count(*) filter (where notification_type = 'celebration') as celebration,
-          count(*) filter (where notification_type in ('trainer_message', 'trainer_praise', 'trainer_mission')) as trainer_message
+          count(*) filter (where notification_type in ('trainer_message', 'trainer_praise', 'trainer_mission', 'trainer_nutrition_plan')) as trainer_message
         from notification_events
         where user_id = $1 and created_at >= current_date
         `,

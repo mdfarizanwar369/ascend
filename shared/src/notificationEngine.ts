@@ -5,6 +5,7 @@ export type NotificationType =
   | "trainer_message"
   | "trainer_praise"
   | "trainer_mission"
+  | "trainer_nutrition_plan"
   | "celebration"
   | "weekly_reflection"
   | "next_best_move";
@@ -37,7 +38,7 @@ export interface NotificationEngineInput {
     href: string;
   } | null;
   trainerEvent?: {
-    type: "message" | "praise" | "mission";
+    type: "message" | "praise" | "mission" | "nutrition_plan";
     senderName?: string | null;
     missionTitle?: string | null;
   } | null;
@@ -121,6 +122,19 @@ function trainerCandidate(input: NotificationEngineInput, todayKey: string): Not
       href: "/dashboard",
       tag: "ascend-trainer",
       dedupeKey: `trainer:mission:${todayKey}`,
+      bypassQuietHours: true
+    };
+  }
+
+  if (input.trainerEvent.type === "nutrition_plan") {
+    return {
+      type: "trainer_nutrition_plan",
+      priority: 1,
+      title: "Your coach updated your nutrition targets.",
+      body: "View your new plan in Ascend.",
+      href: "/dashboard",
+      tag: "ascend-trainer",
+      dedupeKey: `trainer:nutrition-plan:${todayKey}`,
       bypassQuietHours: true
     };
   }

@@ -509,8 +509,62 @@ export function getMySubscription() {
   }>("/subscriptions/me");
 }
 
+export type CoachNutritionPlan = {
+  id: string;
+  user_id: string;
+  status: "active" | "archived" | string;
+  plan_label?: string | null;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  coach_note?: string | null;
+  phase_type?: string | null;
+  schedule_type?: string | null;
+  metadata?: Record<string, unknown> | null;
+  updated_at: string;
+  created_at: string;
+  updated_by_name?: string | null;
+};
+
+export function getMyNutritionPlan() {
+  return authed<{ coachPlan: CoachNutritionPlan | null }>("/me/nutrition-plan");
+}
+
+export function getTrainerClientNutritionPlan(clientId: string) {
+  return authed<{ coachPlan: CoachNutritionPlan | null }>(`/trainer/clients/${clientId}/nutrition-plan`);
+}
+
+export function saveTrainerClientNutritionPlan(clientId: string, input: {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  coachNote?: string | null;
+  planLabel?: string | null;
+}) {
+  return authed<{ coachPlan: CoachNutritionPlan }>(`/trainer/clients/${clientId}/nutrition-plan`, {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+}
+
 export function getBillingPortal() {
   return authed<{ url: string }>("/subscriptions/billing-portal");
+}
+
+export function cancelSubscription() {
+  return authed<{
+    subscription: {
+      id: string;
+      plan: SubscriptionPlan;
+      provider: string;
+      status: string;
+      current_period_end?: string | null;
+    } | null;
+  }>("/subscriptions/cancel", {
+    method: "POST"
+  });
 }
 
 export function activatePilotSubscription(plan: Exclude<SubscriptionPlan, "free">) {

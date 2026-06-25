@@ -2,37 +2,59 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { Camera, Check, Trash2 } from "lucide-react";
+import { Camera, Check, CreditCard, ExternalLink, Trash2, XCircle } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { InstallAscendButton } from "@/components/InstallAscendButton";
 import { EnableCoachNotificationsButton } from "@/components/EnableCoachNotificationsButton";
-import { getMe, getMySubscription, removeProfilePhoto, saveProfilePhoto } from "@/lib/ascendApi";
+import { cancelSubscription, getBillingPortal, getMe, getMySubscription, removeProfilePhoto, saveProfilePhoto } from "@/lib/ascendApi";
 import { compressProfileImage } from "@/lib/profileImage";
-import { usablePlan } from "@/lib/subscriptionPlan";
+import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function formatBillingDate(value: string | null | undefined) {
+  if (!value) return "Not scheduled";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not scheduled";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
 export function ProfileClient() {
   const [user, setUser] = useState<Awaited<ReturnType<typeof getMe>>["user"] | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
+  const [rawPlan, setRawPlan] = useState<"free" | "premium" | "trainer_pro">("free");
+  const [subscriptionProvider, setSubscriptionProvider] = useState<string | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState("active");
+  const [renewalDate, setRenewalDate] = useState<string | null>(null);
   const [preview, setPreview] = useState("");
   const [compressed, setCompressed] = useState("");
   const [compressionLabel, setCompressionLabel] = useState("");
   const [status, setStatus] = useState("Loading profile...");
+  const [billingStatus, setBillingStatus] = useState("");
   const [isWorking, setIsWorking] = useState(false);
+  const [isBillingWorking, setIsBillingWorking] = useState(false);
+
+  async function loadProfile() {
+    const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
+    setUser(me.user);
+    setRoles(me.roles);
+    setRawPlan(subscription.subscription.plan);
+    setPlan(usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end));
+    setSubscriptionProvider(subscription.subscription.provider ?? null);
+    setSubscriptionStatus(subscription.subscription.status);
+    setRenewalDate(subscription.subscription.current_period_end ?? null);
+    return [me, subscription] as const;
+  }
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([getMe(), getMySubscription()])
-      .then(([me, subscription]) => {
+    loadProfile()
+      .then(() => {
         if (!mounted) return;
-        setUser(me.user);
-        setRoles(me.roles);
-        setPlan(usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end));
         setStatus("");
       })
       .catch((error) => mounted && setStatus(error instanceof Error ? error.message : "Could not load your profile."));
@@ -42,6 +64,10 @@ export function ProfileClient() {
   const canUpload = roles.some((role) => role === "owner" || role === "admin") || plan === "premium" || plan === "trainer_pro";
   const backHref = roles.some((role) => role === "owner" || role === "admin") ? "/admin" : roles.includes("trainer") ? "/trainer" : "/dashboard";
   const shownPhoto = preview || user?.profile_photo_url || null;
+  const hasHostedBilling = subscriptionProvider === "stripe" || subscriptionProvider === "lemonsqueezy";
+  const hasPaidPlan = plan !== "free" || rawPlan !== "free";
+  const isCancelled = subscriptionStatus === "canceled";
+  const renewalLabel = isCancelled ? "Access ends" : "Renewal date";
 
   async function selectPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -100,6 +126,36 @@ export function ProfileClient() {
     }
   }
 
+  async function openBillingPortal(action: "manage" | "cancel") {
+    if (isBillingWorking) return;
+    setIsBillingWorking(true);
+    setBillingStatus(action === "cancel" ? "Opening cancellation options..." : "Opening subscription management...");
+    try {
+      const response = await getBillingPortal();
+      window.location.href = response.url;
+    } catch (error) {
+      setBillingStatus(error instanceof Error ? error.message : "Could not open subscription management.");
+      setIsBillingWorking(false);
+    }
+  }
+
+  async function cancelManualSubscription() {
+    if (isBillingWorking) return;
+    const confirmed = window.confirm("Cancel this subscription? Future renewals will stop. Access normally continues until the end of the current period.");
+    if (!confirmed) return;
+    setIsBillingWorking(true);
+    setBillingStatus("Cancelling subscription...");
+    try {
+      await cancelSubscription();
+      await loadProfile();
+      setBillingStatus("Subscription cancelled. Future renewals have been stopped.");
+    } catch (error) {
+      setBillingStatus(error instanceof Error ? error.message : "Could not cancel this subscription.");
+    } finally {
+      setIsBillingWorking(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto w-full max-w-md">
@@ -138,6 +194,72 @@ export function ProfileClient() {
               <Link href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">View plans</Link>
             </div>
           )}
+        </section>
+
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Subscription</p>
+              <p className="mt-1 text-sm text-zinc-400">Plan, renewal, and cancellation controls.</p>
+            </div>
+            <CreditCard className="text-calm" size={21} />
+          </div>
+          <div className="mt-4 grid gap-3">
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Current plan</p>
+              <p className="mt-1 text-lg font-semibold">{formatPlan(plan)}</p>
+              <p className="mt-1 text-xs text-zinc-500">Status: {subscriptionStatus.replace(/_/g, " ")}</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">{renewalLabel}</p>
+              <p className="mt-1 text-lg font-semibold">{hasPaidPlan ? formatBillingDate(renewalDate) : "No paid renewal"}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3">
+            <Link href="/subscription" className="flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200">
+              View plans
+            </Link>
+            {hasPaidPlan ? (
+              <>
+                {hasHostedBilling ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openBillingPortal("manage")}
+                      disabled={isBillingWorking}
+                      className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+                    >
+                      <ExternalLink className="mr-2" size={18} />
+                      Manage Subscription
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openBillingPortal("cancel")}
+                      disabled={isBillingWorking || isCancelled}
+                      className="flex h-11 items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
+                    >
+                      <XCircle className="mr-2" size={18} />
+                      {isCancelled ? "Cancellation Scheduled" : "Cancel Subscription"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={cancelManualSubscription}
+                    disabled={isBillingWorking || isCancelled}
+                    className="flex h-11 items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
+                  >
+                    <XCircle className="mr-2" size={18} />
+                    {isCancelled ? "Cancellation Scheduled" : "Cancel Subscription"}
+                  </button>
+                )}
+              </>
+            ) : null}
+          </div>
+          {billingStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">{billingStatus}</p> : null}
+          <p className="mt-3 text-xs leading-5 text-zinc-500">
+            Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions.
+          </p>
         </section>
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <p className="text-sm font-semibold">App settings</p>

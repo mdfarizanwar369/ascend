@@ -15,6 +15,15 @@ import { notifyHumanCoachEvent } from "../services/notificationService";
 
 export const trainerRouter = Router();
 
+const nutritionPlanSchema = z.object({
+  calories: z.coerce.number().int().min(800).max(8000),
+  proteinG: z.coerce.number().int().min(0).max(500),
+  carbsG: z.coerce.number().int().min(0).max(1000),
+  fatG: z.coerce.number().int().min(0).max(400),
+  coachNote: z.string().trim().max(800).optional().nullable(),
+  planLabel: z.string().trim().max(80).optional().nullable()
+});
+
 async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(rows: T[]) {
   return Promise.all(
     rows.map(async (row) => ({
@@ -263,6 +272,25 @@ trainerRouter.get("/recognitions/latest", requireAuth, async (req, res, next) =>
   }
 });
 
+trainerRouter.get("/me/nutrition-plan", requireAuth, async (req, res, next) => {
+  try {
+    const result = await query(
+      `
+      select cnp.*, updater.full_name as updated_by_name
+      from coach_nutrition_plans cnp
+      left join users updater on updater.id = cnp.updated_by_user_id
+      where cnp.user_id = $1 and cnp.status = 'active'
+      order by cnp.updated_at desc
+      limit 1
+      `,
+      [req.user!.id]
+    );
+    res.json({ coachPlan: result.rows[0] ?? null });
+  } catch (error) {
+    next(error);
+  }
+});
+
 trainerRouter.post("/trainer/clients/:clientId/praise", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
     const allowed = await canManageClient(req.user!, req.params.clientId);
@@ -454,6 +482,81 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
 
     if (!result.rows[0]) return res.status(404).json({ error: "Client not found" });
     res.json({ client: await withProfilePhotoUrl(result.rows[0]) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.get("/trainer/clients/:clientId/nutrition-plan", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    const result = await query(
+      `
+      select cnp.*, updater.full_name as updated_by_name
+      from coach_nutrition_plans cnp
+      left join users updater on updater.id = cnp.updated_by_user_id
+      where cnp.user_id = $1 and cnp.status = 'active'
+      order by cnp.updated_at desc
+      limit 1
+      `,
+      [req.params.clientId]
+    );
+    res.json({ coachPlan: result.rows[0] ?? null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.put("/trainer/clients/:clientId/nutrition-plan", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    const canEditAsTrainer =
+      req.user!.roles.includes("admin") ||
+      (req.user!.roles.includes("trainer") && Boolean(req.user!.trainerId));
+    if (!canEditAsTrainer) {
+      return res.status(403).json({ error: "Trainer-level access is required to edit coach nutrition plans." });
+    }
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+
+    const input = nutritionPlanSchema.parse(req.body);
+    const result = await query(
+      `
+      insert into coach_nutrition_plans (
+        user_id, calories, protein_g, carbs_g, fat_g, coach_note, plan_label,
+        phase_type, schedule_type, metadata, created_by_user_id, updated_by_user_id
+      )
+      values ($1, $2, $3, $4, $5, $6, $7, $7, 'everyday', '{}'::jsonb, $8, $8)
+      on conflict (user_id) where status = 'active'
+      do update set
+        calories = excluded.calories,
+        protein_g = excluded.protein_g,
+        carbs_g = excluded.carbs_g,
+        fat_g = excluded.fat_g,
+        coach_note = excluded.coach_note,
+        plan_label = excluded.plan_label,
+        phase_type = excluded.phase_type,
+        updated_by_user_id = excluded.updated_by_user_id,
+        updated_at = now()
+      returning *
+      `,
+      [
+        req.params.clientId,
+        input.calories,
+        input.proteinG,
+        input.carbsG,
+        input.fatG,
+        input.coachNote || null,
+        input.planLabel || null,
+        req.user!.id
+      ]
+    );
+
+    await notifyHumanCoachEvent({
+      userId: req.params.clientId,
+      event: "nutrition_plan",
+      senderName: req.user!.email
+    });
+
+    res.json({ coachPlan: result.rows[0] });
   } catch (error) {
     next(error);
   }

@@ -168,6 +168,8 @@ export function FoodLogClient() {
   const [wasEdited, setWasEdited] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const foodLogsRequestRef = useRef(0);
   const saveLockRef = useRef(false);
 
@@ -263,6 +265,7 @@ export function FoodLogClient() {
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
 
     setPreviewUrl(URL.createObjectURL(file));
@@ -291,6 +294,16 @@ export function FoodLogClient() {
         loadAllowance().catch(() => {});
       })
       .finally(() => setIsEstimating(false));
+  }
+
+  function openCameraPicker() {
+    if (isEstimating || isSaving) return;
+    cameraInputRef.current?.click();
+  }
+
+  function openGalleryPicker() {
+    if (isEstimating || isSaving) return;
+    galleryInputRef.current?.click();
   }
 
   async function handleEstimate() {
@@ -492,23 +505,78 @@ export function FoodLogClient() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={previewUrl} alt="Selected food" className="h-full w-full object-cover" />
           ) : (
-            <label className="grid h-full w-full cursor-pointer place-items-center text-center">
-              <input accept="image/*" className="hidden" type="file" onChange={handleFileChange} />
-              <span>
+            <div className="grid h-full w-full place-items-center p-5 text-center">
+              <div className="w-full">
                 <Camera className="mx-auto text-lime" size={36} />
                 <span className="mt-3 block text-sm font-semibold text-zinc-200">Tap to add a meal photo</span>
                 <span className="mt-1 block text-xs text-zinc-500">Ascend estimates calories and macros automatically.</span>
-              </span>
-            </label>
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={openCameraPicker}
+                    disabled={isEstimating || isSaving}
+                    className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+                  >
+                    <Camera className="mr-2" size={18} />
+                    Take photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openGalleryPicker}
+                    disabled={isEstimating || isSaving}
+                    className="flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white disabled:opacity-60"
+                  >
+                    <ImagePlus className="mr-2" size={18} />
+                    Choose from gallery
+                  </button>
+                </div>
+                <p className="mt-3 text-[11px] leading-5 text-zinc-500">
+                  If camera capture is not supported on this browser, Ascend will open your photo library instead.
+                </p>
+              </div>
+            </div>
           )}
         </section>
 
+        <input
+          ref={cameraInputRef}
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          type="file"
+          onChange={handleFileChange}
+          disabled={isEstimating || isSaving}
+        />
+        <input
+          ref={galleryInputRef}
+          accept="image/*"
+          className="hidden"
+          type="file"
+          onChange={handleFileChange}
+          disabled={isEstimating || isSaving}
+        />
+
         {previewUrl ? (
-          <label className="mt-3 flex h-11 cursor-pointer items-center justify-center rounded-lg border border-line bg-surface text-sm font-medium">
-            <ImagePlus className="mr-2" size={18} />
-            Change photo
-            <input accept="image/*" className="hidden" type="file" onChange={handleFileChange} />
-          </label>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={openCameraPicker}
+              disabled={isEstimating || isSaving}
+              className="flex h-11 items-center justify-center rounded-lg border border-line bg-surface text-sm font-medium disabled:opacity-60"
+            >
+              <Camera className="mr-2" size={18} />
+              Retake
+            </button>
+            <button
+              type="button"
+              onClick={openGalleryPicker}
+              disabled={isEstimating || isSaving}
+              className="flex h-11 items-center justify-center rounded-lg border border-line bg-surface text-sm font-medium disabled:opacity-60"
+            >
+              <ImagePlus className="mr-2" size={18} />
+              Gallery
+            </button>
+          </div>
         ) : null}
 
         <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">

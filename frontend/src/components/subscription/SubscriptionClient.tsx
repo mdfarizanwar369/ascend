@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, CreditCard, ExternalLink, ShieldCheck } from "lucide-react";
+import { Check, CreditCard, ExternalLink, ShieldCheck, XCircle } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
-import { createCheckout, getBillingPortal, getMe, getMySubscription } from "@/lib/ascendApi";
+import { cancelSubscription, createCheckout, getBillingPortal, getMe, getMySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { PublicFooter } from "@/components/legal/PublicFooter";
@@ -122,6 +122,27 @@ export function SubscriptionClient() {
     }
   }
 
+  async function cancelCurrentSubscription() {
+    if (activePlan === "free") return;
+    if (hasHostedBilling) {
+      setStatus("Opening cancellation options...");
+      await openBillingPortal();
+      return;
+    }
+
+    const confirmed = window.confirm("Cancel this subscription? Future renewals will stop. Access normally continues until the end of the current period.");
+    if (!confirmed) return;
+
+    setStatus("Cancelling subscription...");
+    try {
+      await cancelSubscription();
+      await loadSubscription();
+      setStatus("Subscription cancelled. Future renewals have been stopped.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not cancel this subscription.");
+    }
+  }
+
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
@@ -175,13 +196,34 @@ export function SubscriptionClient() {
                       Current plan
                     </div>
                     {hasHostedBilling ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={openBillingPortal}
+                          className="flex h-11 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200"
+                        >
+                          <ExternalLink className="mr-2" size={18} />
+                          Manage Subscription
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelCurrentSubscription}
+                          disabled={billingStatus === "canceled"}
+                          className="flex h-11 w-full items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
+                        >
+                          <XCircle className="mr-2" size={18} />
+                          {billingStatus === "canceled" ? "Cancellation Scheduled" : "Cancel Subscription"}
+                        </button>
+                      </>
+                    ) : activePlan !== "free" ? (
                       <button
                         type="button"
-                        onClick={openBillingPortal}
-                        className="flex h-11 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200"
+                        onClick={cancelCurrentSubscription}
+                        disabled={billingStatus === "canceled"}
+                        className="flex h-11 w-full items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
                       >
-                        <ExternalLink className="mr-2" size={18} />
-                        Manage billing
+                        <XCircle className="mr-2" size={18} />
+                        {billingStatus === "canceled" ? "Cancellation Scheduled" : "Cancel Subscription"}
                       </button>
                     ) : null}
                   </div>
