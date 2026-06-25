@@ -562,9 +562,25 @@ trainerRouter.put("/trainer/clients/:clientId/nutrition-plan", requireAuth, requ
   }
 });
 
+const trainerFoodLogQuerySchema = z.object({
+  range: z.enum(["today", "7d", "30d", "all"]).default("all"),
+  order: z.enum(["newest", "oldest"]).default("newest"),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+  offset: z.coerce.number().int().min(0).default(0)
+});
+
 trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    const filters = trainerFoodLogQuerySchema.parse(req.query);
+    const rangeCondition =
+      filters.range === "today"
+        ? "and fl.logged_at >= current_date"
+        : filters.range === "7d"
+          ? "and fl.logged_at >= current_date - interval '6 days'"
+          : filters.range === "30d"
+            ? "and fl.logged_at >= current_date - interval '29 days'"
+            : "";
     const result = await query(
       `
       select fl.*
@@ -573,12 +589,13 @@ trainerRouter.get("/trainer/clients/:clientId/food-logs", requireAuth, requireAc
       where fl.user_id = $1
         and u.status = 'active'
         and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
-      order by fl.logged_at desc
-      limit 100
+        ${rangeCondition}
+      order by fl.logged_at ${filters.order === "oldest" ? "asc" : "desc"}
+      limit $6 offset $7
       `,
-      [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner"]
+      [req.params.clientId, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", filters.limit, filters.offset]
     );
-    res.json({ foodLogs: await withFoodImageUrls(result.rows) });
+    res.json({ foodLogs: await withFoodImageUrls(result.rows), nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null });
   } catch (error) {
     next(error);
   }

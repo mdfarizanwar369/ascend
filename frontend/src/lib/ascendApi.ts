@@ -843,20 +843,34 @@ export function getTrainerClientProgressComparison(clientId: string) {
   return authed<{ comparison: ProgressComparison }>(`/trainer/clients/${clientId}/progress-comparison`);
 }
 
-export function getTrainerClientFoodLogs(clientId: string) {
+export function getTrainerClientFoodLogs(
+  clientId: string,
+  filters: { range?: "today" | "7d" | "30d" | "all"; order?: "newest" | "oldest"; limit?: number; offset?: number } = {}
+) {
+  const params = new URLSearchParams();
+  if (filters.range) params.set("range", filters.range);
+  if (filters.order) params.set("order", filters.order);
+  if (filters.limit) params.set("limit", String(filters.limit));
+  if (filters.offset) params.set("offset", String(filters.offset));
+  const query = params.toString();
+
   return authed<{
     foodLogs: Array<{
       id: string;
       image_url?: string | null;
       image_s3_key?: string | null;
       estimated_food_name: string;
+      description?: string | null;
       calories: number;
       protein_g: string | number;
       carbs_g: string | number;
       fat_g: string | number;
+      ai_estimate_raw?: unknown;
+      was_edited_by_user?: boolean;
       logged_at: string;
     }>;
-  }>(`/trainer/clients/${clientId}/food-logs`);
+    nextOffset?: number | null;
+  }>(`/trainer/clients/${clientId}/food-logs${query ? `?${query}` : ""}`);
 }
 
 export function getTrainerClientWeightLogs(clientId: string) {

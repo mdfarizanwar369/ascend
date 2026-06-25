@@ -563,6 +563,12 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           ))}
           {!foodLogs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No food logs yet.</p> : null}
         </div>
+        <Link
+          href={`/trainer/clients/${clientId}/meals`}
+          className="mt-3 flex h-12 items-center justify-center rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime"
+        >
+          View Full Meal History
+        </Link>
       </section>
 
       <section id="progress-photos" className="mt-4 scroll-mt-20 rounded-lg border border-line bg-surface p-4">
