@@ -171,6 +171,44 @@ function uniqueModels(models: string[]) {
   return Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
 }
 
+function foodAiPrimaryGeminiModel() {
+  if (env.FOOD_AI_TEST_MODEL === "flash-lite") return "gemini-2.5-flash-lite";
+  if (env.FOOD_AI_TEST_MODEL === "flash") return "gemini-2.5-flash";
+  return env.GEMINI_MODEL;
+}
+
+function foodAiLoggedModel() {
+  return env.AI_PROVIDER === "gemini" ? foodAiPrimaryGeminiModel() : env.OPENAI_MODEL;
+}
+
+function foodAiBenchmarkMetadata(trace: FoodAiPerformanceTrace | null | undefined) {
+  if (!trace) return {};
+  const attempts = trace.geminiAttempts;
+  const successfulAttempts = attempts.filter((attempt) => attempt.success && attempt.parseSuccess !== false);
+  return {
+    benchmark: {
+      testModel: env.FOOD_AI_TEST_MODEL ?? "production",
+      primaryModel: foodAiLoggedModel(),
+      totalResponseMs: Date.now() - trace.startedAtEpochMs,
+      totalGeminiDurationMs: attempts.reduce((total, attempt) => total + attempt.durationMs, 0),
+      success: successfulAttempts.length > 0,
+      firstAttemptSucceeded: attempts[0]?.success === true && attempts[0]?.parseSuccess !== false,
+      parseSuccess: attempts.some((attempt) => attempt.parseSuccess === true),
+      parseFailure: attempts.some((attempt) => attempt.parseSuccess === false),
+      retryCount: Math.max(attempts.length - 1, 0),
+      totalAttempts: attempts.length,
+      httpStatuses: attempts.map((attempt) => attempt.status),
+      responseModes: attempts.map((attempt) => attempt.responseMode),
+      failures: attempts.filter((attempt) => !attempt.success || attempt.parseSuccess === false).map((attempt) => ({
+        attempt: attempt.attempt,
+        model: attempt.model,
+        reason: attempt.parseFailureReason ?? attempt.failureReason ?? "unknown",
+        status: attempt.status
+      }))
+    }
+  };
+}
+
 function geminiFailureReason(error: unknown) {
   if (error instanceof GeminiError) {
     if (error.message.includes("timed out")) return "Timeout";
@@ -333,6 +371,7 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
 }
 
 async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodAiPerformanceTrace | null) {
+  const primaryModel = foodAiPrimaryGeminiModel();
   const imagePart = await urlToGeminiPart(imageUrl);
   const parts: GeminiPart[] = [
     imagePart,
@@ -343,7 +382,7 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
         ". If the food is not local, identify it normally, for example croissant, eggs, oats, sandwich, pasta, coffee, fruit, dessert, chicken nuggets, sausage, hot dog, fries, burger, or mixed snack plate. Do not guess a local food unless it visually matches. If there are multiple visible foods, name the main items together, estimate the full visible portion, and mention portion assumptions in notes. Always return your best editable starter estimate for recognizable food; use lower confidence when unsure instead of refusing. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. The user can edit the estimate."
     }
   ];
-  const strongerModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"]);
+  const strongerModels = uniqueModels([primaryModel, "gemini-2.5-flash", "gemini-2.0-flash"]);
 
   async function generateEstimate(models: string[], responseMimeType?: "application/json") {
     const text = await callGeminiWithOptions(parts, 1400, {
@@ -366,11 +405,11 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
   }
 
   try {
-    return await generateEstimate([env.GEMINI_MODEL], "application/json");
+    return await generateEstimate([primaryModel], "application/json");
   } catch {}
 
   try {
-    const estimate = await generateEstimate([env.GEMINI_MODEL]);
+    const estimate = await generateEstimate([primaryModel]);
     return {
       ...estimate,
       notes: `${estimate.notes} Ascend retried the scan with a more flexible response format.`
@@ -431,10 +470,10 @@ export async function estimateFoodFromImage(
         ...context,
         eventType: "food_image_analysis",
         provider: env.AI_PROVIDER,
-        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        model: foodAiLoggedModel(),
         status: "cache_hit",
         cacheHit: true,
-        metadata: { imageHash }
+        metadata: { imageHash, ...foodAiBenchmarkMetadata(context.performanceTrace) }
       }));
       return cached;
     }
@@ -445,9 +484,9 @@ export async function estimateFoodFromImage(
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
-      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      model: foodAiLoggedModel(),
       status: "fallback",
-      metadata: { reason: "provider_not_configured", imageHash }
+      metadata: { reason: "provider_not_configured", imageHash, ...foodAiBenchmarkMetadata(context.performanceTrace) }
     }));
     return demoFoodEstimate();
   }
@@ -473,7 +512,7 @@ export async function estimateFoodFromImage(
         imageHash,
         estimate,
         provider: env.AI_PROVIDER,
-        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        model: foodAiLoggedModel(),
         source: estimate.notes.includes("local food database") ? "local_food_match" : "ai"
       }));
     }
@@ -482,9 +521,9 @@ export async function estimateFoodFromImage(
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
-      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      model: foodAiLoggedModel(),
       status: "success",
-      metadata: { imageHash, confidence: estimate.confidence, foodName: estimate.foodName }
+      metadata: { imageHash, confidence: estimate.confidence, foodName: estimate.foodName, ...foodAiBenchmarkMetadata(context.performanceTrace) }
     }));
 
     return estimate;
@@ -499,9 +538,9 @@ export async function estimateFoodFromImage(
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
-      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      model: foodAiLoggedModel(),
       status: "fallback",
-      metadata: { imageHash, error: error instanceof Error ? error.message : "unknown_error" }
+      metadata: { imageHash, error: error instanceof Error ? error.message : "unknown_error", ...foodAiBenchmarkMetadata(context.performanceTrace) }
     }));
     return fallbackEstimate;
   }

@@ -38,6 +38,51 @@ const userStatusSchema = z.object({
 
 const ownerGymSchema = z.object({ gymId: z.string().uuid() });
 
+type FoodAiBenchmarkRow = {
+  test_model: string | null;
+  primary_model: string | null;
+  status: string;
+  total_response_ms: string | number | null;
+  gemini_ms: string | number | null;
+  total_attempts: string | number | null;
+  retry_count: string | number | null;
+  benchmark_success: boolean | null;
+  http_statuses: Array<number | null> | null;
+  created_at: string;
+};
+
+function median(values: number[]) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2);
+}
+
+function foodAiBenchmarkBucket(row: FoodAiBenchmarkRow) {
+  const label = `${row.test_model ?? ""} ${row.primary_model ?? ""}`.toLowerCase();
+  if (label.includes("flash-lite")) return "flashLite";
+  if (label.includes("2.5-flash") || row.test_model === "flash") return "flash";
+  return "production";
+}
+
+function summarizeFoodAiBenchmark(rows: FoodAiBenchmarkRow[]) {
+  const durations = rows.map((row) => Number(row.total_response_ms ?? row.gemini_ms ?? 0)).filter((value) => Number.isFinite(value) && value > 0);
+  const geminiDurations = rows.map((row) => Number(row.gemini_ms ?? 0)).filter((value) => Number.isFinite(value) && value > 0);
+  const retryRows = rows.filter((row) => Number(row.retry_count ?? 0) > 0);
+  const successRows = rows.filter((row) => row.benchmark_success === true || row.status === "success" || row.status === "cache_hit");
+  const serviceUnavailableRows = rows.filter((row) => (row.http_statuses ?? []).some((status) => status === 503));
+
+  return {
+    sampleSize: rows.length,
+    averageResponseMs: durations.length ? Math.round(durations.reduce((total, value) => total + value, 0) / durations.length) : 0,
+    medianResponseMs: median(durations),
+    averageGeminiMs: geminiDurations.length ? Math.round(geminiDurations.reduce((total, value) => total + value, 0) / geminiDurations.length) : 0,
+    successRate: rows.length ? Math.round((successRows.length / rows.length) * 100) : 0,
+    retryRate: rows.length ? Math.round((retryRows.length / rows.length) * 100) : 0,
+    serviceUnavailableRate: rows.length ? Math.round((serviceUnavailableRows.length / rows.length) * 100) : 0
+  };
+}
+
 adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
   const scope = await getAdminGymScope(req.user!);
   res.json({
@@ -188,6 +233,76 @@ adminRouter.get("/admin/analytics/ai-errors", requireAuth, requireRole(["admin",
   `, [scope.gymIds]);
 
   res.json({ errors: result.rows });
+});
+
+adminRouter.get("/admin/analytics/food-ai-model-comparison", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
+  const scope = await getAdminGymScope(req.user!);
+  const windowDays = Math.min(Math.max(Number(req.query.days ?? 30), 1), 90);
+  const result = await query<FoodAiBenchmarkRow>(
+    `
+    select
+      e.metadata #>> '{benchmark,testModel}' as test_model,
+      e.metadata #>> '{benchmark,primaryModel}' as primary_model,
+      e.status,
+      e.metadata #>> '{benchmark,totalResponseMs}' as total_response_ms,
+      e.metadata #>> '{benchmark,totalGeminiDurationMs}' as gemini_ms,
+      e.metadata #>> '{benchmark,totalAttempts}' as total_attempts,
+      e.metadata #>> '{benchmark,retryCount}' as retry_count,
+      case
+        when e.metadata #>> '{benchmark,success}' = 'true' then true
+        when e.metadata #>> '{benchmark,success}' = 'false' then false
+        else null
+      end as benchmark_success,
+      coalesce(
+        (
+          select array_agg(value::int)
+          from jsonb_array_elements_text(e.metadata #> '{benchmark,httpStatuses}') as statuses(value)
+          where value ~ '^[0-9]+$'
+        ),
+        '{}'
+      ) as http_statuses,
+      e.created_at
+    from ai_usage_events e
+    where e.event_type = 'food_image_analysis'
+      and e.metadata ? 'benchmark'
+      and e.created_at >= now() - ($2::int * interval '1 day')
+      and ($1::uuid[] is null or e.gym_id = any($1))
+    order by e.created_at desc
+    limit 1000
+    `,
+    [scope.gymIds, windowDays]
+  );
+
+  const flashLiteRows = result.rows.filter((row) => foodAiBenchmarkBucket(row) === "flashLite");
+  const flashRows = result.rows.filter((row) => foodAiBenchmarkBucket(row) === "flash");
+  const flashLite = summarizeFoodAiBenchmark(flashLiteRows);
+  const flash = summarizeFoodAiBenchmark(flashRows);
+  const hasEnoughData = flashLite.sampleSize >= 3 && flash.sampleSize >= 3;
+
+  let recommendation = "Collect at least 3 comparable scans on each model before choosing.";
+  if (hasEnoughData) {
+    if (flash.successRate >= flashLite.successRate + 10 && flash.averageResponseMs <= flashLite.averageResponseMs + 2500) {
+      recommendation = "Gemini 2.5 Flash currently looks more reliable with acceptable speed trade-off.";
+    } else if (flashLite.averageResponseMs <= flash.averageResponseMs - 1000 && flashLite.successRate >= flash.successRate - 5) {
+      recommendation = "Gemini 2.5 Flash Lite currently looks like the best speed and cost balance.";
+    } else {
+      recommendation = "Results are close. Prefer Flash Lite for cost unless accuracy complaints continue.";
+    }
+  }
+
+  res.json({
+    windowDays,
+    models: {
+      flashLite,
+      flash
+    },
+    recommendation,
+    notes: [
+      "Use the same photos and similar network conditions for both model tests.",
+      "503 rate is based on Gemini attempt HTTP statuses recorded by food analysis instrumentation.",
+      "Cache hits are counted as successful user outcomes but have near-zero Gemini duration."
+    ]
+  });
 });
 
 adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {

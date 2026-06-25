@@ -468,6 +468,13 @@ export type FoodAiPerformanceReport = {
   summary: {
     slowestStage?: string;
     slowestStageMs?: number;
+    modelUsed?: string;
+    totalGeminiDurationMs: number;
+    retryCount: number;
+    totalAttempts: number;
+    successfulAttempts: number;
+    failedAttempts: number;
+    httpStatuses: Array<number | undefined>;
     geminiFallbackOccurred: boolean;
     firstAttemptSucceeded: boolean;
     jsonParsingFailed: boolean;

@@ -26,6 +26,13 @@ export type FoodAiGeminiAttempt = {
 export type FoodAiPerformanceSummary = {
   slowestStage?: string;
   slowestStageMs?: number;
+  modelUsed?: string;
+  totalGeminiDurationMs: number;
+  retryCount: number;
+  totalAttempts: number;
+  successfulAttempts: number;
+  failedAttempts: number;
+  httpStatuses: Array<number | undefined>;
   geminiFallbackOccurred: boolean;
   firstAttemptSucceeded: boolean;
   jsonParsingFailed: boolean;
@@ -158,6 +165,8 @@ export function finishFoodAiReport(trace: FoodAiPerformanceTrace | null | undefi
   }))].sort((a, b) => b.durationMs - a.durationMs)[0];
   const jsonParsingFailed = trace.geminiAttempts.some((attempt) => attempt.parseSuccess === false);
   const successfulAttempts = trace.geminiAttempts.filter((attempt) => attempt.success);
+  const totalAttempts = trace.geminiAttempts.length;
+  const firstSuccessfulAttempt = successfulAttempts[0];
 
   return {
     traceId: trace.traceId,
@@ -170,6 +179,13 @@ export function finishFoodAiReport(trace: FoodAiPerformanceTrace | null | undefi
     summary: {
       slowestStage: slowest?.name,
       slowestStageMs: slowest?.durationMs,
+      modelUsed: firstSuccessfulAttempt?.model ?? trace.geminiAttempts[0]?.model,
+      totalGeminiDurationMs: trace.geminiAttempts.reduce((total, attempt) => total + attempt.durationMs, 0),
+      retryCount: Math.max(totalAttempts - 1, 0),
+      totalAttempts,
+      successfulAttempts: successfulAttempts.length,
+      failedAttempts: trace.geminiAttempts.filter((attempt) => !attempt.success).length,
+      httpStatuses: trace.geminiAttempts.map((attempt) => attempt.status),
       geminiFallbackOccurred: trace.geminiAttempts.length > 1,
       firstAttemptSucceeded: trace.geminiAttempts[0]?.success === true && trace.geminiAttempts[0]?.parseSuccess !== false,
       jsonParsingFailed,
