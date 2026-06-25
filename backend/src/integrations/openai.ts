@@ -21,7 +21,6 @@ type GeminiCallOptions = {
   attemptsPerModel?: number;
   timeoutMs?: number;
   responseMimeType?: "application/json" | "text/plain";
-  responseSchema?: Record<string, unknown>;
 };
 
 class GeminiError extends Error {
@@ -184,10 +183,6 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
     generationConfig.responseMimeType = options.responseMimeType;
   }
 
-  if (options.responseSchema) {
-    generationConfig.responseSchema = options.responseSchema;
-  }
-
   try {
     const response = await fetch(`${geminiBaseUrl}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
       method: "POST",
@@ -291,19 +286,6 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
 
 async function estimateFoodWithGemini(imageUrl: string) {
   const imagePart = await urlToGeminiPart(imageUrl);
-  const foodEstimateSchema = {
-    type: "OBJECT",
-    properties: {
-      foodName: { type: "STRING" },
-      confidence: { type: "NUMBER" },
-      calories: { type: "NUMBER" },
-      proteinG: { type: "NUMBER" },
-      carbsG: { type: "NUMBER" },
-      fatG: { type: "NUMBER" },
-      notes: { type: "STRING" }
-    },
-    required: ["foodName", "confidence", "calories", "proteinG", "carbsG", "fatG", "notes"]
-  };
   const parts: GeminiPart[] = [
     imagePart,
     {
@@ -316,20 +298,18 @@ async function estimateFoodWithGemini(imageUrl: string) {
   const fallbackModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash-lite", "gemini-2.0-flash-lite", "gemini-2.0-flash"]);
 
   async function generateEstimate(models: string[], timeoutMs: number) {
-    const text = await callGeminiWithOptions(parts, 750, {
+    const text = await callGeminiWithOptions(parts, 900, {
       models,
       attemptsPerModel: 1,
-      timeoutMs,
-      responseMimeType: "application/json",
-      responseSchema: foodEstimateSchema
+      timeoutMs
     });
     return parseFoodEstimate(text);
   }
 
   try {
-    return await generateEstimate([env.GEMINI_MODEL], 12_000);
+    return await generateEstimate([env.GEMINI_MODEL], 14_000);
   } catch {
-    const estimate = await generateEstimate(fallbackModels, 16_000);
+    const estimate = await generateEstimate(fallbackModels, 18_000);
     return {
       ...estimate,
       notes: `${estimate.notes} Ascend used a backup scan because the first scan was unclear.`
