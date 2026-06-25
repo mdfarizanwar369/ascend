@@ -2,6 +2,14 @@
 const nextConfig = {
   transpilePackages: ["@ascend/shared"],
   poweredByHeader: false,
+  async rewrites() {
+    return [
+      {
+        source: "/__/auth/:path*",
+        destination: "https://ascend-b2850.firebaseapp.com/__/auth/:path*"
+      }
+    ];
+  },
   async headers() {
     return [
       {

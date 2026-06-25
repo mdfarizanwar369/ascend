@@ -157,6 +157,11 @@ NEXT_PUBLIC_FIREBASE_PROJECT_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 ```
 
+Google Sign-In is disabled by default and should only be enabled after completing
+`GOOGLE_AUTH_DEPLOYMENT_CHECKLIST.md`. On the live custom domain, the frontend Firebase auth domain should be
+`www.getascend.fit` and the app proxies `/__/auth/*` to Firebase's auth helper so Safari redirect sign-in can work
+reliably outside Firebase Hosting.
+
 ## Install Dependencies
 
 From the project root:

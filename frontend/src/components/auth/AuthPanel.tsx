@@ -26,7 +26,9 @@ import { isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
+type GoogleAuthMethod = "popup" | "redirect";
 const authDraftKey = "ascend.authDraft.v1";
+const authDebugEnabled = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_AUTH_DEBUG === "true";
 
 function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -39,6 +41,14 @@ function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
 
 function getFriendlyAuthError(error: unknown) {
   if (!(error instanceof Error)) return "Unable to continue. Please try again.";
+  const code = getAuthErrorCode(error);
+  if (code === "auth/popup-blocked") return "Google sign-in was blocked by the browser. Please allow popups or use Safari/Chrome normally and try again.";
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "Google sign-in was closed before it finished. Please try again when you are ready.";
+  if (code === "auth/unauthorized-domain") return "This website is not authorized for Google sign-in yet. Please contact Ascend support.";
+  if (code === "auth/network-request-failed") return "Google sign-in could not connect. Please check your internet connection and try again.";
+  if (code === "auth/operation-not-supported-in-this-environment") return "Google sign-in is not supported in this browser mode. Please open Ascend in Safari or Chrome and try again.";
+  if (code === "auth/account-exists-with-different-credential") return "This email already has an Ascend account. Please log in with your original sign-in method.";
+  if (code === "auth/invalid-api-key" || code === "auth/app-not-authorized") return "Google sign-in is not configured correctly yet. Please contact Ascend support.";
   if (/auth\/email-already-in-use/i.test(error.message)) return "This email already has an account. Please log in instead.";
   if (/auth\/invalid-email/i.test(error.message)) return "Please enter a valid email address.";
   if (/auth\/weak-password/i.test(error.message)) return "Please use a password with at least 6 characters.";
@@ -47,6 +57,57 @@ function getFriendlyAuthError(error: unknown) {
     return "The connection is taking too long. Please check your internet connection and try again.";
   }
   return error.message;
+}
+
+function getAuthErrorCode(error: unknown) {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : null;
+}
+
+function getPlatformInfo() {
+  if (typeof window === "undefined") {
+    return {
+      browser: "server",
+      isAndroid: false,
+      isIOS: false,
+      isMobile: false,
+      isSafari: false,
+      isStandalone: false,
+      userAgent: ""
+    };
+  }
+
+  const userAgent = window.navigator.userAgent || "";
+  const platform = window.navigator.platform || "";
+  const maxTouchPoints = window.navigator.maxTouchPoints || 0;
+  const isIPadOS = platform === "MacIntel" && maxTouchPoints > 1;
+  const isIOS = /iPad|iPhone|iPod/i.test(userAgent) || isIPadOS;
+  const isAndroid = /Android/i.test(userAgent);
+  const isSafari = /Safari/i.test(userAgent) && !/Chrome|CriOS|FxiOS|Edg|OPR|SamsungBrowser/i.test(userAgent);
+  const isStandalone =
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+
+  return {
+    browser: isSafari ? "Safari" : isAndroid ? "Android browser" : "Desktop browser",
+    isAndroid,
+    isIOS,
+    isMobile: isIOS || isAndroid,
+    isSafari,
+    isStandalone,
+    userAgent
+  };
+}
+
+function chooseGoogleAuthMethod(): GoogleAuthMethod {
+  const platform = getPlatformInfo();
+  return platform.isMobile || platform.isStandalone || platform.isSafari ? "redirect" : "popup";
+}
+
+function authDebug(event: string, details?: Record<string, unknown>) {
+  if (!authDebugEnabled) return;
+  console.info("[Ascend Auth]", event, details ?? {});
 }
 
 function roleHome(roles: string[]) {
@@ -141,13 +202,23 @@ export function AuthPanel() {
 
     async function completeRedirectSignIn() {
       try {
+        authDebug("redirect_result_check_started", getPlatformInfo());
         await waitForFirebasePersistence();
         const result = await getRedirectResult(getFirebaseClientAuth());
-        if (!result || cancelled) return;
+        if (!result || cancelled) {
+          authDebug("redirect_result_empty");
+          return;
+        }
+        authDebug("redirect_result_success", { providerId: result.providerId });
         setIsSubmitting(true);
         setStatus("Setting up your Ascend profile...");
         await provisionGoogleUser(result.user);
+        authDebug("redirect_auth_completed");
       } catch (error) {
+        authDebug("redirect_result_error", {
+          code: getAuthErrorCode(error),
+          message: error instanceof Error ? error.message : String(error)
+        });
         if (!cancelled) setStatus(getFriendlyAuthError(error));
       } finally {
         if (!cancelled) setIsSubmitting(false);
@@ -274,16 +345,22 @@ export function AuthPanel() {
     setStatus(null);
 
     try {
-      setStatus("Opening secure Google sign-in...");
-      await withTimeout(
-        waitForFirebasePersistence(),
-        "Secure login is taking too long to start. Please check your connection and try again.",
-        15_000
-      );
+      const platform = getPlatformInfo();
+      const method = chooseGoogleAuthMethod();
+      authDebug("google_button_clicked", { ...platform, method });
+      setStatus(method === "redirect" ? "Opening secure Google sign-in..." : "Opening secure Google sign-in popup...");
       const auth = getFirebaseClientAuth();
+      auth.useDeviceLanguage();
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
 
+      if (method === "redirect") {
+        authDebug("google_redirect_started", { authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN });
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
+      authDebug("google_popup_opening", { authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN });
       let userCredential;
       try {
         userCredential = await withTimeout(
@@ -292,16 +369,28 @@ export function AuthPanel() {
           25_000
         );
       } catch (error) {
-        if (error instanceof Error && /popup|cancelled|blocked|closed/i.test(error.message)) {
+        const code = getAuthErrorCode(error);
+        authDebug("google_popup_error", {
+          code,
+          message: error instanceof Error ? error.message : String(error)
+        });
+        if (code === "auth/popup-blocked" || code === "auth/cancelled-popup-request") {
+          authDebug("google_popup_fallback_redirect_started");
           await signInWithRedirect(auth, provider);
           return;
         }
         throw error;
       }
 
+      authDebug("google_popup_success");
       setStatus("Setting up your Ascend profile...");
       await provisionGoogleUser(userCredential.user);
+      authDebug("google_auth_completed");
     } catch (error) {
+      authDebug("google_auth_error", {
+        code: getAuthErrorCode(error),
+        message: error instanceof Error ? error.message : String(error)
+      });
       setStatus(getFriendlyAuthError(error));
     } finally {
       setIsSubmitting(false);
