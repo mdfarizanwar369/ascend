@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, MouseEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -28,6 +28,7 @@ type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
 type GoogleAuthMethod = "popup" | "redirect";
 const authDraftKey = "ascend.authDraft.v1";
+const googleRedirectPendingKey = "ascend.googleRedirectPending.v1";
 const authDebugEnabled = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_AUTH_DEBUG === "true";
 
 function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
@@ -110,6 +111,30 @@ function authDebug(event: string, details?: Record<string, unknown>) {
   console.info("[Ascend Auth]", event, details ?? {});
 }
 
+function setGoogleRedirectPending() {
+  try {
+    window.sessionStorage.setItem(googleRedirectPendingKey, "true");
+  } catch {
+    // Redirect sign-in still works without the marker; the current-user fallback handles Safari storage edge cases.
+  }
+}
+
+function clearGoogleRedirectPending() {
+  try {
+    window.sessionStorage.removeItem(googleRedirectPendingKey);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
+function wasGoogleRedirectPending() {
+  try {
+    return window.sessionStorage.getItem(googleRedirectPendingKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
 function roleHome(roles: string[]) {
   if (roles.includes("owner") || roles.includes("admin")) return "/admin";
   if (roles.includes("trainer")) return "/trainer";
@@ -118,6 +143,7 @@ function roleHome(roles: string[]) {
 
 export function AuthPanel() {
   const router = useRouter();
+  const hasProcessedRedirectAuth = useRef(false);
   const [mode, setMode] = useState<Mode>("signup");
   const [signupRole, setSignupRole] = useState<SignupRole>("client");
   const [fullName, setFullName] = useState("");
@@ -201,15 +227,29 @@ export function AuthPanel() {
     let cancelled = false;
 
     async function completeRedirectSignIn() {
+      if (hasProcessedRedirectAuth.current) return;
       try {
         authDebug("redirect_result_check_started", getPlatformInfo());
         await waitForFirebasePersistence();
-        const result = await getRedirectResult(getFirebaseClientAuth());
+        const auth = getFirebaseClientAuth();
+        const result = await getRedirectResult(auth);
         if (!result || cancelled) {
-          authDebug("redirect_result_empty");
+          const redirectWasPending = wasGoogleRedirectPending();
+          if (auth.currentUser && !cancelled) {
+            authDebug("redirect_result_empty_current_user_fallback", { redirectWasPending, uid: auth.currentUser.uid });
+            hasProcessedRedirectAuth.current = true;
+            clearGoogleRedirectPending();
+            setIsSubmitting(true);
+            setStatus("Finishing Google sign-in...");
+            await provisionGoogleUser(auth.currentUser);
+            return;
+          }
+          authDebug("redirect_result_empty", { redirectWasPending, hasCurrentUser: Boolean(auth.currentUser) });
           return;
         }
         authDebug("redirect_result_success", { providerId: result.providerId });
+        hasProcessedRedirectAuth.current = true;
+        clearGoogleRedirectPending();
         setIsSubmitting(true);
         setStatus("Setting up your Ascend profile...");
         await provisionGoogleUser(result.user);
@@ -356,6 +396,7 @@ export function AuthPanel() {
 
       if (method === "redirect") {
         authDebug("google_redirect_started", { authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN });
+        setGoogleRedirectPending();
         await signInWithRedirect(auth, provider);
         return;
       }
@@ -376,6 +417,7 @@ export function AuthPanel() {
         });
         if (code === "auth/popup-blocked" || code === "auth/cancelled-popup-request") {
           authDebug("google_popup_fallback_redirect_started");
+          setGoogleRedirectPending();
           await signInWithRedirect(auth, provider);
           return;
         }
