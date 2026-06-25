@@ -67,6 +67,7 @@ export function AuthPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTrainerSignup, setShowTrainerSignup] = useState(false);
   const progressiveClientSignup = isProgressiveOnboardingEnabled() && !showTrainerSignup;
+  const googleSignInEnabled = process.env.NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED === "true";
   const firebaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
       process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN &&
@@ -135,7 +136,7 @@ export function AuthPanel() {
   }, [referralCode, router]);
 
   useEffect(() => {
-    if (!progressiveClientSignup || !firebaseConfigured) return;
+    if (!progressiveClientSignup || !googleSignInEnabled || !firebaseConfigured) return;
     let cancelled = false;
 
     async function completeRedirectSignIn() {
@@ -158,7 +159,7 @@ export function AuthPanel() {
     return () => {
       cancelled = true;
     };
-  }, [firebaseConfigured, progressiveClientSignup, provisionGoogleUser]);
+  }, [firebaseConfigured, googleSignInEnabled, progressiveClientSignup, provisionGoogleUser]);
 
   async function handleAuthAction() {
     if (isSubmitting) return;
@@ -336,7 +337,7 @@ export function AuthPanel() {
                 `frontend/.env.local` for real sign-up.
               </div>
             ) : null}
-            {progressiveClientSignup && mode === "signup" ? (
+            {progressiveClientSignup && googleSignInEnabled && mode === "signup" ? (
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -347,7 +348,7 @@ export function AuthPanel() {
                 {isSubmitting ? "Working..." : "Continue with Google"}
               </button>
             ) : null}
-            {progressiveClientSignup && mode === "signup" ? (
+            {progressiveClientSignup && googleSignInEnabled && mode === "signup" ? (
               <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <span className="h-px flex-1 bg-line" />
                 <span>or</span>
