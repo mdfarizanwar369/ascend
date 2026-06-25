@@ -426,7 +426,7 @@ export function AuthPanel() {
                 `frontend/.env.local` for real sign-up.
               </div>
             ) : null}
-            {progressiveClientSignup && googleSignInEnabled && mode === "signup" ? (
+            {progressiveClientSignup && googleSignInEnabled ? (
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -437,7 +437,7 @@ export function AuthPanel() {
                 {isSubmitting ? "Working..." : "Continue with Google"}
               </button>
             ) : null}
-            {progressiveClientSignup && googleSignInEnabled && mode === "signup" ? (
+            {progressiveClientSignup && googleSignInEnabled ? (
               <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <span className="h-px flex-1 bg-line" />
                 <span>or</span>
