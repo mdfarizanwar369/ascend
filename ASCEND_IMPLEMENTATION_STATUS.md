@@ -108,7 +108,7 @@ The live app is available at:
 - Polished pilot subscription/access wording.
 - Constrained AI coach replies for mobile-friendly answers.
 - Reduced duplicate Gemini food analysis calls and added AI usage caching/monitoring.
-- Switched default Gemini model to `gemini-2.5-flash-lite`.
+- Switched default Gemini model to `gemini-2.5-flash`.
 - Updated trainer AI check-in failure copy to refer to the configured AI provider instead of OpenAI.
 - Updated backend test tooling and excluded compiled files from test discovery.
 - Removed public pilot self-upgrade and added owner/admin pilot access grants from the Users page.

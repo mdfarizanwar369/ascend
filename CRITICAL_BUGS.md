@@ -145,7 +145,7 @@ Important items should be completed before pilot if possible. They do not necess
 - Area: AI
 - Risk: Food estimates cannot run reliably while Gemini credits/quota are exhausted.
 - Evidence collected:
-  - Production uses `gemini-2.5-flash-lite`.
+  - Production uses `gemini-2.5-flash`.
   - Gemini currently returns quota/credits exhausted for image analysis.
 - Fastest resolution:
   - Add Gemini billing/prepaid credits, then upload Nasi Lemak, Chicken Rice, and Roti Canai test images, and verify editable estimates.

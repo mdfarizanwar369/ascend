@@ -187,7 +187,7 @@ Checks:
 ## Gemini AI Setup
 
 - [ ] `GEMINI_API_KEY` set.
-- [ ] `GEMINI_MODEL=gemini-2.5-flash-lite` set, unless a newer tested model is intentionally selected.
+- [ ] `GEMINI_MODEL=gemini-2.5-flash` set, unless a newer tested model is intentionally selected.
 - [ ] Food photo estimate tested with local foods.
 - [ ] Coach chat tested.
 - [ ] Burn estimate tested.
