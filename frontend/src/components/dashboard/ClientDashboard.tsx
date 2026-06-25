@@ -154,6 +154,7 @@ export function ClientDashboard() {
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [showProgressDetails, setShowProgressDetails] = useState(false);
   const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
+  const [dashboardSessionCount, setDashboardSessionCount] = useState(1);
   const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
@@ -277,6 +278,14 @@ export function ClientDashboard() {
 
   useEffect(() => {
     let isMounted = true;
+
+    try {
+      const nextSessionCount = Number(window.localStorage.getItem("ascend:client-dashboard-sessions") ?? "0") + 1;
+      window.localStorage.setItem("ascend:client-dashboard-sessions", String(nextSessionCount));
+      setDashboardSessionCount(nextSessionCount);
+    } catch {
+      setDashboardSessionCount(1);
+    }
 
     loadDashboard().catch(() => {
       if (isMounted) setStatus("Log in again if this page does not load your profile.");
@@ -433,6 +442,9 @@ export function ClientDashboard() {
   const calorieProgress = clamp(Math.round((calories / calorieTarget) * 100));
   const proteinProgress = clamp(Math.round((protein / proteinTarget) * 100));
   const needsGuideProfile = !user?.age_years || !user?.height_cm || !user?.activity_level || !user?.gender;
+  const profileIncomplete = Boolean(user) && (!user?.goal_type || !user?.age_years || !user?.height_cm || !user?.starting_weight_kg || !user?.activity_level);
+  const hasExperiencedAscend = foodLogs.length > 0 || weightLogs.length > 0 || waterLogs.length > 0 || dashboardSessionCount >= 3;
+  const shouldShowProfileReminder = profileIncomplete && hasExperiencedAscend;
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = momentumScore ?? fallbackScore;
   const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
@@ -600,6 +612,19 @@ export function ClientDashboard() {
         {status ? <p className="mt-3 overflow-hidden break-words rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
+
+        {shouldShowProfileReminder ? (
+          <a href="/onboarding?profile=1" className="mt-3 block rounded-2xl border border-calm/50 bg-calm/10 p-5 shadow-soft">
+            <p className="text-sm font-semibold text-calm">Complete your profile</p>
+            <h2 className="mt-2 text-xl font-semibold">Unlock smarter coaching.</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              Add a few details when you&apos;re ready so Ascend can personalise calories, targets, and progress insights.
+            </p>
+            <span className="mt-4 inline-flex h-10 items-center rounded-lg bg-calm px-4 text-sm font-semibold text-ink">
+              Continue Setup
+            </span>
+          </a>
+        ) : null}
 
         {goalStatus?.milestone_id && !goalStatus.acknowledged_at ? (
           <section className={`relative mt-3 overflow-hidden rounded-2xl border border-lime bg-lime/15 p-4 text-center ${isCelebratingGoal ? "ascend-goal-celebrating" : ""}`}>

@@ -1,10 +1,19 @@
 "use client";
 
-import { FormEvent, MouseEvent, useEffect, useState } from "react";
+import { FormEvent, MouseEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { ArrowRight, LogIn } from "lucide-react";
+import {
+  createUserWithEmailAndPassword,
+  getRedirectResult,
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
+  type User,
+  updateProfile
+} from "firebase/auth";
+import { ArrowRight, Chrome, LogIn } from "lucide-react";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { Field, inputClass } from "@/components/Field";
@@ -13,6 +22,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { markInstallEligible } from "@/lib/installAscend";
+import { isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
@@ -39,6 +49,12 @@ function getFriendlyAuthError(error: unknown) {
   return error.message;
 }
 
+function roleHome(roles: string[]) {
+  if (roles.includes("owner") || roles.includes("admin")) return "/admin";
+  if (roles.includes("trainer")) return "/trainer";
+  return "/dashboard";
+}
+
 export function AuthPanel() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signup");
@@ -49,6 +65,8 @@ export function AuthPanel() {
   const [referralCode, setReferralCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTrainerSignup, setShowTrainerSignup] = useState(false);
+  const progressiveClientSignup = isProgressiveOnboardingEnabled() && !showTrainerSignup;
   const firebaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
       process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN &&
@@ -85,11 +103,62 @@ export function AuthPanel() {
     }
   }, [email, fullName, mode, referralCode, signupRole]);
 
-  function roleHome(roles: string[]) {
-    if (roles.includes("owner") || roles.includes("admin")) return "/admin";
-    if (roles.includes("trainer")) return "/trainer";
-    return "/dashboard";
-  }
+  const provisionGoogleUser = useCallback(async (user: User) => {
+    const token = await user.getIdToken();
+    await withTimeout(
+      api(
+        "/auth/provision",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            fullName: user.displayName || undefined,
+            referralCode: referralCode.trim() || undefined,
+            primaryRole: "client"
+          })
+        },
+        token
+      ),
+      "Ascend profile setup is taking too long. Please try logging in again."
+    );
+
+    markInstallEligible("signup");
+    const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please open Ascend again.");
+    if (!profile.roles.includes("client")) {
+      router.replace(roleHome(profile.roles));
+      return;
+    }
+    if (profile.user.goal_type && profile.user.starting_weight_kg) {
+      router.replace("/dashboard");
+      return;
+    }
+    router.replace("/onboarding");
+  }, [referralCode, router]);
+
+  useEffect(() => {
+    if (!progressiveClientSignup || !firebaseConfigured) return;
+    let cancelled = false;
+
+    async function completeRedirectSignIn() {
+      try {
+        await waitForFirebasePersistence();
+        const result = await getRedirectResult(getFirebaseClientAuth());
+        if (!result || cancelled) return;
+        setIsSubmitting(true);
+        setStatus("Setting up your Ascend profile...");
+        await provisionGoogleUser(result.user);
+      } catch (error) {
+        if (!cancelled) setStatus(getFriendlyAuthError(error));
+      } finally {
+        if (!cancelled) setIsSubmitting(false);
+      }
+    }
+
+    void completeRedirectSignIn();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseConfigured, progressiveClientSignup, provisionGoogleUser]);
 
   async function handleAuthAction() {
     if (isSubmitting) return;
@@ -100,6 +169,7 @@ export function AuthPanel() {
       const normalizedEmail = email.trim();
       const normalizedFullName = fullName.trim();
       const normalizedReferralCode = referralCode.trim();
+      const effectiveSignupRole: SignupRole = progressiveClientSignup ? "client" : signupRole;
 
       if (!normalizedEmail || !password) {
         setStatus("Please enter your email and password.");
@@ -111,7 +181,7 @@ export function AuthPanel() {
         return;
       }
 
-      if (mode === "signup" && signupRole === "trainer" && !normalizedReferralCode) {
+      if (mode === "signup" && effectiveSignupRole === "trainer" && !normalizedReferralCode) {
         setStatus("Please enter the gym or trainer referral code provided by the gym owner.");
         return;
       }
@@ -160,7 +230,7 @@ export function AuthPanel() {
           body: JSON.stringify({
             fullName: mode === "signup" ? normalizedFullName : undefined,
             referralCode: mode === "signup" ? normalizedReferralCode || undefined : undefined,
-            primaryRole: mode === "signup" ? signupRole : "client"
+            primaryRole: mode === "signup" ? effectiveSignupRole : "client"
           })
         },
         token
@@ -172,7 +242,7 @@ export function AuthPanel() {
 
       if (mode === "signup") markInstallEligible("signup");
 
-      if (mode === "signup" && signupRole === "client") {
+      if (mode === "signup" && effectiveSignupRole === "client") {
         router.replace("/onboarding");
         return;
       }
@@ -195,6 +265,46 @@ export function AuthPanel() {
     event.preventDefault();
     event.stopPropagation();
     void handleAuthAction();
+  }
+
+  async function handleGoogleSignIn() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setStatus(null);
+
+    try {
+      setStatus("Opening secure Google sign-in...");
+      await withTimeout(
+        waitForFirebasePersistence(),
+        "Secure login is taking too long to start. Please check your connection and try again.",
+        15_000
+      );
+      const auth = getFirebaseClientAuth();
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+
+      let userCredential;
+      try {
+        userCredential = await withTimeout(
+          signInWithPopup(auth, provider),
+          "Google sign-in is taking too long. Please check your connection and try again.",
+          25_000
+        );
+      } catch (error) {
+        if (error instanceof Error && /popup|cancelled|blocked|closed/i.test(error.message)) {
+          await signInWithRedirect(auth, provider);
+          return;
+        }
+        throw error;
+      }
+
+      setStatus("Setting up your Ascend profile...");
+      await provisionGoogleUser(userCredential.user);
+    } catch (error) {
+      setStatus(getFriendlyAuthError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -226,7 +336,25 @@ export function AuthPanel() {
                 `frontend/.env.local` for real sign-up.
               </div>
             ) : null}
-            {mode === "signup" ? (
+            {progressiveClientSignup && mode === "signup" ? (
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isSubmitting || !firebaseConfigured}
+                className="flex h-12 w-full items-center justify-center rounded-lg bg-white font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Chrome className="mr-2" size={18} />
+                {isSubmitting ? "Working..." : "Continue with Google"}
+              </button>
+            ) : null}
+            {progressiveClientSignup && mode === "signup" ? (
+              <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
+                <span className="h-px flex-1 bg-line" />
+                <span>or</span>
+                <span className="h-px flex-1 bg-line" />
+              </div>
+            ) : null}
+            {mode === "signup" && !progressiveClientSignup ? (
               <>
                 <div id="ascend-role-field">
                   <p className="mb-2 text-sm font-medium">I am signing up as</p>
@@ -270,6 +398,21 @@ export function AuthPanel() {
                 </div>
               </>
             ) : null}
+            {mode === "signup" && progressiveClientSignup ? (
+              <div id="ascend-full-name-field">
+                <Field label="Full name">
+                  <input
+                    id="ascend-full-name"
+                    autoComplete="name"
+                    className={inputClass}
+                    required
+                    value={fullName}
+                    onChange={(event) => setFullName(event.target.value)}
+                    placeholder="Your name"
+                  />
+                </Field>
+              </div>
+            ) : null}
             <Field label="Email">
               <input
                 id="ascend-email"
@@ -309,7 +452,7 @@ export function AuthPanel() {
                   autoComplete="off"
                   className={inputClass}
                   value={referralCode}
-                  placeholder={signupRole === "trainer" ? "AF-AUSTIN" : "TRAINER-JASON"}
+                  placeholder={signupRole === "trainer" ? "AF-AUSTIN" : "Optional"}
                   onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
                 />
               </Field>
@@ -331,7 +474,7 @@ export function AuthPanel() {
               onClick={handleAuthButtonClick}
             >
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
-              {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : "Create client account" : "Log in"}
+              {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : progressiveClientSignup ? "Continue with Email" : "Create client account" : "Log in"}
             </button>
             {mode === "signup" ? (
               <p className="text-center text-xs leading-5 text-zinc-500">
@@ -361,6 +504,19 @@ export function AuthPanel() {
           >
             {mode === "signup" ? "Already have an account? Log in" : "Need an account? Sign up"}
           </button>
+          {progressiveClientSignup && mode === "signup" ? (
+            <button
+              className="mt-3 text-sm font-medium text-zinc-400"
+              onClick={() => {
+                setShowTrainerSignup(true);
+                setSignupRole("trainer");
+                setMode("signup");
+              }}
+              type="button"
+            >
+              Are you a Trainer? <span className="text-lime">Register here</span>
+            </button>
+          ) : null}
         </section>
         <PublicFooter compact />
       </div>
