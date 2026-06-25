@@ -3,6 +3,13 @@ import { FoodEstimate, LOCAL_FOODS } from "@ascend/shared";
 import { env } from "../config/env";
 import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
+import {
+  annotateLatestGeminiParse,
+  FoodAiPerformanceTrace,
+  recordGeminiAttempt,
+  timeFoodAiStage,
+  timeFoodAiSyncStage
+} from "../services/foodAiPerformance";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -21,6 +28,7 @@ type GeminiCallOptions = {
   attemptsPerModel?: number;
   timeoutMs?: number;
   responseMimeType?: "application/json" | "text/plain";
+  performanceTrace?: FoodAiPerformanceTrace | null;
 };
 
 class GeminiError extends Error {
@@ -163,6 +171,21 @@ function uniqueModels(models: string[]) {
   return Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
 }
 
+function geminiFailureReason(error: unknown) {
+  if (error instanceof GeminiError) {
+    if (error.message.includes("timed out")) return "Timeout";
+    if (error.message.includes("empty response")) return "Empty response";
+    if (error.status === 429) return "Quota or rate limit";
+    if (error.status && error.status >= 500) return "Gemini service error";
+    if (error.status && error.status >= 400) return "Gemini request rejected";
+    return error.message;
+  }
+
+  if (error instanceof SyntaxError) return "JSON parse error";
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+}
+
 async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputTokens = 700, options: GeminiCallOptions = {}) {
   if (!env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured.");
@@ -230,12 +253,37 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
   const errors: string[] = [];
   const models = uniqueModels(options.models ?? [env.GEMINI_MODEL]);
   const attemptsPerModel = options.attemptsPerModel ?? 1;
+  const responseMode = options.responseMimeType === "application/json" ? "JSON" : "Flexible";
 
   for (const model of models) {
     for (let attempt = 0; attempt < attemptsPerModel; attempt += 1) {
+      const startedAtEpochMs = Date.now();
+      const attemptNumber = (options.performanceTrace?.geminiAttempts.length ?? 0) + 1;
       try {
-        return await callGeminiOnce(model, parts, maxOutputTokens, options);
+        const text = await callGeminiOnce(model, parts, maxOutputTokens, options);
+        const endedAtEpochMs = Date.now();
+        recordGeminiAttempt(options.performanceTrace, {
+          attempt: attemptNumber,
+          model,
+          responseMode,
+          startedAtEpochMs,
+          endedAtEpochMs,
+          success: true
+        });
+        return text;
       } catch (error) {
+        const endedAtEpochMs = Date.now();
+        recordGeminiAttempt(options.performanceTrace, {
+          attempt: attemptNumber,
+          model,
+          responseMode,
+          startedAtEpochMs,
+          endedAtEpochMs,
+          success: false,
+          failureReason: geminiFailureReason(error),
+          status: error instanceof GeminiError ? error.status : undefined,
+          timeout: error instanceof GeminiError && error.message.includes("timed out")
+        });
         lastError = error;
         if (error instanceof Error) errors.push(error.message);
         const retryable = error instanceof GeminiError ? error.retryable : false;
@@ -284,7 +332,7 @@ async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
   };
 }
 
-async function estimateFoodWithGemini(imageUrl: string) {
+async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodAiPerformanceTrace | null) {
   const imagePart = await urlToGeminiPart(imageUrl);
   const parts: GeminiPart[] = [
     imagePart,
@@ -302,9 +350,19 @@ async function estimateFoodWithGemini(imageUrl: string) {
       models,
       attemptsPerModel: 1,
       timeoutMs: 22_000,
-      responseMimeType
+      responseMimeType,
+      performanceTrace
     });
-    return parseFoodEstimate(text);
+    try {
+      const estimate = timeFoodAiSyncStage(performanceTrace, "Gemini response parse", () => parseFoodEstimate(text), {
+        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible"
+      });
+      annotateLatestGeminiParse(performanceTrace, { success: true });
+      return estimate;
+    } catch (error) {
+      annotateLatestGeminiParse(performanceTrace, { success: false, failureReason: geminiFailureReason(error) });
+      throw error;
+    }
   }
 
   try {
@@ -361,13 +419,15 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
 
 export async function estimateFoodFromImage(
   imageUrl: string,
-  context: { userId?: string | null; gymId?: string | null } = {}
+  context: { userId?: string | null; gymId?: string | null; performanceTrace?: FoodAiPerformanceTrace | null } = {}
 ): Promise<FoodEstimate> {
-  const imageHash = imageUrl.startsWith("data:image/") ? imageHashFromDataUrl(imageUrl) : null;
+  const imageHash = timeFoodAiSyncStage(context.performanceTrace, "Image hash calculation", () =>
+    imageUrl.startsWith("data:image/") ? imageHashFromDataUrl(imageUrl) : null
+  );
   if (imageHash) {
-    const cached = await getCachedFoodEstimate(imageHash);
+    const cached = await timeFoodAiStage(context.performanceTrace, "Cache lookup", () => getCachedFoodEstimate(imageHash));
     if (cached) {
-      await logAiUsage({
+      await timeFoodAiStage(context.performanceTrace, "AI usage logging", () => logAiUsage({
         ...context,
         eventType: "food_image_analysis",
         provider: env.AI_PROVIDER,
@@ -375,57 +435,57 @@ export async function estimateFoodFromImage(
         status: "cache_hit",
         cacheHit: true,
         metadata: { imageHash }
-      });
+      }));
       return cached;
     }
   }
 
   if (!providerConfigured()) {
-    await logAiUsage({
+    await timeFoodAiStage(context.performanceTrace, "AI usage logging", () => logAiUsage({
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       status: "fallback",
       metadata: { reason: "provider_not_configured", imageHash }
-    });
+    }));
     return demoFoodEstimate();
   }
 
   if (context.userId) {
-    await assertFoodAiAllowance(context.userId);
+    await timeFoodAiStage(context.performanceTrace, "Allowance lookup", () => assertFoodAiAllowance(context.userId!));
   }
 
   try {
     const rawEstimate =
       env.AI_PROVIDER === "gemini"
-        ? await estimateFoodWithGemini(imageUrl)
+        ? await estimateFoodWithGemini(imageUrl, context.performanceTrace)
         : env.AI_PROVIDER === "openai"
           ? await estimateFoodWithOpenAI(imageUrl)
           : {
               ...demoFoodEstimate(),
               notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
             };
-    const estimate = await normalizeWithLocalFoodDatabase(rawEstimate);
+    const estimate = await timeFoodAiStage(context.performanceTrace, "Local food normalization", () => normalizeWithLocalFoodDatabase(rawEstimate));
 
     if (imageHash && estimate.confidence >= 0.5 && estimate.calories > 0) {
-      await saveFoodEstimateCache({
+      await timeFoodAiStage(context.performanceTrace, "Cache write", () => saveFoodEstimateCache({
         imageHash,
         estimate,
         provider: env.AI_PROVIDER,
         model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
         source: estimate.notes.includes("local food database") ? "local_food_match" : "ai"
-      });
+      }));
     }
 
-    await logAiUsage({
+    await timeFoodAiStage(context.performanceTrace, "AI usage logging", () => logAiUsage({
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       status: "success",
       metadata: { imageHash, confidence: estimate.confidence, foodName: estimate.foodName }
-    });
+    }));
 
     return estimate;
   } catch (error) {
@@ -435,14 +495,14 @@ export async function estimateFoodFromImage(
         : "The AI scan did not complete reliably."
     );
 
-    await logAiUsage({
+    await timeFoodAiStage(context.performanceTrace, "AI usage logging", () => logAiUsage({
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       status: "fallback",
       metadata: { imageHash, error: error instanceof Error ? error.message : "unknown_error" }
-    });
+    }));
     return fallbackEstimate;
   }
 

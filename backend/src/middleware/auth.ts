@@ -3,6 +3,7 @@ import { Role } from "@ascend/shared";
 import { query } from "../db/pool";
 import { getFirebaseAuth } from "../integrations/firebase";
 import { env } from "../config/env";
+import { createFoodAiTrace, timeFoodAiStage } from "../services/foodAiPerformance";
 
 export interface AuthUser {
   id: string;
@@ -50,6 +51,7 @@ declare global {
     interface Request {
       user?: AuthUser;
       firebaseUser?: FirebaseTokenUser;
+      foodAiPerf?: ReturnType<typeof createFoodAiTrace>;
     }
   }
 }
@@ -78,18 +80,25 @@ export async function requireFirebaseToken(req: Request, res: Response, next: Ne
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const requestPath = req.path ?? req.url ?? "";
   const token = parseBearerToken(req.header("Authorization"));
   if (!token) return res.status(401).json({ error: "Missing bearer token" });
 
   let decoded: Awaited<ReturnType<ReturnType<typeof getFirebaseAuth>["verifyIdToken"]>>;
   try {
-    decoded = await getFirebaseAuth().verifyIdToken(token);
+    decoded = await timeFoodAiStage(req.foodAiPerf, "Authentication: Firebase token verification", () => getFirebaseAuth().verifyIdToken(token));
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 
   try {
-    const userResult = await query<{
+    const ownerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
+    const decodedEmail = decoded.email?.trim().toLowerCase();
+    if (!req.foodAiPerf && requestPath.includes("/food-logs/estimate") && ownerEmail && decodedEmail === ownerEmail) {
+      req.foodAiPerf = createFoodAiTrace(requestPath);
+    }
+
+    const userResult = await timeFoodAiStage(req.foodAiPerf, "Authentication: PostgreSQL user lookup", () => query<{
       id: string;
       firebase_uid: string;
       email: string;
@@ -109,24 +118,25 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       group by u.id, t.id
       `,
       [decoded.uid]
-    );
+    ));
 
     const dbUser = userResult.rows[0];
     if (!dbUser) return res.status(403).json({ error: "User profile has not been provisioned" });
     if (dbUser.status !== "active") return res.status(403).json({ error: "This account has been deactivated" });
 
-    const ownerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
     const isPlatformOwner = Boolean(ownerEmail && dbUser.email.trim().toLowerCase() === ownerEmail);
     let roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
 
     if (isPlatformOwner) {
       const needsRoleRepair = dbUser.primary_role !== "owner" || !roles.includes("owner") || !roles.includes("admin");
       if (needsRoleRepair) {
-        await query("update users set primary_role = 'owner', updated_at = now() where id = $1 and primary_role <> 'owner'", [dbUser.id]);
-        await query(
-          "insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin') on conflict (user_id, role) do nothing",
-          [dbUser.id]
-        );
+        await timeFoodAiStage(req.foodAiPerf, "Authentication: owner role repair", async () => {
+          await query("update users set primary_role = 'owner', updated_at = now() where id = $1 and primary_role <> 'owner'", [dbUser.id]);
+          await query(
+            "insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin') on conflict (user_id, role) do nothing",
+            [dbUser.id]
+          );
+        });
       }
       dbUser.primary_role = "owner";
       roles = normalizeRoles("owner", [...roles, "owner", "admin"]);

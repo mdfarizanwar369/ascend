@@ -438,12 +438,50 @@ export type FoodAiAllowance = {
   remaining: number | null;
 };
 
+export type FoodAiPerformanceReport = {
+  traceId: string;
+  enabled: boolean;
+  startedAt: string;
+  totalMs: number;
+  route?: string;
+  stages: Array<{
+    name: string;
+    startOffsetMs: number;
+    endOffsetMs: number;
+    durationMs: number;
+    metadata?: Record<string, unknown>;
+  }>;
+  geminiAttempts: Array<{
+    attempt: number;
+    model: string;
+    responseMode: string;
+    startOffsetMs: number;
+    endOffsetMs: number;
+    durationMs: number;
+    success: boolean;
+    failureReason?: string;
+    status?: number;
+    timeout?: boolean;
+    parseSuccess?: boolean;
+    parseFailureReason?: string;
+  }>;
+  summary: {
+    slowestStage?: string;
+    slowestStageMs?: number;
+    geminiFallbackOccurred: boolean;
+    firstAttemptSucceeded: boolean;
+    jsonParsingFailed: boolean;
+    duplicateWorkObserved: string[];
+    unnecessarySequentialWaiting: string[];
+  };
+};
+
 export function getFoodAiAllowance() {
   return authed<{ allowance: FoodAiAllowance }>("/food-logs/ai-allowance");
 }
 
 export function estimateFood(imageUrl: string) {
-  return authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance }>("/food-logs/estimate", {
+  return authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance; performance?: FoodAiPerformanceReport }>("/food-logs/estimate", {
     method: "POST",
     body: JSON.stringify({ imageUrl })
   });
@@ -451,7 +489,7 @@ export function estimateFood(imageUrl: string) {
 
 export function estimateFoodFromDataUrl(imageDataUrl: string) {
   return withTimeout(75_000, (signal) =>
-    authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance }>("/food-logs/estimate-data-url", {
+    authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance; performance?: FoodAiPerformanceReport }>("/food-logs/estimate-data-url", {
       method: "POST",
       body: JSON.stringify({ imageDataUrl }),
       signal

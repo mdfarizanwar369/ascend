@@ -9,6 +9,7 @@ import { estimateFoodFromImage } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
 import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
 import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
+import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 
 export const logsRouter = Router();
 
@@ -86,16 +87,29 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
 
 logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
-    const imageUrl = z.string().url().parse(req.body.imageUrl);
-    const estimate = await estimateFoodFromImage(imageUrl, { userId: req.user!.id, gymId: req.user!.gymId });
-    res.json({ estimate, allowance: await getFoodAiAllowance(req.user!.id) });
+    timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
+    const imageUrl = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => z.string().url().parse(req.body.imageUrl));
+    const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
+      estimateFoodFromImage(imageUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf })
+    );
+    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id));
+    const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
+      estimate,
+      allowance
+    }));
+    const performance = finishFoodAiReport(req.foodAiPerf);
+    logFoodAiReport(performance);
+    const payload = { ...payloadBase, ...(performance ? { performance } : {}) };
+    res.json(payload);
   } catch (error) {
+    const performance = finishFoodAiReport(req.foodAiPerf);
+    logFoodAiReport(performance);
     if (error instanceof FoodAiLimitError) {
-      res.status(429).json({ error: error.message, allowance: error.allowance });
+      res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
       return;
     }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message, ...(performance ? { performance } : {}) });
       return;
     }
     next(error);
@@ -104,16 +118,29 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
 
 logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
-    const input = foodImageDataSchema.parse(req.body);
-    const estimate = await estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId });
-    res.json({ estimate, allowance: await getFoodAiAllowance(req.user!.id) });
+    timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
+    const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodImageDataSchema.parse(req.body));
+    const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
+      estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf })
+    );
+    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id));
+    const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
+      estimate,
+      allowance
+    }));
+    const performance = finishFoodAiReport(req.foodAiPerf);
+    logFoodAiReport(performance);
+    const payload = { ...payloadBase, ...(performance ? { performance } : {}) };
+    res.json(payload);
   } catch (error) {
+    const performance = finishFoodAiReport(req.foodAiPerf);
+    logFoodAiReport(performance);
     if (error instanceof FoodAiLimitError) {
-      res.status(429).json({ error: error.message, allowance: error.allowance });
+      res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
       return;
     }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message, ...(performance ? { performance } : {}) });
       return;
     }
     next(error);

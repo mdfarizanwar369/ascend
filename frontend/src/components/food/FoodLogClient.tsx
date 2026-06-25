@@ -6,6 +6,7 @@ import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared"
 import {
   estimateFoodFromDataUrl,
   FoodAiAllowance,
+  FoodAiPerformanceReport,
   getFoodAiAllowance,
   getFoodLogs,
   getMe,
@@ -22,6 +23,23 @@ import { localDateKey } from "@/lib/date";
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
 type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
+type FrontendFoodAiStage = {
+  name: string;
+  startOffsetMs: number;
+  endOffsetMs: number;
+  durationMs: number;
+  metadata?: Record<string, unknown>;
+};
+type FrontendFoodAiTrace = {
+  traceId: string;
+  startedAt: string;
+  startedAtMs: number;
+  source: string;
+  stages: FrontendFoodAiStage[];
+  backend?: FoodAiPerformanceReport;
+};
+
+const frontendFoodAiPerformanceEnabled = process.env.NEXT_PUBLIC_FOOD_AI_PERFORMANCE_LOGS === "true";
 
 function manualEstimate(): FoodEstimate {
   return {
@@ -70,6 +88,93 @@ function resizeImageToDataUrl(file: File) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function isOwnerUser(user: FoodUser | null) {
+  return user?.primary_role === "owner";
+}
+
+function createFrontendFoodAiTrace(source: string, user: FoodUser | null): FrontendFoodAiTrace | null {
+  if (!isOwnerUser(user)) return null;
+  if (!frontendFoodAiPerformanceEnabled || typeof performance === "undefined") return null;
+  const startedAtMs = performance.now();
+  return {
+    traceId: `frontend-food-ai-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    startedAt: new Date().toISOString(),
+    startedAtMs,
+    source,
+    stages: []
+  };
+}
+
+function frontendOffset(trace: FrontendFoodAiTrace, value: number) {
+  return Math.round(value - trace.startedAtMs);
+}
+
+function markFrontendStage(trace: FrontendFoodAiTrace | null, name: string, metadata?: Record<string, unknown>) {
+  if (!trace || typeof performance === "undefined") return;
+  const now = performance.now();
+  trace.stages.push({
+    name,
+    startOffsetMs: frontendOffset(trace, now),
+    endOffsetMs: frontendOffset(trace, now),
+    durationMs: 0,
+    metadata
+  });
+}
+
+async function timeFrontendStage<T>(
+  trace: FrontendFoodAiTrace | null,
+  name: string,
+  action: () => Promise<T>,
+  metadata?: Record<string, unknown>
+) {
+  if (!trace || typeof performance === "undefined") return action();
+  const started = performance.now();
+  try {
+    return await action();
+  } finally {
+    const ended = performance.now();
+    trace.stages.push({
+      name,
+      startOffsetMs: frontendOffset(trace, started),
+      endOffsetMs: frontendOffset(trace, ended),
+      durationMs: Math.round(ended - started),
+      metadata
+    });
+  }
+}
+
+function logFrontendFoodAiReport(trace: FrontendFoodAiTrace | null) {
+  if (!trace || typeof performance === "undefined") return;
+  const totalMs = Math.round(performance.now() - trace.startedAtMs);
+  const slowestFrontend = [...trace.stages].sort((a, b) => b.durationMs - a.durationMs)[0];
+  console.info(
+    "[Ascend Food AI Frontend Performance]",
+    JSON.stringify({
+      traceId: trace.traceId,
+      source: trace.source,
+      startedAt: trace.startedAt,
+      totalMs,
+      frontend: {
+        stages: trace.stages,
+        slowestStage: slowestFrontend?.name,
+        slowestStageMs: slowestFrontend?.durationMs
+      },
+      backend: trace.backend ?? null,
+      rootCauseSummary: {
+        slowestOverallStage:
+          trace.backend?.summary.slowestStage && (trace.backend.summary.slowestStageMs ?? 0) > (slowestFrontend?.durationMs ?? 0)
+            ? trace.backend.summary.slowestStage
+            : slowestFrontend?.name,
+        geminiFallbackOccurred: trace.backend?.summary.geminiFallbackOccurred ?? false,
+        firstGeminiAttemptSucceeded: trace.backend?.summary.firstAttemptSucceeded ?? false,
+        jsonParsingFailed: trace.backend?.summary.jsonParsingFailed ?? false,
+        duplicateWorkObserved: trace.backend?.summary.duplicateWorkObserved ?? [],
+        unnecessarySequentialWaiting: trace.backend?.summary.unnecessarySequentialWaiting ?? []
+      }
+    })
+  );
 }
 
 function shouldRetryEstimate(error: unknown) {
@@ -255,7 +360,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
   const currentMealInsight = estimate ? mealInsight(estimate, nutritionTargets) : null;
 
-  async function estimateFoodWithRetry(imageDataUrl: string) {
+  async function estimateFoodWithRetry(imageDataUrl: string, trace?: FrontendFoodAiTrace | null) {
     let lastError: unknown;
 
     for (let attempt = 0; attempt < 1; attempt += 1) {
@@ -264,9 +369,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
           setStatus("AI is taking another look at the same photo...");
           await sleep(1200 * attempt);
         }
-        const response = await estimateFoodFromDataUrl(imageDataUrl);
+        markFrontendStage(trace ?? null, "API request starts", { attempt: attempt + 1 });
+        const response = await timeFrontendStage(trace ?? null, "API request to /food-logs/estimate-data-url", () => estimateFoodFromDataUrl(imageDataUrl), {
+          attempt: attempt + 1
+        });
+        markFrontendStage(trace ?? null, "API response received", { attempt: attempt + 1 });
+        if (response.performance && trace) trace.backend = response.performance;
         if (response.allowance) setAllowance(response.allowance);
-        return response.estimate;
+        return response;
       } catch (error) {
         lastError = error;
         if (!shouldRetryEstimate(error) || attempt === 0) break;
@@ -277,9 +387,11 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const trace = createFrontendFoodAiTrace("image-selected-auto-analysis", user);
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    markFrontendStage(trace, "Image selected", { sizeBytes: file.size, type: file.type });
 
     setPreviewUrl(URL.createObjectURL(file));
     setSelectedFile(file);
@@ -289,15 +401,23 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
 
-    resizeImageToDataUrl(file)
+    markFrontendStage(trace, "Image compression starts");
+    timeFrontendStage(trace, "Image preprocessing/compression", () => resizeImageToDataUrl(file), {
+      sourceSizeBytes: file.size
+    })
       .then(async (imageDataUrl) => {
+        markFrontendStage(trace, "Image compression ends", { dataUrlLength: imageDataUrl.length });
         setSelectedImageDataUrl(imageDataUrl);
-        return estimateFoodWithRetry(imageDataUrl);
+        return estimateFoodWithRetry(imageDataUrl, trace);
       })
-      .then((nextEstimate) => {
-        setEstimate(nextEstimate);
+      .then((response) => {
+        setEstimate(response.estimate);
         setAiFailed(false);
         setStatus("AI estimate ready. Review, edit if needed, then save.");
+        window.setTimeout(() => {
+          markFrontendStage(trace, "Result rendered to user");
+          logFrontendFoodAiReport(trace);
+        }, 0);
       })
       .catch((error) => {
         setEstimate(manualEstimate());
@@ -305,6 +425,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         setAiFailed(true);
         setStatus(estimateFailureMessage(error));
         loadAllowance().catch(() => {});
+        window.setTimeout(() => {
+          markFrontendStage(trace, "Result rendered to user", { state: "manual_fallback" });
+          logFrontendFoodAiReport(trace);
+        }, 0);
       })
       .finally(() => setIsEstimating(false));
   }
@@ -321,18 +445,28 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
   async function handleEstimate() {
     if (!selectedFile) return;
+    const trace = createFrontendFoodAiTrace("manual-analyze-button", user);
+    markFrontendStage(trace, "User taps Analyze", { sizeBytes: selectedFile.size, type: selectedFile.type });
     setIsEstimating(true);
     setAiFailed(false);
     setEstimate(null);
     setStatus("Estimating food, calories, protein, carbs, and fat...");
 
     try {
-      const imageDataUrl = await resizeImageToDataUrl(selectedFile);
+      markFrontendStage(trace, "Image compression starts");
+      const imageDataUrl = await timeFrontendStage(trace, "Image preprocessing/compression", () => resizeImageToDataUrl(selectedFile), {
+        sourceSizeBytes: selectedFile.size
+      });
+      markFrontendStage(trace, "Image compression ends", { dataUrlLength: imageDataUrl.length });
       setSelectedImageDataUrl(imageDataUrl);
-      const nextEstimate = await estimateFoodWithRetry(imageDataUrl);
-      setEstimate(nextEstimate);
+      const response = await estimateFoodWithRetry(imageDataUrl, trace);
+      setEstimate(response.estimate);
       setAiFailed(false);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
+      window.setTimeout(() => {
+        markFrontendStage(trace, "Result rendered to user");
+        logFrontendFoodAiReport(trace);
+      }, 0);
     } catch (error) {
       if (selectedFile) {
         setEstimate(manualEstimate());
@@ -340,6 +474,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         setAiFailed(true);
         setStatus(estimateFailureMessage(error));
         loadAllowance().catch(() => {});
+        window.setTimeout(() => {
+          markFrontendStage(trace, "Result rendered to user", { state: "manual_fallback" });
+          logFrontendFoodAiReport(trace);
+        }, 0);
       }
     } finally {
       setIsEstimating(false);
