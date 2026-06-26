@@ -2,12 +2,14 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ClipboardList, LockKeyhole } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, LockKeyhole, Target, TrendingDown } from "lucide-react";
 import {
   AthleteDashboard,
+  BodyCompositionScan,
   createAthleteCoachNote,
   createAthleteTarget,
   getAthleteCoachNotes,
+  getTrainerClientFoodLogs,
   getTrainerBodyComposition,
   getTrainerAthleteDashboard,
   BodyCompositionSummary,
@@ -21,9 +23,155 @@ const targetOptions = [
   ["mobility_sessions", "Mobility", "sessions", "weekly"], ["recovery_days", "Recovery", "days", "weekly"]
 ] as const;
 
+type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
+type CoachInsightTone = "red" | "orange" | "yellow" | "green" | "blue";
+type CoachInsight = {
+  tone: CoachInsightTone;
+  title: string;
+  explanation: string;
+  action: string;
+  priority: number;
+};
+
+function numberOrNull(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return null;
+  const next = Number(value);
+  return Number.isFinite(next) ? next : null;
+}
+
+function dayDiff(date?: string | null) {
+  if (!date) return null;
+  const scanDate = new Date(date);
+  if (Number.isNaN(scanDate.getTime())) return null;
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const startScan = new Date(scanDate.getFullYear(), scanDate.getMonth(), scanDate.getDate()).getTime();
+  return Math.floor((startToday - startScan) / 86_400_000);
+}
+
+function foodLogsInWindow(foodLogs: FoodLog[], startDaysAgo: number, endDaysAgo: number) {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - startDaysAgo).getTime();
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - endDaysAgo + 1).getTime();
+  return foodLogs.filter((log) => {
+    const logged = new Date(log.logged_at).getTime();
+    return logged >= start && logged < end;
+  }).length;
+}
+
+function bodyFatPlateau(scans: BodyCompositionScan[]) {
+  const withBodyFat = scans.filter((scan) => numberOrNull(scan.bodyFatPercent) !== null).slice(0, 3);
+  if (withBodyFat.length < 3) return false;
+  const newest = numberOrNull(withBodyFat[0].bodyFatPercent);
+  const oldest = numberOrNull(withBodyFat[withBodyFat.length - 1].bodyFatPercent);
+  if (newest === null || oldest === null) return false;
+  return oldest - newest < 0.3;
+}
+
+function buildCoachInsights(athlete: AthleteDashboard, summary: BodyCompositionSummary | null, scans: BodyCompositionScan[], foodLogs: FoodLog[]) {
+  const insights: CoachInsight[] = [];
+  const latest = summary?.latestScan ?? scans[0] ?? null;
+  const previous = summary?.previousScan ?? scans[1] ?? null;
+  const latestMuscle = numberOrNull(latest?.skeletalMuscleMassKg ?? latest?.muscleMassKg);
+  const previousMuscle = numberOrNull(previous?.skeletalMuscleMassKg ?? previous?.muscleMassKg);
+  const latestBodyFat = numberOrNull(latest?.bodyFatPercent);
+  const previousBodyFat = numberOrNull(previous?.bodyFatPercent);
+
+  if (latestMuscle !== null && previousMuscle !== null && latestMuscle < previousMuscle - 0.2) {
+    insights.push({
+      tone: "red",
+      title: "Muscle loss detected",
+      explanation: `Skeletal muscle is down by ${(previousMuscle - latestMuscle).toFixed(1)}kg since the previous scan.`,
+      action: "Review protein intake and resistance training.",
+      priority: 100
+    });
+  }
+
+  if (bodyFatPlateau(scans)) {
+    insights.push({
+      tone: "orange",
+      title: "Body fat plateau",
+      explanation: "Body fat has not meaningfully improved across the recent scans.",
+      action: "Consider reviewing calorie intake or increasing activity.",
+      priority: 80
+    });
+  }
+
+  const scanAge = dayDiff(latest?.scanDate);
+  if (scanAge === null) {
+    insights.push({
+      tone: "yellow",
+      title: "No Body Scan yet",
+      explanation: "This athlete does not have a confirmed Body Scan baseline yet.",
+      action: "Invite client for their first Body Scan.",
+      priority: 70
+    });
+  } else if (scanAge > 28) {
+    insights.push({
+      tone: "yellow",
+      title: "Body Scan overdue",
+      explanation: `Last Body Scan was ${scanAge} days ago.`,
+      action: "Invite client for another Body Scan.",
+      priority: 70
+    });
+  }
+
+  const recentFoodLogs = foodLogsInWindow(foodLogs, 6, 0);
+  const previousFoodLogs = foodLogsInWindow(foodLogs, 13, 7);
+  if (previousFoodLogs >= 4 && recentFoodLogs <= Math.max(2, Math.floor(previousFoodLogs * 0.5))) {
+    insights.push({
+      tone: "yellow",
+      title: "Nutrition consistency low",
+      explanation: `Food logging dropped from ${previousFoodLogs} to ${recentFoodLogs} logs compared with the previous week.`,
+      action: "Check in with client.",
+      priority: 60
+    });
+  }
+
+  if (latestBodyFat !== null && previousBodyFat !== null && latestBodyFat < previousBodyFat - 0.3 && (latestMuscle ?? 0) >= (previousMuscle ?? 0) - 0.1) {
+    insights.push({
+      tone: "green",
+      title: "Excellent progress",
+      explanation: "Body fat decreased while muscle stayed stable or improved.",
+      action: "Continue current plan.",
+      priority: 40
+    });
+  }
+
+  const goalWeight = numberOrNull(athlete.profile.goal_weight_kg);
+  const latestWeight = numberOrNull(latest?.weightKg ?? athlete.profile.current_weight_kg);
+  if (goalWeight !== null && latestWeight !== null && Math.abs(latestWeight - goalWeight) <= Math.max(1, goalWeight * 0.1)) {
+    insights.push({
+      tone: "blue",
+      title: "Goal approaching",
+      explanation: "Client is within approximately 10% of the goal weight.",
+      action: "Begin planning the maintenance phase.",
+      priority: 30
+    });
+  }
+
+  return insights.sort((a, b) => b.priority - a.priority).slice(0, 3);
+}
+
+function insightToneClass(tone: CoachInsightTone) {
+  if (tone === "red") return "border-red-400/50 bg-red-400/10 text-red-200";
+  if (tone === "orange") return "border-orange-400/50 bg-orange-400/10 text-orange-200";
+  if (tone === "yellow") return "border-amber/50 bg-amber/10 text-amber";
+  if (tone === "green") return "border-teal-400/50 bg-teal-400/10 text-teal-200";
+  return "border-blue-400/50 bg-blue-400/10 text-blue-200";
+}
+
+function InsightIcon({ tone }: { tone: CoachInsightTone }) {
+  if (tone === "red" || tone === "orange" || tone === "yellow") return <AlertTriangle size={18} />;
+  if (tone === "green") return <CheckCircle2 size={18} />;
+  return <Target size={18} />;
+}
+
 export function AthleteCoachPanel({ clientId }: { clientId: string }) {
   const [athlete, setAthlete] = useState<AthleteDashboard | null>(null);
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionSummary | null>(null);
+  const [bodyScans, setBodyScans] = useState<BodyCompositionScan[]>([]);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [notes, setNotes] = useState<Array<{ id: string; body: string; author_name: string; created_at: string }>>([]);
   const [targetType, setTargetType] = useState("steps");
   const [targetValue, setTargetValue] = useState("");
@@ -37,18 +185,23 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
 
   const load = useCallback(async () => {
     try {
-      const [response, bodyResponse] = await Promise.all([
+      const [response, bodyResponse, foodResponse] = await Promise.all([
         getTrainerAthleteDashboard(clientId),
-        getTrainerBodyComposition(clientId).catch(() => null)
+        getTrainerBodyComposition(clientId).catch(() => null),
+        getTrainerClientFoodLogs(clientId, { range: "30d", limit: 200 }).catch(() => null)
       ]);
       setAthlete(response.athlete);
       setBodyComposition(bodyResponse?.summary ?? null);
+      setBodyScans(bodyResponse?.scans ?? []);
+      setFoodLogs(foodResponse?.foodLogs ?? []);
       setCoachComment(response.athlete.latestReview?.coach_comment ?? "");
       const noteResponse = await getAthleteCoachNotes(clientId);
       setNotes(noteResponse.notes);
     } catch {
       setAthlete(null);
       setBodyComposition(null);
+      setBodyScans([]);
+      setFoodLogs([]);
     }
   }, [clientId]);
 
@@ -90,6 +243,7 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
   if (!athlete) return null;
   const latestScan = bodyComposition?.latestScan ?? null;
   const dnaScore = bodyComposition?.dnaScore.current ?? null;
+  const coachInsights = buildCoachInsights(athlete, bodyComposition, bodyScans, foodLogs);
 
   return (
     <section className="mt-4 rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
@@ -100,6 +254,42 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
       </div>
 
       {athlete.readiness.warningReasons.length ? <div className="mt-3 rounded-lg border border-red-400/40 bg-red-400/10 p-3"><p className="text-sm font-semibold text-red-300">Coach review recommended</p>{athlete.readiness.warningReasons.map((reason) => <p key={reason} className="mt-1 text-xs text-zinc-300">- {reason}</p>)}</div> : null}
+
+      <section className="mt-3 rounded-lg border border-teal-400/40 bg-ink p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-teal-300">Coach Intelligence</p>
+            <h3 className="mt-1 text-lg font-semibold">Needs attention today</h3>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">Ranked coaching cues from recent Body Scans, food logs, and athlete check-ins.</p>
+          </div>
+          <TrendingDown className="mt-1 text-teal-300" size={20} />
+        </div>
+        <div className="mt-3 space-y-2">
+          {coachInsights.length ? coachInsights.map((insight) => (
+            <article key={insight.title} className={`rounded-lg border p-3 ${insightToneClass(insight.tone)}`}>
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 shrink-0"><InsightIcon tone={insight.tone} /></div>
+                <div>
+                  <p className="font-semibold">{insight.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-200">{insight.explanation}</p>
+                  <p className="mt-2 text-xs font-semibold text-white">Suggested action: {insight.action}</p>
+                </div>
+              </div>
+            </article>
+          )) : (
+            <article className="rounded-lg border border-teal-400/40 bg-teal-400/10 p-3 text-teal-100">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
+                <div>
+                  <p className="font-semibold">No urgent coaching action</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-200">This athlete has no high-priority body scan or nutrition consistency flags today.</p>
+                  <p className="mt-2 text-xs font-semibold text-white">Suggested action: Keep the current plan visible and positive.</p>
+                </div>
+              </div>
+            </article>
+          )}
+        </div>
+      </section>
 
       <Link href={`/trainer/clients/${clientId}/body-composition`} className="mt-3 block rounded-lg border border-teal-400/40 bg-teal-400/10 p-3 !text-white transition hover:border-teal-300">
         <p className="text-sm font-semibold text-teal-200">View full Body Scan history</p>
