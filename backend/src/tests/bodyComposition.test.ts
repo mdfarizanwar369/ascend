@@ -5,6 +5,7 @@ import {
   normalizeBodyCompositionScan,
   validateBodyCompositionScan
 } from "../services/bodyCompositionService";
+import { bodyCompositionScanToDbValues } from "../routes/bodyComposition";
 
 describe("Body Composition Engine", () => {
   it("normalizes lean mass from weight and fat mass", () => {
@@ -93,5 +94,23 @@ describe("Body Composition Engine", () => {
     expect(prompt).toContain("Convert lb values to kg");
     expect(prompt).toContain("Never put a percent value into a Kg field");
     expect(prompt).toContain("confidenceScore must be a decimal from 0 to 1");
+  });
+
+  it("serializes JSONB scan fields before database insert", () => {
+    const values = bodyCompositionScanToDbValues({
+      scanDate: "2026-06-26",
+      weightKg: 74.07,
+      bodyFatPercent: 8.2,
+      skeletalMuscleMassKg: 39.69,
+      segmentalMuscle: { rightArmKg: 4.1 },
+      segmentalFat: null,
+      sourceImages: [{ key: "body-composition/test/scan.jpg" }],
+      importSource: "ai_import",
+      userConfirmed: true
+    }, "390b6a4f-a2fc-43c8-afcf-44324ca12fb2", "390b6a4f-a2fc-43c8-afcf-44324ca12fb2");
+
+    expect(values[18]).toBe(JSON.stringify({ rightArmKg: 4.1 }));
+    expect(values[19]).toBe(JSON.stringify({}));
+    expect(values[24]).toBe(JSON.stringify([{ key: "body-composition/test/scan.jpg" }]));
   });
 });

@@ -69,7 +69,7 @@ async function requireEnabledAthlete(userId: string) {
   return result.rows[0]?.enabled === true;
 }
 
-function toDb(scan: BodyCompositionScanInput, userId: string, actorId: string) {
+export function bodyCompositionScanToDbValues(scan: BodyCompositionScanInput, userId: string, actorId: string) {
   return [
     userId,
     scan.scanDate,
@@ -89,13 +89,13 @@ function toDb(scan: BodyCompositionScanInput, userId: string, actorId: string) {
     scan.boneMassKg ?? null,
     scan.bmrKcal ?? null,
     scan.metabolicAge ?? null,
-    scan.segmentalMuscle ?? {},
-    scan.segmentalFat ?? {},
+    JSON.stringify(scan.segmentalMuscle ?? {}),
+    JSON.stringify(scan.segmentalFat ?? {}),
     scan.confidenceScore ?? null,
     scan.missingFields ?? [],
     scan.notes ?? null,
     scan.importSource,
-    scan.sourceImages ?? [],
+    JSON.stringify(scan.sourceImages ?? []),
     scan.userConfirmed ?? true,
     scan.userConfirmed ? new Date() : null,
     actorId,
@@ -179,13 +179,32 @@ async function summaryFor(userId: string) {
 }
 
 async function saveScan(userId: string, actorId: string, body: unknown) {
+  bodyCompositionSaveLog("save_parse_started", { userId, actorId });
   const input = normalizeBodyCompositionScan(scanSchema.parse(body));
+  bodyCompositionSaveLog("save_parse_complete", {
+    userId,
+    scanDate: input.scanDate,
+    importSource: input.importSource,
+    sourceImageCount: input.sourceImages?.length ?? 0,
+    segmentalMuscleKeys: Object.keys(input.segmentalMuscle ?? {}).length,
+    segmentalFatKeys: Object.keys(input.segmentalFat ?? {}).length
+  });
   const validation = validateBodyCompositionScan(input);
   if (!validation.valid) {
+    bodyCompositionSaveLog("save_validation_failed", { userId, errors: validation.errors });
     const error = new Error(validation.errors.join(" "));
     (error as Error & { status?: number }).status = 400;
     throw error;
   }
+  bodyCompositionSaveLog("save_validation_complete", { userId });
+  const dbValues = bodyCompositionScanToDbValues(input, userId, actorId);
+  bodyCompositionSaveLog("save_db_insert_started", {
+    userId,
+    sourceImagesType: typeof dbValues[24],
+    sourceImagesPreview: String(dbValues[24]).slice(0, 120),
+    segmentalMuscleType: typeof dbValues[18],
+    segmentalMusclePreview: String(dbValues[18]).slice(0, 120)
+  });
   const result = await query(
     `
     insert into body_composition_scans (
@@ -199,9 +218,19 @@ async function saveScan(userId: string, actorId: string, body: unknown) {
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
     ) returning *
     `,
-    toDb(input, userId, actorId)
+    dbValues
   );
-  return hydrateImages(fromDb(result.rows[0]));
+  bodyCompositionSaveLog("save_db_insert_complete", {
+    userId,
+    scanId: result.rows[0]?.id ?? null
+  });
+  const hydrated = await hydrateImages(fromDb(result.rows[0]));
+  bodyCompositionSaveLog("save_hydrate_complete", {
+    userId,
+    scanId: hydrated.id,
+    sourceImageCount: hydrated.sourceImages?.length ?? 0
+  });
+  return hydrated;
 }
 
 bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, async (req, res, next) => {
