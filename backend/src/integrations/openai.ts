@@ -162,6 +162,87 @@ function nullishNumber(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
+const poundsToKg = 0.45359237;
+
+function roundBodyMetric(value: number | null, decimals = 2) {
+  if (value === null || !Number.isFinite(value)) return null;
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function numberFromParsed(source: Record<string, unknown>, keys: string[]) {
+  return nullishNumber(firstValue(source, keys));
+}
+
+function kgFromParsed(source: Record<string, unknown>, kgKeys: string[], lbKeys: string[]) {
+  const explicitLb = numberFromParsed(source, lbKeys);
+  if (explicitLb !== null) return roundBodyMetric(explicitLb * poundsToKg);
+  return numberFromParsed(source, kgKeys);
+}
+
+function bodyCompositionConfidence(value: unknown) {
+  const number = nullishNumber(value);
+  if (number === null) return null;
+  if (number > 1 && number <= 10) return roundBodyMetric(number / 10, 2);
+  if (number > 10 && number <= 100) return roundBodyMetric(number / 100, 2);
+  return clampNumber(number, 0, 1);
+}
+
+function bodyCompositionScanDate(value: unknown) {
+  if (typeof value !== "string" || value.toLowerCase() === "null" || !/^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  return value.slice(0, 10);
+}
+
+function sanitizeSegmentalValues(segmental: unknown) {
+  if (!segmental || typeof segmental !== "object") return {};
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(segmental as Record<string, unknown>)) {
+    const number = nullishNumber(value);
+    if (number === null) {
+      output[key] = value;
+      continue;
+    }
+    const lowerKey = key.toLowerCase();
+    if (lowerKey.endsWith("kg")) {
+      const plausibleKgMax = lowerKey.includes("arm") ? 20 : lowerKey.includes("leg") ? 45 : lowerKey.includes("trunk") ? 80 : 80;
+      const likelyPercentThreshold = lowerKey.includes("trunk") ? 90 : lowerKey.includes("leg") ? 70 : 30;
+      if (number >= likelyPercentThreshold && number <= 300) {
+        output[key.replace(/Kg$/i, "Percent")] = number;
+        continue;
+      }
+      output[key] = number > plausibleKgMax ? roundBodyMetric(number * poundsToKg) : number;
+      continue;
+    }
+    output[key] = number;
+  }
+  return output;
+}
+
+function sanitizeBodyCompositionUnitMix(input: ReturnType<typeof normalizeBodyCompositionScan>) {
+  const output = { ...input };
+  const impliedWeightFromFat = output.fatMassKg && output.bodyFatPercent ? output.fatMassKg / (output.bodyFatPercent / 100) : null;
+  const weightForBmi = output.weightKg ?? impliedWeightFromFat;
+  const impliedHeightM = weightForBmi && output.bmi ? Math.sqrt(weightForBmi / output.bmi) : null;
+  const likelyPoundReport = Boolean(weightForBmi && output.bmi && impliedHeightM && impliedHeightM > 2.25 && weightForBmi > 180);
+
+  if (likelyPoundReport) {
+    output.weightKg = output.weightKg ? roundBodyMetric(output.weightKg * poundsToKg) : roundBodyMetric((impliedWeightFromFat ?? 0) * poundsToKg);
+    output.fatMassKg = output.fatMassKg ? roundBodyMetric(output.fatMassKg * poundsToKg) : null;
+    output.leanBodyMassKg = output.leanBodyMassKg ? roundBodyMetric(output.leanBodyMassKg * poundsToKg) : null;
+    output.estimatedLeanBodyMassKg = output.estimatedLeanBodyMassKg ? roundBodyMetric(output.estimatedLeanBodyMassKg * poundsToKg) : null;
+    output.skeletalMuscleMassKg = output.skeletalMuscleMassKg ? roundBodyMetric(output.skeletalMuscleMassKg * poundsToKg) : null;
+    output.muscleMassKg = output.muscleMassKg ? roundBodyMetric(output.muscleMassKg * poundsToKg) : null;
+    output.boneMassKg = output.boneMassKg ? roundBodyMetric(output.boneMassKg * poundsToKg) : null;
+    output.notes = `${output.notes ? `${output.notes} ` : ""}Ascend detected an lb-based report and converted body composition weights to kg.`;
+  }
+
+  output.segmentalMuscle = sanitizeSegmentalValues(output.segmentalMuscle);
+  output.segmentalFat = sanitizeSegmentalValues(output.segmentalFat);
+  return normalizeBodyCompositionScan(output);
+}
+
 function parseBodyCompositionExtraction(text: string) {
   const cleaned = cleanJsonText(text);
   let parsed: Record<string, unknown>;
@@ -180,32 +261,32 @@ function parseBodyCompositionExtraction(text: string) {
       env.NODE_ENV === "production" ? undefined : text
     );
   }
-  return normalizeBodyCompositionScan({
-    scanDate: String(parsed.scanDate ?? new Date().toISOString().slice(0, 10)).slice(0, 10),
+  return sanitizeBodyCompositionUnitMix(normalizeBodyCompositionScan({
+    scanDate: bodyCompositionScanDate(parsed.scanDate),
     machine: typeof parsed.machine === "string" ? parsed.machine : null,
-    weightKg: nullishNumber(parsed.weightKg),
+    weightKg: kgFromParsed(parsed, ["weightKg", "weight_kg"], ["weightLb", "weight_lb", "weightLbs"]),
     bmi: nullishNumber(parsed.bmi),
     bodyFatPercent: nullishNumber(parsed.bodyFatPercent),
-    fatMassKg: nullishNumber(parsed.fatMassKg),
-    leanBodyMassKg: nullishNumber(parsed.leanBodyMassKg),
-    estimatedLeanBodyMassKg: nullishNumber(parsed.estimatedLeanBodyMassKg),
-    skeletalMuscleMassKg: nullishNumber(parsed.skeletalMuscleMassKg),
-    muscleMassKg: nullishNumber(parsed.muscleMassKg),
+    fatMassKg: kgFromParsed(parsed, ["fatMassKg", "fat_mass_kg"], ["fatMassLb", "fat_mass_lb", "bodyFatMassLb"]),
+    leanBodyMassKg: kgFromParsed(parsed, ["leanBodyMassKg", "lean_body_mass_kg"], ["leanBodyMassLb", "lean_body_mass_lb"]),
+    estimatedLeanBodyMassKg: kgFromParsed(parsed, ["estimatedLeanBodyMassKg", "estimated_lean_body_mass_kg"], ["estimatedLeanBodyMassLb"]),
+    skeletalMuscleMassKg: kgFromParsed(parsed, ["skeletalMuscleMassKg", "skeletal_muscle_mass_kg", "smmKg"], ["skeletalMuscleMassLb", "skeletal_muscle_mass_lb", "smmLb"]),
+    muscleMassKg: kgFromParsed(parsed, ["muscleMassKg", "muscle_mass_kg"], ["muscleMassLb", "muscle_mass_lb"]),
     visceralFat: nullishNumber(parsed.visceralFat),
     bodyWaterPercent: nullishNumber(parsed.bodyWaterPercent),
     proteinPercent: nullishNumber(parsed.proteinPercent),
     mineralPercent: nullishNumber(parsed.mineralPercent),
-    boneMassKg: nullishNumber(parsed.boneMassKg),
+    boneMassKg: kgFromParsed(parsed, ["boneMassKg", "bone_mass_kg"], ["boneMassLb", "bone_mass_lb"]),
     bmrKcal: nullishNumber(parsed.bmrKcal),
     metabolicAge: nullishNumber(parsed.metabolicAge),
     segmentalMuscle: parsed.segmentalMuscle && typeof parsed.segmentalMuscle === "object" ? parsed.segmentalMuscle as Record<string, unknown> : {},
     segmentalFat: parsed.segmentalFat && typeof parsed.segmentalFat === "object" ? parsed.segmentalFat as Record<string, unknown> : {},
-    confidenceScore: nullishNumber(parsed.confidenceScore),
+    confidenceScore: bodyCompositionConfidence(parsed.confidenceScore),
     missingFields: Array.isArray(parsed.missingFields) ? parsed.missingFields.map(String).slice(0, 30) : [],
     notes: typeof parsed.notes === "string" ? parsed.notes.slice(0, 2000) : null,
     importSource: "ai_import",
     userConfirmed: false
-  });
+  }));
 }
 
 function bodyCompositionFallbackDraft(reason: string) {

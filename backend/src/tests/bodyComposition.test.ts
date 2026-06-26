@@ -69,5 +69,8 @@ describe("Body Composition Engine", () => {
     expect(prompt).toContain("Evolt");
     expect(prompt).toContain("Never guess numbers");
     expect(prompt).toContain("strict JSON");
+    expect(prompt).toContain("Convert lb values to kg");
+    expect(prompt).toContain("Never put a percent value into a Kg field");
+    expect(prompt).toContain("confidenceScore must be a decimal from 0 to 1");
   });
 });

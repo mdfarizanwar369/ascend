@@ -367,6 +367,11 @@ export function buildBodyCompositionAiPrompt() {
     "The report may come from InBody, Tanita, OSIM, Tabata, Evolt, Dexa, Styku or another device.",
     "Extract ONLY clearly visible values. Never guess numbers. If uncertain, return null.",
     "If multiple images show the same value, merge duplicates and prefer the clearest value.",
+    "Many InBody reports use lb, not kg. Convert lb values to kg for every field ending in Kg. 1 lb = 0.453592 kg.",
+    "For InBody Muscle-Fat Analysis, Weight, SMM and Body Fat Mass may be shown in lb; convert those to weightKg, skeletalMuscleMassKg and fatMassKg.",
+    "For Segmental Lean Analysis, each segment often shows two rows: the top row is lb and the bottom row is percent. Put converted lb values in segmentalMuscle.*Kg and put percent values in segmentalMuscle.*Percent. Never put a percent value into a Kg field.",
+    "For Visceral Fat Level, use the visible level number. For Basal Metabolic Rate, use the visible kcal number.",
+    "confidenceScore must be a decimal from 0 to 1, not 0 to 10 or 0 to 100.",
     "Return strict JSON only with keys: scanDate, machine, weightKg, bmi, bodyFatPercent, fatMassKg, leanBodyMassKg, estimatedLeanBodyMassKg, skeletalMuscleMassKg, muscleMassKg, visceralFat, bodyWaterPercent, proteinPercent, mineralPercent, boneMassKg, bmrKcal, metabolicAge, segmentalMuscle, segmentalFat, confidenceScore, missingFields, notes.",
     "Use kg, kcal and percentages. Use null for missing fields. Do not provide medical diagnosis."
   ].join(" ");
