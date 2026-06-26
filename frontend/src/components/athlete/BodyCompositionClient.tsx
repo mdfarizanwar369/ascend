@@ -600,9 +600,11 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       }
       setBusy(true);
       const payload = { ...draft, userConfirmed: true };
+      const serializedPayload = JSON.stringify(payload);
       console.info("[body-composition-save] Calling saveBodyCompositionScan()", {
         endpoint: coachView && clientId ? "trainer" : "athlete",
-        payload
+        payload,
+        payloadBytes: new Blob([serializedPayload]).size
       });
       const response = coachView && clientId
         ? await saveTrainerBodyCompositionScan(clientId, { ...payload, importSource: "manual_entry" })

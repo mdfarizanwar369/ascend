@@ -248,8 +248,25 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
   }
 });
 
-bodyCompositionRouter.post("/athlete/body-composition/scans", requireAuth, async (req, res, next) => {
+bodyCompositionRouter.post("/athlete/body-composition/scans", (req, _res, next) => {
+  bodyCompositionRouteLog("save_ingress_before_auth", {
+    path: req.originalUrl,
+    method: req.method,
+    hasAuthorization: Boolean(req.header("Authorization")),
+    bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8")
+  });
+  next();
+}, requireAuth, async (req, res, next) => {
   try {
+    bodyCompositionRouteLog("save_handler_entered", {
+      userId: req.user!.id,
+      bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8"),
+      scanDate: req.body?.scanDate,
+      importSource: req.body?.importSource,
+      hasWeight: req.body?.weightKg !== null && req.body?.weightKg !== undefined,
+      hasBodyFat: req.body?.bodyFatPercent !== null && req.body?.bodyFatPercent !== undefined,
+      hasSkeletalMuscle: req.body?.skeletalMuscleMassKg !== null && req.body?.skeletalMuscleMassKg !== undefined
+    });
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
     const scan = await saveScan(req.user!.id, req.user!.id, req.body);
     res.status(201).json({ scan, summary: await summaryFor(req.user!.id) });
@@ -286,8 +303,23 @@ bodyCompositionRouter.get("/trainer/clients/:clientId/body-composition", require
   }
 });
 
-bodyCompositionRouter.post("/trainer/clients/:clientId/body-composition/scans", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+bodyCompositionRouter.post("/trainer/clients/:clientId/body-composition/scans", (req, _res, next) => {
+  bodyCompositionRouteLog("trainer_save_ingress_before_auth", {
+    path: req.originalUrl,
+    method: req.method,
+    hasAuthorization: Boolean(req.header("Authorization")),
+    bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8")
+  });
+  next();
+}, requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    bodyCompositionRouteLog("trainer_save_handler_entered", {
+      actorId: req.user!.id,
+      clientId: req.params.clientId,
+      bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8"),
+      scanDate: req.body?.scanDate,
+      importSource: req.body?.importSource
+    });
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     if (!await requireEnabledAthlete(req.params.clientId)) return res.status(404).json({ error: "Athlete Mode is not enabled for this client." });
     const scan = await saveScan(req.params.clientId, req.user!.id, { ...req.body, importSource: "manual_entry" });
