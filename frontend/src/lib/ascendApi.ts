@@ -1397,6 +1397,95 @@ export function updateAthleteReviewComment(clientId: string, coachComment: strin
   });
 }
 
+export type BodyCompositionScan = {
+  id?: string;
+  scanDate: string;
+  machine?: string | null;
+  weightKg?: number | null;
+  bmi?: number | null;
+  bodyFatPercent?: number | null;
+  fatMassKg?: number | null;
+  leanBodyMassKg?: number | null;
+  estimatedLeanBodyMassKg?: number | null;
+  skeletalMuscleMassKg?: number | null;
+  muscleMassKg?: number | null;
+  visceralFat?: number | null;
+  bodyWaterPercent?: number | null;
+  proteinPercent?: number | null;
+  mineralPercent?: number | null;
+  boneMassKg?: number | null;
+  bmrKcal?: number | null;
+  metabolicAge?: number | null;
+  segmentalMuscle?: Record<string, unknown> | null;
+  segmentalFat?: Record<string, unknown> | null;
+  confidenceScore?: number | null;
+  missingFields?: string[];
+  notes?: string | null;
+  importSource: "ai_import" | "manual_entry";
+  sourceImages?: Array<{ key?: string | null; url?: string | null }>;
+  userConfirmed?: boolean;
+  createdAt?: string;
+};
+
+export type BodyCompositionSummary = {
+  latestScan: BodyCompositionScan | null;
+  previousScan: BodyCompositionScan | null;
+  scanCount: number;
+  derived: {
+    fatFreeMassKg: number | null;
+    estimatedLeanBodyMassKg: number | null;
+    ffmi: number | null;
+    estimatedDailyEnergyNeedsKcal: number | null;
+    bodyRecompositionIndex: number | null;
+    rateOfFatLossKgPerWeek: number | null;
+    rateOfMuscleGainKgPerMonth: number | null;
+    goalEtaWeeks: number | null;
+    weeklyProgressPercent: number | null;
+    monthlyProgressPercent: number | null;
+  };
+  dnaScore: { current: number | null; previous: number | null; change: number | null; label: string };
+  trends: Array<{ metric: string; current: number | null; previous: number | null; bestEver: number | null; change: number | null }>;
+  coachAlerts: Array<{ type: string; severity: "positive" | "medium" | "high"; message: string }>;
+  insights: string[];
+  nutritionDataSource: "Profile Only" | "Profile + Body Scan" | "Profile + Body Scan History";
+};
+
+export function extractBodyComposition(images: string[]) {
+  return withTimeout(90_000, (signal) =>
+    authed<{ draft: BodyCompositionScan }>("/athlete/body-composition/extract", {
+      method: "POST",
+      body: JSON.stringify({ images }),
+      signal
+    })
+  );
+}
+
+export function saveBodyCompositionScan(scan: BodyCompositionScan) {
+  return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>("/athlete/body-composition/scans", {
+    method: "POST",
+    body: JSON.stringify(scan)
+  });
+}
+
+export function getBodyCompositionSummary() {
+  return authed<{ summary: BodyCompositionSummary }>("/athlete/body-composition/summary");
+}
+
+export function getBodyCompositionScans() {
+  return authed<{ scans: BodyCompositionScan[] }>("/athlete/body-composition/scans");
+}
+
+export function getTrainerBodyComposition(clientId: string) {
+  return authed<{ summary: BodyCompositionSummary; scans: BodyCompositionScan[] }>(`/trainer/clients/${clientId}/body-composition`);
+}
+
+export function saveTrainerBodyCompositionScan(clientId: string, scan: BodyCompositionScan) {
+  return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>(`/trainer/clients/${clientId}/body-composition/scans`, {
+    method: "POST",
+    body: JSON.stringify(scan)
+  });
+}
+
 export function createAdminReferral(input: {
   code: string;
   type: "gym" | "trainer";

@@ -30,6 +30,7 @@ Ascend is deployable as a mobile-first PWA with:
 - Latest release audit: production mobile routes, session persistence, database relationships, subscription consistency, AI cache behavior, builds, lint, and automated tests verified.
 - Owner-gated Athlete Mode core: event countdown, readiness check-in, numeric weekly training targets, readiness/compliance dashboard, deterministic weekly coach review, and trainer-only private notes.
 - Athlete Mode pilot hardening: local-time countdowns, explicit daily/weekly targets, today-only inputs, one-tap session completion, readiness safety overrides, seven-day coach trends, automatic reviews, and optional private notes.
+- Athlete Mode test-phase Ascend DNA Body Composition Engine: body scan import, manual entry, review-before-save, permanent history, experimental DNA Score, trend summaries, coach alerts, trainer view, and scan-informed nutrition targets.
 - Public 30-second Marketing Demo Mode with fixed sample data, recording view, autoplay/looping, manual controls, homepage entry point, and `demo.getascend.fit` host routing.
 
 ## Before Pilot Launch
@@ -77,4 +78,4 @@ Ascend is deployable as a mobile-first PWA with:
 - Weekly report email or PDF export.
 - Gym-specific branded referral landing pages.
 - Production monitoring dashboard.
-- Athlete Mode performance logs, calendar, and decision alerts only after coaches validate the readiness/compliance core.
+- Athlete Mode performance logs, calendar, direct device integrations, richer sport-specific logs, and production billing for Athlete plans only after coaches validate readiness/compliance and Ascend DNA in a controlled beta.

@@ -15,6 +15,11 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
     });
   }
 
+  const status = (error as Error & { status?: number }).status;
+  if (status && status >= 400 && status < 500) {
+    return res.status(status).json({ error: error.message });
+  }
+
   res.status(500).json({
     error: "Internal server error",
     detail: process.env.NODE_ENV === "production" ? undefined : error.message

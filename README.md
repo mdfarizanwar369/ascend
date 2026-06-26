@@ -4,7 +4,9 @@ Security issues should be reported privately using the process in [SECURITY.md](
 
 Ascend is a mobile-first PWA SaaS MVP for fitness accountability across gym members, trainers, and gym owners.
 
-Optional Athlete Mode can be enabled by an owner for selected serious clients. It adds event countdowns, readiness check-ins, weekly training targets, deterministic coach reviews, and trainer-only private notes without changing the standard client experience.
+Optional Athlete Mode can be enabled by an owner for selected serious clients. It adds event countdowns, readiness check-ins, weekly training targets, deterministic coach reviews, trainer-only private notes, and the test-phase Ascend DNA Body Composition Engine without changing the standard client experience.
+
+Ascend DNA Body Composition Engine is an Athlete Mode-only module for importing body composition scans from printed reports, phone photos, machine screens, screenshots, or manual entry. It supports manufacturer-independent scan history, review-before-save confirmation, trend summaries, experimental DNA Score, coach alerts, and scan-informed nutrition guidance. It is not a medical device and does not diagnose disease.
 
 Ascend uses one multi-gym application, not separate copies per gym. The bootstrap owner is the platform owner and can access every gym. Other owner/admin accounts are restricted by backend-enforced gym assignments and may be assigned to one or multiple gyms.
 
@@ -95,6 +97,15 @@ Optional values for live integrations:
 - Gemini API key in `backend/.env`
 - Stripe values in `backend/.env`
 - `CRON_SECRET` in `backend/.env` for the protected daily compliance/risk job
+
+Ascend DNA uses the existing Athlete Mode flag and Gemini configuration:
+
+```text
+ATHLETE_MODE_ENABLED=true
+AI_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+```
 
 Without Gemini/OpenAI configured, the backend returns demo AI responses.
 

@@ -46,6 +46,29 @@ describe("nutrition targets", () => {
     expect(target.estimated).toBe(true);
   });
 
+  it("uses body composition data when available", () => {
+    const target = calculateNutritionTargets({
+      goalType: "fat_loss",
+      sex: "male",
+      ageYears: 35,
+      heightCm: 175,
+      weightKg: 90,
+      activityLevel: "moderate",
+      bodyComposition: {
+        leanBodyMassKg: 62,
+        bodyFatPercent: 31,
+        bmrKcal: 1780,
+        visceralFat: 15,
+        scanCount: 2
+      }
+    });
+
+    expect(target.dataSourcesUsed).toBe("Profile + Body Scan History");
+    expect(target.proteinTargetG).toBeGreaterThanOrEqual(130);
+    expect(target.explanation).toContain("body scan data");
+    expect(target.explanation).toContain("measured BMR");
+  });
+
   it("adapts only after at least two weeks of weight evidence", () => {
     const profile = { goalType: "fat_loss" as const, sex: "male" as const, ageYears: 35, heightCm: 175, weightKg: 90, activityLevel: "moderate" as const };
     const base = calculateNutritionTargets(profile);

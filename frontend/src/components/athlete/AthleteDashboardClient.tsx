@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { CalendarDays, CheckCircle2, Flag, Gauge, Target } from "lucide-react";
 import {
   AthleteDashboard,
@@ -161,6 +162,12 @@ export function AthleteDashboardClient() {
       {data.countdown?.milestone ? (
         <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-center text-sm font-semibold text-lime">{data.countdown.milestone}</p>
       ) : null}
+
+      <Link href="/athlete/body-composition" className="mt-4 block rounded-lg border border-teal-400/40 bg-teal-400/10 p-4">
+        <p className="text-sm font-semibold text-teal-300">Ascend DNA</p>
+        <h2 className="mt-1 text-xl font-semibold">Body Composition Engine</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Upload body scan reports, confirm values, and track recomposition trends.</p>
+      </Link>
 
       {data.readiness.warningReasons.length ? (
         <section className="mt-3 rounded-lg border border-red-400/40 bg-red-400/10 p-3">

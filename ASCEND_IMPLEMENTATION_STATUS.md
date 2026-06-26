@@ -1,6 +1,6 @@
 # Ascend Implementation Status
 
-Last updated: 22 June 2026
+Last updated: 26 June 2026
 
 ## Pilot Readiness Snapshot
 
@@ -17,6 +17,9 @@ The live app is available at:
 ## Verified This Pass
 
 - Smart PWA installation is implemented across iOS, Android, and desktop. Ascend waits until successful signup or a saved food, weight, water, habit, or athlete check-in before offering installation.
+- Ascend DNA Body Composition Engine is implemented as an Athlete Mode-only test module. It supports 1-6 report images, Gemini Flash Vision extraction, manual entry fallback, review-before-save, permanent scan history, trend summaries, experimental DNA Score, coach alerts, and trainer/owner scoped coach access.
+- Body composition data is normalized independently of manufacturer so InBody, Tanita, OSIM, Tabata, Evolt, Dexa, Styku, and future devices can feed the same engine.
+- Nutrition targets can now use body scan data when available. Lean mass drives protein recommendations, measured BMR can inform calories, and explanations show whether the guide used profile-only data, profile plus latest scan, or profile plus scan history.
 - Android and compatible desktop browsers use the native `beforeinstallprompt` flow. iOS receives a full-screen animated Share > Add to Home Screen guide under the clearer product label `Install Ascend`.
 - Installation, postponement, and reminder snoozes are remembered locally. The full automatic prompt appears once, postponed users receive a small dismissible reminder, and Profile & Settings always provides a manual `Install Ascend` control.
 - Installed and standalone display modes suppress prompts; a fresh native install event clears stale status after an uninstall.

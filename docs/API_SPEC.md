@@ -88,10 +88,26 @@ Athlete endpoints return `404` until an owner enables Athlete Mode for the clien
 - `GET /trainer/clients/:clientId/athlete/notes`
 - `POST /trainer/clients/:clientId/athlete/notes`
 - `PATCH /trainer/clients/:clientId/athlete/review`
+- `POST /athlete/body-composition/extract`
+- `POST /athlete/body-composition/scans`
+- `GET /athlete/body-composition/scans`
+- `GET /athlete/body-composition/summary`
+- `GET /trainer/clients/:clientId/body-composition`
+- `POST /trainer/clients/:clientId/body-composition/scans`
 
 Coach notes are never returned by client endpoints. They are restricted to the assigned trainer and gym-scoped owner/admin access.
 
 Athlete check-ins and target progress always apply to the athlete's current local date. Targets explicitly use `daily` or `weekly` cadence. Daily compliance uses today's value; weekly compliance sums the athlete's daily contributions for the current Monday-Sunday week. Opening either athlete dashboard automatically refreshes the deterministic weekly review.
+
+### Ascend DNA Body Composition Engine
+
+This module is test-phase and hidden behind Athlete Mode. Standard clients never see it.
+
+`POST /athlete/body-composition/extract` accepts 1-6 image data URLs from printed reports, machine screens, or screenshots. Gemini Flash Vision extracts only clearly visible values and returns an editable draft. The backend stores uploaded report images in S3/R2, but the scan is not saved until the athlete confirms it with `POST /athlete/body-composition/scans`.
+
+Saved scans are manufacturer-independent and permanent. They store normalized metrics such as weight, BMI, body fat, fat mass, lean body mass, skeletal muscle, visceral fat, body water, BMR, metabolic age, segmental values, confidence, missing fields, import source, and confirmation state. New scans never overwrite older scans.
+
+Trainer body-composition endpoints are read-only except for manual coach entry. Access uses the existing trainer/client ownership rules, plus owner/admin gym scope. Coach notes and private athlete records remain server-side permission checked.
 
 ## Admin / Owner
 

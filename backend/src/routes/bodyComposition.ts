@@ -1,0 +1,257 @@
+import { randomUUID } from "crypto";
+import { Router } from "express";
+import { z } from "zod";
+import { NutritionTargetInput } from "@ascend/shared";
+import { env } from "../config/env";
+import { query } from "../db/pool";
+import { uploadDataUrl, createReadUrl } from "../integrations/s3";
+import { extractBodyCompositionFromImages } from "../integrations/openai";
+import { requireAuth, requireRole } from "../middleware/auth";
+import { canManageClient } from "../services/clientAccessService";
+import {
+  BodyCompositionScan,
+  BodyCompositionScanInput,
+  buildBodyCompositionSummary,
+  normalizeBodyCompositionScan,
+  validateBodyCompositionScan
+} from "../services/bodyCompositionService";
+import { imageDataUrlSchema } from "../utils/images";
+
+export const bodyCompositionRouter = Router();
+
+const scanMetricSchema = z.number().nullable().optional();
+const scanSchema = z.object({
+  scanDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  machine: z.string().trim().max(120).nullable().optional(),
+  weightKg: scanMetricSchema,
+  bmi: scanMetricSchema,
+  bodyFatPercent: scanMetricSchema,
+  fatMassKg: scanMetricSchema,
+  leanBodyMassKg: scanMetricSchema,
+  estimatedLeanBodyMassKg: scanMetricSchema,
+  skeletalMuscleMassKg: scanMetricSchema,
+  muscleMassKg: scanMetricSchema,
+  visceralFat: scanMetricSchema,
+  bodyWaterPercent: scanMetricSchema,
+  proteinPercent: scanMetricSchema,
+  mineralPercent: scanMetricSchema,
+  boneMassKg: scanMetricSchema,
+  bmrKcal: z.number().int().nullable().optional(),
+  metabolicAge: z.number().int().nullable().optional(),
+  segmentalMuscle: z.record(z.string(), z.unknown()).nullable().optional(),
+  segmentalFat: z.record(z.string(), z.unknown()).nullable().optional(),
+  confidenceScore: scanMetricSchema,
+  missingFields: z.array(z.string().max(80)).max(40).optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  importSource: z.enum(["ai_import", "manual_entry"]),
+  sourceImages: z.array(z.object({ key: z.string().nullable().optional(), url: z.string().nullable().optional() })).max(6).optional(),
+  userConfirmed: z.boolean().default(true)
+});
+const extractSchema = z.object({ images: z.array(imageDataUrlSchema).min(1).max(6) });
+
+async function requireEnabledAthlete(userId: string) {
+  if (!env.ATHLETE_MODE_ENABLED) return false;
+  const result = await query("select enabled from athlete_profiles where user_id = $1", [userId]);
+  return result.rows[0]?.enabled === true;
+}
+
+function toDb(scan: BodyCompositionScanInput, userId: string, actorId: string) {
+  return [
+    userId,
+    scan.scanDate,
+    scan.machine ?? null,
+    scan.weightKg ?? null,
+    scan.bmi ?? null,
+    scan.bodyFatPercent ?? null,
+    scan.fatMassKg ?? null,
+    scan.leanBodyMassKg ?? null,
+    scan.estimatedLeanBodyMassKg ?? null,
+    scan.skeletalMuscleMassKg ?? null,
+    scan.muscleMassKg ?? null,
+    scan.visceralFat ?? null,
+    scan.bodyWaterPercent ?? null,
+    scan.proteinPercent ?? null,
+    scan.mineralPercent ?? null,
+    scan.boneMassKg ?? null,
+    scan.bmrKcal ?? null,
+    scan.metabolicAge ?? null,
+    scan.segmentalMuscle ?? {},
+    scan.segmentalFat ?? {},
+    scan.confidenceScore ?? null,
+    scan.missingFields ?? [],
+    scan.notes ?? null,
+    scan.importSource,
+    scan.sourceImages ?? [],
+    scan.userConfirmed ?? true,
+    scan.userConfirmed ? new Date() : null,
+    actorId,
+    actorId
+  ];
+}
+
+function fromDb(row: Record<string, unknown>): BodyCompositionScan {
+  return {
+    id: String(row.id),
+    scanDate: String(row.scan_date).slice(0, 10),
+    machine: row.machine as string | null,
+    weightKg: row.weight_kg === null ? null : Number(row.weight_kg),
+    bmi: row.bmi === null ? null : Number(row.bmi),
+    bodyFatPercent: row.body_fat_percent === null ? null : Number(row.body_fat_percent),
+    fatMassKg: row.fat_mass_kg === null ? null : Number(row.fat_mass_kg),
+    leanBodyMassKg: row.lean_body_mass_kg === null ? null : Number(row.lean_body_mass_kg),
+    estimatedLeanBodyMassKg: row.estimated_lean_body_mass_kg === null ? null : Number(row.estimated_lean_body_mass_kg),
+    skeletalMuscleMassKg: row.skeletal_muscle_mass_kg === null ? null : Number(row.skeletal_muscle_mass_kg),
+    muscleMassKg: row.muscle_mass_kg === null ? null : Number(row.muscle_mass_kg),
+    visceralFat: row.visceral_fat === null ? null : Number(row.visceral_fat),
+    bodyWaterPercent: row.body_water_percent === null ? null : Number(row.body_water_percent),
+    proteinPercent: row.protein_percent === null ? null : Number(row.protein_percent),
+    mineralPercent: row.mineral_percent === null ? null : Number(row.mineral_percent),
+    boneMassKg: row.bone_mass_kg === null ? null : Number(row.bone_mass_kg),
+    bmrKcal: row.bmr_kcal === null ? null : Number(row.bmr_kcal),
+    metabolicAge: row.metabolic_age === null ? null : Number(row.metabolic_age),
+    segmentalMuscle: row.segmental_muscle as Record<string, unknown> ?? {},
+    segmentalFat: row.segmental_fat as Record<string, unknown> ?? {},
+    confidenceScore: row.confidence_score === null ? null : Number(row.confidence_score),
+    missingFields: Array.isArray(row.missing_fields) ? row.missing_fields.map(String) : [],
+    notes: row.notes as string | null,
+    importSource: row.import_source as "ai_import" | "manual_entry",
+    sourceImages: Array.isArray(row.source_images) ? row.source_images as Array<{ key?: string | null; url?: string | null }> : [],
+    userConfirmed: row.user_confirmed === true,
+    createdAt: row.created_at ? String(row.created_at) : undefined
+  };
+}
+
+async function hydrateImages(scan: BodyCompositionScan) {
+  const sourceImages = await Promise.all((scan.sourceImages ?? []).map(async (image) => ({
+    ...image,
+    url: image.key ? await createReadUrl(image.key) : image.url ?? null
+  })));
+  return { ...scan, sourceImages };
+}
+
+async function getScans(userId: string, limit = 50, offset = 0) {
+  const result = await query(
+    "select * from body_composition_scans where user_id = $1 order by scan_date desc, created_at desc limit $2 offset $3",
+    [userId, Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)]
+  );
+  return Promise.all(result.rows.map((row) => hydrateImages(fromDb(row))));
+}
+
+async function getProfile(userId: string): Promise<NutritionTargetInput> {
+  const result = await query<{
+    goal_type: NutritionTargetInput["goalType"];
+    gender: NutritionTargetInput["sex"];
+    age_years: number | string | null;
+    height_cm: number | string | null;
+    starting_weight_kg: number | string | null;
+    target_weight_kg: number | string | null;
+    activity_level: NutritionTargetInput["activityLevel"];
+  }>("select goal_type, gender, age_years, height_cm, starting_weight_kg, target_weight_kg, activity_level from users where id = $1", [userId]);
+  const profile = result.rows[0] ?? {};
+  return {
+    goalType: profile.goal_type,
+    sex: profile.gender,
+    ageYears: profile.age_years,
+    heightCm: profile.height_cm,
+    weightKg: profile.starting_weight_kg,
+    targetWeightKg: profile.target_weight_kg,
+    activityLevel: profile.activity_level
+  };
+}
+
+async function summaryFor(userId: string) {
+  const [scans, profile] = await Promise.all([getScans(userId, 100), getProfile(userId)]);
+  return buildBodyCompositionSummary(scans, profile);
+}
+
+async function saveScan(userId: string, actorId: string, body: unknown) {
+  const input = normalizeBodyCompositionScan(scanSchema.parse(body));
+  const validation = validateBodyCompositionScan(input);
+  if (!validation.valid) {
+    const error = new Error(validation.errors.join(" "));
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
+  const result = await query(
+    `
+    insert into body_composition_scans (
+      user_id, scan_date, machine, weight_kg, bmi, body_fat_percent, fat_mass_kg,
+      lean_body_mass_kg, estimated_lean_body_mass_kg, skeletal_muscle_mass_kg,
+      muscle_mass_kg, visceral_fat, body_water_percent, protein_percent,
+      mineral_percent, bone_mass_kg, bmr_kcal, metabolic_age, segmental_muscle,
+      segmental_fat, confidence_score, missing_fields, notes, import_source,
+      source_images, user_confirmed, confirmed_at, created_by_user_id, updated_by_user_id
+    ) values (
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
+    ) returning *
+    `,
+    toDb(input, userId, actorId)
+  );
+  return hydrateImages(fromDb(result.rows[0]));
+}
+
+bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, async (req, res, next) => {
+  try {
+    if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
+    const input = extractSchema.parse(req.body);
+    const uploaded = await Promise.all(input.images.map((imageDataUrl) => uploadDataUrl(`body-composition/${req.user!.id}/${randomUUID()}.jpg`, imageDataUrl)));
+    const draft = await extractBodyCompositionFromImages(input.images);
+    res.json({
+      draft: {
+        ...draft,
+        sourceImages: uploaded.map((image) => ({ key: image.key }))
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.post("/athlete/body-composition/scans", requireAuth, async (req, res, next) => {
+  try {
+    if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
+    const scan = await saveScan(req.user!.id, req.user!.id, req.body);
+    res.status(201).json({ scan, summary: await summaryFor(req.user!.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.get("/athlete/body-composition/scans", requireAuth, async (req, res, next) => {
+  try {
+    if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
+    res.json({ scans: await getScans(req.user!.id, Number(req.query.limit ?? 50), Number(req.query.offset ?? 0)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.get("/athlete/body-composition/summary", requireAuth, async (req, res, next) => {
+  try {
+    if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
+    res.json({ summary: await summaryFor(req.user!.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.get("/trainer/clients/:clientId/body-composition", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    if (!await requireEnabledAthlete(req.params.clientId)) return res.status(404).json({ error: "Athlete Mode is not enabled for this client." });
+    res.json({ summary: await summaryFor(req.params.clientId), scans: await getScans(req.params.clientId, Number(req.query.limit ?? 50), Number(req.query.offset ?? 0)) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.post("/trainer/clients/:clientId/body-composition/scans", requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    if (!await requireEnabledAthlete(req.params.clientId)) return res.status(404).json({ error: "Athlete Mode is not enabled for this client." });
+    const scan = await saveScan(req.params.clientId, req.user!.id, { ...req.body, importSource: "manual_entry" });
+    res.status(201).json({ scan, summary: await summaryFor(req.params.clientId) });
+  } catch (error) {
+    next(error);
+  }
+});

@@ -3,6 +3,7 @@ import { FoodEstimate, LOCAL_FOODS } from "@ascend/shared";
 import { env } from "../config/env";
 import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
+import { buildBodyCompositionAiPrompt, normalizeBodyCompositionScan } from "../services/bodyCompositionService";
 import {
   annotateLatestGeminiParse,
   FoodAiPerformanceTrace,
@@ -131,6 +132,42 @@ function parseFoodEstimate(text: string): FoodEstimate {
     fatG: clampNumber(firstValue(parsed, ["fatG", "fat_g", "fat", "fats", "fatGrams"]), 0, 500),
     notes: String(firstValue(parsed, ["notes", "note", "explanation"]) ?? "AI estimate. Please review and edit if needed.").trim()
   };
+}
+
+function nullishNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseBodyCompositionExtraction(text: string) {
+  const parsed = JSON.parse(cleanJsonText(text)) as Record<string, unknown>;
+  return normalizeBodyCompositionScan({
+    scanDate: String(parsed.scanDate ?? new Date().toISOString().slice(0, 10)).slice(0, 10),
+    machine: typeof parsed.machine === "string" ? parsed.machine : null,
+    weightKg: nullishNumber(parsed.weightKg),
+    bmi: nullishNumber(parsed.bmi),
+    bodyFatPercent: nullishNumber(parsed.bodyFatPercent),
+    fatMassKg: nullishNumber(parsed.fatMassKg),
+    leanBodyMassKg: nullishNumber(parsed.leanBodyMassKg),
+    estimatedLeanBodyMassKg: nullishNumber(parsed.estimatedLeanBodyMassKg),
+    skeletalMuscleMassKg: nullishNumber(parsed.skeletalMuscleMassKg),
+    muscleMassKg: nullishNumber(parsed.muscleMassKg),
+    visceralFat: nullishNumber(parsed.visceralFat),
+    bodyWaterPercent: nullishNumber(parsed.bodyWaterPercent),
+    proteinPercent: nullishNumber(parsed.proteinPercent),
+    mineralPercent: nullishNumber(parsed.mineralPercent),
+    boneMassKg: nullishNumber(parsed.boneMassKg),
+    bmrKcal: nullishNumber(parsed.bmrKcal),
+    metabolicAge: nullishNumber(parsed.metabolicAge),
+    segmentalMuscle: parsed.segmentalMuscle && typeof parsed.segmentalMuscle === "object" ? parsed.segmentalMuscle as Record<string, unknown> : {},
+    segmentalFat: parsed.segmentalFat && typeof parsed.segmentalFat === "object" ? parsed.segmentalFat as Record<string, unknown> : {},
+    confidenceScore: nullishNumber(parsed.confidenceScore),
+    missingFields: Array.isArray(parsed.missingFields) ? parsed.missingFields.map(String).slice(0, 30) : [],
+    notes: typeof parsed.notes === "string" ? parsed.notes.slice(0, 2000) : null,
+    importSource: "ai_import",
+    userConfirmed: false
+  });
 }
 
 function confidenceNumber(value: unknown) {
@@ -506,6 +543,32 @@ export async function estimateFoodFromImage(
     return fallbackEstimate;
   }
 
+}
+
+export async function extractBodyCompositionFromImages(imageDataUrls: string[]) {
+  if (env.AI_PROVIDER !== "gemini" || !env.GEMINI_API_KEY) {
+    throw new Error("Gemini Flash Vision is not configured for body composition extraction.");
+  }
+  if (imageDataUrls.length < 1 || imageDataUrls.length > 6) {
+    throw new Error("Upload between 1 and 6 scan images.");
+  }
+
+  const imageParts = imageDataUrls.map((imageUrl) => {
+    const part = dataUrlToGeminiPart(imageUrl);
+    if (!part) throw new Error("Body scan images must be image data URLs.");
+    return part;
+  });
+  const text = await callGeminiWithOptions([
+    ...imageParts,
+    { text: buildBodyCompositionAiPrompt() }
+  ], 1600, {
+    models: [env.GEMINI_MODEL],
+    attemptsPerModel: 1,
+    timeoutMs: 25_000,
+    responseMimeType: "application/json"
+  });
+
+  return parseBodyCompositionExtraction(text);
 }
 
 async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string) {

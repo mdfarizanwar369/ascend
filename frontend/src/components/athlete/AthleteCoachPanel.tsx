@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { ClipboardList, LockKeyhole } from "lucide-react";
 import {
   AthleteDashboard,
@@ -89,6 +90,11 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
       </div>
 
       {athlete.readiness.warningReasons.length ? <div className="mt-3 rounded-lg border border-red-400/40 bg-red-400/10 p-3"><p className="text-sm font-semibold text-red-300">Coach review recommended</p>{athlete.readiness.warningReasons.map((reason) => <p key={reason} className="mt-1 text-xs text-zinc-300">• {reason}</p>)}</div> : null}
+
+      <Link href={`/trainer/clients/${clientId}/body-composition`} className="mt-3 block rounded-lg border border-teal-400/40 bg-teal-400/10 p-3">
+        <p className="text-sm font-semibold text-teal-200">Open Ascend DNA body composition</p>
+        <p className="mt-1 text-xs leading-5 text-zinc-300">Review scan history, DNA score, trend charts, and coach alerts.</p>
+      </Link>
 
       <div className="mt-3 rounded-lg bg-ink p-3">
         <div className="flex items-center justify-between"><p className="text-sm font-semibold">7-day readiness</p><span className={`text-xs font-semibold ${athlete.readinessTrend.direction === "declining" ? "text-amber" : "text-lime"}`}>{athlete.readinessTrend.direction}</span></div>
