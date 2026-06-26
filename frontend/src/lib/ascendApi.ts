@@ -17,10 +17,23 @@ function shouldRefreshToken(error: unknown) {
 }
 
 async function authed<T>(path: string, options: RequestInit = {}) {
+  const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST";
   try {
-    return await api<T>(path, options, await getFirebaseToken());
+    if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Entering authed()", { path, method: options.method });
+    const token = await getFirebaseToken();
+    if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Token resolved, entering api()", { path });
+    return await api<T>(path, options, token);
   } catch (error) {
+    if (shouldLogBodyCompositionSave) {
+      console.error("[body-composition-save] authed() failed before/inside api()", {
+        path,
+        error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : null
+      });
+    }
     if (!shouldRefreshToken(error)) throw error;
+    if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Retrying with refreshed token", { path });
     return api<T>(path, options, await getFirebaseToken(true));
   }
 }
@@ -1477,6 +1490,7 @@ export function extractBodyComposition(images: string[], externalSignal?: AbortS
 }
 
 export function saveBodyCompositionScan(scan: BodyCompositionScan) {
+  console.info("[body-composition-save] Entering saveBodyCompositionScan()", { scan });
   return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>("/athlete/body-composition/scans", {
     method: "POST",
     body: JSON.stringify(scan)
@@ -1496,6 +1510,7 @@ export function getTrainerBodyComposition(clientId: string) {
 }
 
 export function saveTrainerBodyCompositionScan(clientId: string, scan: BodyCompositionScan) {
+  console.info("[body-composition-save] Entering saveTrainerBodyCompositionScan()", { clientId, scan });
   return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>(`/trainer/clients/${clientId}/body-composition/scans`, {
     method: "POST",
     body: JSON.stringify(scan)

@@ -2,9 +2,20 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1
 
 export async function api<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   let response: Response;
+  const url = `${API_URL}${path}`;
+  const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST";
 
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    if (shouldLogBodyCompositionSave) {
+      console.info("[body-composition-save] Entering api()", { path, method: options.method });
+      console.info("[body-composition-save] About to call fetch()", {
+        url,
+        method: options.method,
+        payload: options.body,
+        hasToken: Boolean(token)
+      });
+    }
+    response = await fetch(url, {
       ...options,
       cache: options.cache ?? "no-store",
       headers: {
@@ -13,12 +24,36 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
         ...options.headers
       }
     });
-  } catch {
+    if (shouldLogBodyCompositionSave) {
+      console.info("[body-composition-save] Fetch returned", {
+        url,
+        status: response.status,
+        ok: response.ok
+      });
+    }
+  } catch (error) {
+    if (shouldLogBodyCompositionSave) {
+      console.error("[body-composition-save] Fetch threw", {
+        url,
+        method: options.method,
+        payload: options.body,
+        error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : null
+      });
+    }
     throw new Error("Could not reach Ascend right now. Please check your internet connection and try again in a moment.");
   }
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
+    if (shouldLogBodyCompositionSave) {
+      console.error("[body-composition-save] Response parsed with error status", {
+        url,
+        status: response.status,
+        body: errorBody
+      });
+    }
     const issueMessage = Array.isArray(errorBody?.issues)
       ? errorBody.issues
           .map((issue: { message?: unknown }) => typeof issue.message === "string" ? issue.message : null)
@@ -32,5 +67,9 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
     throw new Error(message);
   }
 
-  return response.json() as Promise<T>;
+  const parsed = await response.json() as T;
+  if (shouldLogBodyCompositionSave) {
+    console.info("[body-composition-save] Response parsed", { url, parsed });
+  }
+  return parsed;
 }

@@ -547,6 +547,9 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       const response = await extractBodyComposition(dataUrls, controller.signal);
       setActiveStage("complete");
       const nextDraft = prepareDraftForReview(response.draft);
+      if (!nextDraft.scanDate) {
+        nextDraft.scanDate = new Date().toISOString().slice(0, 10);
+      }
       setDraft(nextDraft);
       setShowManualEntry(true);
       setEditAnyway(false);
@@ -580,18 +583,34 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   }
 
   async function saveScan(event: FormEvent) {
+    console.info("[body-composition-save] Save button clicked", { coachView, clientId });
     event.preventDefault();
-    const missingCore = missingCoreFields(draft);
-    if (missingCore.length) {
-      setStatus(`Almost there. Add ${missingCore.join(", ")} before saving your Ascend DNA results.`);
-      return;
-    }
-    setBusy(true);
     try {
+      const missingCore = missingCoreFields(draft);
+      console.info("[body-composition-save] Validation complete", {
+        missingCore,
+        hasWeight: numericValue(draft.weightKg) !== null,
+        hasBodyFat: numericValue(draft.bodyFatPercent) !== null,
+        hasSkeletalMuscle: numericValue(draft.skeletalMuscleMassKg) !== null,
+        scanDate: draft.scanDate
+      });
+      if (missingCore.length) {
+        setStatus(`Almost there. Add ${missingCore.join(", ")} before saving your Ascend DNA results.`);
+        return;
+      }
+      setBusy(true);
       const payload = { ...draft, userConfirmed: true };
+      console.info("[body-composition-save] Calling saveBodyCompositionScan()", {
+        endpoint: coachView && clientId ? "trainer" : "athlete",
+        payload
+      });
       const response = coachView && clientId
         ? await saveTrainerBodyCompositionScan(clientId, { ...payload, importSource: "manual_entry" })
         : await saveBodyCompositionScan(payload);
+      console.info("[body-composition-save] Save completed", {
+        scanId: response.scan.id,
+        summaryLatestScanId: response.summary.latestScan?.id ?? null
+      });
       setSummary(response.summary);
       setLastSavedScan(response.scan);
       await load();
@@ -603,6 +622,11 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       setShowAdvancedMetrics(false);
       setStatus("Scan saved. Your Ascend DNA is updated.");
     } catch (error) {
+      console.error("[body-composition-save] Save pipeline failed", {
+        error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : null
+      });
       setStatus(friendlyBodyScanError(error));
     } finally {
       setBusy(false);
