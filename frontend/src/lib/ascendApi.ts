@@ -1,4 +1,4 @@
-import { CoachingMode, FoodEstimate, GoalType, SubscriptionPlan } from "@ascend/shared";
+import { CoachingMode, FoodEstimate, GoalType, NutritionTargetInput, SubscriptionPlan } from "@ascend/shared";
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
 
@@ -10,6 +10,8 @@ export interface ProgressComparison {
   baseline: { weightKg: number | null; momentum: number | null; checkinDays: number };
   highlights: Array<{ key: string; label: string; message: string }>;
 }
+
+type BodyCompositionNutrition = NonNullable<NutritionTargetInput["bodyComposition"]>;
 
 function shouldRefreshToken(error: unknown) {
   if (!(error instanceof Error)) return false;
@@ -139,6 +141,7 @@ export function getMe() {
       trainer_status?: string | null;
       profile_photo_url?: string | null;
       athlete_mode_enabled?: boolean;
+      body_composition_nutrition?: BodyCompositionNutrition | null;
     };
     roles: string[];
   }>("/me");
@@ -806,6 +809,10 @@ export function getTrainerClients() {
       open_alerts?: string | number | null;
       consistency_streak?: string | number | null;
       profile_photo_url?: string | null;
+      athlete_mode_enabled?: boolean;
+      current_plan?: SubscriptionPlan;
+      body_composition_nutrition?: BodyCompositionNutrition | null;
+      body_composition_summary?: BodyCompositionSummary | null;
     }>;
   }>("/trainer/clients");
 }
@@ -864,6 +871,8 @@ export function getTrainerClient(clientId: string) {
       compliance_score?: number | null;
       last_trainer_message_at?: string | null;
       profile_photo_url?: string | null;
+      athlete_mode_enabled?: boolean;
+      body_composition_nutrition?: BodyCompositionNutrition | null;
     };
   }>(`/trainer/clients/${clientId}`);
 }

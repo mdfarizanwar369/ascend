@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { calculateNutritionTargets } from "@ascend/shared";
-import { AlertTriangle, CheckCircle2, MessageSquare, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MessageSquare, Sparkles, Target, TrendingUp } from "lucide-react";
 import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { buildAthleteCoachInsights, daysSince } from "@/lib/coachIntelligence";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
 type RiskAlert = Awaited<ReturnType<typeof getTrainerRiskAlerts>>["alerts"][number];
@@ -68,7 +69,8 @@ function nutritionSummary(client: TrainerClient) {
     activityLevel:
       client.activity_level === "low" || client.activity_level === "moderate" || client.activity_level === "high"
         ? client.activity_level
-        : "moderate"
+        : "moderate",
+    bodyComposition: client.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   });
   const labels: string[] = [];
   if (calories > targets.calorieTarget * 1.08) labels.push("Over calories");
@@ -84,6 +86,142 @@ function nutritionSummaryClass(summary: string) {
   return "text-amber";
 }
 
+type PriorityCard = {
+  client: TrainerClient;
+  badge: "Premium" | "Athlete";
+  reason: string;
+  action: string;
+  lastActivity: string;
+  score: number;
+};
+
+function maxDate(...values: Array<string | null | undefined>) {
+  const times = values.map((value) => (value ? new Date(value).getTime() : 0)).filter((value) => Number.isFinite(value) && value > 0);
+  if (!times.length) return null;
+  return new Date(Math.max(...times)).toISOString();
+}
+
+function membershipBadge(client: TrainerClient): "Premium" | "Athlete" | null {
+  if (client.athlete_mode_enabled) return "Athlete";
+  return client.current_plan === "premium" || client.current_plan === "trainer_pro" ? "Premium" : null;
+}
+
+function lastActivityFor(client: TrainerClient) {
+  return maxDate(client.last_food_logged_at, client.last_weight_logged_at, client.last_water_logged_at, client.last_client_message_at);
+}
+
+function premiumNeedsAttention(client: TrainerClient) {
+  const score = Number(client.compliance_score ?? 100);
+  const lastFood = daysSince(client.last_food_logged_at);
+  const lastWater = daysSince(client.last_water_logged_at);
+  const lastWeight = daysSince(client.last_weight_logged_at);
+  const openAlerts = Number(client.open_alerts ?? 0);
+
+  if (client.risk_severity === "high" || score < 50 || openAlerts > 0) {
+    return { reason: "Momentum needs attention", action: "Send a quick supportive check-in.", score: 95 };
+  }
+  if (lastFood === null || lastFood >= 5) {
+    return { reason: "No food logs for 5+ days", action: "Ask what made logging harder this week.", score: 85 };
+  }
+  if (lastWeight !== null && lastWeight >= 10) {
+    return { reason: "Weight update is overdue", action: "Ask for a simple weight check-in.", score: 70 };
+  }
+  if (lastWater !== null && lastWater >= 5) {
+    return { reason: "Water tracking has dropped", action: "Prompt one easy water target today.", score: 60 };
+  }
+  return null;
+}
+
+function premiumGreatProgress(client: TrainerClient) {
+  const score = Number(client.compliance_score ?? 0);
+  const streak = Number(client.consistency_streak ?? 0);
+  const nutrition = nutritionSummary(client);
+
+  if (client.goal_achieved_at) return { reason: "Goal achieved", action: "Celebrate the win and plan maintenance.", score: 100 };
+  if (streak >= 5) return { reason: `${streak}-day consistency streak`, action: "Send praise to reinforce the habit.", score: 80 };
+  if (score >= 80 && nutrition === "On track") return { reason: "Consistent nutrition and momentum", action: "Keep the current plan steady.", score: 70 };
+  return null;
+}
+
+function trainerPriorityCards(clients: TrainerClient[]) {
+  const eligible = clients.filter((client) => membershipBadge(client));
+  const needsAttention: PriorityCard[] = [];
+  const greatProgress: PriorityCard[] = [];
+
+  for (const client of eligible) {
+    const badge = membershipBadge(client)!;
+    const athleteInsight = client.athlete_mode_enabled
+      ? buildAthleteCoachInsights({
+          athlete: {
+            profile: {
+              user_id: client.id,
+              enabled: true,
+              goal_weight_kg: client.target_weight_kg,
+              current_weight_kg: client.latest_weight_kg ?? client.starting_weight_kg
+            }
+          },
+          summary: client.body_composition_summary ?? null
+        })[0]
+      : null;
+    const premiumAttention = premiumNeedsAttention(client);
+    const premiumProgress = premiumGreatProgress(client);
+    const lastActivity = daysAgo(lastActivityFor(client));
+
+    if (athleteInsight && ["red", "orange", "yellow"].includes(athleteInsight.tone)) {
+      needsAttention.push({ client, badge, reason: athleteInsight.title, action: athleteInsight.action, lastActivity, score: athleteInsight.priority + 10 });
+      continue;
+    }
+    if (premiumAttention) {
+      needsAttention.push({ client, badge, reason: premiumAttention.reason, action: premiumAttention.action, lastActivity, score: premiumAttention.score });
+      continue;
+    }
+    if (athleteInsight && ["green", "blue"].includes(athleteInsight.tone)) {
+      greatProgress.push({ client, badge, reason: athleteInsight.title, action: athleteInsight.action, lastActivity, score: athleteInsight.priority + 10 });
+      continue;
+    }
+    if (premiumProgress) {
+      greatProgress.push({ client, badge, reason: premiumProgress.reason, action: premiumProgress.action, lastActivity, score: premiumProgress.score });
+    }
+  }
+
+  return {
+    eligible,
+    needsAttention: needsAttention.sort((a, b) => b.score - a.score),
+    greatProgress: greatProgress.sort((a, b) => b.score - a.score)
+  };
+}
+
+function PriorityClientCard({ item, type }: { item: PriorityCard; type: "attention" | "progress" }) {
+  const border = type === "attention" ? "border-amber/40 bg-amber/10" : "border-teal-400/40 bg-teal-400/10";
+  const badgeClass = item.badge === "Athlete" ? "border-purple-400/50 bg-purple-400/10 text-purple-100" : "border-teal-400/50 bg-teal-400/10 text-teal-100";
+  return (
+    <article className={`rounded-lg border p-3 ${border}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          <ProfileAvatar src={item.client.profile_photo_url} name={item.client.full_name} size="sm" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-sm font-semibold text-white">{item.client.full_name}</p>
+              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badgeClass}`}>{item.badge}</span>
+            </div>
+            <p className="mt-2 text-sm font-semibold text-white">{item.reason}</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-300">Suggested action: {item.action}</p>
+            <p className="mt-1 text-xs text-zinc-500">Last activity: {item.lastActivity}</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Link href={`/trainer/clients/${item.client.id}`} className="flex h-10 items-center justify-center rounded-lg border border-line bg-surface text-sm font-semibold">
+          View Client
+        </Link>
+        <Link href={`/messages?userId=${item.client.id}`} className="flex h-10 items-center justify-center rounded-lg bg-lime text-sm font-semibold text-ink">
+          Message Client
+        </Link>
+      </div>
+    </article>
+  );
+}
+
 export function TrainerDashboardClient() {
   const [clients, setClients] = useState<TrainerClient[]>([]);
   const [alerts, setAlerts] = useState<RiskAlert[]>([]);
@@ -91,6 +229,7 @@ export function TrainerDashboardClient() {
   const [status, setStatus] = useState("Loading assigned clients...");
   const [isPendingApproval, setIsPendingApproval] = useState(false);
   const [praisingClientId, setPraisingClientId] = useState("");
+  const [trainerName, setTrainerName] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -98,6 +237,7 @@ export function TrainerDashboardClient() {
     async function load() {
       try {
         const profile = await getMe();
+        if (isMounted) setTrainerName(profile.user.full_name || profile.user.email || "Coach");
         const isTrainerOnly = profile.roles.includes("trainer") && !profile.roles.some((role) => role === "owner" || role === "admin");
         if (isTrainerOnly && profile.user.trainer_status && profile.user.trainer_status !== "active") {
           if (!isMounted) return;
@@ -154,6 +294,10 @@ export function TrainerDashboardClient() {
       }),
     [clients]
   );
+  const priorities = useMemo(() => trainerPriorityCards(clients), [clients]);
+  const athleteAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Athlete").length, [priorities.needsAttention]);
+  const premiumAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Premium").length, [priorities.needsAttention]);
+  const excellentProgress = priorities.greatProgress.length;
 
   async function sendPraise(clientId: string, clientName: string) {
     setPraisingClientId(clientId);
@@ -186,11 +330,59 @@ export function TrainerDashboardClient() {
   return (
     <>
       <section className="mt-3">
-        <h1 className="text-2xl font-semibold">Trainer dashboard</h1>
-        <p className="mt-2 text-sm text-zinc-400">Who needs a quick check-in, and who is steady today.</p>
+        <p className="text-sm text-zinc-400">Good morning{trainerName ? `, ${trainerName}` : ""}</p>
+        <h1 className="text-2xl font-semibold">Today's Priorities</h1>
+        <p className="mt-2 text-sm text-zinc-400">The fastest view of who needs attention and who deserves recognition.</p>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+
+      <section className="mt-4 rounded-lg border border-teal-400/40 bg-gradient-to-br from-teal-400/15 via-surface to-purple-400/10 p-4">
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard label="Premium attention" value={String(premiumAttention)} detail="Need check-in" tone={premiumAttention ? "warning" : "success"} />
+          <MetricCard label="Athlete attention" value={String(athleteAttention)} detail="Coach intelligence" tone={athleteAttention ? "warning" : "success"} />
+          <MetricCard label="Great progress" value={String(excellentProgress)} detail="Praise opportunities" tone="success" />
+          <MetricCard label="Tracked clients" value={String(priorities.eligible.length)} detail="Premium + Athlete" />
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="text-amber" size={19} />
+            <h2 className="text-lg font-semibold">Needs Attention</h2>
+          </div>
+          <div className="mt-3 space-y-3">
+            {priorities.needsAttention.slice(0, 5).map((item) => <PriorityClientCard key={item.client.id} item={item} type="attention" />)}
+            {!priorities.needsAttention.length ? (
+              <p className="rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm leading-6 text-zinc-200">No urgent Premium or Athlete client priorities right now.</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="text-teal-300" size={19} />
+            <h2 className="text-lg font-semibold">Great Progress</h2>
+          </div>
+          <div className="mt-3 space-y-3">
+            {priorities.greatProgress.slice(0, 4).map((item) => <PriorityClientCard key={item.client.id} item={item} type="progress" />)}
+            {!priorities.greatProgress.length ? (
+              <p className="rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">No standout wins yet today. Check again after clients log food, weight, water, or Body Scans.</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-line bg-ink p-3">
+          <div className="flex items-center gap-2">
+            <Target className="text-purple-300" size={18} />
+            <h2 className="text-sm font-semibold">Today's Summary</h2>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">
+            {priorities.needsAttention.length
+              ? `${priorities.needsAttention.length} client${priorities.needsAttention.length === 1 ? "" : "s"} need a trainer touchpoint.`
+              : "No urgent follow-ups. Keep the tone positive and reinforce consistency."}
+          </p>
+        </div>
+      </section>
 
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard label="Clients" value={String(clients.length)} detail={`${activeToday} active today`} />

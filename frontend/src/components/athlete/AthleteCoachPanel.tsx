@@ -15,6 +15,7 @@ import {
   BodyCompositionSummary,
   updateAthleteReviewComment
 } from "@/lib/ascendApi";
+import { buildAthleteCoachInsights, CoachInsightTone, insightToneClass } from "@/lib/coachIntelligence";
 
 const targetOptions = [
   ["steps", "Steps", "steps", "daily"], ["cardio_minutes", "Cardio", "minutes", "daily"],
@@ -24,142 +25,6 @@ const targetOptions = [
 ] as const;
 
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
-type CoachInsightTone = "red" | "orange" | "yellow" | "green" | "blue";
-type CoachInsight = {
-  tone: CoachInsightTone;
-  title: string;
-  explanation: string;
-  action: string;
-  priority: number;
-};
-
-function numberOrNull(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") return null;
-  const next = Number(value);
-  return Number.isFinite(next) ? next : null;
-}
-
-function dayDiff(date?: string | null) {
-  if (!date) return null;
-  const scanDate = new Date(date);
-  if (Number.isNaN(scanDate.getTime())) return null;
-  const today = new Date();
-  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const startScan = new Date(scanDate.getFullYear(), scanDate.getMonth(), scanDate.getDate()).getTime();
-  return Math.floor((startToday - startScan) / 86_400_000);
-}
-
-function foodLogsInWindow(foodLogs: FoodLog[], startDaysAgo: number, endDaysAgo: number) {
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - startDaysAgo).getTime();
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate() - endDaysAgo + 1).getTime();
-  return foodLogs.filter((log) => {
-    const logged = new Date(log.logged_at).getTime();
-    return logged >= start && logged < end;
-  }).length;
-}
-
-function bodyFatPlateau(scans: BodyCompositionScan[]) {
-  const withBodyFat = scans.filter((scan) => numberOrNull(scan.bodyFatPercent) !== null).slice(0, 3);
-  if (withBodyFat.length < 3) return false;
-  const newest = numberOrNull(withBodyFat[0].bodyFatPercent);
-  const oldest = numberOrNull(withBodyFat[withBodyFat.length - 1].bodyFatPercent);
-  if (newest === null || oldest === null) return false;
-  return oldest - newest < 0.3;
-}
-
-function buildCoachInsights(athlete: AthleteDashboard, summary: BodyCompositionSummary | null, scans: BodyCompositionScan[], foodLogs: FoodLog[]) {
-  const insights: CoachInsight[] = [];
-  const latest = summary?.latestScan ?? scans[0] ?? null;
-  const previous = summary?.previousScan ?? scans[1] ?? null;
-  const latestMuscle = numberOrNull(latest?.skeletalMuscleMassKg ?? latest?.muscleMassKg);
-  const previousMuscle = numberOrNull(previous?.skeletalMuscleMassKg ?? previous?.muscleMassKg);
-  const latestBodyFat = numberOrNull(latest?.bodyFatPercent);
-  const previousBodyFat = numberOrNull(previous?.bodyFatPercent);
-
-  if (latestMuscle !== null && previousMuscle !== null && latestMuscle < previousMuscle - 0.2) {
-    insights.push({
-      tone: "red",
-      title: "Muscle loss detected",
-      explanation: `Skeletal muscle is down by ${(previousMuscle - latestMuscle).toFixed(1)}kg since the previous scan.`,
-      action: "Review protein intake and resistance training.",
-      priority: 100
-    });
-  }
-
-  if (bodyFatPlateau(scans)) {
-    insights.push({
-      tone: "orange",
-      title: "Body fat plateau",
-      explanation: "Body fat has not meaningfully improved across the recent scans.",
-      action: "Consider reviewing calorie intake or increasing activity.",
-      priority: 80
-    });
-  }
-
-  const scanAge = dayDiff(latest?.scanDate);
-  if (scanAge === null) {
-    insights.push({
-      tone: "yellow",
-      title: "No Body Scan yet",
-      explanation: "This athlete does not have a confirmed Body Scan baseline yet.",
-      action: "Invite client for their first Body Scan.",
-      priority: 70
-    });
-  } else if (scanAge > 28) {
-    insights.push({
-      tone: "yellow",
-      title: "Body Scan overdue",
-      explanation: `Last Body Scan was ${scanAge} days ago.`,
-      action: "Invite client for another Body Scan.",
-      priority: 70
-    });
-  }
-
-  const recentFoodLogs = foodLogsInWindow(foodLogs, 6, 0);
-  const previousFoodLogs = foodLogsInWindow(foodLogs, 13, 7);
-  if (previousFoodLogs >= 4 && recentFoodLogs <= Math.max(2, Math.floor(previousFoodLogs * 0.5))) {
-    insights.push({
-      tone: "yellow",
-      title: "Nutrition consistency low",
-      explanation: `Food logging dropped from ${previousFoodLogs} to ${recentFoodLogs} logs compared with the previous week.`,
-      action: "Check in with client.",
-      priority: 60
-    });
-  }
-
-  if (latestBodyFat !== null && previousBodyFat !== null && latestBodyFat < previousBodyFat - 0.3 && (latestMuscle ?? 0) >= (previousMuscle ?? 0) - 0.1) {
-    insights.push({
-      tone: "green",
-      title: "Excellent progress",
-      explanation: "Body fat decreased while muscle stayed stable or improved.",
-      action: "Continue current plan.",
-      priority: 40
-    });
-  }
-
-  const goalWeight = numberOrNull(athlete.profile.goal_weight_kg);
-  const latestWeight = numberOrNull(latest?.weightKg ?? athlete.profile.current_weight_kg);
-  if (goalWeight !== null && latestWeight !== null && Math.abs(latestWeight - goalWeight) <= Math.max(1, goalWeight * 0.1)) {
-    insights.push({
-      tone: "blue",
-      title: "Goal approaching",
-      explanation: "Client is within approximately 10% of the goal weight.",
-      action: "Begin planning the maintenance phase.",
-      priority: 30
-    });
-  }
-
-  return insights.sort((a, b) => b.priority - a.priority).slice(0, 3);
-}
-
-function insightToneClass(tone: CoachInsightTone) {
-  if (tone === "red") return "border-red-400/50 bg-red-400/10 text-red-200";
-  if (tone === "orange") return "border-orange-400/50 bg-orange-400/10 text-orange-200";
-  if (tone === "yellow") return "border-amber/50 bg-amber/10 text-amber";
-  if (tone === "green") return "border-teal-400/50 bg-teal-400/10 text-teal-200";
-  return "border-blue-400/50 bg-blue-400/10 text-blue-200";
-}
 
 function InsightIcon({ tone }: { tone: CoachInsightTone }) {
   if (tone === "red" || tone === "orange" || tone === "yellow") return <AlertTriangle size={18} />;
@@ -243,7 +108,7 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
   if (!athlete) return null;
   const latestScan = bodyComposition?.latestScan ?? null;
   const dnaScore = bodyComposition?.dnaScore.current ?? null;
-  const coachInsights = buildCoachInsights(athlete, bodyComposition, bodyScans, foodLogs);
+  const coachInsights = buildAthleteCoachInsights({ athlete, summary: bodyComposition, scans: bodyScans, foodLogs });
 
   return (
     <section className="mt-4 rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">

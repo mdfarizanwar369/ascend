@@ -10,6 +10,7 @@ import { env } from "../config/env";
 import { withProfilePhotoUrl, withProfilePhotoUrls } from "../services/profilePhotoService";
 import { getAdminGymScope } from "../services/adminScopeService";
 import { canManageClient } from "../services/clientAccessService";
+import { bodyCompositionForNutrition, bodyCompositionScanFromDb, buildBodyCompositionSummary } from "../services/bodyCompositionService";
 import { getProgressComparison } from "../services/progressComparisonService";
 import { notifyHumanCoachEvent } from "../services/notificationService";
 
@@ -357,8 +358,19 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         water.last_water_logged_at,
         msg.last_client_message_at,
         goal_milestone.achieved_at as goal_achieved_at,
-        coalesce(streak.current_streak, 0) as consistency_streak
+        coalesce(streak.current_streak, 0) as consistency_streak,
+        coalesce(athlete_profile.enabled, false) as athlete_mode_enabled,
+        coalesce(active_subscription.plan::text, 'free') as current_plan
       from users u
+      left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
+      left join lateral (
+        select s.plan, s.status
+        from subscriptions s
+        where s.user_id = u.id
+          and (s.status in ('active', 'trialing') or (s.status = 'canceled' and s.current_period_end > now()))
+        order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+        limit 1
+      ) active_subscription on true
       left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
       left join lateral (
         select max(severity) as risk_severity, count(*) as open_alerts
@@ -432,7 +444,38 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
       `,
       [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );
-    res.json({ clients: await withProfilePhotoUrls(result.rows) });
+    const clients = await withProfilePhotoUrls(result.rows);
+    const athleteClientIds = clients.filter((client) => client.athlete_mode_enabled === true).map((client) => client.id);
+    if (athleteClientIds.length) {
+      const scanResult = await query(
+        `
+        select *
+        from (
+          select *,
+            row_number() over (partition by user_id order by scan_date desc, created_at desc) as scan_rank
+          from body_composition_scans
+          where user_confirmed = true
+            and user_id = any($1::uuid[])
+        ) ranked_scans
+        where scan_rank <= 10
+        order by user_id, scan_date desc, created_at desc
+        `,
+        [athleteClientIds]
+      );
+      const scansByUser = new Map<string, ReturnType<typeof bodyCompositionScanFromDb>[]>();
+      for (const row of scanResult.rows) {
+        const userId = String(row.user_id);
+        scansByUser.set(userId, [...(scansByUser.get(userId) ?? []), bodyCompositionScanFromDb(row)]);
+      }
+      for (const client of clients) {
+        if (client.athlete_mode_enabled === true) {
+          const scans = scansByUser.get(client.id) ?? [];
+          client.body_composition_nutrition = bodyCompositionForNutrition(scans) ?? null;
+          client.body_composition_summary = buildBodyCompositionSummary(scans);
+        }
+      }
+    }
+    res.json({ clients });
   } catch (error) {
     next(error);
   }
@@ -456,10 +499,12 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
         g.name as gym_name, cs.score as compliance_score,
         trainer_message.last_trainer_message_at,
-        goal_milestone.achieved_at as goal_achieved_at
+        goal_milestone.achieved_at as goal_achieved_at,
+        coalesce(athlete_profile.enabled, false) as athlete_mode_enabled
       from users u
       left join gyms g on g.id = u.gym_id
       left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+      left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
       left join lateral (
         select max(created_at) as last_trainer_message_at
         from messages
@@ -481,7 +526,22 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
     );
 
     if (!result.rows[0]) return res.status(404).json({ error: "Client not found" });
-    res.json({ client: await withProfilePhotoUrl(result.rows[0]) });
+    const client = await withProfilePhotoUrl(result.rows[0]);
+    if (client.athlete_mode_enabled === true) {
+      const scanResult = await query(
+        `
+        select *
+        from body_composition_scans
+        where user_id = $1
+          and user_confirmed = true
+        order by scan_date desc, created_at desc
+        limit 10
+        `,
+        [req.params.clientId]
+      );
+      client.body_composition_nutrition = bodyCompositionForNutrition(scanResult.rows.map(bodyCompositionScanFromDb)) ?? null;
+    }
+    res.json({ client });
   } catch (error) {
     next(error);
   }
