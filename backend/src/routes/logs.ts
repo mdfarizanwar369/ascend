@@ -10,6 +10,7 @@ import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService
 import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
 import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
+import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 
 export const logsRouter = Router();
 
@@ -174,6 +175,7 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
         input.loggedAt ?? null
       ]
     );
+    void createCoachPresenceForEvent(req.user!.id, "food_logged").catch(() => undefined);
     res.status(201).json({ foodLog: result.rows[0] });
   } catch (error) {
     next(error);
@@ -234,6 +236,7 @@ logsRouter.post("/water-logs", requireAuth, async (req, res, next) => {
     input.amountMl,
     input.loggedAt ?? null
   ]);
+  void createCoachPresenceForEvent(req.user!.id, "water_logged").catch(() => undefined);
   res.status(201).json({ waterLog: result.rows[0] });
   } catch (error) {
     next(error);
@@ -265,6 +268,7 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
         input.loggedAt ?? null
       ]
     );
+    void createCoachPresenceForEvent(req.user!.id, "workout_logged").catch(() => undefined);
     res.status(201).json({ burnLog: result.rows[0] });
   } catch (error) {
     next(error);

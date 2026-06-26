@@ -3,6 +3,7 @@ import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { bodyCompositionScanFromDb, buildBodyCompositionSummary } from "../services/bodyCompositionService";
+import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 
 export const reportsRouter = Router();
 
@@ -231,6 +232,7 @@ reportsRouter.post("/reports/weekly/generate", requireAuth, requireActivePlan("p
           [req.user!.id, trainerId, weekStart, weekEnd, summary, complianceScore]
         );
 
+    void createCoachPresenceForEvent(req.user!.id, "weekly_report").catch(() => undefined);
     res.status(201).json({ report: report.rows[0] });
   } catch (error) {
     next(error);

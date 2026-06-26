@@ -6,6 +6,7 @@ import {
   acknowledgeGoalMilestone,
   completeMission,
   getBurnLogs,
+  getCoachPresence,
   getComplianceToday,
   getFoodLogs,
   getHabitLogs,
@@ -20,7 +21,11 @@ import {
   getProgressPhotos,
   getTodayMission,
   getWaterLogs,
-  getWeightLogs
+  getWeightLogs,
+  updateCoachPresenceStyle,
+  dismissCoachPresence,
+  CoachPresenceMessage,
+  CoachPresenceSettings
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
@@ -140,6 +145,11 @@ export function ClientDashboard() {
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
+  const [coachPresence, setCoachPresence] = useState<{
+    latest: CoachPresenceMessage | null;
+    history: CoachPresenceMessage[];
+    settings: CoachPresenceSettings;
+  }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -186,7 +196,7 @@ export function ClientDashboard() {
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan, presence] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -199,7 +209,8 @@ export function ClientDashboard() {
         getMyStreak(),
         getGoalStatus(),
         getProgressPhotos(),
-        getMyNutritionPlan()
+        getMyNutritionPlan(),
+        getCoachPresence()
       ]);
 
       if (requestId !== dashboardRequestRef.current) return;
@@ -252,6 +263,7 @@ export function ClientDashboard() {
       if (nextGoalStatus.status === "fulfilled") setGoalStatus(nextGoalStatus.value.goalStatus);
       if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
       if (nutritionPlan.status === "fulfilled") setCoachNutritionPlan(nutritionPlan.value.coachPlan);
+      if (presence.status === "fulfilled") setCoachPresence(presence.value);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -336,6 +348,28 @@ export function ClientDashboard() {
       setHasCelebratedGoal(false);
       setIsCelebratingGoal(false);
       setStatus("Your milestone is safe, but Ascend could not close this message yet.");
+    }
+  }
+
+  async function changeCoachPresenceStyle(style: CoachPresenceSettings["style"]) {
+    setCoachPresence((current) => ({ ...current, settings: { ...current.settings, style } }));
+    try {
+      await updateCoachPresenceStyle(style);
+    } catch {
+      setStatus("Could not update Coach Presence style yet.");
+    }
+  }
+
+  async function dismissPresence(messageId: string) {
+    setCoachPresence((current) => ({
+      ...current,
+      latest: current.latest?.id === messageId ? null : current.latest,
+      history: current.history.filter((message) => message.id !== messageId)
+    }));
+    try {
+      await dismissCoachPresence(messageId);
+    } catch {
+      setStatus("Could not dismiss this Coach Presence message yet.");
     }
   }
 
@@ -776,6 +810,46 @@ export function ClientDashboard() {
             <p className="text-sm font-semibold">Coach message</p>
             <p className="mt-2 text-sm leading-6 text-zinc-400">Message {user.assigned_trainer_name} when you need help between sessions.</p>
           </a>
+        ) : null}
+
+        {hasPremiumAccess && coachPresence.latest ? (
+          <section className="mt-4 rounded-2xl border border-calm/40 bg-calm/10 p-5 shadow-soft">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-calm">Coach Presence</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-200">{coachPresence.latest.message}</p>
+                <p className="mt-2 text-xs text-zinc-500">Support between trainer check-ins, based only on your Ascend activity.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => dismissPresence(coachPresence.latest!.id)}
+                className="rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300"
+              >
+                Dismiss
+              </button>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {(["motivational", "balanced", "minimal"] as const).map((style) => (
+                <button
+                  key={style}
+                  type="button"
+                  onClick={() => changeCoachPresenceStyle(style)}
+                  className={`rounded-full px-3 py-2 text-xs font-semibold capitalize ${
+                    coachPresence.settings.style === style ? "bg-calm text-ink" : "border border-line bg-ink text-zinc-300"
+                  }`}
+                >
+                  {style}
+                </button>
+              ))}
+            </div>
+            {coachPresence.history.length > 1 ? (
+              <div className="mt-4 space-y-2">
+                {coachPresence.history.slice(1, 4).map((message) => (
+                  <p key={message.id} className="rounded-lg bg-ink p-3 text-xs leading-5 text-zinc-400">{message.message}</p>
+                ))}
+              </div>
+            ) : null}
+          </section>
         ) : null}
 
         {hasPremiumAccess ? (

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { createOwnedHabitLog } from "../services/habitService";
+import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 
 export const habitsRouter = Router();
 
@@ -59,6 +60,7 @@ habitsRouter.post("/habit-logs", requireAuth, async (req, res, next) => {
     const input = habitLogSchema.parse(req.body);
     const habitLog = await createOwnedHabitLog(req.user!.id, input);
     if (!habitLog) return res.status(404).json({ error: "Habit not found" });
+    if (input.completed) void createCoachPresenceForEvent(req.user!.id, "habit_completed").catch(() => undefined);
     res.status(201).json({ habitLog });
   } catch (error) {
     next(error);

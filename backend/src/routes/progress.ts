@@ -5,6 +5,7 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl } from "../integrations/s3";
 import { canManageClient } from "../services/clientAccessService";
+import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 
 export const progressRouter = Router();
 
@@ -30,6 +31,7 @@ progressRouter.post("/progress-photos", requireAuth, requireActivePlan("premium"
       "insert into progress_photos (user_id, image_s3_key, photo_type, logged_at) values ($1, $2, coalesce($3, 'front'), coalesce($4, now())) returning *",
       [req.user!.id, input.imageS3Key, input.photoType, input.loggedAt ?? null]
     );
+    void createCoachPresenceForEvent(req.user!.id, "progress_photo").catch(() => undefined);
     res.status(201).json({ progressPhoto: result.rows[0] });
   } catch (error) {
     next(error);

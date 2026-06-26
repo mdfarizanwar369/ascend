@@ -372,6 +372,43 @@ export function getLatestRecognition() {
   }>("/recognitions/latest");
 }
 
+export type CoachPresenceMessage = {
+  id: string;
+  trigger_type: string;
+  message: string;
+  tone: string;
+  dismissed_at?: string | null;
+  shown_count?: number;
+  created_at: string;
+};
+
+export type CoachPresenceSettings = {
+  style: "motivational" | "balanced" | "minimal";
+  paused: boolean;
+  pauseUntil?: string | null;
+};
+
+export function getCoachPresence() {
+  return authed<{
+    latest: CoachPresenceMessage | null;
+    history: CoachPresenceMessage[];
+    settings: CoachPresenceSettings;
+  }>("/coach-presence");
+}
+
+export function updateCoachPresenceStyle(style: CoachPresenceSettings["style"]) {
+  return authed<{ settings: unknown }>("/coach-presence/settings", {
+    method: "PATCH",
+    body: JSON.stringify({ style })
+  });
+}
+
+export function dismissCoachPresence(messageId: string) {
+  return authed<{ dismissed: boolean }>(`/coach-presence/${messageId}/dismiss`, {
+    method: "POST"
+  });
+}
+
 export function completeMission(missionId: string) {
   return authed<{
     mission: {
@@ -763,6 +800,21 @@ export function getTrainerClientMessages(clientId: string) {
       read_at?: string | null;
     }>;
   }>(`/trainer/clients/${clientId}/messages`);
+}
+
+export function getTrainerClientCoachPresence(clientId: string) {
+  return authed<{
+    latest: CoachPresenceMessage | null;
+    history: CoachPresenceMessage[];
+    settings: CoachPresenceSettings;
+  }>(`/trainer/clients/${clientId}/coach-presence`);
+}
+
+export function pauseTrainerClientCoachPresence(clientId: string, pauseHours: number | null) {
+  return authed<{ settings: unknown }>(`/trainer/clients/${clientId}/coach-presence`, {
+    method: "PATCH",
+    body: JSON.stringify({ pauseHours })
+  });
 }
 
 export function sendTrainerClientMessage(clientId: string, body: string) {

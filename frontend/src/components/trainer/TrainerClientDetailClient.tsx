@@ -7,6 +7,7 @@ import { ChevronDown, Send, Sparkles, TrendingDown, Utensils } from "lucide-reac
 import {
   createTrainerClientMission,
   createWeeklyCheckin,
+  getTrainerClientCoachPresence,
   getTrainerClient,
   getTrainerClientFoodLogs,
   getTrainerClientMissions,
@@ -18,7 +19,10 @@ import {
   getTrainerClientWeightLogs,
   saveTrainerClientNutritionPlan,
   sendTrainerClientPraise,
-  sendTrainerClientMessage
+  sendTrainerClientMessage,
+  pauseTrainerClientCoachPresence,
+  CoachPresenceMessage,
+  CoachPresenceSettings
 } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { BackButton } from "@/components/BackButton";
@@ -101,6 +105,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
+  const [coachPresence, setCoachPresence] = useState<{
+    latest: CoachPresenceMessage | null;
+    history: CoachPresenceMessage[];
+    settings: CoachPresenceSettings;
+  }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
   const [nutritionCalories, setNutritionCalories] = useState("");
   const [nutritionProtein, setNutritionProtein] = useState("");
   const [nutritionCarbs, setNutritionCarbs] = useState("");
@@ -137,7 +146,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         setClient(profile.client);
         setStatus("");
 
-        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison, nutritionPlan] = await Promise.allSettled([
+        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison, nutritionPlan, presence] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
@@ -145,7 +154,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           getTrainerClientWaterLogs(clientId),
           getTrainerClientMissions(clientId),
           getTrainerClientProgressComparison(clientId),
-          getTrainerClientNutritionPlan(clientId)
+          getTrainerClientNutritionPlan(clientId),
+          getTrainerClientCoachPresence(clientId)
         ]);
 
         if (!isMounted) return;
@@ -168,6 +178,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             setNutritionNote(plan.coach_note ?? "");
           }
         }
+        if (presence.status === "fulfilled") setCoachPresence(presence.value);
 
         if ([foods, nextMessages, progress, weights, waters, nextMissions].some((result) => result.status === "rejected")) {
           setStatus("Some client sections could not load yet. The main client profile is still available.");
@@ -341,6 +352,18 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     }
   }
 
+  async function setCoachPresencePause(pauseHours: number | null) {
+    setStatus(pauseHours ? "Pausing Coach Presence..." : "Resuming Coach Presence...");
+    try {
+      await pauseTrainerClientCoachPresence(clientId, pauseHours);
+      const response = await getTrainerClientCoachPresence(clientId);
+      setCoachPresence(response);
+      setStatus(pauseHours ? "Coach Presence paused for this client." : "Coach Presence resumed for this client.");
+    } catch {
+      setStatus("Could not update Coach Presence for this client yet.");
+    }
+  }
+
   function setSectionOpen(key: CollapsibleKey, isOpen: boolean) {
     setOpenSections((current) => ({ ...current, [key]: isOpen }));
     window.sessionStorage.setItem(`trainer-client-profile:${clientId}:${key}`, isOpen ? "open" : "closed");
@@ -429,6 +452,49 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               <p className="mt-1 text-sm leading-6 text-zinc-400">Review nutrition and reinforce the behaviour if it matches the plan.</p>
             </div>
           ) : null}
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-lg border border-calm/40 bg-surface p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-calm">Coach Presence</p>
+            <h2 className="mt-1 text-lg font-semibold">Support between check-ins</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              Ascend only fills quiet gaps. Your messages and praise always take priority.
+            </p>
+          </div>
+          <span className={`rounded-lg px-3 py-2 text-xs font-semibold ${coachPresence.settings.paused ? "bg-amber/20 text-amber" : "bg-calm/20 text-calm"}`}>
+            {coachPresence.settings.paused ? "Paused" : "Active"}
+          </span>
+        </div>
+        {coachPresence.latest ? (
+          <p className="mt-3 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">{coachPresence.latest.message}</p>
+        ) : (
+          <p className="mt-3 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">No Coach Presence messages yet.</p>
+        )}
+        {coachPresence.history.length > 1 ? (
+          <div className="mt-3 space-y-2">
+            {coachPresence.history.slice(1, 4).map((message) => (
+              <p key={message.id} className="rounded-lg bg-ink/70 p-3 text-xs leading-5 text-zinc-500">{message.message}</p>
+            ))}
+          </div>
+        ) : null}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setCoachPresencePause(24)}
+            className="h-11 rounded-lg border border-amber/50 bg-amber/10 font-semibold text-amber"
+          >
+            Pause 24h
+          </button>
+          <button
+            type="button"
+            onClick={() => setCoachPresencePause(null)}
+            className="h-11 rounded-lg border border-calm/50 bg-calm/10 font-semibold text-calm"
+          >
+            Resume
+          </button>
         </div>
       </section>
 

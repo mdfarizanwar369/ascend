@@ -13,6 +13,7 @@ import { canManageClient } from "../services/clientAccessService";
 import { bodyCompositionForNutrition, bodyCompositionScanFromDb, buildBodyCompositionSummary } from "../services/bodyCompositionService";
 import { getProgressComparison } from "../services/progressComparisonService";
 import { notifyHumanCoachEvent } from "../services/notificationService";
+import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 
 export const trainerRouter = Router();
 
@@ -332,6 +333,7 @@ trainerRouter.post("/trainer/clients/:clientId/praise", requireAuth, requireActi
       praise.message
     ]);
     await notifyHumanCoachEvent({ userId: req.params.clientId, event: "praise", senderName: req.user!.email });
+    void createCoachPresenceForEvent(req.params.clientId, "trainer_praise").catch(() => undefined);
 
     res.status(201).json({ recognition: recognitionResult.rows[0], reused: false });
   } catch (error) {

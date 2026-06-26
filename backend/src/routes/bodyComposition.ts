@@ -8,6 +8,7 @@ import { uploadDataUrl, createReadUrl } from "../integrations/s3";
 import { extractBodyCompositionFromImages } from "../integrations/openai";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { canManageClient } from "../services/clientAccessService";
+import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import {
   BodyCompositionScan,
   BodyCompositionScanInput,
@@ -271,6 +272,7 @@ bodyCompositionRouter.post("/athlete/body-composition/scans", (req, _res, next) 
     });
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
     const scan = await saveScan(req.user!.id, req.user!.id, req.body);
+    void createCoachPresenceForEvent(req.user!.id, "body_scan").catch(() => undefined);
     res.status(201).json({ scan, summary: await summaryFor(req.user!.id) });
   } catch (error) {
     next(error);

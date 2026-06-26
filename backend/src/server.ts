@@ -24,8 +24,10 @@ import { bodyCompositionRouter } from "./routes/bodyComposition";
 import { trainerRouter } from "./routes/trainer";
 import { waitlistRouter } from "./routes/waitlist";
 import { complianceRouter } from "./routes/compliance";
+import { coachPresenceRouter } from "./routes/coachPresence";
 import { errorHandler } from "./middleware/errors";
 import { ensureAiUsageSchema } from "./services/aiUsageService";
+import { ensureCoachPresenceSchema } from "./services/coachPresenceService";
 import { ensureUserProfileSchema } from "./services/userService";
 import { ensureWaitlistSchema } from "./services/waitlistService";
 import { ensureSubscriptionSchema } from "./services/subscriptionSchemaService";
@@ -68,6 +70,7 @@ app.use("/api/v1", meRouter);
 app.use("/api/v1", messagesRouter);
 app.use("/api/v1", missionsRouter);
 app.use("/api/v1", notificationsRouter);
+app.use("/api/v1", coachPresenceRouter);
 app.use("/api/v1", gymsRouter);
 app.use("/api/v1", referralsRouter);
 app.use("/api/v1", logsRouter);
@@ -84,7 +87,7 @@ app.use("/api/v1", athleteRouter);
 app.use("/api/v1", bodyCompositionRouter);
 app.use(errorHandler);
 
-Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema(), ensureWaitlistSchema(), ensureSubscriptionSchema(), ensureNotificationSchema()])
+Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema(), ensureWaitlistSchema(), ensureSubscriptionSchema(), ensureNotificationSchema(), ensureCoachPresenceSchema()])
   .catch((error) => {
     console.error("Schema setup failed", error);
   })
