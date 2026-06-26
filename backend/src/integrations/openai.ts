@@ -170,6 +170,28 @@ function parseBodyCompositionExtraction(text: string) {
   });
 }
 
+function bodyCompositionFallbackDraft(reason: string) {
+  return normalizeBodyCompositionScan({
+    scanDate: new Date().toISOString().slice(0, 10),
+    machine: null,
+    confidenceScore: 0,
+    missingFields: [
+      "weightKg",
+      "bmi",
+      "bodyFatPercent",
+      "fatMassKg",
+      "leanBodyMassKg",
+      "skeletalMuscleMassKg",
+      "visceralFat",
+      "bodyWaterPercent",
+      "bmrKcal"
+    ],
+    notes: `AI could not read this body composition scan reliably. Please enter or confirm the visible values manually. ${reason}`.slice(0, 2000),
+    importSource: "ai_import",
+    userConfirmed: false
+  });
+}
+
 function confidenceNumber(value: unknown) {
   if (typeof value === "string") {
     const lower = value.toLowerCase();
@@ -547,7 +569,7 @@ export async function estimateFoodFromImage(
 
 export async function extractBodyCompositionFromImages(imageDataUrls: string[]) {
   if (env.AI_PROVIDER !== "gemini" || !env.GEMINI_API_KEY) {
-    throw new Error("Gemini Flash Vision is not configured for body composition extraction.");
+    return bodyCompositionFallbackDraft("Gemini Flash Vision is not configured right now.");
   }
   if (imageDataUrls.length < 1 || imageDataUrls.length > 6) {
     throw new Error("Upload between 1 and 6 scan images.");
@@ -572,7 +594,9 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
 
     return parseBodyCompositionExtraction(text);
   } catch (error) {
-    if (imageParts.length === 1) throw error;
+    if (imageParts.length === 1) {
+      return bodyCompositionFallbackDraft(error instanceof Error ? error.message : "The AI scan did not complete.");
+    }
     const partials = [];
     for (const imagePart of imageParts) {
       try {
@@ -587,7 +611,9 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
         // The review screen still allows manual entry for fields missing from failed images.
       }
     }
-    if (!partials.length) throw error;
+    if (!partials.length) {
+      return bodyCompositionFallbackDraft(error instanceof Error ? error.message : "The AI scan did not complete.");
+    }
     return {
       ...mergeBodyCompositionDrafts(partials),
       notes: "Ascend merged values from the readable scan images. Please manually confirm any missing fields."

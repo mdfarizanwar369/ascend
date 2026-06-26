@@ -194,12 +194,19 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
   try {
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
     const input = extractSchema.parse(req.body);
-    const uploaded = await Promise.all(input.images.map((imageDataUrl) => uploadDataUrl(`body-composition/${req.user!.id}/${randomUUID()}.jpg`, imageDataUrl)));
     const draft = await extractBodyCompositionFromImages(input.images);
+    const uploaded = await Promise.allSettled(input.images.map((imageDataUrl) => uploadDataUrl(`body-composition/${req.user!.id}/${randomUUID()}.jpg`, imageDataUrl)));
+    const sourceImages = uploaded
+      .filter((result): result is PromiseFulfilledResult<{ key: string; storageConfigured: boolean }> => result.status === "fulfilled")
+      .map((result) => ({ key: result.value.key }));
+    const storageFailed = uploaded.some((result) => result.status === "rejected");
     res.json({
       draft: {
         ...draft,
-        sourceImages: uploaded.map((image) => ({ key: image.key }))
+        sourceImages,
+        notes: storageFailed
+          ? `${draft.notes ? `${draft.notes} ` : ""}Scan image storage did not complete, but you can still review and save the values.`
+          : draft.notes
       }
     });
   } catch (error) {

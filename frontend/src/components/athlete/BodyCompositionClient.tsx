@@ -236,6 +236,12 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
     }));
   }
 
+  const canReadWithAi = !busy && selectedImages.length > 0;
+  const canSaveScan = !busy;
+  const primaryButtonClass = "font-semibold shadow-lg shadow-teal-300/15";
+  const activePrimaryButtonClass = "bg-teal-300 !text-[#071018]";
+  const inactivePrimaryButtonClass = "border border-line bg-ink !text-zinc-100 shadow-none";
+
   return (
     <>
       <section className="mt-4 flex items-start gap-3">
@@ -307,7 +313,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <input type="file" accept="image/*" multiple onChange={onFiles} className="sr-only" />
             </label>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={busy || !selectedImages.length} onClick={runExtraction} className="h-11 rounded-lg bg-teal-300 font-semibold !text-[#071018] shadow-lg shadow-teal-300/15 disabled:bg-surface disabled:!text-zinc-500 disabled:shadow-none"><Sparkles className="mr-1 inline" size={17} /> {allowLowQuality ? "Read anyway" : "Read with AI"}</button>
+              <button type="button" disabled={!canReadWithAi} onClick={runExtraction} className={`h-11 rounded-lg ${primaryButtonClass} ${canReadWithAi ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}><Sparkles className="mr-1 inline" size={17} /> {busy ? "Reading..." : allowLowQuality ? "Read anyway" : "Read with AI"}</button>
               <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); }} className="h-11 rounded-lg border border-line bg-ink font-semibold text-zinc-200">Manual entry</button>
             </div>
             {selectedImages.length ? (
@@ -345,7 +351,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               ))}
             </div>
             <label className="mt-3 block text-xs text-zinc-400">Notes<textarea value={draft.notes ?? ""} onChange={(event) => setDraftValue("notes", event.target.value)} rows={3} className="mt-1 w-full resize-none rounded-lg border border-line bg-ink p-3 text-sm text-white" /></label>
-            <button disabled={busy} className="mt-3 h-11 w-full rounded-lg bg-teal-300 font-semibold !text-[#071018] shadow-lg shadow-teal-300/15 disabled:bg-surface disabled:!text-zinc-500 disabled:shadow-none"><CheckCircle2 className="mr-1 inline" size={17} /> Confirm and save scan</button>
+            <button disabled={!canSaveScan} className={`mt-3 h-11 w-full rounded-lg ${primaryButtonClass} ${canSaveScan ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}><CheckCircle2 className="mr-1 inline" size={17} /> {busy ? "Saving..." : "Confirm and save scan"}</button>
           </form>
         ) : null}
 
