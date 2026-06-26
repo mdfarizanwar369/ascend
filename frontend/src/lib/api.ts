@@ -19,9 +19,15 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null);
+    const issueMessage = Array.isArray(errorBody?.issues)
+      ? errorBody.issues
+          .map((issue: { message?: unknown }) => typeof issue.message === "string" ? issue.message : null)
+          .filter(Boolean)
+          .join(" ")
+      : "";
     const message =
       typeof errorBody?.error === "string"
-        ? `${errorBody.error}${typeof errorBody?.detail === "string" ? ` ${errorBody.detail}` : ""}`
+        ? `${errorBody.error}${issueMessage ? ` ${issueMessage}` : ""}${typeof errorBody?.detail === "string" ? ` ${errorBody.detail}` : ""}`
         : `API request failed: ${response.status}`;
     throw new Error(message);
   }

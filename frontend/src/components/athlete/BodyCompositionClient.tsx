@@ -46,12 +46,36 @@ function valueText(value: number | null | undefined, unit = "") {
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit ? ` ${unit}` : ""}`;
 }
 
-function readFileAsDataUrl(file: File) {
+function resizeScanImageToDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read image."));
-    reader.readAsDataURL(file);
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      const maxSize = 1200;
+      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+
+      const context = canvas.getContext("2d");
+      if (!context) {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("Could not prepare scan image."));
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(objectUrl);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Could not read this image. Please try a JPEG or PNG screenshot."));
+    };
+
+    image.src = objectUrl;
   });
 }
 
@@ -127,9 +151,9 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
     if (!files.length) return;
     setStatus("Preparing scan images...");
     try {
-      const dataUrls = await Promise.all(files.map(readFileAsDataUrl));
+      const dataUrls = await Promise.all(files.map(resizeScanImageToDataUrl));
       setSelectedImages(dataUrls);
-      setStatus(`${dataUrls.length} image${dataUrls.length === 1 ? "" : "s"} ready. Review manually or run AI extraction.`);
+      setStatus(`${dataUrls.length} compressed image${dataUrls.length === 1 ? "" : "s"} ready. Review manually or run AI extraction.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not prepare images.");
     }
