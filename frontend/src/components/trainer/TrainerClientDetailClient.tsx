@@ -1,9 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { calculateAdaptiveNutritionTargets } from "@ascend/shared";
-import { AlertTriangle, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
+import { ChevronDown, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
 import {
   createTrainerClientMission,
   createWeeklyCheckin,
@@ -36,6 +36,7 @@ type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs
 type Mission = Awaited<ReturnType<typeof getTrainerClientMissions>>["missions"][number];
 type ProgressComparison = Awaited<ReturnType<typeof getTrainerClientProgressComparison>>["comparison"];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getTrainerClientNutritionPlan>>["coachPlan"];
+type CollapsibleKey = "coachPlan" | "dailyMission" | "messages" | "foodLogs" | "progressPhotos" | "weeklyReport";
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -47,6 +48,46 @@ function formatGoal(goal?: string | null) {
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
   return Number(value);
+}
+
+function CollapsibleSection({
+  title,
+  preview,
+  children,
+  id,
+  isOpen,
+  onToggle
+}: {
+  title: string;
+  preview: string;
+  children: ReactNode;
+  id?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <section id={id} className="mt-4 scroll-mt-20 rounded-lg border border-line bg-surface">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+      >
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <p className="mt-1 truncate text-sm text-zinc-400">{preview}</p>
+        </div>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-ink text-zinc-200">
+          <ChevronDown className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} size={18} />
+        </span>
+      </button>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className="overflow-hidden">
+          <div className="border-t border-line p-4 pt-3">{children}</div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
@@ -76,6 +117,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [isSavingMission, setIsSavingMission] = useState(false);
   const [isSendingPraise, setIsSendingPraise] = useState(false);
   const [isSavingNutrition, setIsSavingNutrition] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
+    coachPlan: false,
+    dailyMission: false,
+    messages: false,
+    foodLogs: false,
+    progressPhotos: false,
+    weeklyReport: false
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -134,6 +183,17 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     };
   }, [clientId]);
 
+  useEffect(() => {
+    setOpenSections((current) => {
+      const next = { ...current };
+      (Object.keys(next) as CollapsibleKey[]).forEach((key) => {
+        const stored = window.sessionStorage.getItem(`trainer-client-profile:${clientId}:${key}`);
+        if (stored === "open" || stored === "closed") next[key] = stored === "open";
+      });
+      return next;
+    });
+  }, [clientId]);
+
   const today = useMemo(() => localDateKey(), []);
   const checkedInToday = client?.last_trainer_message_at ? localDateKey(client.last_trainer_message_at) === today : false;
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
@@ -162,7 +222,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     activityLevel:
       client?.activity_level === "low" || client?.activity_level === "moderate" || client?.activity_level === "high"
         ? client.activity_level
-        : "moderate"
+        : "moderate",
+    bodyComposition: client?.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
 
   useEffect(() => {
@@ -280,6 +341,18 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     }
   }
 
+  function setSectionOpen(key: CollapsibleKey, isOpen: boolean) {
+    setOpenSections((current) => ({ ...current, [key]: isOpen }));
+    window.sessionStorage.setItem(`trainer-client-profile:${clientId}:${key}`, isOpen ? "open" : "closed");
+  }
+
+  function openMessagesForCheckIn() {
+    setSectionOpen("messages", true);
+    window.setTimeout(() => {
+      document.getElementById("trainer-section-messages")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
+
   return (
     <>
       <section className="mt-3">
@@ -302,13 +375,20 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           <p className="mt-3 text-xs text-zinc-500">Goal last updated {new Date(client.goal_updated_at).toLocaleDateString()}</p>
         ) : null}
         {client?.id ? (
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-4 grid grid-cols-3 gap-2">
             <Link
               href={`/messages?userId=${client.id}`}
               className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink"
             >
               Open chat
             </Link>
+            <button
+              type="button"
+              onClick={openMessagesForCheckIn}
+              className="h-12 rounded-lg border border-calm/50 bg-calm/10 font-semibold text-calm"
+            >
+              Check-In
+            </button>
             <button
               type="button"
               disabled={isSendingPraise}
@@ -324,6 +404,33 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <AthleteCoachPanel clientId={clientId} />
+
+      <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+        <p className="text-sm font-semibold text-calm">Today's Priorities</p>
+        <h2 className="mt-1 text-lg font-semibold">What needs your attention first</h2>
+        <div className="mt-3 space-y-2">
+          {(score ?? 100) < 50 ? (
+            <div className="rounded-lg border border-amber/40 bg-amber/10 p-3">
+              <p className="text-sm font-semibold text-amber">Momentum is low</p>
+              <p className="mt-1 text-sm leading-6 text-zinc-300">
+                {checkedInToday ? "You have already checked in today. Keep the next message short and supportive." : "Send a quick check-in so the client knows you noticed."}
+              </p>
+            </div>
+          ) : null}
+          {!todaysFood.length ? (
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-sm font-semibold">No food logged today</p>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">A light reminder can help if nutrition is today's focus.</p>
+            </div>
+          ) : null}
+          {todaysFood.length && (score ?? 0) >= 50 ? (
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-sm font-semibold text-lime">Client is active today</p>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">Review nutrition and reinforce the behaviour if it matches the plan.</p>
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       <section className="mt-4 grid grid-cols-2 gap-3">
         <MetricCard
@@ -344,17 +451,6 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         <div className="mt-4">
           <ProgressComparisonCard comparison={progressComparison} photoHref="#progress-photos" />
         </div>
-      ) : null}
-
-      {(score ?? 100) < 50 ? (
-        <section className={`mt-4 rounded-lg p-4 ${checkedInToday ? "border border-calm/40 bg-calm/10" : "border border-amber/40 bg-amber/10"}`}>
-          <div className="flex gap-3">
-            <AlertTriangle className={`mt-0.5 ${checkedInToday ? "text-calm" : "text-amber"}`} size={20} />
-            <p className="text-sm leading-6 text-zinc-300">
-              {checkedInToday ? "Momentum is still low, but you already checked in with this client today." : "Momentum is low today. Send a quick check-in."}
-            </p>
-          </div>
-        </section>
       ) : null}
 
       <section className="mt-4 grid grid-cols-2 gap-3">
@@ -386,7 +482,12 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+      <CollapsibleSection
+        title="Coach Plan"
+        preview={coachNutritionPlan ? `${coachNutritionPlan.calories.toLocaleString()} kcal active plan` : "Using Ascend recommendation until you customize it"}
+        isOpen={openSections.coachPlan}
+        onToggle={() => setSectionOpen("coachPlan", !openSections.coachPlan)}
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-calm">Customize Nutrition Plan</p>
@@ -453,9 +554,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           <p className="mt-3 text-xs text-zinc-500">Last updated {new Date(coachNutritionPlan.updated_at).toLocaleString()}</p>
         ) : null}
         {nutritionStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300">{nutritionStatus}</p> : null}
-      </section>
+      </CollapsibleSection>
 
-      <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+      <CollapsibleSection
+        title="Daily Mission"
+        preview={missions.length ? `${missions.length} missions, ${missions.filter((mission) => mission.status !== "completed").length} open` : "No missions assigned yet"}
+        isOpen={openSections.dailyMission}
+        onToggle={() => setSectionOpen("dailyMission", !openSections.dailyMission)}
+      >
         <h2 className="text-base font-semibold text-calm">Daily mission</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-300">Give one simple action for the client to complete between sessions.</p>
         <form onSubmit={handleCreateMission} className="mt-4 space-y-3">
@@ -497,9 +603,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           ))}
           {!missions.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No missions assigned yet.</p> : null}
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <CollapsibleSection
+        title="Messages"
+        preview={messages.length ? `${messages.length} messages${checkedInToday ? " / checked in today" : ""}` : "No messages yet"}
+        id="trainer-section-messages"
+        isOpen={openSections.messages}
+        onToggle={() => setSectionOpen("messages", !openSections.messages)}
+      >
         <h2 className="text-base font-semibold">Client messages</h2>
         <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-lg bg-ink p-3">
           {messages.slice(-8).map((message) => {
@@ -534,9 +646,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             <Send size={18} />
           </button>
         </form>
-      </section>
+      </CollapsibleSection>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <CollapsibleSection
+        title="Food Logs"
+        preview={foodLogs.length ? `${foodLogs.length} total logs, ${todaysFood.length} today` : "No food logs yet"}
+        isOpen={openSections.foodLogs}
+        onToggle={() => setSectionOpen("foodLogs", !openSections.foodLogs)}
+      >
         <div className="flex items-center gap-3">
           <Utensils className="text-lime" size={20} />
           <h2 className="text-base font-semibold">Latest food logs</h2>
@@ -569,9 +686,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         >
           View Full Meal History
         </Link>
-      </section>
+      </CollapsibleSection>
 
-      <section id="progress-photos" className="mt-4 scroll-mt-20 rounded-lg border border-line bg-surface p-4">
+      <CollapsibleSection
+        title="Progress Photos"
+        preview={progressPhotos.length ? `${progressPhotos.length} saved photos` : "No progress photos yet"}
+        id="progress-photos"
+        isOpen={openSections.progressPhotos}
+        onToggle={() => setSectionOpen("progressPhotos", !openSections.progressPhotos)}
+      >
         <h2 className="text-base font-semibold">Progress photos</h2>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {progressPhotos.slice(0, 6).map((photo) => (
@@ -592,9 +715,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           ))}
           {!progressPhotos.length ? <p className="col-span-3 rounded-lg bg-ink p-3 text-sm text-zinc-400">No progress photos yet.</p> : null}
         </div>
-      </section>
+      </CollapsibleSection>
 
-      <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+      <CollapsibleSection
+        title="Weekly Report"
+        preview={checkin ? "Draft check-in ready" : "Generate a weekly check-in draft"}
+        isOpen={openSections.weeklyReport}
+        onToggle={() => setSectionOpen("weeklyReport", !openSections.weeklyReport)}
+      >
         <div className="flex gap-3">
           <Sparkles className="mt-0.5 text-calm" size={20} />
           <div>
@@ -612,7 +740,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         >
           {isGenerating ? "Generating..." : "Generate check-in"}
         </button>
-      </section>
+      </CollapsibleSection>
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center gap-3">

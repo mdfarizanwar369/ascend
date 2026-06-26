@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, ClipboardList, LockKeyhole, Target, TrendingDown } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ClipboardList, LockKeyhole, Target, TrendingDown } from "lucide-react";
 import {
   AthleteDashboard,
   BodyCompositionScan,
@@ -25,11 +25,45 @@ const targetOptions = [
 ] as const;
 
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
+type AthletePanelSection = "bodyScanHistory" | "targets" | "weeklyReview" | "notes";
 
 function InsightIcon({ tone }: { tone: CoachInsightTone }) {
   if (tone === "red" || tone === "orange" || tone === "yellow") return <AlertTriangle size={18} />;
   if (tone === "green") return <CheckCircle2 size={18} />;
   return <Target size={18} />;
+}
+
+function AthletePanelCollapsible({
+  title,
+  preview,
+  isOpen,
+  onToggle,
+  children
+}: {
+  title: string;
+  preview: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <section className="mt-3 rounded-lg border border-purple-400/20 bg-ink">
+      <button type="button" aria-expanded={isOpen} onClick={onToggle} className="flex w-full items-center justify-between gap-3 p-3 text-left">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-white">{title}</h3>
+          <p className="mt-1 truncate text-xs text-zinc-400">{preview}</p>
+        </div>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line bg-surface text-zinc-200">
+          <ChevronDown className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} size={16} />
+        </span>
+      </button>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className="overflow-hidden">
+          <div className="border-t border-purple-400/20 p-3 pt-2">{children}</div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export function AthleteCoachPanel({ clientId }: { clientId: string }) {
@@ -47,6 +81,12 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
   const [coachComment, setCoachComment] = useState("");
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<AthletePanelSection, boolean>>({
+    bodyScanHistory: false,
+    targets: false,
+    weeklyReview: false,
+    notes: false
+  });
 
   const load = useCallback(async () => {
     try {
@@ -71,6 +111,22 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    setOpenSections((current) => {
+      const next = { ...current };
+      (Object.keys(next) as AthletePanelSection[]).forEach((key) => {
+        const stored = window.sessionStorage.getItem(`athlete-coach-panel:${clientId}:${key}`);
+        if (stored === "open" || stored === "closed") next[key] = stored === "open";
+      });
+      return next;
+    });
+  }, [clientId]);
+
+  function setSectionOpen(key: AthletePanelSection, isOpen: boolean) {
+    setOpenSections((current) => ({ ...current, [key]: isOpen }));
+    window.sessionStorage.setItem(`athlete-coach-panel:${clientId}:${key}`, isOpen ? "open" : "closed");
+  }
 
   function chooseTarget(nextType: string) {
     setTargetType(nextType);
@@ -156,10 +212,17 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
         </div>
       </section>
 
-      <Link href={`/trainer/clients/${clientId}/body-composition`} className="mt-3 block rounded-lg border border-teal-400/40 bg-teal-400/10 p-3 !text-white transition hover:border-teal-300">
-        <p className="text-sm font-semibold text-teal-200">View full Body Scan history</p>
-        <p className="mt-1 text-xs leading-5 text-zinc-300">Open trends, scan photos, progress score, and coach insights.</p>
-      </Link>
+      <AthletePanelCollapsible
+        title="Body Scan History"
+        preview={bodyScans.length ? `${bodyScans.length} scans saved` : "No saved scans yet"}
+        isOpen={openSections.bodyScanHistory}
+        onToggle={() => setSectionOpen("bodyScanHistory", !openSections.bodyScanHistory)}
+      >
+        <Link href={`/trainer/clients/${clientId}/body-composition`} className="block rounded-lg border border-teal-400/40 bg-teal-400/10 p-3 !text-white transition hover:border-teal-300">
+          <p className="text-sm font-semibold text-teal-200">View full Body Scan history</p>
+          <p className="mt-1 text-xs leading-5 text-zinc-300">Open trends, scan photos, progress score, and coach insights.</p>
+        </Link>
+      </AthletePanelCollapsible>
 
       <div className="mt-3 rounded-lg border border-teal-400/30 bg-ink p-3">
         <div className="flex items-start justify-between gap-3">
@@ -209,7 +272,13 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
         })}</div>
       </div>
 
-      <form onSubmit={saveTarget} className="mt-4 rounded-lg bg-ink p-3">
+      <AthletePanelCollapsible
+        title="Athlete Targets"
+        preview={athlete.targets.length ? `${athlete.targets.length} active targets` : "No athlete targets set"}
+        isOpen={openSections.targets}
+        onToggle={() => setSectionOpen("targets", !openSections.targets)}
+      >
+      <form onSubmit={saveTarget} className="rounded-lg bg-ink">
         <div className="flex items-center gap-2"><ClipboardList className="text-purple-300" size={18} /><h3 className="text-sm font-semibold">Set a target</h3></div>
         <select value={targetType} onChange={(e) => chooseTarget(e.target.value)} className="mt-3 h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm">{targetOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
         <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-surface p-1">{(["daily", "weekly"] as const).map((value) => <button key={value} type="button" onClick={() => setCadence(value)} className={`h-9 rounded-md text-xs font-semibold capitalize ${cadence === value ? "bg-purple-500 !text-white" : "bg-ink !text-zinc-100"}`}>{value}</button>)}</div>
@@ -218,21 +287,36 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
         <button disabled={saving || !targetValue} className="mt-2 h-11 w-full rounded-lg bg-purple-500 font-semibold !text-white disabled:border disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">Save target</button>
         <div className="mt-3 space-y-2">{athlete.targets.map((target) => <p key={target.id} className="rounded-lg bg-surface p-2 text-xs text-zinc-300"><span className="font-semibold capitalize text-purple-300">{target.cadence}</span> / {target.target_type.replaceAll("_", " ")}: {target.completed_value}/{target.target_value} {target.unit}</p>)}</div>
       </form>
+      </AthletePanelCollapsible>
 
-      <div className="mt-4 rounded-lg bg-ink p-3">
+      <AthletePanelCollapsible
+        title="Weekly Review"
+        preview={athlete.latestReview ? "Review summary available" : "Appears when enough athlete data is available"}
+        isOpen={openSections.weeklyReview}
+        onToggle={() => setSectionOpen("weeklyReview", !openSections.weeklyReview)}
+      >
+      <div className="rounded-lg bg-ink">
         <h3 className="text-sm font-semibold">Weekly review note</h3>
         <p className="mt-2 text-xs leading-5 text-zinc-400">{athlete.latestReview?.summary ?? "Weekly review appears here once enough athlete data is available."}</p>
         <textarea value={coachComment} onChange={(e) => setCoachComment(e.target.value)} maxLength={2000} rows={3} placeholder="Add a clear focus for next week" className="mt-3 w-full resize-none rounded-lg border border-line bg-surface p-3 text-sm" />
         <button type="button" disabled={saving || !athlete.latestReview} onClick={saveReviewComment} className="mt-2 h-11 w-full rounded-lg border border-purple-400/60 bg-purple-400/10 font-semibold !text-purple-100 disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">Save review comment</button>
       </div>
+      </AthletePanelCollapsible>
 
-      <form onSubmit={saveNote} className="mt-4 rounded-lg border border-line bg-ink p-3">
+      <AthletePanelCollapsible
+        title="Notes"
+        preview={notes.length ? `${notes.length} private notes` : "No notes added yet"}
+        isOpen={openSections.notes}
+        onToggle={() => setSectionOpen("notes", !openSections.notes)}
+      >
+      <form onSubmit={saveNote} className="rounded-lg border border-line bg-ink p-3">
         <div className="flex items-center gap-2"><LockKeyhole className="text-purple-300" size={18} /><h3 className="text-sm font-semibold">Private coach notes</h3></div>
         <p className="mt-1 text-xs leading-5 text-zinc-500">Visible only to authorized trainers and owners. Never shown to the athlete.</p>
         <textarea value={privateNote} onChange={(e) => setPrivateNote(e.target.value)} maxLength={2000} rows={3} placeholder="Private coaching observation" className="mt-3 w-full resize-none rounded-lg border border-line bg-surface p-3 text-sm" />
         <button disabled={saving || !privateNote.trim()} className="mt-2 h-11 w-full rounded-lg bg-purple-500 font-semibold !text-white disabled:border disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">Save private note</button>
         <div className="mt-3 space-y-2">{notes.slice(0, 5).map((note) => <article key={note.id} className="rounded-lg bg-surface p-3"><p className="whitespace-pre-wrap text-sm leading-6 text-zinc-200">{note.body}</p><p className="mt-1 text-xs text-zinc-500">{note.author_name} / {new Date(note.created_at).toLocaleDateString()}</p></article>)}{!notes.length ? <p className="rounded-lg bg-surface p-3 text-sm text-zinc-400">No notes added yet.</p> : null}</div>
       </form>
+      </AthletePanelCollapsible>
       {status ? <p className="mt-3 text-sm text-zinc-300">{status}</p> : null}
     </section>
   );
