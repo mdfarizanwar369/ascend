@@ -31,6 +31,7 @@ const schema = z.object({
   AI_CHAT_ESTIMATED_COST_CENTS: z.coerce.number().nonnegative().default(1),
   AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS: z.coerce.number().nonnegative().default(2),
   FOOD_AI_PERFORMANCE_LOGS: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  BODY_COMPOSITION_AI_DEBUG_LOGS: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PAYMENT_PROVIDER: z.enum(["stripe", "lemonsqueezy", "toyyibpay"]).default("stripe"),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   STRIPE_SECRET_KEY: z.string().optional(),

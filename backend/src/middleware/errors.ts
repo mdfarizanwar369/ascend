@@ -2,6 +2,13 @@ import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 
 export function errorHandler(error: Error, _req: Request, res: Response, _next: NextFunction) {
+  if ((error as Error & { type?: string }).type === "entity.too.large") {
+    return res.status(413).json({
+      error: "Upload is too large",
+      detail: "Please upload fewer images or retake the scan closer so Ascend can optimize a smaller file."
+    });
+  }
+
   if (error instanceof ZodError) {
     return res.status(400).json({
       error: "Invalid request",

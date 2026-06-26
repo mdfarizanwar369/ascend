@@ -49,6 +49,16 @@ const scanSchema = z.object({
 });
 const extractSchema = z.object({ images: z.array(imageDataUrlSchema).min(1).max(6) });
 
+function bodyCompositionRouteLog(event: string, metadata: Record<string, unknown>) {
+  if (env.BODY_COMPOSITION_AI_DEBUG_LOGS || env.NODE_ENV !== "production") {
+    console.info("[body-composition-route]", event, metadata);
+  }
+}
+
+function bodyCompositionRouteError(event: string, metadata: Record<string, unknown>) {
+  console.error("[body-composition-route]", event, metadata);
+}
+
 async function requireEnabledAthlete(userId: string) {
   if (!env.ATHLETE_MODE_ENABLED) return false;
   const result = await query("select enabled from athlete_profiles where user_id = $1", [userId]);
@@ -191,15 +201,34 @@ async function saveScan(userId: string, actorId: string, body: unknown) {
 }
 
 bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, async (req, res, next) => {
+  const startedAt = Date.now();
   try {
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
+    bodyCompositionRouteLog("request_received", {
+      userId: req.user!.id,
+      bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8")
+    });
     const input = extractSchema.parse(req.body);
+    bodyCompositionRouteLog("schema_valid", {
+      imageCount: input.images.length,
+      imageBytes: input.images.map((image) => Buffer.byteLength(image, "utf8"))
+    });
     const draft = await extractBodyCompositionFromImages(input.images);
+    bodyCompositionRouteLog("ai_extraction_complete", {
+      durationMs: Date.now() - startedAt,
+      confidenceScore: draft.confidenceScore,
+      missingFields: draft.missingFields
+    });
     const uploaded = await Promise.allSettled(input.images.map((imageDataUrl) => uploadDataUrl(`body-composition/${req.user!.id}/${randomUUID()}.jpg`, imageDataUrl)));
     const sourceImages = uploaded
       .filter((result): result is PromiseFulfilledResult<{ key: string; storageConfigured: boolean }> => result.status === "fulfilled")
       .map((result) => ({ key: result.value.key }));
     const storageFailed = uploaded.some((result) => result.status === "rejected");
+    if (storageFailed) {
+      bodyCompositionRouteError("storage_partial_failure", {
+        rejectedCount: uploaded.filter((result) => result.status === "rejected").length
+      });
+    }
     res.json({
       draft: {
         ...draft,
@@ -210,6 +239,11 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
       }
     });
   } catch (error) {
+    bodyCompositionRouteError("request_failed", {
+      durationMs: Date.now() - startedAt,
+      message: error instanceof Error ? error.message : "Unknown error",
+      name: error instanceof Error ? error.name : "Unknown"
+    });
     next(error);
   }
 });

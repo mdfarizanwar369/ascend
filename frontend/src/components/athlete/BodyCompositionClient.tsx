@@ -236,7 +236,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
     }));
   }
 
-  const canReadWithAi = !busy && selectedImages.length > 0;
+  const hasSelectedImages = selectedImages.length > 0;
+  const canReadWithAi = !busy && hasSelectedImages;
   const canSaveScan = !busy;
   const primaryButtonClass = "font-semibold shadow-lg shadow-teal-300/15";
   const activePrimaryButtonClass = "bg-teal-300 !text-[#071018]";
@@ -313,7 +314,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <input type="file" accept="image/*" multiple onChange={onFiles} className="sr-only" />
             </label>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={!canReadWithAi} onClick={runExtraction} className={`h-11 rounded-lg ${primaryButtonClass} ${canReadWithAi ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}><Sparkles className="mr-1 inline" size={17} /> {busy ? "Reading..." : allowLowQuality ? "Read anyway" : "Read with AI"}</button>
+              <button type="button" disabled={!canReadWithAi} onClick={runExtraction} className={`h-11 rounded-lg ${primaryButtonClass} ${hasSelectedImages ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}><Sparkles className="mr-1 inline" size={17} /> {busy ? "Reading..." : allowLowQuality ? "Read anyway" : "Read with AI"}</button>
               <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); }} className="h-11 rounded-lg border border-line bg-ink font-semibold text-zinc-200">Manual entry</button>
             </div>
             {selectedImages.length ? (

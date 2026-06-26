@@ -42,6 +42,28 @@ class GeminiError extends Error {
   }
 }
 
+class BodyCompositionExtractionError extends Error {
+  constructor(
+    message: string,
+    public readonly category: "configuration" | "request" | "gemini" | "timeout" | "empty_response" | "invalid_json" | "unknown",
+    public readonly technicalDetail?: string,
+    public readonly rawResponse?: string
+  ) {
+    super(message);
+    this.name = "BodyCompositionExtractionError";
+  }
+}
+
+function bodyCompositionDebugLog(event: string, metadata: Record<string, unknown>) {
+  const shouldLog = env.BODY_COMPOSITION_AI_DEBUG_LOGS || env.NODE_ENV !== "production";
+  if (!shouldLog) return;
+  console.info("[body-composition-ai]", event, metadata);
+}
+
+function bodyCompositionErrorLog(event: string, metadata: Record<string, unknown>) {
+  console.error("[body-composition-ai]", event, metadata);
+}
+
 function demoFoodEstimate(): FoodEstimate {
   return {
     foodName: "Manual food entry",
@@ -141,7 +163,23 @@ function nullishNumber(value: unknown) {
 }
 
 function parseBodyCompositionExtraction(text: string) {
-  const parsed = JSON.parse(cleanJsonText(text)) as Record<string, unknown>;
+  const cleaned = cleanJsonText(text);
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(cleaned) as Record<string, unknown>;
+  } catch (error) {
+    bodyCompositionErrorLog("invalid_json", {
+      message: error instanceof Error ? error.message : "Unknown JSON parse error",
+      responsePreview: text.slice(0, 500),
+      rawResponse: env.NODE_ENV === "production" ? undefined : text
+    });
+    throw new BodyCompositionExtractionError(
+      "Gemini returned invalid JSON for this body composition scan.",
+      "invalid_json",
+      error instanceof Error ? error.message : "Unknown JSON parse error",
+      env.NODE_ENV === "production" ? undefined : text
+    );
+  }
   return normalizeBodyCompositionScan({
     scanDate: String(parsed.scanDate ?? new Date().toISOString().slice(0, 10)).slice(0, 10),
     machine: typeof parsed.machine === "string" ? parsed.machine : null,
@@ -190,6 +228,33 @@ function bodyCompositionFallbackDraft(reason: string) {
     importSource: "ai_import",
     userConfirmed: false
   });
+}
+
+function classifyBodyCompositionError(error: unknown): BodyCompositionExtractionError {
+  if (error instanceof BodyCompositionExtractionError) return error;
+  if (error instanceof GeminiError) {
+    const category = error.message.includes("timed out")
+      ? "timeout"
+      : error.message.includes("empty response")
+        ? "empty_response"
+        : "gemini";
+    return new BodyCompositionExtractionError(
+      category === "timeout"
+        ? "Gemini timed out while reading this body composition scan."
+        : category === "empty_response"
+          ? "Gemini returned an empty response for this scan."
+          : "Gemini could not process this body composition scan.",
+      category,
+      error.message
+    );
+  }
+  if (error instanceof SyntaxError) {
+    return new BodyCompositionExtractionError("Gemini returned invalid JSON for this body composition scan.", "invalid_json", error.message);
+  }
+  if (error instanceof Error) {
+    return new BodyCompositionExtractionError("Body composition AI extraction failed.", "unknown", error.message);
+  }
+  return new BodyCompositionExtractionError("Body composition AI extraction failed.", "unknown", "Unknown error");
 }
 
 function confidenceNumber(value: unknown) {
@@ -569,19 +634,40 @@ export async function estimateFoodFromImage(
 
 export async function extractBodyCompositionFromImages(imageDataUrls: string[]) {
   if (env.AI_PROVIDER !== "gemini" || !env.GEMINI_API_KEY) {
+    bodyCompositionErrorLog("configuration_missing", {
+      aiProvider: env.AI_PROVIDER,
+      hasGeminiKey: Boolean(env.GEMINI_API_KEY)
+    });
     return bodyCompositionFallbackDraft("Gemini Flash Vision is not configured right now.");
   }
   if (imageDataUrls.length < 1 || imageDataUrls.length > 6) {
-    throw new Error("Upload between 1 and 6 scan images.");
+    throw new BodyCompositionExtractionError("Upload between 1 and 6 scan images.", "request");
   }
+
+  const imageByteSizes = imageDataUrls.map((imageUrl) => Buffer.byteLength(imageUrl, "utf8"));
+  bodyCompositionDebugLog("request_start", {
+    model: env.GEMINI_MODEL,
+    imageCount: imageDataUrls.length,
+    imageByteSizes,
+    totalRequestBytes: imageByteSizes.reduce((sum, size) => sum + size, 0)
+  });
 
   const imageParts = imageDataUrls.map((imageUrl) => {
     const part = dataUrlToGeminiPart(imageUrl);
-    if (!part) throw new Error("Body scan images must be image data URLs.");
+    if (!part) throw new BodyCompositionExtractionError("Body scan images must be JPEG, PNG, or WebP data URLs.", "request");
     return part;
   });
   const prompt = buildBodyCompositionAiPrompt();
+  bodyCompositionDebugLog("gemini_request", {
+    model: env.GEMINI_MODEL,
+    responseMimeType: "application/json",
+    temperature: 0.25,
+    maxOutputTokens: 1600,
+    promptChars: prompt.length,
+    imageMimeTypes: imageParts.map((part) => "inlineData" in part ? part.inlineData.mimeType : "text")
+  });
   try {
+    const startedAt = Date.now();
     const text = await callGeminiWithOptions([
       ...imageParts,
       { text: prompt }
@@ -591,32 +677,63 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
       timeoutMs: 25_000,
       responseMimeType: "application/json"
     });
+    bodyCompositionDebugLog("gemini_response", {
+      durationMs: Date.now() - startedAt,
+      responseChars: text.length,
+      responsePreview: text.slice(0, 500),
+      rawResponse: env.NODE_ENV === "production" ? undefined : text
+    });
 
     return parseBodyCompositionExtraction(text);
   } catch (error) {
+    const classified = classifyBodyCompositionError(error);
+    bodyCompositionErrorLog("primary_attempt_failed", {
+      category: classified.category,
+      message: classified.message,
+      technicalDetail: classified.technicalDetail
+    });
     if (imageParts.length === 1) {
-      return bodyCompositionFallbackDraft(error instanceof Error ? error.message : "The AI scan did not complete.");
+      return bodyCompositionFallbackDraft(classified.message);
     }
     const partials = [];
-    for (const imagePart of imageParts) {
+    const failedImages: number[] = [];
+    for (const [index, imagePart] of imageParts.entries()) {
       try {
+        const startedAt = Date.now();
         const text = await callGeminiWithOptions([imagePart, { text: prompt }], 1200, {
           models: [env.GEMINI_MODEL],
           attemptsPerModel: 1,
           timeoutMs: 18_000,
           responseMimeType: "application/json"
         });
+        bodyCompositionDebugLog("single_image_response", {
+          imageIndex: index,
+          durationMs: Date.now() - startedAt,
+          responseChars: text.length,
+          responsePreview: text.slice(0, 300),
+          rawResponse: env.NODE_ENV === "production" ? undefined : text
+        });
         partials.push(parseBodyCompositionExtraction(text));
-      } catch {
+      } catch (partialError) {
+        const partialClassified = classifyBodyCompositionError(partialError);
+        failedImages.push(index + 1);
+        bodyCompositionErrorLog("single_image_failed", {
+          imageIndex: index,
+          category: partialClassified.category,
+          message: partialClassified.message,
+          technicalDetail: partialClassified.technicalDetail
+        });
         // The review screen still allows manual entry for fields missing from failed images.
       }
     }
     if (!partials.length) {
-      return bodyCompositionFallbackDraft(error instanceof Error ? error.message : "The AI scan did not complete.");
+      return bodyCompositionFallbackDraft(classified.message);
     }
     return {
       ...mergeBodyCompositionDrafts(partials),
-      notes: "Ascend merged values from the readable scan images. Please manually confirm any missing fields."
+      notes: failedImages.length
+        ? `Ascend merged values from the readable scan images. Image ${failedImages.join(", ")} could not be read reliably. Please manually confirm any missing fields.`
+        : "Ascend merged values from the readable scan images. Please manually confirm any missing fields."
     };
   }
 }
