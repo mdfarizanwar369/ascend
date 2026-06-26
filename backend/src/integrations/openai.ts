@@ -3,7 +3,7 @@ import { FoodEstimate, LOCAL_FOODS } from "@ascend/shared";
 import { env } from "../config/env";
 import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
-import { buildBodyCompositionAiPrompt, normalizeBodyCompositionScan } from "../services/bodyCompositionService";
+import { buildBodyCompositionAiPrompt, mergeBodyCompositionDrafts, normalizeBodyCompositionScan } from "../services/bodyCompositionService";
 import {
   annotateLatestGeminiParse,
   FoodAiPerformanceTrace,
@@ -558,17 +558,41 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
     if (!part) throw new Error("Body scan images must be image data URLs.");
     return part;
   });
-  const text = await callGeminiWithOptions([
-    ...imageParts,
-    { text: buildBodyCompositionAiPrompt() }
-  ], 1600, {
-    models: [env.GEMINI_MODEL],
-    attemptsPerModel: 1,
-    timeoutMs: 25_000,
-    responseMimeType: "application/json"
-  });
+  const prompt = buildBodyCompositionAiPrompt();
+  try {
+    const text = await callGeminiWithOptions([
+      ...imageParts,
+      { text: prompt }
+    ], 1600, {
+      models: [env.GEMINI_MODEL],
+      attemptsPerModel: 1,
+      timeoutMs: 25_000,
+      responseMimeType: "application/json"
+    });
 
-  return parseBodyCompositionExtraction(text);
+    return parseBodyCompositionExtraction(text);
+  } catch (error) {
+    if (imageParts.length === 1) throw error;
+    const partials = [];
+    for (const imagePart of imageParts) {
+      try {
+        const text = await callGeminiWithOptions([imagePart, { text: prompt }], 1200, {
+          models: [env.GEMINI_MODEL],
+          attemptsPerModel: 1,
+          timeoutMs: 18_000,
+          responseMimeType: "application/json"
+        });
+        partials.push(parseBodyCompositionExtraction(text));
+      } catch {
+        // The review screen still allows manual entry for fields missing from failed images.
+      }
+    }
+    if (!partials.length) throw error;
+    return {
+      ...mergeBodyCompositionDrafts(partials),
+      notes: "Ascend merged values from the readable scan images. Please manually confirm any missing fields."
+    };
+  }
 }
 
 async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string) {

@@ -41,6 +41,22 @@ async function withTimeout<T>(ms: number, action: (signal: AbortSignal) => Promi
   }
 }
 
+function combineAbortSignals(signals: AbortSignal[]) {
+  const availableSignals = signals.filter(Boolean);
+  if (typeof AbortSignal !== "undefined" && "any" in AbortSignal) {
+    return AbortSignal.any(availableSignals);
+  }
+  const controller = new AbortController();
+  for (const signal of availableSignals) {
+    if (signal.aborted) {
+      controller.abort();
+      break;
+    }
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  }
+  return controller.signal;
+}
+
 export function completeOnboarding(input: {
   fullName: string;
   referralCode?: string;
@@ -1450,12 +1466,12 @@ export type BodyCompositionSummary = {
   nutritionDataSource: "Profile Only" | "Profile + Body Scan" | "Profile + Body Scan History";
 };
 
-export function extractBodyComposition(images: string[]) {
-  return withTimeout(90_000, (signal) =>
+export function extractBodyComposition(images: string[], externalSignal?: AbortSignal) {
+  return withTimeout(90_000, (timeoutSignal) =>
     authed<{ draft: BodyCompositionScan }>("/athlete/body-composition/extract", {
       method: "POST",
       body: JSON.stringify({ images }),
-      signal
+      signal: externalSignal ? combineAbortSignals([timeoutSignal, externalSignal]) : timeoutSignal
     })
   );
 }

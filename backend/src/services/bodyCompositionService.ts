@@ -171,6 +171,35 @@ export function normalizeBodyCompositionScan(input: BodyCompositionScanInput): B
   };
 }
 
+export function mergeBodyCompositionDrafts(drafts: BodyCompositionScanInput[]) {
+  const normalized = drafts.map(normalizeBodyCompositionScan);
+  const first = normalized[0] ?? normalizeBodyCompositionScan({ scanDate: new Date().toISOString().slice(0, 10), importSource: "ai_import" });
+  const metricKeys: Array<keyof BodyCompositionScanInput> = [
+    "weightKg", "bmi", "bodyFatPercent", "fatMassKg", "leanBodyMassKg", "estimatedLeanBodyMassKg",
+    "skeletalMuscleMassKg", "muscleMassKg", "visceralFat", "bodyWaterPercent", "proteinPercent",
+    "mineralPercent", "boneMassKg", "bmrKcal", "metabolicAge", "confidenceScore"
+  ];
+  const merged: BodyCompositionScanInput = { ...first, missingFields: [], notes: "", sourceImages: [] };
+
+  for (const key of metricKeys) {
+    const value = normalized.map((draft) => draft[key]).find((entry) => entry !== null && entry !== undefined);
+    (merged as Record<string, unknown>)[key] = value ?? null;
+  }
+
+  merged.machine = normalized.map((draft) => draft.machine).find(Boolean) ?? null;
+  merged.scanDate = normalized.map((draft) => draft.scanDate).find(Boolean) ?? first.scanDate;
+  merged.segmentalMuscle = Object.assign({}, ...normalized.map((draft) => draft.segmentalMuscle ?? {}));
+  merged.segmentalFat = Object.assign({}, ...normalized.map((draft) => draft.segmentalFat ?? {}));
+  merged.missingFields = Array.from(new Set(normalized.flatMap((draft) => draft.missingFields ?? []))).filter((field) => {
+    const camelField = field as keyof BodyCompositionScanInput;
+    return !metricKeys.includes(camelField) || merged[camelField] === null || merged[camelField] === undefined;
+  });
+  merged.notes = normalized.map((draft) => draft.notes).filter(Boolean).join(" ").slice(0, 2000) || null;
+  merged.importSource = "ai_import";
+  merged.userConfirmed = false;
+  return normalizeBodyCompositionScan(merged);
+}
+
 export function calculateBodyCompositionDerived(scans: BodyCompositionScan[], profile?: NutritionTargetInput): BodyCompositionDerived {
   const ordered = [...scans].sort((a, b) => (dateMs(a.scanDate) ?? 0) - (dateMs(b.scanDate) ?? 0));
   const latest = ordered[ordered.length - 1] ?? null;

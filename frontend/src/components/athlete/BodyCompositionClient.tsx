@@ -1,7 +1,8 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, Brain, Camera, CheckCircle2, LineChart, ShieldCheck, Sparkles, Upload } from "lucide-react";
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BODY_SCAN_IMPORT_STAGES, BodyScanImportStageId, hasBlockingBodyScanWarnings } from "@ascend/shared";
+import { Activity, AlertTriangle, Brain, Camera, CheckCircle2, LineChart, ShieldCheck, Sparkles, Upload, XCircle } from "lucide-react";
 import {
   BodyCompositionScan,
   BodyCompositionSummary,
@@ -13,6 +14,7 @@ import {
   saveTrainerBodyCompositionScan
 } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { OptimizedBodyScanImage, clearBodyScanImageCache, optimizeBodyScanImage } from "@/lib/bodyScanImageProcessor";
 
 const metricFields: Array<[keyof BodyCompositionScan, string, string]> = [
   ["weightKg", "Weight", "kg"],
@@ -44,39 +46,6 @@ function emptyDraft(): BodyCompositionScan {
 function valueText(value: number | null | undefined, unit = "") {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit ? ` ${unit}` : ""}`;
-}
-
-function resizeScanImageToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(file);
-
-    image.onload = () => {
-      const maxSize = 1200;
-      const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-
-      const context = canvas.getContext("2d");
-      if (!context) {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error("Could not prepare scan image."));
-        return;
-      }
-
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      URL.revokeObjectURL(objectUrl);
-      resolve(canvas.toDataURL("image/jpeg", 0.82));
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error("Could not read this image. Please try a JPEG or PNG screenshot."));
-    };
-
-    image.src = objectUrl;
-  });
 }
 
 function TrendSparkline({ values }: { values: number[] }) {
@@ -120,10 +89,13 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   const [summary, setSummary] = useState<BodyCompositionSummary | null>(null);
   const [scans, setScans] = useState<BodyCompositionScan[]>([]);
   const [draft, setDraft] = useState<BodyCompositionScan>(emptyDraft());
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
+  const [selectedImages, setSelectedImages] = useState<OptimizedBodyScanImage[]>([]);
   const [status, setStatus] = useState("Loading body composition...");
   const [busy, setBusy] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [activeStage, setActiveStage] = useState<BodyScanImportStageId | null>(null);
+  const [allowLowQuality, setAllowLowQuality] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -149,13 +121,33 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   async function onFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []).slice(0, 6);
     if (!files.length) return;
-    setStatus("Preparing scan images...");
+    abortControllerRef.current?.abort();
+    clearBodyScanImageCache();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setBusy(true);
+    setAllowLowQuality(false);
+    setActiveStage("optimize");
+    setStatus("Optimizing scan images...");
     try {
-      const dataUrls = await Promise.all(files.map(resizeScanImageToDataUrl));
-      setSelectedImages(dataUrls);
-      setStatus(`${dataUrls.length} compressed image${dataUrls.length === 1 ? "" : "s"} ready. Review manually or run AI extraction.`);
+      const optimized: OptimizedBodyScanImage[] = [];
+      for (const file of files) {
+        const image = await optimizeBodyScanImage(file, {
+          existingHashes: optimized.map((item) => item.hash),
+          signal: controller.signal,
+          onStage: (message) => setStatus(message)
+        });
+        if (!image.duplicate) optimized.push(image);
+      }
+      setSelectedImages(optimized);
+      setActiveStage("quality_check");
+      const warningCount = optimized.reduce((total, image) => total + image.warnings.filter((warning) => warning.severity !== "info").length, 0);
+      const duplicateCount = files.length - optimized.length;
+      setStatus(`${optimized.length} optimized image${optimized.length === 1 ? "" : "s"} ready.${duplicateCount ? ` ${duplicateCount} duplicate skipped.` : ""}${warningCount ? ` ${warningCount} quality warning${warningCount === 1 ? "" : "s"} found.` : ""}`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not prepare images.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -164,20 +156,55 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       setStatus("Choose 1 to 6 scan images first.");
       return;
     }
+    const allWarnings = selectedImages.flatMap((image) => image.warnings);
+    if (hasBlockingBodyScanWarnings(allWarnings) && !allowLowQuality) {
+      setAllowLowQuality(true);
+      setActiveStage("quality_check");
+      setStatus("Some images may be blurry, dark, low resolution, or affected by glare. Retake them for best accuracy, or press Read with AI again to continue.");
+      return;
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
     setBusy(true);
-    setStatus("Ascend DNA is reading the scan. It will only extract visible values.");
+    setActiveStage("upload");
+    setStatus("Uploading optimized images...");
     try {
-      const response = await extractBodyComposition(selectedImages);
+      const dataUrls = selectedImages.map((image) => image.dataUrl);
+      setActiveStage("read");
+      setStatus("Reading body composition with Gemini Flash Vision...");
+      const response = await extractBodyComposition(dataUrls, controller.signal);
+      setActiveStage("dna");
+      setStatus("Building your Ascend DNA draft...");
       setDraft({ ...emptyDraft(), ...response.draft, userConfirmed: true });
       setShowManualEntry(true);
-      setStatus("AI draft ready. Review every value before saving.");
+      setActiveStage("complete");
+      const missing = response.draft.missingFields?.filter(Boolean) ?? [];
+      const confidence = Number(response.draft.confidenceScore ?? 0);
+      setStatus(confidence > 0 && confidence < 0.55
+        ? `AI read the scan with low confidence. Please confirm all values manually${missing.length ? `, especially: ${missing.slice(0, 5).join(", ")}` : ""}.`
+        : missing.length
+          ? `AI draft ready. Some values need manual confirmation: ${missing.slice(0, 5).join(", ")}.`
+          : "AI draft ready. Review every value before saving.");
     } catch (error) {
       setDraft({ ...emptyDraft(), sourceImages: [] });
       setShowManualEntry(true);
-      setStatus(error instanceof Error ? `${error.message} You can still enter the scan manually.` : "AI extraction failed. Enter the scan manually.");
+      const message = error instanceof Error && error.name === "AbortError"
+        ? "Body scan import cancelled."
+        : error instanceof Error
+          ? `${error.message} You can still enter the scan manually.`
+          : "AI extraction failed. Enter the scan manually.";
+      setStatus(message);
     } finally {
       setBusy(false);
     }
+  }
+
+  function cancelImport() {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setBusy(false);
+    setActiveStage(null);
+    setStatus("Body scan import cancelled.");
   }
 
   async function saveScan(event: FormEvent) {
@@ -192,6 +219,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       await load();
       setDraft(emptyDraft());
       setSelectedImages([]);
+      clearBodyScanImageCache();
       setShowManualEntry(false);
       setStatus("Body composition scan saved.");
     } catch (error) {
@@ -220,6 +248,21 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+
+      <section className="mt-4 rounded-lg border border-line bg-surface p-3">
+        <div className="grid grid-cols-2 gap-2">
+          {BODY_SCAN_IMPORT_STAGES.slice(1).map((stage) => {
+            const active = activeStage === stage.id;
+            const complete = activeStage === "complete" || BODY_SCAN_IMPORT_STAGES.findIndex((item) => item.id === activeStage) > BODY_SCAN_IMPORT_STAGES.findIndex((item) => item.id === stage.id);
+            return (
+              <div key={stage.id} className={`rounded-lg p-2 text-xs ${active ? "bg-teal-300 text-ink" : complete ? "bg-teal-400/10 text-teal-200" : "bg-ink text-zinc-500"}`}>
+                <p className="font-semibold">{stage.label}</p>
+              </div>
+            );
+          })}
+        </div>
+        {busy ? <button type="button" onClick={cancelImport} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-red-400/40 text-sm font-semibold text-red-300"><XCircle size={17} /> Cancel import</button> : null}
+      </section>
 
       <div className="mt-4 space-y-4">
         <DnaScoreCard summary={summary} />
@@ -264,9 +307,27 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <input type="file" accept="image/*" multiple onChange={onFiles} className="sr-only" />
             </label>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={busy || !selectedImages.length} onClick={runExtraction} className="h-11 rounded-lg bg-teal-300 font-semibold text-ink disabled:opacity-50"><Sparkles className="mr-1 inline" size={17} /> Read with AI</button>
+              <button type="button" disabled={busy || !selectedImages.length} onClick={runExtraction} className="h-11 rounded-lg bg-teal-300 font-semibold text-ink disabled:opacity-50"><Sparkles className="mr-1 inline" size={17} /> {allowLowQuality ? "Read anyway" : "Read with AI"}</button>
               <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); }} className="h-11 rounded-lg border border-line bg-ink font-semibold text-zinc-200">Manual entry</button>
             </div>
+            {selectedImages.length ? (
+              <div className="mt-3 space-y-2">
+                {selectedImages.map((image, index) => (
+                  <article key={image.id} className="rounded-lg bg-ink p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Image {index + 1}</p>
+                        <p className="text-xs text-zinc-500">{Math.round(image.originalBytes / 1024)} KB to {Math.round(image.optimizedBytes / 1024)} KB / {image.width}x{image.height}</p>
+                      </div>
+                      {image.warnings.some((warning) => warning.severity !== "info") ? <AlertTriangle className="text-amber" size={18} /> : <CheckCircle2 className="text-teal-300" size={18} />}
+                    </div>
+                    {image.warnings.filter((warning) => warning.severity !== "info").map((warning) => (
+                      <p key={`${image.id}-${warning.code}`} className={`mt-2 text-xs leading-5 ${warning.severity === "blocking" ? "text-red-300" : "text-amber"}`}>{warning.message}</p>
+                    ))}
+                  </article>
+                ))}
+              </div>
+            ) : null}
           </section>
         ) : (
           <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); }} className="h-11 rounded-lg border border-teal-400/50 bg-teal-400/10 font-semibold text-teal-200">Add manual coach entry</button>
