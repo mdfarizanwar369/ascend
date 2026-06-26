@@ -7,6 +7,7 @@ import {
   createUserWithEmailAndPassword,
   getRedirectResult,
   GoogleAuthProvider,
+  onAuthStateChanged,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -30,6 +31,7 @@ type GoogleAuthMethod = "popup" | "redirect";
 const authDraftKey = "ascend.authDraft.v1";
 const googleRedirectPendingKey = "ascend.googleRedirectPending.v1";
 const authDebugEnabled = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_AUTH_DEBUG === "true";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
   let timeoutId: ReturnType<typeof setTimeout>;
@@ -109,6 +111,41 @@ function chooseGoogleAuthMethod(): GoogleAuthMethod {
 function authDebug(event: string, details?: Record<string, unknown>) {
   if (!authDebugEnabled) return;
   console.info("[Ascend Auth]", event, details ?? {});
+}
+
+function authTrace(stage: string, details?: Record<string, unknown>) {
+  const payload = { at: new Date().toISOString(), stage, ...(details ?? {}) };
+  console.info("[Ascend Google Auth]", payload);
+}
+
+function describeUnknownError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      code: getAuthErrorCode(error),
+      message: error.message
+    };
+  }
+  return {
+    code: null,
+    message: String(error)
+  };
+}
+
+function waitForAuthStateUser(ms = 6000) {
+  const auth = getFirebaseClientAuth();
+  return new Promise<User | null>((resolve) => {
+    let unsubscribe = () => {};
+    const timeout = window.setTimeout(() => {
+      unsubscribe();
+      resolve(auth.currentUser);
+    }, ms);
+
+    unsubscribe = onAuthStateChanged(auth, (user) => {
+      window.clearTimeout(timeout);
+      unsubscribe();
+      resolve(user);
+    });
+  });
 }
 
 function setGoogleRedirectPending() {
@@ -192,33 +229,71 @@ export function AuthPanel() {
   }, [email, fullName, mode, referralCode, signupRole]);
 
   const provisionGoogleUser = useCallback(async (user: User) => {
+    authTrace("Firebase user received", {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      providerIds: user.providerData.map((provider) => provider.providerId)
+    });
     const token = await user.getIdToken();
-    await withTimeout(
-      api(
-        "/auth/provision",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            fullName: user.displayName || undefined,
-            referralCode: referralCode.trim() || undefined,
-            primaryRole: "client"
-          })
+    authTrace("ID token retrieved", { uid: user.uid, tokenLength: token.length });
+
+    const provisionBody = {
+      fullName: user.displayName || undefined,
+      referralCode: referralCode.trim() || undefined,
+      primaryRole: "client"
+    };
+    authTrace("/auth/provision request", { body: provisionBody });
+
+    const provisionResponse = await withTimeout(
+      fetch(`${API_URL}/auth/provision`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
         },
-        token
-      ),
+        body: JSON.stringify(provisionBody)
+      }),
       "Ascend profile setup is taking too long. Please try logging in again."
     );
+    const provisionPayload = await provisionResponse.json().catch(() => null);
+    authTrace("/auth/provision response", {
+      ok: provisionResponse.ok,
+      status: provisionResponse.status,
+      body: provisionPayload
+    });
+
+    if (!provisionResponse.ok) {
+      const detail =
+        typeof provisionPayload?.error === "string"
+          ? `${provisionPayload.error}${typeof provisionPayload?.detail === "string" ? ` ${provisionPayload.detail}` : ""}`
+          : `Google profile setup failed with status ${provisionResponse.status}.`;
+      throw new Error(detail);
+    }
 
     markInstallEligible("signup");
+    authTrace("Session creation", { uid: user.uid, persistedByFirebase: Boolean(getFirebaseClientAuth().currentUser) });
     const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please open Ascend again.");
+    authTrace("Auth state update", {
+      uid: user.uid,
+      roles: profile.roles,
+      primaryRole: profile.user.primary_role,
+      hasGoal: Boolean(profile.user.goal_type),
+      hasStartingWeight: Boolean(profile.user.starting_weight_kg)
+    });
     if (!profile.roles.includes("client")) {
-      router.replace(roleHome(profile.roles));
+      const destination = roleHome(profile.roles);
+      authTrace("Final navigation decision", { destination, reason: "non_client_role" });
+      router.replace(destination);
       return;
     }
     if (profile.user.goal_type && profile.user.starting_weight_kg) {
+      authTrace("Final navigation decision", { destination: "/dashboard", reason: "profile_complete" });
       router.replace("/dashboard");
       return;
     }
+    authTrace("Final navigation decision", { destination: "/onboarding", reason: "profile_incomplete" });
     router.replace("/onboarding");
   }, [referralCode, router]);
 
@@ -229,36 +304,59 @@ export function AuthPanel() {
     async function completeRedirectSignIn() {
       if (hasProcessedRedirectAuth.current) return;
       try {
-        authDebug("redirect_result_check_started", getPlatformInfo());
-        await waitForFirebasePersistence();
         const auth = getFirebaseClientAuth();
+        const hasFirebaseRedirectParams = /[?&](apiKey|authType|providerId|oauth_token|oauth_verifier|code|state)=/.test(window.location.search);
+        authTrace("Returned from Google", {
+          href: window.location.href,
+          redirectWasPending: wasGoogleRedirectPending(),
+          hasFirebaseRedirectParams,
+          hasCurrentUserBeforeResult: Boolean(auth.currentUser)
+        });
+        authDebug("redirect_result_check_started", getPlatformInfo());
+        authTrace("getRedirectResult called", { authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN });
         const result = await getRedirectResult(auth);
+        authTrace("getRedirectResult completed", {
+          hasResult: Boolean(result),
+          providerId: result?.providerId ?? null,
+          hasUser: Boolean(result?.user),
+          currentUserAfterResult: Boolean(auth.currentUser)
+        });
         if (!result || cancelled) {
           const redirectWasPending = wasGoogleRedirectPending();
-          if (auth.currentUser && !cancelled) {
-            authDebug("redirect_result_empty_current_user_fallback", { redirectWasPending, uid: auth.currentUser.uid });
+          const fallbackUser = auth.currentUser ?? (await waitForAuthStateUser());
+          authTrace("Auth state fallback checked", {
+            redirectWasPending,
+            hasFallbackUser: Boolean(fallbackUser),
+            uid: fallbackUser?.uid ?? null
+          });
+          if (fallbackUser && !cancelled) {
+            authDebug("redirect_result_empty_current_user_fallback", { redirectWasPending, uid: fallbackUser.uid });
             hasProcessedRedirectAuth.current = true;
             clearGoogleRedirectPending();
             setIsSubmitting(true);
             setStatus("Finishing Google sign-in...");
-            await provisionGoogleUser(auth.currentUser);
+            await provisionGoogleUser(fallbackUser);
             return;
           }
           authDebug("redirect_result_empty", { redirectWasPending, hasCurrentUser: Boolean(auth.currentUser) });
+          if (redirectWasPending || hasFirebaseRedirectParams) {
+            setStatus("Google returned to Ascend, but Firebase did not provide a signed-in user. Please try again.");
+          }
           return;
         }
         authDebug("redirect_result_success", { providerId: result.providerId });
+        authTrace("Firebase UID", { uid: result.user.uid });
         hasProcessedRedirectAuth.current = true;
         clearGoogleRedirectPending();
         setIsSubmitting(true);
         setStatus("Setting up your Ascend profile...");
         await provisionGoogleUser(result.user);
         authDebug("redirect_auth_completed");
+        authTrace("Authentication completed", { uid: result.user.uid });
       } catch (error) {
-        authDebug("redirect_result_error", {
-          code: getAuthErrorCode(error),
-          message: error instanceof Error ? error.message : String(error)
-        });
+        const errorDetails = describeUnknownError(error);
+        authDebug("redirect_result_error", errorDetails);
+        authTrace("Google redirect flow failed", errorDetails);
         if (!cancelled) setStatus(getFriendlyAuthError(error));
       } finally {
         if (!cancelled) setIsSubmitting(false);
