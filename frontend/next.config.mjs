@@ -7,13 +7,17 @@ const nextConfig = {
       {
         source: "/__/auth/:path*",
         destination: "https://ascend-b2850.firebaseapp.com/__/auth/:path*"
+      },
+      {
+        source: "/__/firebase/:path*",
+        destination: "https://ascend-b2850.firebaseapp.com/__/firebase/:path*"
       }
     ];
   },
   async headers() {
     return [
       {
-        source: "/:path((?!__/auth).*)",
+        source: "/:path((?!__).*)",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
@@ -27,6 +31,14 @@ const nextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" }
+        ]
+      },
+      {
+        source: "/__/firebase/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" }
         ]

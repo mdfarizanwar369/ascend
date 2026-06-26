@@ -518,8 +518,17 @@ export function AuthPanel() {
       provider.setCustomParameters({ prompt: "select_account" });
 
       if (method === "redirect") {
+        authTrace("Redirect initiated", {
+          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+          platform
+        });
         authDebug("google_redirect_started", { authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN });
         setGoogleRedirectPending();
+        await withTimeout(
+          waitForFirebasePersistence(),
+          "Secure Google sign-in is taking too long to start. Please check your connection and try again.",
+          15_000
+        );
         await signInWithRedirect(auth, provider);
         return;
       }
@@ -539,8 +548,18 @@ export function AuthPanel() {
           message: error instanceof Error ? error.message : String(error)
         });
         if (code === "auth/popup-blocked" || code === "auth/cancelled-popup-request") {
+          authTrace("Redirect initiated", {
+            authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+            reason: "popup_fallback",
+            platform
+          });
           authDebug("google_popup_fallback_redirect_started");
           setGoogleRedirectPending();
+          await withTimeout(
+            waitForFirebasePersistence(),
+            "Secure Google sign-in is taking too long to start. Please check your connection and try again.",
+            15_000
+          );
           await signInWithRedirect(auth, provider);
           return;
         }
