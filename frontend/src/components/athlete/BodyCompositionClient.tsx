@@ -222,8 +222,8 @@ function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary 
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Ascend DNA</p>
-          <h2 className="mt-1 text-xl font-semibold">Ascend DNA Score</h2>
-          <p className="mt-1 text-xs leading-5 text-zinc-400">Experimental coaching signal. Not medical advice.</p>
+          <h2 className="mt-1 text-xl font-semibold">Body Progress Score</h2>
+          <p className="mt-1 text-xs leading-5 text-zinc-400">A simple coaching signal based on your scan trend.</p>
           {draftScan ? <p className="mt-2 inline-flex rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">Draft (Not yet saved)</p> : null}
         </div>
         <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-ink text-center">
@@ -231,11 +231,11 @@ function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary 
         </div>
       </div>
       {draftScan ? (
-        <p className="mt-3 text-sm text-zinc-300">Save the scan to calculate confirmed score movement.</p>
+        <p className="mt-3 text-sm text-zinc-300">Save the scan to update your confirmed score.</p>
       ) : change !== null && change !== undefined ? (
         <p className="mt-3 text-sm text-teal-200">{change >= 0 ? "+" : ""}{change} vs previous scan</p>
       ) : (
-        <p className="mt-3 text-sm text-zinc-400">Add another scan to see score movement.</p>
+        <p className="mt-3 text-sm text-zinc-400">Add another scan later to see how your score changes.</p>
       )}
     </section>
   );
@@ -250,9 +250,9 @@ function EmptyState() {
         </div>
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Body Scan</p>
-          <h2 className="mt-1 text-lg font-semibold">Upload your first body scan</h2>
+          <h2 className="mt-1 text-lg font-semibold">Start with your first scan</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            Unlock personalized nutrition, progress trends, and coach-friendly insights after you confirm your first scan.
+            Upload a clear photo of your scan report. Ascend will help turn the numbers into progress you can actually understand.
           </p>
         </div>
       </div>
@@ -305,7 +305,7 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
       <div className="rounded-lg bg-ink/80 p-4">
         <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Body Scan Complete</p>
         <h2 className="mt-2 text-2xl font-semibold">Your Body Scan Has Been Saved</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Your Ascend DNA has been updated successfully.</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Your Body Scan has been saved and your progress view is up to date.</p>
       </div>
 
       <div className="mt-3 rounded-lg border border-line bg-ink p-3">
@@ -357,7 +357,7 @@ function AiDraftSummary({ draft }: { draft: BodyCompositionScan }) {
       <div className="flex items-start gap-3">
         <Brain className="mt-1 text-purple-300" size={20} />
         <div>
-          <h2 className="font-semibold">AI Analysis Complete</h2>
+          <h2 className="font-semibold">Scan Review Ready</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
             Ascend found {detected} useful number{detected === 1 ? "" : "s"}. {missing.length ? `${missing.length} main value${missing.length === 1 ? "" : "s"} need your help.` : "The main values are ready to save."}
           </p>
@@ -415,7 +415,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   const [scans, setScans] = useState<BodyCompositionScan[]>([]);
   const [draft, setDraft] = useState<BodyCompositionScan>(emptyDraft());
   const [selectedImages, setSelectedImages] = useState<OptimizedBodyScanImage[]>([]);
-  const [status, setStatus] = useState("Loading Ascend DNA...");
+  const [status, setStatus] = useState("Loading Body Scan...");
   const [busy, setBusy] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [activeStage, setActiveStage] = useState<BodyScanImportStageId | null>(null);
@@ -438,7 +438,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       }
       setStatus("");
     } catch (error) {
-      setStatus(error instanceof Error ? friendlyBodyScanError(error) : "Ascend DNA could not load yet.");
+      setStatus(error instanceof Error ? friendlyBodyScanError(error) : "Body Scan could not load yet.");
     }
   }, [clientId, coachView]);
 
@@ -519,7 +519,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
     if (hasBlockingBodyScanWarnings(allWarnings) && !allowLowQuality) {
       setAllowLowQuality(true);
       setActiveStage("quality_check");
-      setStatus("The image may be hard to read. Retake for best accuracy, or press Read with AI again to continue.");
+      setStatus("This photo may be hard to read. Retake it for best accuracy, or try AI again if the numbers look clear.");
       return;
     }
     const controller = new AbortController();
@@ -582,7 +582,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         scanDate: draft.scanDate
       });
       if (missingCore.length) {
-        setStatus(`Almost there. Add ${missingCore.join(", ")} before saving your Ascend DNA results.`);
+        setStatus(`Almost there. Add ${missingCore.join(", ")} before saving your Body Scan.`);
         return;
       }
       setBusy(true);
@@ -645,9 +645,9 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       <section className="mt-4 flex items-start gap-3">
         <BackButton fallbackHref={coachView ? (clientId ? `/trainer/clients/${clientId}` : "/trainer") : "/athlete"} />
         <div>
-          <p className="text-sm text-teal-300">Body Scan</p>
+          <p className="text-sm text-teal-300">Update Progress</p>
           <h1 className="mt-1 text-3xl font-semibold">Body Scan</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Upload your scan, confirm the main numbers, and Ascend turns them into clear progress insights.</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan photo, confirm the key numbers, and see what changed.</p>
         </div>
       </section>
 
@@ -664,8 +664,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
           <div className="flex items-center gap-3">
             <LineChart className="text-teal-300" size={20} />
             <div>
-              <h2 className="font-semibold">Progress intelligence</h2>
-              <p className="text-xs text-zinc-400">{summary?.nutritionDataSource ?? "Profile Only"}</p>
+              <h2 className="font-semibold">Progress Snapshot</h2>
+              <p className="text-xs text-zinc-400">{summary?.latestScan ? "Using your latest confirmed scan" : "Add a scan to unlock trends"}</p>
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-ink p-3">
@@ -689,46 +689,52 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <p className="mt-1 text-[11px] leading-4 text-zinc-500">Based on current trend, not a guarantee.</p>
             </div>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-500">Greatest improvement</p>
-              <p className="mt-1 text-sm font-semibold">{greatestImprovement ? greatestImprovement.metric : "--"}</p>
-              <p className="mt-1 text-xs text-teal-200">{greatestImprovement ? changeText(greatestImprovement.change) : "Add another scan"}</p>
+          <details className="mt-3 rounded-lg border border-line bg-ink p-3">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold text-white">
+              <span>More progress details</span>
+              <span className="text-xs text-zinc-400">Optional</span>
+            </summary>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-500">Best improvement</p>
+                <p className="mt-1 text-sm font-semibold">{greatestImprovement ? greatestImprovement.metric : "--"}</p>
+                <p className="mt-1 text-xs text-teal-200">{greatestImprovement ? changeText(greatestImprovement.change) : "Add another scan"}</p>
+              </div>
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-500">Needs focus</p>
+                <p className="mt-1 text-sm font-semibold">{biggestChallenge ? biggestChallenge.metric : "--"}</p>
+                <p className="mt-1 text-xs text-amber">{biggestChallenge ? changeText(biggestChallenge.change) : "No concern detected"}</p>
+              </div>
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-500">Weekly movement</p>
+                <p className="mt-1 text-sm font-semibold">{summary?.derived.weeklyProgressPercent !== null && summary?.derived.weeklyProgressPercent !== undefined ? `${summary.derived.weeklyProgressPercent}%` : "--"}</p>
+                <p className="mt-1 text-xs text-zinc-500">Based on scan trend</p>
+              </div>
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-500">Monthly movement</p>
+                <p className="mt-1 text-sm font-semibold">{summary?.derived.monthlyProgressPercent !== null && summary?.derived.monthlyProgressPercent !== undefined ? `${summary.derived.monthlyProgressPercent}%` : "--"}</p>
+                <p className="mt-1 text-xs text-zinc-500">Clearer after 28 days</p>
+              </div>
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-500">Scans saved</p>
+                <p className="mt-1 text-sm font-semibold">{summary?.scanCount ? `${summary.scanCount} confirmed` : "--"}</p>
+                <p className="mt-1 text-xs text-zinc-500">More scans improve trends</p>
+              </div>
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-500">Last scan</p>
+                <p className="mt-1 text-sm font-semibold">{latest?.scanDate ? new Date(latest.scanDate).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "--"}</p>
+                <p className="mt-1 text-xs text-zinc-500">{nextScanDate ? `Next around ${nextScanDate.toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "No scan yet"}</p>
+              </div>
             </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-500">Biggest challenge</p>
-              <p className="mt-1 text-sm font-semibold">{biggestChallenge ? biggestChallenge.metric : "--"}</p>
-              <p className="mt-1 text-xs text-amber">{biggestChallenge ? changeText(biggestChallenge.change) : "No concern detected"}</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-500">Weekly trend</p>
-              <p className="mt-1 text-sm font-semibold">{summary?.derived.weeklyProgressPercent !== null && summary?.derived.weeklyProgressPercent !== undefined ? `${summary.derived.weeklyProgressPercent}%` : "--"}</p>
-              <p className="mt-1 text-xs text-zinc-500">Body composition movement</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-500">Monthly trend</p>
-              <p className="mt-1 text-sm font-semibold">{summary?.derived.monthlyProgressPercent !== null && summary?.derived.monthlyProgressPercent !== undefined ? `${summary.derived.monthlyProgressPercent}%` : "--"}</p>
-              <p className="mt-1 text-xs text-zinc-500">Needs 28+ days of scans</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-500">Current streak</p>
-              <p className="mt-1 text-sm font-semibold">{summary?.scanCount ? `${summary.scanCount} confirmed` : "--"}</p>
-              <p className="mt-1 text-xs text-zinc-500">Scan history depth</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-500">Last scan</p>
-              <p className="mt-1 text-sm font-semibold">{latest?.scanDate ? new Date(latest.scanDate).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "--"}</p>
-              <p className="mt-1 text-xs text-zinc-500">{nextScanDate ? `Next around ${nextScanDate.toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "No scan yet"}</p>
-            </div>
-          </div>
+          </details>
         </section>
 
         <section className="rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center gap-2">
             <Target className="text-teal-300" size={19} />
-            <h2 className="font-semibold">Scan-informed nutrition</h2>
+            <h2 className="font-semibold">Nutrition Guide</h2>
           </div>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Ascend can use confirmed scan data to make targets more personal than profile-only estimates.</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Confirmed scans help Ascend personalize your daily guide.</p>
           <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
             <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.calories ?? "--"}</span>kcal</div>
             <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.protein ?? "--"}g</span>protein</div>
@@ -739,7 +745,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
 
         {summary?.insights.length || summary?.coachAlerts.length ? (
           <section className="rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
-            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">Coach summary</h2></div>
+            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">Coach Insight</h2></div>
             <div className="mt-3 space-y-2 text-sm leading-6 text-zinc-200">
               {summary.insights.map((insight) => <p key={insight}>{insight}</p>)}
               {summary.coachAlerts.map((alert) => <p key={alert.type} className={alert.severity === "positive" ? "text-teal-200" : alert.severity === "high" ? "text-red-300" : "text-amber"}>{alert.message}</p>)}
@@ -747,27 +753,27 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
           </section>
         ) : (
           <section className="rounded-lg border border-line bg-surface p-4">
-            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">Coach summary</h2></div>
+            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">Coach Insight</h2></div>
             <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan to unlock clear, coach-friendly progress insights.</p>
           </section>
         )}
 
         {!coachView ? (
           <section className="rounded-lg border border-line bg-surface p-4">
-            <div className="flex items-center gap-2"><Upload className="text-teal-300" size={19} /><h2 className="font-semibold">Import scan</h2></div>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Use printed reports, machine screens, screenshots, or manual entry. Ascend never saves without your confirmation.</p>
+            <div className="flex items-center gap-2"><Upload className="text-teal-300" size={19} /><h2 className="font-semibold">Update Progress</h2></div>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Take a photo of your report or machine screen. You will review everything before saving.</p>
             <label className="mt-3 grid min-h-28 place-items-center rounded-lg border border-dashed border-teal-400/50 bg-teal-400/5 p-4 text-center">
               <Camera className="text-teal-300" size={24} />
-              <span className="mt-2 text-sm font-semibold">Choose 1 to 6 images</span>
-              <span className="mt-1 text-xs text-zinc-500">Printed report, phone photo, or screenshots</span>
+              <span className="mt-2 text-sm font-semibold">Add scan photos</span>
+              <span className="mt-1 text-xs text-zinc-500">Report, machine screen, or screenshots</span>
               <input type="file" accept="image/*" multiple onChange={onFiles} className="sr-only" />
             </label>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button type="button" disabled={!canReadWithAi} onClick={runExtraction} className={`h-11 rounded-lg ${primaryButtonClass} ${canReadWithAi ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}>
-                <Sparkles className="mr-1 inline" size={17} /> {busy ? "Reading..." : allowLowQuality ? "Read anyway" : "Read with AI"}
+                <Sparkles className="mr-1 inline" size={17} /> {busy ? "Reading..." : allowLowQuality ? "Analyze anyway" : "Analyze scan"}
               </button>
               <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); setLastSavedScan(null); }} className="h-11 rounded-lg border border-zinc-500 bg-surface font-semibold !text-white transition hover:border-teal-400/50">
-                Manual entry
+                Enter manually
               </button>
             </div>
             {selectedImages.length ? (
@@ -799,8 +805,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <div className="flex items-center gap-2">
                 <ShieldCheck className="text-teal-300" size={19} />
                 <div>
-                  <h2 className="font-semibold">Review the main numbers</h2>
-                  <p className="mt-1 text-sm text-zinc-400">Confirm only what matters first. Extra report details are optional.</p>
+                  <h2 className="font-semibold">Review Your Scan</h2>
+                  <p className="mt-1 text-sm text-zinc-400">Confirm the key numbers. Extra report details are optional.</p>
                 </div>
               </div>
               {lockVerifiedValues ? (
@@ -814,8 +820,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             </div>
 
             <section className="mt-4 rounded-lg border border-line bg-ink p-3">
-              <h3 className="font-semibold">Main scan values</h3>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">These four values are enough to save your body scan.</p>
+              <h3 className="font-semibold">Key Numbers</h3>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">These values are enough to save your Body Scan.</p>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <label className="text-xs text-zinc-400">Scan date<input type="date" value={draft.scanDate} onChange={(event) => setDraftValue("scanDate", event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white" /></label>
                 {coreMetrics.map((field) => {
@@ -839,7 +845,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
                   );
                 })}
               </div>
-              {missingCore.length ? <p className="mt-3 text-xs leading-5 text-amber">Add {missingCore.join(", ")} to save your body scan.</p> : <p className="mt-3 text-xs leading-5 text-teal-200">Ready to save. Advanced details are optional.</p>}
+              {missingCore.length ? <p className="mt-3 text-xs leading-5 text-amber">Add {missingCore.join(", ")} to save your Body Scan.</p> : <p className="mt-3 text-xs leading-5 text-teal-200">Ready to save. Advanced details are optional.</p>}
             </section>
 
             <section className="mt-4 rounded-lg border border-line bg-ink p-3">
@@ -922,7 +928,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             {!scans.length ? (
               <div className="rounded-lg bg-ink p-4 text-sm text-zinc-400">
                 <FileText className="mb-2 text-teal-300" size={20} />
-                No scans saved yet. Your first confirmed scan will appear here.
+                Your saved scans will appear here after your first Body Scan.
               </div>
             ) : null}
           </div>

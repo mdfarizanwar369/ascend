@@ -46,7 +46,7 @@ function isSessionTarget(type: string) {
 
 export function AthleteDashboardClient() {
   const [data, setData] = useState<AthleteDashboard | null>(null);
-  const [status, setStatus] = useState("Loading Athlete Mode...");
+  const [status, setStatus] = useState("Loading your athlete dashboard...");
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState({ sport: "", division: "", competitionName: "", competitionDate: "", coachName: "", goalWeightKg: "" });
   const [checkin, setCheckin] = useState({ sleepHours: "8", energy: "7", soreness: "4", stress: "4", hunger: "5", motivation: "7" });
@@ -91,7 +91,7 @@ export function AthleteDashboardClient() {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
       await load();
-      setStatus("Athlete profile saved.");
+      setStatus("Athlete profile updated.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save athlete profile.");
     } finally {
@@ -139,7 +139,7 @@ export function AthleteDashboardClient() {
       <section className="mt-4">
         <p className="text-sm text-purple-300">Athlete Mode</p>
         <h1 className="mt-1 text-3xl font-semibold">Prepare with clarity</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">Readiness and training consistency for your next goal.</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">A simple daily view of readiness, targets, and progress toward your next goal.</p>
       </section>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
@@ -164,15 +164,15 @@ export function AthleteDashboardClient() {
       ) : null}
 
       <Link href="/athlete/body-composition" className="mt-4 block rounded-lg border border-teal-400/40 bg-teal-400/10 p-4 !text-white">
-        <p className="text-sm font-semibold text-teal-300">Ascend DNA</p>
-        <h2 className="mt-1 text-xl font-semibold">Body Composition Engine</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Upload body scan reports, confirm values, and track recomposition trends.</p>
+        <p className="text-sm font-semibold text-teal-300">Body Scan</p>
+        <h2 className="mt-1 text-xl font-semibold">Update your progress</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Upload a scan, confirm the key numbers, and track changes beyond the scale.</p>
       </Link>
 
       {data.readiness.warningReasons.length ? (
         <section className="mt-3 rounded-lg border border-red-400/40 bg-red-400/10 p-3">
           <p className="text-sm font-semibold text-red-300">Coach review recommended</p>
-          <ul className="mt-2 space-y-1 text-sm text-zinc-300">{data.readiness.warningReasons.map((reason) => <li key={reason}>• {reason}</li>)}</ul>
+          <ul className="mt-2 space-y-1 text-sm text-zinc-300">{data.readiness.warningReasons.map((reason) => <li key={reason}>- {reason}</li>)}</ul>
         </section>
       ) : null}
 
@@ -208,7 +208,7 @@ export function AthleteDashboardClient() {
         const compliance = cadence === "daily" ? data.dailyCompliancePercent : data.weeklyCompliancePercent;
         return (
       <section key={cadence} className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <div className="flex items-center justify-between"><div><h2 className="font-semibold">{cadence === "daily" ? "Today's targets" : "Weekly targets"}</h2><p className="mt-1 text-sm text-zinc-400">{cadence === "daily" ? "Enter only what you completed today." : "Today’s entries add toward this week’s goal."}</p></div><span className="text-2xl font-semibold text-purple-300">{compliance}%</span></div>
+        <div className="flex items-center justify-between"><div><h2 className="font-semibold">{cadence === "daily" ? "Today's targets" : "Weekly targets"}</h2><p className="mt-1 text-sm text-zinc-400">{cadence === "daily" ? "Enter only what you completed today." : "Today's entries add toward this week's goal."}</p></div><span className="text-2xl font-semibold text-purple-300">{compliance}%</span></div>
         <div className="mt-4 space-y-3">
           {targets.map((target) => (
             <div key={target.id} className="rounded-lg bg-ink p-3">
@@ -218,7 +218,7 @@ export function AthleteDashboardClient() {
               {isSessionTarget(target.target_type) ? <button type="button" disabled={saving} onClick={() => saveProgress(target.id, Number(target.today_completed_value) + 1)} className="mt-2 h-10 w-full rounded-lg border border-purple-400/60 bg-purple-400/10 text-sm font-semibold !text-purple-100 disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">+1 session completed</button> : null}
             </div>
           ))}
-          {!targets.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No {cadence} targets assigned.</p> : null}
+          {!targets.length ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">{cadence === "daily" ? "No daily targets yet. Your coach can add one when there is a clear focus." : "No weekly targets yet. Keep using your readiness check-in until your coach adds targets."}</p> : null}
         </div>
       </section>
         );
@@ -226,9 +226,9 @@ export function AthleteDashboardClient() {
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-center gap-3"><CheckCircle2 className="text-purple-300" size={20} /><h2 className="font-semibold">Weekly coach review</h2></div>
-        <p className="mt-3 text-sm leading-6 text-zinc-300">{data.latestReview?.summary ?? "Your review will appear automatically."}</p>
+        <p className="mt-3 text-sm leading-6 text-zinc-300">{data.latestReview?.summary ?? "Your weekly review will appear here once there is enough athlete data."}</p>
         {data.latestReview?.coach_comment ? <p className="mt-3 rounded-lg bg-ink p-3 text-sm text-zinc-200"><span className="font-semibold text-purple-300">Coach:</span> {data.latestReview.coach_comment}</p> : null}
-        <p className="mt-3 text-xs text-zinc-500">Updates automatically whenever Athlete Mode opens.</p>
+        <p className="mt-3 text-xs text-zinc-500">Updates automatically when you open Athlete Mode.</p>
       </section>
 
       {data.progressPhotos.length ? (
