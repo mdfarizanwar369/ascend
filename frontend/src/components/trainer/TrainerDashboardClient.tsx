@@ -191,6 +191,28 @@ function trainerPriorityCards(clients: TrainerClient[]) {
   };
 }
 
+function weeklyClientSummary(clients: TrainerClient[]) {
+  const priorities = trainerPriorityCards(clients);
+  const athleteClients = clients.filter((client) => client.athlete_mode_enabled);
+  const bodyScansDue = athleteClients.filter((client) => {
+    const latestScanDate = client.body_composition_summary?.latestScan?.scanDate ?? null;
+    const age = daysSince(latestScanDate);
+    return age === null || age > 28;
+  }).length;
+  const checkInsDue = priorities.needsAttention.filter((item) => item.reason.includes("No food") || item.reason.includes("Momentum") || item.reason.includes("Water")).length;
+  const plateaued = priorities.needsAttention.filter((item) => item.reason.toLowerCase().includes("plateau")).length;
+  const goalAchievements = clients.filter((client) => client.goal_achieved_at).length;
+
+  return {
+    improving: priorities.greatProgress.length,
+    plateaued,
+    atRisk: priorities.needsAttention.length,
+    checkInsDue,
+    bodyScansDue,
+    goalAchievements
+  };
+}
+
 function PriorityClientCard({ item, type }: { item: PriorityCard; type: "attention" | "progress" }) {
   const border = type === "attention" ? "border-amber/40 bg-amber/10" : "border-teal-400/40 bg-teal-400/10";
   const badgeClass = item.badge === "Athlete" ? "border-purple-400/50 bg-purple-400/10 text-purple-100" : "border-teal-400/50 bg-teal-400/10 text-teal-100";
@@ -295,6 +317,7 @@ export function TrainerDashboardClient() {
     [clients]
   );
   const priorities = useMemo(() => trainerPriorityCards(clients), [clients]);
+  const weeklySummary = useMemo(() => weeklyClientSummary(clients), [clients]);
   const athleteAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Athlete").length, [priorities.needsAttention]);
   const premiumAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Premium").length, [priorities.needsAttention]);
   const excellentProgress = priorities.greatProgress.length;
@@ -381,6 +404,18 @@ export function TrainerDashboardClient() {
               ? `${priorities.needsAttention.length} client${priorities.needsAttention.length === 1 ? "" : "s"} need a trainer touchpoint.`
               : "No urgent follow-ups. Keep the tone positive and reinforce consistency."}
           </p>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-line bg-ink p-3">
+          <h2 className="text-sm font-semibold">Weekly Client Summary</h2>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-teal-200">{weeklySummary.improving}</span>Clients improving</p>
+            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.plateaued}</span>Clients plateaued</p>
+            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.atRisk}</span>Clients at risk</p>
+            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.checkInsDue}</span>Check-ins due</p>
+            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-purple-200">{weeklySummary.bodyScansDue}</span>Body Scans due</p>
+            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-lime">{weeklySummary.goalAchievements}</span>Goal achievements</p>
+          </div>
         </div>
       </section>
 

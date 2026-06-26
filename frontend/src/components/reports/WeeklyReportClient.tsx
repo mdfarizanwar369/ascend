@@ -28,12 +28,12 @@ export function WeeklyReportClient() {
 
   async function handleGenerate() {
     setIsGenerating(true);
-    setStatus("Generating your weekly report...");
+    setStatus("Building your weekly coach report...");
 
     try {
       const response = await generateWeeklyReport();
       setReport(response.report);
-      setStatus("Weekly report ready.");
+      setStatus("Weekly coach report ready.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not generate weekly report.");
     } finally {
@@ -61,7 +61,7 @@ export function WeeklyReportClient() {
             <div>
               <p className="font-semibold text-calm">Turn your logs into next actions.</p>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                Ascend summarizes your week from food, water, weight, habits, burn, and momentum.
+                Ascend turns your week of food, water, weight, workouts, and momentum into one clear coaching review.
               </p>
             </div>
           </div>
@@ -73,7 +73,7 @@ export function WeeklyReportClient() {
           onClick={handleGenerate}
           className="mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
         >
-          {isGenerating ? "Generating..." : report ? "Refresh this week" : "Generate report"}
+          {isGenerating ? "Building..." : report ? "Refresh this week" : "Build weekly report"}
         </button>
 
         {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
@@ -85,7 +85,7 @@ export function WeeklyReportClient() {
                 <p className="text-sm text-zinc-400">
                   {formatDate(report.week_start)} - {formatDate(report.week_end)}
                 </p>
-                <h2 className="mt-1 text-xl font-semibold">Your weekly momentum</h2>
+                <h2 className="mt-1 text-xl font-semibold">Your weekly coach report</h2>
               </div>
               <span className="rounded-lg bg-ink px-3 py-2 text-right text-sm font-semibold text-lime">
                 <span className="block">{report.compliance_score ?? "--"}/100</span>
