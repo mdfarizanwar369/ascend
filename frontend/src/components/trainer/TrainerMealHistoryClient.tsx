@@ -128,7 +128,8 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
     activityLevel:
       client?.activity_level === "low" || client?.activity_level === "moderate" || client?.activity_level === "high"
         ? client.activity_level
-        : "moderate"
+        : "moderate",
+    bodyComposition: client?.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   }, weights.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at }))), [client, weights]);
 
   useEffect(() => {

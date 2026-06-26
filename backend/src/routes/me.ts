@@ -10,6 +10,7 @@ import { getProgressComparison } from "../services/progressComparisonService";
 import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
 import { imageDataUrlSchema, parseImageDataUrl } from "../utils/images";
 import { withProfilePhotoUrl } from "../services/profilePhotoService";
+import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "../services/bodyCompositionService";
 
 export const meRouter = Router();
 
@@ -27,7 +28,22 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     `,
     [req.user!.id]
   );
-  res.json({ user: await withProfilePhotoUrl(result.rows[0]), roles: req.user!.roles });
+  const user = await withProfilePhotoUrl(result.rows[0]);
+  if (user?.athlete_mode_enabled === true) {
+    const scanResult = await query(
+      `
+      select *
+      from body_composition_scans
+      where user_id = $1
+        and user_confirmed = true
+      order by scan_date desc, created_at desc
+      limit 10
+      `,
+      [req.user!.id]
+    );
+    user.body_composition_nutrition = bodyCompositionForNutrition(scanResult.rows.map(bodyCompositionScanFromDb)) ?? null;
+  }
+  res.json({ user, roles: req.user!.roles });
 });
 
 const MAX_PROFILE_PHOTO_BYTES = 400 * 1024;

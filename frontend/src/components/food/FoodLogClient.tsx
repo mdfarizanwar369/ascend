@@ -350,7 +350,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     activityLevel:
       user?.activity_level === "low" || user?.activity_level === "moderate" || user?.activity_level === "high"
         ? user.activity_level
-        : "moderate"
+        : "moderate",
+    bodyComposition: user?.athlete_mode_enabled ? user.body_composition_nutrition ?? undefined : undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
 
   const canSaveEstimate = useMemo(() => {

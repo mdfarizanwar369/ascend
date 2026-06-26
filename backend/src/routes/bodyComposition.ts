@@ -11,6 +11,7 @@ import { canManageClient } from "../services/clientAccessService";
 import {
   BodyCompositionScan,
   BodyCompositionScanInput,
+  bodyCompositionScanFromDb,
   buildBodyCompositionSummary,
   normalizeBodyCompositionScan,
   validateBodyCompositionScan
@@ -103,38 +104,6 @@ export function bodyCompositionScanToDbValues(scan: BodyCompositionScanInput, us
   ];
 }
 
-function fromDb(row: Record<string, unknown>): BodyCompositionScan {
-  return {
-    id: String(row.id),
-    scanDate: String(row.scan_date).slice(0, 10),
-    machine: row.machine as string | null,
-    weightKg: row.weight_kg === null ? null : Number(row.weight_kg),
-    bmi: row.bmi === null ? null : Number(row.bmi),
-    bodyFatPercent: row.body_fat_percent === null ? null : Number(row.body_fat_percent),
-    fatMassKg: row.fat_mass_kg === null ? null : Number(row.fat_mass_kg),
-    leanBodyMassKg: row.lean_body_mass_kg === null ? null : Number(row.lean_body_mass_kg),
-    estimatedLeanBodyMassKg: row.estimated_lean_body_mass_kg === null ? null : Number(row.estimated_lean_body_mass_kg),
-    skeletalMuscleMassKg: row.skeletal_muscle_mass_kg === null ? null : Number(row.skeletal_muscle_mass_kg),
-    muscleMassKg: row.muscle_mass_kg === null ? null : Number(row.muscle_mass_kg),
-    visceralFat: row.visceral_fat === null ? null : Number(row.visceral_fat),
-    bodyWaterPercent: row.body_water_percent === null ? null : Number(row.body_water_percent),
-    proteinPercent: row.protein_percent === null ? null : Number(row.protein_percent),
-    mineralPercent: row.mineral_percent === null ? null : Number(row.mineral_percent),
-    boneMassKg: row.bone_mass_kg === null ? null : Number(row.bone_mass_kg),
-    bmrKcal: row.bmr_kcal === null ? null : Number(row.bmr_kcal),
-    metabolicAge: row.metabolic_age === null ? null : Number(row.metabolic_age),
-    segmentalMuscle: row.segmental_muscle as Record<string, unknown> ?? {},
-    segmentalFat: row.segmental_fat as Record<string, unknown> ?? {},
-    confidenceScore: row.confidence_score === null ? null : Number(row.confidence_score),
-    missingFields: Array.isArray(row.missing_fields) ? row.missing_fields.map(String) : [],
-    notes: row.notes as string | null,
-    importSource: row.import_source as "ai_import" | "manual_entry",
-    sourceImages: Array.isArray(row.source_images) ? row.source_images as Array<{ key?: string | null; url?: string | null }> : [],
-    userConfirmed: row.user_confirmed === true,
-    createdAt: row.created_at ? String(row.created_at) : undefined
-  };
-}
-
 async function hydrateImages(scan: BodyCompositionScan) {
   const sourceImages = await Promise.all((scan.sourceImages ?? []).map(async (image) => ({
     ...image,
@@ -148,7 +117,7 @@ async function getScans(userId: string, limit = 50, offset = 0) {
     "select * from body_composition_scans where user_id = $1 order by scan_date desc, created_at desc limit $2 offset $3",
     [userId, Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)]
   );
-  return Promise.all(result.rows.map((row) => hydrateImages(fromDb(row))));
+  return Promise.all(result.rows.map((row) => hydrateImages(bodyCompositionScanFromDb(row))));
 }
 
 async function getProfile(userId: string): Promise<NutritionTargetInput> {
@@ -224,7 +193,7 @@ async function saveScan(userId: string, actorId: string, body: unknown) {
     userId,
     scanId: result.rows[0]?.id ?? null
   });
-  const hydrated = await hydrateImages(fromDb(result.rows[0]));
+  const hydrated = await hydrateImages(bodyCompositionScanFromDb(result.rows[0]));
   bodyCompositionSaveLog("save_hydrate_complete", {
     userId,
     scanId: hydrated.id,

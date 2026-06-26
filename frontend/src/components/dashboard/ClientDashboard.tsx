@@ -416,6 +416,7 @@ export function ClientDashboard() {
   const protein = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.protein_g), 0));
   const carbs = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.carbs_g), 0));
   const fat = Math.round(todaysFood.reduce((total, log) => total + asNumber(log.fat_g), 0));
+  const athleteBodyComposition = user?.athlete_mode_enabled ? user.body_composition_nutrition ?? null : null;
   const nutritionTargets = calculateAdaptiveNutritionTargets({
     goalType: user?.goal_type,
     sex: user?.gender === "female" || user?.gender === "male" ? user.gender : "prefer_not_to_say",
@@ -426,15 +427,22 @@ export function ClientDashboard() {
     activityLevel:
       user?.activity_level === "low" || user?.activity_level === "moderate" || user?.activity_level === "high"
         ? user.activity_level
-        : "moderate"
+        : "moderate",
+    bodyComposition: athleteBodyComposition ?? undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
   const hasCoachNutritionPlan = Boolean(coachNutritionPlan);
   const calorieTarget = coachNutritionPlan?.calories ?? nutritionTargets.calorieTarget;
   const proteinTarget = coachNutritionPlan?.protein_g ?? nutritionTargets.proteinTargetG;
   const carbsTarget = coachNutritionPlan?.carbs_g ?? nutritionTargets.carbsTargetG;
   const fatTarget = coachNutritionPlan?.fat_g ?? nutritionTargets.fatTargetG;
-  const nutritionSourceLabel = hasCoachNutritionPlan ? "Coach Plan" : "Ascend Recommendation";
-  const nutritionSourceTone = hasCoachNutritionPlan ? "text-calm" : "text-lime";
+  const nutritionSourceLabel = hasCoachNutritionPlan
+    ? "Coach Plan"
+    : athleteBodyComposition
+      ? "Nutrition powered by your latest Body Scan"
+      : user?.athlete_mode_enabled
+        ? "Using profile data until your first Body Scan"
+        : "Ascend Recommendation";
+  const nutritionSourceTone = hasCoachNutritionPlan ? "text-calm" : athleteBodyComposition ? "text-purple-300" : "text-lime";
   const caloriesLeft = Math.max(calorieTarget - calories, 0);
   const calorieOver = Math.max(calories - calorieTarget, 0);
   const proteinLeft = Math.max(proteinTarget - protein, 0);
