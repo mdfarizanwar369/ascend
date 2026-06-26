@@ -295,17 +295,107 @@ function coachInsight(summary: BodyCompositionSummary | null, scan: BodyComposit
   return "Keep training consistent, log your meals honestly, and compare again in about four weeks.";
 }
 
+function compactMetric(value: number | null | undefined, unit = "") {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
+  return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit}`;
+}
+
+function bodySummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan) {
+  const bodyFat = compactMetric(scan.bodyFatPercent, "%");
+  const muscle = compactMetric(scan.skeletalMuscleMassKg ?? scan.muscleMassKg, "kg");
+  const bmr = compactMetric(scan.bmrKcal, " kcal");
+  const visceral = compactMetric(scan.visceralFat);
+  const parts = [
+    bodyFat ? `body fat is ${bodyFat}` : null,
+    muscle ? `skeletal muscle is ${muscle}` : null,
+    bmr ? `resting burn is ${bmr}` : null,
+    visceral ? `visceral fat is ${visceral}` : null
+  ].filter(Boolean);
+
+  if (parts.length >= 2) {
+    const trend = quickSummary(summary, scan);
+    return `Your scan shows ${parts.slice(0, 3).join(", ")}. ${trend}`;
+  }
+  if (parts.length === 1) return `Your scan captured that ${parts[0]}. Save future scans to build a clearer body composition trend.`;
+  return "Your scan is now saved as a baseline. Add another scan in about four weeks to unlock clearer body composition trends.";
+}
+
+function resultStrengths(scan: BodyCompositionScan) {
+  const strengths: Array<{ title: string; detail: string }> = [];
+  const bodyFat = numericValue(scan.bodyFatPercent);
+  const muscle = numericValue(scan.skeletalMuscleMassKg ?? scan.muscleMassKg);
+  const bmr = numericValue(scan.bmrKcal);
+  const visceral = numericValue(scan.visceralFat);
+  const bodyWater = numericValue(scan.bodyWaterPercent);
+
+  if (bodyFat !== null && bodyFat <= 20) strengths.push({ title: "Lean body fat signal", detail: `${valueText(bodyFat, "%")} body fat gives your coach a strong performance baseline.` });
+  if (muscle !== null) strengths.push({ title: "Muscle baseline captured", detail: `${valueText(muscle, "kg")} muscle is now tracked for future comparisons.` });
+  if (bmr !== null) strengths.push({ title: "Metabolism recorded", detail: `${valueText(bmr, "kcal")} resting burn can help refine athlete nutrition targets.` });
+  if (visceral !== null && visceral <= 10) strengths.push({ title: "Lower visceral fat reading", detail: `Visceral fat is recorded at ${valueText(visceral)}, a useful accountability marker.` });
+  if (bodyWater !== null && bodyWater >= 45 && bodyWater <= 65) strengths.push({ title: "Hydration metric captured", detail: `${valueText(bodyWater, "%")} body water gives extra context for future scans.` });
+
+  return strengths.length ? strengths.slice(0, 3) : [{ title: "Baseline created", detail: "Your first confirmed scan gives Ascend a starting point for better coaching." }];
+}
+
+function resultOpportunities(scan: BodyCompositionScan) {
+  const opportunities: Array<{ title: string; detail: string }> = [];
+  const bodyFat = numericValue(scan.bodyFatPercent);
+  const visceral = numericValue(scan.visceralFat);
+  const bodyWater = numericValue(scan.bodyWaterPercent);
+  const muscle = numericValue(scan.skeletalMuscleMassKg ?? scan.muscleMassKg);
+
+  if (visceral !== null && visceral > 10) opportunities.push({ title: "Reduce visceral fat trend", detail: "Prioritize consistent nutrition, daily movement, and the next four-week scan trend." });
+  if (bodyFat !== null && bodyFat > 25) opportunities.push({ title: "Improve body fat trend", detail: "Aim for steady progress instead of an aggressive cut that risks performance." });
+  if (bodyWater !== null && bodyWater < 45) opportunities.push({ title: "Improve hydration consistency", detail: "Use water intake and sodium consistency to make future scans easier to compare." });
+  if (muscle === null) opportunities.push({ title: "Confirm muscle data", detail: "Add skeletal muscle next time so your coach can track recomposition more clearly." });
+
+  return opportunities.length ? opportunities.slice(0, 3) : [{ title: "Protect the baseline", detail: "Keep training, protein, and recovery steady so the next scan confirms the direction." }];
+}
+
+function progressRows(summary: BodyCompositionSummary | null) {
+  if (!summary?.previousScan) return [];
+  const muscleTrend = trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle");
+  return [
+    { label: "Weight", value: changeText(trendFor(summary, "Weight")?.change, "kg") },
+    { label: "Body fat", value: changeText(trendFor(summary, "Body Fat")?.change, "%") },
+    { label: "Skeletal muscle", value: changeText(muscleTrend?.change, "kg") },
+    { label: "DNA Score", value: changeText(summary.dnaScore.change, "") }
+  ];
+}
+
 function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null; scan: BodyCompositionScan | null }) {
   if (!scan) return null;
   const guide = nutritionGuide(summary, scan);
-  const summaryText = quickSummary(summary, scan);
+  const summaryText = bodySummary(summary, scan);
+  const score = summary?.dnaScore.current ?? null;
+  const scoreChange = summary?.dnaScore.change ?? null;
+  const strengths = resultStrengths(scan);
+  const opportunities = resultOpportunities(scan);
+  const progress = progressRows(summary);
   const dashboardHref = "/dashboard";
   return (
     <section className="rounded-lg border border-teal-400/50 bg-gradient-to-br from-teal-400/20 via-surface to-purple-400/15 p-4 shadow-xl shadow-teal-400/10">
-      <div className="rounded-lg bg-ink/80 p-4">
-        <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Body Scan Complete</p>
-        <h2 className="mt-2 text-2xl font-semibold">Your Body Scan Has Been Saved</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Your Body Scan has been saved and your progress view is up to date.</p>
+      <div className="rounded-lg border border-teal-300/40 bg-[#071018] p-5 shadow-lg shadow-teal-300/10">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Ascend DNA Results</p>
+            <h2 className="mt-2 text-3xl font-semibold leading-tight">Body Scan Complete</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">Your latest scan is now translated into coaching signals, nutrition targets, and your next step.</p>
+          </div>
+          <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-teal-300/10 text-center shadow-lg shadow-teal-300/15">
+            <div>
+              <p className="text-3xl font-semibold text-white">{score ?? "--"}</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-teal-200">DNA Score</p>
+            </div>
+          </div>
+        </div>
+        {scoreChange !== null && scoreChange !== undefined ? (
+          <p className="mt-4 inline-flex rounded-full border border-teal-300/40 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-100">
+            {scoreChange >= 0 ? "+" : ""}{scoreChange} vs previous scan
+          </p>
+        ) : (
+          <p className="mt-4 inline-flex rounded-full border border-purple-300/40 bg-purple-400/10 px-3 py-1 text-xs font-semibold text-purple-100">First confirmed scan</p>
+        )}
       </div>
 
       <div className="mt-3 rounded-lg border border-line bg-ink p-3">
@@ -319,8 +409,63 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
       </div>
 
       <div className="mt-3 rounded-lg border border-purple-400/30 bg-purple-400/10 p-3">
-        <p className="text-sm font-semibold">AI Summary</p>
+        <div className="flex items-center gap-2">
+          <Brain className="text-purple-300" size={18} />
+          <p className="text-sm font-semibold">Body Summary</p>
+        </div>
         <p className="mt-2 text-sm leading-6 text-zinc-200">{summaryText}</p>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border border-teal-400/30 bg-teal-400/10 p-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="text-teal-300" size={18} />
+            <p className="text-sm font-semibold">Strengths</p>
+          </div>
+          <div className="mt-3 space-y-2">
+            {strengths.map((item) => (
+              <div key={item.title} className="rounded-lg bg-[#071018] p-3">
+                <p className="text-sm font-semibold text-teal-100">{item.title}</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-300">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-lg border border-amber/30 bg-amber/10 p-3">
+          <div className="flex items-center gap-2">
+            <Target className="text-amber" size={18} />
+            <p className="text-sm font-semibold">Opportunities</p>
+          </div>
+          <div className="mt-3 space-y-2">
+            {opportunities.map((item) => (
+              <div key={item.title} className="rounded-lg bg-[#071018] p-3">
+                <p className="text-sm font-semibold text-amber">{item.title}</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-300">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-line bg-ink p-3">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="text-teal-300" size={18} />
+          <p className="text-sm font-semibold">Progress vs Previous Scan</p>
+        </div>
+        {progress.length ? (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {progress.map((item) => (
+              <div key={item.label} className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-500">{item.label}</p>
+                <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 rounded-lg bg-surface p-3 text-sm leading-6 text-zinc-300">
+            This is your first confirmed Body Scan. Your next scan will show exactly what changed.
+          </p>
+        )}
       </div>
 
       <div className="mt-3 rounded-lg border border-line bg-ink p-3">
@@ -336,8 +481,14 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
       <div className="mt-3 rounded-lg border border-teal-400/30 bg-teal-400/10 p-3">
         <p className="text-sm font-semibold">Coach Insight</p>
         <p className="mt-2 text-sm leading-6 text-zinc-200">{coachInsight(summary, scan)}</p>
-        <p className="mt-3 text-xs font-semibold text-teal-200">Next Recommended Scan</p>
-        <p className="mt-1 text-sm text-zinc-300">Recommended in approximately 4 weeks.</p>
+      </div>
+
+      <div className="mt-3 rounded-lg border border-line bg-ink p-3">
+        <div className="flex items-center gap-2">
+          <Clock className="text-teal-300" size={18} />
+          <p className="text-sm font-semibold">Next Scan</p>
+        </div>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Recommended in approximately 4 weeks so your coach can compare real change, not daily noise.</p>
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
