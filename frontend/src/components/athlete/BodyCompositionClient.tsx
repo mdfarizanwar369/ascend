@@ -13,7 +13,6 @@ import {
   Clock,
   FileText,
   LineChart,
-  LockKeyhole,
   Pencil,
   ShieldCheck,
   Sparkles,
@@ -53,6 +52,14 @@ const metricFields: Array<{ key: MetricKey; label: string; unit: string; section
   { key: "bmrKcal", label: "Resting burn", unit: "kcal", section: "health" },
   { key: "metabolicAge", label: "Metabolic age", unit: "years", section: "health" }
 ];
+
+const coreMetrics: Array<{ key: MetricKey; label: string; unit: string }> = [
+  { key: "weightKg", label: "Weight", unit: "kg" },
+  { key: "bodyFatPercent", label: "Body fat", unit: "%" },
+  { key: "skeletalMuscleMassKg", label: "Skeletal muscle", unit: "kg" }
+];
+
+const advancedMetricKeys = new Set<MetricKey>(metricFields.map((field) => field.key).filter((key) => !coreMetrics.some((core) => core.key === key)));
 
 const sectionCopy = {
   body: { title: "Body size", description: "Core measurements from the scan." },
@@ -107,17 +114,31 @@ function detectedMetricCount(scan: BodyCompositionScan | null) {
 
 function missingMetricNames(scan: BodyCompositionScan | null) {
   const missing = new Set(scan?.missingFields?.filter(Boolean) ?? []);
-  metricFields.forEach((field) => {
+  coreMetrics.forEach((field) => {
     if (scan && numericValue(scan[field.key]) === null) missing.add(String(field.key));
   });
   return Array.from(missing).map(friendlyFieldName);
 }
 
+function missingCoreFields(scan: BodyCompositionScan) {
+  return coreMetrics.filter((field) => numericValue(scan[field.key]) === null).map((field) => field.label);
+}
+
 function reviewTimeText(scan: BodyCompositionScan | null) {
   const missing = missingMetricNames(scan).length;
-  const detected = detectedMetricCount(scan);
-  const minutes = Math.max(1, Math.ceil((missing + detected) / 8));
+  const minutes = missing ? 2 : 1;
   return `${minutes} min review`;
+}
+
+function friendlyBodyScanError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/date/i.test(message)) return "Please choose a valid scan date.";
+  if (/weight|fat mass|lean body/i.test(message)) return "One of the scan numbers looks unusual. Check the main values and try saving again.";
+  if (/machine|notes/i.test(message)) return "One optional note is too long. Shorten it and try again.";
+  if (/image|payload|too large|at most 6/i.test(message)) return "That upload is too large. Try fewer images or retake a clearer photo.";
+  if (/auth|token|login|permission/i.test(message)) return "Your session needs a quick refresh. Please log in again and retry.";
+  if (/network|fetch|timeout/i.test(message)) return "Connection was interrupted. Please try again in a moment.";
+  return "Ascend could not save this scan yet. Check the highlighted values and try again.";
 }
 
 function nutritionGuide(summary: BodyCompositionSummary | null) {
@@ -149,7 +170,7 @@ function improvementTone(metric: string, change: number | null | undefined) {
 }
 
 function quickSummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan | null) {
-  if (!scan) return "No confirmed body composition data yet.";
+  if (!scan) return "No confirmed scan yet.";
   const bodyFatChange = trendFor(summary, "Body Fat")?.change ?? null;
   const muscleChange = (trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle"))?.change ?? null;
   if (bodyFatChange !== null && bodyFatChange < -0.4 && (muscleChange ?? 0) >= 0) {
@@ -190,7 +211,7 @@ function DnaScoreCard({ summary }: { summary: BodyCompositionSummary | null }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Ascend DNA</p>
-          <h2 className="mt-1 text-xl font-semibold">Body Composition Score</h2>
+          <h2 className="mt-1 text-xl font-semibold">Ascend DNA Score</h2>
           <p className="mt-1 text-xs leading-5 text-zinc-400">Experimental coaching signal. Not medical advice.</p>
         </div>
         <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-ink text-center">
@@ -215,7 +236,7 @@ function EmptyState() {
         </div>
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Welcome to Ascend DNA</p>
-          <h2 className="mt-1 text-lg font-semibold">Upload your first body composition scan</h2>
+          <h2 className="mt-1 text-lg font-semibold">Upload your first body scan</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
             Unlock personalized nutrition, AI coaching, DNA Score, trend tracking, and coach insights after you confirm your first scan.
           </p>
@@ -327,14 +348,14 @@ function AiDraftSummary({ draft }: { draft: BodyCompositionScan }) {
         <div>
           <h2 className="font-semibold">AI Analysis Complete</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            Ascend detected {detected} metric{detected === 1 ? "" : "s"}. {missing.length ? `${missing.length} need confirmation.` : "All detected values are ready for your review."}
+            Ascend found {detected} useful number{detected === 1 ? "" : "s"}. {missing.length ? `${missing.length} main value${missing.length === 1 ? "" : "s"} need your help.` : "The main values are ready to save."}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${confidence.tone}`}>{confidence.percent ? `${confidence.label} / ${confidence.percent}%` : confidence.label}</span>
             <span className="rounded-full border border-line bg-ink px-3 py-1 text-xs text-zinc-300">{reviewTimeText(draft)}</span>
           </div>
           {missing.length ? (
-            <p className="mt-3 text-xs leading-5 text-amber">Please confirm: {missing.slice(0, 6).join(", ")}{missing.length > 6 ? "..." : ""}</p>
+            <p className="mt-3 text-xs leading-5 text-amber">Please add: {missing.slice(0, 4).join(", ")}{missing.length > 4 ? "..." : ""}</p>
           ) : null}
           {confidence.percent !== null && confidence.percent < 65 ? (
             <p className="mt-2 text-xs leading-5 text-red-300">Low confidence. Retake the photo if the numbers look unclear.</p>
@@ -383,12 +404,13 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   const [scans, setScans] = useState<BodyCompositionScan[]>([]);
   const [draft, setDraft] = useState<BodyCompositionScan>(emptyDraft());
   const [selectedImages, setSelectedImages] = useState<OptimizedBodyScanImage[]>([]);
-  const [status, setStatus] = useState("Loading body composition...");
+  const [status, setStatus] = useState("Loading Ascend DNA...");
   const [busy, setBusy] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [activeStage, setActiveStage] = useState<BodyScanImportStageId | null>(null);
   const [allowLowQuality, setAllowLowQuality] = useState(false);
   const [editAnyway, setEditAnyway] = useState(false);
+  const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
   const [lastSavedScan, setLastSavedScan] = useState<BodyCompositionScan | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -405,7 +427,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       }
       setStatus("");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Body Composition Engine could not load.");
+      setStatus(error instanceof Error ? friendlyBodyScanError(error) : "Ascend DNA could not load yet.");
     }
   }, [clientId, coachView]);
 
@@ -449,6 +471,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
     setBusy(true);
     setAllowLowQuality(false);
     setEditAnyway(false);
+    setShowAdvancedMetrics(false);
     setLastSavedScan(null);
     setActiveStage("optimize");
     setStatus("Optimizing scan images...");
@@ -494,20 +517,22 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
     try {
       const dataUrls = selectedImages.map((image) => image.dataUrl);
       setActiveStage("read");
-      setStatus("Reading visible body composition values...");
+      setStatus("Reading visible scan values...");
       const response = await extractBodyComposition(dataUrls, controller.signal);
       setActiveStage("complete");
       setDraft({ ...emptyDraft(), ...response.draft, userConfirmed: true });
       setShowManualEntry(true);
       setEditAnyway(false);
+      setShowAdvancedMetrics(false);
       const missing = missingMetricNames(response.draft);
       const detected = detectedMetricCount(response.draft);
       const confidence = confidenceInfo(response.draft.confidenceScore);
-      setStatus(`${confidence.label}. Detected ${detected} metric${detected === 1 ? "" : "s"}. ${missing.length ? `${missing.length} value${missing.length === 1 ? "" : "s"} need confirmation.` : "Review and save when ready."}`);
+      setStatus(`${confidence.label}. Detected ${detected} metric${detected === 1 ? "" : "s"}. ${missing.length ? `${missing.length} core value${missing.length === 1 ? "" : "s"} need confirmation.` : "Review the main values, then save."}`);
     } catch (error) {
       setDraft({ ...emptyDraft(), sourceImages: [] });
       setShowManualEntry(true);
       setEditAnyway(true);
+      setShowAdvancedMetrics(false);
       const message = error instanceof Error && error.name === "AbortError"
         ? "Body scan import cancelled."
         : error instanceof Error
@@ -529,6 +554,11 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
 
   async function saveScan(event: FormEvent) {
     event.preventDefault();
+    const missingCore = missingCoreFields(draft);
+    if (missingCore.length) {
+      setStatus(`Almost there. Add ${missingCore.join(", ")} before saving your Ascend DNA results.`);
+      return;
+    }
     setBusy(true);
     try {
       const payload = { ...draft, userConfirmed: true };
@@ -543,9 +573,10 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       clearBodyScanImageCache();
       setShowManualEntry(false);
       setEditAnyway(false);
+      setShowAdvancedMetrics(false);
       setStatus("Scan saved. Your Ascend DNA is updated.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save scan.");
+      setStatus(friendlyBodyScanError(error));
     } finally {
       setBusy(false);
     }
@@ -560,12 +591,13 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
 
   const hasSelectedImages = selectedImages.length > 0;
   const canReadWithAi = !busy && hasSelectedImages;
-  const canSaveScan = !busy;
+  const missingCore = missingCoreFields(draft);
+  const canSaveScan = !busy && missingCore.length === 0;
   const confidence = confidenceInfo(draft.confidenceScore);
   const lockVerifiedValues = confidence.percent !== null && confidence.percent >= 85 && !editAnyway;
-  const primaryButtonClass = "font-semibold shadow-lg shadow-teal-300/15 transition disabled:cursor-not-allowed disabled:opacity-70";
+  const primaryButtonClass = "font-semibold shadow-lg shadow-teal-300/15 transition disabled:cursor-not-allowed";
   const activePrimaryButtonClass = "bg-teal-300 !text-[#071018] hover:bg-teal-200";
-  const inactivePrimaryButtonClass = "border border-line bg-ink !text-zinc-100 shadow-none";
+  const inactivePrimaryButtonClass = "border border-zinc-600 bg-zinc-800 !text-zinc-200 shadow-none";
 
   return (
     <>
@@ -573,8 +605,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         <BackButton fallbackHref={coachView ? (clientId ? `/trainer/clients/${clientId}` : "/trainer") : "/athlete"} />
         <div>
           <p className="text-sm text-teal-300">Ascend DNA</p>
-          <h1 className="mt-1 text-3xl font-semibold">Body Composition Engine</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Upload a scan, confirm the values, then turn body composition into clearer coaching decisions.</p>
+          <h1 className="mt-1 text-3xl font-semibold">Body Scan</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Upload your scan, confirm the main numbers, and Ascend turns it into simple progress insights.</p>
         </div>
       </section>
 
@@ -655,7 +687,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             <Target className="text-teal-300" size={19} />
             <h2 className="font-semibold">Scan-informed nutrition</h2>
           </div>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Ascend can use confirmed body composition to make targets more personal than profile-only estimates.</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Ascend can use confirmed scan data to make targets more personal than profile-only estimates.</p>
           <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
             <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.calories ?? "--"}</span>kcal</div>
             <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.protein ?? "--"}g</span>protein</div>
@@ -675,7 +707,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         ) : (
           <section className="rounded-lg border border-line bg-surface p-4">
             <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">Coach summary</h2></div>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan to unlock clear, coach-friendly body composition insights.</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan to unlock clear, coach-friendly progress insights.</p>
           </section>
         )}
 
@@ -693,7 +725,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <button type="button" disabled={!canReadWithAi} onClick={runExtraction} className={`h-11 rounded-lg ${primaryButtonClass} ${canReadWithAi ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}>
                 <Sparkles className="mr-1 inline" size={17} /> {busy ? "Reading..." : allowLowQuality ? "Read anyway" : "Read with AI"}
               </button>
-              <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setLastSavedScan(null); }} className="h-11 rounded-lg border border-line bg-ink font-semibold text-zinc-100 transition hover:border-teal-400/50">
+              <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); setLastSavedScan(null); }} className="h-11 rounded-lg border border-zinc-500 bg-surface font-semibold !text-white transition hover:border-teal-400/50">
                 Manual entry
               </button>
             </div>
@@ -717,7 +749,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             ) : null}
           </section>
         ) : (
-          <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); }} className="h-11 rounded-lg border border-teal-400/50 bg-teal-400/10 font-semibold text-teal-200">Add manual coach entry</button>
+          <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); }} className="h-11 rounded-lg border border-teal-400/60 bg-teal-400/10 font-semibold !text-teal-100">Add scan manually</button>
         )}
 
         {showManualEntry ? (
@@ -726,8 +758,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <div className="flex items-center gap-2">
                 <ShieldCheck className="text-teal-300" size={19} />
                 <div>
-                  <h2 className="font-semibold">Review and confirm</h2>
-                  <p className="mt-1 text-sm text-zinc-400">Only confirmed scans are saved to history.</p>
+                  <h2 className="font-semibold">Review the main numbers</h2>
+                  <p className="mt-1 text-sm text-zinc-400">Confirm only what matters first. Extra report details are optional.</p>
                 </div>
               </div>
               {lockVerifiedValues ? (
@@ -740,48 +772,74 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <AiDraftSummary draft={draft} />
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="text-xs text-zinc-400">Scan date<input type="date" value={draft.scanDate} onChange={(event) => setDraftValue("scanDate", event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-line bg-ink px-3 text-white" /></label>
-              <label className="text-xs text-zinc-400">Machine<input value={draft.machine ?? ""} onChange={(event) => setDraftValue("machine", event.target.value)} placeholder="InBody, Tanita, Evolt..." className="mt-1 h-11 w-full rounded-lg border border-line bg-ink px-3 text-white" /></label>
-            </div>
+            <section className="mt-4 rounded-lg border border-line bg-ink p-3">
+              <h3 className="font-semibold">Main scan values</h3>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">These four values are enough to create your Ascend DNA result.</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className="text-xs text-zinc-400">Scan date<input type="date" value={draft.scanDate} onChange={(event) => setDraftValue("scanDate", event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white" /></label>
+                {coreMetrics.map((field) => {
+                  const missing = numericValue(draft[field.key]) === null;
+                  const locked = lockVerifiedValues && !missing;
+                  return (
+                    <label key={String(field.key)} className="text-xs text-zinc-400">
+                      <span className="flex items-center justify-between gap-2">
+                        <span>{field.label}{field.unit ? ` (${field.unit})` : ""}</span>
+                        {missing ? <span className="text-[10px] text-amber">needed</span> : locked ? <span className="text-[10px] text-teal-200">ready</span> : null}
+                      </span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        disabled={locked}
+                        value={draft[field.key] === null || draft[field.key] === undefined ? "" : String(draft[field.key])}
+                        onChange={(event) => setDraftValue(field.key, event.target.value)}
+                        className={`mt-1 h-11 w-full rounded-lg border px-3 text-white disabled:cursor-not-allowed disabled:text-zinc-400 ${missing ? "border-amber/60 bg-amber/10" : "border-line bg-surface"}`}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+              {missingCore.length ? <p className="mt-3 text-xs leading-5 text-amber">Add {missingCore.join(", ")} to unlock your Ascend DNA results.</p> : <p className="mt-3 text-xs leading-5 text-teal-200">Ready to save. Advanced details are optional.</p>}
+            </section>
 
-            {(["body", "composition", "hydration", "health"] as const).map((section) => (
-              <section key={section} className="mt-4 rounded-lg border border-line bg-ink p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold">{sectionCopy[section].title}</h3>
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">{sectionCopy[section].description}</p>
-                  </div>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  {metricFields.filter((field) => field.section === section).map((field) => {
-                    const missing = missingMetricNames(draft).includes(field.label);
-                    const hasValue = numericValue(draft[field.key]) !== null;
-                    const locked = lockVerifiedValues && hasValue && !missing;
+            <section className="mt-4 rounded-lg border border-line bg-ink p-3">
+              <button type="button" onClick={() => setShowAdvancedMetrics((value) => !value)} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-zinc-600 bg-surface px-3 text-left text-sm font-semibold !text-white">
+                <span>Advanced Metrics</span>
+                <span className="text-xs text-zinc-400">{showAdvancedMetrics ? "Hide" : "Optional"}</span>
+              </button>
+              {showAdvancedMetrics ? (
+                <div className="mt-3 space-y-4">
+                  <label className="block text-xs text-zinc-400">Scanner or device (optional)<input value={draft.machine ?? ""} onChange={(event) => setDraftValue("machine", event.target.value)} placeholder="InBody, Tanita, Evolt..." className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white" /></label>
+                  {(["body", "composition", "hydration", "health"] as const).map((section) => {
+                    const fields = metricFields.filter((field) => field.section === section && advancedMetricKeys.has(field.key));
+                    if (!fields.length) return null;
                     return (
-                      <label key={String(field.key)} className="text-xs text-zinc-400">
-                        <span className="flex items-center justify-between gap-2">
-                          <span>{field.label}{field.unit ? ` (${field.unit})` : ""}</span>
-                          {locked ? <span className="inline-flex items-center gap-1 text-[10px] text-teal-200"><LockKeyhole size={11} /> verified</span> : missing ? <span className="text-[10px] text-amber">confirm</span> : null}
-                        </span>
-                        <input
-                          type="number"
-                          step="0.1"
-                          disabled={locked}
-                          value={draft[field.key] === null || draft[field.key] === undefined ? "" : String(draft[field.key])}
-                          onChange={(event) => setDraftValue(field.key, event.target.value)}
-                          className={`mt-1 h-11 w-full rounded-lg border px-3 text-white disabled:cursor-not-allowed disabled:text-zinc-400 ${missing ? "border-amber/60 bg-amber/10" : "border-line bg-surface"}`}
-                        />
-                      </label>
+                      <div key={section}>
+                        <h3 className="text-sm font-semibold">{sectionCopy[section].title}</h3>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">{sectionCopy[section].description}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                          {fields.map((field) => (
+                            <label key={String(field.key)} className="text-xs text-zinc-400">
+                              {field.label}{field.unit ? ` (${field.unit})` : ""}
+                              <input
+                                type="number"
+                                step="0.1"
+                                value={draft[field.key] === null || draft[field.key] === undefined ? "" : String(draft[field.key])}
+                                onChange={(event) => setDraftValue(field.key, event.target.value)}
+                                className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white"
+                              />
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     );
                   })}
+                  <label className="block text-xs text-zinc-400">Coach notes (optional)<textarea value={draft.notes ?? ""} onChange={(event) => setDraftValue("notes", event.target.value)} rows={3} className="mt-1 w-full resize-none rounded-lg border border-line bg-surface p-3 text-sm text-white" /></label>
                 </div>
-              </section>
-            ))}
+              ) : null}
+            </section>
 
-            <label className="mt-3 block text-xs text-zinc-400">Notes<textarea value={draft.notes ?? ""} onChange={(event) => setDraftValue("notes", event.target.value)} rows={3} className="mt-1 w-full resize-none rounded-lg border border-line bg-ink p-3 text-sm text-white" /></label>
             <button type="submit" disabled={!canSaveScan} className={`mt-3 h-12 w-full rounded-lg ${primaryButtonClass} ${canSaveScan ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}>
-              <CheckCircle2 className="mr-1 inline" size={17} /> {busy ? "Saving..." : "Confirm and save scan"}
+              <CheckCircle2 className="mr-1 inline" size={17} /> {busy ? "Saving..." : "Save Ascend DNA Results"}
             </button>
           </form>
         ) : null}
@@ -798,7 +856,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{new Date(scan.scanDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</p>
-                      <p className="text-xs text-zinc-500">{scan.machine || "Unknown machine"} / {scan.importSource === "ai_import" ? "AI Import" : "Manual Entry"}</p>
+                      <p className="text-xs text-zinc-500">{scan.machine || "Device not entered"} / {scan.importSource === "ai_import" ? "Read by AI" : "Entered manually"}</p>
                     </div>
                     <span className={`rounded-md border px-2 py-1 text-xs ${scanConfidence.tone}`}>{scanConfidence.percent ? `${scanConfidence.percent}%` : "reviewed"}</span>
                   </div>
