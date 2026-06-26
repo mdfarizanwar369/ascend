@@ -12,6 +12,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   type User,
+  type UserCredential,
   updateProfile
 } from "firebase/auth";
 import { ArrowRight, Chrome, LogIn } from "lucide-react";
@@ -131,18 +132,28 @@ function describeUnknownError(error: unknown) {
   };
 }
 
-function waitForAuthStateUser(ms = 6000) {
+function waitForAuthStateUser(ms = 10_000) {
   const auth = getFirebaseClientAuth();
   return new Promise<User | null>((resolve) => {
     let unsubscribe = () => {};
     const timeout = window.setTimeout(() => {
       unsubscribe();
+      authTrace("onAuthStateChanged timeout", {
+        hasCurrentUser: Boolean(auth.currentUser),
+        uid: auth.currentUser?.uid ?? null
+      });
       resolve(auth.currentUser);
     }, ms);
 
     unsubscribe = onAuthStateChanged(auth, (user) => {
       window.clearTimeout(timeout);
       unsubscribe();
+      authTrace("onAuthStateChanged event", {
+        hasUser: Boolean(user),
+        uid: user?.uid ?? null,
+        email: user?.email ?? null,
+        providerIds: user?.providerData.map((provider) => provider.providerId) ?? []
+      });
       resolve(user);
     });
   });
@@ -312,9 +323,23 @@ export function AuthPanel() {
           hasFirebaseRedirectParams,
           hasCurrentUserBeforeResult: Boolean(auth.currentUser)
         });
+        const authStateProbe = onAuthStateChanged(auth, (user) => {
+          authTrace("onAuthStateChanged event", {
+            phase: "redirect_probe",
+            hasUser: Boolean(user),
+            uid: user?.uid ?? null,
+            email: user?.email ?? null,
+            providerIds: user?.providerData.map((provider) => provider.providerId) ?? []
+          });
+        });
         authDebug("redirect_result_check_started", getPlatformInfo());
         authTrace("getRedirectResult called", { authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN });
-        const result = await getRedirectResult(auth);
+        let result: UserCredential | null;
+        try {
+          result = await getRedirectResult(auth);
+        } finally {
+          authStateProbe();
+        }
         authTrace("getRedirectResult completed", {
           hasResult: Boolean(result),
           providerId: result?.providerId ?? null,
