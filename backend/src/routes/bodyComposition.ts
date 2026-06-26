@@ -59,6 +59,10 @@ function bodyCompositionRouteError(event: string, metadata: Record<string, unkno
   console.error("[body-composition-route]", event, metadata);
 }
 
+function bodyCompositionSaveLog(event: string, metadata: Record<string, unknown>) {
+  console.info("[body-composition-save-route]", event, metadata);
+}
+
 async function requireEnabledAthlete(userId: string) {
   if (!env.ATHLETE_MODE_ENABLED) return false;
   const result = await query("select enabled from athlete_profiles where user_id = $1", [userId]);
@@ -249,7 +253,7 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
 });
 
 bodyCompositionRouter.post("/athlete/body-composition/scans", (req, _res, next) => {
-  bodyCompositionRouteLog("save_ingress_before_auth", {
+  bodyCompositionSaveLog("save_ingress_before_auth", {
     path: req.originalUrl,
     method: req.method,
     hasAuthorization: Boolean(req.header("Authorization")),
@@ -258,7 +262,7 @@ bodyCompositionRouter.post("/athlete/body-composition/scans", (req, _res, next) 
   next();
 }, requireAuth, async (req, res, next) => {
   try {
-    bodyCompositionRouteLog("save_handler_entered", {
+    bodyCompositionSaveLog("save_handler_entered", {
       userId: req.user!.id,
       bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8"),
       scanDate: req.body?.scanDate,
@@ -304,7 +308,7 @@ bodyCompositionRouter.get("/trainer/clients/:clientId/body-composition", require
 });
 
 bodyCompositionRouter.post("/trainer/clients/:clientId/body-composition/scans", (req, _res, next) => {
-  bodyCompositionRouteLog("trainer_save_ingress_before_auth", {
+  bodyCompositionSaveLog("trainer_save_ingress_before_auth", {
     path: req.originalUrl,
     method: req.method,
     hasAuthorization: Boolean(req.header("Authorization")),
@@ -313,7 +317,7 @@ bodyCompositionRouter.post("/trainer/clients/:clientId/body-composition/scans", 
   next();
 }, requireAuth, requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
-    bodyCompositionRouteLog("trainer_save_handler_entered", {
+    bodyCompositionSaveLog("trainer_save_handler_entered", {
       actorId: req.user!.id,
       clientId: req.params.clientId,
       bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8"),
