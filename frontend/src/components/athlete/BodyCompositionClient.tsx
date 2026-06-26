@@ -255,7 +255,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             const active = activeStage === stage.id;
             const complete = activeStage === "complete" || BODY_SCAN_IMPORT_STAGES.findIndex((item) => item.id === activeStage) > BODY_SCAN_IMPORT_STAGES.findIndex((item) => item.id === stage.id);
             return (
-              <div key={stage.id} className={`rounded-lg p-2 text-xs ${active ? "bg-teal-300 text-ink" : complete ? "bg-teal-400/10 text-teal-200" : "bg-ink text-zinc-500"}`}>
+              <div key={stage.id} className={`rounded-lg p-2 text-xs ${active ? "bg-teal-300 !text-[#071018]" : complete ? "bg-teal-400/10 text-teal-200" : "bg-ink text-zinc-500"}`}>
                 <p className="font-semibold">{stage.label}</p>
               </div>
             );
@@ -307,7 +307,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <input type="file" accept="image/*" multiple onChange={onFiles} className="sr-only" />
             </label>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={busy || !selectedImages.length} onClick={runExtraction} className="h-11 rounded-lg bg-teal-300 font-semibold text-ink disabled:opacity-50"><Sparkles className="mr-1 inline" size={17} /> {allowLowQuality ? "Read anyway" : "Read with AI"}</button>
+              <button type="button" disabled={busy || !selectedImages.length} onClick={runExtraction} className="h-11 rounded-lg bg-teal-300 font-semibold !text-[#071018] shadow-lg shadow-teal-300/15 disabled:bg-surface disabled:!text-zinc-500 disabled:shadow-none"><Sparkles className="mr-1 inline" size={17} /> {allowLowQuality ? "Read anyway" : "Read with AI"}</button>
               <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); }} className="h-11 rounded-lg border border-line bg-ink font-semibold text-zinc-200">Manual entry</button>
             </div>
             {selectedImages.length ? (
@@ -345,7 +345,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               ))}
             </div>
             <label className="mt-3 block text-xs text-zinc-400">Notes<textarea value={draft.notes ?? ""} onChange={(event) => setDraftValue("notes", event.target.value)} rows={3} className="mt-1 w-full resize-none rounded-lg border border-line bg-ink p-3 text-sm text-white" /></label>
-            <button disabled={busy} className="mt-3 h-11 w-full rounded-lg bg-teal-300 font-semibold text-ink disabled:opacity-50"><CheckCircle2 className="mr-1 inline" size={17} /> Confirm and save scan</button>
+            <button disabled={busy} className="mt-3 h-11 w-full rounded-lg bg-teal-300 font-semibold !text-[#071018] shadow-lg shadow-teal-300/15 disabled:bg-surface disabled:!text-zinc-500 disabled:shadow-none"><CheckCircle2 className="mr-1 inline" size={17} /> Confirm and save scan</button>
           </form>
         ) : null}
 
