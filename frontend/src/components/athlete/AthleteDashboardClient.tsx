@@ -163,7 +163,7 @@ export function AthleteDashboardClient() {
         <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-center text-sm font-semibold text-lime">{data.countdown.milestone}</p>
       ) : null}
 
-      <Link href="/athlete/body-composition" className="mt-4 block rounded-lg border border-teal-400/40 bg-teal-400/10 p-4">
+      <Link href="/athlete/body-composition" className="mt-4 block rounded-lg border border-teal-400/40 bg-teal-400/10 p-4 !text-white">
         <p className="text-sm font-semibold text-teal-300">Ascend DNA</p>
         <h2 className="mt-1 text-xl font-semibold">Body Composition Engine</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-300">Upload body scan reports, confirm values, and track recomposition trends.</p>
@@ -187,7 +187,7 @@ export function AthleteDashboardClient() {
           ))}
           <label className="text-xs text-zinc-400">Competition date<input type="date" value={profile.competitionDate} onChange={(e) => setProfile((current) => ({ ...current, competitionDate: e.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-line bg-ink px-3 text-sm text-white" /></label>
           <label className="text-xs text-zinc-400">Goal weight (kg)<input type="number" min="25" max="400" step="0.1" value={profile.goalWeightKg} onChange={(e) => setProfile((current) => ({ ...current, goalWeightKg: e.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-line bg-ink px-3 text-sm text-white" /></label>
-          <button disabled={saving || !profile.sport.trim()} className="col-span-2 h-11 rounded-lg bg-purple-400 font-semibold !text-white disabled:border disabled:border-line disabled:bg-ink disabled:!text-zinc-100">Save athlete profile</button>
+          <button disabled={saving || !profile.sport.trim()} className="col-span-2 h-11 rounded-lg bg-purple-500 font-semibold !text-white disabled:border disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">Save athlete profile</button>
         </form>
       </details>
 
@@ -199,7 +199,7 @@ export function AthleteDashboardClient() {
           {["energy", "soreness", "stress", "hunger", "motivation"].map((key) => (
             <label key={key} className="block text-sm capitalize text-zinc-300">{key}: <span className="font-semibold text-purple-300">{checkin[key as keyof typeof checkin]}/10</span><input type="range" min="1" max="10" value={checkin[key as keyof typeof checkin]} onChange={(e) => setCheckin((current) => ({ ...current, [key]: e.target.value }))} className="mt-2 w-full accent-purple-400" /><span className="mt-1 flex justify-between text-xs text-zinc-500"><span>{sliderLabels[key][0]}</span><span>{sliderLabels[key][1]}</span></span></label>
           ))}
-          <button disabled={saving} className="h-11 w-full rounded-lg bg-purple-400 font-semibold !text-white disabled:border disabled:border-line disabled:bg-ink disabled:!text-zinc-100">Save readiness</button>
+          <button disabled={saving} className="h-11 w-full rounded-lg bg-purple-500 font-semibold !text-white disabled:border disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">Save readiness</button>
         </form>
       </section>
 
@@ -214,8 +214,8 @@ export function AthleteDashboardClient() {
             <div key={target.id} className="rounded-lg bg-ink p-3">
               <div className="flex justify-between gap-3"><p className="text-sm font-medium">{labelTarget(target.target_type)}</p><p className="text-sm text-zinc-400">{cadence === "daily" ? `Daily target: ${target.target_value}` : `This week: ${target.weekly_completed_value}/${target.target_value}`} {target.unit}</p></div>
               {target.notes ? <p className="mt-1 text-xs text-zinc-500">{target.notes}</p> : null}
-              <label className="mt-3 block text-xs text-zinc-400">{targetInputLabel(target.target_type)}<div className="mt-1 flex gap-2"><input aria-label={targetInputLabel(target.target_type)} type="number" min="0" step="0.1" value={targetValues[target.id] ?? ""} onChange={(e) => setTargetValues((current) => ({ ...current, [target.id]: e.target.value }))} className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-white" /><button type="button" disabled={saving} onClick={() => saveProgress(target.id)} className="h-10 rounded-lg bg-purple-400 px-3 text-sm font-semibold !text-white disabled:border disabled:border-line disabled:bg-ink disabled:!text-zinc-100">Save today</button></div></label>
-              {isSessionTarget(target.target_type) ? <button type="button" disabled={saving} onClick={() => saveProgress(target.id, Number(target.today_completed_value) + 1)} className="mt-2 h-10 w-full rounded-lg border border-purple-400/50 text-sm font-semibold text-purple-300 disabled:border-line disabled:bg-ink disabled:!text-zinc-100">+1 session completed</button> : null}
+              <label className="mt-3 block text-xs text-zinc-400">{targetInputLabel(target.target_type)}<div className="mt-1 flex gap-2"><input aria-label={targetInputLabel(target.target_type)} type="number" min="0" step="0.1" value={targetValues[target.id] ?? ""} onChange={(e) => setTargetValues((current) => ({ ...current, [target.id]: e.target.value }))} className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-white" /><button type="button" disabled={saving} onClick={() => saveProgress(target.id)} className="h-10 rounded-lg bg-purple-500 px-3 text-sm font-semibold !text-white disabled:border disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">Save today</button></div></label>
+              {isSessionTarget(target.target_type) ? <button type="button" disabled={saving} onClick={() => saveProgress(target.id, Number(target.today_completed_value) + 1)} className="mt-2 h-10 w-full rounded-lg border border-purple-400/60 bg-purple-400/10 text-sm font-semibold !text-purple-100 disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">+1 session completed</button> : null}
             </div>
           ))}
           {!targets.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No {cadence} targets assigned.</p> : null}

@@ -88,6 +88,7 @@ function valueText(value: number | null | undefined, unit = "") {
 }
 
 function numericValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -141,9 +142,29 @@ function friendlyBodyScanError(error: unknown) {
   return "Ascend could not save this scan yet. Check the highlighted values and try again.";
 }
 
-function nutritionGuide(summary: BodyCompositionSummary | null) {
+function prepareDraftForReview(draft: BodyCompositionScan): BodyCompositionScan {
+  return {
+    ...emptyDraft(),
+    ...draft,
+    scanDate: draft.scanDate?.slice(0, 10) || today(),
+    weightKg: numericValue(draft.weightKg),
+    bodyFatPercent: numericValue(draft.bodyFatPercent),
+    skeletalMuscleMassKg: numericValue(draft.skeletalMuscleMassKg) ?? numericValue(draft.muscleMassKg),
+    muscleMassKg: numericValue(draft.muscleMassKg),
+    missingFields: (draft.missingFields ?? []).filter((field) => {
+      if (field === "skeletalMuscleMassKg" && (numericValue(draft.skeletalMuscleMassKg) !== null || numericValue(draft.muscleMassKg) !== null)) return false;
+      return true;
+    }),
+    userConfirmed: true
+  };
+}
+
+function nutritionGuide(summary: BodyCompositionSummary | null, scanOverride?: BodyCompositionScan | null) {
   const calories = summary?.derived.estimatedDailyEnergyNeedsKcal ?? null;
-  const leanMass = summary?.derived.fatFreeMassKg ?? summary?.latestScan?.leanBodyMassKg ?? summary?.latestScan?.estimatedLeanBodyMassKg ?? null;
+  const scan = scanOverride ?? summary?.latestScan ?? null;
+  const leanMass = scanOverride
+    ? numericValue(scan?.leanBodyMassKg) ?? numericValue(scan?.estimatedLeanBodyMassKg) ?? numericValue(scan?.skeletalMuscleMassKg) ?? numericValue(scan?.muscleMassKg)
+    : summary?.derived.fatFreeMassKg ?? summary?.latestScan?.leanBodyMassKg ?? summary?.latestScan?.estimatedLeanBodyMassKg ?? null;
   const protein = leanMass ? Math.round(leanMass * 2.1) : null;
   const fat = calories ? Math.round((calories * 0.25) / 9) : null;
   const carbs = calories && protein && fat ? Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4)) : null;
@@ -203,7 +224,7 @@ function TrendSparkline({ values }: { values: number[] }) {
   );
 }
 
-function DnaScoreCard({ summary }: { summary: BodyCompositionSummary | null }) {
+function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary | null; draftScan?: BodyCompositionScan | null }) {
   const score = summary?.dnaScore.current;
   const change = summary?.dnaScore.change;
   return (
@@ -213,12 +234,15 @@ function DnaScoreCard({ summary }: { summary: BodyCompositionSummary | null }) {
           <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Ascend DNA</p>
           <h2 className="mt-1 text-xl font-semibold">Ascend DNA Score</h2>
           <p className="mt-1 text-xs leading-5 text-zinc-400">Experimental coaching signal. Not medical advice.</p>
+          {draftScan ? <p className="mt-2 inline-flex rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">Draft (Not yet saved)</p> : null}
         </div>
         <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-ink text-center">
           <span className="text-2xl font-semibold">{score ?? "--"}</span>
         </div>
       </div>
-      {change !== null && change !== undefined ? (
+      {draftScan ? (
+        <p className="mt-3 text-sm text-zinc-300">Save the scan to calculate confirmed score movement.</p>
+      ) : change !== null && change !== undefined ? (
         <p className="mt-3 text-sm text-teal-200">{change >= 0 ? "+" : ""}{change} vs previous scan</p>
       ) : (
         <p className="mt-3 text-sm text-zinc-400">Add another scan to see score movement.</p>
@@ -275,7 +299,7 @@ function StageProgress({ activeStage, busy }: { activeStage: BodyScanImportStage
 
 function ResultsCard({ summary, scan, onDismiss }: { summary: BodyCompositionSummary | null; scan: BodyCompositionScan | null; onDismiss: () => void }) {
   if (!scan) return null;
-  const guide = nutritionGuide(summary);
+  const guide = nutritionGuide(summary, scan);
   const confidence = confidenceInfo(scan.confidenceScore);
   const dnaChange = summary?.dnaScore.change ?? null;
   const comparisonRows = [
@@ -434,7 +458,9 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   useEffect(() => { load(); }, [load]);
 
   const trendValues = useMemo(() => [...scans].reverse().map((scan) => Number(scan.bodyFatPercent ?? scan.weightKg ?? 0)).filter(Boolean), [scans]);
-  const guide = nutritionGuide(summary);
+  const draftHasValues = showManualEntry && detectedMetricCount(draft) > 0;
+  const displayScan = draftHasValues ? draft : summary?.latestScan ?? null;
+  const guide = nutritionGuide(summary, draftHasValues ? draft : null);
   const latest = summary?.latestScan ?? null;
   const fitnessAge = latest?.metabolicAge ?? null;
   const nextScanDate = latest?.scanDate ? new Date(new Date(latest.scanDate).getTime() + 30 * 86_400_000) : null;
@@ -520,13 +546,14 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       setStatus("Reading visible scan values...");
       const response = await extractBodyComposition(dataUrls, controller.signal);
       setActiveStage("complete");
-      setDraft({ ...emptyDraft(), ...response.draft, userConfirmed: true });
+      const nextDraft = prepareDraftForReview(response.draft);
+      setDraft(nextDraft);
       setShowManualEntry(true);
       setEditAnyway(false);
       setShowAdvancedMetrics(false);
-      const missing = missingMetricNames(response.draft);
-      const detected = detectedMetricCount(response.draft);
-      const confidence = confidenceInfo(response.draft.confidenceScore);
+      const missing = missingMetricNames(nextDraft);
+      const detected = detectedMetricCount(nextDraft);
+      const confidence = confidenceInfo(nextDraft.confidenceScore);
       setStatus(`${confidence.label}. Detected ${detected} metric${detected === 1 ? "" : "s"}. ${missing.length ? `${missing.length} core value${missing.length === 1 ? "" : "s"} need confirmation.` : "Review the main values, then save."}`);
     } catch (error) {
       setDraft({ ...emptyDraft(), sourceImages: [] });
@@ -616,7 +643,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       <div className="mt-4 space-y-4">
         {lastSavedScan ? <ResultsCard summary={summary} scan={lastSavedScan} onDismiss={() => setLastSavedScan(null)} /> : null}
         {!scans.length && !showManualEntry && !lastSavedScan ? <EmptyState /> : null}
-        <DnaScoreCard summary={summary} />
+        <DnaScoreCard summary={summary} draftScan={draftHasValues ? draft : null} />
         {coachView ? <CoachSnapshot summary={summary} /> : null}
 
         <section className="rounded-lg border border-line bg-surface p-4">
@@ -631,9 +658,9 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             <TrendSparkline values={trendValues} />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Latest weight</p><p className="mt-1 text-xl font-semibold">{valueText(latest?.weightKg, "kg")}</p></div>
-            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Body fat</p><p className="mt-1 text-xl font-semibold">{valueText(latest?.bodyFatPercent, "%")}</p></div>
-            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Lean mass</p><p className="mt-1 text-xl font-semibold">{valueText(summary?.derived.fatFreeMassKg, "kg")}</p></div>
+            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{draftHasValues ? "Draft weight" : "Latest weight"}</p><p className="mt-1 text-xl font-semibold">{valueText(displayScan?.weightKg, "kg")}</p>{draftHasValues ? <p className="mt-1 text-[11px] text-amber">Draft (Not yet saved)</p> : null}</div>
+            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Body fat</p><p className="mt-1 text-xl font-semibold">{valueText(displayScan?.bodyFatPercent, "%")}</p>{draftHasValues ? <p className="mt-1 text-[11px] text-amber">Draft</p> : null}</div>
+            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Lean mass</p><p className="mt-1 text-xl font-semibold">{valueText(draftHasValues ? (displayScan?.leanBodyMassKg ?? displayScan?.estimatedLeanBodyMassKg) : summary?.derived.fatFreeMassKg, "kg")}</p></div>
             <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">FFMI</p><p className="mt-1 text-xl font-semibold">{valueText(summary?.derived.ffmi)}</p></div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">

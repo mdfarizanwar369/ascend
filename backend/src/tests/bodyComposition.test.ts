@@ -21,6 +21,27 @@ describe("Body Composition Engine", () => {
     expect(scan.missingFields).toContain("skeletalMuscleMassKg");
   });
 
+  it("keeps optional missing metrics blank instead of converting them to zero", () => {
+    const scan = normalizeBodyCompositionScan({
+      scanDate: "2026-06-26",
+      weightKg: 80,
+      bodyFatPercent: 20,
+      skeletalMuscleMassKg: 32,
+      fatMassKg: null,
+      visceralFat: null,
+      bodyWaterPercent: undefined,
+      importSource: "ai_import",
+      userConfirmed: true
+    });
+
+    expect(scan.visceralFat).toBeNull();
+    expect(scan.bodyWaterPercent).toBeNull();
+    expect(scan.fatMassKg).toBe(16);
+    expect(scan.missingFields).not.toContain("weightKg");
+    expect(scan.missingFields).not.toContain("bodyFatPercent");
+    expect(scan.missingFields).not.toContain("skeletalMuscleMassKg");
+  });
+
   it("rejects impossible values before saving", () => {
     const result = validateBodyCompositionScan({
       scanDate: "2026-06-26",

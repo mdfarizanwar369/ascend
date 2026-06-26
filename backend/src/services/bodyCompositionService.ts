@@ -88,6 +88,7 @@ const metricRanges: Record<string, [number, number]> = {
 };
 
 function toNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
