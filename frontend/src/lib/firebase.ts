@@ -4,6 +4,17 @@ import { browserLocalPersistence, getAuth, indexedDBLocalPersistence, setPersist
 
 let persistenceReady: Promise<void> | null = null;
 
+function getFirebaseAuthDomain() {
+  const configuredDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname === "getascend.fit" || hostname === "www.getascend.fit") {
+      return "www.getascend.fit";
+    }
+  }
+  return configuredDomain;
+}
+
 export function getFirebaseClientApp(): FirebaseApp {
   if (typeof window === "undefined") {
     throw new Error("Firebase is only available in the browser.");
@@ -11,7 +22,7 @@ export function getFirebaseClientApp(): FirebaseApp {
 
   const firebaseConfig = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    authDomain: getFirebaseAuthDomain(),
     projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
     messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
