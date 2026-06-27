@@ -61,8 +61,14 @@ export function DelightBadge({ children, tone = "teal" }: { children: ReactNode;
 export function DelightProgressBar({ value }: { value: number }) {
   const safeValue = Math.max(0, Math.min(100, value));
   return (
-    <div className="h-3 overflow-hidden rounded-full bg-ink">
-      <div className="ascend-progress-sheen h-full rounded-full bg-gradient-to-r from-calm via-lime to-purple-400" style={{ width: `${safeValue}%` }} />
+    <div className="relative h-3 overflow-hidden rounded-full border border-white/5 bg-ink shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-r from-calm/10 via-lime/5 to-purple-400/10" />
+      <div
+        className="relative h-full rounded-full bg-gradient-to-r from-calm via-lime to-purple-400 shadow-[0_0_18px_rgba(61,230,209,0.22)] transition-[width] duration-500 ease-out"
+        style={{ width: `${safeValue}%` }}
+      >
+        <span className="absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 translate-x-1/2 rounded-full border border-white/40 bg-white/90 shadow-[0_0_18px_rgba(255,255,255,0.28)]" />
+      </div>
     </div>
   );
 }
