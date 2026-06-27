@@ -12,6 +12,8 @@ import {
   updateAthleteTimezone
 } from "@/lib/ascendApi";
 import { markInstallEligible } from "@/lib/installAscend";
+import { AscendHeroPanel, DnaSigil } from "@/components/AscendVisualIdentity";
+import { DelightProgressBar } from "@/components/Delight";
 
 function labelTarget(type: string) {
   return type.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
@@ -136,11 +138,15 @@ export function AthleteDashboardClient() {
 
   return (
     <>
-      <section className="mt-4">
-        <p className="text-sm text-purple-300">Athlete Mode</p>
-        <h1 className="mt-1 text-3xl font-semibold">Prepare with clarity</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">A simple daily view of readiness, targets, and progress toward your next goal.</p>
-      </section>
+      <AscendHeroPanel
+        eyebrow="Athlete Mode"
+        title="Prepare with clarity"
+        body="A simple daily view of readiness, targets, and progress toward your next goal."
+        tone="dna"
+        visual={<DnaSigil score={data.readiness.score ?? "Ready"} />}
+      >
+        <DelightProgressBar value={data.readiness.score ?? 0} />
+      </AscendHeroPanel>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 

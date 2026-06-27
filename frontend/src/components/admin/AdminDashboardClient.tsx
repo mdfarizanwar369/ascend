@@ -27,6 +27,7 @@ import {
   getAdminUsers
 } from "@/lib/ascendApi";
 import { DelightBadge, DelightEmptyState } from "@/components/Delight";
+import { AscendHeroPanel, BusinessSigil } from "@/components/AscendVisualIdentity";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
 type UsageRow = Awaited<ReturnType<typeof getAdminUsage>>["usage"][number];
@@ -418,17 +419,19 @@ export function AdminDashboardClient() {
 
   return (
     <>
-      <section className="mt-3 rounded-3xl border border-calm/30 bg-gradient-to-br from-calm/15 via-surface to-purple-500/10 p-5 shadow-soft">
-        <p className="text-sm text-zinc-400">Good morning</p>
-        <h1 className="mt-1 text-3xl font-semibold">Owner</h1>
-        <p className="mt-1 text-sm font-semibold text-calm">Today&apos;s Business Brief</p>
+      <AscendHeroPanel
+        eyebrow="Today's Business Brief"
+        title="Owner Command Center"
+        body={businessBrief}
+        tone="owner"
+        visual={<BusinessSigil status={overallHealth} />}
+      >
         <div className="mt-3">
           <DelightBadge tone={overallHealth === "Excellent" ? "lime" : overallHealth === "Good" ? "teal" : "amber"}>
             {overallHealth === "Excellent" ? "Clubs are humming" : overallHealth === "Good" ? "Healthy operating rhythm" : "A few signals need attention"}
           </DelightBadge>
         </div>
-        <p className="mt-4 text-base leading-7 text-zinc-200">{businessBrief}</p>
-      </section>
+      </AscendHeroPanel>
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 

@@ -32,6 +32,7 @@ import {
 } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { DelightBadge } from "@/components/Delight";
+import { DnaSigil } from "@/components/AscendVisualIdentity";
 import { OptimizedBodyScanImage, clearBodyScanImageCache, optimizeBodyScanImage } from "@/lib/bodyScanImageProcessor";
 
 type MetricKey = keyof BodyCompositionScan;
@@ -386,12 +387,7 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
               <DelightBadge tone="teal">Professional assessment ready</DelightBadge>
             </div>
           </div>
-          <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-teal-300/10 text-center shadow-lg shadow-teal-300/15">
-            <div>
-              <p className="text-3xl font-semibold text-white">{score ?? "--"}</p>
-              <p className="text-[10px] uppercase tracking-[0.18em] text-teal-200">DNA Score</p>
-            </div>
-          </div>
+          <DnaSigil score={score ?? "--"} />
         </div>
         {scoreChange !== null && scoreChange !== undefined ? (
           <p className="mt-4 inline-flex rounded-full border border-teal-300/40 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-100">

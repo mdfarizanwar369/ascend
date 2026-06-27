@@ -8,6 +8,7 @@ import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts, se
 import { MetricCard } from "@/components/MetricCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { DelightEmptyState } from "@/components/Delight";
+import { AscendHeroPanel, PrioritySigil } from "@/components/AscendVisualIdentity";
 import { buildAthleteCoachInsights, daysSince } from "@/lib/coachIntelligence";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
@@ -353,11 +354,13 @@ export function TrainerDashboardClient() {
 
   return (
     <>
-      <section className="mt-3">
-        <p className="text-sm text-zinc-400">Good morning{trainerName ? `, ${trainerName}` : ""}</p>
-        <h1 className="text-2xl font-semibold">Today's Priorities</h1>
-        <p className="mt-2 text-sm text-zinc-400">The fastest view of who needs attention and who deserves recognition.</p>
-      </section>
+      <AscendHeroPanel
+        eyebrow={`Good morning${trainerName ? `, ${trainerName}` : ""}`}
+        title="Today's Priorities"
+        body="The fastest view of who needs attention and who deserves recognition."
+        tone="trainer"
+        visual={<PrioritySigil count={priorities.needsAttention.length} />}
+      />
 
       {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 

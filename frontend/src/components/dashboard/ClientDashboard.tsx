@@ -39,6 +39,7 @@ import { clearDashboardRecord, DashboardActionType, readDashboardRecord, readRec
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
 import { DelightBadge, DelightProgressBar } from "@/components/Delight";
+import { AscendHeroPanel, MomentumHalo } from "@/components/AscendVisualIdentity";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -902,19 +903,18 @@ export function ClientDashboard() {
           </section>
         ) : null}
 
-        <section className="mt-3 rounded-2xl border border-line bg-surface p-5 shadow-soft">
-          <p className="text-sm text-zinc-400">{greeting}</p>
-          <div className="mt-2 flex flex-col gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-lime">
-                {recentCelebration ? "Nice Work" : "Next Best Move"}
-              </p>
-              <h1 className="mt-2 text-3xl font-semibold leading-tight">{recentCelebration?.title ?? enhancedNextAction.title}</h1>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">{recentCelebration?.detail ?? enhancedNextAction.detail}</p>
-              {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-500">{recentCelebration.secondary}</p> : null}
-            </div>
+        <AscendHeroPanel
+          eyebrow={recentCelebration ? "Nice Work" : "Next Best Move"}
+          title={recentCelebration?.title ?? enhancedNextAction.title}
+          body={recentCelebration?.detail ?? enhancedNextAction.detail}
+          tone="momentum"
+          visual={<MomentumHalo value={score} />}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-zinc-400">{greeting}</p>
             <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
           </div>
+          {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-400">{recentCelebration.secondary}</p> : null}
           {recentCelebration ? (
             <button
               type="button"
@@ -936,7 +936,7 @@ export function ClientDashboard() {
               {enhancedNextAction.cta}
             </a>
           )}
-        </section>
+        </AscendHeroPanel>
 
         <section className="mt-4 rounded-2xl border border-lime/40 bg-lime/10 p-5 shadow-soft">
           <div className="flex flex-col gap-3">
