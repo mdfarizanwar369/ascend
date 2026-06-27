@@ -35,9 +35,9 @@ function riskClass(label: string) {
 }
 
 function daysAgo(value?: string | null) {
-  if (!value) return "No log yet";
+  if (!value) return "No check-in yet";
   const time = new Date(value).getTime();
-  if (!Number.isFinite(time)) return "No log yet";
+  if (!Number.isFinite(time)) return "No check-in yet";
   const days = Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
@@ -57,7 +57,7 @@ function asNumber(value: string | number | null | undefined) {
 
 function nutritionSummary(client: TrainerClient) {
   const calories = asNumber(client.calories_today);
-  if (!calories) return "No food yet";
+  if (!calories) return "No food logged yet";
 
   const targets = calculateNutritionTargets({
     goalType: client.goal_type,
@@ -82,7 +82,7 @@ function nutritionSummary(client: TrainerClient) {
 
 function nutritionSummaryClass(summary: string) {
   if (summary === "On track") return "text-lime";
-  if (summary === "No food yet") return "text-zinc-500";
+  if (summary === "No food logged yet") return "text-zinc-500";
   return "text-amber";
 }
 
@@ -389,7 +389,7 @@ export function TrainerDashboardClient() {
           <div className="mt-3 space-y-3">
             {priorities.greatProgress.slice(0, 4).map((item) => <PriorityClientCard key={item.client.id} item={item} type="progress" />)}
             {!priorities.greatProgress.length ? (
-              <p className="rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">No standout wins yet today. Check again after clients log food, weight, water, or Body Scans.</p>
+            <p className="rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">No standout wins yet today. As clients log meals, weight, water, workouts, or Body Scans, Ascend will surface the moments worth celebrating.</p>
             ) : null}
           </div>
         </div>
@@ -560,7 +560,7 @@ export function TrainerDashboardClient() {
               );
             })
           ) : (
-            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No assigned clients found for this trainer account yet.</p>
+            <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">No assigned clients yet. Once an owner assigns members to this trainer, today's priorities will appear here.</p>
           )}
         </div>
       </section>

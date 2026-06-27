@@ -578,7 +578,7 @@ export function AdminUsersClient() {
                     type="button"
                     disabled={savingUserId === user.id}
                     onClick={() => changeUserStatus(user, user.status === "active" ? "inactive" : "active")}
-                    className={`mt-2 h-10 w-full rounded-lg text-sm font-semibold disabled:opacity-60 ${
+                    className={`ascend-pressable mt-2 h-10 w-full rounded-lg text-sm font-semibold disabled:opacity-60 ${
                       user.status === "active" ? "border border-amber/40 bg-amber/10 text-amber" : "bg-lime text-ink"
                     }`}
                   >
@@ -591,8 +591,8 @@ export function AdminUsersClient() {
             </article>
           ))}
           {!visibleUsers.length ? (
-            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">
-              {userView === "active" ? "No active users found yet." : "No deactivated users found."}
+            <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">
+              {userView === "active" ? "Active users will appear here as members, trainers, and owners join Ascend." : "Deactivated users will appear here when access is paused."}
             </p>
           ) : null}
         </div>
@@ -612,7 +612,7 @@ export function AdminUsersClient() {
                   type="button"
                   disabled={savingUserId === trainer.user_id}
                   onClick={() => createTrainerReferral(trainer)}
-                  className="h-10 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
+                  className="ascend-pressable h-10 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
                 >
                   Create
                 </button>
@@ -620,7 +620,7 @@ export function AdminUsersClient() {
               <p className="mt-2 text-xs text-zinc-500">Suggested code: {trainerCode(trainer.full_name)}</p>
             </article>
           ))}
-          {!activeTrainers.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No active trainers yet.</p> : null}
+          {!activeTrainers.length ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Active trainers will appear here once their access is approved.</p> : null}
         </div>
       </section>
     </>

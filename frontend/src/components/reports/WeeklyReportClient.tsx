@@ -21,7 +21,7 @@ export function WeeklyReportClient() {
     getCurrentWeeklyReport()
       .then((response) => {
         setReport(response.report);
-        setStatus(response.report ? "" : "No report generated for this week yet.");
+        setStatus(response.report ? "" : "Your weekly report will appear here once there is enough activity to review.");
       })
       .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load weekly report."));
   }, []);
@@ -71,7 +71,7 @@ export function WeeklyReportClient() {
           type="button"
           disabled={isGenerating}
           onClick={handleGenerate}
-          className="mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+          className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
         >
           {isGenerating ? "Building..." : report ? "Refresh this week" : "Build weekly report"}
         </button>

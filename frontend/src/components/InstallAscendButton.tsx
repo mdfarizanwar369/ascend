@@ -23,7 +23,7 @@ export function InstallAscendButton() {
       type="button"
       disabled={installed}
       onClick={requestInstallAscend}
-      className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-calm/50 bg-calm/10 font-semibold text-calm disabled:border-line disabled:bg-ink disabled:text-zinc-400"
+      className="ascend-pressable flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-calm/50 bg-calm/10 font-semibold text-calm hover:bg-calm/15 disabled:border-line disabled:bg-ink disabled:text-zinc-400"
     >
       {installed ? <Smartphone size={19} /> : <Download size={19} />}
       {installed ? "Ascend is installed" : "Install Ascend"}

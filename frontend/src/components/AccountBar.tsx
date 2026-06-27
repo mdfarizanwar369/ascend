@@ -38,7 +38,7 @@ export function AccountBar({
     : formatPlan(plan);
 
   return (
-    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface p-3">
+    <div className="ascend-card ascend-soft-enter mt-3 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface/95 p-3">
       <div className="flex min-w-0 items-center gap-3">
         <Link href="/profile" aria-label="Open profile">
           <ProfileAvatar src={profilePhotoUrl} name={displayName(fullName, email)} size="sm" />
@@ -51,7 +51,7 @@ export function AccountBar({
       <button
         type="button"
         onClick={handleLogout}
-        className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-ink text-zinc-200"
+        className="ascend-pressable grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-ink text-zinc-100 hover:border-calm/50"
         aria-label="Log out"
       >
         <LogOut size={18} />

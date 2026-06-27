@@ -24,6 +24,52 @@ body {
     #07090d;
   color: #f6f7f8;
   transition: background-color 160ms ease, color 160ms ease;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: rgba(53, 242, 208, 0.28);
+  color: #ffffff;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a[href] {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+button:disabled {
+  transform: none !important;
+}
+
+button:not(:disabled):active,
+a[href]:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+button:focus-visible,
+a[href]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(53, 242, 208, 0.95);
+  outline-offset: 3px;
 }
 
 html[data-theme="light"] body {
@@ -127,6 +173,15 @@ html[data-theme="light"] .ascend-theme-glow {
   100% { opacity: 0; transform: translateY(180px) rotate(230deg); }
 }
 
+@keyframes ascend-soft-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ascend-shimmer {
+  100% { transform: translateX(100%); }
+}
+
 .ascend-demo-enter { animation: ascend-demo-enter 280ms ease-out both; }
 .ascend-demo-scan { animation: ascend-demo-scan 1.4s ease-in-out infinite; }
 .ascend-demo-pop { animation: ascend-demo-pop 280ms ease-out both; }
@@ -151,6 +206,43 @@ html[data-theme="light"] .ascend-theme-glow {
   animation: ascend-install-step 2.1s ease-in-out infinite;
 }
 
+.ascend-soft-enter {
+  animation: ascend-soft-enter 260ms ease-out both;
+}
+
+.ascend-card {
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.12);
+}
+
+.ascend-pressable {
+  will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ascend-pressable:hover {
+    transform: translateY(-1px);
+  }
+
+  .ascend-card:hover {
+    border-color: rgba(53, 242, 208, 0.28);
+  }
+}
+
+.ascend-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.ascend-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: ascend-shimmer 1.35s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body {
     transition: none;
@@ -165,9 +257,15 @@ html[data-theme="light"] .ascend-theme-glow {
   .ascend-demo-pop,
   .ascend-demo-grow,
   .ascend-demo-bar,
+  .ascend-soft-enter,
+  .ascend-skeleton::after,
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none;
+  }
+
+  html {
+    scroll-behavior: auto;
   }
 }
 

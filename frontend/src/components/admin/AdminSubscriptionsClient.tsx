@@ -81,7 +81,7 @@ export function AdminSubscriptionsClient() {
           </article>
         ))}
         {!subscriptions.length && !status ? (
-          <p className="rounded-lg border border-line bg-surface p-4 text-sm text-zinc-400">No subscriptions found yet.</p>
+          <p className="rounded-lg border border-line bg-surface p-4 text-sm leading-6 text-zinc-400">Subscriptions will appear here once members activate Premium, Athlete Mode, or Trainer Pro plans.</p>
         ) : null}
       </section>
     </>

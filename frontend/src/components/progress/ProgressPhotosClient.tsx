@@ -177,7 +177,7 @@ export function ProgressPhotosClient() {
             type="button"
             disabled={!selectedFile || isSaving}
             onClick={handleSave}
-            className="mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Check className="mr-2" size={18} />
             {isSaving ? "Saving..." : "Save progress photo"}
@@ -231,7 +231,7 @@ export function ProgressPhotosClient() {
                 </div>
               </article>
             ))}
-            {!photos.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No progress photos yet.</p> : null}
+            {!photos.length ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Your first progress photo will appear here. Small visual wins become easier to notice over time.</p> : null}
           </div>
         </section>
       </div>

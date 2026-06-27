@@ -35,7 +35,7 @@ export default function OnboardingPage() {
         ) : null}
 
         {isProgressive ? (
-          <Suspense fallback={<div className="mt-6 rounded-2xl border border-line bg-surface p-5 text-sm text-zinc-300">Loading setup...</div>}>
+          <Suspense fallback={<div className="ascend-skeleton mt-6 rounded-2xl border border-line bg-surface p-5 text-sm text-zinc-300">Preparing your setup...</div>}>
             <ProgressiveClientOnboarding />
           </Suspense>
         ) : <OnboardingForm />}

@@ -115,7 +115,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
   const [range, setRange] = useState<RangeFilter>("7d");
   const [order, setOrder] = useState<OrderFilter>("newest");
   const [nextOffset, setNextOffset] = useState<number | null>(null);
-  const [status, setStatus] = useState("Loading meal history...");
+  const [status, setStatus] = useState("Loading this client's meal history...");
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const targets = useMemo(() => calculateAdaptiveNutritionTargets({
@@ -136,7 +136,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
     let isMounted = true;
 
     async function load() {
-      setStatus("Loading meal history...");
+      setStatus("Loading this client's meal history...");
       try {
         const [profile, foodResponse, weightResponse] = await Promise.all([
           getTrainerClient(clientId),
@@ -327,14 +327,14 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
                   </div>
                 );
               })}
-              {!day.logs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-500">No meals logged on this date.</p> : null}
+              {!day.logs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No meals were recorded on this date.</p> : null}
             </div>
           </article>
         ))}
 
         {!groupedDays.length && !status ? (
           <article className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-sm text-zinc-400">No food history found for this client yet.</p>
+            <p className="text-sm leading-6 text-zinc-400">This client has not built a meal history yet. Once they start logging, their meals will appear here by date.</p>
           </article>
         ) : null}
       </section>
@@ -345,12 +345,12 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
             type="button"
             disabled={isLoadingMore}
             onClick={loadMore}
-            className="h-12 rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+            className="ascend-pressable h-12 rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
           >
             {isLoadingMore ? "Loading..." : "Load more meals"}
           </button>
         ) : null}
-        <Link href={`/trainer/clients/${clientId}`} className="flex h-12 items-center justify-center gap-2 rounded-lg border border-line bg-surface font-semibold text-zinc-200">
+        <Link href={`/trainer/clients/${clientId}`} className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-lg border border-line bg-surface font-semibold text-zinc-200 hover:border-calm/40">
           <ChevronLeft size={18} />
           Back to client profile
         </Link>

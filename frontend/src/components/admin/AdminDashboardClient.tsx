@@ -490,7 +490,7 @@ export function AdminDashboardClient() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{club.name}</p>
-                  <p className="mt-1 text-sm text-zinc-400">{club.revenue} revenue · {club.subscriptions} paid members</p>
+                  <p className="mt-1 text-sm text-zinc-400">{club.revenue} revenue / {club.subscriptions} paid members</p>
                 </div>
                 <StatusPill status={club.status} />
               </div>
@@ -508,7 +508,7 @@ export function AdminDashboardClient() {
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-300">Risk level: {club.risk ? `${club.risk} low-momentum clients` : "Low"}. Recommendation: {club.recommendation}</p>
             </article>
-          )) : <p className="rounded-xl bg-ink p-4 text-sm text-zinc-400">No club performance data yet.</p>}
+          )) : <p className="rounded-xl bg-ink p-4 text-sm leading-6 text-zinc-400">Club performance will appear here once members, trainers, and subscriptions start generating activity.</p>}
         </div>
       </section>
 
@@ -523,13 +523,13 @@ export function AdminDashboardClient() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{index + 1}. {trainer.name}</p>
-                  <p className="mt-1 text-sm text-zinc-400">{trainer.revenue} · {trainer.subscriptions} attributed subscriptions</p>
+                  <p className="mt-1 text-sm text-zinc-400">{trainer.revenue} / {trainer.subscriptions} attributed subscriptions</p>
                 </div>
                 <StatusPill status={trainer.status} />
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-300">Suggested coaching action: {trainer.action}</p>
             </article>
-          )) : <p className="rounded-xl bg-ink p-4 text-sm text-zinc-400">No trainer revenue attribution yet.</p>}
+          )) : <p className="rounded-xl bg-ink p-4 text-sm leading-6 text-zinc-400">Trainer attribution will appear here once subscriptions and referrals are connected to trainers.</p>}
         </div>
       </section>
 

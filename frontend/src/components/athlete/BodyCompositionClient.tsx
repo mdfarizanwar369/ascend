@@ -181,7 +181,7 @@ function changeText(change: number | null | undefined, unit = "") {
 }
 
 function quickSummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan | null) {
-  if (!scan) return "No confirmed scan yet.";
+  if (!scan) return "Save your first scan to see your confirmed Body Scan progress.";
   const bodyFatChange = trendFor(summary, "Body Fat")?.change ?? null;
   const muscleChange = (trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle"))?.change ?? null;
   if (bodyFatChange !== null && bodyFatChange < -0.4 && (muscleChange ?? 0) >= 0) {
@@ -492,8 +492,8 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <a href="#scan-history" className="flex h-12 items-center justify-center rounded-lg bg-teal-300 font-semibold !text-[#071018] shadow-lg shadow-teal-300/15">View Progress</a>
-        <a href={dashboardHref} className="flex h-12 items-center justify-center rounded-lg border border-zinc-500 bg-ink font-semibold !text-white">Return to Dashboard</a>
+        <a href="#scan-history" className="ascend-pressable flex h-12 items-center justify-center rounded-lg bg-teal-300 font-semibold !text-[#071018] shadow-lg shadow-teal-300/15">View Progress</a>
+        <a href={dashboardHref} className="ascend-pressable flex h-12 items-center justify-center rounded-lg border border-zinc-500 bg-ink font-semibold !text-white">Return to Dashboard</a>
       </div>
     </section>
   );
@@ -920,10 +920,10 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <input type="file" accept="image/*" multiple onChange={onFiles} className="sr-only" />
             </label>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <button type="button" disabled={!canReadWithAi} onClick={runExtraction} className={`h-11 rounded-lg ${primaryButtonClass} ${canReadWithAi ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}>
+              <button type="button" disabled={!canReadWithAi} onClick={runExtraction} className={`ascend-pressable h-11 rounded-lg ${primaryButtonClass} ${canReadWithAi ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}>
                 <Sparkles className="mr-1 inline" size={17} /> {busy ? "Reading..." : allowLowQuality ? "Analyze anyway" : "Analyze scan"}
               </button>
-              <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); setLastSavedScan(null); }} className="h-11 rounded-lg border border-zinc-500 bg-surface font-semibold !text-white transition hover:border-teal-400/50">
+              <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); setLastSavedScan(null); }} className="ascend-pressable h-11 rounded-lg border border-zinc-500 bg-surface font-semibold !text-white hover:border-teal-400/50">
                 Enter manually
               </button>
             </div>
@@ -947,7 +947,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             ) : null}
           </section>
         ) : (
-          <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); }} className="h-11 rounded-lg border border-teal-400/60 bg-teal-400/10 font-semibold !text-teal-100">Add scan manually</button>
+          <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); }} className="ascend-pressable h-11 rounded-lg border border-teal-400/60 bg-teal-400/10 font-semibold !text-teal-100">Add scan manually</button>
         )}
 
         {showManualEntry ? (
@@ -961,7 +961,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
                 </div>
               </div>
               {lockVerifiedValues ? (
-                <button type="button" onClick={() => setEditAnyway(true)} className="rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-100">
+                <button type="button" onClick={() => setEditAnyway(true)} className="ascend-pressable rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-100">
                   <Pencil className="mr-1 inline" size={14} /> Edit anyway
                 </button>
               ) : null}
@@ -1000,7 +1000,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             </section>
 
             <section className="mt-4 rounded-lg border border-line bg-ink p-3">
-              <button type="button" onClick={() => setShowAdvancedMetrics((value) => !value)} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-zinc-600 bg-surface px-3 text-left text-sm font-semibold !text-white">
+              <button type="button" onClick={() => setShowAdvancedMetrics((value) => !value)} className="ascend-pressable flex min-h-11 w-full items-center justify-between rounded-lg border border-zinc-600 bg-surface px-3 text-left text-sm font-semibold !text-white">
                 <span>Advanced Metrics</span>
                 <span className="text-xs text-zinc-400">{showAdvancedMetrics ? "Hide" : "Optional"}</span>
               </button>
@@ -1036,7 +1036,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               ) : null}
             </section>
 
-            <button type="submit" disabled={!canSaveScan} className={`mt-3 h-12 w-full rounded-lg ${primaryButtonClass} ${canSaveScan ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}>
+            <button type="submit" disabled={!canSaveScan} className={`ascend-pressable mt-3 h-12 w-full rounded-lg ${primaryButtonClass} ${canSaveScan ? activePrimaryButtonClass : inactivePrimaryButtonClass}`}>
               <CheckCircle2 className="mr-1 inline" size={17} /> {busy ? "Saving..." : "Save Body Scan"}
             </button>
           </form>

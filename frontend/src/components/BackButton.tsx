@@ -16,7 +16,7 @@ export function BackButton({ fallbackHref = "/dashboard", disabled = false }: { 
       type="button"
       onClick={goBack}
       disabled={disabled}
-      className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-surface disabled:cursor-wait disabled:opacity-40"
+      className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line bg-surface text-zinc-100 shadow-sm hover:border-calm/50 hover:bg-surface/90 disabled:cursor-wait disabled:opacity-40"
       aria-label={disabled ? "Saving in progress" : "Go back"}
     >
       <ArrowLeft size={19} />

@@ -181,7 +181,7 @@ export function AdminReferralsClient() {
             type="button"
             disabled={isSaving || !selectedTrainerId || !newCode.trim()}
             onClick={createTrainerCode}
-            className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+            className="ascend-pressable flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
           >
             <Plus className="mr-2" size={18} />
             {isSaving ? "Creating..." : "Create trainer code"}
@@ -200,7 +200,7 @@ export function AdminReferralsClient() {
           {gymReferrals.map((item) => (
             <ReferralCard key={item.code} item={item} onCopy={copyCode} />
           ))}
-          {!gymReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No gym referral codes found.</p> : null}
+          {!gymReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Gym referral codes will appear here once they are created for a launch club.</p> : null}
         </div>
       </section>
 
@@ -215,7 +215,7 @@ export function AdminReferralsClient() {
           {trainerReferrals.map((item) => (
             <ReferralCard key={item.code} item={item} onCopy={copyCode} />
           ))}
-          {!trainerReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No trainer referral codes found.</p> : null}
+          {!trainerReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Trainer referral codes will appear here after you create one for an active trainer.</p> : null}
         </div>
       </section>
     </>

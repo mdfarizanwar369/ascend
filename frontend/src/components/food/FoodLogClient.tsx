@@ -401,7 +401,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   }
 
   const loadHistoryLogs = useCallback(async (offset = 0, append = false) => {
-    setHistoryStatus(offset ? "" : "Loading meal history...");
+    setHistoryStatus(offset ? "" : "Loading your meal history...");
     const response = await getFoodLogs({ range: historyRange, order: historyOrder, limit: 30, offset });
     setHistoryLogs((current) => append ? [...current, ...response.foodLogs] : response.foodLogs);
     setHistoryNextOffset(response.nextOffset ?? null);
@@ -760,7 +760,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             <div>
               <p className="text-sm font-semibold">Today's meals</p>
               <p className="mt-1 text-sm text-zinc-400">
-                {todaysFoodLogs.length ? `${todaysFoodLogs.length} meals logged` : "No meals logged yet"}
+                {todaysFoodLogs.length ? `${todaysFoodLogs.length} meals logged` : "Your first meal today will appear here."}
               </p>
             </div>
             <div className="text-right">
@@ -935,18 +935,18 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         </div>
                       );
                     })}
-                    {!day.logs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-500">No meals logged on this date.</p> : null}
+                    {!day.logs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No meals were recorded on this date.</p> : null}
                   </div>
                 </article>
               ))}
 
               {!groupedHistoryDays.length && !historyStatus ? (
                 <article className="rounded-lg border border-line bg-surface p-4">
-                  <p className="text-sm text-zinc-400">No meals found for this filter yet.</p>
+                  <p className="text-sm leading-6 text-zinc-400">No meals match this view yet. Try another range or log your next meal.</p>
                   <button
                     type="button"
                     onClick={() => setView("log")}
-                    className="mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+                    className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
                   >
                     Log your first meal
                   </button>
@@ -959,7 +959,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 type="button"
                 disabled={isLoadingHistoryMore}
                 onClick={loadMoreHistory}
-                className="mt-4 h-12 w-full rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+                className="ascend-pressable mt-4 h-12 w-full rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
                 {isLoadingHistoryMore ? "Loading..." : "Load more meals"}
               </button>
