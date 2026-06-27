@@ -214,12 +214,6 @@ export function ClientDashboard() {
   }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
   const [ascendMemory, setAscendMemory] = useState<AscendMemoryResponse | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
-  const [momentumBreakdown, setMomentumBreakdown] = useState({
-    food: 0,
-    weight: 0,
-    water: 0,
-    habits: 0
-  });
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
   const [status, setStatus] = useState("Loading your Ascend profile...");
@@ -345,12 +339,6 @@ export function ClientDashboard() {
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
-        setMomentumBreakdown({
-          food: Number(nextCompliance?.food_score ?? 0),
-          weight: Number(nextCompliance?.weight_score ?? 0),
-          water: Number(nextCompliance?.water_score ?? 0),
-          habits: Number(nextCompliance?.habit_score ?? 0)
-        });
       }
       hasLoadedDashboardRef.current = true;
       setStatus("");
@@ -564,10 +552,6 @@ export function ClientDashboard() {
   const score = momentumScore ?? fallbackScore;
   const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
   const momentumHeadline = score >= 70 ? "You're on track" : "Let's get back on track";
-  const momentumSummary =
-    score >= 70
-      ? "Your check-ins are building consistency today."
-      : "Start with one small action. Food, water, or weight is enough.";
   const currentStreak = Number(streak?.current ?? 0);
   const streakTitle = currentStreak >= 2 ? `${currentStreak}-day consistency streak` : currentStreak === 1 ? "You checked in today" : "Start a streak today";
   const streakCopy =
@@ -668,6 +652,56 @@ export function ClientDashboard() {
   const recentCelebration = recentAction ? AscendDNAService.getCelebration(toDnaAction(recentAction.type)) : null;
   const goalCompletedToday = Boolean(goalStatus?.milestone_id);
   const greeting = AscendDNAService.getGreeting(dnaProfile, new Date());
+  const yesterday = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 1);
+    return localDateKey(date.toISOString());
+  }, []);
+  const yesterdayProtein = foodLogs
+    .filter((log) => localDateKey(log.logged_at) === yesterday)
+    .reduce((total, log) => total + asNumber(log.protein_g), 0);
+  const weightLostFromStart = startWeight && currentWeight && startWeight > currentWeight ? startWeight - currentWeight : 0;
+  const enhancedNextAction = (() => {
+    if (recentCelebration) return nextAction;
+    if (!todaysFood.length && foodConsistency >= 5) {
+      return {
+        ...nextAction,
+        title: `Make it ${foodConsistency + 1} food-logging days`,
+        detail: `You've logged meals on ${foodConsistency} days this week. One honest meal log today keeps that rhythm alive.`
+      };
+    }
+    if (proteinLeft > 25 && yesterdayProtein >= proteinTarget) {
+      return {
+        ...nextAction,
+        title: "Make protein consistent again today",
+        detail: "Yesterday you hit your protein goal. A protein-rich meal today keeps that momentum going."
+      };
+    }
+    if (weightLostFromStart >= 5) {
+      return {
+        ...nextAction,
+        title: "Protect the progress you've built",
+        detail: `You've already moved ${weightLostFromStart.toFixed(1)}kg from your starting point. Today's job is simply to stay consistent.`
+      };
+    }
+    if (currentStreak >= 3) {
+      return {
+        ...nextAction,
+        title: `Keep your ${currentStreak}-day streak alive`,
+        detail: "One small check-in today is enough to keep the chain going."
+      };
+    }
+    return nextAction;
+  })();
+  const taskItems = [
+    { label: "Food logged", done: todaysFood.length > 0, href: "/food-log" },
+    { label: "Water completed", done: todaysWaterMl >= nutritionTargets.waterTargetMl, href: "/water-log" },
+    { label: "Weight recorded", done: latestWeightLoggedToday, href: "/weight-log" },
+    { label: "Workout completed", done: todaysBurnCalories > 0, href: "/burn-log" },
+    { label: "Habit completed", done: completedHabitIds.size > 0, href: "/habits" }
+  ];
+  const completedTaskCount = taskItems.filter((item) => item.done).length;
+  const dailyCompletion = Math.round((completedTaskCount / taskItems.length) * 100);
   const todayProgressItems = [
     goalCompletedToday
       ? { label: "Goal", value: "Done", detail: "completed" }
@@ -680,14 +714,7 @@ export function ClientDashboard() {
     { label: "Protein", value: `${protein}g`, detail: `${proteinTarget}g guide` },
     { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
     { label: "Weight", value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "--", detail: weightTrend(latestWeight, previousWeight) },
-    { label: "Momentum", value: `${score}/100`, detail: scoreLabel },
-    ...(user?.athlete_mode_enabled
-      ? [{
-          label: "Body Scan",
-          value: athleteBodyComposition?.bodyFatPercent ? `${Number(athleteBodyComposition.bodyFatPercent).toFixed(1)}%` : "--",
-          detail: athleteBodyComposition?.scanCount ? `${athleteBodyComposition.scanCount} scans` : "No scan yet"
-        }]
-      : [])
+    { label: "Momentum", value: `${score}/100`, detail: scoreLabel }
   ];
   const latestBurnLog = burnLogs[0];
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : null;
@@ -695,28 +722,40 @@ export function ClientDashboard() {
   const nutritionPreview = `${calories.toLocaleString()} kcal / ${protein}g protein / ${todaysFood.length} meals today`;
   const weightPreview = latestWeight
     ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg${weightDelta !== null ? ` / ${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg` : ""}`
-    : "No weight logged yet";
+    : "Record your first weight check-in";
   const waterPreview = `${(todaysWaterMl / 1000).toFixed(1)}L today / ${weeklyWaterDays.size}/7 days`;
   const workoutPreview = latestBurnLog
     ? `${Number(latestBurnLog.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal / ${formatShortDate(latestBurnLog.created_at)}`
-    : "No activity logged yet";
-  const weeklyReportPreview = hasPremiumAccess ? "Weekly report ready when you want detail" : "Premium unlocks weekly reports";
-  const memoryPreview = latestMemoryMilestone ? `Latest milestone: ${latestMemoryMilestone.title}` : "No journey milestones yet";
-  const photoPreview = progressPhotos.length ? `${progressPhotos.length} photos / latest ${formatShortDate(progressPhotos[0]?.logged_at)}` : "No progress photos yet";
-  const habitsPreview = dashboardHabits.length ? `${completedHabitIds.size}/${habits.length} habits done today` : "No habits created yet";
-  const foodHistoryPreview = foodLogs.length ? `${foodLogs.length} total meals / ${todaysFood.length} today` : "No meals logged yet";
+    : "Your first activity log is waiting";
+  const weeklyReportPreview = hasPremiumAccess ? "Your weekly progress summary is ready" : "Premium unlocks weekly progress summaries";
+  const memoryPreview = latestMemoryMilestone ? `Latest milestone: ${latestMemoryMilestone.title}` : "Your first milestone is waiting";
+  const photoPreview = progressPhotos.length ? `${progressPhotos.length} photos / latest ${formatShortDate(progressPhotos[0]?.logged_at)}` : "Take your first progress photo";
+  const habitsPreview = dashboardHabits.length ? `${completedHabitIds.size}/${habits.length} habits done today` : "Build your first repeatable habit";
+  const foodHistoryPreview = foodLogs.length ? `${foodLogs.length} total meals / ${todaysFood.length} today` : "Your first meal log starts the pattern";
   const coachMessagePreview = latestRecognition?.message
     ? `Latest: "${latestRecognition.message}"`
     : coachPresence.latest?.message
       ? `Latest: "${coachPresence.latest.message}"`
       : user?.assigned_trainer_name
         ? `Message ${user.assigned_trainer_name}`
-        : "No trainer messages yet";
+        : "Coach messages will appear here";
   const bodyScanPreview = user?.athlete_mode_enabled
     ? athleteBodyComposition?.scanCount
       ? `Body fat ${athleteBodyComposition.bodyFatPercent ?? "--"}% / ${athleteBodyComposition.scanCount} scans`
-      : "No Body Scan yet"
+      : "Your first Body Scan is waiting"
     : "Athlete Mode only";
+  const whyTodayMatters = [
+    currentStreak >= 30
+      ? `${currentStreak} days of consistency is a real streak. Today protects that identity.`
+      : currentStreak >= 7
+        ? `${currentStreak} days in a row. One check-in today keeps the streak alive.`
+        : null,
+    weightLostFromStart >= 5 ? `${weightLostFromStart.toFixed(1)}kg down from your starting point. Stay steady today.` : null,
+    goalProgress !== null && goalProgress >= 85 ? "Your goal is close. Today is about protecting the habits that got you here." : null,
+    latestRecognition ? "Your trainer noticed your effort recently. Build on that today." : null,
+    user?.athlete_mode_enabled && !athleteBodyComposition?.scanCount ? "Your first Body Scan can make your Athlete Mode targets more personal." : null,
+    progressPhotoDue ? "A progress photo would help you see change that the scale can miss." : null
+  ].filter((item): item is string => Boolean(item));
   const dailyCoachingMessage = (() => {
     if (coachPresence.latest?.message) {
       return {
@@ -869,8 +908,8 @@ export function ClientDashboard() {
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-lime">
                 {recentCelebration ? "Nice Work" : "Next Best Move"}
               </p>
-              <h1 className="mt-2 text-3xl font-semibold leading-tight">{recentCelebration?.title ?? nextAction.title}</h1>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">{recentCelebration?.detail ?? nextAction.detail}</p>
+              <h1 className="mt-2 text-3xl font-semibold leading-tight">{recentCelebration?.title ?? enhancedNextAction.title}</h1>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">{recentCelebration?.detail ?? enhancedNextAction.detail}</p>
               {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-500">{recentCelebration.secondary}</p> : null}
             </div>
             <span className="w-fit rounded-full border border-lime/50 bg-lime/10 px-3 py-2 text-sm font-semibold leading-tight text-lime">
@@ -885,17 +924,17 @@ export function ClientDashboard() {
             >
               View Today&apos;s Progress
             </button>
-          ) : nextAction.href === "/dashboard" ? (
+          ) : enhancedNextAction.href === "/dashboard" ? (
             <button
               type="button"
               onClick={revealTodayProgress}
               className="mt-5 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
             >
-              {nextAction.cta}
+              {enhancedNextAction.cta}
             </button>
           ) : (
-            <a href={nextAction.href} className="mt-5 flex h-14 items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
-              {nextAction.cta}
+            <a href={enhancedNextAction.href} className="mt-5 flex h-14 items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+              {enhancedNextAction.cta}
             </a>
           )}
         </section>
@@ -904,19 +943,28 @@ export function ClientDashboard() {
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-sm font-semibold text-lime">Today&apos;s tasks</p>
-              <h2 className="mt-1 text-xl font-semibold">
-                {recentCelebration ? "Consistency is building." : dailyMission ? dailyMission.title : nextAction.title}
-              </h2>
+              <h2 className="mt-1 text-xl font-semibold">{completedTaskCount}/{taskItems.length} completed</h2>
               <p className="mt-1 text-xs text-zinc-500">{formatGoal(user?.goal_type)}</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">
-                {recentCelebration ? "Take the win first. Ascend will bring back the next recommendation naturally." : dailyMission ? "Complete this simple check-in today." : momentumSummary}
-              </p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">Tick off the basics. Each small action makes the day easier to trust.</p>
               {dailyMission?.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {dailyMission.trainer_name}</p> : null}
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${dailyMission?.status === "completed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}>
-              {dailyMission?.status === "completed" ? "Done" : "Today"}
+            <span className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-zinc-300">
+              Checklist
             </span>
           </div>
+          {dailyMission ? (
+            <div className="mt-4 rounded-xl border border-calm/30 bg-calm/10 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-calm">Trainer mission</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-200">{dailyMission.title}</p>
+                </div>
+                <span className={`rounded px-2 py-1 text-xs font-semibold ${dailyMission.status === "completed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}>
+                  {dailyMission.status === "completed" ? "Done" : "Open"}
+                </span>
+              </div>
+            </div>
+          ) : null}
           {dailyMission && dailyMission.status !== "completed" ? (
             <button
               type="button"
@@ -928,17 +976,12 @@ export function ClientDashboard() {
             </button>
           ) : null}
           {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {[
-              { href: quickLogHref("Food"), title: "Food photo", detail: hasPremiumAccess ? "AI estimate" : "Log meal" },
-              { href: quickLogHref("Weight"), title: "Weight", detail: "Scale check-in" },
-              { href: quickLogHref("Water"), title: "Water", detail: "Add drinks" },
-              { href: quickLogHref("Burn"), title: "Activity", detail: "Estimate burn" }
-            ].map((item) => (
-              <a key={item.title} href={item.href} className="grid min-h-20 rounded-xl border border-line bg-ink p-3">
-                <span>
-                  <span className="block text-base font-semibold text-white">{item.title}</span>
-                  <span className="mt-1 block text-sm text-zinc-400">{item.detail}</span>
+          <div className="mt-4 space-y-2">
+            {taskItems.map((item) => (
+              <a key={item.label} href={item.href} className="flex items-center justify-between rounded-xl border border-line bg-ink px-3 py-3">
+                <span className="text-sm font-semibold text-white">{item.label}</span>
+                <span className={`grid h-7 min-w-7 place-items-center rounded-full px-2 text-xs font-semibold ${item.done ? "bg-lime text-ink" : "border border-line text-zinc-400"}`}>
+                  {item.done ? "Done" : "Open"}
                 </span>
               </a>
             ))}
@@ -949,11 +992,12 @@ export function ClientDashboard() {
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-sm font-semibold">Today&apos;s progress</p>
-              <p className="mt-1 text-sm text-zinc-400">A quick glance, no overthinking.</p>
+              <p className="mt-1 text-sm text-zinc-400">Daily completion at a glance.</p>
             </div>
-            <span className="w-fit rounded-full bg-ink px-3 py-2 text-sm font-semibold leading-tight text-lime">
-              {momentumHeadline}
-            </span>
+            <span className="w-fit rounded-full bg-ink px-3 py-2 text-sm font-semibold leading-tight text-lime">{dailyCompletion}%</span>
+          </div>
+          <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink">
+            <div className="h-full rounded-full bg-lime" style={{ width: `${dailyCompletion}%` }} />
           </div>
           <div className="mt-4 grid grid-cols-3 gap-2">
             {todayProgressItems.map((item) => (
@@ -973,7 +1017,7 @@ export function ClientDashboard() {
               <p className="mt-1 text-sm text-zinc-400">The numbers that matter today.</p>
             </div>
             <a href="/momentum-score" className="rounded-full bg-ink px-3 py-2 text-xs font-semibold text-lime">
-              Explain score
+              How is this calculated?
             </a>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -982,21 +1026,6 @@ export function ClientDashboard() {
                 <p className="text-xs text-zinc-400">{item.label}</p>
                 <p className="mt-1 text-lg font-semibold">{item.value}</p>
                 <p className="mt-1 text-[11px] leading-4 text-zinc-500">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            {[
-              ["Food", momentumBreakdown.food, 35],
-              ["Weight", momentumBreakdown.weight, 25],
-              ["Water", momentumBreakdown.water, 20],
-              ["Habits", momentumBreakdown.habits, 20]
-            ].map(([label, value, max]) => (
-              <div key={label} className="rounded-lg bg-ink/80 p-2 text-center">
-                <p className="text-[11px] text-zinc-500">{label}</p>
-                <p className="mt-1 text-xs font-semibold text-zinc-200">
-                  {value}/{max}
-                </p>
               </div>
             ))}
           </div>
@@ -1020,6 +1049,17 @@ export function ClientDashboard() {
             ) : null}
           </div>
         </section>
+
+        {whyTodayMatters.length ? (
+          <section className="mt-4 rounded-2xl border border-purple-400/40 bg-purple-400/10 p-4 shadow-soft">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Why today matters</p>
+            <div className="mt-3 space-y-2">
+              {whyTodayMatters.slice(0, 2).map((item) => (
+                <p key={item} className="rounded-xl bg-ink p-3 text-sm leading-6 text-zinc-200">{item}</p>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <CollapsibleSection
           title="Nutrition"
@@ -1170,7 +1210,7 @@ export function ClientDashboard() {
                 <span className="font-semibold">{Number(log.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal</span>
               </div>
             ))}
-            {!burnLogs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No activity logged yet.</p> : null}
+            {!burnLogs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Your first activity log will make your progress picture clearer.</p> : null}
           </div>
           <a href="/burn-log" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
             Log activity
@@ -1183,7 +1223,7 @@ export function ClientDashboard() {
           isOpen={openSections.weeklyReport}
           onToggle={() => setSectionOpen("weeklyReport", !openSections.weeklyReport)}
         >
-          <p className="text-sm leading-6 text-zinc-300">Review your weekly wins, consistency, and next focus when you want the detail.</p>
+          <p className="text-sm leading-6 text-zinc-300">Your weekly progress summary brings together the wins, patterns, and next focus from your week.</p>
           <a href="/reports" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
             Open weekly report
           </a>
@@ -1210,7 +1250,7 @@ export function ClientDashboard() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={latestProgressPhoto.image_url} alt="Latest progress" className="aspect-[4/5] w-full rounded-xl object-cover" />
           ) : (
-            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Add a clear progress photo when you are ready.</p>
+            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Take a progress photo when you are ready. Future you will appreciate the comparison.</p>
           )}
           <a href="/progress" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
             Open progress photos
@@ -1237,7 +1277,7 @@ export function ClientDashboard() {
                 );
               })
             ) : (
-              <a href="/habits" className="block rounded-lg bg-ink px-3 py-3 text-sm text-zinc-400">Create your first habits.</a>
+              <a href="/habits" className="block rounded-lg bg-ink px-3 py-3 text-sm text-zinc-400">Create one small habit you can repeat tomorrow.</a>
             )}
           </div>
         </CollapsibleSection>
@@ -1268,7 +1308,7 @@ export function ClientDashboard() {
                 </a>
               ))
             ) : (
-              <a href="/food-log" className="block w-full rounded-lg bg-ink p-4 text-sm leading-6 text-zinc-400">Snap a food photo to estimate calories, protein, carbs, and fat.</a>
+              <a href="/food-log" className="block w-full rounded-lg bg-ink p-4 text-sm leading-6 text-zinc-400">Your first meal log starts the pattern. Snap a photo when you eat next.</a>
             )}
           </div>
           <a href="/food-log?view=history" className="mt-3 flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-lime">
