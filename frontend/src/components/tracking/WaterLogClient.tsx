@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Droplets } from "lucide-react";
 import { getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { DelightBadge, DelightProgressBar } from "@/components/Delight";
 import { localDateKey } from "@/lib/date";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
@@ -76,12 +77,15 @@ export function WaterLogClient() {
           </div>
         </header>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <section className="ascend-soft-enter mt-4 rounded-2xl border border-calm/30 bg-gradient-to-br from-calm/10 via-surface to-purple-400/10 p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm text-zinc-400">Today</p>
               <p className="mt-1 text-4xl font-semibold">{(todayMl / 1000).toFixed(1)}L</p>
               <p className="mt-2 text-sm text-zinc-400">Target: 2.5L</p>
+              <div className="mt-3">
+                <DelightBadge tone={progress >= 100 ? "lime" : "teal"}>{progress >= 100 ? "Hydration goal hit" : "Every sip counts"}</DelightBadge>
+              </div>
             </div>
             <div className="grid h-28 w-28 place-items-center rounded-full border-4 border-calm">
               <div className="text-center">
@@ -90,6 +94,7 @@ export function WaterLogClient() {
               </div>
             </div>
           </div>
+          <div className="mt-4"><DelightProgressBar value={progress} /></div>
         </section>
 
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
@@ -101,7 +106,7 @@ export function WaterLogClient() {
                 type="button"
                 disabled={isSaving}
                 onClick={() => addWater(amount)}
-                className="h-16 rounded-lg border border-line bg-ink text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="ascend-pressable h-16 rounded-lg border border-line bg-ink text-lg font-semibold text-white hover:border-calm/50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 +{amount >= 1000 ? `${amount / 1000}L` : `${amount}ml`}
               </button>

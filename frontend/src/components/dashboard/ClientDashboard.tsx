@@ -38,6 +38,7 @@ import { usablePlan } from "@/lib/subscriptionPlan";
 import { clearDashboardRecord, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
+import { DelightBadge, DelightProgressBar } from "@/components/Delight";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -912,9 +913,7 @@ export function ClientDashboard() {
               <p className="mt-3 text-sm leading-6 text-zinc-300">{recentCelebration?.detail ?? enhancedNextAction.detail}</p>
               {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-500">{recentCelebration.secondary}</p> : null}
             </div>
-            <span className="w-fit rounded-full border border-lime/50 bg-lime/10 px-3 py-2 text-sm font-semibold leading-tight text-lime">
-              {momentumHeadline}
-            </span>
+            <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
           </div>
           {recentCelebration ? (
             <button
@@ -996,9 +995,7 @@ export function ClientDashboard() {
             </div>
             <span className="w-fit rounded-full bg-ink px-3 py-2 text-sm font-semibold leading-tight text-lime">{dailyCompletion}%</span>
           </div>
-          <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink">
-            <div className="h-full rounded-full bg-lime" style={{ width: `${dailyCompletion}%` }} />
-          </div>
+          <div className="mt-4"><DelightProgressBar value={dailyCompletion} /></div>
           <div className="mt-4 grid grid-cols-3 gap-2">
             {todayProgressItems.map((item) => (
               <div key={item.label} className="rounded-xl bg-ink p-3">
@@ -1091,18 +1088,14 @@ export function ClientDashboard() {
                 <span className="text-zinc-300">Calories</span>
                 <span className="font-semibold">{calories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal</span>
               </div>
-              <div className="mt-2 h-3 overflow-hidden rounded-full bg-ink">
-                <div className="h-full rounded-full bg-lime" style={{ width: `${calorieProgress}%` }} />
-              </div>
+              <div className="mt-2"><DelightProgressBar value={calorieProgress} /></div>
             </div>
             <div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-zinc-300">Protein</span>
                 <span className="font-semibold">{protein} / {proteinTarget}g</span>
               </div>
-              <div className="mt-2 h-3 overflow-hidden rounded-full bg-ink">
-                <div className="h-full rounded-full bg-calm" style={{ width: `${proteinProgress}%` }} />
-              </div>
+              <div className="mt-2"><DelightProgressBar value={proteinProgress} /></div>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">

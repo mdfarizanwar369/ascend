@@ -31,6 +31,7 @@ import {
   saveTrainerBodyCompositionScan
 } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
+import { DelightBadge } from "@/components/Delight";
 import { OptimizedBodyScanImage, clearBodyScanImageCache, optimizeBodyScanImage } from "@/lib/bodyScanImageProcessor";
 
 type MetricKey = keyof BodyCompositionScan;
@@ -381,6 +382,9 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
             <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Ascend DNA Results</p>
             <h2 className="mt-2 text-3xl font-semibold leading-tight">Body Scan Complete</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-300">Your latest scan is now translated into coaching signals, nutrition targets, and your next step.</p>
+            <div className="mt-3">
+              <DelightBadge tone="teal">Professional assessment ready</DelightBadge>
+            </div>
           </div>
           <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-teal-300/10 text-center shadow-lg shadow-teal-300/15">
             <div>

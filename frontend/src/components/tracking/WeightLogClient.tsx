@@ -5,6 +5,7 @@ import { Save, Scale } from "lucide-react";
 import { getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
+import { DelightBadge } from "@/components/Delight";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 
@@ -84,7 +85,7 @@ export function WeightLogClient() {
           </div>
         </header>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <section className="ascend-soft-enter mt-4 rounded-2xl border border-lime/30 bg-gradient-to-br from-lime/10 via-surface to-calm/10 p-4">
           <div className="flex items-center gap-3">
             <span className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink">
               <Scale size={23} />
@@ -97,6 +98,9 @@ export function WeightLogClient() {
           <p className="mt-3 text-sm text-zinc-400">
             {targetWeightKg ? `Target: ${targetWeightKg.toFixed(1)}kg` : "Set a target during onboarding to track progress."}
           </p>
+          <div className="mt-3">
+            <DelightBadge tone="lime">{latestWeightKg ? "Progress captured" : "Ready for your first check-in"}</DelightBadge>
+          </div>
         </section>
 
         {milestone ? (
@@ -104,7 +108,7 @@ export function WeightLogClient() {
             <p className="text-sm font-semibold uppercase text-lime">Goal achieved</p>
             <h2 className="mt-2 text-2xl font-semibold">You reached {Number(milestone.target_weight_kg).toFixed(1)}kg!</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-300">Take the win. Your consistency made this happen.</p>
-            <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+            <a href="/profile/guide" className="ascend-pressable mt-4 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
               Choose what comes next
             </a>
           </section>
@@ -126,7 +130,7 @@ export function WeightLogClient() {
           <button
             type="submit"
             disabled={isSaving || !Number(weightKg)}
-            className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            className="ascend-pressable flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save className="mr-2" size={18} />
             {isSaving ? "Saving..." : "Save weight"}

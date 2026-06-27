@@ -19,6 +19,7 @@ import { rememberSavedFoodLog } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
+import { DelightEmptyState } from "@/components/Delight";
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -941,15 +942,21 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               ))}
 
               {!groupedHistoryDays.length && !historyStatus ? (
-                <article className="rounded-lg border border-line bg-surface p-4">
-                  <p className="text-sm leading-6 text-zinc-400">No meals match this view yet. Try another range or log your next meal.</p>
-                  <button
-                    type="button"
-                    onClick={() => setView("log")}
-                    className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
-                  >
-                    Log your first meal
-                  </button>
+                <article>
+                  <DelightEmptyState
+                    tone="teal"
+                    title="Your meal story starts with one photo."
+                    body="No meals match this view yet. Try another range or log your next meal when you're ready."
+                    action={
+                      <button
+                        type="button"
+                        onClick={() => setView("log")}
+                        className="ascend-pressable flex h-11 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+                      >
+                        Log your first meal
+                      </button>
+                    }
+                  />
                 </article>
               ) : null}
             </section>

@@ -26,6 +26,7 @@ import {
   getAdminUsage,
   getAdminUsers
 } from "@/lib/ascendApi";
+import { DelightBadge, DelightEmptyState } from "@/components/Delight";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
 type UsageRow = Awaited<ReturnType<typeof getAdminUsage>>["usage"][number];
@@ -421,6 +422,11 @@ export function AdminDashboardClient() {
         <p className="text-sm text-zinc-400">Good morning</p>
         <h1 className="mt-1 text-3xl font-semibold">Owner</h1>
         <p className="mt-1 text-sm font-semibold text-calm">Today&apos;s Business Brief</p>
+        <div className="mt-3">
+          <DelightBadge tone={overallHealth === "Excellent" ? "lime" : overallHealth === "Good" ? "teal" : "amber"}>
+            {overallHealth === "Excellent" ? "Clubs are humming" : overallHealth === "Good" ? "Healthy operating rhythm" : "A few signals need attention"}
+          </DelightBadge>
+        </div>
         <p className="mt-4 text-base leading-7 text-zinc-200">{businessBrief}</p>
       </section>
 
@@ -508,7 +514,13 @@ export function AdminDashboardClient() {
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-300">Risk level: {club.risk ? `${club.risk} low-momentum clients` : "Low"}. Recommendation: {club.recommendation}</p>
             </article>
-          )) : <p className="rounded-xl bg-ink p-4 text-sm leading-6 text-zinc-400">Club performance will appear here once members, trainers, and subscriptions start generating activity.</p>}
+          )) : (
+            <DelightEmptyState
+              tone="teal"
+              title="Club signals will light up here."
+              body="Once members, trainers, and subscriptions start generating activity, Ascend will turn it into a clear operating picture."
+            />
+          )}
         </div>
       </section>
 
@@ -529,7 +541,13 @@ export function AdminDashboardClient() {
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-300">Suggested coaching action: {trainer.action}</p>
             </article>
-          )) : <p className="rounded-xl bg-ink p-4 text-sm leading-6 text-zinc-400">Trainer attribution will appear here once subscriptions and referrals are connected to trainers.</p>}
+          )) : (
+            <DelightEmptyState
+              tone="purple"
+              title="Trainer impact will become visible."
+              body="Trainer attribution will appear here once subscriptions and referrals are connected to trainers."
+            />
+          )}
         </div>
       </section>
 

@@ -7,6 +7,7 @@ import { AlertTriangle, CheckCircle2, MessageSquare, Sparkles, Target, TrendingU
 import { getMe, getTrainerAttention, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { DelightEmptyState } from "@/components/Delight";
 import { buildAthleteCoachInsights, daysSince } from "@/lib/coachIntelligence";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
@@ -389,7 +390,11 @@ export function TrainerDashboardClient() {
           <div className="mt-3 space-y-3">
             {priorities.greatProgress.slice(0, 4).map((item) => <PriorityClientCard key={item.client.id} item={item} type="progress" />)}
             {!priorities.greatProgress.length ? (
-            <p className="rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">No standout wins yet today. As clients log meals, weight, water, workouts, or Body Scans, Ascend will surface the moments worth celebrating.</p>
+            <DelightEmptyState
+              tone="lime"
+              title="No wins missed."
+              body="As clients log meals, weight, water, workouts, or Body Scans, Ascend will surface the moments worth celebrating."
+            />
             ) : null}
           </div>
         </div>
@@ -560,7 +565,11 @@ export function TrainerDashboardClient() {
               );
             })
           ) : (
-            <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">No assigned clients yet. Once an owner assigns members to this trainer, today's priorities will appear here.</p>
+            <DelightEmptyState
+              tone="purple"
+              title="Your coaching list is ready when clients are."
+              body="Once an owner assigns members to this trainer, today's priorities will appear here."
+            />
           )}
         </div>
       </section>

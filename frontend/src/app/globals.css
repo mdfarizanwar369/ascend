@@ -182,6 +182,16 @@ html[data-theme="light"] .ascend-theme-glow {
   100% { transform: translateX(100%); }
 }
 
+@keyframes ascend-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes ascend-progress-glow {
+  0% { background-position: 0 0; }
+  100% { background-position: 36px 0; }
+}
+
 .ascend-demo-enter { animation: ascend-demo-enter 280ms ease-out both; }
 .ascend-demo-scan { animation: ascend-demo-scan 1.4s ease-in-out infinite; }
 .ascend-demo-pop { animation: ascend-demo-pop 280ms ease-out both; }
@@ -243,6 +253,16 @@ html[data-theme="light"] .ascend-theme-glow {
   animation: ascend-shimmer 1.35s ease-in-out infinite;
 }
 
+.ascend-float {
+  animation: ascend-float 5s ease-in-out infinite;
+}
+
+.ascend-progress-sheen {
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.12) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.12) 75%, transparent 75%, transparent);
+  background-size: 36px 36px;
+  animation: ascend-progress-glow 1.8s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body {
     transition: none;
@@ -259,6 +279,8 @@ html[data-theme="light"] .ascend-theme-glow {
   .ascend-demo-bar,
   .ascend-soft-enter,
   .ascend-skeleton::after,
+  .ascend-float,
+  .ascend-progress-sheen,
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none;
