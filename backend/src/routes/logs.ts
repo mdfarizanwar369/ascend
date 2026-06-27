@@ -28,6 +28,13 @@ const foodLogSchema = z.object({
   loggedAt: z.string().datetime().optional()
 });
 
+const foodLogQuerySchema = z.object({
+  range: z.enum(["today", "7d", "30d", "all"]).default("all"),
+  order: z.enum(["newest", "oldest"]).default("newest"),
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+  offset: z.coerce.number().int().min(0).default(0)
+});
+
 const foodImageDataSchema = z.object({
   imageDataUrl: imageDataUrlSchema
 });
@@ -182,9 +189,32 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
   }
 });
 
-logsRouter.get("/food-logs", requireAuth, async (req, res) => {
-  const result = await query("select * from food_logs where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
-  res.json({ foodLogs: await withFoodImageUrls(result.rows) });
+logsRouter.get("/food-logs", requireAuth, async (req, res, next) => {
+  try {
+    const filters = foodLogQuerySchema.parse(req.query);
+    const rangeCondition =
+      filters.range === "today"
+        ? "and logged_at >= current_date"
+        : filters.range === "7d"
+          ? "and logged_at >= current_date - interval '6 days'"
+          : filters.range === "30d"
+            ? "and logged_at >= current_date - interval '29 days'"
+            : "";
+    const result = await query(
+      `
+      select *
+      from food_logs
+      where user_id = $1
+        ${rangeCondition}
+      order by logged_at ${filters.order === "oldest" ? "asc" : "desc"}
+      limit $2 offset $3
+      `,
+      [req.user!.id, filters.limit, filters.offset]
+    );
+    res.json({ foodLogs: await withFoodImageUrls(result.rows), nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null });
+  } catch (error) {
+    next(error);
+  }
 });
 
 logsRouter.post("/weight-logs", requireAuth, async (req, res, next) => {

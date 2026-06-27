@@ -1,7 +1,7 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, ImagePlus, Pencil, Save, Sparkles } from "lucide-react";
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CalendarDays, Camera, Check, ImagePlus, Pencil, Save, Sparkles, Utensils } from "lucide-react";
 import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
@@ -23,6 +23,8 @@ import { localDateKey } from "@/lib/date";
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
 type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
+type RangeFilter = "today" | "7d" | "30d" | "all";
+type OrderFilter = "newest" | "oldest";
 type FrontendFoodAiStage = {
   name: string;
   startOffsetMs: number;
@@ -40,6 +42,18 @@ type FrontendFoodAiTrace = {
 };
 
 const frontendFoodAiPerformanceEnabled = process.env.NEXT_PUBLIC_FOOD_AI_PERFORMANCE_LOGS === "true";
+const rangeOptions: Array<{ label: string; value: RangeFilter }> = [
+  { label: "Today", value: "today" },
+  { label: "Last 7 Days", value: "7d" },
+  { label: "Last 30 Days", value: "30d" },
+  { label: "All Time", value: "all" }
+];
+
+function asNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return 0;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
 
 function manualEstimate(): FoodEstimate {
   return {
@@ -271,12 +285,99 @@ function formatLogTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
 }
 
+function formatHistoryTime(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "--:--";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function dateLabel(dateKey: string) {
+  const today = localDateKey();
+  const yesterday = localDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  if (dateKey === today) return "Today";
+  if (dateKey === yesterday) return "Yesterday";
+  const date = new Date(`${dateKey}T12:00:00`);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+    : dateKey;
+}
+
+function dateKeysForRange(range: RangeFilter) {
+  if (range === "all") return [];
+  const days = range === "today" ? 1 : range === "7d" ? 7 : 30;
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - index);
+    return localDateKey(date);
+  });
+}
+
+function parseAiEstimate(raw: unknown): { confidence?: number; notes?: string } {
+  if (!raw || typeof raw !== "object") return {};
+  const source = raw as Record<string, unknown>;
+  const confidence = Number(source.confidence ?? source.confidenceScore ?? source.confidence_score);
+  const notes = source.notes ?? source.note ?? source.explanation;
+  return {
+    confidence: Number.isFinite(confidence) ? confidence : undefined,
+    notes: typeof notes === "string" ? notes : undefined
+  };
+}
+
+function summarizeLogs(logs: FoodLog[]) {
+  return logs.reduce(
+    (total, log) => ({
+      calories: total.calories + asNumber(log.calories),
+      proteinG: total.proteinG + asNumber(log.protein_g),
+      carbsG: total.carbsG + asNumber(log.carbs_g),
+      fatG: total.fatG + asNumber(log.fat_g)
+    }),
+    { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
+  );
+}
+
+function complianceStatus(logs: FoodLog[], totals: ReturnType<typeof summarizeLogs>, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>) {
+  if (!logs.length) return { label: "No Food Logged", tone: "danger" as const };
+  const proteinRatio = targets.proteinTargetG ? totals.proteinG / targets.proteinTargetG : 0;
+  const calorieRatio = targets.calorieTarget ? totals.calories / targets.calorieTarget : 0;
+  if (logs.length >= 2 && proteinRatio >= 0.8 && calorieRatio >= 0.65 && calorieRatio <= 1.15) {
+    return { label: "Strong Day", tone: "success" as const };
+  }
+  return { label: "Partially Logged", tone: "warning" as const };
+}
+
+function mealObservations(logs: FoodLog[], totals: ReturnType<typeof summarizeLogs>, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>) {
+  if (!logs.length) return ["No meals logged for this date."];
+
+  const observations: string[] = [];
+  const proteinRatio = targets.proteinTargetG ? totals.proteinG / targets.proteinTargetG : 0;
+  const calorieRatio = targets.calorieTarget ? totals.calories / targets.calorieTarget : 0;
+  const lateNightMeal = logs.some((log) => {
+    const hour = new Date(log.logged_at).getHours();
+    return hour >= 22 || hour < 4;
+  });
+
+  observations.push(proteinRatio >= 0.9 ? "Protein target achieved." : "Protein could use a top-up.");
+  if (calorieRatio >= 0.8 && calorieRatio <= 1.1) observations.push("Calories are close to your daily guide.");
+  if (calorieRatio > 1.1) observations.push("Calories are above today's guide.");
+  if (calorieRatio < 0.8) observations.push("Calories are still below today's guide.");
+  observations.push(logs.length >= 2 ? "Good logging consistency for the day." : "One meal logged so far.");
+  if (lateNightMeal) observations.push("Late-night meal recorded.");
+
+  return observations;
+}
+
 export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "history" }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
   const [estimate, setEstimate] = useState<FoodEstimate | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
+  const [historyLogs, setHistoryLogs] = useState<FoodLog[]>([]);
+  const [historyRange, setHistoryRange] = useState<RangeFilter>("7d");
+  const [historyOrder, setHistoryOrder] = useState<OrderFilter>("newest");
+  const [historyNextOffset, setHistoryNextOffset] = useState<number | null>(null);
+  const [historyStatus, setHistoryStatus] = useState("");
+  const [isLoadingHistoryMore, setIsLoadingHistoryMore] = useState(false);
   const [user, setUser] = useState<FoodUser | null>(null);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [status, setStatus] = useState("Upload a food photo to estimate calories and macros.");
@@ -299,6 +400,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     }
   }
 
+  const loadHistoryLogs = useCallback(async (offset = 0, append = false) => {
+    setHistoryStatus(offset ? "" : "Loading meal history...");
+    const response = await getFoodLogs({ range: historyRange, order: historyOrder, limit: 30, offset });
+    setHistoryLogs((current) => append ? [...current, ...response.foodLogs] : response.foodLogs);
+    setHistoryNextOffset(response.nextOffset ?? null);
+    setHistoryStatus("");
+  }, [historyOrder, historyRange]);
+
   async function loadUser() {
     const [response, weights] = await Promise.all([getMe(), getWeightLogs()]);
     setUser(response.user);
@@ -315,6 +424,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setStatus("Upload a food photo to estimate calories and macros.");
     });
   }, []);
+
+  useEffect(() => {
+    if (view !== "history") return;
+    loadHistoryLogs().catch((error) => {
+      setHistoryStatus(error instanceof Error ? error.message : "Could not load meal history.");
+    });
+  }, [view, loadHistoryLogs]);
 
   const todaysFoodLogs = useMemo(() => {
     const today = localDateKey();
@@ -360,6 +476,43 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   }, [estimate]);
 
   const currentMealInsight = estimate ? mealInsight(estimate, nutritionTargets) : null;
+  const groupedHistoryDays = useMemo(() => {
+    const map = new Map<string, FoodLog[]>();
+    for (const log of historyLogs) {
+      const key = localDateKey(log.logged_at);
+      if (!key) continue;
+      map.set(key, [...(map.get(key) ?? []), log]);
+    }
+
+    const visibleKeys = historyRange === "all"
+      ? Array.from(map.keys()).sort((a, b) => historyOrder === "newest" ? b.localeCompare(a) : a.localeCompare(b))
+      : dateKeysForRange(historyRange);
+
+    return visibleKeys.map((dateKey) => {
+      const logs = [...(map.get(dateKey) ?? [])].sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime());
+      const totals = summarizeLogs(logs);
+      const status = complianceStatus(logs, totals, nutritionTargets);
+      return {
+        dateKey,
+        logs,
+        totals,
+        status,
+        observations: mealObservations(logs, totals, nutritionTargets)
+      };
+    });
+  }, [historyLogs, historyOrder, historyRange, nutritionTargets]);
+
+  async function loadMoreHistory() {
+    if (historyNextOffset === null) return;
+    setIsLoadingHistoryMore(true);
+    try {
+      await loadHistoryLogs(historyNextOffset, true);
+    } catch (error) {
+      setHistoryStatus(error instanceof Error ? error.message : "Could not load more meals.");
+    } finally {
+      setIsLoadingHistoryMore(false);
+    }
+  }
 
   async function estimateFoodWithRetry(imageDataUrl: string, trace?: FrontendFoodAiTrace | null) {
     let lastError: unknown;
@@ -550,6 +703,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         },
         ...current.filter((log) => log.id !== response.foodLog.id)
       ]);
+      setHistoryLogs((current) => [
+        {
+          ...response.foodLog,
+          image_url: previewUrl
+        },
+        ...current.filter((log) => log.id !== response.foodLog.id)
+      ]);
       loadFoodLogs().catch(() => {});
       setPreviewUrl(null);
       setEstimate(null);
@@ -657,56 +817,154 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         </section>
 
         {view === "history" ? (
-          <section className="mt-3 rounded-lg border border-line bg-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold">All meal logs</h2>
-                <p className="mt-1 text-sm text-zinc-400">{foodLogs.length ? `${foodLogs.length} meals saved` : "No saved meals yet"}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setView("log")}
-                className="rounded-lg bg-lime px-3 py-2 text-sm font-semibold text-ink"
-              >
-                Add meal
-              </button>
-            </div>
-            <div className="mt-4 space-y-2">
-              {foodLogs.map((log) => (
-                <article key={log.id} className="rounded-lg bg-ink p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      {log.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
-                      ) : (
-                        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-surface text-xs text-zinc-500">No photo</div>
-                      )}
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">{log.estimated_food_name}</p>
-                        <p className="mt-1 text-xs text-zinc-400">
-                          {formatLogDate(log.logged_at)} at {formatLogTime(log.logged_at)}
-                        </p>
-                        <p className="mt-1 text-xs text-zinc-400">
-                          P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F {Math.round(Number(log.fat_g))}g
-                        </p>
-                      </div>
-                    </div>
-                    <p className="shrink-0 text-sm font-semibold">{Number(log.calories).toLocaleString()} kcal</p>
-                  </div>
-                </article>
-              ))}
-              {!foodLogs.length ? (
+          <>
+            <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <CalendarDays className="text-lime" size={19} />
+                  <h2 className="text-base font-semibold">Meal history filters</h2>
+                </div>
                 <button
                   type="button"
                   onClick={() => setView("log")}
-                  className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+                  className="rounded-lg bg-lime px-3 py-2 text-sm font-semibold text-ink"
                 >
-                  Log your first meal
+                  Add meal
                 </button>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {rangeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setHistoryRange(option.value)}
+                    className={`h-11 rounded-lg border px-2 text-sm font-semibold ${
+                      historyRange === option.value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-zinc-300"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryOrder((current) => current === "newest" ? "oldest" : "newest")}
+                className="mt-3 h-11 w-full rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200"
+              >
+                {historyOrder === "newest" ? "Newest First" : "Oldest First"}
+              </button>
+            </section>
+
+            {historyStatus ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{historyStatus}</p> : null}
+
+            <section className="mt-3 space-y-4">
+              {groupedHistoryDays.map((day) => (
+                <article key={day.dateKey} className="rounded-lg border border-line bg-surface p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">{dateLabel(day.dateKey)}</h2>
+                      <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                        day.status.tone === "success"
+                          ? "bg-lime text-ink"
+                          : day.status.tone === "warning"
+                            ? "bg-amber/20 text-amber"
+                            : "bg-red-500/15 text-red-300"
+                      }`}>
+                        {day.status.label}
+                      </p>
+                    </div>
+                    <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{day.logs.length} meals</span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {[
+                      ["Calories", `${Math.round(day.totals.calories).toLocaleString()} kcal`],
+                      ["Protein", `${Math.round(day.totals.proteinG)}g`],
+                      ["Carbs", `${Math.round(day.totals.carbsG)}g`],
+                      ["Fat", `${Math.round(day.totals.fatG)}g`]
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-lg bg-ink p-3">
+                        <p className="text-xs uppercase text-zinc-500">{label}</p>
+                        <p className="mt-1 text-lg font-semibold">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 rounded-lg bg-ink p-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Daily notes</p>
+                    <div className="mt-2 space-y-1">
+                      {day.observations.map((observation) => (
+                        <p key={observation} className="text-sm leading-6 text-zinc-300">{observation}</p>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-2">
+                    {day.logs.map((log) => {
+                      const ai = parseAiEstimate(log.ai_estimate_raw);
+                      return (
+                        <div key={log.id} className="rounded-lg bg-ink p-3">
+                          <div className="flex items-start gap-3">
+                            {log.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                            ) : (
+                              <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-surface text-zinc-500">
+                                <Utensils size={18} />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-semibold">{log.estimated_food_name}</p>
+                                  <p className="mt-1 text-xs text-zinc-500">{formatHistoryTime(log.logged_at)}</p>
+                                </div>
+                                <p className="shrink-0 text-sm font-semibold">{Math.round(asNumber(log.calories))} kcal</p>
+                              </div>
+                              <p className="mt-2 text-xs text-zinc-400">
+                                P {Math.round(asNumber(log.protein_g))}g / C {Math.round(asNumber(log.carbs_g))}g / F {Math.round(asNumber(log.fat_g))}g
+                              </p>
+                              {ai.confidence !== undefined ? (
+                                <p className="mt-2 text-xs text-zinc-500">AI confidence: {Math.round(ai.confidence * 100)}%</p>
+                              ) : null}
+                              {ai.notes || log.description ? (
+                                <p className="mt-2 text-xs leading-5 text-zinc-400">{ai.notes ?? log.description}</p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!day.logs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-500">No meals logged on this date.</p> : null}
+                  </div>
+                </article>
+              ))}
+
+              {!groupedHistoryDays.length && !historyStatus ? (
+                <article className="rounded-lg border border-line bg-surface p-4">
+                  <p className="text-sm text-zinc-400">No meals found for this filter yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => setView("log")}
+                    className="mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+                  >
+                    Log your first meal
+                  </button>
+                </article>
               ) : null}
-            </div>
-          </section>
+            </section>
+
+            {historyNextOffset !== null ? (
+              <button
+                type="button"
+                disabled={isLoadingHistoryMore}
+                onClick={loadMoreHistory}
+                className="mt-4 h-12 w-full rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+              >
+                {isLoadingHistoryMore ? "Loading..." : "Load more meals"}
+              </button>
+            ) : null}
+          </>
         ) : (
           <>
         <section className="mt-3 rounded-lg border border-line bg-surface p-4">

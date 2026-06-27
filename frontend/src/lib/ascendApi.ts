@@ -158,7 +158,16 @@ export function removeProfilePhoto() {
   return authed<{ removed: boolean }>("/me/profile-photo", { method: "DELETE" });
 }
 
-export function getFoodLogs() {
+export function getFoodLogs(
+  filters: { range?: "today" | "7d" | "30d" | "all"; order?: "newest" | "oldest"; limit?: number; offset?: number } = {}
+) {
+  const params = new URLSearchParams();
+  if (filters.range) params.set("range", filters.range);
+  if (filters.order) params.set("order", filters.order);
+  if (filters.limit) params.set("limit", String(filters.limit));
+  if (filters.offset) params.set("offset", String(filters.offset));
+  const query = params.toString();
+
   return authed<{
     foodLogs: Array<{
       id: string;
@@ -166,13 +175,17 @@ export function getFoodLogs() {
       image_s3_key?: string | null;
       meal_type?: "breakfast" | "lunch" | "dinner" | "snack" | string;
       estimated_food_name: string;
+      description?: string | null;
       calories: number;
       protein_g: string | number;
       carbs_g: string | number;
       fat_g: string | number;
+      ai_estimate_raw?: unknown;
+      was_edited_by_user?: boolean;
       logged_at: string;
     }>;
-  }>("/food-logs");
+    nextOffset?: number | null;
+  }>(`/food-logs${query ? `?${query}` : ""}`);
 }
 
 export function getWeightLogs() {
