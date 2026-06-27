@@ -7,6 +7,7 @@ import { ChevronDown, Send, Sparkles, TrendingDown, Utensils } from "lucide-reac
 import {
   createTrainerClientMission,
   createWeeklyCheckin,
+  getTrainerClientMemory,
   getTrainerClientCoachPresence,
   getTrainerClient,
   getTrainerClientFoodLogs,
@@ -22,7 +23,8 @@ import {
   sendTrainerClientMessage,
   pauseTrainerClientCoachPresence,
   CoachPresenceMessage,
-  CoachPresenceSettings
+  CoachPresenceSettings,
+  AscendMemoryResponse
 } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { BackButton } from "@/components/BackButton";
@@ -30,6 +32,7 @@ import { localDateKey } from "@/lib/date";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AthleteCoachPanel } from "@/components/athlete/AthleteCoachPanel";
+import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -40,7 +43,7 @@ type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs
 type Mission = Awaited<ReturnType<typeof getTrainerClientMissions>>["missions"][number];
 type ProgressComparison = Awaited<ReturnType<typeof getTrainerClientProgressComparison>>["comparison"];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getTrainerClientNutritionPlan>>["coachPlan"];
-type CollapsibleKey = "coachPlan" | "dailyMission" | "messages" | "foodLogs" | "progressPhotos" | "weeklyReport";
+type CollapsibleKey = "coachPlan" | "dailyMission" | "messages" | "foodLogs" | "progressPhotos" | "weeklyReport" | "memory";
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -110,6 +113,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     history: CoachPresenceMessage[];
     settings: CoachPresenceSettings;
   }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
+  const [ascendMemory, setAscendMemory] = useState<AscendMemoryResponse | null>(null);
   const [nutritionCalories, setNutritionCalories] = useState("");
   const [nutritionProtein, setNutritionProtein] = useState("");
   const [nutritionCarbs, setNutritionCarbs] = useState("");
@@ -132,7 +136,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     messages: false,
     foodLogs: false,
     progressPhotos: false,
-    weeklyReport: false
+    weeklyReport: false,
+    memory: false
   });
 
   useEffect(() => {
@@ -146,7 +151,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         setClient(profile.client);
         setStatus("");
 
-        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison, nutritionPlan, presence] = await Promise.allSettled([
+        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison, nutritionPlan, presence, memory] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
@@ -155,7 +160,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           getTrainerClientMissions(clientId),
           getTrainerClientProgressComparison(clientId),
           getTrainerClientNutritionPlan(clientId),
-          getTrainerClientCoachPresence(clientId)
+          getTrainerClientCoachPresence(clientId),
+          getTrainerClientMemory(clientId)
         ]);
 
         if (!isMounted) return;
@@ -179,6 +185,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           }
         }
         if (presence.status === "fulfilled") setCoachPresence(presence.value);
+        if (memory.status === "fulfilled") setAscendMemory(memory.value);
 
         if ([foods, nextMessages, progress, weights, waters, nextMissions].some((result) => result.status === "rejected")) {
           setStatus("Some client sections could not load yet. The main client profile is still available.");
@@ -712,6 +719,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             <Send size={18} />
           </button>
         </form>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Ascend Memory"
+        preview={ascendMemory?.timeline.length ? `${ascendMemory.timeline.length} journey milestones` : "No milestones yet"}
+        isOpen={openSections.memory}
+        onToggle={() => setSectionOpen("memory", !openSections.memory)}
+      >
+        <AscendMemoryCard memory={ascendMemory} />
       </CollapsibleSection>
 
       <CollapsibleSection

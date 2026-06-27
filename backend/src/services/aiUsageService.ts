@@ -4,7 +4,7 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { Role, SubscriptionPlan } from "@ascend/shared";
 
-export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation";
+export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection";
 export type AiStatus = "success" | "error" | "cache_hit" | "fallback";
 export type FoodAiAllowance = {
   period: "week" | "day" | "unlimited";
@@ -28,7 +28,8 @@ export class FoodAiLimitError extends Error {
 const eventCostCents: Record<AiEventType, number> = {
   food_image_analysis: env.AI_FOOD_ANALYSIS_ESTIMATED_COST_CENTS,
   ai_chat_message: env.AI_CHAT_ESTIMATED_COST_CENTS,
-  weekly_report_generation: env.AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS
+  weekly_report_generation: env.AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS,
+  memory_reflection: env.AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS
 };
 
 export function imageHashFromDataUrl(imageUrl: string) {

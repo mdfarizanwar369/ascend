@@ -6,6 +6,7 @@ import {
   acknowledgeGoalMilestone,
   completeMission,
   getBurnLogs,
+  getAscendMemory,
   getCoachPresence,
   getComplianceToday,
   getFoodLogs,
@@ -25,7 +26,8 @@ import {
   updateCoachPresenceStyle,
   dismissCoachPresence,
   CoachPresenceMessage,
-  CoachPresenceSettings
+  CoachPresenceSettings,
+  AscendMemoryResponse
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
@@ -34,6 +36,7 @@ import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 import { clearDashboardRecord, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
+import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -150,6 +153,7 @@ export function ClientDashboard() {
     history: CoachPresenceMessage[];
     settings: CoachPresenceSettings;
   }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
+  const [ascendMemory, setAscendMemory] = useState<AscendMemoryResponse | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [momentumBreakdown, setMomentumBreakdown] = useState({
     food: 0,
@@ -196,7 +200,7 @@ export function ClientDashboard() {
 
     try {
       const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan, presence] = await Promise.allSettled([
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan, presence, memory] = await Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -210,7 +214,8 @@ export function ClientDashboard() {
         getGoalStatus(),
         getProgressPhotos(),
         getMyNutritionPlan(),
-        getCoachPresence()
+        getCoachPresence(),
+        getAscendMemory()
       ]);
 
       if (requestId !== dashboardRequestRef.current) return;
@@ -264,6 +269,7 @@ export function ClientDashboard() {
       if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
       if (nutritionPlan.status === "fulfilled") setCoachNutritionPlan(nutritionPlan.value.coachPlan);
       if (presence.status === "fulfilled") setCoachPresence(presence.value);
+      if (memory.status === "fulfilled") setAscendMemory(memory.value);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -851,6 +857,8 @@ export function ClientDashboard() {
             ) : null}
           </section>
         ) : null}
+
+        {hasPremiumAccess ? <AscendMemoryCard memory={ascendMemory} compact /> : null}
 
         {hasPremiumAccess ? (
           <a href="/reports" className="mt-4 block rounded-2xl border border-purple-400/40 bg-purple-400/10 p-5 shadow-soft">

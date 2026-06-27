@@ -907,6 +907,15 @@ export async function estimateBurnFromText(text: string) {
   }
 }
 
+export async function createAscendMemoryReflection(context: string) {
+  const reply = await createTextReply(
+    "You write Ascend Memory reflections for a fitness accountability app. Write one warm, human reflection under 80 words. Celebrate real progress only. Never exaggerate, never shame, never diagnose, never compare the member to other people, and never invent facts. Compare the member only with their own history. Plain text only.",
+    `Member journey context:\n${context}\n\nWrite the reflection now.`,
+    "This milestone matters because it shows you are still building your own rhythm. Keep comparing yourself to where you started, not to anyone else."
+  );
+  return reply.replace(/\*\*/g, "").replace(/\*/g, "").trim().slice(0, 700);
+}
+
 export async function createWeeklySummary(context: string) {
   return createTextReply(
     "Create a concise trainer-facing weekly check-in summary. Mention wins, risks, and next actions. Avoid medical diagnosis.",

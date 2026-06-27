@@ -409,6 +409,33 @@ export function getCoachPresence() {
   }>("/coach-presence");
 }
 
+export type AscendMemoryItem = {
+  id?: string;
+  milestoneKey: string;
+  type: string;
+  title: string;
+  subtitle: string;
+  occurredAt: string;
+  priority: number;
+  reflection?: string | null;
+  aiGenerated?: boolean;
+  metadata?: Record<string, unknown>;
+};
+
+export type AscendMemoryResponse = {
+  access: "none" | "premium" | "athlete";
+  timeline: AscendMemoryItem[];
+  stats: {
+    aiReflectionsThisMonth: number;
+    monthlyLimit: number;
+    cacheHits: number;
+  };
+};
+
+export function getAscendMemory() {
+  return authed<AscendMemoryResponse>("/memory/me");
+}
+
 export function updateCoachPresenceStyle(style: CoachPresenceSettings["style"]) {
   return authed<{ settings: unknown }>("/coach-presence/settings", {
     method: "PATCH",
@@ -821,6 +848,10 @@ export function getTrainerClientCoachPresence(clientId: string) {
     history: CoachPresenceMessage[];
     settings: CoachPresenceSettings;
   }>(`/trainer/clients/${clientId}/coach-presence`);
+}
+
+export function getTrainerClientMemory(clientId: string) {
+  return authed<AscendMemoryResponse>(`/trainer/clients/${clientId}/memory`);
 }
 
 export function pauseTrainerClientCoachPresence(clientId: string, pauseHours: number | null) {
