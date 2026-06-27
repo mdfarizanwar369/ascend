@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
+import { ChevronDown } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -52,6 +53,19 @@ type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getMyNutritionPlan>>["coachPlan"];
+type CollapsibleKey =
+  | "nutrition"
+  | "weightHistory"
+  | "waterHistory"
+  | "workoutHistory"
+  | "weeklyReport"
+  | "memory"
+  | "progressPhotos"
+  | "habits"
+  | "foodHistory"
+  | "coachMessages"
+  | "bodyScanHistory"
+  | "settings";
 
 const goalCelebrationMessages = [
   "This is what consistency looks like.",
@@ -133,6 +147,51 @@ function formatMealTime(value: string) {
   return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
 }
 
+function formatShortDate(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date);
+}
+
+function CollapsibleSection({
+  title,
+  preview,
+  children,
+  isOpen,
+  onToggle
+}: {
+  title: string;
+  preview: string;
+  children: ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <section className="mt-4 rounded-2xl border border-line bg-surface shadow-soft">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+      >
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <p className="mt-1 truncate text-sm text-zinc-400">{preview}</p>
+        </div>
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-200">
+          <ChevronDown className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} size={18} />
+        </span>
+      </button>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className="overflow-hidden">
+          <div className="border-t border-line p-4 pt-3">{children}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function ClientDashboard() {
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -166,12 +225,25 @@ export function ClientDashboard() {
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
-  const [showProgressDetails, setShowProgressDetails] = useState(false);
   const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
   const [dashboardSessionCount, setDashboardSessionCount] = useState(1);
   const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
+  const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
+    nutrition: false,
+    weightHistory: false,
+    waterHistory: false,
+    workoutHistory: false,
+    weeklyReport: false,
+    memory: false,
+    progressPhotos: false,
+    habits: false,
+    foodHistory: false,
+    coachMessages: false,
+    bodyScanHistory: false,
+    settings: false
+  });
   const dashboardRequestRef = useRef(0);
   const dashboardLoadInFlightRef = useRef(false);
   const hasLoadedDashboardRef = useRef(false);
@@ -395,11 +467,6 @@ export function ClientDashboard() {
   }, [loadDashboard]);
 
   useEffect(() => {
-    try {
-      setShowProgressDetails(window.localStorage.getItem("ascend:client-progress-expanded") === "true");
-    } catch {
-      setShowProgressDetails(false);
-    }
     setRecentAction(readRecentDashboardAction());
   }, []);
 
@@ -608,27 +675,50 @@ export function ClientDashboard() {
     { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
     { label: "Activity", value: `${todaysBurnCalories}`, detail: "kcal burn" }
   ];
-
-  function toggleProgressDetails() {
-    setShowProgressDetails((current) => {
-      const next = !current;
-      try {
-        window.localStorage.setItem("ascend:client-progress-expanded", String(next));
-      } catch {
-        // Private browsers can block storage. The dashboard still expands for this session.
-      }
-      return next;
-    });
-  }
+  const quickSnapshotItems = [
+    { label: "Calories", value: calories.toLocaleString(), detail: `${calorieTarget.toLocaleString()} guide` },
+    { label: "Protein", value: `${protein}g`, detail: `${proteinTarget}g guide` },
+    { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
+    { label: "Weight", value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "--", detail: weightTrend(latestWeight, previousWeight) },
+    { label: "Momentum", value: `${score}/100`, detail: scoreLabel },
+    ...(user?.athlete_mode_enabled
+      ? [{
+          label: "Body Scan",
+          value: athleteBodyComposition?.bodyFatPercent ? `${Number(athleteBodyComposition.bodyFatPercent).toFixed(1)}%` : "--",
+          detail: athleteBodyComposition?.scanCount ? `${athleteBodyComposition.scanCount} scans` : "No scan yet"
+        }]
+      : [])
+  ];
+  const latestBurnLog = burnLogs[0];
+  const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : null;
+  const latestMemoryMilestone = ascendMemory?.timeline?.[0];
+  const nutritionPreview = `${calories.toLocaleString()} kcal / ${protein}g protein / ${todaysFood.length} meals today`;
+  const weightPreview = latestWeight
+    ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg${weightDelta !== null ? ` / ${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg` : ""}`
+    : "No weight logged yet";
+  const waterPreview = `${(todaysWaterMl / 1000).toFixed(1)}L today / ${weeklyWaterDays.size}/7 days`;
+  const workoutPreview = latestBurnLog
+    ? `${Number(latestBurnLog.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal / ${formatShortDate(latestBurnLog.created_at)}`
+    : "No activity logged yet";
+  const weeklyReportPreview = hasPremiumAccess ? "Weekly report ready when you want detail" : "Premium unlocks weekly reports";
+  const memoryPreview = latestMemoryMilestone ? `Latest milestone: ${latestMemoryMilestone.title}` : "No journey milestones yet";
+  const photoPreview = progressPhotos.length ? `${progressPhotos.length} photos / latest ${formatShortDate(progressPhotos[0]?.logged_at)}` : "No progress photos yet";
+  const habitsPreview = dashboardHabits.length ? `${completedHabitIds.size}/${habits.length} habits done today` : "No habits created yet";
+  const foodHistoryPreview = foodLogs.length ? `${foodLogs.length} total meals / ${todaysFood.length} today` : "No meals logged yet";
+  const coachMessagePreview = latestRecognition?.message
+    ? `Latest: "${latestRecognition.message}"`
+    : coachPresence.latest?.message
+      ? `Latest: "${coachPresence.latest.message}"`
+      : user?.assigned_trainer_name
+        ? `Message ${user.assigned_trainer_name}`
+        : "No trainer messages yet";
+  const bodyScanPreview = user?.athlete_mode_enabled
+    ? athleteBodyComposition?.scanCount
+      ? `Body fat ${athleteBodyComposition.bodyFatPercent ?? "--"}% / ${athleteBodyComposition.scanCount} scans`
+      : "No Body Scan yet"
+    : "Athlete Mode only";
 
   function revealTodayProgress() {
-    setShowProgressDetails(true);
-    try {
-      window.localStorage.setItem("ascend:client-progress-expanded", "true");
-    } catch {
-      // The progress section still opens even if storage is unavailable.
-    }
-
     window.setTimeout(() => {
       const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       progressDetailsRef.current?.scrollIntoView({
@@ -636,6 +726,10 @@ export function ClientDashboard() {
         block: "start"
       });
     }, 80);
+  }
+
+  function setSectionOpen(key: CollapsibleKey, isOpen: boolean) {
+    setOpenSections((current) => ({ ...current, [key]: isOpen }));
   }
 
   return (
@@ -753,10 +847,11 @@ export function ClientDashboard() {
         <section className="mt-4 rounded-2xl border border-lime/40 bg-lime/10 p-5 shadow-soft">
           <div className="flex flex-col gap-3">
             <div>
-              <p className="text-sm font-semibold text-lime">Today&apos;s mission</p>
+              <p className="text-sm font-semibold text-lime">Today&apos;s tasks</p>
               <h2 className="mt-1 text-xl font-semibold">
                 {recentCelebration ? "Consistency is building." : dailyMission ? dailyMission.title : nextAction.title}
               </h2>
+              <p className="mt-1 text-xs text-zinc-500">{formatGoal(user?.goal_type)}</p>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
                 {recentCelebration ? "Take the win first. Ascend will bring back the next recommendation naturally." : dailyMission ? "Complete this simple check-in today." : momentumSummary}
               </p>
@@ -777,6 +872,21 @@ export function ClientDashboard() {
             </button>
           ) : null}
           {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {[
+              { href: quickLogHref("Food"), title: "Food photo", detail: hasPremiumAccess ? "AI estimate" : "Log meal" },
+              { href: quickLogHref("Weight"), title: "Weight", detail: "Scale check-in" },
+              { href: quickLogHref("Water"), title: "Water", detail: "Add drinks" },
+              { href: quickLogHref("Burn"), title: "Activity", detail: "Estimate burn" }
+            ].map((item) => (
+              <a key={item.title} href={item.href} className="grid min-h-20 rounded-xl border border-line bg-ink p-3">
+                <span>
+                  <span className="block text-base font-semibold text-white">{item.title}</span>
+                  <span className="mt-1 block text-sm text-zinc-400">{item.detail}</span>
+                </span>
+              </a>
+            ))}
+          </div>
         </section>
 
         <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-soft">
@@ -785,14 +895,9 @@ export function ClientDashboard() {
               <p className="text-sm font-semibold">Today&apos;s progress</p>
               <p className="mt-1 text-sm text-zinc-400">A quick glance, no overthinking.</p>
             </div>
-            <button
-              type="button"
-              onClick={toggleProgressDetails}
-              className="w-fit rounded-full bg-ink px-3 py-2 text-sm font-semibold leading-tight text-lime"
-              aria-expanded={showProgressDetails}
-            >
+            <span className="w-fit rounded-full bg-ink px-3 py-2 text-sm font-semibold leading-tight text-lime">
               {momentumHeadline}
-            </button>
+            </span>
           </div>
           <div className="mt-4 grid grid-cols-3 gap-2">
             {todayProgressItems.map((item) => (
@@ -805,334 +910,102 @@ export function ClientDashboard() {
           </div>
         </section>
 
-        {latestRecognition ? (
-          <section className="mt-4 rounded-2xl border border-lime/40 bg-lime/10 p-5 shadow-soft">
-            <p className="text-sm font-semibold text-lime">Coach message</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-200">{latestRecognition.message}</p>
-            {latestRecognition.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {latestRecognition.trainer_name}</p> : null}
-          </section>
-        ) : user?.assigned_trainer_name ? (
-          <a href="/messages" className="mt-4 block rounded-2xl border border-line bg-surface p-5 shadow-soft">
-            <p className="text-sm font-semibold">Coach message</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Message {user.assigned_trainer_name} when you need help between sessions.</p>
-          </a>
-        ) : null}
+        <section ref={progressDetailsRef} className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-calm">Quick Snapshot</p>
+              <p className="mt-1 text-sm text-zinc-400">The numbers that matter today.</p>
+            </div>
+            <a href="/momentum-score" className="rounded-full bg-ink px-3 py-2 text-xs font-semibold text-lime">
+              Explain score
+            </a>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {quickSnapshotItems.map((item) => (
+              <div key={item.label} className="rounded-xl bg-ink p-3">
+                <p className="text-xs text-zinc-400">{item.label}</p>
+                <p className="mt-1 text-lg font-semibold">{item.value}</p>
+                <p className="mt-1 text-[11px] leading-4 text-zinc-500">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {[
+              ["Food", momentumBreakdown.food, 35],
+              ["Weight", momentumBreakdown.weight, 25],
+              ["Water", momentumBreakdown.water, 20],
+              ["Habits", momentumBreakdown.habits, 20]
+            ].map(([label, value, max]) => (
+              <div key={label} className="rounded-lg bg-ink/80 p-2 text-center">
+                <p className="text-[11px] text-zinc-500">{label}</p>
+                <p className="mt-1 text-xs font-semibold text-zinc-200">
+                  {value}/{max}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        {hasPremiumAccess && coachPresence.latest ? (
+        {hasPremiumAccess || latestRecognition || user?.assigned_trainer_name ? (
           <section className="mt-4 rounded-2xl border border-calm/40 bg-calm/10 p-5 shadow-soft">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-calm">Coach Presence</p>
-                <p className="mt-2 text-sm leading-6 text-zinc-200">{coachPresence.latest.message}</p>
-                <p className="mt-2 text-xs text-zinc-500">Support between trainer check-ins, based only on your Ascend activity.</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-200">
+                  {coachPresence.latest?.message ??
+                    latestRecognition?.message ??
+                    (user?.assigned_trainer_name
+                      ? `Message ${user.assigned_trainer_name} when you need help between sessions.`
+                      : "Support between sessions appears here when it is available.")}
+                </p>
+                <p className="mt-2 text-xs text-zinc-500">
+                  {latestRecognition?.trainer_name ? `From ${latestRecognition.trainer_name}` : "Supportive, not spammy."}
+                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => dismissPresence(coachPresence.latest!.id)}
-                className="rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300"
-              >
-                Dismiss
-              </button>
-            </div>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {(["motivational", "balanced", "minimal"] as const).map((style) => (
+              {coachPresence.latest ? (
                 <button
-                  key={style}
                   type="button"
-                  onClick={() => changeCoachPresenceStyle(style)}
-                  className={`rounded-full px-3 py-2 text-xs font-semibold capitalize ${
-                    coachPresence.settings.style === style ? "bg-calm text-ink" : "border border-line bg-ink text-zinc-300"
-                  }`}
+                  onClick={() => dismissPresence(coachPresence.latest!.id)}
+                  className="rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300"
                 >
-                  {style}
+                  Dismiss
                 </button>
-              ))}
+              ) : null}
             </div>
-            {coachPresence.history.length > 1 ? (
-              <div className="mt-4 space-y-2">
-                {coachPresence.history.slice(1, 4).map((message) => (
-                  <p key={message.id} className="rounded-lg bg-ink p-3 text-xs leading-5 text-zinc-400">{message.message}</p>
+            {hasPremiumAccess ? (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {(["motivational", "balanced", "minimal"] as const).map((style) => (
+                  <button
+                    key={style}
+                    type="button"
+                    onClick={() => changeCoachPresenceStyle(style)}
+                    className={`rounded-full px-3 py-2 text-xs font-semibold capitalize ${
+                      coachPresence.settings.style === style ? "bg-calm text-ink" : "border border-line bg-ink text-zinc-300"
+                    }`}
+                  >
+                    {style}
+                  </button>
                 ))}
               </div>
             ) : null}
           </section>
         ) : null}
 
-        {hasPremiumAccess ? <AscendMemoryCard memory={ascendMemory} compact /> : null}
-
-        {hasPremiumAccess ? (
-          <a href="/reports" className="mt-4 block rounded-2xl border border-purple-400/40 bg-purple-400/10 p-5 shadow-soft">
-            <p className="text-sm font-semibold text-purple-300">Weekly report</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">Your weekly wins and consistency summary are ready when you want the detail.</p>
-          </a>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={toggleProgressDetails}
-          className="mt-5 flex h-14 w-full items-center justify-center rounded-2xl border border-line bg-surface text-base font-semibold text-lime shadow-soft transition duration-300 hover:border-lime/60"
-          aria-expanded={showProgressDetails}
-          aria-controls="client-progress-details"
+        <CollapsibleSection
+          title="Nutrition"
+          preview={nutritionPreview}
+          isOpen={openSections.nutrition}
+          onToggle={() => setSectionOpen("nutrition", !openSections.nutrition)}
         >
-          {showProgressDetails ? "Show Less" : "Show My Progress"}
-        </button>
-
-        <div
-          id="client-progress-details"
-          ref={progressDetailsRef}
-          className={`overflow-hidden transition-all duration-300 ease-out ${
-            showProgressDetails ? "max-h-[20000px] translate-y-0 opacity-100" : "max-h-0 -translate-y-2 opacity-0"
-          }`}
-        >
-          <div className="pb-2 pt-1">
-
-        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-calm">Today&apos;s target</p>
-              <h1 className="mt-1 text-2xl font-semibold">{nextAction.title}</h1>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">{nextAction.detail}</p>
-            </div>
-            <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">
-              {calorieOver > 0 ? `${calorieOver.toLocaleString()} over` : `${caloriesLeft.toLocaleString()} left`}
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Calories</p>
-              <p className="mt-1 text-lg font-semibold">{calorieOver > 0 ? `${calorieOver.toLocaleString()} over` : `${caloriesLeft.toLocaleString()} left`}</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Protein</p>
-              <p className="mt-1 text-lg font-semibold">{Math.round(proteinLeft)}g left</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Water</p>
-              <p className="mt-1 text-lg font-semibold">{(waterLeftMl / 1000).toFixed(1)}L left</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm text-zinc-300">{formatGoal(user?.goal_type)}</p>
-              <h2 className="mt-1 text-2xl font-semibold">Quick actions</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">Log one thing now to keep today moving.</p>
-            </div>
-            <a href="/food-log" className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-lime text-xl font-bold text-ink" aria-label="Add food">
-              +
-            </a>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {[
-              { href: quickLogHref("Food"), title: "Food photo", detail: hasPremiumAccess ? "AI estimate" : "Log meal" },
-              { href: quickLogHref("Weight"), title: "Weight", detail: "Scale check-in" },
-              { href: quickLogHref("Water"), title: "Water", detail: "Add drinks" },
-              { href: quickLogHref("Burn"), title: "Activity", detail: "Estimate burn" }
-            ].map((item) => (
-              <a key={item.title} href={item.href} className="grid min-h-24 rounded-lg border border-line bg-ink p-3">
-                <span>
-                  <span className="block text-base font-semibold text-white">{item.title}</span>
-                  <span className="mt-1 block text-sm text-zinc-400">{item.detail}</span>
-                </span>
-              </a>
-            ))}
-          </div>
-        </section>
-
-        {user?.athlete_mode_enabled ? (
-          <a href="/athlete" className="mt-4 block rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-purple-300">Athlete Mode</p>
-                <p className="mt-1 text-sm leading-6 text-zinc-300">Check readiness, event countdown, and this week&apos;s training targets.</p>
-              </div>
-              <span className="rounded-lg bg-purple-400 px-3 py-2 text-sm font-semibold text-ink">Open</span>
-            </div>
-          </a>
-        ) : null}
-
-        <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-calm">Today&apos;s mission</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">
-                {dailyMission
-                  ? dailyMission.title
-                  : user?.assigned_trainer_name
-                    ? "No trainer mission today. Focus on one quick action above."
-                    : "Your trainer can add a simple daily mission after assignment."}
-              </p>
-              {dailyMission?.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {dailyMission.trainer_name}</p> : null}
-            </div>
-            <span className={`rounded px-3 py-1 text-xs ${dailyMission?.status === "completed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}>
-              {dailyMission?.status === "completed" ? "Done" : "Open"}
-            </span>
-          </div>
-          {dailyMission && dailyMission.status !== "completed" ? (
-            <button
-              type="button"
-              disabled={isCompletingMission}
-              onClick={markMissionDone}
-              className="mt-4 h-11 w-full rounded-lg bg-lime font-semibold text-ink disabled:cursor-wait disabled:opacity-60"
-            >
-              {isCompletingMission ? "Saving..." : "Mark mission done"}
-            </button>
-          ) : null}
-          {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}
-        </section>
-
-        {latestRecognition ? (
-          <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
-            <p className="text-sm font-semibold text-lime">Trainer noticed</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-200">{latestRecognition.message}</p>
-            {latestRecognition.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {latestRecognition.trainer_name}</p> : null}
-          </section>
-        ) : null}
-
-        {coachingMode === "ai_coach" && !hasPremiumAccess ? (
-          <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
-            <p className="text-sm font-semibold text-calm">AI Coach selected</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">
-              Free tracking is active now. Premium unlocks AI coach chat, weekly reports, progress photos, and AI food guidance.
-            </p>
-            <a href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-              Unlock AI Coach
-            </a>
-          </section>
-        ) : null}
-
-        {coachingMode === "human_coach" && !user?.assigned_trainer_name ? (
-          <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
-            <p className="text-sm font-semibold text-lime">Human Coach selected</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">
-              Your account is ready for trainer accountability. Use a trainer referral code during signup or ask the gym owner to assign a trainer.
-            </p>
-          </section>
-        ) : null}
-
-        <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-lime">Consistency streak</p>
-              <h2 className="mt-1 text-xl font-semibold">{streakTitle}</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">{streakCopy}</p>
-            </div>
-            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border-2 border-lime bg-ink text-center">
-              <span>
-                <span className="block text-2xl font-semibold">{currentStreak}</span>
-                <span className="block text-[10px] text-zinc-400">days</span>
-              </span>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">This week</p>
-              <p className="mt-1 text-lg font-semibold">{streak?.activeDaysThisWeek ?? weeklyCheckInDays.size}/7 days</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Best streak</p>
-              <p className="mt-1 text-lg font-semibold">{streak?.best ?? currentStreak} days</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Weekly goal progress</p>
-              <p className="mt-1 text-sm leading-6 text-zinc-400">
-                {goalProgress === null
-                  ? "Add weight logs to see progress toward your goal."
-                  : `${goalProgress}% ${progressCopy(user?.goal_type)}.`}
-              </p>
-            </div>
-            <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">
-              {goalProgress === null ? "--" : `${goalProgress}%`}
-            </span>
-          </div>
-          <div className="mt-4 h-3 overflow-hidden rounded-full bg-ink">
-            <div className="h-full rounded-full bg-lime" style={{ width: `${goalProgress ?? 8}%` }} />
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Current weight</p>
-              <p className="mt-1 text-lg font-semibold">{currentWeight ? `${currentWeight.toFixed(1)}kg` : "--"}</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">To goal</p>
-              <p className="mt-1 text-lg font-semibold">{remainingWeight === null ? "--" : `${remainingWeight.toFixed(1)}kg`}</p>
-            </div>
-          </div>
-          <a href="/profile/guide" className="mt-3 block text-center text-sm font-semibold text-lime">Change goal or target</a>
-        </section>
-
-        {progressComparison ? (
-          <div className="mt-4">
-            <ProgressComparisonCard comparison={progressComparison} />
-          </div>
-        ) : null}
-
-        {needsGuideProfile ? (
-          <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
-            <p className="text-sm font-semibold text-calm">Make your daily guide more accurate</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">
-              Add age, height, and activity level so Ascend can make your daily targets more personal.
-            </p>
-            <a href="/profile/guide" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-              Improve my daily guide
-            </a>
-          </section>
-        ) : null}
-
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Momentum Score</p>
-              <p className="mt-1 text-sm text-zinc-400">{scoreLabel}</p>
-            </div>
-            <a href="/momentum-score" className="text-sm font-medium text-lime">
-              Explain
-            </a>
-          </div>
-          <div className="mt-4 flex items-center gap-4">
-            <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full border-4 border-lime">
-              <div className="text-center">
-                <p className="text-3xl font-semibold">{score}</p>
-                <p className="text-xs text-zinc-400">today</p>
-              </div>
-            </div>
-            <div className="grid flex-1 grid-cols-2 gap-2">
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Check-in days</p>
-                <p className="mt-1 text-lg font-semibold">{weeklyCheckInDays.size}/7</p>
-              </div>
-              <div className="rounded-lg bg-ink p-3">
-                <p className="text-xs text-zinc-400">Food days</p>
-                <p className="mt-1 text-lg font-semibold">{foodConsistency}/7</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">Today&apos;s nutrition guide</h2>
-              <p className={`mt-1 text-xs font-bold uppercase tracking-[0.16em] ${nutritionSourceTone}`}>
-                {nutritionSourceLabel}
-              </p>
+              <p className={`mt-1 text-xs font-bold uppercase tracking-[0.16em] ${nutritionSourceTone}`}>{nutritionSourceLabel}</p>
               <p className="mt-1 text-sm leading-6 text-zinc-400">
                 {hasCoachNutritionPlan
                   ? "Your trainer customised these targets for your current phase."
                   : `${nutritionTargets.explanation} ${nutritionTargets.adaptationReason ?? (nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule.")}`}
               </p>
-              {coachNutritionPlan?.updated_by_name ? (
-                <p className="mt-2 text-xs text-zinc-500">
-                  Last updated by {coachNutritionPlan.updated_by_name} on {new Date(coachNutritionPlan.updated_at).toLocaleDateString()}.
-                </p>
-              ) : null}
             </div>
             <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{calorieTarget.toLocaleString()} kcal</span>
           </div>
@@ -1142,16 +1015,6 @@ export function ClientDashboard() {
               <p className="mt-2 text-sm leading-6 text-zinc-200">{coachNutritionPlan.coach_note}</p>
             </div>
           ) : null}
-          {hasCoachNutritionPlan ? (
-            <div className="mt-4 rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-400">
-              Ascend still keeps an automatic recommendation in the background. Your dashboard follows your Coach Plan until your trainer updates it.
-            </div>
-          ) : (
-            <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink text-sm font-semibold text-lime">
-              Review goal and daily guide
-            </a>
-          )}
-
           <div className="mt-4 space-y-4">
             <div>
               <div className="flex items-center justify-between text-sm">
@@ -1172,103 +1035,190 @@ export function ClientDashboard() {
               </div>
             </div>
           </div>
-
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-lg bg-ink p-4">
-              <p className="text-xs uppercase text-zinc-400">Carbs</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{carbs}g</p>
-              <p className="mt-1 text-sm text-zinc-400">of {carbsTarget}g guide</p>
-            </div>
-            <div className="rounded-lg bg-ink p-4">
-              <p className="text-xs uppercase text-zinc-400">Fat</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{fat}g</p>
-              <p className="mt-1 text-sm text-zinc-400">of {fatTarget}g guide</p>
-            </div>
-            <div className="rounded-lg bg-ink p-4">
-              <p className="text-xs uppercase text-zinc-400">Water</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{(todaysWaterMl / 1000).toFixed(1)}L</p>
-              <p className="mt-1 text-sm text-zinc-400">{(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L daily guide</p>
-            </div>
-            <div className="rounded-lg bg-ink p-4">
-              <p className="text-xs uppercase text-zinc-400">Activity</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{todaysBurnCalories} kcal</p>
-              <p className="mt-1 text-sm text-zinc-400">{todaysBurnCalories ? "Movement logged" : "Add movement"}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Trainer connection</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">
-                {user?.assigned_trainer_name
-                  ? `Your trainer: ${user.assigned_trainer_name}`
-                  : coachingMode === "human_coach"
-                    ? "Human Coach selected. Your gym can assign a trainer when ready."
-                    : coachingMode === "ai_coach"
-                      ? "AI Coach is active. A trainer can still be assigned later."
-                      : "Self-Coached mode. You can still connect with a trainer later."}
-              </p>
-            </div>
-            <span className={`rounded px-3 py-1 text-xs ${user?.assigned_trainer_name ? "bg-lime text-ink" : "bg-surface text-zinc-300"}`}>
-              {user?.assigned_trainer_name ? "Connected" : coachingLabel(coachingMode)}
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            {premiumActions.map((item) => (
-              <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
-                <span className="block text-sm font-semibold text-white">{item.title}</span>
-                <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
-              </a>
+            {[
+              ["Carbs", `${carbs}g`, `${carbsTarget}g guide`],
+              ["Fat", `${fat}g`, `${fatTarget}g guide`],
+              ["Water", `${(todaysWaterMl / 1000).toFixed(1)}L`, `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide`],
+              ["Activity", `${todaysBurnCalories} kcal`, todaysBurnCalories ? "Movement logged" : "Add movement"]
+            ].map(([label, value, detail]) => (
+              <div key={label} className="rounded-lg bg-ink p-4">
+                <p className="text-xs uppercase text-zinc-400">{label}</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+                <p className="mt-1 text-sm text-zinc-400">{detail}</p>
+              </div>
             ))}
           </div>
-          {!hasPremiumAccess ? (
-            <a href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-              Unlock trainer support
-            </a>
-          ) : null}
-        </section>
-
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold">Habits</h2>
-            <a href="/habits" className="text-sm font-medium text-lime">
-              Open
-            </a>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Food days</p>
+              <p className="mt-1 text-lg font-semibold">{foodConsistency}/7</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Protein days</p>
+              <p className="mt-1 text-lg font-semibold">{proteinConsistency}/7</p>
+            </div>
           </div>
-          <div className="mt-3 space-y-2">
+          <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink text-sm font-semibold text-lime">
+            Review goal and daily guide
+          </a>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Weight History"
+          preview={weightPreview}
+          isOpen={openSections.weightHistory}
+          onToggle={() => setSectionOpen("weightHistory", !openSections.weightHistory)}
+        >
+          <div className="rounded-lg border border-line bg-ink p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Weekly goal progress</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  {goalProgress === null ? "Add weight logs to see progress toward your goal." : `${goalProgress}% ${progressCopy(user?.goal_type)}.`}
+                </p>
+              </div>
+              <span className="rounded-lg bg-surface px-3 py-2 text-sm font-semibold text-lime">{goalProgress === null ? "--" : `${goalProgress}%`}</span>
+            </div>
+            <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface">
+              <div className="h-full rounded-full bg-lime" style={{ width: `${goalProgress ?? 8}%` }} />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-400">Current weight</p>
+                <p className="mt-1 text-lg font-semibold">{currentWeight ? `${currentWeight.toFixed(1)}kg` : "--"}</p>
+              </div>
+              <div className="rounded-lg bg-surface p-3">
+                <p className="text-xs text-zinc-400">To goal</p>
+                <p className="mt-1 text-lg font-semibold">{remainingWeight === null ? "--" : `${remainingWeight.toFixed(1)}kg`}</p>
+              </div>
+            </div>
+          </div>
+          {progressComparison ? <div className="mt-4"><ProgressComparisonCard comparison={progressComparison} /></div> : null}
+          <div className="mt-4 space-y-2">
+            {weightLogs.slice(0, 5).map((log) => (
+              <div key={log.id} className="flex items-center justify-between rounded-lg bg-ink p-3">
+                <span className="text-sm text-zinc-400">{formatShortDate(log.logged_at)}</span>
+                <span className="font-semibold">{asNumber(log.weight_kg).toFixed(1)}kg</span>
+              </div>
+            ))}
+            {!weightLogs.length ? <a href="/weight-log" className="block rounded-lg bg-ink p-3 text-sm text-zinc-400">Record your first weight check-in.</a> : null}
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Water History"
+          preview={waterPreview}
+          isOpen={openSections.waterHistory}
+          onToggle={() => setSectionOpen("waterHistory", !openSections.waterHistory)}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">Today</p>
+              <p className="mt-1 text-lg font-semibold">{(todaysWaterMl / 1000).toFixed(1)}L</p>
+            </div>
+            <div className="rounded-lg bg-ink p-3">
+              <p className="text-xs text-zinc-400">This week</p>
+              <p className="mt-1 text-lg font-semibold">{weeklyWaterDays.size}/7 days</p>
+            </div>
+          </div>
+          <a href="/water-log" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+            Log water
+          </a>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Workout History"
+          preview={workoutPreview}
+          isOpen={openSections.workoutHistory}
+          onToggle={() => setSectionOpen("workoutHistory", !openSections.workoutHistory)}
+        >
+          <div className="space-y-2">
+            {burnLogs.slice(0, 5).map((log) => (
+              <div key={log.id} className="flex items-center justify-between rounded-lg bg-ink p-3">
+                <span className="text-sm text-zinc-400">{formatShortDate(log.created_at)}</span>
+                <span className="font-semibold">{Number(log.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal</span>
+              </div>
+            ))}
+            {!burnLogs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No activity logged yet.</p> : null}
+          </div>
+          <a href="/burn-log" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+            Log activity
+          </a>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Weekly Report"
+          preview={weeklyReportPreview}
+          isOpen={openSections.weeklyReport}
+          onToggle={() => setSectionOpen("weeklyReport", !openSections.weeklyReport)}
+        >
+          <p className="text-sm leading-6 text-zinc-300">Review your weekly wins, consistency, and next focus when you want the detail.</p>
+          <a href="/reports" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+            Open weekly report
+          </a>
+        </CollapsibleSection>
+
+        {hasPremiumAccess ? (
+          <CollapsibleSection
+            title="Ascend Memory"
+            preview={memoryPreview}
+            isOpen={openSections.memory}
+            onToggle={() => setSectionOpen("memory", !openSections.memory)}
+          >
+            <AscendMemoryCard memory={ascendMemory} />
+          </CollapsibleSection>
+        ) : null}
+
+        <CollapsibleSection
+          title="Progress Photos"
+          preview={photoPreview}
+          isOpen={openSections.progressPhotos}
+          onToggle={() => setSectionOpen("progressPhotos", !openSections.progressPhotos)}
+        >
+          {latestProgressPhoto?.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={latestProgressPhoto.image_url} alt="Latest progress" className="aspect-[4/5] w-full rounded-xl object-cover" />
+          ) : (
+            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Add a clear progress photo when you are ready.</p>
+          )}
+          <a href="/progress" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+            Open progress photos
+          </a>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Habits"
+          preview={habitsPreview}
+          isOpen={openSections.habits}
+          onToggle={() => setSectionOpen("habits", !openSections.habits)}
+        >
+          <div className="space-y-2">
             {dashboardHabits.length ? (
               dashboardHabits.map((habit) => {
                 const completed = completedHabitIds.has(habit.id);
                 return (
                   <a key={habit.id} href="/habits" className="flex items-center justify-between rounded-lg bg-ink px-3 py-3">
                     <span className="text-sm">{habit.name}</span>
-                    <span className={`grid h-6 w-6 place-items-center rounded ${completed ? "bg-lime text-ink" : "border border-line"}`}>
-                      {completed ? "OK" : ""}
+                    <span className={`grid h-7 min-w-7 place-items-center rounded px-2 text-xs font-semibold ${completed ? "bg-lime text-ink" : "border border-line text-zinc-400"}`}>
+                      {completed ? "Done" : "Open"}
                     </span>
                   </a>
                 );
               })
             ) : (
-              <a href="/habits" className="block rounded-lg bg-ink px-3 py-3 text-sm text-zinc-400">
-                Create your first habits
-              </a>
+              <a href="/habits" className="block rounded-lg bg-ink px-3 py-3 text-sm text-zinc-400">Create your first habits.</a>
             )}
           </div>
-        </section>
+        </CollapsibleSection>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">Latest meals</p>
-              <p className="mt-1 text-sm text-zinc-400">A quick preview of today&apos;s food context.</p>
-            </div>
-            <a href="/food-log?view=history" className="text-sm font-semibold text-lime">
-              View All Meals ({foodLogs.length})
-            </a>
-          </div>
-          <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+        <CollapsibleSection
+          title="Food Log History"
+          preview={foodHistoryPreview}
+          isOpen={openSections.foodHistory}
+          onToggle={() => setSectionOpen("foodHistory", !openSections.foodHistory)}
+        >
+          <div className="flex gap-3 overflow-x-auto pb-1">
             {latestMealsPreview.length ? (
               latestMealsPreview.map((log) => (
                 <a key={log.id} href="/food-log?view=history" className="w-44 shrink-0 rounded-lg bg-ink p-3">
@@ -1288,51 +1238,75 @@ export function ClientDashboard() {
                 </a>
               ))
             ) : (
-              <a href="/food-log" className="block w-full rounded-lg bg-ink p-4 text-sm leading-6 text-zinc-400">
-                Snap a food photo to estimate calories, protein, carbs, and fat.
-              </a>
+              <a href="/food-log" className="block w-full rounded-lg bg-ink p-4 text-sm leading-6 text-zinc-400">Snap a food photo to estimate calories, protein, carbs, and fat.</a>
             )}
           </div>
-        </section>
+          <a href="/food-log?view=history" className="mt-3 flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-lime">
+            View all meals
+          </a>
+        </CollapsibleSection>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">What is driving your momentum</p>
-              <p className="mt-1 text-sm text-zinc-400">A simple look at the habits behind today&apos;s score.</p>
-            </div>
-            <a href="/momentum-score" className="text-sm font-medium text-lime">
-              Learn
-            </a>
-          </div>
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            {[
-              ["Food", momentumBreakdown.food, 35],
-              ["Weight", momentumBreakdown.weight, 25],
-              ["Water", momentumBreakdown.water, 20],
-              ["Habits", momentumBreakdown.habits, 20]
-            ].map(([label, value, max]) => (
-              <div key={label} className="rounded-lg bg-ink p-2 text-center">
-                <p className="text-xs text-zinc-400">{label}</p>
-                <p className="mt-1 text-sm font-semibold text-white">
-                  {value}/{max}
-                </p>
-              </div>
+        <CollapsibleSection
+          title="Coach Messages"
+          preview={coachMessagePreview}
+          isOpen={openSections.coachMessages}
+          onToggle={() => setSectionOpen("coachMessages", !openSections.coachMessages)}
+        >
+          <p className="text-sm leading-6 text-zinc-300">
+            {user?.assigned_trainer_name
+              ? `Your trainer is ${user.assigned_trainer_name}. Use messages when you need help between sessions.`
+              : coachingMode === "human_coach"
+                ? "Your account is ready for trainer accountability. Ask your gym owner to assign a trainer."
+                : "You can connect with a trainer later if you want human support."}
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {premiumActions.map((item) => (
+              <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
+                <span className="block text-sm font-semibold text-white">{item.title}</span>
+                <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
+              </a>
             ))}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Protein days</p>
-              <p className="mt-1 text-lg font-semibold">{proteinConsistency}/7</p>
+          {!hasPremiumAccess ? (
+            <a href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+              Unlock trainer support
+            </a>
+          ) : null}
+        </CollapsibleSection>
+
+        {user?.athlete_mode_enabled ? (
+          <CollapsibleSection
+            title="Body Scan History"
+            preview={bodyScanPreview}
+            isOpen={openSections.bodyScanHistory}
+            onToggle={() => setSectionOpen("bodyScanHistory", !openSections.bodyScanHistory)}
+          >
+            <p className="text-sm leading-6 text-zinc-300">Open Athlete Mode to review Body Scan trends, Ascend DNA, readiness, and event preparation.</p>
+            <a href="/athlete" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-purple-400 font-semibold text-ink">
+              Open Athlete Mode
+            </a>
+          </CollapsibleSection>
+        ) : null}
+
+        <CollapsibleSection
+          title="Settings"
+          preview={needsGuideProfile ? "Complete profile for smarter targets" : `${coachingLabel(coachingMode)} / ${plan}`}
+          isOpen={openSections.settings}
+          onToggle={() => setSectionOpen("settings", !openSections.settings)}
+        >
+          {needsGuideProfile ? (
+            <div className="mb-3 rounded-lg border border-calm/40 bg-calm/10 p-3">
+              <p className="text-sm font-semibold text-calm">Make your daily guide more accurate</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">Add age, height, and activity level so Ascend can personalize your daily targets.</p>
             </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Weight trend</p>
-              <p className="mt-1 text-lg font-semibold">{weightTrend(latestWeight, previousWeight)}</p>
-            </div>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2">
+            <a href="/profile" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Profile</a>
+            <a href="/profile/guide" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Daily guide</a>
+            <a href="/subscription" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Plan</a>
+            <a href="/support" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Support</a>
           </div>
-        </section>
-          </div>
-        </div>
+        </CollapsibleSection>
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
