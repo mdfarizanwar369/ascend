@@ -956,10 +956,10 @@ export function ClientDashboard() {
                     latestRecognition?.message ??
                     (user?.assigned_trainer_name
                       ? `Message ${user.assigned_trainer_name} when you need help between sessions.`
-                      : "Support between sessions appears here when it is available.")}
+                      : "When there is something useful to say, Ascend will keep it short and helpful.")}
                 </p>
                 <p className="mt-2 text-xs text-zinc-500">
-                  {latestRecognition?.trainer_name ? `From ${latestRecognition.trainer_name}` : "Supportive, not spammy."}
+                  {latestRecognition?.trainer_name ? `From ${latestRecognition.trainer_name}` : "Small nudges for your next step, not pressure."}
                 </p>
               </div>
               {coachPresence.latest ? (
@@ -1304,7 +1304,6 @@ export function ClientDashboard() {
             <a href="/profile" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Profile</a>
             <a href="/profile/guide" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Daily guide</a>
             <a href="/subscription" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Plan</a>
-            <a href="/support" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Support</a>
           </div>
         </CollapsibleSection>
       </div>
