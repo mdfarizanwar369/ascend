@@ -717,6 +717,62 @@ export function ClientDashboard() {
       ? `Body fat ${athleteBodyComposition.bodyFatPercent ?? "--"}% / ${athleteBodyComposition.scanCount} scans`
       : "No Body Scan yet"
     : "Athlete Mode only";
+  const dailyCoachingMessage = (() => {
+    if (coachPresence.latest?.message) {
+      return {
+        label: "Today",
+        message: coachPresence.latest.message,
+        detail: "A small check-in for your day."
+      };
+    }
+    if (latestRecognition?.message) {
+      return {
+        label: "Trainer noticed",
+        message: latestRecognition.message,
+        detail: latestRecognition.trainer_name ? `From ${latestRecognition.trainer_name}` : "Your effort was seen."
+      };
+    }
+    if (recentCelebration) {
+      return {
+        label: "Nice work",
+        message: recentCelebration.secondary,
+        detail: "Take the win before chasing the next task."
+      };
+    }
+    if (!todaysFood.length) {
+      return {
+        label: "Next best move",
+        message: "Start with one honest meal log today. It gives you and your coach a clearer picture.",
+        detail: "Small records create better decisions."
+      };
+    }
+    if (proteinLeft > 25) {
+      return {
+        label: "Nutrition nudge",
+        message: `You have about ${Math.round(proteinLeft)}g protein left. A protein-rich meal would help today's target.`,
+        detail: "Keep it simple and practical."
+      };
+    }
+    if (waterLeftMl > 500) {
+      return {
+        label: "Hydration nudge",
+        message: "One more bottle of water would bring you closer to today's hydration target.",
+        detail: "No pressure, just an easy win."
+      };
+    }
+    if (currentStreak >= 3) {
+      return {
+        label: "Momentum",
+        message: `${currentStreak} days of consistency is not luck. Keep the rhythm going today.`,
+        detail: "Consistency is doing the quiet work."
+      };
+    }
+    return {
+      label: "Today",
+      message: "Choose one small check-in today. Food, water, weight, or movement all count.",
+      detail: "Ascend works best when it stays simple."
+    };
+  })();
 
   function revealTodayProgress() {
     window.setTimeout(() => {
@@ -946,50 +1002,24 @@ export function ClientDashboard() {
           </div>
         </section>
 
-        {hasPremiumAccess || latestRecognition || user?.assigned_trainer_name ? (
-          <section className="mt-4 rounded-2xl border border-calm/40 bg-calm/10 p-5 shadow-soft">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-calm">Coach Presence</p>
-                <p className="mt-2 text-sm leading-6 text-zinc-200">
-                  {coachPresence.latest?.message ??
-                    latestRecognition?.message ??
-                    (user?.assigned_trainer_name
-                      ? `Message ${user.assigned_trainer_name} when you need help between sessions.`
-                      : "When there is something useful to say, Ascend will keep it short and helpful.")}
-                </p>
-                <p className="mt-2 text-xs text-zinc-500">
-                  {latestRecognition?.trainer_name ? `From ${latestRecognition.trainer_name}` : "Small nudges for your next step, not pressure."}
-                </p>
-              </div>
-              {coachPresence.latest ? (
-                <button
-                  type="button"
-                  onClick={() => dismissPresence(coachPresence.latest!.id)}
-                  className="rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300"
-                >
-                  Dismiss
-                </button>
-              ) : null}
+        <section className="mt-4 rounded-2xl border border-calm/30 bg-surface p-4 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-calm">{dailyCoachingMessage.label}</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-200">{dailyCoachingMessage.message}</p>
+              <p className="mt-1 text-xs text-zinc-500">{dailyCoachingMessage.detail}</p>
             </div>
-            {hasPremiumAccess ? (
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                {(["motivational", "balanced", "minimal"] as const).map((style) => (
-                  <button
-                    key={style}
-                    type="button"
-                    onClick={() => changeCoachPresenceStyle(style)}
-                    className={`rounded-full px-3 py-2 text-xs font-semibold capitalize ${
-                      coachPresence.settings.style === style ? "bg-calm text-ink" : "border border-line bg-ink text-zinc-300"
-                    }`}
-                  >
-                    {style}
-                  </button>
-                ))}
-              </div>
+            {coachPresence.latest ? (
+              <button
+                type="button"
+                onClick={() => dismissPresence(coachPresence.latest!.id)}
+                className="rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300"
+              >
+                Done
+              </button>
             ) : null}
-          </section>
-        ) : null}
+          </div>
+        </section>
 
         <CollapsibleSection
           title="Nutrition"
@@ -1305,6 +1335,26 @@ export function ClientDashboard() {
             <a href="/profile/guide" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Daily guide</a>
             <a href="/subscription" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Plan</a>
           </div>
+          {hasPremiumAccess ? (
+            <div className="mt-4 rounded-lg border border-line bg-ink p-3">
+              <p className="text-sm font-semibold text-white">Coaching tone</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">Choose how Ascend writes small daily nudges.</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {(["motivational", "balanced", "minimal"] as const).map((style) => (
+                  <button
+                    key={style}
+                    type="button"
+                    onClick={() => changeCoachPresenceStyle(style)}
+                    className={`rounded-full px-3 py-2 text-xs font-semibold capitalize ${
+                      coachPresence.settings.style === style ? "bg-calm text-ink" : "border border-line bg-surface text-zinc-300"
+                    }`}
+                  >
+                    {style}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </CollapsibleSection>
       </div>
 
