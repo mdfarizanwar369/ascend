@@ -729,7 +729,7 @@ export function ClientDashboard() {
   const workoutPreview = latestBurnLog
     ? `${Number(latestBurnLog.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal / ${formatShortDate(latestBurnLog.created_at)}`
     : "Your first activity log is waiting";
-  const weeklyReportPreview = hasPremiumAccess ? "Your weekly progress summary is ready" : "Premium unlocks weekly progress summaries";
+  const weeklyReportPreview = hasPremiumAccess ? "Your weekly reflection is ready" : "Premium unlocks weekly reflections";
   const memoryPreview = latestMemoryMilestone ? `Latest milestone: ${latestMemoryMilestone.title}` : "Your first milestone is waiting";
   const photoPreview = progressPhotos.length ? `${progressPhotos.length} photos / latest ${formatShortDate(progressPhotos[0]?.logged_at)}` : "Take your first progress photo";
   const habitsPreview = dashboardHabits.length ? `${completedHabitIds.size}/${habits.length} habits done today` : "Build your first repeatable habit";
@@ -1211,14 +1211,14 @@ export function ClientDashboard() {
         </CollapsibleSection>
 
         <CollapsibleSection
-          title="Weekly Report"
+          title="Weekly Reflection"
           preview={weeklyReportPreview}
           isOpen={openSections.weeklyReport}
           onToggle={() => setSectionOpen("weeklyReport", !openSections.weeklyReport)}
         >
-          <p className="text-sm leading-6 text-zinc-300">Your weekly progress summary brings together the wins, patterns, and next focus from your week.</p>
+          <p className="text-sm leading-6 text-zinc-300">A calm look at what improved this week and the one focus worth carrying into the next.</p>
           <a href="/reports" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-            Open weekly report
+            Open weekly reflection
           </a>
         </CollapsibleSection>
 

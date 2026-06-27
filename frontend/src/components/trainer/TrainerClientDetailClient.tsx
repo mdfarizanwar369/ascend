@@ -33,6 +33,7 @@ import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AthleteCoachPanel } from "@/components/athlete/AthleteCoachPanel";
 import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
+import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -801,26 +802,31 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
       <CollapsibleSection
         title="Weekly Report"
-        preview={checkin ? "Draft check-in ready" : "Generate a weekly check-in draft"}
+        preview={checkin ? "Coach check-in draft ready" : "Generate a weekly coaching draft"}
         isOpen={openSections.weeklyReport}
         onToggle={() => setSectionOpen("weeklyReport", !openSections.weeklyReport)}
       >
         <div className="flex gap-3">
           <Sparkles className="mt-0.5 text-calm" size={20} />
           <div>
-            <p className="text-sm font-semibold text-calm">AI weekly check-in</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">
-              {checkin || "Generate a draft check-in based on this client's recent logs."}
-            </p>
+            <p className="text-sm font-semibold text-calm">Coach check-in draft</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">A quick coaching summary from this client's recent logs. Edit the tone before sending if needed.</p>
           </div>
         </div>
+        {checkin ? (
+          <div className="mt-4">
+            <WeeklyReportSummary summary={checkin} audience="trainer" />
+          </div>
+        ) : (
+          <p className="mt-4 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Generate a short draft with wins, watch-outs, and one suggested coach action.</p>
+        )}
         <button
           type="button"
           disabled={isGenerating}
           onClick={generateCheckin}
           className="mt-4 h-12 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
         >
-          {isGenerating ? "Generating..." : "Generate check-in"}
+          {isGenerating ? "Generating..." : checkin ? "Refresh coach draft" : "Generate coach draft"}
         </button>
       </CollapsibleSection>
 

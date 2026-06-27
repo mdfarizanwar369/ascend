@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { FileText, Sparkles } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { generateWeeklyReport, getCurrentWeeklyReport } from "@/lib/ascendApi";
+import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 
 type WeeklyReport = NonNullable<Awaited<ReturnType<typeof getCurrentWeeklyReport>>["report"]>;
 
@@ -21,21 +22,21 @@ export function WeeklyReportClient() {
     getCurrentWeeklyReport()
       .then((response) => {
         setReport(response.report);
-        setStatus(response.report ? "" : "Your weekly report will appear here once there is enough activity to review.");
+        setStatus(response.report ? "" : "Your weekly reflection will appear here once there is enough activity to review.");
       })
-      .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load weekly report."));
+      .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load weekly reflection."));
   }, []);
 
   async function handleGenerate() {
     setIsGenerating(true);
-    setStatus("Building your weekly coach report...");
+    setStatus("Building your weekly reflection...");
 
     try {
       const response = await generateWeeklyReport();
       setReport(response.report);
-      setStatus("Weekly coach report ready.");
+      setStatus("Weekly reflection ready.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not generate weekly report.");
+      setStatus(error instanceof Error ? error.message : "Could not generate weekly reflection.");
     } finally {
       setIsGenerating(false);
     }
@@ -51,7 +52,7 @@ export function WeeklyReportClient() {
           </span>
           <div>
             <p className="text-sm text-zinc-400">Premium</p>
-            <h1 className="text-2xl font-semibold">Weekly report</h1>
+            <h1 className="text-2xl font-semibold">Weekly reflection</h1>
           </div>
         </header>
 
@@ -59,9 +60,9 @@ export function WeeklyReportClient() {
           <div className="flex items-start gap-3">
             <Sparkles className="mt-0.5 text-calm" size={20} />
             <div>
-              <p className="font-semibold text-calm">Turn your logs into next actions.</p>
+              <p className="font-semibold text-calm">See what your week is telling you.</p>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                Ascend turns your week of food, water, weight, workouts, and momentum into one clear coaching review.
+                Ascend brings together your food, water, weight, workouts, and momentum so you can see what improved and choose one simple focus.
               </p>
             </div>
           </div>
@@ -73,7 +74,7 @@ export function WeeklyReportClient() {
           onClick={handleGenerate}
           className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
         >
-          {isGenerating ? "Building..." : report ? "Refresh this week" : "Build weekly report"}
+          {isGenerating ? "Building..." : report ? "Refresh reflection" : "Build weekly reflection"}
         </button>
 
         {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
@@ -85,14 +86,16 @@ export function WeeklyReportClient() {
                 <p className="text-sm text-zinc-400">
                   {formatDate(report.week_start)} - {formatDate(report.week_end)}
                 </p>
-                <h2 className="mt-1 text-xl font-semibold">Your weekly coach report</h2>
+                <h2 className="mt-1 text-xl font-semibold">Your week in review</h2>
               </div>
               <span className="rounded-lg bg-ink px-3 py-2 text-right text-sm font-semibold text-lime">
                 <span className="block">{report.compliance_score ?? "--"}/100</span>
                 <span className="block text-[11px] font-normal text-zinc-400">Momentum</span>
               </span>
             </div>
-            <p className="mt-4 whitespace-pre-line text-sm leading-7 text-zinc-200">{report.summary}</p>
+            <div className="mt-4">
+              <WeeklyReportSummary summary={report.summary} audience="client" />
+            </div>
           </section>
         ) : null}
       </div>
