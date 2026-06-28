@@ -152,66 +152,56 @@ export function AdminDashboardClient() {
 
     async function load() {
       const failures: string[] = [];
+      const tasks = [
+        getAdminRevenue()
+          .then((revenueResponse) => {
+            if (!isMounted) return;
+            setRevenue({
+              byGym: safeArray(revenueResponse.byGym),
+              byTrainer: safeArray(revenueResponse.byTrainer)
+            });
+          })
+          .catch((error) => failures.push(error instanceof Error ? `Revenue: ${error.message}` : "Revenue failed")),
+        getAdminUsage()
+          .then((usageResponse) => {
+            if (!isMounted) return;
+            setUsage(safeArray(usageResponse.usage));
+          })
+          .catch((error) => failures.push(error instanceof Error ? `Usage: ${error.message}` : "Usage failed")),
+        getAdminCompliance()
+          .then((complianceResponse) => {
+            if (!isMounted) return;
+            setCompliance(safeArray(complianceResponse.compliance));
+          })
+          .catch((error) => failures.push(error instanceof Error ? `Momentum: ${error.message}` : "Momentum failed")),
+        getAdminAiUsage()
+          .then((aiUsageResponse) => {
+            if (!isMounted) return;
+            setAiUsage(aiUsageResponse);
+          })
+          .catch((error) => failures.push(error instanceof Error ? `AI usage: ${error.message}` : "AI usage failed")),
+        getAdminPilotMetrics()
+          .then((pilotMetricsResponse) => {
+            if (!isMounted) return;
+            setPilotMetrics(pilotMetricsResponse);
+          })
+          .catch((error) => failures.push(error instanceof Error ? `Business metrics: ${error.message}` : "Business metrics failed")),
+        getAdminNotifications()
+          .then((notificationsResponse) => {
+            if (!isMounted) return;
+            setNotifications(notificationsResponse);
+          })
+          .catch((error) => failures.push(error instanceof Error ? `Notifications: ${error.message}` : "Notifications failed")),
+        Promise.all([getAdminUsers(), getAdminTrainers()])
+          .then(([userResponse, trainerResponse]) => {
+            if (!isMounted) return;
+            setUsers(safeArray(userResponse.users));
+            setTrainers(safeArray(trainerResponse.trainers));
+          })
+          .catch((error) => failures.push(error instanceof Error ? `Users: ${error.message}` : "Users failed"))
+      ];
 
-      try {
-        const revenueResponse = await getAdminRevenue();
-        if (!isMounted) return;
-        setRevenue({
-          byGym: safeArray(revenueResponse.byGym),
-          byTrainer: safeArray(revenueResponse.byTrainer)
-        });
-      } catch (error) {
-        failures.push(error instanceof Error ? `Revenue: ${error.message}` : "Revenue failed");
-      }
-
-      try {
-        const usageResponse = await getAdminUsage();
-        if (!isMounted) return;
-        setUsage(safeArray(usageResponse.usage));
-      } catch (error) {
-        failures.push(error instanceof Error ? `Usage: ${error.message}` : "Usage failed");
-      }
-
-      try {
-        const complianceResponse = await getAdminCompliance();
-        if (!isMounted) return;
-        setCompliance(safeArray(complianceResponse.compliance));
-      } catch (error) {
-        failures.push(error instanceof Error ? `Momentum: ${error.message}` : "Momentum failed");
-      }
-
-      try {
-        const aiUsageResponse = await getAdminAiUsage();
-        if (!isMounted) return;
-        setAiUsage(aiUsageResponse);
-      } catch (error) {
-        failures.push(error instanceof Error ? `AI usage: ${error.message}` : "AI usage failed");
-      }
-
-      try {
-        const pilotMetricsResponse = await getAdminPilotMetrics();
-        if (!isMounted) return;
-        setPilotMetrics(pilotMetricsResponse);
-      } catch (error) {
-        failures.push(error instanceof Error ? `Business metrics: ${error.message}` : "Business metrics failed");
-      }
-
-      try {
-        const notificationsResponse = await getAdminNotifications();
-        if (!isMounted) return;
-        setNotifications(notificationsResponse);
-      } catch (error) {
-        failures.push(error instanceof Error ? `Notifications: ${error.message}` : "Notifications failed");
-      }
-
-      try {
-        const [userResponse, trainerResponse] = await Promise.all([getAdminUsers(), getAdminTrainers()]);
-        if (!isMounted) return;
-        setUsers(safeArray(userResponse.users));
-        setTrainers(safeArray(trainerResponse.trainers));
-      } catch (error) {
-        failures.push(error instanceof Error ? `Users: ${error.message}` : "Users failed");
-      }
+      await Promise.allSettled(tasks);
 
       if (!isMounted) return;
       setStatus(failures.length ? `Some business signals did not load. ${failures.join(" / ")}` : "");

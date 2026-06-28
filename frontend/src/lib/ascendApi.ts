@@ -12,6 +12,59 @@ export interface ProgressComparison {
 }
 
 type BodyCompositionNutrition = NonNullable<NutritionTargetInput["bodyComposition"]>;
+type CacheEntry<T> = { value: T; expiresAt: number };
+
+const responseCache = new Map<string, CacheEntry<unknown>>();
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+function perfLogsEnabled() {
+  if (process.env.NEXT_PUBLIC_API_TIMING === "1") return true;
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("ascend:api-timing") === "1";
+}
+
+function traceApi(label: string, startedAt: number, extra: Record<string, unknown> = {}) {
+  if (!perfLogsEnabled()) return;
+  console.info("[ascend-api-timing]", label, {
+    durationMs: Math.round(performance.now() - startedAt),
+    ...extra
+  });
+}
+
+function readCached<T>(cacheKey: string) {
+  const cached = responseCache.get(cacheKey) as CacheEntry<T> | undefined;
+  if (!cached) return null;
+  if (Date.now() >= cached.expiresAt) {
+    responseCache.delete(cacheKey);
+    return null;
+  }
+  return cached.value;
+}
+
+function writeCached<T>(cacheKey: string, value: T, ttlMs: number) {
+  responseCache.set(cacheKey, { value, expiresAt: Date.now() + ttlMs });
+  return value;
+}
+
+function invalidateCached(match?: string | RegExp) {
+  if (!match) {
+    responseCache.clear();
+    inflightRequests.clear();
+    return;
+  }
+
+  for (const key of [...responseCache.keys()]) {
+    if (typeof match === "string" ? key.startsWith(match) : match.test(key)) {
+      responseCache.delete(key);
+    }
+  }
+
+  for (const key of [...inflightRequests.keys()]) {
+    if (typeof match === "string" ? key.startsWith(match) : match.test(key)) {
+      inflightRequests.delete(key);
+    }
+  }
+}
 
 function shouldRefreshToken(error: unknown) {
   if (!(error instanceof Error)) return false;
@@ -19,13 +72,17 @@ function shouldRefreshToken(error: unknown) {
 }
 
 async function authed<T>(path: string, options: RequestInit = {}) {
+  const startedAt = performance.now();
   const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST";
   try {
     if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Entering authed()", { path, method: options.method });
     const token = await getFirebaseToken();
     if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Token resolved, entering api()", { path });
-    return await api<T>(path, options, token);
+    const response = await api<T>(path, options, token);
+    traceApi(path, startedAt, { method: options.method ?? "GET" });
+    return response;
   } catch (error) {
+    traceApi(path, startedAt, { method: options.method ?? "GET", failed: true });
     if (shouldLogBodyCompositionSave) {
       console.error("[body-composition-save] authed() failed before/inside api()", {
         path,
@@ -36,8 +93,34 @@ async function authed<T>(path: string, options: RequestInit = {}) {
     }
     if (!shouldRefreshToken(error)) throw error;
     if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Retrying with refreshed token", { path });
-    return api<T>(path, options, await getFirebaseToken(true));
+    const response = await api<T>(path, options, await getFirebaseToken(true));
+    traceApi(`${path} retry`, startedAt, { method: options.method ?? "GET" });
+    return response;
   }
+}
+
+async function authedCached<T>(cacheKey: string, path: string, ttlMs: number) {
+  const startedAt = performance.now();
+  const cached = readCached<T>(cacheKey);
+  if (cached) {
+    traceApi(`${path} cache hit`, startedAt, { cacheKey });
+    return cached;
+  }
+
+  const inflight = inflightRequests.get(cacheKey) as Promise<T> | undefined;
+  if (inflight) {
+    traceApi(`${path} inflight reuse`, startedAt, { cacheKey });
+    return inflight;
+  }
+
+  const request = authed<T>(path)
+    .then((response) => writeCached(cacheKey, response, ttlMs))
+    .finally(() => {
+      inflightRequests.delete(cacheKey);
+    });
+
+  inflightRequests.set(cacheKey, request);
+  return request;
 }
 
 async function withTimeout<T>(ms: number, action: (signal: AbortSignal) => Promise<T>) {
@@ -84,6 +167,7 @@ export function completeOnboarding(input: {
   startingWeightKg: number;
   targetWeightKg?: number;
 }) {
+  invalidateCached("me:");
   return authed("/me/onboarding", {
     method: "POST",
     body: JSON.stringify(input)
@@ -98,6 +182,7 @@ export function updateGuideProfile(input: {
   goalType: GoalType;
   targetWeightKg?: number | null;
 }) {
+  invalidateCached("me:");
   return authed("/me/guide-profile", {
     method: "PATCH",
     body: JSON.stringify(input)
@@ -105,6 +190,7 @@ export function updateGuideProfile(input: {
 }
 
 export function bootstrapOwner() {
+  invalidateCached();
   return authed<{
     user: {
       id: string;
@@ -119,7 +205,7 @@ export function bootstrapOwner() {
 }
 
 export function getMe() {
-  return authed<{
+  return authedCached<{
     user: {
       id: string;
       email: string;
@@ -144,10 +230,11 @@ export function getMe() {
       body_composition_nutrition?: BodyCompositionNutrition | null;
     };
     roles: string[];
-  }>("/me");
+  }>("me:profile", "/me", 15_000);
 }
 
 export function saveProfilePhoto(imageDataUrl: string) {
+  invalidateCached("me:");
   return authed<{ profilePhotoUrl: string }>("/me/profile-photo", {
     method: "POST",
     body: JSON.stringify({ imageDataUrl })
@@ -155,6 +242,7 @@ export function saveProfilePhoto(imageDataUrl: string) {
 }
 
 export function removeProfilePhoto() {
+  invalidateCached("me:");
   return authed<{ removed: boolean }>("/me/profile-photo", { method: "DELETE" });
 }
 
@@ -209,6 +297,10 @@ export function getWaterLogs() {
 }
 
 export function saveWeightLog(input: { weightKg: number; loggedAt?: string }) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
   return authed<{
     weightLog: {
       id: string;
@@ -252,10 +344,15 @@ export function getMyProgressComparison() {
 }
 
 export function acknowledgeGoalMilestone(milestoneId: string) {
+  invalidateCached("memory:");
   return authed(`/me/goal-milestones/${milestoneId}/acknowledge`, { method: "PATCH" });
 }
 
 export function saveWaterLog(input: { amountMl: number; loggedAt?: string }) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
   return authed<{
     waterLog: {
       id: string;
@@ -307,6 +404,9 @@ export function getHabitLogs() {
 }
 
 export function saveHabitLog(input: { habitId: string; completed?: boolean; loggedAt?: string }) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
   return authed<{
     habitLog: {
       id: string;
@@ -402,11 +502,11 @@ export type CoachPresenceSettings = {
 };
 
 export function getCoachPresence() {
-  return authed<{
+  return authedCached<{
     latest: CoachPresenceMessage | null;
     history: CoachPresenceMessage[];
     settings: CoachPresenceSettings;
-  }>("/coach-presence");
+  }>("coach:presence", "/coach-presence", 20_000);
 }
 
 export type AscendMemoryItem = {
@@ -433,10 +533,11 @@ export type AscendMemoryResponse = {
 };
 
 export function getAscendMemory() {
-  return authed<AscendMemoryResponse>("/memory/me");
+  return authedCached<AscendMemoryResponse>("memory:me", "/memory/me", 45_000);
 }
 
 export function updateCoachPresenceStyle(style: CoachPresenceSettings["style"]) {
+  invalidateCached("coach:");
   return authed<{ settings: unknown }>("/coach-presence/settings", {
     method: "PATCH",
     body: JSON.stringify({ style })
@@ -444,12 +545,14 @@ export function updateCoachPresenceStyle(style: CoachPresenceSettings["style"]) 
 }
 
 export function dismissCoachPresence(messageId: string) {
+  invalidateCached("coach:");
   return authed<{ dismissed: boolean }>(`/coach-presence/${messageId}/dismiss`, {
     method: "POST"
   });
 }
 
 export function completeMission(missionId: string) {
+  invalidateCached("coach:");
   return authed<{
     mission: {
       id: string;
@@ -469,6 +572,10 @@ export function saveBurnLog(input: {
   caloriesBurned: number;
   loggedAt?: string;
 }) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
   return authed<{
     burnLog: {
       id: string;
@@ -526,6 +633,8 @@ export function getProgressPhotos() {
 }
 
 export function saveProgressPhoto(input: { imageS3Key: string; photoType: "front" | "side" | "back" | "other"; loggedAt?: string }) {
+  invalidateCached("memory:");
+  invalidateCached("athlete:");
   return authed<{
     progressPhoto: {
       id: string;
@@ -624,6 +733,9 @@ export function saveFoodLog(input: {
   aiEstimateRaw?: FoodEstimate;
   wasEditedByUser: boolean;
 }) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
   return authed<{
     foodLog: {
       id: string;
@@ -643,6 +755,7 @@ export function saveFoodLog(input: {
 }
 
 export function createCheckout(plan: Exclude<SubscriptionPlan, "free">) {
+  invalidateCached("subscription:");
   return authed<{ checkoutUrl: string; providerReference: string }>("/subscriptions/checkout", {
     method: "POST",
     body: JSON.stringify({ plan })
@@ -650,7 +763,7 @@ export function createCheckout(plan: Exclude<SubscriptionPlan, "free">) {
 }
 
 export function getMySubscription() {
-  return authed<{
+  return authedCached<{
     subscription: {
       id?: string;
       plan: SubscriptionPlan;
@@ -660,7 +773,7 @@ export function getMySubscription() {
       currency?: string;
       current_period_end?: string | null;
     };
-  }>("/subscriptions/me");
+  }>("subscription:me", "/subscriptions/me", 20_000);
 }
 
 export type CoachNutritionPlan = {
@@ -708,6 +821,7 @@ export function getBillingPortal() {
 }
 
 export function cancelSubscription() {
+  invalidateCached("subscription:");
   return authed<{
     subscription: {
       id: string;
@@ -722,6 +836,7 @@ export function cancelSubscription() {
 }
 
 export function activatePilotSubscription(plan: Exclude<SubscriptionPlan, "free">) {
+  invalidateCached("subscription:");
   return authed<{
     subscription: {
       id: string;
@@ -746,7 +861,7 @@ export function sendCoachMessage(message: string) {
 }
 
 export function getCurrentWeeklyReport() {
-  return authed<{
+  return authedCached<{
     report: {
       id: string;
       week_start: string;
@@ -756,10 +871,11 @@ export function getCurrentWeeklyReport() {
       compliance_score?: number | null;
       created_at: string;
     } | null;
-  }>("/reports/weekly/current");
+  }>("reports:weekly:current", "/reports/weekly/current", 30_000);
 }
 
 export function generateWeeklyReport() {
+  invalidateCached("reports:weekly");
   return authed<{
     report: {
       id: string;
@@ -862,6 +978,7 @@ export function pauseTrainerClientCoachPresence(clientId: string, pauseHours: nu
 }
 
 export function sendTrainerClientMessage(clientId: string, body: string) {
+  invalidateCached("trainer:");
   return authed<{
     message: {
       id: string;
@@ -877,7 +994,7 @@ export function sendTrainerClientMessage(clientId: string, body: string) {
 }
 
 export function getTrainerClients() {
-  return authed<{
+  return authedCached<{
     clients: Array<{
       id: string;
       full_name: string;
@@ -910,7 +1027,7 @@ export function getTrainerClients() {
       body_composition_nutrition?: BodyCompositionNutrition | null;
       body_composition_summary?: BodyCompositionSummary | null;
     }>;
-  }>("/trainer/clients");
+  }>("trainer:clients", "/trainer/clients", 20_000);
 }
 
 export function getTrainerAttention() {
@@ -935,6 +1052,7 @@ export function getTrainerAttention() {
 }
 
 export function sendTrainerClientPraise(clientId: string) {
+  invalidateCached("trainer:");
   return authed<{
     recognition: {
       id: string;
@@ -1054,6 +1172,7 @@ export function getTrainerClientMissions(clientId: string) {
 }
 
 export function createTrainerClientMission(input: { clientId: string; title: string; dueDate?: string }) {
+  invalidateCached("trainer:");
   return authed<{
     mission: {
       id: string;
@@ -1069,7 +1188,7 @@ export function createTrainerClientMission(input: { clientId: string; title: str
 }
 
 export function getTrainerRiskAlerts() {
-  return authed<{
+  return authedCached<{
     alerts: Array<{
       id: string;
       user_id: string;
@@ -1081,7 +1200,7 @@ export function getTrainerRiskAlerts() {
       full_name?: string | null;
       profile_photo_url?: string | null;
     }>;
-  }>("/trainer/risk-alerts");
+  }>("trainer:risk-alerts", "/trainer/risk-alerts", 20_000);
 }
 
 export function createWeeklyCheckin(clientId: string) {
@@ -1091,7 +1210,7 @@ export function createWeeklyCheckin(clientId: string) {
 }
 
 export function getAdminRevenue() {
-  return authed<{
+  return authedCached<{
     byGym: Array<{
       gym_name: string | null;
       revenue_cents: string | number;
@@ -1102,11 +1221,11 @@ export function getAdminRevenue() {
       revenue_cents: string | number;
       active_subscriptions: string | number;
     }>;
-  }>("/admin/analytics/revenue");
+  }>("admin:revenue", "/admin/analytics/revenue", 30_000);
 }
 
 export function getAdminUsage() {
-  return authed<{
+  return authedCached<{
     usage: Array<{
       gym_name: string;
       clients: string | number;
@@ -1114,21 +1233,21 @@ export function getAdminUsage() {
       weight_logs: string | number;
       water_logs: string | number;
     }>;
-  }>("/admin/analytics/usage");
+  }>("admin:usage", "/admin/analytics/usage", 30_000);
 }
 
 export function getAdminCompliance() {
-  return authed<{
+  return authedCached<{
     compliance: Array<{
       gym_name: string;
       average_compliance: string | number | null;
       low_compliance_clients: string | number;
     }>;
-  }>("/admin/analytics/compliance");
+  }>("admin:compliance", "/admin/analytics/compliance", 30_000);
 }
 
 export function getAdminAiUsage() {
-  return authed<{
+  return authedCached<{
     summary: {
       monthly_food_image_analyses: string | number;
       monthly_ai_chat_messages: string | number;
@@ -1150,11 +1269,11 @@ export function getAdminAiUsage() {
     daily: Array<Record<string, string | number | null>>;
     weekly: Array<Record<string, string | number | null>>;
     monthly: Array<Record<string, string | number | null>>;
-  }>("/admin/analytics/ai-usage");
+  }>("admin:ai-usage", "/admin/analytics/ai-usage", 30_000);
 }
 
 export function getAdminPilotMetrics() {
-  return authed<{
+  return authedCached<{
     clients: {
       dailyActiveUsers: number;
       weeklyActiveUsers: number;
@@ -1203,11 +1322,11 @@ export function getAdminPilotMetrics() {
       average_compliance_score: string | number;
       ai_cost_cents: string | number;
     }>;
-  }>("/admin/analytics/pilot-metrics");
+  }>("admin:pilot-metrics", "/admin/analytics/pilot-metrics", 30_000);
 }
 
 export function getAdminNotifications() {
-  return authed<{
+  return authedCached<{
     notifications: Array<{
       id: string;
       type: string;
@@ -1222,7 +1341,7 @@ export function getAdminNotifications() {
       critical: number;
       important: number;
     };
-  }>("/admin/notifications");
+  }>("admin:notifications", "/admin/notifications", 20_000);
 }
 
 export function registerNotificationDevice(input: { fcmToken: string; platform: "android" | "ios" | "desktop" | "web" }) {
@@ -1272,7 +1391,7 @@ export function validateReferral(code: string) {
 }
 
 export function getAdminUsers() {
-  return authed<{
+  return authedCached<{
     canManageOwnerGyms: boolean;
     users: Array<{
       id: string;
@@ -1297,11 +1416,11 @@ export function getAdminUsers() {
       status: "active" | "inactive";
       created_at: string;
     }>;
-  }>("/admin/users");
+  }>("admin:users", "/admin/users", 20_000);
 }
 
 export function getAdminTrainers() {
-  return authed<{
+  return authedCached<{
     trainers: Array<{
       id: string;
       user_id: string;
@@ -1313,10 +1432,11 @@ export function getAdminTrainers() {
       specialties: string[];
       status: string;
     }>;
-  }>("/admin/trainers");
+  }>("admin:trainers", "/admin/trainers", 20_000);
 }
 
 export function updateAdminUserRole(input: { userId: string; role: "client" | "trainer" | "admin" | "owner"; gymId?: string }) {
+  invalidateCached("admin:");
   return authed<{ user: unknown }>(`/admin/users/${input.userId}/role`, {
     method: "PATCH",
     body: JSON.stringify({ role: input.role, gymId: input.gymId })
@@ -1324,6 +1444,8 @@ export function updateAdminUserRole(input: { userId: string; role: "client" | "t
 }
 
 export function grantAdminSubscription(input: { userId: string; plan: SubscriptionPlan }) {
+  invalidateCached("admin:");
+  invalidateCached("subscription:");
   return authed<{ subscription: unknown }>(`/admin/users/${input.userId}/subscription`, {
     method: "POST",
     body: JSON.stringify({ plan: input.plan })
@@ -1331,6 +1453,7 @@ export function grantAdminSubscription(input: { userId: string; plan: Subscripti
 }
 
 export function updateAdminUserStatus(input: { userId: string; status: "active" | "inactive" }) {
+  invalidateCached("admin:");
   return authed<{
     user: {
       id: string;
@@ -1345,6 +1468,7 @@ export function updateAdminUserStatus(input: { userId: string; status: "active" 
 }
 
 export function assignOwnerGym(userId: string, gymId: string) {
+  invalidateCached("admin:");
   return authed<{ assigned: true }>(`/admin/owners/${userId}/gyms`, {
     method: "POST",
     body: JSON.stringify({ gymId })
@@ -1352,16 +1476,20 @@ export function assignOwnerGym(userId: string, gymId: string) {
 }
 
 export function removeOwnerGym(userId: string, gymId: string) {
+  invalidateCached("admin:");
   return authed<{ assigned: false }>(`/admin/owners/${userId}/gyms/${gymId}`, { method: "DELETE" });
 }
 
 export function deleteAdminUser(userId: string) {
+  invalidateCached("admin:");
   return authed<{
     deleted: { id: string; full_name: string; email: string };
   }>(`/admin/users/${userId}`, { method: "DELETE" });
 }
 
 export function assignAdminClient(input: { clientId: string; trainerId: string | null }) {
+  invalidateCached("admin:");
+  invalidateCached("trainer:");
   return authed<{ user: unknown }>("/admin/assign-client", {
     method: "POST",
     body: JSON.stringify(input)
@@ -1369,6 +1497,8 @@ export function assignAdminClient(input: { clientId: string; trainerId: string |
 }
 
 export function setAdminAthleteMode(userId: string, enabled: boolean) {
+  invalidateCached("admin:");
+  invalidateCached("trainer:");
   return authed<{ athleteProfile: AthleteProfile }>(`/admin/users/${userId}/athlete-mode`, {
     method: "PATCH",
     body: JSON.stringify({ enabled })
@@ -1450,7 +1580,7 @@ export type AthleteDashboard = {
 };
 
 export function getAthleteDashboard() {
-  return authed<{ athlete: AthleteDashboard }>("/athlete/me");
+  return authedCached<{ athlete: AthleteDashboard }>("athlete:dashboard", "/athlete/me", 15_000);
 }
 
 export function updateAthleteProfile(input: {
@@ -1462,10 +1592,14 @@ export function updateAthleteProfile(input: {
   goalWeightKg?: number | null;
   timezone?: string;
 }) {
+  invalidateCached("athlete:");
+  invalidateCached("trainer:");
+  invalidateCached("me:");
   return authed<{ profile: AthleteProfile }>("/athlete/me/profile", { method: "PATCH", body: JSON.stringify(input) });
 }
 
 export function updateAthleteTimezone(timezone: string) {
+  invalidateCached("athlete:");
   return authed<{ timezone: string }>("/athlete/me/timezone", {
     method: "PATCH",
     body: JSON.stringify({ timezone })
@@ -1480,10 +1614,12 @@ export function saveAthleteCheckin(input: {
   hunger: number;
   motivation: number;
 }) {
+  invalidateCached("athlete:");
   return authed<{ checkin: AthleteCheckin }>("/athlete/me/checkins", { method: "POST", body: JSON.stringify(input) });
 }
 
 export function saveAthleteTargetProgress(targetId: string, completedValue: number) {
+  invalidateCached("athlete:");
   return authed<{ progress: unknown }>(`/athlete/me/targets/${targetId}/progress`, {
     method: "PUT",
     body: JSON.stringify({ completedValue })
@@ -1491,6 +1627,7 @@ export function saveAthleteTargetProgress(targetId: string, completedValue: numb
 }
 
 export function generateAthleteWeeklyReview() {
+  invalidateCached("athlete:");
   return authed<{ review: AthleteReview }>("/athlete/me/reviews/generate", { method: "POST" });
 }
 
@@ -1596,6 +1733,9 @@ export function extractBodyComposition(images: string[], externalSignal?: AbortS
 
 export function saveBodyCompositionScan(scan: BodyCompositionScan) {
   console.info("[body-composition-save] Entering saveBodyCompositionScan()", { scan });
+  invalidateCached("athlete:");
+  invalidateCached("me:");
+  invalidateCached("trainer:");
   return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>("/athlete/body-composition/scans", {
     method: "POST",
     body: JSON.stringify(scan)
@@ -1603,11 +1743,11 @@ export function saveBodyCompositionScan(scan: BodyCompositionScan) {
 }
 
 export function getBodyCompositionSummary() {
-  return authed<{ summary: BodyCompositionSummary }>("/athlete/body-composition/summary");
+  return authedCached<{ summary: BodyCompositionSummary }>("athlete:body-composition:summary", "/athlete/body-composition/summary", 20_000);
 }
 
 export function getBodyCompositionScans() {
-  return authed<{ scans: BodyCompositionScan[] }>("/athlete/body-composition/scans");
+  return authedCached<{ scans: BodyCompositionScan[] }>("athlete:body-composition:scans", "/athlete/body-composition/scans", 20_000);
 }
 
 export function getTrainerBodyComposition(clientId: string) {
@@ -1616,6 +1756,8 @@ export function getTrainerBodyComposition(clientId: string) {
 
 export function saveTrainerBodyCompositionScan(clientId: string, scan: BodyCompositionScan) {
   console.info("[body-composition-save] Entering saveTrainerBodyCompositionScan()", { clientId, scan });
+  invalidateCached("trainer:");
+  invalidateCached("athlete:");
   return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>(`/trainer/clients/${clientId}/body-composition/scans`, {
     method: "POST",
     body: JSON.stringify(scan)

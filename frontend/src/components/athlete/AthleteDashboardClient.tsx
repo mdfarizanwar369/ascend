@@ -55,13 +55,9 @@ export function AthleteDashboardClient() {
   const [targetValues, setTargetValues] = useState<Record<string, string>>({});
 
   async function load() {
-    let response = await getAthleteDashboard();
-    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (browserTimezone && response.athlete.profile.timezone !== browserTimezone) {
-      await updateAthleteTimezone(browserTimezone);
-      response = await getAthleteDashboard();
-    }
+    const response = await getAthleteDashboard();
     setData(response.athlete);
+    setStatus("");
     const next = response.athlete.profile;
     setProfile({
       sport: next.sport ?? "",
@@ -72,7 +68,26 @@ export function AthleteDashboardClient() {
       goalWeightKg: next.goal_weight_kg ? String(next.goal_weight_kg) : ""
     });
     setTargetValues(Object.fromEntries(response.athlete.targets.map((target) => [target.id, String(target.today_completed_value)])));
-    setStatus("");
+
+    const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (browserTimezone && response.athlete.profile.timezone !== browserTimezone) {
+      updateAthleteTimezone(browserTimezone)
+        .then(() => getAthleteDashboard())
+        .then((freshResponse) => {
+          setData(freshResponse.athlete);
+          const fresh = freshResponse.athlete.profile;
+          setProfile({
+            sport: fresh.sport ?? "",
+            division: fresh.division ?? "",
+            competitionName: fresh.competition_name ?? "",
+            competitionDate: fresh.competition_date?.slice(0, 10) ?? "",
+            coachName: fresh.coach_name ?? "",
+            goalWeightKg: fresh.goal_weight_kg ? String(fresh.goal_weight_kg) : ""
+          });
+          setTargetValues(Object.fromEntries(freshResponse.athlete.targets.map((target) => [target.id, String(target.today_completed_value)])));
+        })
+        .catch(() => undefined);
+    }
   }
 
   useEffect(() => {

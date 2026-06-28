@@ -258,7 +258,11 @@ export function TrainerDashboardClient() {
 
     async function load() {
       try {
-        const profile = await getMe();
+        const profilePromise = getMe();
+        const clientsPromise = getTrainerClients();
+        const alertsPromise = getTrainerRiskAlerts().catch(() => null);
+
+        const profile = await profilePromise;
         if (isMounted) setTrainerName(profile.user.full_name || profile.user.email || "Coach");
         const isTrainerOnly = profile.roles.includes("trainer") && !profile.roles.some((role) => role === "owner" || role === "admin");
         if (isTrainerOnly && profile.user.trainer_status && profile.user.trainer_status !== "active") {
@@ -268,13 +272,11 @@ export function TrainerDashboardClient() {
           return;
         }
 
-        const clientResponse = await getTrainerClients();
+        const [clientResponse, alertResponse] = await Promise.all([clientsPromise, alertsPromise]);
         if (!isMounted) return;
         setClients(clientResponse.clients);
         setStatus("");
 
-        const alertResponse = await getTrainerRiskAlerts().catch(() => null);
-        if (!isMounted) return;
         if (alertResponse) {
           setAlerts(alertResponse.alerts);
         }
@@ -309,6 +311,13 @@ export function TrainerDashboardClient() {
         if (aRisk !== bRisk) return aRisk - bRisk;
         return Number(a.compliance_score ?? 999) - Number(b.compliance_score ?? 999);
       }),
+    [clients]
+  );
+  const nutritionSummaryMap = useMemo(
+    () =>
+      new Map(
+        clients.map((client) => [client.id, nutritionSummary(client)])
+      ),
     [clients]
   );
   const priorities = useMemo(() => trainerPriorityCards(clients), [clients]);
@@ -469,8 +478,8 @@ export function TrainerDashboardClient() {
                           {Number(client.consistency_streak)}-day streak
                         </p>
                       ) : null}
-                      <p className={`mt-2 text-xs font-semibold ${nutritionSummaryClass(nutritionSummary(client))}`}>
-                        Nutrition: {nutritionSummary(client)}
+                      <p className={`mt-2 text-xs font-semibold ${nutritionSummaryClass(nutritionSummaryMap.get(client.id) ?? "No food logged yet")}`}>
+                        Nutrition: {nutritionSummaryMap.get(client.id) ?? "No food logged yet"}
                       </p>
                       <p className="mt-2 text-xs text-zinc-500">Food: {daysAgo(client.last_food_logged_at)} / Weight: {daysAgo(client.last_weight_logged_at)}</p>
                       </div>

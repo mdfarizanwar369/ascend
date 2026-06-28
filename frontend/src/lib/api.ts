@@ -1,9 +1,16 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
+function apiTimingEnabled() {
+  if (process.env.NEXT_PUBLIC_API_TIMING === "1") return true;
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("ascend:api-timing") === "1";
+}
+
 export async function api<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   let response: Response;
   const url = `${API_URL}${path}`;
   const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST";
+  const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
 
   try {
     if (shouldLogBodyCompositionSave) {
@@ -29,6 +36,15 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
         url,
         status: response.status,
         ok: response.ok
+      });
+    }
+    if (apiTimingEnabled()) {
+      console.info("[ascend-api-response]", {
+        path,
+        url,
+        method: options.method ?? "GET",
+        status: response.status,
+        durationMs: Math.round((typeof performance !== "undefined" ? performance.now() : Date.now()) - startedAt)
       });
     }
   } catch (error) {
