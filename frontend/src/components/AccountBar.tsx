@@ -14,6 +14,33 @@ function displayName(fullName?: string | null, email?: string | null) {
   return email ?? "Signed in";
 }
 
+function roleAccessLabel(roles: string[]) {
+  if (roles.includes("owner")) return "Owner access";
+  if (roles.includes("admin")) return "Admin access";
+  if (roles.includes("trainer")) return "Trainer access";
+  return null;
+}
+
+function accountAccessLabel({
+  email,
+  fullName,
+  roles,
+  plan
+}: {
+  email?: string | null;
+  fullName?: string | null;
+  roles?: string[];
+  plan?: SubscriptionPlan | null;
+}) {
+  if (!email && !fullName) return "Checking access...";
+
+  const normalizedRoles = roles?.map((role) => role.toLowerCase()) ?? [];
+  const roleLabel = roleAccessLabel(normalizedRoles);
+  if (!roleLabel) return formatPlan(plan);
+
+  return plan && plan !== "free" ? `${roleLabel} / ${formatPlan(plan)}` : roleLabel;
+}
+
 export function AccountBar({
   email,
   fullName,
@@ -33,15 +60,7 @@ export function AccountBar({
     window.location.href = "/login";
   }
 
-  const normalizedRoles = roles?.map((role) => role.toLowerCase()) ?? [];
-  const hasOwnerAccess = normalizedRoles.some((role) => role === "owner" || role === "admin");
-  const accessLabel = !email && !fullName
-    ? "Checking access..."
-    : hasOwnerAccess
-      ? plan && plan !== "free"
-        ? `Owner access / ${formatPlan(plan)}`
-        : "Owner access"
-      : formatPlan(plan);
+  const accessLabel = accountAccessLabel({ email, fullName, roles, plan });
 
   return (
     <div className="ascend-card ascend-soft-enter mt-3 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface/95 p-3">
