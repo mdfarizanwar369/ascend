@@ -7,6 +7,7 @@ import { CalendarDays, ChevronLeft, Utensils } from "lucide-react";
 import { getTrainerClient, getTrainerClientFoodLogs, getTrainerClientWeightLogs } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
+import { SectionShell, SkeletonCardList } from "@/components/PerceivedLoading";
 
 type RangeFilter = "today" | "7d" | "30d" | "all";
 type OrderFilter = "newest" | "oldest";
@@ -117,6 +118,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [status, setStatus] = useState("Loading this client's meal history...");
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const isInitialLoading = !client && !foodLogs.length && status.startsWith("Loading");
 
   const targets = useMemo(() => calculateAdaptiveNutritionTargets({
     goalType: client?.goal_type,
@@ -200,6 +202,32 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
       };
     });
   }, [foodLogs, order, range, targets]);
+
+  if (isInitialLoading) {
+    return (
+      <>
+        <section className="mt-3">
+          <div className="mb-3">
+            <BackButton fallbackHref={`/trainer/clients/${clientId}`} />
+          </div>
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-lime text-ink">
+              <Utensils size={22} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm text-zinc-400">Trainer meal history</p>
+              <h1 className="mt-1 truncate text-2xl font-semibold">Client meals</h1>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">Read-only nutrition review grouped by date.</p>
+            </div>
+          </div>
+        </section>
+        <SectionShell title="Meal history">
+          <SkeletonCardList count={3} compact />
+        </SectionShell>
+        <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+      </>
+    );
+  }
 
   return (
     <>
@@ -299,7 +327,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
                     <div className="flex items-start gap-3">
                       {log.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                        <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
                       ) : (
                         <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-surface text-zinc-500">
                           <Utensils size={18} />

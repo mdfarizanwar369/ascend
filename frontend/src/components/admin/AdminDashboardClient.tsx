@@ -28,6 +28,7 @@ import {
 } from "@/lib/ascendApi";
 import { DelightBadge, DelightEmptyState } from "@/components/Delight";
 import { AscendHeroPanel, BusinessSigil } from "@/components/AscendVisualIdentity";
+import { DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid } from "@/components/PerceivedLoading";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
 type UsageRow = Awaited<ReturnType<typeof getAdminUsage>>["usage"][number];
@@ -146,6 +147,11 @@ export function AdminDashboardClient() {
   const [pilotMetrics, setPilotMetrics] = useState<PilotMetrics | null>(null);
   const [notifications, setNotifications] = useState<AdminNotifications | null>(null);
   const [status, setStatus] = useState("Loading owner command center...");
+  const [hasStartedHydrating, setHasStartedHydrating] = useState(false);
+
+  useEffect(() => {
+    setHasStartedHydrating(true);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -264,6 +270,14 @@ export function AdminDashboardClient() {
   const revenueHealth = healthFromScore(revenueHealthScore);
   const aiHealth = healthFromScore(aiHealthScore);
   const overallHealth = healthFromScore(overallHealthScore);
+  const isInitialLoading =
+    hasStartedHydrating &&
+    !pilotMetrics &&
+    !aiUsage &&
+    !users.length &&
+    !trainers.length &&
+    !byGym.length &&
+    status.startsWith("Loading");
 
   const businessBrief = (() => {
     const positives: string[] = [];
@@ -406,6 +420,24 @@ export function AdminDashboardClient() {
     athleteUsers.length ? `${athleteUsers.length} clients are already in Athlete Mode.` : "Athlete Mode is ready to be introduced to serious transformation clients.",
     safeArray(pilotMetrics?.business.referralPerformance).length ? "Referral attribution is active, so growth can be traced by gym and trainer." : "Referral codes are available but not producing visible activity yet."
   ];
+
+  if (isInitialLoading) {
+    return (
+      <>
+        <DashboardHeroSkeleton bodyLines={3} footer={<SkeletonBlock className="h-8 w-40 rounded-full" />} />
+        <SectionShell title="Business Health">
+          <SkeletonStatGrid count={4} />
+        </SectionShell>
+        <SectionShell title="Today's Priorities">
+          <SkeletonCardList count={3} compact />
+        </SectionShell>
+        <SectionShell title="Business Opportunities">
+          <SkeletonStatGrid count={4} />
+        </SectionShell>
+        <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+      </>
+    );
+  }
 
   return (
     <>

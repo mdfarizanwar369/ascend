@@ -799,7 +799,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     <div className="flex min-w-0 items-center gap-3">
                       {log.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                        <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
                       ) : null}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium">{log.estimated_food_name}</p>
@@ -908,7 +908,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                           <div className="flex items-start gap-3">
                             {log.image_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" />
+                              <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
                             ) : (
                               <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-surface text-zinc-500">
                                 <Utensils size={18} />

@@ -197,7 +197,7 @@ export function ProgressPhotosClient() {
                   <div className="grid aspect-[3/4] place-items-center bg-ink">
                     {photo?.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photo.image_url} alt={`${type.label} progress`} className="h-full w-full object-cover" />
+                      <img src={photo.image_url} alt={`${type.label} progress`} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                     ) : (
                       <Camera className="text-zinc-600" size={24} />
                     )}
@@ -219,7 +219,7 @@ export function ProgressPhotosClient() {
               <article key={photo.id} className="flex items-center gap-3 rounded-lg bg-ink p-3">
                 {photo.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photo.image_url} alt={formatPhotoType(photo.photo_type)} className="h-14 w-14 rounded-lg object-cover" />
+                  <img src={photo.image_url} alt={formatPhotoType(photo.photo_type)} className="h-14 w-14 rounded-lg object-cover" loading="lazy" decoding="async" />
                 ) : (
                   <div className="grid h-14 w-14 place-items-center rounded-lg bg-surface">
                     <Camera className="text-zinc-500" size={18} />

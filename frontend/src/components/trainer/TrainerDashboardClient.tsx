@@ -10,6 +10,7 @@ import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { DelightEmptyState } from "@/components/Delight";
 import { AscendHeroPanel, PrioritySigil } from "@/components/AscendVisualIdentity";
 import { buildAthleteCoachInsights, daysSince } from "@/lib/coachIntelligence";
+import { DashboardHeroSkeleton, SectionShell, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
 type RiskAlert = Awaited<ReturnType<typeof getTrainerRiskAlerts>>["alerts"][number];
@@ -326,6 +327,7 @@ export function TrainerDashboardClient() {
   const premiumAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Premium").length, [priorities.needsAttention]);
   const excellentProgress = priorities.greatProgress.length;
   const needsCheckIn = priorities.needsAttention.length;
+  const isInitialLoading = !clients.length && !alerts.length && !trainerName && status.startsWith("Loading");
 
   async function sendPraise(clientId: string, clientName: string) {
     setPraisingClientId(clientId);
@@ -352,6 +354,27 @@ export function TrainerDashboardClient() {
           View plan
         </Link>
       </section>
+    );
+  }
+
+  if (isInitialLoading) {
+    return (
+      <>
+        <DashboardHeroSkeleton bodyLines={2} />
+        <section className="mt-4 rounded-lg border border-teal-400/40 bg-gradient-to-br from-teal-400/15 via-surface to-purple-400/10 p-4">
+          <SkeletonStatGrid count={4} />
+          <div className="mt-4">
+            <SkeletonText lines={1} />
+            <div className="mt-3">
+              <SkeletonCardList count={2} compact />
+            </div>
+          </div>
+        </section>
+        <SectionShell title="Client work queue">
+          <SkeletonCardList count={3} compact />
+        </SectionShell>
+        <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+      </>
     );
   }
 

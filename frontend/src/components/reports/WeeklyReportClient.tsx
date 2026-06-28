@@ -5,6 +5,7 @@ import { FileText, Sparkles } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { generateWeeklyReport, getCurrentWeeklyReport } from "@/lib/ascendApi";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
+import { SectionShell, SkeletonBlock, SkeletonText } from "@/components/PerceivedLoading";
 
 type WeeklyReport = NonNullable<Awaited<ReturnType<typeof getCurrentWeeklyReport>>["report"]>;
 
@@ -17,6 +18,7 @@ export function WeeklyReportClient() {
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [status, setStatus] = useState("Loading this week's report...");
   const [isGenerating, setIsGenerating] = useState(false);
+  const isInitialLoading = !report && status.startsWith("Loading");
 
   useEffect(() => {
     getCurrentWeeklyReport()
@@ -40,6 +42,30 @@ export function WeeklyReportClient() {
     } finally {
       setIsGenerating(false);
     }
+  }
+
+  if (isInitialLoading) {
+    return (
+      <main className="min-h-screen bg-ink px-4 py-5 text-white">
+        <div className="mx-auto max-w-md">
+          <header className="flex items-center gap-3 py-3">
+            <BackButton fallbackHref="/dashboard" />
+            <span className="grid h-10 w-10 place-items-center rounded-lg bg-calm text-ink">
+              <FileText size={20} />
+            </span>
+            <div>
+              <p className="text-sm text-zinc-400">Premium</p>
+              <h1 className="text-2xl font-semibold">Weekly reflection</h1>
+            </div>
+          </header>
+          <SectionShell title="Weekly Reflection">
+            <SkeletonText lines={4} />
+            <SkeletonBlock className="mt-4 h-12 w-full rounded-lg" />
+          </SectionShell>
+          <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+        </div>
+      </main>
+    );
   }
 
   return (

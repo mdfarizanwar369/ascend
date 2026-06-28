@@ -748,7 +748,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
                 <div className="flex min-w-0 items-center gap-3">
                   {log.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+                    <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
                   ) : null}
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{log.estimated_food_name}</p>
@@ -785,7 +785,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               <div className="grid aspect-[3/4] place-items-center">
                 {photo.image_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photo.image_url} alt={photo.photo_type} className="h-full w-full object-cover" />
+                  <img src={photo.image_url} alt={photo.photo_type} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                 ) : (
                   <span className="text-xs text-zinc-500">No image</span>
                 )}

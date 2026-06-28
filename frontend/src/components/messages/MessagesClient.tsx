@@ -5,6 +5,7 @@ import { Send } from "lucide-react";
 import { getMe, getMessageContacts, getMessages, sendMessage } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { SectionShell, SkeletonBlock, SkeletonCardList } from "@/components/PerceivedLoading";
 
 type Contact = Awaited<ReturnType<typeof getMessageContacts>>["contacts"][number];
 type Message = Awaited<ReturnType<typeof getMessages>>["messages"][number];
@@ -29,6 +30,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
     () => contacts.find((contact) => contact.id === selectedContactId) ?? contacts[0],
     [contacts, selectedContactId]
   );
+  const isInitialLoading = !contacts.length && !messages.length && status.startsWith("Loading");
 
   useEffect(() => {
     let isMounted = true;
@@ -92,6 +94,31 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
     } finally {
       setIsSending(false);
     }
+  }
+
+  if (isInitialLoading) {
+    return (
+      <main className="min-h-screen bg-ink px-4 py-5 text-white">
+        <div className="mx-auto flex min-h-[calc(100vh-40px)] max-w-md flex-col">
+          <header className="flex items-center gap-3 py-3">
+            <BackButton fallbackHref="/dashboard" />
+            <SkeletonBlock className="h-10 w-10 rounded-full" />
+            <div className="min-w-0 flex-1">
+              <SkeletonBlock className="h-3 w-20" />
+              <SkeletonBlock className="mt-2 h-7 w-40" />
+            </div>
+          </header>
+          <SectionShell title="Conversation">
+            <SkeletonCardList count={3} compact />
+          </SectionShell>
+          <div className="mt-3 flex gap-2">
+            <SkeletonBlock className="h-12 flex-1 rounded-lg" />
+            <SkeletonBlock className="h-12 w-12 rounded-lg" />
+          </div>
+          <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+        </div>
+      </main>
+    );
   }
 
   return (

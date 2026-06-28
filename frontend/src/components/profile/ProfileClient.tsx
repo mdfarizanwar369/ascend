@@ -10,6 +10,7 @@ import { EnableCoachNotificationsButton } from "@/components/EnableCoachNotifica
 import { cancelSubscription, getBillingPortal, getMe, getMySubscription, removeProfilePhoto, saveProfilePhoto } from "@/lib/ascendApi";
 import { compressProfileImage } from "@/lib/profileImage";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
+import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/PerceivedLoading";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -68,6 +69,7 @@ export function ProfileClient() {
   const hasPaidPlan = plan !== "free" || rawPlan !== "free";
   const isCancelled = subscriptionStatus === "canceled";
   const renewalLabel = isCancelled ? "Access ends" : "Renewal date";
+  const isInitialLoading = !user && status.startsWith("Loading");
 
   async function selectPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -154,6 +156,31 @@ export function ProfileClient() {
     } finally {
       setIsBillingWorking(false);
     }
+  }
+
+  if (isInitialLoading) {
+    return (
+      <main className="min-h-screen bg-ink px-4 py-5 text-white">
+        <div className="mx-auto w-full max-w-md">
+          <header className="flex items-center gap-3 py-3">
+            <BackButton fallbackHref="/dashboard" />
+            <div><p className="text-sm text-zinc-400">Account</p><h1 className="text-2xl font-semibold">Profile & settings</h1></div>
+          </header>
+          <SectionShell title="Profile">
+            <div className="flex flex-col items-center">
+              <SkeletonBlock className="h-24 w-24 rounded-full" />
+              <SkeletonBlock className="mt-4 h-5 w-32" />
+              <SkeletonBlock className="mt-2 h-3 w-40" />
+              <SkeletonBlock className="mt-5 h-12 w-full rounded-lg" />
+            </div>
+          </SectionShell>
+          <SectionShell title="Subscription">
+            <SkeletonStatGrid count={2} />
+          </SectionShell>
+          <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+        </div>
+      </main>
+    );
   }
 
   return (

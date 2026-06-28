@@ -1071,7 +1071,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
                   ) : null}
                   {scan.sourceImages?.[0]?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={scan.sourceImages[0].url} alt="Body composition scan" className="mt-3 max-h-48 w-full rounded-lg object-contain" />
+                    <img src={scan.sourceImages[0].url} alt="Body composition scan" className="mt-3 max-h-48 w-full rounded-lg object-contain" loading="lazy" decoding="async" />
                   ) : null}
                 </article>
               );

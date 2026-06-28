@@ -39,6 +39,7 @@ import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
 import { DelightBadge, DelightProgressBar } from "@/components/Delight";
 import { AscendHeroPanel, MomentumHalo } from "@/components/AscendVisualIdentity";
 import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
+import { AccountBarSkeleton, DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -218,6 +219,7 @@ export function ClientDashboard() {
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
+  const [sectionLoading, setSectionLoading] = useState({ core: true, secondary: true });
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
@@ -250,6 +252,7 @@ export function ClientDashboard() {
     if (dashboardLoadInFlightRef.current) return;
     dashboardLoadInFlightRef.current = true;
     if (hasLoadedDashboardRef.current) setStatus("Updating today's progress...");
+    if (!hasLoadedDashboardRef.current) setSectionLoading({ core: true, secondary: true });
     const requestId = ++dashboardRequestRef.current;
     const comparisonRequest = getMyProgressComparison();
     const pendingFoodLog = readDashboardRecord<FoodLog>("food");
@@ -291,7 +294,7 @@ export function ClientDashboard() {
       setStatus("");
 
       const subscriptionRequest = loadAccountPlan().catch(() => "free" as const);
-      const dashboardDataRequest = Promise.allSettled([
+      const coreDataRequest = Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -302,7 +305,9 @@ export function ClientDashboard() {
         getTodayMission(),
         getLatestRecognition(),
         getMyStreak(),
-        getGoalStatus(),
+        getGoalStatus()
+      ]);
+      const secondaryDataRequest = Promise.allSettled([
         getProgressPhotos(),
         getMyNutritionPlan(),
         getCoachPresence(),
@@ -313,7 +318,7 @@ export function ClientDashboard() {
       if (requestId !== dashboardRequestRef.current) return;
       setPlan(plan);
 
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan, presence, memory] = await dashboardDataRequest;
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus] = await coreDataRequest;
       if (requestId !== dashboardRequestRef.current) return;
 
       if (foods.status === "fulfilled") {
@@ -355,22 +360,34 @@ export function ClientDashboard() {
       if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
       if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
       if (nextGoalStatus.status === "fulfilled") setGoalStatus(nextGoalStatus.value.goalStatus);
-      if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
-      if (nutritionPlan.status === "fulfilled") setCoachNutritionPlan(nutritionPlan.value.coachPlan);
-      if (presence.status === "fulfilled") setCoachPresence(presence.value);
-      if (memory.status === "fulfilled") setAscendMemory(memory.value);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
       }
       hasLoadedDashboardRef.current = true;
+      setSectionLoading((current) => ({ ...current, core: false }));
       setStatus("");
+
+      void secondaryDataRequest
+        .then(([photos, nutritionPlan, presence, memory]) => {
+          if (requestId !== dashboardRequestRef.current) return;
+          if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
+          if (nutritionPlan.status === "fulfilled") setCoachNutritionPlan(nutritionPlan.value.coachPlan);
+          if (presence.status === "fulfilled") setCoachPresence(presence.value);
+          if (memory.status === "fulfilled") setAscendMemory(memory.value);
+          setSectionLoading({ core: false, secondary: false });
+        })
+        .catch(() => {
+          if (requestId === dashboardRequestRef.current) setSectionLoading({ core: false, secondary: false });
+        });
+
       comparisonRequest
         .then((response) => {
           if (requestId === dashboardRequestRef.current) setProgressComparison(response.comparison);
         })
         .catch(() => undefined);
     } catch (error) {
+      setSectionLoading({ core: false, secondary: false });
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     } finally {
       dashboardLoadInFlightRef.current = false;
@@ -850,6 +867,58 @@ export function ClientDashboard() {
     setOpenSections((current) => ({ ...current, [key]: isOpen }));
   }
 
+  const showDashboardSkeleton =
+    sectionLoading.core &&
+    !user &&
+    !foodLogs.length &&
+    !weightLogs.length &&
+    !waterLogs.length &&
+    !burnLogs.length &&
+    !habits.length;
+
+  if (showDashboardSkeleton) {
+    return (
+      <main className="min-h-screen bg-ink pb-24 text-white">
+        <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
+          <header className="flex items-center justify-between py-3">
+            <a href="/" className="flex items-center gap-2">
+              <BrandMark size="sm" />
+              <span>
+                <span className="block text-lg font-semibold leading-5">Ascend</span>
+                <span className="text-xs text-zinc-400">Loading your dashboard</span>
+              </span>
+            </a>
+            <div className="flex items-center gap-2">
+              <SkeletonBlock className="h-10 w-10 rounded-lg" />
+              <SkeletonBlock className="h-10 w-10 rounded-lg" />
+            </div>
+          </header>
+
+          <AccountBarSkeleton />
+          <DashboardHeroSkeleton bodyLines={2} footer={<SkeletonBlock className="h-10 w-40 rounded-lg" />} />
+          <SectionShell title="Today's tasks">
+            <SkeletonText lines={2} />
+            <div className="mt-3">
+              <SkeletonBlock className="h-4 w-full rounded-full" />
+            </div>
+            <div className="mt-4 space-y-2">
+              <SkeletonBlock className="h-16 w-full" />
+              <SkeletonBlock className="h-16 w-full" />
+              <SkeletonBlock className="h-16 w-full" />
+            </div>
+          </SectionShell>
+          <SectionShell title="Quick Snapshot">
+            <SkeletonStatGrid count={4} />
+          </SectionShell>
+          <SectionShell title="Your journey today">
+            <SkeletonCardList count={2} compact />
+          </SectionShell>
+          <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
@@ -1262,7 +1331,7 @@ export function ClientDashboard() {
         >
           {latestProgressPhoto?.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={latestProgressPhoto.image_url} alt="Latest progress" className="aspect-[4/5] w-full rounded-xl object-cover" />
+            <img src={latestProgressPhoto.image_url} alt="Latest progress" className="aspect-[4/5] w-full rounded-xl object-cover" loading="lazy" decoding="async" />
           ) : (
             <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Take a progress photo when you are ready. Future you will appreciate the comparison.</p>
           )}
@@ -1309,7 +1378,7 @@ export function ClientDashboard() {
                   <div className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-surface">
                     {log.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={log.image_url} alt={log.estimated_food_name} className="h-full w-full object-cover" />
+                      <img src={log.image_url} alt={log.estimated_food_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                     ) : (
                       <span className="text-xs text-zinc-500">No photo</span>
                     )}
