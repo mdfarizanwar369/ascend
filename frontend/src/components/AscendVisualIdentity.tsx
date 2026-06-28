@@ -29,13 +29,13 @@ export function AscendHeroPanel({
     <section className={`ascend-identity-hero ascend-soft-enter relative mt-3 overflow-hidden rounded-3xl border bg-gradient-to-br p-5 shadow-soft ${toneClasses[tone]}`}>
       <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-calm/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-16 left-6 h-40 w-40 rounded-full bg-purple-500/10 blur-3xl" />
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-calm">{eyebrow}</p>
-          <h1 className="mt-2 text-3xl font-semibold leading-tight text-white">{title}</h1>
+          <h1 className="mt-2 break-words text-3xl font-semibold leading-tight text-white">{title}</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-300">{body}</p>
         </div>
-        {visual}
+        <div className="self-start sm:self-auto">{visual}</div>
       </div>
       {children ? <div className="relative mt-4">{children}</div> : null}
     </section>

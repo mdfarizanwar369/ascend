@@ -33,9 +33,15 @@ export function AccountBar({
     window.location.href = "/login";
   }
 
-  const accessLabel = roles?.some((role) => role === "owner" || role === "admin")
-    ? `Owner access / ${formatPlan(plan)}`
-    : formatPlan(plan);
+  const normalizedRoles = roles?.map((role) => role.toLowerCase()) ?? [];
+  const hasOwnerAccess = normalizedRoles.some((role) => role === "owner" || role === "admin");
+  const accessLabel = !email && !fullName
+    ? "Checking access..."
+    : hasOwnerAccess
+      ? plan && plan !== "free"
+        ? `Owner access / ${formatPlan(plan)}`
+        : "Owner access"
+      : formatPlan(plan);
 
   return (
     <div className="ascend-card ascend-soft-enter mt-3 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface/95 p-3">
