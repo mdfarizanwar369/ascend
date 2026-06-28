@@ -53,12 +53,71 @@ This checklist prepares Ascend for Android release without changing the existing
 - Install Java JDK 21 or the version required by the generated Gradle project
 - Install Android SDK / Platform Tools
 - Confirm `adb` works locally
-- Generate a release keystore
+- Generate an upload keystore
 - Record:
   - keystore path
   - keystore password
   - alias
   - alias password
+- Recommended local command:
+
+```powershell
+npm run android:keystore:generate
+```
+
+- Confirm `android/signing.properties` exists locally and is not committed
+- Back up the keystore and signing properties outside the repo before uploading to Play Console
+
+## 5A. App signing and Play App Signing
+
+- In Play Console, enable **Play App Signing**
+- Use Ascend's local upload key only for upload
+- Keep the upload key backed up offline
+- After the first upload, record:
+  - upload certificate SHA-1
+  - upload certificate SHA-256
+  - app signing certificate SHA-1
+  - app signing certificate SHA-256
+- Update Android App Links / `assetlinks.json` using the final Play signing certificate if required for production app links
+
+## 5B. Versioning
+
+- Control Android release versions using:
+
+```text
+ASCEND_ANDROID_VERSION_CODE=
+ASCEND_ANDROID_VERSION_NAME=
+```
+
+- Increase `ASCEND_ANDROID_VERSION_CODE` for every Play upload
+- Keep `ASCEND_ANDROID_VERSION_NAME` human readable, for example:
+  - `0.1.0`
+  - `0.1.1`
+  - `0.2.0`
+
+## 5C. Release build outputs
+
+- Signed App Bundle:
+
+```powershell
+npm run android:release-bundle
+```
+
+- Optional signed release APK:
+
+```powershell
+npm run android:release-apk
+```
+
+- Internal testing prep pipeline:
+
+```powershell
+npm run android:internal-testing:prepare
+```
+
+- Expected outputs:
+  - `android/app/build/outputs/bundle/release/app-release.aab`
+  - `android/app/build/outputs/apk/release/app-release.apk`
 
 ## 6. Deep links and return-to-app setup
 
@@ -133,6 +192,50 @@ Do not request:
 - SMS
 - phone state
 
+## 8A. Network security review
+
+Ascend release builds now explicitly:
+
+- disallow cleartext traffic
+- use a dedicated Android `network_security_config`
+- trust system certificate authorities only
+
+Before Play submission:
+
+- confirm all production app traffic uses HTTPS
+- confirm Google sign-in, Firebase helper flows, Stripe checkout, and the live Ascend site all load over valid HTTPS
+- confirm there are no `http://` production dependencies inside the Android shell
+
+## 8B. R8 / ProGuard release optimization
+
+Release builds now use:
+
+- R8 code shrinking
+- resource shrinking
+- optimized ProGuard configuration
+
+Before each release:
+
+- smoke test login
+- smoke test food photo upload
+- smoke test trainer dashboard
+- smoke test owner dashboard
+- smoke test Android back navigation
+- smoke test Google sign-in
+
+## 8C. Play Integrity readiness
+
+Ascend does not yet enforce Play Integrity server-side, but the Android wrapper should be prepared operationally.
+
+Before or shortly after internal testing:
+
+- enable Play Integrity API in Google Play Console / Google Cloud if desired
+- decide whether to use:
+  - no enforcement initially
+  - warning-only telemetry
+  - future backend attestation checks
+- document any future backend verification so it remains additive and does not affect web/iPhone users
+
 ## 9. Testing checklist before internal testing
 
 - Install debug APK on a real Android device
@@ -149,6 +252,8 @@ Do not request:
 - Confirm Google sign-in return path works on a signed build
 - Confirm Stripe checkout and billing portal return to the app correctly
 - Confirm back navigation feels native and does not trap the user
+- Confirm release bundle installs cleanly through internal testing
+- Confirm no WebView mixed-content or SSL errors appear on a real device
 
 ## 10. Internal testing track steps
 
@@ -177,4 +282,4 @@ Do not request:
 - Google sign-in inside Android depends on correct redirect return handling through App Links.
 - Stripe checkout / billing portal returns must be tested on a signed build.
 - This Android shell loads the live hosted Ascend web app. If the production site is unavailable, the app experience is degraded.
-- Android build validation on this machine is currently blocked until Java / Android SDK / adb are installed.
+- Emulator-only results may be misleading if the Android emulator itself has broken network / SSL state. Real-device testing is the final source of truth.

@@ -20,6 +20,7 @@ import { markInstallEligible } from "@/lib/installAscend";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { DelightEmptyState } from "@/components/Delight";
+import { pickNativeImage } from "@/lib/nativeImagePicker";
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -541,10 +542,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     throw lastError instanceof Error ? lastError : new Error("AI estimate failed.");
   }
 
-  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const trace = createFrontendFoodAiTrace("image-selected-auto-analysis", user);
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  function beginSelectedFileFlow(file: File | null, traceSource = "image-selected-auto-analysis") {
+    const trace = createFrontendFoodAiTrace(traceSource, user);
     if (!file) return;
     markFrontendStage(trace, "Image selected", { sizeBytes: file.size, type: file.type });
 
@@ -588,13 +587,39 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       .finally(() => setIsEstimating(false));
   }
 
-  function openCameraPicker() {
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    beginSelectedFileFlow(file);
+  }
+
+  async function openCameraPicker() {
     if (isEstimating || isSaving) return;
+    try {
+      const nativeFile = await pickNativeImage("camera");
+      if (nativeFile) {
+        beginSelectedFileFlow(nativeFile, "native-camera-auto-analysis");
+        return;
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Camera could not open yet. Try again.");
+      return;
+    }
     cameraInputRef.current?.click();
   }
 
-  function openGalleryPicker() {
+  async function openGalleryPicker() {
     if (isEstimating || isSaving) return;
+    try {
+      const nativeFile = await pickNativeImage("gallery");
+      if (nativeFile) {
+        beginSelectedFileFlow(nativeFile, "native-gallery-auto-analysis");
+        return;
+      }
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Photo library could not open yet. Try again.");
+      return;
+    }
     galleryInputRef.current?.click();
   }
 

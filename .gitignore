@@ -24,3 +24,6 @@ android/local.properties
 android/app/build
 android/build
 android/captures
+android/keystore/
+android/signing.properties
+android/gradle/gradle-daemon-jvm.properties

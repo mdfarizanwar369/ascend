@@ -1,0 +1,4 @@
+STORE_FILE=keystore/ascend-upload.jks
+STORE_PASSWORD=replace-with-strong-password
+KEY_ALIAS=ascendupload
+KEY_PASSWORD=replace-with-strong-password

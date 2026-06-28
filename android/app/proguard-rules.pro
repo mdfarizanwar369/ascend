@@ -1,21 +1,22 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Keep WebView JavaScript bridge methods intact for Capacitor plugins.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Preserve plugin classes discovered via reflection by Capacitor and Firebase auth.
+-keep class com.getcapacitor.** { *; }
+-keep class io.capawesome.capacitorjs.plugins.firebase.authentication.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# The Firebase auth plugin references optional Facebook auth classes. Ascend does
+# not ship Facebook login, so suppress these release-only shrinker warnings.
+-dontwarn com.facebook.AccessToken
+-dontwarn com.facebook.CallbackManager$Factory
+-dontwarn com.facebook.CallbackManager
+-dontwarn com.facebook.FacebookCallback
+-dontwarn com.facebook.FacebookException
+-dontwarn com.facebook.login.LoginManager
+-dontwarn com.facebook.login.LoginResult
+-dontwarn com.facebook.login.widget.LoginButton
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep source line numbers to make Play Console crash traces actionable.
+-keepattributes SourceFile,LineNumberTable

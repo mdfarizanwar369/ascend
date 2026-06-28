@@ -8,6 +8,7 @@ import {
   getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -25,10 +26,11 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { markInstallEligible } from "@/lib/installAscend";
 import { isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
+import { isNativeAndroidCapacitor } from "@/lib/nativePlatform";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
-type GoogleAuthMethod = "popup" | "redirect";
+type GoogleAuthMethod = "popup" | "redirect" | "native";
 const authDraftKey = "ascend.authDraft.v1";
 const googleRedirectPendingKey = "ascend.googleRedirectPending.v1";
 const authDebugEnabled = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_AUTH_DEBUG === "true";
@@ -105,6 +107,7 @@ function getPlatformInfo() {
 }
 
 function chooseGoogleAuthMethod(): GoogleAuthMethod {
+  if (isNativeAndroidCapacitor()) return "native";
   const platform = getPlatformInfo();
   return platform.isMobile || platform.isStandalone || platform.isSafari ? "redirect" : "popup";
 }
@@ -187,6 +190,32 @@ function roleHome(roles: string[]) {
   if (roles.includes("owner") || roles.includes("admin")) return "/admin";
   if (roles.includes("trainer")) return "/trainer";
   return "/dashboard";
+}
+
+async function signInWithNativeAndroidGoogle() {
+  const [{ FirebaseAuthentication }, { getFirebaseClientAuth }, { GoogleAuthProvider, signInWithCredential }] = await Promise.all([
+    import("@capacitor-firebase/authentication"),
+    import("@/lib/firebase"),
+    import("firebase/auth")
+  ]);
+
+  const nativeResult = await FirebaseAuthentication.signInWithGoogle({
+    skipNativeAuth: true
+  });
+
+  const idToken = nativeResult.credential?.idToken;
+  const accessToken = nativeResult.credential?.accessToken;
+  if (!idToken) {
+    throw new Error("Google sign-in finished, but no Google ID token was returned.");
+  }
+
+  const auth = getFirebaseClientAuth();
+  const credential = GoogleAuthProvider.credential(idToken, accessToken ?? undefined);
+  const userCredential = await signInWithCredential(auth, credential);
+  return {
+    nativeResult,
+    userCredential
+  };
 }
 
 export function AuthPanel() {
@@ -511,7 +540,33 @@ export function AuthPanel() {
       const platform = getPlatformInfo();
       const method = chooseGoogleAuthMethod();
       authDebug("google_button_clicked", { ...platform, method });
-      setStatus(method === "redirect" ? "Opening secure Google sign-in..." : "Opening secure Google sign-in popup...");
+      setStatus(
+        method === "native"
+          ? "Opening secure Google sign-in..."
+          : method === "redirect"
+            ? "Opening secure Google sign-in..."
+            : "Opening secure Google sign-in popup..."
+      );
+
+      if (method === "native") {
+        authTrace("Native Google sign-in initiated", { platform: "android-capacitor" });
+        const { nativeResult, userCredential } = await withTimeout(
+          signInWithNativeAndroidGoogle(),
+          "Google sign-in is taking too long. Please check your connection and try again.",
+          30_000
+        );
+        authTrace("Native Google sign-in completed", {
+          providerId: nativeResult.credential?.providerId ?? null,
+          hasAccessToken: Boolean(nativeResult.credential?.accessToken),
+          hasIdToken: Boolean(nativeResult.credential?.idToken),
+          firebaseUid: userCredential.user.uid
+        });
+        setStatus("Setting up your Ascend profile...");
+        await provisionGoogleUser(userCredential.user);
+        authDebug("google_native_auth_completed");
+        return;
+      }
+
       const auth = getFirebaseClientAuth();
       auth.useDeviceLanguage();
       const provider = new GoogleAuthProvider();

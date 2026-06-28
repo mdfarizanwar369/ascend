@@ -1,3 +1,5 @@
+/// <reference types="@capacitor-firebase/authentication" />
+
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const remoteUrl = process.env.CAPACITOR_ANDROID_SERVER_URL?.trim() || "https://www.getascend.fit/launch";
@@ -21,6 +23,11 @@ const config: CapacitorConfig = {
     loggingBehavior: "debug"
   },
   plugins: {
+    FirebaseAuthentication: {
+      authDomain: "www.getascend.fit",
+      skipNativeAuth: true,
+      providers: ["google.com"]
+    },
     SplashScreen: {
       launchAutoHide: true,
       launchShowDuration: 900,

@@ -261,7 +261,62 @@ npm run android:sync
 npm run android:open
 npm run android:debug-apk
 npm run android:release-bundle
+npm run android:release-apk
+npm run android:keystore:generate
+npm run android:internal-testing:prepare
 ```
+
+### Android Internal Testing Prep
+
+Ascend now supports a proper Google Play internal-testing release flow.
+
+1. Generate an upload keystore one time:
+
+```powershell
+npm run android:keystore:generate
+```
+
+This creates:
+
+- `android/keystore/ascend-upload.jks`
+- `android/signing.properties`
+
+Both are ignored by git. Back them up securely before publishing to Play Console.
+
+2. Set Android version metadata as needed:
+
+```text
+ASCEND_ANDROID_VERSION_CODE=1
+ASCEND_ANDROID_VERSION_NAME=0.1.0
+```
+
+3. Build the signed Android App Bundle:
+
+```powershell
+npm run android:release-bundle
+```
+
+Output:
+
+- `android/app/build/outputs/bundle/release/app-release.aab`
+
+4. Optional signed release APK for sideload testing:
+
+```powershell
+npm run android:release-apk
+```
+
+Output:
+
+- `android/app/build/outputs/apk/release/app-release.apk`
+
+Release builds now:
+
+- require explicit release signing
+- use R8/ProGuard shrinking and minification
+- disable cleartext traffic
+- use a dedicated network security config
+- preserve Capacitor/Firebase plugin bridge classes required at runtime
 
 Requirements before native Android builds will work:
 
