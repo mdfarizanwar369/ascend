@@ -19,7 +19,6 @@ import {
   getMyNutritionPlan,
   getGoalStatus,
   getMyStreak,
-  getMySubscription,
   getProgressPhotos,
   getTodayMission,
   getWaterLogs,
@@ -34,12 +33,12 @@ import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
-import { usablePlan } from "@/lib/subscriptionPlan";
 import { clearDashboardRecord, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
 import { DelightBadge, DelightProgressBar } from "@/components/Delight";
 import { AscendHeroPanel, MomentumHalo } from "@/components/AscendVisualIdentity";
+import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -267,7 +266,31 @@ export function ClientDashboard() {
     if (pendingHabitLog) setHabitLogs((current) => [pendingHabitLog, ...current.filter((log) => log.id !== pendingHabitLog.id)]);
 
     try {
-      const subscriptionRequest = getMySubscription().catch(() => null);
+      const cachedProfile = getCachedAccountProfile();
+      if (cachedProfile) {
+        setUser((current) => current ?? ({
+          id: "",
+          email: cachedProfile.email,
+          full_name: cachedProfile.fullName,
+          profile_photo_url: cachedProfile.profilePhotoUrl ?? null
+        } as DashboardUser));
+        setRoles(cachedProfile.roles);
+      }
+
+      const me = await getMe();
+      if (requestId !== dashboardRequestRef.current) return;
+
+      setUser(me.user);
+      setRoles(Array.isArray(me.roles) ? me.roles : []);
+      cacheAccountProfile({
+        email: me.user.email,
+        fullName: me.user.full_name,
+        roles: Array.isArray(me.roles) ? me.roles : [],
+        profilePhotoUrl: me.user.profile_photo_url
+      });
+      setStatus("");
+
+      const subscriptionRequest = loadAccountPlan().catch(() => "free" as const);
       const dashboardDataRequest = Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
@@ -286,24 +309,9 @@ export function ClientDashboard() {
         getAscendMemory()
       ]);
 
-      const me = await getMe();
+      const plan = await subscriptionRequest;
       if (requestId !== dashboardRequestRef.current) return;
-
-      setUser(me.user);
-      setRoles(Array.isArray(me.roles) ? me.roles : []);
-      setStatus("");
-
-      const subscription = await subscriptionRequest;
-      if (requestId !== dashboardRequestRef.current) return;
-      if (subscription) {
-        setPlan(usablePlan(
-          subscription.subscription.plan,
-          subscription.subscription.status,
-          subscription.subscription.current_period_end
-        ));
-      } else {
-        setPlan("free");
-      }
+      setPlan(plan);
 
       const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan, presence, memory] = await dashboardDataRequest;
       if (requestId !== dashboardRequestRef.current) return;

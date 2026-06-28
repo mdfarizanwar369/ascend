@@ -7,8 +7,7 @@ import { AccountBar } from "@/components/AccountBar";
 import { BackButton } from "@/components/BackButton";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { getMe, getMySubscription } from "@/lib/ascendApi";
-import { usablePlan } from "@/lib/subscriptionPlan";
+import { getCachedAccountProfile, loadAccountPlan, loadAccountProfile } from "@/lib/accountSession";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" }) {
   const [account, setAccount] = useState<{
@@ -32,27 +31,19 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     let isMounted = true;
 
     async function loadAccount() {
-      const subscriptionRequest = getMySubscription().catch(() => null);
       try {
-        const me = await getMe();
-        if (!isMounted) return;
-        setAccount({
-          email: me.user.email,
-          fullName: me.user.full_name,
-          roles: me.roles ?? [],
-          profilePhotoUrl: me.user.profile_photo_url
-        });
-
-        const subscription = await subscriptionRequest;
-        if (!isMounted) return;
-        if (!subscription) {
-          setAccount((current) => ({ ...current, plan: "free" }));
-          return;
+        const cached = getCachedAccountProfile();
+        if (cached && isMounted) {
+          setAccount((current) => ({ ...current, ...cached }));
         }
-        setAccount((current) => ({
-          ...current,
-          plan: usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end)
-        }));
+
+        const profile = await loadAccountProfile();
+        if (!isMounted) return;
+        setAccount((current) => ({ ...current, ...profile }));
+
+        const plan = await loadAccountPlan().catch(() => "free" as const);
+        if (!isMounted) return;
+        setAccount((current) => ({ ...current, plan }));
       } catch {
         if (isMounted) setAccount({});
       }

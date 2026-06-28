@@ -5,6 +5,7 @@ import { signOut } from "firebase/auth";
 import { SubscriptionPlan } from "@ascend/shared";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 import { formatPlan } from "@/lib/subscriptionPlan";
+import { clearCachedAccountProfile } from "@/lib/accountSession";
 import Link from "next/link";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 
@@ -55,6 +56,7 @@ export function AccountBar({
   profilePhotoUrl?: string | null;
 }) {
   async function handleLogout() {
+    clearCachedAccountProfile();
     window.sessionStorage.clear();
     await signOut(getFirebaseClientAuth());
     window.location.href = "/login";
