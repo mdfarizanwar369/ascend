@@ -18,3 +18,9 @@ Dockerfile.local
 Thumbs.db
 .idea
 .vscode
+android/.gradle
+android/.idea
+android/local.properties
+android/app/build
+android/build
+android/captures

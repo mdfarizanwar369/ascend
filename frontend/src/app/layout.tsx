@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { AuthStateGuard } from "@/components/AuthStateGuard";
+import { CapacitorAppUrlRouter } from "@/components/CapacitorAppUrlRouter";
 import { CanonicalDomainGuard } from "@/components/CanonicalDomainGuard";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
 import { PwaInstallCoordinator } from "@/components/PwaInstallCoordinator";
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <CanonicalDomainGuard />
         <AuthStateGuard />
+        <CapacitorAppUrlRouter />
         <PwaRegistrar />
         <PwaInstallCoordinator />
         <CoachNotificationCoordinator />

@@ -136,6 +136,14 @@ STRIPE_PREMIUM_PRICE_ID=
 STRIPE_TRAINER_PRO_PRICE_ID=
 ```
 
+Android wrapper builds can point at the live hosted application with:
+
+```text
+CAPACITOR_ANDROID_SERVER_URL=https://www.getascend.fit/launch
+```
+
+This is used only by the Android shell and does not change the primary web application.
+
 Set the Stripe webhook URL to `https://your-backend-domain/api/v1/webhooks/stripe`. Signed webhook events activate, renew, cancel, or place plans into payment-attention states and are recorded in `payment_events`. See `STRIPE_SETUP.md`.
 
 ## Pilot Operations
@@ -235,6 +243,34 @@ Local URLs:
 ```powershell
 npm run build
 ```
+
+## Android App Preparation
+
+Ascend can be packaged as an Android app shell without changing the production web application. The Android client uses the same live backend and routes as the web app.
+
+Prepare the Android shell assets and sync the native project:
+
+```powershell
+npm run android:prepare
+```
+
+Useful Android commands:
+
+```powershell
+npm run android:sync
+npm run android:open
+npm run android:debug-apk
+npm run android:release-bundle
+```
+
+Requirements before native Android builds will work:
+
+- Java JDK installed
+- Android Studio installed
+- Android SDK + Platform Tools installed
+- `adb` available on PATH
+
+See `GOOGLE_PLAY_RELEASE_CHECKLIST.md` for the complete Play Store checklist.
 
 ## Test
 
