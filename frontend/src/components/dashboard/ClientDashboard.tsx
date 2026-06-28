@@ -217,7 +217,7 @@ export function ClientDashboard() {
   const [ascendMemory, setAscendMemory] = useState<AscendMemoryResponse | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
-  const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
+  const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
@@ -267,8 +267,8 @@ export function ClientDashboard() {
     if (pendingHabitLog) setHabitLogs((current) => [pendingHabitLog, ...current.filter((log) => log.id !== pendingHabitLog.id)]);
 
     try {
-      const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan, presence, memory] = await Promise.allSettled([
+      const subscriptionRequest = getMySubscription().catch(() => null);
+      const dashboardDataRequest = Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
         getWaterLogs(),
@@ -286,15 +286,28 @@ export function ClientDashboard() {
         getAscendMemory()
       ]);
 
+      const me = await getMe();
       if (requestId !== dashboardRequestRef.current) return;
 
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);
-      setPlan(usablePlan(
-        subscription.subscription.plan,
-        subscription.subscription.status,
-        subscription.subscription.current_period_end
-      ));
+      setStatus("");
+
+      const subscription = await subscriptionRequest;
+      if (requestId !== dashboardRequestRef.current) return;
+      if (subscription) {
+        setPlan(usablePlan(
+          subscription.subscription.plan,
+          subscription.subscription.status,
+          subscription.subscription.current_period_end
+        ));
+      } else {
+        setPlan("free");
+      }
+
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, photos, nutritionPlan, presence, memory] = await dashboardDataRequest;
+      if (requestId !== dashboardRequestRef.current) return;
+
       if (foods.status === "fulfilled") {
         const fetchedFoodLogs = Array.isArray(foods.value.foodLogs) ? foods.value.foodLogs : [];
         const includesPendingLog = pendingFoodLog && fetchedFoodLogs.some((log) => log.id === pendingFoodLog.id);
@@ -1353,7 +1366,7 @@ export function ClientDashboard() {
 
         <CollapsibleSection
           title="Settings"
-          preview={needsGuideProfile ? "Complete profile for smarter targets" : `${coachingLabel(coachingMode)} / ${plan}`}
+          preview={needsGuideProfile ? "Complete profile for smarter targets" : `${coachingLabel(coachingMode)} / ${plan ?? "checking plan"}`}
           isOpen={openSections.settings}
           onToggle={() => setSectionOpen("settings", !openSections.settings)}
         >

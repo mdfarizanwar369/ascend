@@ -36,7 +36,7 @@ function accountAccessLabel({
 
   const normalizedRoles = roles?.map((role) => role.toLowerCase()) ?? [];
   const roleLabel = roleAccessLabel(normalizedRoles);
-  if (!roleLabel) return formatPlan(plan);
+  if (!roleLabel) return plan ? formatPlan(plan) : "Checking plan...";
 
   return plan && plan !== "free" ? `${roleLabel} / ${formatPlan(plan)}` : roleLabel;
 }

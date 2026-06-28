@@ -31,26 +31,31 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   useEffect(() => {
     let isMounted = true;
 
-    function loadAccount() {
-      Promise.allSettled([getMe(), getMySubscription()])
-      .then(([meResult, subscriptionResult]) => {
+    async function loadAccount() {
+      const subscriptionRequest = getMySubscription().catch(() => null);
+      try {
+        const me = await getMe();
         if (!isMounted) return;
-        const me = meResult.status === "fulfilled" ? meResult.value : null;
-        const subscription = subscriptionResult.status === "fulfilled" ? subscriptionResult.value : null;
-
         setAccount({
-          email: me?.user.email,
-          fullName: me?.user.full_name,
-          roles: me?.roles ?? [],
-          profilePhotoUrl: me?.user.profile_photo_url,
-          plan: subscription
-            ? usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end)
-            : "free"
+          email: me.user.email,
+          fullName: me.user.full_name,
+          roles: me.roles ?? [],
+          profilePhotoUrl: me.user.profile_photo_url
         });
-      })
-      .catch(() => {
+
+        const subscription = await subscriptionRequest;
+        if (!isMounted) return;
+        if (!subscription) {
+          setAccount((current) => ({ ...current, plan: "free" }));
+          return;
+        }
+        setAccount((current) => ({
+          ...current,
+          plan: usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end)
+        }));
+      } catch {
         if (isMounted) setAccount({});
-      });
+      }
     }
 
     loadAccount();
