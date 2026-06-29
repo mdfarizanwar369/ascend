@@ -126,6 +126,22 @@ function missingCoreFields(scan: BodyCompositionScan) {
   return coreMetrics.filter((field) => numericValue(scan[field.key]) === null).map((field) => field.label);
 }
 
+function bodyCompositionSaveDebugEnabled() {
+  if (process.env.NEXT_PUBLIC_BODY_COMPOSITION_SAVE_DEBUG === "1") return true;
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("ascend:body-composition-save-debug") === "1";
+}
+
+function bodyCompositionSaveDebug(event: string, metadata: Record<string, unknown>) {
+  if (!bodyCompositionSaveDebugEnabled()) return;
+  console.info("[body-composition-save]", event, metadata);
+}
+
+function bodyCompositionSaveDebugError(event: string, metadata: Record<string, unknown>) {
+  if (!bodyCompositionSaveDebugEnabled()) return;
+  console.error("[body-composition-save]", event, metadata);
+}
+
 function reviewTimeText(scan: BodyCompositionScan | null) {
   const missing = missingMetricNames(scan).length;
   const minutes = missing ? 2 : 1;
@@ -721,11 +737,11 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   }
 
   async function saveScan(event: FormEvent) {
-    console.info("[body-composition-save] Save button clicked", { coachView, clientId });
+    bodyCompositionSaveDebug("Save button clicked", { coachView, clientId });
     event.preventDefault();
     try {
       const missingCore = missingCoreFields(draft);
-      console.info("[body-composition-save] Validation complete", {
+      bodyCompositionSaveDebug("Validation complete", {
         missingCore,
         hasWeight: numericValue(draft.weightKg) !== null,
         hasBodyFat: numericValue(draft.bodyFatPercent) !== null,
@@ -739,7 +755,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       setBusy(true);
       const payload = { ...draft, userConfirmed: true };
       const serializedPayload = JSON.stringify(payload);
-      console.info("[body-composition-save] Calling saveBodyCompositionScan()", {
+      bodyCompositionSaveDebug("Calling saveBodyCompositionScan()", {
         endpoint: coachView && clientId ? "trainer" : "athlete",
         payload,
         payloadBytes: new Blob([serializedPayload]).size
@@ -747,7 +763,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       const response = coachView && clientId
         ? await saveTrainerBodyCompositionScan(clientId, { ...payload, importSource: "manual_entry" })
         : await saveBodyCompositionScan(payload);
-      console.info("[body-composition-save] Save completed", {
+      bodyCompositionSaveDebug("Save completed", {
         scanId: response.scan.id,
         summaryLatestScanId: response.summary.latestScan?.id ?? null
       });
@@ -763,7 +779,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       setActiveStage(null);
       setStatus("");
     } catch (error) {
-      console.error("[body-composition-save] Save pipeline failed", {
+      bodyCompositionSaveDebugError("Save pipeline failed", {
         error,
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : null

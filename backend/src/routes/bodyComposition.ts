@@ -62,6 +62,7 @@ function bodyCompositionRouteError(event: string, metadata: Record<string, unkno
 }
 
 function bodyCompositionSaveLog(event: string, metadata: Record<string, unknown>) {
+  if (!env.BODY_COMPOSITION_AI_DEBUG_LOGS && env.NODE_ENV === "production") return;
   console.info("[body-composition-save-route]", event, metadata);
 }
 

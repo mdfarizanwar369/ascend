@@ -118,6 +118,7 @@ function authDebug(event: string, details?: Record<string, unknown>) {
 }
 
 function authTrace(stage: string, details?: Record<string, unknown>) {
+  if (!authDebugEnabled) return;
   const payload = { at: new Date().toISOString(), stage, ...(details ?? {}) };
   console.info("[Ascend Google Auth]", payload);
 }

@@ -127,10 +127,23 @@ Ascend uses a live hosted web app inside the Android shell. To ensure Google sig
   - `https://www.getascend.fit/*`
   - `https://getascend.fit/*`
 - Publish a valid `.well-known/assetlinks.json` on the Ascend domain using the final signing certificate SHA-256 fingerprint.
+- Include the package name `fit.getascend.app`.
+- Include the Play App Signing certificate SHA-256 fingerprint, not only the local upload key fingerprint.
 - Test:
   - login return from Google
-  - Stripe checkout success return
-  - Stripe billing portal return
+  - app launch from `https://www.getascend.fit/launch`
+  - app launch from `https://getascend.fit/launch`
+
+## 6A. Google Play billing decision
+
+Ascend currently sells Premium and Trainer Pro as digital subscription upgrades using Stripe Checkout on the web. Google Play policy requires Google Play Billing when a Play-distributed Android app accepts payment for in-app digital subscriptions, app functionality, or cloud services, unless an approved exception or alternative billing program applies.
+
+Before submitting beyond internal testing:
+
+- Do not show Stripe checkout, billing portal, upgrade CTAs, or payment links inside the Android Play build unless a compliant Google Play alternative billing / external offers program applies.
+- Smallest compliant Android approach before Play Billing: allow Android users to sign in and use plans already purchased or owner-approved on the web, but make the Android app subscription screen informational only with no external payment CTA.
+- Full commercial Android approach: implement Google Play Billing for Android subscriptions and keep Stripe for web subscriptions.
+- Manual pilot access remains safe for internal testing when no in-app payment is requested from Android users.
 
 ## 7. Data Safety practical checklist
 
@@ -150,6 +163,9 @@ Ascend collects or processes the following categories:
   - progress photos
   - body scan photos
   - body composition metrics
+  - Android Health Connect daily steps
+  - Android Health Connect exercise sessions
+  - Android Health Connect active calories burned
 - Messages / communications
   - trainer messages
   - praise
@@ -175,6 +191,8 @@ Before submission:
 - Confirm whether health data is encrypted in transit.
 - Confirm account deletion flow and support contact.
 - Confirm whether body scan images and progress photos are user-provided content.
+- Confirm Health Connect data is declared as optional health/fitness data collected only when the user connects Health Connect.
+- Confirm trainer/gym visibility is explained for coached users.
 
 ## 8. Permissions explanation
 
@@ -182,7 +200,11 @@ Required or expected permissions:
 
 - Internet: required
 - Camera / photos: required only for food logs, progress photos, profile photos, and body scans
-- Notifications: only if coach notifications are enabled in the Android release
+- Health Connect read permissions: optional, only after the user connects Health Sync
+  - steps
+  - exercise sessions
+  - active calories burned
+- Notifications: optional, only if coach notifications are enabled in the Android release
 
 Do not request:
 

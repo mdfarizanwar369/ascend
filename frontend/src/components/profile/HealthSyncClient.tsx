@@ -114,7 +114,10 @@ export function HealthSyncClient() {
             <div>
               <p className="text-lg font-semibold">Health Connect</p>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Connect Health Connect so Ascend can automatically understand your activity and provide smarter coaching.
+                Connect Health Connect so Ascend can read only your steps, workouts, and active calories for smarter coaching.
+              </p>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">
+                Ascend does not read sleep, heart rate, blood pressure, location, nutrition, or medical records from Health Connect.
               </p>
             </div>
             <span className="grid h-11 w-11 place-items-center rounded-2xl border border-calm/20 bg-calm/10 text-calm">
@@ -148,6 +151,16 @@ export function HealthSyncClient() {
               ) : (
                 <p className="mt-2 text-sm text-zinc-400">Steps, exercise sessions, and active calories will appear here after you connect.</p>
               )}
+            </div>
+
+            <div className="rounded-2xl border border-line bg-ink p-4">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Who can see this</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                Your activity summary can appear on your dashboard and may be visible to your assigned trainer or authorized gym admin when you are on a coached plan.
+              </p>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">
+                Disconnecting stops Ascend sync. To revoke device permission completely, open Android Health Connect settings.
+              </p>
             </div>
 
             {summary ? (

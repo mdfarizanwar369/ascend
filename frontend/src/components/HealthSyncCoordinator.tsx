@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { canUseHealthConnect } from "@/lib/healthConnect";
 import { runHealthConnectSync, shouldAutoSyncHealthConnect } from "@/lib/healthSyncClient";
 
@@ -8,11 +9,12 @@ const AUTH_APP_PREFIXES = ["/dashboard", "/trainer", "/admin", "/profile", "/ath
 
 export function HealthSyncCoordinator() {
   const hasRunRef = useRef(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (hasRunRef.current) return;
     if (!canUseHealthConnect()) return;
-    if (!AUTH_APP_PREFIXES.some((prefix) => window.location.pathname.startsWith(prefix))) return;
+    if (!pathname || !AUTH_APP_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return;
 
     hasRunRef.current = true;
 
@@ -26,7 +28,7 @@ export function HealthSyncCoordinator() {
     }, 900);
 
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [pathname]);
 
   return null;
 }

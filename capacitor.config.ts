@@ -3,6 +3,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const remoteUrl = process.env.CAPACITOR_ANDROID_SERVER_URL?.trim() || "https://www.getascend.fit/launch";
+const androidLoggingBehavior = process.env.CAPACITOR_ANDROID_LOGGING_BEHAVIOR?.trim() || "production";
 
 const config: CapacitorConfig = {
   appId: "fit.getascend.app",
@@ -20,7 +21,7 @@ const config: CapacitorConfig = {
     backgroundColor: "#07090d",
     minWebViewVersion: 60,
     resolveServiceWorkerRequests: true,
-    loggingBehavior: "debug"
+    loggingBehavior: androidLoggingBehavior as "debug" | "production" | "none"
   },
   plugins: {
     FirebaseAuthentication: {

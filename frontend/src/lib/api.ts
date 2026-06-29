@@ -6,10 +6,16 @@ function apiTimingEnabled() {
   return window.localStorage.getItem("ascend:api-timing") === "1";
 }
 
+function bodyCompositionSaveDebugEnabled() {
+  if (process.env.NEXT_PUBLIC_BODY_COMPOSITION_SAVE_DEBUG === "1") return true;
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("ascend:body-composition-save-debug") === "1";
+}
+
 export async function api<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   let response: Response;
   const url = `${API_URL}${path}`;
-  const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST";
+  const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST" && bodyCompositionSaveDebugEnabled();
   const startedAt = typeof performance !== "undefined" ? performance.now() : Date.now();
 
   try {

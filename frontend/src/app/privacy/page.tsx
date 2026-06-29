@@ -16,6 +16,7 @@ export default function PrivacyPage() {
             "Account information such as your name, email address, authentication identifier, role, gym, trainer assignment, and referral source.",
             "Fitness profile information such as your goals, age, sex selection, height, weight, target weight, activity level, and coaching preference.",
             "Information you choose to log, including food, water, activity, habits, progress photos, messages, AI coach conversations, and weekly check-ins.",
+            "If you connect Android Health Connect, Ascend imports only daily steps, exercise sessions, and active calories burned so your activity summary and Coach Zoe guidance can be more useful.",
             "Subscription metadata such as plan, payment status, renewal period, and provider references. Ascend does not store complete payment card details.",
             "Technical and usage information needed for security, troubleshooting, service performance, and aggregate product analytics."
           ]
@@ -31,9 +32,16 @@ export default function PrivacyPage() {
           ]
         },
         {
+          title: "Health Connect",
+          paragraphs: [
+            "Health Connect syncing is optional. If you connect it, Ascend reads only steps, exercise sessions, and active calories burned. We do not read sleep, heart rate, blood pressure, medical records, location, or nutrition from Health Connect.",
+            "Health Connect data is sent securely to Ascend so it can appear in your dashboard, support Coach Zoe, and help your assigned trainer understand your activity when you are on a coached plan. You can disconnect Health Connect from Ascend in Settings. You can also revoke device permissions from Android Health Connect settings."
+          ]
+        },
+        {
           title: "Trainer and gym visibility",
           paragraphs: [
-            "When you are connected to a trainer or gym, authorized trainers and gym administrators may see information needed for accountability, including your logs, progress, plan, risk signals, assignments, and messages. Self-Coached users are not automatically assigned to a trainer."
+            "When you are connected to a trainer or gym, authorized trainers and gym administrators may see information needed for accountability, including your logs, Health Connect activity summary, progress, plan, risk signals, assignments, and messages. Self-Coached users are not automatically assigned to a trainer."
           ]
         },
         {
@@ -56,6 +64,7 @@ export default function PrivacyPage() {
           ],
           bullets: [
             "For privacy requests, email support@getascend.fit with the subject Privacy Request.",
+            "Deleting your Ascend account removes Ascend-held Health Connect records from our systems subject to normal backup and legal retention limits. Revoking Health Connect on your Android device stops future Health Connect access.",
             "Ascend does not sell personal information or use health and fitness data for third-party advertising.",
             "International processing may occur where our service providers operate, with reasonable safeguards applied."
           ]

@@ -54,6 +54,12 @@ function perfLogsEnabled() {
   return window.localStorage.getItem("ascend:api-timing") === "1";
 }
 
+function bodyCompositionSaveDebugEnabled() {
+  if (process.env.NEXT_PUBLIC_BODY_COMPOSITION_SAVE_DEBUG === "1") return true;
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("ascend:body-composition-save-debug") === "1";
+}
+
 function traceApi(label: string, startedAt: number, extra: Record<string, unknown> = {}) {
   if (!perfLogsEnabled()) return;
   console.info("[ascend-api-timing]", label, {
@@ -104,7 +110,7 @@ function shouldRefreshToken(error: unknown) {
 
 async function authed<T>(path: string, options: RequestInit = {}) {
   const startedAt = performance.now();
-  const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST";
+  const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST" && bodyCompositionSaveDebugEnabled();
   try {
     if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Entering authed()", { path, method: options.method });
     const token = await getFirebaseToken();
@@ -1788,7 +1794,7 @@ export function extractBodyComposition(images: string[], externalSignal?: AbortS
 }
 
 export function saveBodyCompositionScan(scan: BodyCompositionScan) {
-  console.info("[body-composition-save] Entering saveBodyCompositionScan()", { scan });
+  if (bodyCompositionSaveDebugEnabled()) console.info("[body-composition-save] Entering saveBodyCompositionScan()", { scan });
   invalidateCached("athlete:");
   invalidateCached("me:");
   invalidateCached("trainer:");
@@ -1811,7 +1817,7 @@ export function getTrainerBodyComposition(clientId: string) {
 }
 
 export function saveTrainerBodyCompositionScan(clientId: string, scan: BodyCompositionScan) {
-  console.info("[body-composition-save] Entering saveTrainerBodyCompositionScan()", { clientId, scan });
+  if (bodyCompositionSaveDebugEnabled()) console.info("[body-composition-save] Entering saveTrainerBodyCompositionScan()", { clientId, scan });
   invalidateCached("trainer:");
   invalidateCached("athlete:");
   return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>(`/trainer/clients/${clientId}/body-composition/scans`, {
