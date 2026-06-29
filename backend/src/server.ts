@@ -26,6 +26,7 @@ import { waitlistRouter } from "./routes/waitlist";
 import { complianceRouter } from "./routes/compliance";
 import { coachPresenceRouter } from "./routes/coachPresence";
 import { memoryRouter } from "./routes/memory";
+import { healthSyncRouter } from "./routes/healthSync";
 import { errorHandler } from "./middleware/errors";
 import { ensureAiUsageSchema } from "./services/aiUsageService";
 import { ensureCoachPresenceSchema } from "./services/coachPresenceService";
@@ -34,6 +35,7 @@ import { ensureUserProfileSchema } from "./services/userService";
 import { ensureWaitlistSchema } from "./services/waitlistService";
 import { ensureSubscriptionSchema } from "./services/subscriptionSchemaService";
 import { ensureNotificationSchema } from "./services/notificationService";
+import { ensureHealthSyncSchema } from "./services/healthSyncService";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -72,6 +74,7 @@ app.use("/api/v1", meRouter);
 app.use("/api/v1", messagesRouter);
 app.use("/api/v1", missionsRouter);
 app.use("/api/v1", notificationsRouter);
+app.use("/api/v1", healthSyncRouter);
 app.use("/api/v1", coachPresenceRouter);
 app.use("/api/v1", memoryRouter);
 app.use("/api/v1", gymsRouter);
@@ -90,7 +93,16 @@ app.use("/api/v1", athleteRouter);
 app.use("/api/v1", bodyCompositionRouter);
 app.use(errorHandler);
 
-Promise.all([ensureAiUsageSchema(), ensureUserProfileSchema(), ensureWaitlistSchema(), ensureSubscriptionSchema(), ensureNotificationSchema(), ensureCoachPresenceSchema(), ensureAscendMemorySchema()])
+Promise.all([
+  ensureAiUsageSchema(),
+  ensureUserProfileSchema(),
+  ensureWaitlistSchema(),
+  ensureSubscriptionSchema(),
+  ensureNotificationSchema(),
+  ensureCoachPresenceSchema(),
+  ensureAscendMemorySchema(),
+  ensureHealthSyncSchema()
+])
   .catch((error) => {
     console.error("Schema setup failed", error);
   })

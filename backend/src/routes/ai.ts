@@ -7,13 +7,14 @@ import { logAiUsage } from "../services/aiUsageService";
 import { env } from "../config/env";
 import { aiRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
+import { getHealthSyncSummary } from "../services/healthSyncService";
 
 export const aiRouter = Router();
 
 aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
   try {
     const message = z.string().trim().min(1).max(2_000).parse(req.body.message);
-    const [contextResult, recentFoodResult, recentMessagesResult] = await Promise.all([
+    const [contextResult, recentFoodResult, recentMessagesResult, healthSyncSummary] = await Promise.all([
       query("select goal_type, starting_weight_kg, target_weight_kg from users where id = $1", [req.user!.id]),
       query(
         `
@@ -34,12 +35,23 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
         limit 8
         `,
         [req.user!.id]
-      )
+      ),
+      getHealthSyncSummary(req.user!.id)
     ]);
     const promptContext = JSON.stringify({
       profile: contextResult.rows[0] ?? {},
       recentFoodLogs: recentFoodResult.rows,
-      recentConversation: recentMessagesResult.rows.reverse()
+      recentConversation: recentMessagesResult.rows.reverse(),
+      healthSync: healthSyncSummary
+        ? {
+            todaySteps: healthSyncSummary.todaySteps,
+            averageSteps7d: healthSyncSummary.averageSteps7d,
+            todayActiveCalories: healthSyncSummary.todayActiveCalories,
+            workoutsThisWeek: healthSyncSummary.workoutsThisWeek,
+            workoutCompletedToday: healthSyncSummary.workoutCompletedToday,
+            lastSyncedAt: healthSyncSummary.lastSyncedAt
+          }
+        : null
     });
     const reply = await createNutritionCoachReply(message, promptContext);
     await logAiUsage({

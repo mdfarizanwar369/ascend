@@ -11,6 +11,37 @@ export interface ProgressComparison {
   highlights: Array<{ key: string; label: string; message: string }>;
 }
 
+export type HealthSyncSummary = {
+  connected: boolean;
+  todaySteps: number;
+  averageSteps7d: number;
+  todayActiveCalories: number;
+  workoutsThisWeek: number;
+  workoutCompletedToday: boolean;
+  lastSyncedAt: string | null;
+};
+
+export type HealthSyncStatus = {
+  provider: "health_connect";
+  connected: boolean;
+  permissions: string[];
+  timezone: string | null;
+  lastSyncedAt: string | null;
+  summary: HealthSyncSummary | null;
+};
+
+export type ImportedHealthSyncRecord = {
+  type: "steps_daily" | "active_calories_daily" | "exercise_session";
+  externalRecordId: string;
+  recordedOn?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+  valueNumeric?: number | null;
+  unit?: string | null;
+  sourceApp?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
 type BodyCompositionNutrition = NonNullable<NutritionTargetInput["bodyComposition"]>;
 type CacheEntry<T> = { value: T; expiresAt: number };
 
@@ -507,6 +538,31 @@ export function getCoachPresence() {
     history: CoachPresenceMessage[];
     settings: CoachPresenceSettings;
   }>("coach:presence", "/coach-presence", 20_000);
+}
+
+export function getHealthSyncStatus() {
+  return authedCached<{ status: HealthSyncStatus }>("health-sync:status", "/health-sync/status", 20_000);
+}
+
+export function importHealthSync(input: {
+  provider: "health_connect";
+  permissions: string[];
+  timezone: string | null;
+  syncedAt?: string | null;
+  records: ImportedHealthSyncRecord[];
+}) {
+  invalidateCached("health-sync:");
+  return authed<{ importedCount: number; summary: HealthSyncSummary | null }>("/health-sync/import", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function disconnectHealthSync() {
+  invalidateCached("health-sync:");
+  return authed<{ disconnected: boolean }>("/health-sync/disconnect", {
+    method: "POST"
+  });
 }
 
 export type AscendMemoryItem = {

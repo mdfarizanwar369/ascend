@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { Camera, Check, CreditCard, ExternalLink, Trash2, XCircle } from "lucide-react";
+import { Activity, Camera, Check, CreditCard, ExternalLink, Trash2, XCircle } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { InstallAscendButton } from "@/components/InstallAscendButton";
@@ -294,6 +294,9 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
+            <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+              <Activity size={17} /> Health Sync
+            </Link>
           </div>
         </section>
         {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}

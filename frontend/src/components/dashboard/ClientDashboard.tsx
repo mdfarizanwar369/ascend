@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { ArrowRight, BarChart3, Beef, Camera, CheckCircle2, ChevronDown, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
+import { Activity, ArrowRight, BarChart3, Beef, Camera, CheckCircle2, ChevronDown, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -13,6 +13,7 @@ import {
   getHabitLogs,
   getHabits,
   getFoodLogs,
+  getHealthSyncStatus,
   getLatestRecognition,
   getMe,
   getMyNutritionPlan,
@@ -53,6 +54,7 @@ type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getMyNutritionPlan>>["coachPlan"];
+type HealthSyncStatus = Awaited<ReturnType<typeof getHealthSyncStatus>>["status"];
 type CollapsibleKey =
   | "track"
   | "journey"
@@ -243,6 +245,7 @@ export function ClientDashboard() {
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
+  const [healthSyncStatus, setHealthSyncStatus] = useState<HealthSyncStatus | null>(null);
   const [coachPresence, setCoachPresence] = useState<{
     latest: CoachPresenceMessage | null;
     history: CoachPresenceMessage[];
@@ -336,7 +339,8 @@ export function ClientDashboard() {
         getProgressPhotos(),
         getMyNutritionPlan(),
         getCoachPresence(),
-        getAscendMemory()
+        getAscendMemory(),
+        getHealthSyncStatus()
       ]);
 
       const plan = await subscriptionRequest;
@@ -394,12 +398,13 @@ export function ClientDashboard() {
       setStatus("");
 
       void secondaryDataRequest
-        .then(([photos, nutritionPlan, presence, memory]) => {
+        .then(([photos, nutritionPlan, presence, memory, healthSync]) => {
           if (requestId !== dashboardRequestRef.current) return;
           if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
           if (nutritionPlan.status === "fulfilled") setCoachNutritionPlan(nutritionPlan.value.coachPlan);
           if (presence.status === "fulfilled") setCoachPresence(presence.value);
           if (memory.status === "fulfilled") setAscendMemory(memory.value);
+          if (healthSync.status === "fulfilled") setHealthSyncStatus(healthSync.value.status);
           setSectionLoading({ core: false, secondary: false });
         })
         .catch(() => {
@@ -783,6 +788,11 @@ export function ClientDashboard() {
     { label: "Momentum", value: `${score}/100`, detail: scoreLabel }
   ];
   const latestBurnLog = burnLogs[0];
+  const healthSyncSummary = healthSyncStatus?.summary ?? null;
+  const hasSyncedActivity = Boolean(healthSyncSummary?.connected);
+  const syncedSteps = healthSyncSummary?.todaySteps ?? 0;
+  const syncedWorkoutCompleted = healthSyncSummary?.workoutCompletedToday === true;
+  const syncedWorkoutCount = healthSyncSummary?.workoutsThisWeek ?? 0;
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : null;
   const latestMemoryMilestone = ascendMemory?.timeline?.[0];
   const weightPreview = latestWeight
@@ -791,6 +801,8 @@ export function ClientDashboard() {
   const waterPreview = `${(todaysWaterMl / 1000).toFixed(1)}L today / ${weeklyWaterDays.size}/7 days`;
   const workoutPreview = latestBurnLog
     ? `${Number(latestBurnLog.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal / ${formatShortDate(latestBurnLog.created_at)}`
+    : syncedWorkoutCompleted
+      ? `Workout detected automatically / ${syncedWorkoutCount} this week`
     : "Your first activity log is waiting";
   const weeklyReportPreview = hasPremiumAccess ? "Your weekly reflection is ready" : "Premium unlocks weekly reflections";
   const memoryPreview = latestMemoryMilestone ? `Latest milestone: ${latestMemoryMilestone.title}` : "Your first milestone is waiting";
@@ -806,7 +818,8 @@ export function ClientDashboard() {
         todaysFood.length ? `${todaysFood.length} meal${todaysFood.length === 1 ? "" : "s"}` : null,
         todaysWaterMl > 0 ? `${(todaysWaterMl / 1000).toFixed(1)}L` : null,
         currentWeight ? `${currentWeight.toFixed(1)}kg` : null,
-        todaysBurnCalories > 0 ? `${todaysBurnCalories} kcal` : null
+        todaysBurnCalories > 0 ? `${todaysBurnCalories} kcal` : null,
+        syncedSteps > 0 ? `${syncedSteps.toLocaleString()} steps` : null
       ].filter((item): item is string => Boolean(item)).join(" • ")
     : "Today's nutrition, hydration, weight and activity";
   const journeyHighlights = [
@@ -1140,6 +1153,18 @@ export function ClientDashboard() {
               </div>
             ))}
           </div>
+          {hasSyncedActivity ? (
+            <div className="mt-4 rounded-xl border border-calm/20 bg-calm/8 px-3 py-3">
+              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-calm">
+                <Activity size={14} />
+                Synced
+              </div>
+              <p className="mt-2 text-sm text-white">
+                {syncedSteps > 0 ? `${syncedSteps.toLocaleString()} steps today.` : "Health Connect is connected."}
+                {syncedWorkoutCompleted ? " Workout detected automatically." : ""}
+              </p>
+            </div>
+          ) : null}
         </section>
 
         <section ref={progressDetailsRef} className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
