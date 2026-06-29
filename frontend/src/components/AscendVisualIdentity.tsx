@@ -1,4 +1,6 @@
-import { ReactNode } from "react";
+ "use client";
+
+import { ReactNode, useEffect, useState } from "react";
 import { Activity, Dna, Sparkles } from "lucide-react";
 
 type Tone = "momentum" | "dna" | "trainer" | "owner";
@@ -16,7 +18,8 @@ export function AscendHeroPanel({
   body,
   tone,
   visual,
-  children
+  children,
+  className = ""
 }: {
   eyebrow: string;
   title: string;
@@ -24,9 +27,10 @@ export function AscendHeroPanel({
   tone: Tone;
   visual: ReactNode;
   children?: ReactNode;
+  className?: string;
 }) {
   return (
-    <section className={`ascend-identity-hero ascend-soft-enter relative mt-3 overflow-hidden rounded-3xl border bg-gradient-to-br p-5 shadow-soft ${toneClasses[tone]}`}>
+    <section className={`ascend-identity-hero ascend-soft-enter relative mt-3 overflow-hidden rounded-3xl border bg-gradient-to-br p-5 shadow-soft ${toneClasses[tone]} ${className}`}>
       <div className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-calm/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-16 left-6 h-40 w-40 rounded-full bg-purple-500/10 blur-3xl" />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -45,6 +49,18 @@ export function AscendHeroPanel({
 export function MomentumHalo({ value, label = "Momentum" }: { value: number | string; label?: string }) {
   const numeric = typeof value === "number" ? Math.max(0, Math.min(100, value)) : null;
   const dash = numeric === null ? 72 : numeric;
+  const [animatedDash, setAnimatedDash] = useState(0);
+
+  useEffect(() => {
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setAnimatedDash(dash);
+      return;
+    }
+    setAnimatedDash(0);
+    const frame = window.requestAnimationFrame(() => setAnimatedDash(dash));
+    return () => window.cancelAnimationFrame(frame);
+  }, [dash]);
 
   return (
     <div className="ascend-float relative grid h-28 w-28 shrink-0 place-items-center" aria-label={`${label} ${value}`}>
@@ -57,9 +73,20 @@ export function MomentumHalo({ value, label = "Momentum" }: { value: number | st
           </linearGradient>
         </defs>
         <circle cx="60" cy="60" r="48" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-        <circle cx="60" cy="60" r="48" fill="none" stroke="url(#ascendMomentumGradient)" strokeWidth="8" strokeLinecap="round" pathLength="100" strokeDasharray={`${dash} ${100 - dash}`} />
+        <circle
+          cx="60"
+          cy="60"
+          r="48"
+          fill="none"
+          stroke="url(#ascendMomentumGradient)"
+          strokeWidth="8"
+          strokeLinecap="round"
+          pathLength="100"
+          strokeDasharray={`${animatedDash} ${100 - animatedDash}`}
+          className="transition-[stroke-dasharray] duration-1000 ease-out"
+        />
       </svg>
-      <div className="grid h-20 w-20 place-items-center rounded-3xl border border-calm/30 bg-ink/80 text-center shadow-lg shadow-calm/10">
+      <div className="grid h-20 w-20 place-items-center rounded-3xl border border-calm/30 bg-ink/80 text-center shadow-[0_0_32px_rgba(61,230,209,0.12)]">
         <div>
           <p className="text-2xl font-semibold text-white">{value}</p>
           <p className="text-[10px] uppercase tracking-[0.12em] text-calm">{label}</p>

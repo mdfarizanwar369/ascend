@@ -187,6 +187,22 @@ html[data-theme="light"] .ascend-theme-glow {
   50% { transform: translateY(-6px); }
 }
 
+@keyframes ascend-cta-pulse {
+  0%, 100% { box-shadow: 0 18px 45px rgba(61, 230, 209, 0.18), 0 0 0 rgba(61, 230, 209, 0); }
+  50% { box-shadow: 0 22px 52px rgba(61, 230, 209, 0.22), 0 0 0 10px rgba(61, 230, 209, 0.06); }
+}
+
+@keyframes ascend-task-complete {
+  0% { transform: scale(0.96); box-shadow: 0 0 0 rgba(61, 230, 209, 0); }
+  55% { transform: scale(1.02); box-shadow: 0 0 0 6px rgba(61, 230, 209, 0.08); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(61, 230, 209, 0); }
+}
+
+@keyframes ascend-card-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .ascend-demo-enter { animation: ascend-demo-enter 280ms ease-out both; }
 .ascend-demo-scan { animation: ascend-demo-scan 1.4s ease-in-out infinite; }
 .ascend-demo-pop { animation: ascend-demo-pop 280ms ease-out both; }
@@ -252,6 +268,18 @@ html[data-theme="light"] .ascend-theme-glow {
   animation: ascend-float 5s ease-in-out infinite;
 }
 
+.ascend-cta-pulse {
+  animation: ascend-cta-pulse 2.4s ease-in-out infinite;
+}
+
+.ascend-task-complete {
+  animation: ascend-task-complete 360ms ease-out both;
+}
+
+.ascend-card-rise {
+  animation: ascend-card-rise 300ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body {
     transition: none;
@@ -269,6 +297,9 @@ html[data-theme="light"] .ascend-theme-glow {
   .ascend-soft-enter,
   .ascend-skeleton::after,
   .ascend-float,
+  .ascend-cta-pulse,
+  .ascend-task-complete,
+  .ascend-card-rise,
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none;

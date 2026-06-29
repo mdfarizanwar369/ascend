@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { ChevronDown } from "lucide-react";
+import { ArrowRight, Beef, CheckCircle2, ChevronDown, Droplets, Flame, Scale, Sparkles, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -143,6 +143,14 @@ function formatShortDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date);
+}
+
+function snapshotIcon(label: string) {
+  if (label === "Calories") return Flame;
+  if (label === "Protein") return Beef;
+  if (label === "Water") return Droplets;
+  if (label === "Weight") return Scale;
+  return Zap;
 }
 
 function CollapsibleSection({
@@ -611,12 +619,6 @@ export function ClientDashboard() {
 
   const remainingWeight = targetWeight && currentWeight ? Math.abs(currentWeight - targetWeight) : null;
 
-  const premiumActions = [
-    { href: "/messages", title: "Message trainer", detail: user?.assigned_trainer_name ?? "Ask a question" },
-    { href: "/reports", title: "Weekly report", detail: "Review wins" },
-    { href: "/coach", title: "AI coach", detail: "Meal ideas" },
-    { href: "/progress", title: "Progress photo", detail: "Track changes" }
-  ];
   const navItems = [
     { href: "/dashboard", label: "Home", selected: true, show: true },
     { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
@@ -659,6 +661,14 @@ export function ClientDashboard() {
     .filter((log) => localDateKey(log.logged_at) === yesterday)
     .reduce((total, log) => total + asNumber(log.protein_g), 0);
   const weightLostFromStart = startWeight && currentWeight && startWeight > currentWeight ? startWeight - currentWeight : 0;
+  const dynamicEncouragement = (() => {
+    if (goalProgress !== null && goalProgress >= 90) return "Almost there.";
+    if (currentStreak >= 7) return "Let's keep the streak alive.";
+    if (score >= 80) return "Great consistency lately.";
+    if (todaysBurnCalories > 0 && todaysWaterMl >= nutritionTargets.waterTargetMl) return "Fantastic recovery.";
+    if (score >= 60) return "You're building momentum.";
+    return "One honest check-in can change the feel of the day.";
+  })();
   const enhancedNextAction = (() => {
     if (recentCelebration) return nextAction;
     if (!todaysFood.length && foodConsistency >= 5) {
@@ -700,6 +710,27 @@ export function ClientDashboard() {
   ];
   const completedTaskCount = taskItems.filter((item) => item.done).length;
   const dailyCompletion = Math.round((completedTaskCount / taskItems.length) * 100);
+  const highlightedTaskKey = recentAction
+    ? recentAction.type === "food"
+      ? "Food logged"
+      : recentAction.type === "water"
+        ? "Water completed"
+        : recentAction.type === "weight"
+          ? "Weight recorded"
+          : recentAction.type === "burn"
+            ? "Workout completed"
+            : "Habit completed"
+    : null;
+  const coachZoeInsight = (() => {
+    if (!todaysFood.length && proteinLeft > 25) return "Protein is your biggest opportunity today.";
+    if (currentStreak >= 7) return "Excellent consistency this week.";
+    if (completedTaskCount === taskItems.length - 1) return "You're one small win away from a complete day.";
+    if (todaysWaterMl < nutritionTargets.waterTargetMl && waterLeftMl >= 500) return "Water intake is the easiest win today.";
+    if (todaysBurnCalories === 0 && weeklyBurnDays.size >= 3) return "One workout today keeps your weekly rhythm strong.";
+    if (goalProgress !== null && goalProgress >= 85) return "You are close enough now that consistency matters more than intensity.";
+    if (score >= 80) return "The routine is working. Protect it with one clean check-in.";
+    return "The simplest next action is still the best action today.";
+  })();
   const todayProgressItems = [
     goalCompletedToday
       ? { label: "Goal", value: "Done", detail: "completed" }
@@ -717,7 +748,6 @@ export function ClientDashboard() {
   const latestBurnLog = burnLogs[0];
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : null;
   const latestMemoryMilestone = ascendMemory?.timeline?.[0];
-  const nutritionPreview = `${calories.toLocaleString()} kcal / ${protein}g protein / ${todaysFood.length} meals today`;
   const weightPreview = latestWeight
     ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg${weightDelta !== null ? ` / ${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg` : ""}`
     : "Record your first weight check-in";
@@ -959,17 +989,21 @@ export function ClientDashboard() {
           body={recentCelebration?.detail ?? enhancedNextAction.detail}
           tone="momentum"
           visual={<MomentumHalo value={score} />}
+          className="border-calm/35 from-calm/14 via-surface to-purple-500/16 shadow-[0_24px_80px_rgba(8,12,20,0.55)]"
         >
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm text-zinc-400">{greeting}</p>
-            <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm text-zinc-300">{greeting}</p>
+              <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
+            </div>
+            <p className="max-w-[22rem] text-sm leading-6 text-zinc-300">{dynamicEncouragement}</p>
           </div>
           {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-400">{recentCelebration.secondary}</p> : null}
           {recentCelebration ? (
             <button
               type="button"
               onClick={revealTodayProgress}
-              className="mt-5 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
+              className="ascend-cta-pulse mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
             >
               View Today&apos;s Progress
             </button>
@@ -977,39 +1011,41 @@ export function ClientDashboard() {
             <button
               type="button"
               onClick={revealTodayProgress}
-              className="mt-5 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
+              className="ascend-cta-pulse mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
             >
               {enhancedNextAction.cta}
             </button>
           ) : (
-            <a href={enhancedNextAction.href} className="mt-5 flex h-14 items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
-              {enhancedNextAction.cta}
+            <a href={enhancedNextAction.href} className="ascend-cta-pulse mt-6 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+              {enhancedNextAction.cta} <ArrowRight size={18} />
             </a>
           )}
         </AscendHeroPanel>
 
-        <section className="mt-4 rounded-2xl border border-lime/40 bg-lime/10 p-5 shadow-soft">
-          <div className="flex flex-col gap-3">
-            <div>
+        <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-lime/30 bg-[linear-gradient(180deg,rgba(61,230,209,0.08),rgba(18,23,33,0.96))] p-5 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-lime">Today&apos;s tasks</p>
               <h2 className="mt-1 text-xl font-semibold">{completedTaskCount}/{taskItems.length} completed</h2>
               <p className="mt-1 text-xs text-zinc-500">{formatGoal(user?.goal_type)}</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">Tick off the basics. Each small action makes the day easier to trust.</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">Complete the basics and let the day feel lighter.</p>
               {dailyMission?.trainer_name ? <p className="mt-2 text-xs text-zinc-500">From {dailyMission.trainer_name}</p> : null}
             </div>
-            <span className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-zinc-300">
-              Checklist
-            </span>
+            <div className="rounded-2xl border border-white/10 bg-ink/70 px-3 py-2 text-right">
+              <p className="text-[11px] uppercase tracking-[0.14em] text-zinc-500">Progress</p>
+              <p className="mt-1 text-lg font-semibold text-lime">{dailyCompletion}%</p>
+            </div>
           </div>
+          <div className="mt-4"><DelightProgressBar value={dailyCompletion} /></div>
           {dailyMission ? (
-            <div className="mt-4 rounded-xl border border-calm/30 bg-calm/10 p-3">
+            <div className="mt-4 rounded-2xl border border-calm/30 bg-calm/10 p-3.5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-calm">Trainer mission</p>
                   <p className="mt-1 text-sm leading-6 text-zinc-200">{dailyMission.title}</p>
                 </div>
-                <span className={`rounded px-2 py-1 text-xs font-semibold ${dailyMission.status === "completed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}>
-                  {dailyMission.status === "completed" ? "Done" : "Open"}
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${dailyMission.status === "completed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}>
+                  {dailyMission.status === "completed" ? "Completed" : "Active"}
                 </span>
               </div>
             </div>
@@ -1027,17 +1063,29 @@ export function ClientDashboard() {
           {missionStatus ? <p className="mt-3 text-sm text-zinc-300">{missionStatus}</p> : null}
           <div className="mt-4 space-y-2">
             {taskItems.map((item) => (
-              <a key={item.label} href={item.href} className="flex items-center justify-between rounded-xl border border-line bg-ink px-3 py-3">
-                <span className="text-sm font-semibold text-white">{item.label}</span>
-                <span className={`grid h-7 min-w-7 place-items-center rounded-full px-2 text-xs font-semibold ${item.done ? "bg-lime text-ink" : "border border-line text-zinc-400"}`}>
-                  {item.done ? "Done" : "Open"}
+              <a
+                key={item.label}
+                href={item.href}
+                className={`flex items-center justify-between rounded-2xl border px-3.5 py-3 ${item.done ? "ascend-task-complete border-calm/30 bg-calm/10" : "border-line bg-ink"}`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className={`grid h-9 w-9 place-items-center rounded-full ${item.done ? "bg-lime text-ink" : "border border-line bg-surface text-zinc-400"}`}>
+                    {item.done ? <CheckCircle2 size={18} /> : <ArrowRight size={16} />}
+                  </span>
+                  <div>
+                    <span className="block text-sm font-semibold text-white">{item.label}</span>
+                    <span className="block text-xs text-zinc-500">{item.done ? "Captured today" : "Tap to complete"}</span>
+                  </div>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${item.done ? "bg-lime/15 text-lime" : "border border-line text-zinc-400"}`}>
+                  {item.done ? (highlightedTaskKey === item.label ? "Just done" : "Complete") : "Open"}
                 </span>
               </a>
             ))}
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-soft">
+        <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
           <div className="flex flex-col gap-3">
             <div>
               <p className="text-sm font-semibold">Today&apos;s progress</p>
@@ -1057,7 +1105,7 @@ export function ClientDashboard() {
           </div>
         </section>
 
-        <section ref={progressDetailsRef} className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-soft">
+        <section ref={progressDetailsRef} className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-calm">Quick Snapshot</p>
@@ -1067,18 +1115,48 @@ export function ClientDashboard() {
               How is this calculated?
             </a>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {quickSnapshotItems.map((item) => (
-              <div key={item.label} className="rounded-xl bg-ink p-3">
-                <p className="text-xs text-zinc-400">{item.label}</p>
-                <p className="mt-1 text-lg font-semibold">{item.value}</p>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {quickSnapshotItems.map((item) => {
+              const Icon = snapshotIcon(item.label);
+              const progressValue =
+                item.label === "Calories" ? calorieProgress :
+                item.label === "Protein" ? proteinProgress :
+                item.label === "Water" ? clamp(Math.round((todaysWaterMl / nutritionTargets.waterTargetMl) * 100)) :
+                item.label === "Momentum" ? score :
+                currentWeight ? clamp(goalProgress ?? 48) : 0;
+              return (
+              <div key={item.label} className="rounded-2xl border border-white/5 bg-ink p-3.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="grid h-9 w-9 place-items-center rounded-2xl bg-surface text-calm">
+                    <Icon size={18} />
+                  </span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{item.label}</span>
+                </div>
+                <p className="mt-3 text-xl font-semibold text-white">{item.value}</p>
                 <p className="mt-1 text-[11px] leading-4 text-zinc-500">{item.detail}</p>
+                <div className="mt-3"><DelightProgressBar value={progressValue} /></div>
               </div>
-            ))}
+            );
+            })}
           </div>
-          <div className="mt-4 rounded-xl border border-calm/20 bg-calm/5 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-calm">{dailyCoachingMessage.label}</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-200">{dailyCoachingMessage.message}</p>
+        </section>
+
+        <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-purple-400/25 bg-[linear-gradient(180deg,rgba(139,92,246,0.10),rgba(18,23,33,0.96))] p-5 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="grid h-9 w-9 place-items-center rounded-2xl bg-purple-400/12 text-purple-200">
+                  <Sparkles size={18} />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-purple-200">Coach Zoe</p>
+                  <p className="text-xs text-zinc-500">One clear coaching thought for today</p>
+                </div>
+              </div>
+              <p className="mt-4 text-lg font-semibold leading-8 text-white">{coachZoeInsight}</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">{dailyCoachingMessage.detail}</p>
+            </div>
+            <DelightBadge tone="purple">Adaptive</DelightBadge>
           </div>
         </section>
 
