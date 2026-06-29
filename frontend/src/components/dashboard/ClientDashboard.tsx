@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { ArrowRight, Beef, CheckCircle2, ChevronDown, Droplets, Flame, Scale, Sparkles, Zap } from "lucide-react";
+import { ArrowRight, BarChart3, Beef, Camera, CheckCircle2, ChevronDown, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -155,12 +155,14 @@ function snapshotIcon(label: string) {
 
 function CollapsibleSection({
   title,
+  icon,
   preview,
   children,
   isOpen,
   onToggle
 }: {
   title: string;
+  icon?: ReactNode;
   preview: string;
   children: ReactNode;
   isOpen: boolean;
@@ -175,7 +177,14 @@ function CollapsibleSection({
         className="flex w-full items-center justify-between gap-3 p-4 text-left"
       >
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
+          <div className="flex items-center gap-2">
+            {icon ? (
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/8 bg-ink text-calm">
+                {icon}
+              </span>
+            ) : null}
+            <h2 className="text-base font-semibold text-white">{title}</h2>
+          </div>
           <p className="mt-1 truncate text-sm text-zinc-400">{preview}</p>
         </div>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-200">
@@ -1162,6 +1171,7 @@ export function ClientDashboard() {
 
         <CollapsibleSection
           title="Track"
+          icon={<BarChart3 size={17} />}
           preview={trackPreview}
           isOpen={openSections.track}
           onToggle={() => setSectionOpen("track", !openSections.track)}
@@ -1267,6 +1277,7 @@ export function ClientDashboard() {
 
         <CollapsibleSection
           title="Journey"
+          icon={<Camera size={17} />}
           preview={journeyPreview}
           isOpen={openSections.journey}
           onToggle={() => setSectionOpen("journey", !openSections.journey)}
@@ -1324,6 +1335,7 @@ export function ClientDashboard() {
 
         <CollapsibleSection
           title="Habits & Goals"
+          icon={<Target size={17} />}
           preview={habitsGoalsPreview}
           isOpen={openSections.habitsGoals}
           onToggle={() => setSectionOpen("habitsGoals", !openSections.habitsGoals)}
