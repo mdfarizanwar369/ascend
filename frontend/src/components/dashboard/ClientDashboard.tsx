@@ -153,9 +153,35 @@ function snapshotIcon(label: string) {
   return Zap;
 }
 
+function sectionAccent(tone: "teal" | "purple" | "lime") {
+  if (tone === "purple") {
+    return {
+      shell: "border-purple-400/25 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(18,23,33,0.98))]",
+      icon: "border-purple-400/20 bg-purple-400/10 text-purple-200",
+      title: "text-purple-100",
+      preview: "text-zinc-400"
+    };
+  }
+  if (tone === "lime") {
+    return {
+      shell: "border-lime/25 bg-[linear-gradient(180deg,rgba(163,255,70,0.06),rgba(18,23,33,0.98))]",
+      icon: "border-lime/20 bg-lime/10 text-lime",
+      title: "text-lime-50",
+      preview: "text-zinc-400"
+    };
+  }
+  return {
+    shell: "border-calm/25 bg-[linear-gradient(180deg,rgba(61,230,209,0.07),rgba(18,23,33,0.98))]",
+    icon: "border-calm/20 bg-calm/10 text-calm",
+    title: "text-white",
+    preview: "text-zinc-400"
+  };
+}
+
 function CollapsibleSection({
   title,
   icon,
+  tone = "teal",
   preview,
   children,
   isOpen,
@@ -163,13 +189,15 @@ function CollapsibleSection({
 }: {
   title: string;
   icon?: ReactNode;
+  tone?: "teal" | "purple" | "lime";
   preview: string;
   children: ReactNode;
   isOpen: boolean;
   onToggle: () => void;
 }) {
+  const accent = sectionAccent(tone);
   return (
-    <section className="mt-4 rounded-2xl border border-line bg-surface shadow-soft">
+    <section className={`mt-4 rounded-2xl border shadow-soft ${accent.shell}`}>
       <button
         type="button"
         aria-expanded={isOpen}
@@ -179,13 +207,13 @@ function CollapsibleSection({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             {icon ? (
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/8 bg-ink text-calm">
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border ${accent.icon}`}>
                 {icon}
               </span>
             ) : null}
-            <h2 className="text-base font-semibold text-white">{title}</h2>
+            <h2 className={`text-base font-semibold ${accent.title}`}>{title}</h2>
           </div>
-          <p className="mt-1 truncate text-sm text-zinc-400">{preview}</p>
+          <p className={`mt-1 truncate text-sm ${accent.preview}`}>{preview}</p>
         </div>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-200">
           <ChevronDown className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} size={18} />
@@ -1172,6 +1200,7 @@ export function ClientDashboard() {
         <CollapsibleSection
           title="Track"
           icon={<BarChart3 size={17} />}
+          tone="teal"
           preview={trackPreview}
           isOpen={openSections.track}
           onToggle={() => setSectionOpen("track", !openSections.track)}
@@ -1278,6 +1307,7 @@ export function ClientDashboard() {
         <CollapsibleSection
           title="Journey"
           icon={<Camera size={17} />}
+          tone="purple"
           preview={journeyPreview}
           isOpen={openSections.journey}
           onToggle={() => setSectionOpen("journey", !openSections.journey)}
@@ -1336,6 +1366,7 @@ export function ClientDashboard() {
         <CollapsibleSection
           title="Habits & Goals"
           icon={<Target size={17} />}
+          tone="lime"
           preview={habitsGoalsPreview}
           isOpen={openSections.habitsGoals}
           onToggle={() => setSectionOpen("habitsGoals", !openSections.habitsGoals)}
