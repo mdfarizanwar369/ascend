@@ -207,7 +207,7 @@ function estimateFailureMessage(error: unknown) {
   if (error instanceof Error && /limit reached/i.test(error.message)) {
     return error.message;
   }
-  if (error instanceof Error && /quota|billing|AI provider/i.test(error.message)) {
+  if (error instanceof Error && /quota|billing|AI provider|temporarily unavailable|timed out|malformed response|empty result|request was rejected/i.test(error.message)) {
     return "Food AI is temporarily unavailable. You can enter this meal manually now, then try AI again later.";
   }
   return "AI could not estimate this photo reliably. Please edit the fields before saving, or try AI again.";

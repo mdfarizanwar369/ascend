@@ -17,6 +17,10 @@ const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
 
 type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 type GeminiResponse = {
+  promptFeedback?: {
+    blockReason?: string;
+  };
+  usageMetadata?: Record<string, unknown>;
   candidates?: Array<{
     finishReason?: string;
     content?: {
@@ -24,11 +28,19 @@ type GeminiResponse = {
     };
   }>;
 };
+type GeminiTextResult = {
+  text: string;
+  finishReason?: string;
+  blockReason?: string;
+  usageMetadata?: Record<string, unknown>;
+  rawResponse?: GeminiResponse;
+};
 type GeminiCallOptions = {
   models?: string[];
   attemptsPerModel?: number;
   timeoutMs?: number;
   responseMimeType?: "application/json" | "text/plain";
+  responseSchema?: Record<string, unknown>;
   performanceTrace?: FoodAiPerformanceTrace | null;
 };
 
@@ -54,6 +66,18 @@ class BodyCompositionExtractionError extends Error {
   }
 }
 
+class FoodAiError extends Error {
+  constructor(
+    message: string,
+    public readonly category: "configuration" | "timeout" | "empty_response" | "invalid_json" | "service" | "request_rejected" | "network" | "unknown",
+    public readonly technicalDetail?: string,
+    public readonly rawResponse?: string
+  ) {
+    super(message);
+    this.name = "FoodAiError";
+  }
+}
+
 function bodyCompositionDebugLog(event: string, metadata: Record<string, unknown>) {
   const shouldLog = env.BODY_COMPOSITION_AI_DEBUG_LOGS || env.NODE_ENV !== "production";
   if (!shouldLog) return;
@@ -62,6 +86,16 @@ function bodyCompositionDebugLog(event: string, metadata: Record<string, unknown
 
 function bodyCompositionErrorLog(event: string, metadata: Record<string, unknown>) {
   console.error("[body-composition-ai]", event, metadata);
+}
+
+function foodAiDebugLog(event: string, metadata: Record<string, unknown>) {
+  const shouldLog = env.FOOD_AI_PERFORMANCE_LOGS || env.NODE_ENV !== "production";
+  if (!shouldLog) return;
+  console.info("[food-ai]", event, metadata);
+}
+
+function foodAiErrorLog(event: string, metadata: Record<string, unknown>) {
+  console.error("[food-ai]", event, metadata);
 }
 
 function demoFoodEstimate(): FoodEstimate {
@@ -129,6 +163,18 @@ function cleanJsonText(text: string) {
   return cleaned;
 }
 
+function normalizeJsonCandidate(text: string) {
+  return cleanJsonText(text)
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/,\s*([}\]])/g, "$1")
+    .trim();
+}
+
+function parseJsonObject(text: string) {
+  return JSON.parse(normalizeJsonCandidate(text)) as unknown;
+}
+
 function firstValue(source: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     if (source[key] !== undefined && source[key] !== null) return source[key];
@@ -137,7 +183,20 @@ function firstValue(source: Record<string, unknown>, keys: string[]) {
 }
 
 function parseFoodEstimate(text: string): FoodEstimate {
-  const json = JSON.parse(cleanJsonText(text)) as unknown;
+  let json: unknown;
+  try {
+    json = parseJsonObject(text);
+  } catch (error) {
+    const extracted = extractFoodEstimateFromText(text);
+    if (extracted) {
+      foodAiDebugLog("food_estimate_parse_recovered", {
+        mode: "flexible_text_recovery",
+        responsePreview: text.slice(0, 400)
+      });
+      return extracted;
+    }
+    throw error;
+  }
   const parsed =
     Array.isArray(json) && json[0] && typeof json[0] === "object"
       ? (json[0] as Record<string, unknown>)
@@ -153,6 +212,41 @@ function parseFoodEstimate(text: string): FoodEstimate {
     carbsG: clampNumber(firstValue(parsed, ["carbsG", "carbs_g", "carbs", "carbohydrates", "carbohydrateG"]), 0, 800),
     fatG: clampNumber(firstValue(parsed, ["fatG", "fat_g", "fat", "fats", "fatGrams"]), 0, 500),
     notes: String(firstValue(parsed, ["notes", "note", "explanation"]) ?? "AI estimate. Please review and edit if needed.").trim()
+  };
+}
+
+function extractFoodEstimateFromText(text: string): FoodEstimate | null {
+  const compact = text.replace(/\r/g, "");
+  const foodNameMatch =
+    compact.match(/"foodName"\s*:\s*"([^"]+)"/i) ??
+    compact.match(/food(?:\s|_)?name\s*[:=-]\s*([^\n,]+)/i) ??
+    compact.match(/dish(?:\s|_)?name\s*[:=-]\s*([^\n,]+)/i) ??
+    compact.match(/name\s*[:=-]\s*([^\n,]+)/i);
+  const caloriesMatch = compact.match(/(?:calories|kcal|calorieEstimate)\s*[:=-]\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const proteinMatch = compact.match(/(?:proteinG|protein_g|protein(?:\s*grams?)?)\s*[:=-]\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const carbsMatch = compact.match(/(?:carbsG|carbs_g|carbs|carbohydrates?)\s*[:=-]\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const fatMatch = compact.match(/(?:fatG|fat_g|fat|fats)\s*[:=-]\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const confidenceMatch = compact.match(/(?:confidence|confidenceScore|confidence_score)\s*[:=-]\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const notesMatch =
+    compact.match(/"notes"\s*:\s*"([^"]+)"/i) ??
+    compact.match(/notes?\s*[:=-]\s*([^\n]+)$/im) ??
+    compact.match(/explanation\s*[:=-]\s*([^\n]+)$/im);
+
+  if (!foodNameMatch || !caloriesMatch || !proteinMatch || !carbsMatch || !fatMatch) {
+    return null;
+  }
+
+  return {
+    foodName: String(foodNameMatch[1]).replace(/^["'\s]+|["'\s]+$/g, "").trim() || "Food item",
+    confidence: confidenceNumber(confidenceMatch?.[1] ?? 0.45),
+    calories: clampNumber(caloriesMatch[1], 0, 5000),
+    proteinG: clampNumber(proteinMatch[1], 0, 500),
+    carbsG: clampNumber(carbsMatch[1], 0, 800),
+    fatG: clampNumber(fatMatch[1], 0, 500),
+    notes:
+      String(notesMatch?.[1] ?? "AI returned a flexible response. Please review and edit if needed.")
+        .replace(/^["'\s]+|["'\s]+$/g, "")
+        .trim() || "AI returned a flexible response. Please review and edit if needed."
   };
 }
 
@@ -410,6 +504,19 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
   if (options.responseMimeType) {
     generationConfig.responseMimeType = options.responseMimeType;
   }
+  if (options.responseSchema) {
+    generationConfig.responseSchema = options.responseSchema;
+  }
+
+  foodAiDebugLog("gemini_request", {
+    model,
+    responseMimeType: options.responseMimeType ?? "text/plain",
+    hasResponseSchema: Boolean(options.responseSchema),
+    maxOutputTokens,
+    timeoutMs: options.timeoutMs ?? 20_000,
+    textPartsChars: parts.filter((part): part is { text: string } => "text" in part).map((part) => part.text.length),
+    imageCount: parts.filter((part) => "inlineData" in part).length
+  });
 
   try {
     const response = await fetch(`${geminiBaseUrl}/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
@@ -433,11 +540,25 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
 
     const data = (await response.json()) as GeminiResponse;
     const text = geminiText(data);
+    foodAiDebugLog("gemini_response", {
+      model,
+      status: response.status,
+      finishReason: data.candidates?.[0]?.finishReason,
+      blockReason: data.promptFeedback?.blockReason,
+      responseChars: text.length,
+      responsePreview: text.slice(0, 400)
+    });
     if (!text) {
       throw new GeminiError(`Gemini ${model} returned an empty response.`, undefined, true);
     }
 
-    return text;
+    return {
+      text,
+      finishReason: data.candidates?.[0]?.finishReason,
+      blockReason: data.promptFeedback?.blockReason,
+      usageMetadata: data.usageMetadata,
+      rawResponse: env.NODE_ENV === "production" ? undefined : data
+    };
   } catch (error) {
     if (error instanceof GeminiError) throw error;
     if (error instanceof Error && error.name === "AbortError") {
@@ -450,7 +571,8 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
 }
 
 async function callGemini(parts: GeminiPart[], maxOutputTokens = 700) {
-  return callGeminiWithOptions(parts, maxOutputTokens);
+  const result = await callGeminiWithOptions(parts, maxOutputTokens);
+  return result.text;
 }
 
 async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700, options: GeminiCallOptions = {}) {
@@ -465,7 +587,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
       const startedAtEpochMs = Date.now();
       const attemptNumber = (options.performanceTrace?.geminiAttempts.length ?? 0) + 1;
       try {
-        const text = await callGeminiOnce(model, parts, maxOutputTokens, options);
+        const result = await callGeminiOnce(model, parts, maxOutputTokens, options);
         const endedAtEpochMs = Date.now();
         recordGeminiAttempt(options.performanceTrace, {
           attempt: attemptNumber,
@@ -475,7 +597,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
           endedAtEpochMs,
           success: true
         });
-        return text;
+        return result;
       } catch (error) {
         const endedAtEpochMs = Date.now();
         recordGeminiAttempt(options.performanceTrace, {
@@ -549,22 +671,48 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
     }
   ];
   const strongerModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"]);
+  const foodEstimateResponseSchema = {
+    type: "OBJECT",
+    properties: {
+      foodName: { type: "STRING" },
+      confidence: { type: "NUMBER" },
+      calories: { type: "NUMBER" },
+      proteinG: { type: "NUMBER" },
+      carbsG: { type: "NUMBER" },
+      fatG: { type: "NUMBER" },
+      notes: { type: "STRING" }
+    },
+    required: ["foodName", "confidence", "calories", "proteinG", "carbsG", "fatG", "notes"]
+  };
 
   async function generateEstimate(models: string[], responseMimeType?: "application/json") {
-    const text = await callGeminiWithOptions(parts, 1400, {
+    const result = await callGeminiWithOptions(parts, 700, {
       models,
       attemptsPerModel: 1,
       timeoutMs: 22_000,
       responseMimeType,
+      responseSchema: responseMimeType === "application/json" ? foodEstimateResponseSchema : undefined,
       performanceTrace
     });
+    const text = result.text;
     try {
       const estimate = timeFoodAiSyncStage(performanceTrace, "Gemini response parse", () => parseFoodEstimate(text), {
-        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible"
+        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible",
+        finishReason: result.finishReason,
+        blockReason: result.blockReason
       });
       annotateLatestGeminiParse(performanceTrace, { success: true });
       return estimate;
     } catch (error) {
+      foodAiErrorLog("food_estimate_parse_failed", {
+        model: models.join(","),
+        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible",
+        finishReason: result.finishReason,
+        blockReason: result.blockReason,
+        responsePreview: text.slice(0, 500),
+        rawResponse: env.NODE_ENV === "production" ? undefined : result.rawResponse,
+        error: error instanceof Error ? error.message : "Unknown parse failure"
+      });
       annotateLatestGeminiParse(performanceTrace, { success: false, failureReason: geminiFailureReason(error) });
       throw error;
     }
@@ -572,7 +720,12 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
 
   try {
     return await generateEstimate([env.GEMINI_MODEL], "application/json");
-  } catch {}
+  } catch (error) {
+    foodAiErrorLog("primary_json_attempt_failed", {
+      model: env.GEMINI_MODEL,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
 
   try {
     const estimate = await generateEstimate([env.GEMINI_MODEL]);
@@ -580,7 +733,12 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
       ...estimate,
       notes: `${estimate.notes} Ascend retried the scan with a more flexible response format.`
     };
-  } catch {}
+  } catch (error) {
+    foodAiErrorLog("primary_flexible_attempt_failed", {
+      model: env.GEMINI_MODEL,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
 
   try {
     const estimate = await generateEstimate(strongerModels, "application/json");
@@ -588,7 +746,11 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
       ...estimate,
       notes: `${estimate.notes} Ascend used a stronger backup AI model because the first scan was unclear.`
     };
-  } catch {
+  } catch (error) {
+    foodAiErrorLog("backup_json_attempt_failed", {
+      models: strongerModels,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
     const estimate = await generateEstimate(strongerModels);
     return {
       ...estimate,
@@ -620,6 +782,48 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
   });
 
   return parseFoodEstimate(response.output_text);
+}
+
+function classifyFoodAiError(error: unknown): FoodAiError {
+  if (error instanceof FoodAiError) return error;
+  if (error instanceof GeminiError) {
+    if (error.message.includes("timed out")) {
+      return new FoodAiError("Food AI timed out while reading this image.", "timeout", error.message);
+    }
+    if (error.message.includes("empty response")) {
+      return new FoodAiError("Food AI returned an empty result for this image.", "empty_response", error.message);
+    }
+    if (error.status === 429) {
+      return new FoodAiError("Food AI is temporarily rate limited.", "service", error.message);
+    }
+    if (error.status && error.status >= 500) {
+      return new FoodAiError("Food AI is temporarily unavailable.", "service", error.message);
+    }
+    if (error.status && error.status >= 400) {
+      return new FoodAiError("Food AI request was rejected.", "request_rejected", error.message);
+    }
+    return new FoodAiError("Food AI request failed.", "unknown", error.message);
+  }
+  if (error instanceof SyntaxError) {
+    return new FoodAiError("Food AI returned a malformed response.", "invalid_json", error.message);
+  }
+  if (error instanceof Error) {
+    if (/Could not fetch image/i.test(error.message)) {
+      return new FoodAiError("Ascend could not prepare the image for AI analysis.", "network", error.message);
+    }
+    if (/quota|billing|RESOURCE_EXHAUSTED|429/i.test(error.message)) {
+      return new FoodAiError("Food AI is temporarily unavailable because Gemini quota or billing is exhausted.", "service", error.message);
+    }
+    if (/All Gemini models failed:/i.test(error.message)) {
+      return new FoodAiError("Food AI could not complete reliably across Gemini attempts.", "service", error.message);
+    }
+    return new FoodAiError("Food AI failed unexpectedly.", "unknown", error.message);
+  }
+  return new FoodAiError("Food AI failed unexpectedly.", "unknown", "Unknown error");
+}
+
+function shouldUseFoodFallback(estimate: FoodEstimate) {
+  return estimate.confidence <= 0.35 && /mixed|snack plate|meal or snack plate|food item/i.test(estimate.foodName);
 }
 
 export async function estimateFoodFromImage(
@@ -673,6 +877,19 @@ export async function estimateFoodFromImage(
             };
     const estimate = await timeFoodAiStage(context.performanceTrace, "Local food normalization", () => normalizeWithLocalFoodDatabase(rawEstimate));
 
+    if (shouldUseFoodFallback(estimate)) {
+      const fallbackEstimate = starterFoodEstimate(estimate.notes || "The AI could not classify this photo confidently.");
+      await timeFoodAiStage(context.performanceTrace, "AI usage logging", () => logAiUsage({
+        ...context,
+        eventType: "food_image_analysis",
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        status: "fallback",
+        metadata: { imageHash, confidence: estimate.confidence, foodName: estimate.foodName, reason: "low_confidence_classification" }
+      }));
+      return fallbackEstimate;
+    }
+
     if (imageHash && estimate.confidence >= 0.5 && estimate.calories > 0) {
       await timeFoodAiStage(context.performanceTrace, "Cache write", () => saveFoodEstimateCache({
         imageHash,
@@ -694,21 +911,24 @@ export async function estimateFoodFromImage(
 
     return estimate;
   } catch (error) {
-    const fallbackEstimate = starterFoodEstimate(
-      error instanceof Error && /quota|billing|RESOURCE_EXHAUSTED|429/i.test(error.message)
-        ? "Gemini quota or billing appears unavailable right now."
-        : "The AI scan did not complete reliably."
-    );
-
+    const classified = classifyFoodAiError(error);
+    foodAiErrorLog("food_analysis_failed", {
+      category: classified.category,
+      message: classified.message,
+      technicalDetail: classified.technicalDetail,
+      imageHash,
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL
+    });
     await timeFoodAiStage(context.performanceTrace, "AI usage logging", () => logAiUsage({
       ...context,
       eventType: "food_image_analysis",
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-      status: "fallback",
-      metadata: { imageHash, error: error instanceof Error ? error.message : "unknown_error" }
+      status: "error",
+      metadata: { imageHash, error: classified.technicalDetail ?? classified.message, category: classified.category }
     }));
-    return fallbackEstimate;
+    throw classified;
   }
 
 }
@@ -749,7 +969,7 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
   });
   try {
     const startedAt = Date.now();
-    const text = await callGeminiWithOptions([
+    const result = await callGeminiWithOptions([
       ...imageParts,
       { text: prompt }
     ], 1600, {
@@ -758,6 +978,7 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
       timeoutMs: 25_000,
       responseMimeType: "application/json"
     });
+    const text = result.text;
     bodyCompositionDebugLog("gemini_response", {
       durationMs: Date.now() - startedAt,
       responseChars: text.length,
@@ -781,12 +1002,13 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
     for (const [index, imagePart] of imageParts.entries()) {
       try {
         const startedAt = Date.now();
-        const text = await callGeminiWithOptions([imagePart, { text: prompt }], 1200, {
+        const result = await callGeminiWithOptions([imagePart, { text: prompt }], 1200, {
           models: [env.GEMINI_MODEL],
           attemptsPerModel: 1,
           timeoutMs: 18_000,
           responseMimeType: "application/json"
         });
+        const text = result.text;
         bodyCompositionDebugLog("single_image_response", {
           imageIndex: index,
           durationMs: Date.now() - startedAt,
