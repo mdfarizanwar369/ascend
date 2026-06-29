@@ -6,28 +6,26 @@ import { ChevronDown } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
-  getBurnLogs,
   getAscendMemory,
+  getBurnLogs,
   getCoachPresence,
   getComplianceToday,
-  getFoodLogs,
   getHabitLogs,
   getHabits,
+  getFoodLogs,
   getLatestRecognition,
   getMe,
-  getMyProgressComparison,
   getMyNutritionPlan,
+  getMyProgressComparison,
   getGoalStatus,
   getMyStreak,
   getProgressPhotos,
   getTodayMission,
   getWaterLogs,
   getWeightLogs,
-  updateCoachPresenceStyle,
-  dismissCoachPresence,
-  CoachPresenceMessage,
+  AscendMemoryResponse,
   CoachPresenceSettings,
-  AscendMemoryResponse
+  CoachPresenceMessage
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
@@ -56,18 +54,9 @@ type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["c
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getMyNutritionPlan>>["coachPlan"];
 type CollapsibleKey =
-  | "nutrition"
-  | "weightHistory"
-  | "waterHistory"
-  | "workoutHistory"
-  | "weeklyReport"
-  | "memory"
-  | "progressPhotos"
-  | "habits"
-  | "foodHistory"
-  | "coachMessages"
-  | "bodyScanHistory"
-  | "settings";
+  | "track"
+  | "journey"
+  | "habitsGoals";
 
 const goalCelebrationMessages = [
   "This is what consistency looks like.",
@@ -228,18 +217,9 @@ export function ClientDashboard() {
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
   const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
-    nutrition: false,
-    weightHistory: false,
-    waterHistory: false,
-    workoutHistory: false,
-    weeklyReport: false,
-    memory: false,
-    progressPhotos: false,
-    habits: false,
-    foodHistory: false,
-    coachMessages: false,
-    bodyScanHistory: false,
-    settings: false
+    track: false,
+    journey: false,
+    habitsGoals: false
   });
   const dashboardRequestRef = useRef(0);
   const dashboardLoadInFlightRef = useRef(false);
@@ -454,28 +434,6 @@ export function ClientDashboard() {
       setHasCelebratedGoal(false);
       setIsCelebratingGoal(false);
       setStatus("Your milestone is safe, but Ascend could not close this message yet.");
-    }
-  }
-
-  async function changeCoachPresenceStyle(style: CoachPresenceSettings["style"]) {
-    setCoachPresence((current) => ({ ...current, settings: { ...current.settings, style } }));
-    try {
-      await updateCoachPresenceStyle(style);
-    } catch {
-      setStatus("Could not update Coach Presence style yet.");
-    }
-  }
-
-  async function dismissPresence(messageId: string) {
-    setCoachPresence((current) => ({
-      ...current,
-      latest: current.latest?.id === messageId ? null : current.latest,
-      history: current.history.filter((message) => message.id !== messageId)
-    }));
-    try {
-      await dismissCoachPresence(messageId);
-    } catch {
-      setStatus("Could not dismiss this Coach Presence message yet.");
     }
   }
 
@@ -771,31 +729,33 @@ export function ClientDashboard() {
   const memoryPreview = latestMemoryMilestone ? `Latest milestone: ${latestMemoryMilestone.title}` : "Your first milestone is waiting";
   const photoPreview = progressPhotos.length ? `${progressPhotos.length} photos / latest ${formatShortDate(progressPhotos[0]?.logged_at)}` : "Take your first progress photo";
   const habitsPreview = dashboardHabits.length ? `${completedHabitIds.size}/${habits.length} habits done today` : "Build your first repeatable habit";
-  const foodHistoryPreview = foodLogs.length ? `${foodLogs.length} total meals / ${todaysFood.length} today` : "Your first meal log starts the pattern";
-  const coachMessagePreview = latestRecognition?.message
-    ? `Latest: "${latestRecognition.message}"`
-    : coachPresence.latest?.message
-      ? `Latest: "${coachPresence.latest.message}"`
-      : user?.assigned_trainer_name
-        ? `Message ${user.assigned_trainer_name}`
-        : "Coach messages will appear here";
   const bodyScanPreview = user?.athlete_mode_enabled
     ? athleteBodyComposition?.scanCount
       ? `Body fat ${athleteBodyComposition.bodyFatPercent ?? "--"}% / ${athleteBodyComposition.scanCount} scans`
       : "Your first Body Scan is waiting"
     : "Athlete Mode only";
-  const whyTodayMatters = [
-    currentStreak >= 30
-      ? `${currentStreak} days of consistency is a real streak. Today protects that identity.`
-      : currentStreak >= 7
-        ? `${currentStreak} days in a row. One check-in today keeps the streak alive.`
-        : null,
-    weightLostFromStart >= 5 ? `${weightLostFromStart.toFixed(1)}kg down from your starting point. Stay steady today.` : null,
-    goalProgress !== null && goalProgress >= 85 ? "Your goal is close. Today is about protecting the habits that got you here." : null,
-    latestRecognition ? "Your trainer noticed your effort recently. Build on that today." : null,
-    user?.athlete_mode_enabled && !athleteBodyComposition?.scanCount ? "Your first Body Scan can make your Athlete Mode targets more personal." : null,
-    progressPhotoDue ? "A progress photo would help you see change that the scale can miss." : null
+  const trackPreview = foodLogs.length || todaysWaterMl > 0 || latestWeight || latestBurnLog
+    ? [
+        todaysFood.length ? `${todaysFood.length} meal${todaysFood.length === 1 ? "" : "s"}` : null,
+        todaysWaterMl > 0 ? `${(todaysWaterMl / 1000).toFixed(1)}L` : null,
+        currentWeight ? `${currentWeight.toFixed(1)}kg` : null,
+        todaysBurnCalories > 0 ? `${todaysBurnCalories} kcal` : null
+      ].filter((item): item is string => Boolean(item)).join(" • ")
+    : "Today's nutrition, hydration, weight and activity";
+  const journeyHighlights = [
+    progressPhotos.length ? `Photo ${formatShortDate(progressPhotos[0]?.logged_at)}` : null,
+    hasPremiumAccess ? "Weekly reflection ready" : null,
+    latestMemoryMilestone ? latestMemoryMilestone.title : null,
+    user?.athlete_mode_enabled && athleteBodyComposition?.scanCount ? `${athleteBodyComposition.scanCount} body scans` : null
   ].filter((item): item is string => Boolean(item));
+  const journeyPreview = journeyHighlights.length ? journeyHighlights.slice(0, 2).join(" • ") : "Photos, reflections, milestones and scans";
+  const habitsGoalHighlights = [
+    habits.length ? `${completedHabitIds.size}/${habits.length} habits` : null,
+    currentStreak > 0 ? `${currentStreak}-day streak` : null,
+    goalProgress !== null ? `${goalProgress}% goal progress` : null,
+    `${score}/100 momentum`
+  ].filter((item): item is string => Boolean(item));
+  const habitsGoalsPreview = habitsGoalHighlights.slice(0, 2).join(" • ");
   const dailyCoachingMessage = (() => {
     if (coachPresence.latest?.message) {
       return {
@@ -1116,368 +1076,250 @@ export function ClientDashboard() {
               </div>
             ))}
           </div>
-        </section>
-
-        <section className="mt-4 rounded-2xl border border-calm/30 bg-surface p-4 shadow-soft">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-calm">{dailyCoachingMessage.label}</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-200">{dailyCoachingMessage.message}</p>
-              <p className="mt-1 text-xs text-zinc-500">{dailyCoachingMessage.detail}</p>
-            </div>
-            {coachPresence.latest ? (
-              <button
-                type="button"
-                onClick={() => dismissPresence(coachPresence.latest!.id)}
-                className="rounded-lg border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300"
-              >
-                Done
-              </button>
-            ) : null}
+          <div className="mt-4 rounded-xl border border-calm/20 bg-calm/5 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-calm">{dailyCoachingMessage.label}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-200">{dailyCoachingMessage.message}</p>
           </div>
         </section>
 
-        {whyTodayMatters.length ? (
-          <section className="mt-4 rounded-2xl border border-purple-400/40 bg-purple-400/10 p-4 shadow-soft">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-purple-300">Why today matters</p>
-            <div className="mt-3 space-y-2">
-              {whyTodayMatters.slice(0, 2).map((item) => (
-                <p key={item} className="rounded-xl bg-ink p-3 text-sm leading-6 text-zinc-200">{item}</p>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
         <CollapsibleSection
-          title="Nutrition"
-          preview={nutritionPreview}
-          isOpen={openSections.nutrition}
-          onToggle={() => setSectionOpen("nutrition", !openSections.nutrition)}
+          title="Track"
+          preview={trackPreview}
+          isOpen={openSections.track}
+          onToggle={() => setSectionOpen("track", !openSections.track)}
         >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold">Today&apos;s nutrition guide</h2>
-              <p className={`mt-1 text-xs font-bold uppercase tracking-[0.16em] ${nutritionSourceTone}`}>{nutritionSourceLabel}</p>
-              <p className="mt-1 text-sm leading-6 text-zinc-400">
-                {hasCoachNutritionPlan
-                  ? "Your trainer customised these targets for your current phase."
-                  : `${nutritionTargets.explanation} ${nutritionTargets.adaptationReason ?? (nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule.")}`}
-              </p>
-            </div>
-            <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{calorieTarget.toLocaleString()} kcal</span>
-          </div>
-          {coachNutritionPlan?.coach_note ? (
-            <div className="mt-4 rounded-lg border border-calm/30 bg-calm/10 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-calm">Coach note</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-200">{coachNutritionPlan.coach_note}</p>
-            </div>
-          ) : null}
-          <div className="mt-4 space-y-4">
-            <div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-300">Calories</span>
-                <span className="font-semibold">{calories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal</span>
+          <div className="space-y-4">
+            <section className="rounded-xl border border-line bg-ink p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Nutrition</p>
+                  <p className={`mt-1 text-[11px] font-bold uppercase tracking-[0.16em] ${nutritionSourceTone}`}>{nutritionSourceLabel}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">
+                    {hasCoachNutritionPlan
+                      ? "Your trainer customised these targets for your current phase."
+                      : `${nutritionTargets.explanation} ${nutritionTargets.adaptationReason ?? (nutritionTargets.estimated ? "Complete your profile later for a sharper estimate." : "Use this as direction, not a strict rule.")}`}
+                  </p>
+                </div>
+                <span className="rounded-lg bg-surface px-3 py-2 text-sm font-semibold text-lime">{calorieTarget.toLocaleString()} kcal</span>
               </div>
-              <div className="mt-2"><DelightProgressBar value={calorieProgress} /></div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-300">Protein</span>
-                <span className="font-semibold">{protein} / {proteinTarget}g</span>
-              </div>
-              <div className="mt-2"><DelightProgressBar value={proteinProgress} /></div>
-            </div>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {[
-              ["Carbs", `${carbs}g`, `${carbsTarget}g guide`],
-              ["Fat", `${fat}g`, `${fatTarget}g guide`],
-              ["Water", `${(todaysWaterMl / 1000).toFixed(1)}L`, `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide`],
-              ["Activity", `${todaysBurnCalories} kcal`, todaysBurnCalories ? "Movement logged" : "Add movement"]
-            ].map(([label, value, detail]) => (
-              <div key={label} className="rounded-lg bg-ink p-4">
-                <p className="text-xs uppercase text-zinc-400">{label}</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-                <p className="mt-1 text-sm text-zinc-400">{detail}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Food days</p>
-              <p className="mt-1 text-lg font-semibold">{foodConsistency}/7</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Protein days</p>
-              <p className="mt-1 text-lg font-semibold">{proteinConsistency}/7</p>
-            </div>
-          </div>
-          <a href="/profile/guide" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink text-sm font-semibold text-lime">
-            Review goal and daily guide
-          </a>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Weight History"
-          preview={weightPreview}
-          isOpen={openSections.weightHistory}
-          onToggle={() => setSectionOpen("weightHistory", !openSections.weightHistory)}
-        >
-          <div className="rounded-lg border border-line bg-ink p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">Weekly goal progress</p>
-                <p className="mt-1 text-sm leading-6 text-zinc-400">
-                  {goalProgress === null ? "Add weight logs to see progress toward your goal." : `${goalProgress}% ${progressCopy(user?.goal_type)}.`}
-                </p>
-              </div>
-              <span className="rounded-lg bg-surface px-3 py-2 text-sm font-semibold text-lime">{goalProgress === null ? "--" : `${goalProgress}%`}</span>
-            </div>
-            <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface">
-              <div className="h-full rounded-full bg-lime" style={{ width: `${goalProgress ?? 8}%` }} />
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-400">Current weight</p>
-                <p className="mt-1 text-lg font-semibold">{currentWeight ? `${currentWeight.toFixed(1)}kg` : "--"}</p>
-              </div>
-              <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-400">To goal</p>
-                <p className="mt-1 text-lg font-semibold">{remainingWeight === null ? "--" : `${remainingWeight.toFixed(1)}kg`}</p>
-              </div>
-            </div>
-          </div>
-          {progressComparison ? <div className="mt-4"><ProgressComparisonCard comparison={progressComparison} /></div> : null}
-          <div className="mt-4 space-y-2">
-            {weightLogs.slice(0, 5).map((log) => (
-              <div key={log.id} className="flex items-center justify-between rounded-lg bg-ink p-3">
-                <span className="text-sm text-zinc-400">{formatShortDate(log.logged_at)}</span>
-                <span className="font-semibold">{asNumber(log.weight_kg).toFixed(1)}kg</span>
-              </div>
-            ))}
-            {!weightLogs.length ? <a href="/weight-log" className="block rounded-lg bg-ink p-3 text-sm text-zinc-400">Record your first weight check-in.</a> : null}
-          </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Water History"
-          preview={waterPreview}
-          isOpen={openSections.waterHistory}
-          onToggle={() => setSectionOpen("waterHistory", !openSections.waterHistory)}
-        >
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">Today</p>
-              <p className="mt-1 text-lg font-semibold">{(todaysWaterMl / 1000).toFixed(1)}L</p>
-            </div>
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-xs text-zinc-400">This week</p>
-              <p className="mt-1 text-lg font-semibold">{weeklyWaterDays.size}/7 days</p>
-            </div>
-          </div>
-          <a href="/water-log" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-            Log water
-          </a>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Workout History"
-          preview={workoutPreview}
-          isOpen={openSections.workoutHistory}
-          onToggle={() => setSectionOpen("workoutHistory", !openSections.workoutHistory)}
-        >
-          <div className="space-y-2">
-            {burnLogs.slice(0, 5).map((log) => (
-              <div key={log.id} className="flex items-center justify-between rounded-lg bg-ink p-3">
-                <span className="text-sm text-zinc-400">{formatShortDate(log.created_at)}</span>
-                <span className="font-semibold">{Number(log.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal</span>
-              </div>
-            ))}
-            {!burnLogs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Your first activity log will make your progress picture clearer.</p> : null}
-          </div>
-          <a href="/burn-log" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-            Log activity
-          </a>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Weekly Reflection"
-          preview={weeklyReportPreview}
-          isOpen={openSections.weeklyReport}
-          onToggle={() => setSectionOpen("weeklyReport", !openSections.weeklyReport)}
-        >
-          <p className="text-sm leading-6 text-zinc-300">A calm look at what improved this week and the one focus worth carrying into the next.</p>
-          <a href="/reports" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-            Open weekly reflection
-          </a>
-        </CollapsibleSection>
-
-        {hasPremiumAccess ? (
-          <CollapsibleSection
-            title="Ascend Memory"
-            preview={memoryPreview}
-            isOpen={openSections.memory}
-            onToggle={() => setSectionOpen("memory", !openSections.memory)}
-          >
-            <AscendMemoryCard memory={ascendMemory} />
-          </CollapsibleSection>
-        ) : null}
-
-        <CollapsibleSection
-          title="Progress Photos"
-          preview={photoPreview}
-          isOpen={openSections.progressPhotos}
-          onToggle={() => setSectionOpen("progressPhotos", !openSections.progressPhotos)}
-        >
-          {latestProgressPhoto?.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={latestProgressPhoto.image_url} alt="Latest progress" className="aspect-[4/5] w-full rounded-xl object-cover" loading="lazy" decoding="async" />
-          ) : (
-            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">Take a progress photo when you are ready. Future you will appreciate the comparison.</p>
-          )}
-          <a href="/progress" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-            Open progress photos
-          </a>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Habits"
-          preview={habitsPreview}
-          isOpen={openSections.habits}
-          onToggle={() => setSectionOpen("habits", !openSections.habits)}
-        >
-          <div className="space-y-2">
-            {dashboardHabits.length ? (
-              dashboardHabits.map((habit) => {
-                const completed = completedHabitIds.has(habit.id);
-                return (
-                  <a key={habit.id} href="/habits" className="flex items-center justify-between rounded-lg bg-ink px-3 py-3">
-                    <span className="text-sm">{habit.name}</span>
-                    <span className={`grid h-7 min-w-7 place-items-center rounded px-2 text-xs font-semibold ${completed ? "bg-lime text-ink" : "border border-line text-zinc-400"}`}>
-                      {completed ? "Done" : "Open"}
-                    </span>
-                  </a>
-                );
-              })
-            ) : (
-              <a href="/habits" className="block rounded-lg bg-ink px-3 py-3 text-sm text-zinc-400">Create one small habit you can repeat tomorrow.</a>
-            )}
-          </div>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Food Log History"
-          preview={foodHistoryPreview}
-          isOpen={openSections.foodHistory}
-          onToggle={() => setSectionOpen("foodHistory", !openSections.foodHistory)}
-        >
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {latestMealsPreview.length ? (
-              latestMealsPreview.map((log) => (
-                <a key={log.id} href="/food-log?view=history" className="w-44 shrink-0 rounded-lg bg-ink p-3">
-                  <div className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-surface">
-                    {log.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={log.image_url} alt={log.estimated_food_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                    ) : (
-                      <span className="text-xs text-zinc-500">No photo</span>
-                    )}
+              <div className="mt-4 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-300">Calories</span>
+                    <span className="font-semibold">{calories.toLocaleString()} / {calorieTarget.toLocaleString()} kcal</span>
                   </div>
-                  <p className="mt-3 truncate text-sm font-semibold">{log.estimated_food_name}</p>
-                  <div className="mt-1 flex items-center justify-between gap-2 text-xs text-zinc-400">
-                    <span>{Number(log.calories).toLocaleString()} kcal</span>
-                    <span>{formatMealTime(log.logged_at)}</span>
+                  <div className="mt-2"><DelightProgressBar value={calorieProgress} /></div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-zinc-300">Protein</span>
+                    <span className="font-semibold">{protein} / {proteinTarget}g</span>
                   </div>
-                </a>
-              ))
-            ) : (
-              <a href="/food-log" className="block w-full rounded-lg bg-ink p-4 text-sm leading-6 text-zinc-400">Your first meal log starts the pattern. Snap a photo when you eat next.</a>
-            )}
-          </div>
-          <a href="/food-log?view=history" className="mt-3 flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-lime">
-            View all meals
-          </a>
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          title="Coach Messages"
-          preview={coachMessagePreview}
-          isOpen={openSections.coachMessages}
-          onToggle={() => setSectionOpen("coachMessages", !openSections.coachMessages)}
-        >
-          <p className="text-sm leading-6 text-zinc-300">
-            {user?.assigned_trainer_name
-              ? `Your trainer is ${user.assigned_trainer_name}. Use messages when you need help between sessions.`
-              : coachingMode === "human_coach"
-                ? "Your account is ready for trainer accountability. Ask your gym owner to assign a trainer."
-                : "You can connect with a trainer later if you want human support."}
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {premiumActions.map((item) => (
-              <a key={item.title} href={item.href} className="rounded-lg border border-line bg-ink p-3">
-                <span className="block text-sm font-semibold text-white">{item.title}</span>
-                <span className="mt-1 block text-xs text-zinc-400">{item.detail}</span>
-              </a>
-            ))}
-          </div>
-          {!hasPremiumAccess ? (
-            <a href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-              Unlock trainer support
-            </a>
-          ) : null}
-        </CollapsibleSection>
-
-        {user?.athlete_mode_enabled ? (
-          <CollapsibleSection
-            title="Body Scan History"
-            preview={bodyScanPreview}
-            isOpen={openSections.bodyScanHistory}
-            onToggle={() => setSectionOpen("bodyScanHistory", !openSections.bodyScanHistory)}
-          >
-            <p className="text-sm leading-6 text-zinc-300">Open Athlete Mode to review Body Scan trends, Ascend DNA, readiness, and event preparation.</p>
-            <a href="/athlete" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-purple-400 font-semibold text-ink">
-              Open Athlete Mode
-            </a>
-          </CollapsibleSection>
-        ) : null}
-
-        <CollapsibleSection
-          title="Settings"
-          preview={needsGuideProfile ? "Complete profile for smarter targets" : `${coachingLabel(coachingMode)} / ${plan ?? "checking plan"}`}
-          isOpen={openSections.settings}
-          onToggle={() => setSectionOpen("settings", !openSections.settings)}
-        >
-          {needsGuideProfile ? (
-            <div className="mb-3 rounded-lg border border-calm/40 bg-calm/10 p-3">
-              <p className="text-sm font-semibold text-calm">Make your daily guide more accurate</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">Add age, height, and activity level so Ascend can personalize your daily targets.</p>
-            </div>
-          ) : null}
-          <div className="grid grid-cols-2 gap-2">
-            <a href="/profile" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Profile</a>
-            <a href="/profile/guide" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Daily guide</a>
-            <a href="/subscription" className="rounded-lg border border-line bg-ink p-3 text-sm font-semibold text-white">Plan</a>
-          </div>
-          {hasPremiumAccess ? (
-            <div className="mt-4 rounded-lg border border-line bg-ink p-3">
-              <p className="text-sm font-semibold text-white">Coaching tone</p>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">Choose how Ascend writes small daily nudges.</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {(["motivational", "balanced", "minimal"] as const).map((style) => (
-                  <button
-                    key={style}
-                    type="button"
-                    onClick={() => changeCoachPresenceStyle(style)}
-                    className={`rounded-full px-3 py-2 text-xs font-semibold capitalize ${
-                      coachPresence.settings.style === style ? "bg-calm text-ink" : "border border-line bg-surface text-zinc-300"
-                    }`}
-                  >
-                    {style}
-                  </button>
+                  <div className="mt-2"><DelightProgressBar value={proteinProgress} /></div>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {[
+                  ["Carbs", `${carbs}g`, `${carbsTarget}g guide`],
+                  ["Fat", `${fat}g`, `${fatTarget}g guide`],
+                  ["Water", `${(todaysWaterMl / 1000).toFixed(1)}L`, `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide`],
+                  ["Activity", `${todaysBurnCalories} kcal`, todaysBurnCalories ? "Movement logged" : "Add movement"]
+                ].map(([label, value, detail]) => (
+                  <div key={label} className="rounded-lg bg-surface p-4">
+                    <p className="text-xs uppercase text-zinc-400">{label}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+                    <p className="mt-1 text-sm text-zinc-400">{detail}</p>
+                  </div>
                 ))}
               </div>
+            </section>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <a href="/weight-log" className="rounded-xl border border-line bg-ink p-4">
+                <p className="text-sm font-semibold text-white">Weight</p>
+                <p className="mt-2 text-lg font-semibold">{currentWeight ? `${currentWeight.toFixed(1)}kg` : "Record your first weigh-in"}</p>
+                <p className="mt-1 text-xs text-zinc-400">{weightPreview}</p>
+              </a>
+              <a href="/water-log" className="rounded-xl border border-line bg-ink p-4">
+                <p className="text-sm font-semibold text-white">Water</p>
+                <p className="mt-2 text-lg font-semibold">{(todaysWaterMl / 1000).toFixed(1)}L</p>
+                <p className="mt-1 text-xs text-zinc-400">{waterPreview}</p>
+              </a>
+              <a href="/burn-log" className="rounded-xl border border-line bg-ink p-4">
+                <p className="text-sm font-semibold text-white">Activity</p>
+                <p className="mt-2 text-lg font-semibold">{todaysBurnCalories ? `${todaysBurnCalories} kcal` : "Add movement"}</p>
+                <p className="mt-1 text-xs text-zinc-400">{workoutPreview}</p>
+              </a>
             </div>
-          ) : null}
+
+            <section className="rounded-xl border border-line bg-ink p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Meals</p>
+                  <p className="mt-1 text-xs text-zinc-400">{todaysFood.length ? `${todaysFood.length} logged today` : "Your latest meals live here once you start logging."}</p>
+                </div>
+                <a href="/food-log?view=history" className="text-xs font-semibold text-lime">View all</a>
+              </div>
+              <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
+                {latestMealsPreview.length ? (
+                  latestMealsPreview.map((log) => (
+                    <a key={log.id} href="/food-log?view=history" className="w-40 shrink-0 rounded-lg bg-surface p-3">
+                      <div className="grid aspect-square place-items-center overflow-hidden rounded-lg bg-ink">
+                        {log.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={log.image_url} alt={log.estimated_food_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                        ) : (
+                          <span className="text-xs text-zinc-500">No photo</span>
+                        )}
+                      </div>
+                      <p className="mt-3 truncate text-sm font-semibold text-white">{log.estimated_food_name}</p>
+                      <div className="mt-1 flex items-center justify-between gap-2 text-xs text-zinc-400">
+                        <span>{Number(log.calories).toLocaleString()} kcal</span>
+                        <span>{formatMealTime(log.logged_at)}</span>
+                      </div>
+                    </a>
+                  ))
+                ) : (
+                  <a href="/food-log" className="block w-full rounded-lg bg-surface p-4 text-sm leading-6 text-zinc-400">Snap a meal when you eat next. It will appear here automatically.</a>
+                )}
+              </div>
+            </section>
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Journey"
+          preview={journeyPreview}
+          isOpen={openSections.journey}
+          onToggle={() => setSectionOpen("journey", !openSections.journey)}
+        >
+          <div className="space-y-4">
+            {progressComparison ? <ProgressComparisonCard comparison={progressComparison} /> : null}
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <a href="/reports" className="rounded-xl border border-line bg-ink p-4">
+                <p className="text-sm font-semibold text-white">Weekly Reflection</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">A calm look at what improved this week and the one focus worth carrying forward.</p>
+                <p className="mt-3 text-xs font-semibold text-lime">{weeklyReportPreview}</p>
+              </a>
+              <a href="/progress" className="rounded-xl border border-line bg-ink p-4">
+                <p className="text-sm font-semibold text-white">Progress Photos</p>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">{latestProgressPhoto ? "See change beyond the scale." : "Capture your first photo when you're ready."}</p>
+                <p className="mt-3 text-xs font-semibold text-lime">{photoPreview}</p>
+              </a>
+            </div>
+
+            {latestProgressPhoto?.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={latestProgressPhoto.image_url} alt="Latest progress" className="aspect-[4/5] w-full rounded-xl object-cover" loading="lazy" decoding="async" />
+            ) : null}
+
+            {hasPremiumAccess ? (
+              <section className="rounded-xl border border-line bg-ink p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Ascend Memory</p>
+                    <p className="mt-1 text-xs text-zinc-400">{memoryPreview}</p>
+                  </div>
+                  <a href="/reports" className="text-xs font-semibold text-lime">Open</a>
+                </div>
+                <div className="mt-4">
+                  <AscendMemoryCard memory={ascendMemory} />
+                </div>
+              </section>
+            ) : null}
+
+            {user?.athlete_mode_enabled ? (
+              <a href="/athlete" className="block rounded-xl border border-purple-400/30 bg-purple-400/10 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">Body Scan</p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-300">Open Athlete Mode to review Ascend DNA, scan trends, and readiness.</p>
+                    <p className="mt-3 text-xs font-semibold text-purple-200">{bodyScanPreview}</p>
+                  </div>
+                  <span className="rounded-full bg-purple-400/20 px-3 py-1 text-xs font-semibold text-purple-200">Athlete</span>
+                </div>
+              </a>
+            ) : null}
+          </div>
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Habits & Goals"
+          preview={habitsGoalsPreview}
+          isOpen={openSections.habitsGoals}
+          onToggle={() => setSectionOpen("habitsGoals", !openSections.habitsGoals)}
+        >
+          <div className="space-y-4">
+            <section className="rounded-xl border border-line bg-ink p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Goal Progress</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-400">
+                    {goalProgress === null ? "Add weight logs to see progress toward your goal." : `${goalProgress}% ${progressCopy(user?.goal_type)}.`}
+                  </p>
+                </div>
+                <span className="rounded-lg bg-surface px-3 py-2 text-sm font-semibold text-lime">{goalProgress === null ? "--" : `${goalProgress}%`}</span>
+              </div>
+              <div className="mt-4 h-3 overflow-hidden rounded-full bg-surface">
+                <div className="h-full rounded-full bg-lime" style={{ width: `${goalProgress ?? 8}%` }} />
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-surface p-3">
+                  <p className="text-xs text-zinc-400">Current</p>
+                  <p className="mt-1 text-lg font-semibold">{currentWeight ? `${currentWeight.toFixed(1)}kg` : "--"}</p>
+                </div>
+                <div className="rounded-lg bg-surface p-3">
+                  <p className="text-xs text-zinc-400">To goal</p>
+                  <p className="mt-1 text-lg font-semibold">{remainingWeight === null ? "--" : `${remainingWeight.toFixed(1)}kg`}</p>
+                </div>
+                <div className="rounded-lg bg-surface p-3">
+                  <p className="text-xs text-zinc-400">Momentum</p>
+                  <p className="mt-1 text-lg font-semibold">{score}/100</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-line bg-ink p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Consistency</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-400">{streakTitle}</p>
+                </div>
+                <div className="origin-top-right scale-90">
+                  <MomentumHalo value={score} label={scoreLabel} />
+                </div>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">{streakCopy}</p>
+            </section>
+
+            <section className="rounded-xl border border-line bg-ink p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Habits</p>
+                  <p className="mt-1 text-xs text-zinc-400">{habitsPreview}</p>
+                </div>
+                <a href="/habits" className="text-xs font-semibold text-lime">Open</a>
+              </div>
+              <div className="mt-4 space-y-2">
+                {dashboardHabits.length ? (
+                  dashboardHabits.map((habit) => {
+                    const completed = completedHabitIds.has(habit.id);
+                    return (
+                      <a key={habit.id} href="/habits" className="flex items-center justify-between rounded-lg bg-surface px-3 py-3">
+                        <span className="text-sm text-white">{habit.name}</span>
+                        <span className={`grid h-7 min-w-7 place-items-center rounded px-2 text-xs font-semibold ${completed ? "bg-lime text-ink" : "border border-line text-zinc-400"}`}>
+                          {completed ? "Done" : "Open"}
+                        </span>
+                      </a>
+                    );
+                  })
+                ) : (
+                  <a href="/habits" className="block rounded-lg bg-surface px-3 py-3 text-sm text-zinc-400">Create one small habit you can repeat tomorrow.</a>
+                )}
+              </div>
+            </section>
+          </div>
         </CollapsibleSection>
       </div>
 
