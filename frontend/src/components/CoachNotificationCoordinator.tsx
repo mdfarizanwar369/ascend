@@ -6,9 +6,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   COACH_NOTIFICATION_ELIGIBLE_EVENT,
   enableCoachNotifications,
+  initializeNativeCoachNotificationRouting,
   listenForForegroundCoachMessages,
   postponeCoachNotifications,
   recordDailyNotificationActivity,
+  refreshNativeCoachNotificationToken,
   shouldOfferCoachNotifications
 } from "@/lib/coachNotifications";
 import { INSTALL_ELIGIBLE_EVENT, readInstallValue, installStorageKeys } from "@/lib/installAscend";
@@ -27,6 +29,8 @@ export function CoachNotificationCoordinator() {
   useEffect(() => {
     if (!isAppPath(pathname)) return;
     recordDailyNotificationActivity(pathname).catch(() => undefined);
+    initializeNativeCoachNotificationRouting().catch(() => undefined);
+    refreshNativeCoachNotificationToken().catch(() => undefined);
   }, [pathname]);
 
   useEffect(() => {

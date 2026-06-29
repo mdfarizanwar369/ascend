@@ -1,4 +1,5 @@
 /// <reference types="@capacitor-firebase/authentication" />
+/// <reference types="@capacitor/push-notifications" />
 
 import type { CapacitorConfig } from "@capacitor/cli";
 
@@ -28,6 +29,9 @@ const config: CapacitorConfig = {
       authDomain: "www.getascend.fit",
       skipNativeAuth: true,
       providers: ["google.com"]
+    },
+    PushNotifications: {
+      presentationOptions: ["alert", "sound"]
     },
     SplashScreen: {
       launchAutoHide: true,

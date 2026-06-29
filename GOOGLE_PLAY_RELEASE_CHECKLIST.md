@@ -145,6 +145,39 @@ Before submitting beyond internal testing:
 - Full commercial Android approach: implement Google Play Billing for Android subscriptions and keep Stripe for web subscriptions.
 - Manual pilot access remains safe for internal testing when no in-app payment is requested from Android users.
 
+## 6B. Android native push notification setup
+
+Ascend uses the existing backend notification system for Android push, but the Play Store app must have a Firebase Android app configuration before production notifications can be verified.
+
+Before enabling push for testers:
+
+- In Firebase Console, add or confirm the Android app with package name `fit.getascend.app`.
+- Download the Android `google-services.json` file for that app.
+- Place it at:
+
+```text
+android/app/google-services.json
+```
+
+- Do not commit `google-services.json` if it contains environment-specific production credentials and the team decides to keep it local/CI-managed.
+- Add the release upload SHA-1 and SHA-256 fingerprints to the Firebase Android app.
+- Add the Play App Signing SHA-1 and SHA-256 fingerprints after the first Play Console upload.
+- Re-run:
+
+```powershell
+npm run android:sync
+npm run android:release-bundle
+```
+
+- Verify native push in all app states:
+  - foreground
+  - background
+  - app closed
+  - after logout/login
+  - after reinstall
+
+- Confirm the backend stores Android FCM tokens in `notification_devices` with platform `android`.
+
 ## 7. Data Safety practical checklist
 
 Ascend collects or processes the following categories:

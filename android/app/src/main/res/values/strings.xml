@@ -4,4 +4,5 @@
     <string name="title_activity_main">Ascend</string>
     <string name="package_name">fit.getascend.app</string>
     <string name="custom_url_scheme">fit.getascend.app</string>
+    <string name="default_notification_channel_id">coach_checkins</string>
 </resources>

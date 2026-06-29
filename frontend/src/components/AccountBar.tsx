@@ -6,6 +6,7 @@ import { SubscriptionPlan } from "@ascend/shared";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 import { formatPlan } from "@/lib/subscriptionPlan";
 import { clearCachedAccountProfile } from "@/lib/accountSession";
+import { disableCoachNotifications } from "@/lib/coachNotifications";
 import Link from "next/link";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 
@@ -57,6 +58,7 @@ export function AccountBar({
 }) {
   async function handleLogout() {
     clearCachedAccountProfile();
+    await disableCoachNotifications().catch(() => undefined);
     window.sessionStorage.clear();
     await signOut(getFirebaseClientAuth());
     window.location.href = "/login";
