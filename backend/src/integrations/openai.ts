@@ -1080,6 +1080,136 @@ export async function createNutritionCoachReply(message: string, context: string
   return cleaned;
 }
 
+export type CoachWorkoutExercise = {
+  name: string;
+  sets?: number | null;
+  reps?: string | null;
+  duration?: string | null;
+  rest?: string | null;
+  note?: string | null;
+};
+
+export type CoachWorkoutPlan = {
+  title: string;
+  intro: string;
+  estimatedDurationMinutes: number;
+  focus: string;
+  intensity: "easy" | "moderate" | "challenging";
+  warmup: string[];
+  exercises: CoachWorkoutExercise[];
+  cooldown: string[];
+  coachTip: string;
+  disclaimer: string;
+};
+
+type WorkoutPlannerInput = {
+  location: string;
+  timeAvailable: string;
+  goal: string;
+  equipment: string;
+  context: string;
+};
+
+function fallbackWorkoutPlan(input: WorkoutPlannerInput): CoachWorkoutPlan {
+  const minutes = Number.parseInt(input.timeAvailable, 10) || 30;
+  const isRecovery = /recovery|mobility/i.test(input.goal);
+  const isHomeLike = /home|hotel|outdoors/i.test(input.location);
+  return {
+    title: isRecovery ? "Reset and Move Session" : isHomeLike ? "Simple Full Body Session" : "Balanced Full Body Session",
+    intro: "Based on your current setup, here is a simple session you can complete today without overthinking it.",
+    estimatedDurationMinutes: minutes,
+    focus: isRecovery ? "Recovery and mobility" : "Full body strength and conditioning",
+    intensity: isRecovery ? "easy" : minutes >= 45 ? "moderate" : "moderate",
+    warmup: ["5 minutes easy movement", "Hip circles and shoulder rolls", "Bodyweight squats"],
+    exercises: isRecovery
+      ? [
+          { name: "Easy walk", duration: "10-15 minutes", rest: "As needed", note: "Keep the pace conversational." },
+          { name: "World's greatest stretch", sets: 2, reps: "5 each side", rest: "30 sec", note: "Move slowly." },
+          { name: "Child's pose breathing", sets: 2, duration: "60 sec", rest: "30 sec", note: "Relax your shoulders." }
+        ]
+      : [
+          { name: isHomeLike ? "Bodyweight squat" : "Goblet squat", sets: 3, reps: "10-12", rest: "60 sec", note: "Stop with good form." },
+          { name: isHomeLike ? "Incline push-up" : "Machine chest press", sets: 3, reps: "8-12", rest: "60 sec", note: "Keep reps controlled." },
+          { name: isHomeLike ? "Backpack row" : "Seated row", sets: 3, reps: "10-12", rest: "60 sec", note: "Squeeze your back." },
+          { name: "Plank", sets: 3, duration: "30-45 sec", rest: "45 sec", note: "Brace gently." }
+        ],
+    cooldown: ["3 minutes easy walk", "Chest and hip flexor stretch"],
+    coachTip: "Keep the session smooth. A completed moderate workout beats a perfect workout you skip.",
+    disclaimer: "Adjust the workout to your experience level and stop if you experience pain."
+  };
+}
+
+function toCleanString(value: unknown, fallback: string, maxLength = 160) {
+  if (typeof value !== "string") return fallback;
+  const cleaned = value.replace(/\*\*/g, "").replace(/\*/g, "").trim();
+  return cleaned ? cleaned.slice(0, maxLength) : fallback;
+}
+
+function toStringArray(value: unknown, fallback: string[], maxItems = 5) {
+  if (!Array.isArray(value)) return fallback;
+  const items = value
+    .map((item) => toCleanString(item, "", 120))
+    .filter(Boolean)
+    .slice(0, maxItems);
+  return items.length ? items : fallback;
+}
+
+function normalizeWorkoutPlan(raw: unknown, input: WorkoutPlannerInput): CoachWorkoutPlan {
+  const fallback = fallbackWorkoutPlan(input);
+  const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const exercisesSource = Array.isArray(source.exercises) ? source.exercises : [];
+  const exercises = exercisesSource
+    .map((item) => {
+      const exercise = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      return {
+        name: toCleanString(exercise.name, "", 80),
+        sets: typeof exercise.sets === "number" && Number.isFinite(exercise.sets) ? Math.max(1, Math.min(Math.round(exercise.sets), 6)) : null,
+        reps: toCleanString(exercise.reps, "", 40) || null,
+        duration: toCleanString(exercise.duration, "", 50) || null,
+        rest: toCleanString(exercise.rest, "", 40) || null,
+        note: toCleanString(exercise.note, "", 120) || null
+      };
+    })
+    .filter((item) => item.name)
+    .slice(0, 8);
+
+  const duration = typeof source.estimatedDurationMinutes === "number" ? source.estimatedDurationMinutes : fallback.estimatedDurationMinutes;
+  const intensity = ["easy", "moderate", "challenging"].includes(String(source.intensity)) ? (source.intensity as CoachWorkoutPlan["intensity"]) : fallback.intensity;
+
+  return {
+    title: toCleanString(source.title, fallback.title, 80),
+    intro: toCleanString(source.intro, fallback.intro, 180),
+    estimatedDurationMinutes: Math.max(10, Math.min(Math.round(duration), 90)),
+    focus: toCleanString(source.focus, fallback.focus, 80),
+    intensity,
+    warmup: toStringArray(source.warmup, fallback.warmup, 4),
+    exercises: exercises.length ? exercises : fallback.exercises,
+    cooldown: toStringArray(source.cooldown, fallback.cooldown, 4),
+    coachTip: toCleanString(source.coachTip, fallback.coachTip, 180),
+    disclaimer: "Adjust the workout to your experience level and stop if you experience pain."
+  };
+}
+
+export async function createCoachWorkoutPlan(input: WorkoutPlannerInput): Promise<CoachWorkoutPlan> {
+  if (!providerConfigured()) return fallbackWorkoutPlan(input);
+
+  try {
+    const reply = await createTextReply(
+      "You are Coach Zoe inside Ascend, a premium fitness accountability app. Generate one safe workout for today only. Use the provided profile, recent activity, Health Connect, athlete, food consistency, and conversation context if available. Do not build a program. Do not prescribe maximal lifts. Do not give medical advice. Avoid repeating the same muscle group if recent workout context suggests it. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer. exercises must be an array of objects with name, sets, reps, duration, rest, note. Keep it concise, practical, beginner-friendly, and coach-like.",
+      `Workout request: ${JSON.stringify({
+        location: input.location,
+        timeAvailable: input.timeAvailable,
+        goal: input.goal,
+        equipment: input.equipment
+      })}\n\nAscend context: ${input.context}\n\nGenerate today's workout as strict JSON now.`,
+      JSON.stringify(fallbackWorkoutPlan(input))
+    );
+    return normalizeWorkoutPlan(parseJsonObject(reply), input);
+  } catch {
+    return fallbackWorkoutPlan(input);
+  }
+}
+
 function fallbackBurnEstimate(text: string) {
   const lower = text.toLowerCase();
   const durationMatch = lower.match(/(\d+(?:\.\d+)?)\s*(min|mins|minute|minutes|km|kilometer|kilometers|k)/);

@@ -922,6 +922,40 @@ export function sendCoachMessage(message: string) {
   });
 }
 
+export type WorkoutPlannerLocation = "gym" | "home" | "hotel" | "outdoors";
+export type WorkoutPlannerGoal = "fat_loss" | "muscle_gain" | "strength" | "general_fitness" | "recovery" | "mobility";
+export type GeneratedWorkout = {
+  title: string;
+  intro: string;
+  estimatedDurationMinutes: number;
+  focus: string;
+  intensity: "easy" | "moderate" | "challenging";
+  warmup: string[];
+  exercises: Array<{
+    name: string;
+    sets?: number | null;
+    reps?: string | null;
+    duration?: string | null;
+    rest?: string | null;
+    note?: string | null;
+  }>;
+  cooldown: string[];
+  coachTip: string;
+  disclaimer: string;
+};
+
+export function generateTodayWorkout(input: {
+  location: WorkoutPlannerLocation;
+  timeAvailable: "20" | "30" | "45" | "60";
+  goal: WorkoutPlannerGoal;
+  equipment: string;
+}) {
+  return authed<{ workout: GeneratedWorkout }>("/ai/workout", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function getCurrentWeeklyReport() {
   return authedCached<{
     report: {
