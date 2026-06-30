@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createCoachWorkoutPlan, createNutritionCoachReply, estimateBurnFromText } from "../integrations/openai";
+import { createCoachWorkoutPlan, createCoachZoeReply, estimateBurnFromText } from "../integrations/openai";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
@@ -21,8 +21,15 @@ const workoutPlannerSchema = z.object({
 aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
   try {
     const message = z.string().trim().min(1).max(2_000).parse(req.body.message);
-    const [contextResult, recentFoodResult, recentMessagesResult, healthSyncSummary] = await Promise.all([
-      query("select goal_type, starting_weight_kg, target_weight_kg from users where id = $1", [req.user!.id]),
+    const [contextResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary] = await Promise.all([
+      query(
+        `
+        select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
+        from users
+        where id = $1
+        `,
+        [req.user!.id]
+      ),
       query(
         `
         select estimated_food_name, calories, protein_g, carbs_g, fat_g, meal_type, logged_at
@@ -30,6 +37,36 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
         where user_id = $1
         order by logged_at desc
         limit 5
+        `,
+        [req.user!.id]
+      ),
+      query(
+        `
+        select metadata, created_at
+        from analytics_events
+        where user_id = $1
+          and event_name = 'burn_log'
+        order by created_at desc
+        limit 5
+        `,
+        [req.user!.id]
+      ),
+      query(
+        `
+        select enabled, sport, division, competition_name, competition_date, goal_weight_kg
+        from athlete_profiles
+        where user_id = $1
+        `,
+        [req.user!.id]
+      ),
+      query(
+        `
+        select scan_date, weight_kg, body_fat_percent, skeletal_muscle_mass_kg, visceral_fat, bmr_kcal
+        from body_composition_scans
+        where user_id = $1
+          and user_confirmed = true
+        order by scan_date desc, created_at desc
+        limit 1
         `,
         [req.user!.id]
       ),
@@ -48,6 +85,9 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
     const promptContext = JSON.stringify({
       profile: contextResult.rows[0] ?? {},
       recentFoodLogs: recentFoodResult.rows,
+      recentWorkouts: recentBurnResult.rows,
+      athleteMode: athleteResult.rows[0] ?? null,
+      latestBodyScan: bodyScanResult.rows[0] ?? null,
       recentConversation: recentMessagesResult.rows.reverse(),
       healthSync: healthSyncSummary
         ? {
@@ -60,7 +100,7 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
           }
         : null
     });
-    const reply = await createNutritionCoachReply(message, promptContext);
+    const reply = await createCoachZoeReply(message, promptContext);
     await logAiUsage({
       userId: req.user!.id,
       gymId: req.user!.gymId,
