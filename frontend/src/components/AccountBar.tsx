@@ -58,9 +58,19 @@ export function AccountBar({
 }) {
   async function handleLogout() {
     clearCachedAccountProfile();
+    try {
+      const { isNativeAndroidCapacitor } = await import("@/lib/nativePlatform");
+      if (isNativeAndroidCapacitor()) {
+        const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
+        await FirebaseAuthentication.signOut().catch(() => undefined);
+      }
+    } catch {
+      // Fall back to Firebase web sign-out below.
+    }
+
     await disableCoachNotifications().catch(() => undefined);
     window.sessionStorage.clear();
-    await signOut(getFirebaseClientAuth());
+    await signOut(getFirebaseClientAuth()).catch(() => undefined);
     window.location.href = "/login";
   }
 

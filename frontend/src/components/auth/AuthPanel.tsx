@@ -201,7 +201,8 @@ async function signInWithNativeAndroidGoogle() {
   ]);
 
   const nativeResult = await FirebaseAuthentication.signInWithGoogle({
-    skipNativeAuth: true
+    skipNativeAuth: true,
+    useCredentialManager: false
   });
 
   const idToken = nativeResult.credential?.idToken;
