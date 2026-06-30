@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AscendDNAService, AscendDnaEvent, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
+import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
 import { Activity, ArrowRight, BarChart3, Beef, Camera, CheckCircle2, ChevronDown, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
@@ -145,6 +145,36 @@ function formatShortDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(date);
+}
+
+function recentDateKeys(days: number) {
+  return Array.from({ length: days }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - index);
+    return localDateKey(date.toISOString());
+  });
+}
+
+function summarizeRecentFoodDays(logs: FoodLog[], days = 3) {
+  const keys = new Set(recentDateKeys(days));
+  const stats = new Map<string, { calories: number; protein: number; count: number }>();
+
+  for (const log of logs) {
+    const key = localDateKey(log.logged_at);
+    if (!keys.has(key)) continue;
+    const current = stats.get(key) ?? { calories: 0, protein: 0, count: 0 };
+    current.calories += asNumber(log.calories);
+    current.protein += asNumber(log.protein_g);
+    current.count += 1;
+    stats.set(key, current);
+  }
+
+  return recentDateKeys(days).map((key) => ({
+    key,
+    calories: stats.get(key)?.calories ?? 0,
+    protein: stats.get(key)?.protein ?? 0,
+    count: stats.get(key)?.count ?? 0
+  }));
 }
 
 function snapshotIcon(label: string) {
@@ -776,6 +806,10 @@ export function ClientDashboard() {
   ];
   const completedTaskCount = taskItems.filter((item) => item.done).length;
   const dailyCompletion = Math.round((completedTaskCount / taskItems.length) * 100);
+  const recentFoodDayStats = summarizeRecentFoodDays(foodLogs, 3);
+  const lowProteinDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.protein < proteinTarget * 0.6).length;
+  const highCaloriesDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.calories > calorieTarget * 1.1).length;
+  const lowCaloriesDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.calories < calorieTarget * 0.65).length;
   const highlightedTaskKey = recentAction
     ? recentAction.type === "food"
       ? "Food logged"
@@ -787,18 +821,6 @@ export function ClientDashboard() {
             ? "Workout completed"
             : "Habit completed"
     : null;
-  const coachZoeInsight = (() => {
-    if (latestWorkoutCompletedToday && latestWorkoutTitle) return `Great work completing ${latestWorkoutTitle} today.`;
-    if (latestWorkoutCompletedYesterday && latestWorkoutTitle) return `${latestWorkoutTitle} is in the bank from yesterday. Build around recovery and variety today.`;
-    if (!todaysFood.length && proteinLeft > 25) return "Protein is your biggest opportunity today.";
-    if (currentStreak >= 7) return "Excellent consistency this week.";
-    if (completedTaskCount === taskItems.length - 1) return "You're one small win away from a complete day.";
-    if (todaysWaterMl < nutritionTargets.waterTargetMl && waterLeftMl >= 500) return "Water intake is the easiest win today.";
-    if (todaysBurnCalories === 0 && weeklyBurnDays.size >= 3) return "One workout today keeps your weekly rhythm strong.";
-    if (goalProgress !== null && goalProgress >= 85) return "You are close enough now that consistency matters more than intensity.";
-    if (score >= 80) return "The routine is working. Protect it with one clean check-in.";
-    return "The simplest next action is still the best action today.";
-  })();
   const todayProgressItems = [
     goalCompletedToday
       ? { label: "Goal", value: "Done", detail: "completed" }
@@ -820,6 +842,48 @@ export function ClientDashboard() {
   const syncedWorkoutCount = healthSyncSummary?.workoutsThisWeek ?? 0;
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : null;
   const latestMemoryMilestone = ascendMemory?.timeline?.[0];
+  const proactiveCoachInsight = buildCoachZoeProactiveInsight({
+    goalType: user?.goal_type ?? null,
+    currentStreak,
+    momentumScore: score,
+    todaysFoodCount: todaysFood.length,
+    caloriesToday: calories,
+    calorieTarget,
+    proteinTodayG: protein,
+    proteinTargetG: proteinTarget,
+    waterTodayMl: todaysWaterMl,
+    waterTargetMl: nutritionTargets.waterTargetMl,
+    workoutDays7: weeklyBurnDays.size,
+    daysSinceWorkout: latestBurnLog ? Math.max(0, Math.floor((Date.now() - new Date(latestBurnLog.created_at).getTime()) / 86_400_000)) : null,
+    lowProteinDays3,
+    highCaloriesDays3,
+    lowCaloriesDays3,
+    weightTrendKg: weightDelta,
+    latestWorkout: latestBurnLog
+      ? {
+          title: latestWorkoutTitle,
+          type:
+            typeof latestBurnLog.metadata?.workoutType === "string"
+              ? latestBurnLog.metadata.workoutType
+              : typeof latestBurnLog.metadata?.activityType === "string"
+                ? latestBurnLog.metadata.activityType
+                : null,
+          completedToday: latestWorkoutCompletedToday,
+          completedYesterday: latestWorkoutCompletedYesterday
+        }
+      : null,
+    healthSync: healthSyncSummary
+      ? {
+          connected: healthSyncSummary.connected,
+          todaySteps: healthSyncSummary.todaySteps,
+          averageSteps7d: healthSyncSummary.averageSteps7d,
+          todayActiveCalories: healthSyncSummary.todayActiveCalories,
+          workoutsThisWeek: healthSyncSummary.workoutsThisWeek,
+          workoutCompletedToday: healthSyncSummary.workoutCompletedToday
+        }
+      : null,
+    recentMilestoneTitle: latestMemoryMilestone?.title ?? null
+  });
   const weightPreview = latestWeight
     ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg${weightDelta !== null ? ` / ${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg` : ""}`
     : "Record your first weight check-in";
@@ -864,73 +928,34 @@ export function ClientDashboard() {
   ].filter((item): item is string => Boolean(item));
   const habitsGoalsPreview = habitsGoalHighlights.slice(0, 2).join(" • ");
   const dailyCoachingMessage = (() => {
-    if (latestWorkoutCompletedToday && latestWorkoutTitle) {
+    if (coachPresence.latest?.message && proactiveCoachInsight.key === "steady") {
       return {
-        label: "Workout done",
-        message: `You've already finished ${latestWorkoutTitle} today. Focus on hydration, recovery, and making protein easy.`,
-        detail: "The next win is supporting the work you've already done."
-      };
-    }
-    if (latestWorkoutCompletedYesterday && latestWorkoutTitle) {
-      return {
-        label: "Workout memory",
-        message: `${latestWorkoutTitle} was your last completed session. A different focus today will keep your week feeling balanced.`,
-        detail: "Variety helps consistency feel sustainable."
-      };
-    }
-    if (coachPresence.latest?.message) {
-      return {
-        label: "Today",
+        label: "Coach Presence",
         message: coachPresence.latest.message,
-        detail: "A small check-in for your day."
+        detail: "A small check-in based on your recent rhythm."
       };
     }
-    if (latestRecognition?.message) {
+    if (latestRecognition?.message && proactiveCoachInsight.key === "steady") {
       return {
         label: "Trainer noticed",
         message: latestRecognition.message,
         detail: latestRecognition.trainer_name ? `From ${latestRecognition.trainer_name}` : "Your effort was seen."
       };
     }
-    if (recentCelebration) {
+    if (recentCelebration && proactiveCoachInsight.key === "steady") {
       return {
         label: "Nice work",
         message: recentCelebration.secondary,
         detail: "Take the win before chasing the next task."
       };
     }
-    if (!todaysFood.length) {
-      return {
-        label: "Next best move",
-        message: "Start with one honest meal log today. It gives you and your coach a clearer picture.",
-        detail: "Small records create better decisions."
-      };
-    }
-    if (proteinLeft > 25) {
-      return {
-        label: "Nutrition nudge",
-        message: `You have about ${Math.round(proteinLeft)}g protein left. A protein-rich meal would help today's target.`,
-        detail: "Keep it simple and practical."
-      };
-    }
-    if (waterLeftMl > 500) {
-      return {
-        label: "Hydration nudge",
-        message: "One more bottle of water would bring you closer to today's hydration target.",
-        detail: "No pressure, just an easy win."
-      };
-    }
-    if (currentStreak >= 3) {
-      return {
-        label: "Momentum",
-        message: `${currentStreak} days of consistency is not luck. Keep the rhythm going today.`,
-        detail: "Consistency is doing the quiet work."
-      };
-    }
     return {
-      label: "Today",
-      message: "Choose one small check-in today. Food, water, weight, or movement all count.",
-      detail: "Ascend works best when it stays simple."
+      label: proactiveCoachInsight.title,
+      message: proactiveCoachInsight.body,
+      detail:
+        proactiveCoachInsight.key === "steady"
+          ? "Small steady actions still count today."
+          : "Coach Zoe noticed something worth your attention."
     };
   })();
 
@@ -1252,11 +1277,11 @@ export function ClientDashboard() {
                   <Sparkles size={18} />
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-purple-200">Coach Zoe</p>
-                  <p className="text-xs text-zinc-500">One clear coaching thought for today</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">Today&apos;s Insight</p>
+                  <p className="text-sm font-semibold text-white">Coach Zoe</p>
                 </div>
               </div>
-              <p className="mt-4 text-lg font-semibold leading-8 text-white">{coachZoeInsight}</p>
+              <p className="mt-4 text-lg font-semibold leading-8 text-white">{dailyCoachingMessage.message}</p>
               <p className="mt-2 text-sm leading-6 text-zinc-400">{dailyCoachingMessage.detail}</p>
             </div>
             <DelightBadge tone="purple">Adaptive</DelightBadge>

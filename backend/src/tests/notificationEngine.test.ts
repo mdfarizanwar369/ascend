@@ -95,4 +95,24 @@ describe("NotificationEngine", () => {
     expect(selected?.body.toLowerCase()).not.toMatch(/forgot|failed|missed|behind|breakfast|lunch|dinner/);
     expect(selected?.type).toBe("next_best_move");
   });
+
+  it("prefers proactive coaching over a generic next best move", () => {
+    const selected = NotificationEngine.select({
+      now: "2026-06-24T19:00:00+08:00",
+      dna,
+      openedToday: false,
+      prioritiesComplete: false,
+      sentToday: { coaching: false, celebration: false, trainerMessage: false },
+      proactiveInsight: {
+        title: "Today's Insight",
+        body: "Protein has been lower than target recently. One high-protein meal today would make a real difference.",
+        href: "/food-log",
+        dedupeKey: "proactive:protein_low:2026-06-24"
+      },
+      nextBestMove: { title: "Add a protein-rich meal.", detail: "Protein", href: "/food-log" }
+    });
+
+    expect(selected?.type).toBe("proactive_coaching");
+    expect(selected?.body).toContain("Protein has been lower");
+  });
 });

@@ -9,6 +9,7 @@ export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled"
 export type InstallPlatform = "ios" | "android" | "desktop";
 
 export * from "./ascendDna";
+export * from "./coachZoeProactive";
 export * from "./notificationEngine";
 export * from "./bodyScanImage";
 

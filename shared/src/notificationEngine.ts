@@ -1,6 +1,6 @@
 import { AscendDnaProfile, AscendDnaTimeBucket, getAscendDnaTimeBucket } from "./ascendDna";
 
-export type NotificationPriority = 1 | 2 | 3 | 4;
+export type NotificationPriority = 1 | 2 | 3 | 4 | 5;
 export type NotificationType =
   | "trainer_message"
   | "trainer_praise"
@@ -8,6 +8,7 @@ export type NotificationType =
   | "trainer_nutrition_plan"
   | "celebration"
   | "weekly_reflection"
+  | "proactive_coaching"
   | "next_best_move";
 
 export interface NotificationCandidate {
@@ -47,6 +48,12 @@ export interface NotificationEngineInput {
     value?: string | number | null;
   }>;
   weeklyReflectionDue?: boolean;
+  proactiveInsight?: {
+    title: string;
+    body: string;
+    href: string;
+    dedupeKey: string;
+  } | null;
 }
 
 const bannedPhrases = [
@@ -188,6 +195,19 @@ function weeklyCandidate(input: NotificationEngineInput, todayKey: string): Noti
   };
 }
 
+function proactiveCandidate(input: NotificationEngineInput): NotificationCandidate | null {
+  if (input.sentToday.coaching || !input.proactiveInsight) return null;
+  return {
+    type: "proactive_coaching",
+    priority: 4,
+    title: input.proactiveInsight.title,
+    body: input.proactiveInsight.body,
+    href: input.proactiveInsight.href,
+    tag: "ascend-coach",
+    dedupeKey: input.proactiveInsight.dedupeKey
+  };
+}
+
 function nextMoveCandidate(input: NotificationEngineInput, todayKey: string): NotificationCandidate | null {
   if (input.sentToday.coaching || input.openedToday || input.prioritiesComplete || !input.nextBestMove) return null;
   const move = input.nextBestMove;
@@ -202,7 +222,7 @@ function nextMoveCandidate(input: NotificationEngineInput, todayKey: string): No
 
   return {
     type: "next_best_move",
-    priority: 4,
+    priority: 5,
     title: "Your next best move is ready.",
     body,
     href: move.href,
@@ -218,6 +238,7 @@ export function selectNotification(input: NotificationEngineInput): Notification
     trainerCandidate(input, todayKey),
     celebrationCandidate(input, todayKey),
     weeklyCandidate(input, todayKey),
+    proactiveCandidate(input),
     nextMoveCandidate(input, todayKey)
   ].filter((candidate): candidate is NotificationCandidate => Boolean(candidate));
 

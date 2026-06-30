@@ -1,6 +1,7 @@
-import { AscendDNAService, AscendDnaEvent, NotificationCandidate, NotificationEngine } from "@ascend/shared";
+import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, NotificationCandidate, NotificationEngine } from "@ascend/shared";
 import { query } from "../db/pool";
 import { getFirebaseMessaging } from "../integrations/firebase";
+import { getHealthSyncSummary } from "./healthSyncService";
 
 type Platform = "android" | "ios" | "desktop" | "web";
 
@@ -211,6 +212,207 @@ async function buildDnaEvents(userId: string): Promise<AscendDnaEvent[]> {
   return result.rows;
 }
 
+function dateKeyDaysAgo(todayKey: string, daysAgo: number) {
+  const date = new Date(`${todayKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - daysAgo);
+  return date.toISOString().slice(0, 10);
+}
+
+async function getCurrentStreak(userId: string) {
+  const result = await query<{ activity_date: string }>(
+    `
+    select distinct to_char(activity_date::date, 'YYYY-MM-DD') as activity_date
+    from (
+      select logged_at::date as activity_date from food_logs where user_id = $1
+      union all select logged_at::date from weight_logs where user_id = $1
+      union all select logged_at::date from water_logs where user_id = $1
+      union all select logged_at::date from habit_logs where user_id = $1 and completed = true
+      union all select created_at::date from analytics_events where user_id = $1 and event_name = 'burn_log'
+      union all select completed_at::date from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at is not null
+    ) activity
+    where activity_date >= current_date - interval '120 days'
+    order by activity_date desc
+    `,
+    [userId]
+  );
+
+  const todayResult = await query<{ today: string }>("select to_char(current_date, 'YYYY-MM-DD') as today");
+  const activeDays = new Set(result.rows.map((row) => row.activity_date));
+  const todayKey = todayResult.rows[0]?.today ?? new Date().toISOString().slice(0, 10);
+  let currentStreak = 0;
+
+  for (let index = 0; index < 120; index += 1) {
+    const key = dateKeyDaysAgo(todayKey, index);
+    if (!activeDays.has(key)) break;
+    currentStreak += 1;
+  }
+
+  return currentStreak;
+}
+
+async function buildProactiveInsightForUser(userId: string, todayKey: string) {
+  const [profileResult, recentFood, recentWater, recentBurns, recentWeights, momentumResult, healthSyncSummary, currentStreakResult, memoryResult] = await Promise.all([
+    query<{
+      goal_type: "fat_loss" | "muscle_gain" | "maintenance" | null;
+      gender: "female" | "male" | "prefer_not_to_say" | null;
+      age_years: string | number | null;
+      activity_level: "low" | "moderate" | "high" | null;
+      height_cm: string | number | null;
+      starting_weight_kg: string | number | null;
+      target_weight_kg: string | number | null;
+    }>(
+      `
+      select goal_type, gender, age_years, activity_level, height_cm, starting_weight_kg, target_weight_kg
+      from users
+      where id = $1
+      `,
+      [userId]
+    ),
+    query<{ logged_date: string; calories: string | number; protein_g: string | number; meal_count: string | number }>(
+      `
+      select
+        to_char(logged_at::date, 'YYYY-MM-DD') as logged_date,
+        coalesce(sum(calories), 0) as calories,
+        coalesce(sum(protein_g), 0) as protein_g,
+        count(*) as meal_count
+      from food_logs
+      where user_id = $1
+        and logged_at >= current_date - interval '2 days'
+      group by logged_at::date
+      order by logged_at::date desc
+      `,
+      [userId]
+    ),
+    query<{ water_today_ml: string | number }>(
+      `
+      select coalesce(sum(amount_ml), 0) as water_today_ml
+      from water_logs
+      where user_id = $1
+        and logged_at::date = current_date
+      `,
+      [userId]
+    ),
+    query<{ metadata: Record<string, unknown> | null; created_at: string }>(
+      `
+      select metadata, created_at
+      from analytics_events
+      where user_id = $1
+        and event_name = 'burn_log'
+      order by created_at desc
+      limit 7
+      `,
+      [userId]
+    ),
+    query<{ weight_kg: string | number; logged_at: string }>(
+      `
+      select weight_kg, logged_at
+      from weight_logs
+      where user_id = $1
+      order by logged_at desc
+      limit 2
+      `,
+      [userId]
+    ),
+    query<{ score: string | number }>(
+      `
+      select score
+      from compliance_scores
+      where user_id = $1
+      order by calculated_for_date desc
+      limit 2
+      `,
+      [userId]
+    ),
+    getHealthSyncSummary(userId),
+    getCurrentStreak(userId),
+    query<{ title: string }>(
+      `
+      select title
+      from ascend_memory_reflections
+      where user_id = $1
+      order by occurred_at desc
+      limit 1
+      `,
+      [userId]
+    ).catch(() => ({ rows: [] as Array<{ title: string }> }))
+  ]);
+
+  const foodByDate = new Map(recentFood.rows.map((row) => [row.logged_date, row]));
+  const recent3Keys = Array.from({ length: 3 }, (_, index) => dateKeyDaysAgo(todayKey, index));
+  const lowProteinDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.protein_g ?? 0) < 75).length;
+  const highCaloriesDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.calories ?? 0) > 2300).length;
+  const lowCaloriesDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.calories ?? 0) < 1200).length;
+  const todayFood = foodByDate.get(todayKey);
+  const latestBurn = recentBurns.rows[0] ?? null;
+  const latestBurnAt = latestBurn ? new Date(latestBurn.created_at).getTime() : null;
+  const daysSinceWorkout = latestBurnAt ? Math.max(0, Math.floor((Date.now() - latestBurnAt) / 86_400_000)) : null;
+  const latestWeight = recentWeights.rows[0] ? Number(recentWeights.rows[0].weight_kg) : null;
+  const previousWeight = recentWeights.rows[1] ? Number(recentWeights.rows[1].weight_kg) : null;
+  const currentMomentum = momentumResult.rows[0] ? Number(momentumResult.rows[0].score) : null;
+  const previousMomentum = momentumResult.rows[1] ? Number(momentumResult.rows[1].score) : null;
+  const profile = profileResult.rows[0];
+  const nutritionTargets = calculateAdaptiveNutritionTargets({
+    goalType: profile?.goal_type ?? undefined,
+    sex: profile?.gender ?? undefined,
+    ageYears: profile?.age_years ?? undefined,
+    activityLevel: profile?.activity_level ?? undefined,
+    heightCm: profile?.height_cm ?? undefined,
+    weightKg: latestWeight ?? profile?.starting_weight_kg ?? undefined,
+    targetWeightKg: profile?.target_weight_kg ?? undefined
+  }, recentWeights.rows.map((row) => ({ weightKg: row.weight_kg, loggedAt: row.logged_at })));
+
+  const insight = buildCoachZoeProactiveInsight({
+    goalType: profile?.goal_type ?? null,
+    currentStreak: currentStreakResult,
+    momentumScore: currentMomentum,
+    previousMomentumScore: previousMomentum,
+    todaysFoodCount: Number(todayFood?.meal_count ?? 0),
+    caloriesToday: Number(todayFood?.calories ?? 0),
+    calorieTarget: nutritionTargets.calorieTarget,
+    proteinTodayG: Number(todayFood?.protein_g ?? 0),
+    proteinTargetG: nutritionTargets.proteinTargetG,
+    waterTodayMl: Number(recentWater.rows[0]?.water_today_ml ?? 0),
+    waterTargetMl: nutritionTargets.waterTargetMl,
+    workoutDays7: recentBurns.rows.length,
+    daysSinceWorkout,
+    lowProteinDays3,
+    highCaloriesDays3,
+    lowCaloriesDays3,
+    weightTrendKg: latestWeight !== null && previousWeight !== null ? latestWeight - previousWeight : null,
+    latestWorkout: latestBurn
+      ? {
+          title: typeof latestBurn.metadata?.workoutTitle === "string" ? latestBurn.metadata.workoutTitle : null,
+          type:
+            typeof latestBurn.metadata?.workoutType === "string"
+              ? latestBurn.metadata.workoutType
+              : typeof latestBurn.metadata?.activityType === "string"
+                ? latestBurn.metadata.activityType
+                : null,
+          completedToday: latestBurn.created_at.slice(0, 10) === todayKey,
+          completedYesterday: latestBurn.created_at.slice(0, 10) === dateKeyDaysAgo(todayKey, 1)
+        }
+      : null,
+    healthSync: healthSyncSummary
+      ? {
+          connected: healthSyncSummary.connected,
+          todaySteps: healthSyncSummary.todaySteps,
+          averageSteps7d: healthSyncSummary.averageSteps7d,
+          todayActiveCalories: healthSyncSummary.todayActiveCalories,
+          workoutsThisWeek: healthSyncSummary.workoutsThisWeek,
+          workoutCompletedToday: healthSyncSummary.workoutCompletedToday
+        }
+      : null,
+    recentMilestoneTitle: memoryResult.rows[0]?.title ?? null
+  });
+
+  return {
+    title: "Today's Insight",
+    body: insight.body,
+    href: insight.href,
+    dedupeKey: `proactive:${insight.key}:${todayKey}`
+  };
+}
+
 export async function runCoachNotificationJob(limit = 500) {
   const users = await query<{ id: string }>(
     `
@@ -226,7 +428,8 @@ export async function runCoachNotificationJob(limit = 500) {
 
   let sent = 0;
   for (const user of users.rows) {
-    const [events, sentTodayResult, openedTodayResult, foodTodayResult, weeklyReflectionResult] = await Promise.all([
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const [events, sentTodayResult, openedTodayResult, foodTodayResult, weeklyReflectionResult, proactiveInsight] = await Promise.all([
       buildDnaEvents(user.id),
       query<{
         coaching: string;
@@ -235,7 +438,7 @@ export async function runCoachNotificationJob(limit = 500) {
       }>(
         `
         select
-          count(*) filter (where notification_type in ('next_best_move', 'weekly_reflection')) as coaching,
+          count(*) filter (where notification_type in ('next_best_move', 'weekly_reflection', 'proactive_coaching')) as coaching,
           count(*) filter (where notification_type = 'celebration') as celebration,
           count(*) filter (where notification_type in ('trainer_message', 'trainer_praise', 'trainer_mission', 'trainer_nutrition_plan')) as trainer_message
         from notification_events
@@ -259,7 +462,8 @@ export async function runCoachNotificationJob(limit = 500) {
       query<{ report_count: string }>(
         "select count(*) as report_count from weekly_reports where user_id = $1 and created_at >= now() - interval '7 days'",
         [user.id]
-      )
+      ),
+      buildProactiveInsightForUser(user.id, todayKey).catch(() => null)
     ]);
     const now = new Date();
     const dna = AscendDNAService.buildProfile({ now, events });
@@ -293,6 +497,7 @@ export async function runCoachNotificationJob(limit = 500) {
         trainerMessage: Number(sentToday?.trainer_message ?? 0) > 0
       },
       weeklyReflectionDue: now.getDay() === 1 && Number(weeklyReflectionResult.rows[0]?.report_count ?? 0) > 0,
+      proactiveInsight,
       celebrationSignals: dna.currentStreak > dna.bestStreak && dna.currentStreak > 1
         ? [{ type: "longest_streak", value: dna.currentStreak }]
         : dna.averageWeeklyConsistency >= 85
