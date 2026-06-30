@@ -2,6 +2,8 @@
 
 import { LogOut } from "lucide-react";
 import { signOut } from "firebase/auth";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { SubscriptionPlan } from "@ascend/shared";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 import { formatPlan } from "@/lib/subscriptionPlan";
@@ -14,6 +16,15 @@ function displayName(fullName?: string | null, email?: string | null) {
   const trimmedName = fullName?.trim();
   if (trimmedName) return trimmedName;
   return email ?? "Signed in";
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      window.setTimeout(() => reject(new Error("timeout")), ms);
+    })
+  ]);
 }
 
 function roleAccessLabel(roles: string[]) {
@@ -56,22 +67,39 @@ export function AccountBar({
   plan?: SubscriptionPlan | null;
   profilePhotoUrl?: string | null;
 }) {
+  const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   async function handleLogout() {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
     clearCachedAccountProfile();
+    window.sessionStorage.clear();
+
     try {
       const { isNativeAndroidCapacitor } = await import("@/lib/nativePlatform");
+      const cleanupTasks: Promise<unknown>[] = [
+        withTimeout(disableCoachNotifications(), 2_500).catch(() => undefined),
+        withTimeout(signOut(getFirebaseClientAuth()), 4_000).catch(() => undefined)
+      ];
+
       if (isNativeAndroidCapacitor()) {
         const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
-        await FirebaseAuthentication.signOut().catch(() => undefined);
+        cleanupTasks.unshift(withTimeout(FirebaseAuthentication.signOut(), 4_000).catch(() => undefined));
       }
-    } catch {
-      // Fall back to Firebase web sign-out below.
-    }
 
-    await disableCoachNotifications().catch(() => undefined);
-    window.sessionStorage.clear();
-    await signOut(getFirebaseClientAuth()).catch(() => undefined);
-    window.location.href = "/login";
+      await Promise.allSettled(cleanupTasks);
+    } catch {
+      await Promise.allSettled([
+        withTimeout(disableCoachNotifications(), 2_500).catch(() => undefined),
+        withTimeout(signOut(getFirebaseClientAuth()), 4_000).catch(() => undefined)
+      ]);
+    } finally {
+      router.replace("/login");
+      window.setTimeout(() => {
+        window.location.replace("/login");
+      }, 150);
+    }
   }
 
   const accessLabel = accountAccessLabel({ email, fullName, roles, plan });
@@ -90,6 +118,7 @@ export function AccountBar({
       <button
         type="button"
         onClick={handleLogout}
+        disabled={isLoggingOut}
         className="ascend-pressable grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-ink text-zinc-100 hover:border-calm/50"
         aria-label="Log out"
       >
