@@ -22,6 +22,7 @@ android/.gradle
 android/.idea
 android/local.properties
 android/app/build
+android/app/google-services.json
 android/build
 android/captures
 android/keystore/
