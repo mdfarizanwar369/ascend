@@ -9,8 +9,8 @@ def firebaseProjectId = System.getenv("CAPACITOR_ANDROID_FIREBASE_PROJECT_ID") ?
 def firebaseSenderId = System.getenv("CAPACITOR_ANDROID_FIREBASE_MESSAGING_SENDER_ID") ?: "790770085471"
 def firebaseStorageBucket = System.getenv("CAPACITOR_ANDROID_FIREBASE_STORAGE_BUCKET") ?: "ascend-b2850.firebasestorage.app"
 def googleWebClientId = System.getenv("CAPACITOR_ANDROID_GOOGLE_WEB_CLIENT_ID") ?: "790770085471-9g0epif2n7hv5oveasimsg8kqai9kell.apps.googleusercontent.com"
-def androidVersionCode = (System.getenv("ASCEND_ANDROID_VERSION_CODE") ?: "2") as Integer
-def androidVersionName = System.getenv("ASCEND_ANDROID_VERSION_NAME") ?: "0.1.1"
+def androidVersionCode = (System.getenv("ASCEND_ANDROID_VERSION_CODE") ?: "10") as Integer
+def androidVersionName = System.getenv("ASCEND_ANDROID_VERSION_NAME") ?: "0.1.2"
 def googleServicesFile = file('google-services.json')
 def hasGoogleServices = googleServicesFile.exists() && googleServicesFile.text?.trim()
 
