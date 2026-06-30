@@ -2,6 +2,8 @@ import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 
 export function errorHandler(error: Error, _req: Request, res: Response, _next: NextFunction) {
+  const databaseCode = (error as Error & { code?: string }).code;
+
   if ((error as Error & { type?: string }).type === "entity.too.large") {
     return res.status(413).json({
       error: "Upload is too large",
@@ -20,6 +22,23 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
     return res.status(400).json({
       error: error.message
     });
+  }
+
+  if (databaseCode === "23505") {
+    const message = error.message.toLowerCase();
+    if (message.includes("users_email_key")) {
+      return res.status(409).json({
+        error: "This email already has an Ascend account",
+        detail: "Please log in with your existing sign-in method or continue with the same Google account."
+      });
+    }
+
+    if (message.includes("users_firebase_uid_key")) {
+      return res.status(409).json({
+        error: "This Ascend sign-in is already linked to another account",
+        detail: "Please log in instead of creating a new account."
+      });
+    }
   }
 
   const status = (error as Error & { status?: number }).status;

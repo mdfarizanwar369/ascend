@@ -13,6 +13,98 @@ const provisionSchema = z.object({
   primaryRole: z.enum(["client", "trainer"]).default("client")
 });
 
+type ProvisionUserRow = {
+  id: string;
+  firebase_uid: string;
+  email: string;
+};
+
+export async function upsertProvisionedUser(options: {
+  assignedTrainerId: string | null;
+  currentEmail: string;
+  firebaseUid: string;
+  fullName: string;
+  gymId: string | null;
+  isBootstrapOwner: boolean;
+  primaryRole: "client" | "trainer" | "owner";
+  referredByGymId: string | null;
+  referredByTrainerId: string | null;
+}) {
+  const existingByFirebaseUid = await query<ProvisionUserRow>(
+    "select id, firebase_uid, email from users where firebase_uid = $1 limit 1",
+    [options.firebaseUid]
+  );
+
+  const existingByEmail =
+    options.currentEmail
+      ? await query<ProvisionUserRow>(
+          "select id, firebase_uid, email from users where lower(email) = lower($1) limit 1",
+          [options.currentEmail]
+        )
+      : { rows: [] as ProvisionUserRow[] };
+
+  const matchedExistingUser = existingByFirebaseUid.rows[0] ?? existingByEmail.rows[0] ?? null;
+
+  if (matchedExistingUser) {
+    const updatedUser = await query(
+      `
+      update users
+      set firebase_uid = $2,
+          email = $3,
+          full_name = coalesce(nullif($4, ''), full_name),
+          primary_role = case when $5 = true then 'owner'::user_role else primary_role end,
+          gym_id = coalesce($6, gym_id),
+          assigned_trainer_id = coalesce($7, assigned_trainer_id),
+          referred_by_gym_id = coalesce($8, referred_by_gym_id),
+          referred_by_trainer_id = coalesce($9, referred_by_trainer_id),
+          coaching_mode = case
+            when coalesce($7, assigned_trainer_id) is not null then 'human_coach'
+            else coaching_mode
+          end,
+          updated_at = now()
+      where id = $1
+      returning *
+      `,
+      [
+        matchedExistingUser.id,
+        options.firebaseUid,
+        options.currentEmail,
+        options.fullName,
+        options.isBootstrapOwner,
+        options.gymId,
+        options.assignedTrainerId,
+        options.referredByGymId,
+        options.referredByTrainerId
+      ]
+    );
+
+    return { isExistingUser: true, user: updatedUser.rows[0] };
+  }
+
+  const insertedUser = await query(
+    `
+    insert into users (
+      firebase_uid, email, full_name, primary_role, gym_id, assigned_trainer_id,
+      referred_by_gym_id, referred_by_trainer_id, coaching_mode
+    )
+    values ($1, $2, $3, $4, $5, $6, $7, $8, case when $6::uuid is not null then 'human_coach' else 'self_coached' end)
+    returning *
+    `,
+    [
+      options.firebaseUid,
+      options.currentEmail,
+      options.fullName,
+      options.primaryRole,
+      options.gymId,
+      options.assignedTrainerId,
+      options.referredByGymId,
+      options.referredByTrainerId
+    ]
+  );
+
+  return { isExistingUser: false, user: insertedUser.rows[0] };
+}
+
 authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (req, res, next) => {
   try {
     const input = provisionSchema.parse(req.body);
@@ -21,8 +113,6 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
     const currentEmail = firebaseUser.email?.trim().toLowerCase();
     const isBootstrapOwner = Boolean(allowedOwnerEmail && currentEmail && allowedOwnerEmail === currentEmail);
     const primaryRole = isBootstrapOwner ? "owner" : input.primaryRole;
-    const existingUser = await query<{ id: string }>("select id from users where firebase_uid = $1 limit 1", [firebaseUser.firebaseUid]);
-    const isExistingUser = Boolean(existingUser.rows[0]);
     const referral = input.referralCode
       ? await query<{ id: string; gym_id: string | null; trainer_id: string | null }>(
           `
@@ -41,46 +131,23 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
     const gymId = referralRow?.gym_id ?? null;
     const assignedTrainerId = primaryRole === "client" ? referralRow?.trainer_id ?? null : null;
 
-    const result = await query(
-      `
-      insert into users (
-        firebase_uid, email, full_name, primary_role, gym_id, assigned_trainer_id,
-        referred_by_gym_id, referred_by_trainer_id, coaching_mode
-      )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, case when $6::uuid is not null then 'human_coach' else 'self_coached' end)
-      on conflict (firebase_uid) do update
-      set email = excluded.email,
-          full_name = coalesce(nullif(excluded.full_name, ''), users.full_name),
-          primary_role = case when $9 = true then 'owner'::user_role else users.primary_role end,
-          gym_id = coalesce(excluded.gym_id, users.gym_id),
-          assigned_trainer_id = coalesce(excluded.assigned_trainer_id, users.assigned_trainer_id),
-          referred_by_gym_id = coalesce(excluded.referred_by_gym_id, users.referred_by_gym_id),
-          referred_by_trainer_id = coalesce(excluded.referred_by_trainer_id, users.referred_by_trainer_id),
-          coaching_mode = case
-            when coalesce(excluded.assigned_trainer_id, users.assigned_trainer_id) is not null then 'human_coach'
-            else users.coaching_mode
-          end,
-          updated_at = now()
-      returning *
-      `,
-      [
-        firebaseUser.firebaseUid,
-        firebaseUser.email ?? "",
-        input.fullName ?? firebaseUser.name ?? firebaseUser.email ?? "Ascend Member",
-        primaryRole,
-        gymId,
-        assignedTrainerId,
-        referralRow?.gym_id ?? null,
-        referralRow?.trainer_id ?? null,
-        isBootstrapOwner
-      ]
-    );
+    const { isExistingUser, user } = await upsertProvisionedUser({
+      assignedTrainerId,
+      currentEmail: firebaseUser.email ?? "",
+      firebaseUid: firebaseUser.firebaseUid,
+      fullName: input.fullName ?? firebaseUser.name ?? firebaseUser.email ?? "Ascend Member",
+      gymId,
+      isBootstrapOwner,
+      primaryRole,
+      referredByGymId: referralRow?.gym_id ?? null,
+      referredByTrainerId: referralRow?.trainer_id ?? null
+    });
 
     if (isBootstrapOwner) {
-      await query("delete from user_roles where user_id = $1", [result.rows[0].id]);
-      await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [result.rows[0].id]);
+      await query("delete from user_roles where user_id = $1", [user.id]);
+      await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [user.id]);
     } else if (!isExistingUser) {
-      await query("insert into user_roles (user_id, role) values ($1, $2) on conflict do nothing", [result.rows[0].id, input.primaryRole]);
+      await query("insert into user_roles (user_id, role) values ($1, $2) on conflict do nothing", [user.id, input.primaryRole]);
     }
 
     if (!isBootstrapOwner && primaryRole === "trainer" && gymId) {
@@ -91,11 +158,11 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
         on conflict (user_id) do update
         set gym_id = excluded.gym_id
         `,
-        [result.rows[0].id, gymId]
+        [user.id, gymId]
       );
     }
 
-    res.status(201).json({ user: result.rows[0], referralApplied: Boolean(referralRow) });
+    res.status(201).json({ user, referralApplied: Boolean(referralRow) });
   } catch (error) {
     next(error);
   }
