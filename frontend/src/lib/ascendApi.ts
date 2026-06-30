@@ -490,6 +490,14 @@ export function getBurnLogs() {
         activityType?: string;
         durationMinutes?: number;
         caloriesBurned?: number;
+        estimatedCaloriesBurned?: number;
+        caloriesSource?: "estimated_met" | "health_provider_actual";
+        workoutTitle?: string;
+        workoutType?: string;
+        workoutDifficulty?: "easy" | "moderate" | "challenging";
+        workoutDifficultyLabel?: string;
+        coachMessage?: string;
+        source?: string;
       };
       created_at: string;
     }>;
@@ -649,6 +657,54 @@ export function saveBurnLog(input: {
       created_at: string;
     };
   }>("/burn-logs", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function saveCompletedWorkout(input: {
+  workoutCompletionKey: string;
+  workoutTitle: string;
+  workoutType: string;
+  workoutDifficulty: "easy" | "moderate" | "challenging";
+  durationMinutes: number;
+  completedAt?: string;
+  exercises: GeneratedWorkout["exercises"];
+  healthProviderCaloriesBurned?: number | null;
+}) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
+  return authed<{
+    burnLog: {
+      id: string;
+      metadata: {
+        activityType?: string;
+        durationMinutes?: number;
+        caloriesBurned?: number;
+        estimatedCaloriesBurned?: number;
+        caloriesSource?: "estimated_met" | "health_provider_actual";
+        workoutTitle?: string;
+        workoutType?: string;
+        workoutDifficulty?: "easy" | "moderate" | "challenging";
+        workoutDifficultyLabel?: string;
+        coachMessage?: string;
+        source?: string;
+      };
+      created_at: string;
+    };
+    summary: {
+      workoutTitle: string;
+      durationMinutes: number;
+      workoutType: string;
+      difficulty: string;
+      estimatedCaloriesBurned: number;
+      caloriesLabel: string;
+      coachMessage: string;
+      momentumEarned: number;
+    };
+  }>("/burn-logs/completed-workout", {
     method: "POST",
     body: JSON.stringify(input)
   });

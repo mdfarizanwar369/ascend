@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useRef, useState } from "react";
 import { Check, CheckCircle2, Dumbbell, RotateCcw, Send, Sparkles } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
@@ -8,8 +8,10 @@ import {
   WorkoutPlannerGoal,
   WorkoutPlannerLocation,
   generateTodayWorkout,
+  saveCompletedWorkout,
   sendCoachMessage
 } from "@/lib/ascendApi";
+import { rememberDashboardRecord } from "@/lib/dataSync";
 
 type ChatMessage = {
   role: "assistant" | "user";
@@ -21,6 +23,17 @@ type WorkoutAnswers = {
   timeAvailable?: "20" | "30" | "45" | "60";
   goal?: WorkoutPlannerGoal;
   equipment?: string;
+};
+
+type WorkoutSaveSuccess = {
+  workoutTitle: string;
+  durationMinutes: number;
+  workoutType: string;
+  difficulty: string;
+  estimatedCaloriesBurned: number;
+  caloriesLabel: string;
+  coachMessage: string;
+  momentumEarned: number;
 };
 
 type WorkoutPlannerTime = NonNullable<WorkoutAnswers["timeAvailable"]>;
@@ -86,6 +99,7 @@ function WorkoutPlannerCard({
   onRegenerate,
   setMessage,
   showExistingChoice,
+  workoutSaved,
   workout
 }: {
   answers: WorkoutAnswers;
@@ -98,6 +112,7 @@ function WorkoutPlannerCard({
   onRegenerate: () => void;
   setMessage: (message: string) => void;
   showExistingChoice: boolean;
+  workoutSaved: boolean;
   workout: GeneratedWorkout | null;
 }) {
   const nextStep = !answers.location ? "location" : !answers.timeAvailable ? "time" : !answers.goal ? "goal" : !answers.equipment ? "equipment" : "done";
@@ -189,6 +204,7 @@ function WorkoutPlannerCard({
                 <button
                   key={`${exercise.name}-${index}`}
                   type="button"
+                  disabled={workoutSaved}
                   onClick={() => onToggleExercise(index)}
                   className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left ${
                     complete ? "border-lime/50 bg-lime/10" : "border-line bg-ink/75"
@@ -308,8 +324,22 @@ export function CoachClient() {
   const [workout, setWorkout] = useState<GeneratedWorkout | null>(null);
   const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set());
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
+  const [isSavingWorkout, setIsSavingWorkout] = useState(false);
+  const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
+  const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
+  const saveWorkoutLockRef = useRef(false);
 
   const completedCount = useMemo(() => checkedExercises.size, [checkedExercises]);
+  const allExercisesCompleted = Boolean(workout && workout.exercises.length > 0 && completedCount === workout.exercises.length);
+
+  function nextWorkoutCompletionKey() {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+      const random = Math.floor(Math.random() * 16);
+      const value = character === "x" ? random : (random & 0x3) | 0x8;
+      return value.toString(16);
+    });
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -374,11 +404,45 @@ export function CoachClient() {
       });
       setWorkout(response.workout);
       setCheckedExercises(new Set());
+      setSavedWorkoutSummary(null);
+      setWorkoutCompletionKey(nextWorkoutCompletionKey());
       setMessages((current) => [...current, { role: "assistant", text: response.workout.intro }]);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Coach Zoe could not build the workout yet.");
     } finally {
       setIsGeneratingWorkout(false);
+    }
+  }
+
+  async function saveWorkoutCompletion() {
+    if (!workout || !allExercisesCompleted || !workoutCompletionKey || saveWorkoutLockRef.current) return;
+    saveWorkoutLockRef.current = true;
+    setIsSavingWorkout(true);
+    setStatus("");
+
+    try {
+      const response = await saveCompletedWorkout({
+        workoutCompletionKey,
+        workoutTitle: workout.title,
+        workoutType: workout.focus,
+        workoutDifficulty: workout.intensity,
+        durationMinutes: workout.estimatedDurationMinutes,
+        completedAt: new Date().toISOString(),
+        exercises: workout.exercises
+      });
+
+      rememberDashboardRecord("burn", response.burnLog);
+      setSavedWorkoutSummary(response.summary);
+      setStatus("");
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? `${error.message} Your workout is still here, so you can retry saving in a moment.`
+          : "Could not save the workout yet. Your workout is still here, so you can try again."
+      );
+    } finally {
+      saveWorkoutLockRef.current = false;
+      setIsSavingWorkout(false);
     }
   }
 
@@ -427,6 +491,8 @@ export function CoachClient() {
                 setCheckedExercises(new Set());
                 setAnswers({});
                 setShowExistingChoice(false);
+                setSavedWorkoutSummary(null);
+                setWorkoutCompletionKey(null);
               }}
               onToggleExercise={(index) =>
                 setCheckedExercises((current) => {
@@ -438,24 +504,73 @@ export function CoachClient() {
               }
               setMessage={setMessage}
               showExistingChoice={showExistingChoice}
+              workoutSaved={Boolean(savedWorkoutSummary)}
               workout={workout}
             />
           )}
 
           {workout ? (
-            <div className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3 text-sm">
-              <span className="flex items-center gap-2 text-zinc-300">
-                <CheckCircle2 className="text-lime" size={18} />
-                {completedCount}/{workout.exercises.length} exercises checked
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowExistingChoice(true)}
-                className="flex items-center gap-1 text-xs font-semibold text-purple-300"
-              >
-                <RotateCcw size={14} />
-                Options
-              </button>
+            <div className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span className="flex items-center gap-2 text-zinc-300">
+                  <CheckCircle2 className="text-lime" size={18} />
+                  {completedCount}/{workout.exercises.length} exercises checked
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowExistingChoice(true)}
+                  className="flex items-center gap-1 text-xs font-semibold text-purple-300"
+                >
+                  <RotateCcw size={14} />
+                  Options
+                </button>
+              </div>
+
+              {savedWorkoutSummary ? (
+                <div className="mt-4 rounded-2xl border border-lime/30 bg-[radial-gradient(circle_at_top_right,rgba(53,242,208,0.18),transparent_14rem),linear-gradient(180deg,rgba(20,44,39,0.9),rgba(8,16,15,0.96))] p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-lime text-ink shadow-[0_0_32px_rgba(61,230,209,0.28)]">
+                      <Check size={20} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold uppercase tracking-[0.22em] text-lime">Workout Saved</p>
+                      <h3 className="mt-2 text-xl font-semibold text-white">{savedWorkoutSummary.workoutTitle}</h3>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-zinc-200">
+                        <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Duration</p>
+                          <p className="mt-1 font-semibold">{savedWorkoutSummary.durationMinutes} min</p>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{savedWorkoutSummary.caloriesLabel}</p>
+                          <p className="mt-1 font-semibold">~{savedWorkoutSummary.estimatedCaloriesBurned} kcal</p>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Momentum Earned</p>
+                          <p className="mt-1 font-semibold text-lime">+{savedWorkoutSummary.momentumEarned}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Workout Type</p>
+                          <p className="mt-1 font-semibold">{savedWorkoutSummary.workoutType}</p>
+                        </div>
+                      </div>
+                      <p className="mt-4 text-sm leading-6 text-zinc-200">{savedWorkoutSummary.coachMessage}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : allExercisesCompleted ? (
+                <button
+                  type="button"
+                  onClick={saveWorkoutCompletion}
+                  disabled={isSavingWorkout}
+                  className="mt-4 flex h-14 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(61,230,209,1),rgba(109,246,220,0.92))] text-base font-bold text-ink shadow-[0_18px_44px_rgba(61,230,209,0.24)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isSavingWorkout ? "Saving workout..." : "Complete & Save Workout"}
+                </button>
+              ) : (
+                <div className="mt-4 rounded-xl border border-white/5 bg-ink/55 px-4 py-3 text-sm text-zinc-400">
+                  Check off every exercise to unlock workout save.
+                </div>
+              )}
             </div>
           ) : null}
         </div>

@@ -32,7 +32,7 @@ import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
-import { clearDashboardRecord, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
+import { clearDashboardRecord, DASHBOARD_RECORD_EVENT, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
 import { DelightBadge, DelightProgressBar } from "@/components/Delight";
@@ -444,6 +444,17 @@ export function ClientDashboard() {
     };
   }, [loadDashboard]);
 
+  useEffect(() => {
+    function handleDashboardRecordUpdate() {
+      void loadDashboard();
+    }
+
+    window.addEventListener(DASHBOARD_RECORD_EVENT, handleDashboardRecordUpdate);
+    return () => {
+      window.removeEventListener(DASHBOARD_RECORD_EVENT, handleDashboardRecordUpdate);
+    };
+  }, [loadDashboard]);
+
   async function markMissionDone() {
     if (!dailyMission || dailyMission.status === "completed") return;
     if (missionLockRef.current) return;
@@ -800,7 +811,9 @@ export function ClientDashboard() {
     : "Record your first weight check-in";
   const waterPreview = `${(todaysWaterMl / 1000).toFixed(1)}L today / ${weeklyWaterDays.size}/7 days`;
   const workoutPreview = latestBurnLog
-    ? `${Number(latestBurnLog.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal / ${formatShortDate(latestBurnLog.created_at)}`
+    ? latestBurnLog.metadata?.workoutTitle
+      ? `${latestBurnLog.metadata.workoutTitle} / ${Number(latestBurnLog.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal`
+      : `${Number(latestBurnLog.metadata?.caloriesBurned ?? 0).toLocaleString()} kcal / ${formatShortDate(latestBurnLog.created_at)}`
     : syncedWorkoutCompleted
       ? `Workout detected automatically / ${syncedWorkoutCount} this week`
     : "Your first activity log is waiting";

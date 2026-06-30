@@ -4,6 +4,7 @@ export type DashboardRecordType = "food" | "water" | "weight" | "burn" | "habit"
 export type DashboardActionType = DashboardRecordType | "progress_photo";
 const MAX_PENDING_AGE_MS = 2 * 60_000;
 const MAX_RECENT_ACTION_AGE_MS = 25 * 60_000;
+export const DASHBOARD_RECORD_EVENT = "ascend:dashboard-record-updated";
 
 interface StoredDashboardRecord<T> {
   record: T;
@@ -46,6 +47,11 @@ export function rememberDashboardRecord<T>(type: DashboardRecordType, record: T)
     window.sessionStorage.setItem(recordKey(type), JSON.stringify(stored));
   } catch {
     // Storage can be unavailable in restrictive browser modes; the API refresh remains the fallback.
+  }
+  try {
+    window.dispatchEvent(new CustomEvent(DASHBOARD_RECORD_EVENT, { detail: { type } }));
+  } catch {
+    // Cross-component refresh is a nice enhancement, not a requirement for saving.
   }
   rememberDashboardAction(type);
 }
