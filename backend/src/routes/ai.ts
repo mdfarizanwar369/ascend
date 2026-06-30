@@ -8,6 +8,7 @@ import { env } from "../config/env";
 import { aiRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
+import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 
 export const aiRouter = Router();
 
@@ -21,8 +22,8 @@ const workoutPlannerSchema = z.object({
 aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
   try {
     const message = z.string().trim().min(1).max(2_000).parse(req.body.message);
-    const [contextResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary] = await Promise.all([
-      query(
+    const [contextResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] = await Promise.all([
+      query<{ metadata: Record<string, unknown> | null; created_at: string }>(
         `
         select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
         from users
@@ -80,12 +81,26 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
         `,
         [req.user!.id]
       ),
-      getHealthSyncSummary(req.user!.id)
+      getHealthSyncSummary(req.user!.id),
+      query(
+        `
+        select score
+        from compliance_scores
+        where user_id = $1
+        order by calculated_for_date desc
+        limit 1
+        `,
+        [req.user!.id]
+      )
     ]);
+    const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
+      currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null
+    });
     const promptContext = JSON.stringify({
       profile: contextResult.rows[0] ?? {},
       recentFoodLogs: recentFoodResult.rows,
       recentWorkouts: recentBurnResult.rows,
+      workoutMemory,
       athleteMode: athleteResult.rows[0] ?? null,
       latestBodyScan: bodyScanResult.rows[0] ?? null,
       recentConversation: recentMessagesResult.rows.reverse(),
@@ -137,9 +152,9 @@ aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), ai
 aiRouter.post("/ai/workout", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
   try {
     const input = workoutPlannerSchema.parse(req.body);
-    const [profileResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary] =
+    const [profileResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
       await Promise.all([
-        query(
+        query<{ metadata: Record<string, unknown> | null; created_at: string }>(
           `
           select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
           from users
@@ -199,13 +214,27 @@ aiRouter.post("/ai/workout", requireAuth, requireActivePlan("premium"), aiRateLi
           `,
           [req.user!.id]
         ),
-        getHealthSyncSummary(req.user!.id)
+        getHealthSyncSummary(req.user!.id),
+        query(
+          `
+          select score
+          from compliance_scores
+          where user_id = $1
+          order by calculated_for_date desc
+          limit 1
+          `,
+          [req.user!.id]
+        )
       ]);
+    const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
+      currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null
+    });
 
     const promptContext = JSON.stringify({
       profile: profileResult.rows[0] ?? {},
       recentFoodConsistency: recentFoodResult.rows[0] ?? {},
       recentWorkouts: recentBurnResult.rows,
+      workoutMemory,
       athleteMode: athleteResult.rows[0] ?? null,
       latestBodyScan: bodyScanResult.rows[0] ?? null,
       recentCoachZoeContext: recentMessagesResult.rows.reverse(),

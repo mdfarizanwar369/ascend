@@ -722,7 +722,20 @@ export function ClientDashboard() {
     if (score >= 60) return "You're building momentum.";
     return "One honest check-in can change the feel of the day.";
   })();
+  const latestBurnLog = burnLogs[0];
+  const latestWorkoutTitle = typeof latestBurnLog?.metadata?.workoutTitle === "string" ? latestBurnLog.metadata.workoutTitle : null;
+  const latestWorkoutCompletedToday = Boolean(latestBurnLog && localDateKey(latestBurnLog.created_at) === today);
+  const latestWorkoutCompletedYesterday = Boolean(latestBurnLog && localDateKey(latestBurnLog.created_at) === yesterday);
   const enhancedNextAction = (() => {
+    if (latestWorkoutCompletedToday && latestWorkoutTitle) {
+      return {
+        ...nextAction,
+        title: "Recover well from today's workout",
+        detail: `You already completed ${latestWorkoutTitle} today. Hydration, protein, and a calm recovery rhythm are the smart next moves.`,
+        href: proteinLeft > 25 ? "/food-log" : waterLeftMl > 500 ? "/water-log" : "/dashboard",
+        cta: proteinLeft > 25 ? "Log Food" : waterLeftMl > 500 ? "Log Water" : "Stay on track"
+      };
+    }
     if (recentCelebration) return nextAction;
     if (!todaysFood.length && foodConsistency >= 5) {
       return {
@@ -775,6 +788,8 @@ export function ClientDashboard() {
             : "Habit completed"
     : null;
   const coachZoeInsight = (() => {
+    if (latestWorkoutCompletedToday && latestWorkoutTitle) return `Great work completing ${latestWorkoutTitle} today.`;
+    if (latestWorkoutCompletedYesterday && latestWorkoutTitle) return `${latestWorkoutTitle} is in the bank from yesterday. Build around recovery and variety today.`;
     if (!todaysFood.length && proteinLeft > 25) return "Protein is your biggest opportunity today.";
     if (currentStreak >= 7) return "Excellent consistency this week.";
     if (completedTaskCount === taskItems.length - 1) return "You're one small win away from a complete day.";
@@ -798,7 +813,6 @@ export function ClientDashboard() {
     { label: "Weight", value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "--", detail: weightTrend(latestWeight, previousWeight) },
     { label: "Momentum", value: `${score}/100`, detail: scoreLabel }
   ];
-  const latestBurnLog = burnLogs[0];
   const healthSyncSummary = healthSyncStatus?.summary ?? null;
   const hasSyncedActivity = Boolean(healthSyncSummary?.connected);
   const syncedSteps = healthSyncSummary?.todaySteps ?? 0;
@@ -850,6 +864,20 @@ export function ClientDashboard() {
   ].filter((item): item is string => Boolean(item));
   const habitsGoalsPreview = habitsGoalHighlights.slice(0, 2).join(" • ");
   const dailyCoachingMessage = (() => {
+    if (latestWorkoutCompletedToday && latestWorkoutTitle) {
+      return {
+        label: "Workout done",
+        message: `You've already finished ${latestWorkoutTitle} today. Focus on hydration, recovery, and making protein easy.`,
+        detail: "The next win is supporting the work you've already done."
+      };
+    }
+    if (latestWorkoutCompletedYesterday && latestWorkoutTitle) {
+      return {
+        label: "Workout memory",
+        message: `${latestWorkoutTitle} was your last completed session. A different focus today will keep your week feeling balanced.`,
+        detail: "Variety helps consistency feel sustainable."
+      };
+    }
     if (coachPresence.latest?.message) {
       return {
         label: "Today",

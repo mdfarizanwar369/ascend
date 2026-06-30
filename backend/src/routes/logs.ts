@@ -398,6 +398,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
       workoutDifficultyLabel: summary.difficultyLabel,
       exercises: summary.exerciseList,
       coachMessage: summary.coachMessage,
+      momentumEarned: 8,
       workoutCompletionKey: input.workoutCompletionKey,
       source: "coach_zoe_workout_planner",
       weightKgUsed: summary.weightKgUsed,

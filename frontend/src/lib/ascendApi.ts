@@ -497,6 +497,7 @@ export function getBurnLogs() {
         workoutDifficulty?: "easy" | "moderate" | "challenging";
         workoutDifficultyLabel?: string;
         coachMessage?: string;
+        momentumEarned?: number;
         source?: string;
       };
       created_at: string;
@@ -690,6 +691,7 @@ export function saveCompletedWorkout(input: {
         workoutDifficulty?: "easy" | "moderate" | "challenging";
         workoutDifficultyLabel?: string;
         coachMessage?: string;
+        momentumEarned?: number;
         source?: string;
       };
       created_at: string;
