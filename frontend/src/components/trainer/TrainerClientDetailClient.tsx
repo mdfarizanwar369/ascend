@@ -382,7 +382,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const latestMessage = messages[messages.length - 1] ?? null;
   const unreadMessages = messages.filter((message) => message.sender_user_id === clientId && !message.read_at).length;
   const todaysCoachInsight = coachPresence.latest && isToday(coachPresence.latest.created_at) ? coachPresence.latest : null;
-  const latestWorkout = burnLogs.find((log) => log.metadata?.workoutTitle || log.metadata?.source === "coach_zoe_workout_planner") ?? burnLogs[0] ?? null;
+  const latestWorkout = burnLogs.find((log) => log.metadata?.source === "coach_zoe_workout_planner" || Boolean(log.metadata?.workoutTitle)) ?? null;
   const todaysWorkout = latestWorkout && isToday(latestWorkout.created_at) ? latestWorkout : null;
   const workoutsThisWeek = burnLogs.filter((log) => {
     const date = new Date(log.created_at);
@@ -415,14 +415,28 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         icon: <Utensils size={17} />
       });
     });
-    waterLogs.slice(0, 3).forEach((log) => {
+
+    const waterByDay = new Map<string, { at: string; amountMl: number; logs: number }>();
+    waterLogs.forEach((log) => {
+      const key = localDateKey(log.logged_at);
+      const current = waterByDay.get(key);
+      if (!current) {
+        waterByDay.set(key, { at: log.logged_at, amountMl: log.amount_ml, logs: 1 });
+        return;
+      }
+      current.amountMl += log.amount_ml;
+      current.logs += 1;
+      if (new Date(log.logged_at).getTime() > new Date(current.at).getTime()) current.at = log.logged_at;
+    });
+    Array.from(waterByDay.values()).slice(0, 3).forEach((day) => {
       items.push({
-        at: log.logged_at,
+        at: day.at,
         title: "Water logged",
-        detail: `${(log.amount_ml / 1000).toFixed(1)}L recorded`,
+        detail: `${(day.amountMl / 1000).toFixed(1)}L total${day.logs > 1 ? ` across ${day.logs} logs` : ""}`,
         icon: <Waves size={17} />
       });
     });
+
     burnLogs.slice(0, 4).forEach((log) => {
       items.push({
         at: log.created_at,
@@ -431,7 +445,12 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         icon: <Dumbbell size={17} />
       });
     });
-    coachPresence.history.slice(0, 3).forEach((message) => {
+
+    const seenInsights = new Set<string>();
+    coachPresence.history.forEach((message) => {
+      const insightKey = `${localDateKey(message.created_at)}:${message.message.trim().toLowerCase()}`;
+      if (seenInsights.has(insightKey) || seenInsights.size >= 3) return;
+      seenInsights.add(insightKey);
       items.push({
         at: message.created_at,
         title: "Coach Zoe insight delivered",
@@ -445,9 +464,16 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       detail: `Week of ${formatShortDate(weeklyReport.week_start)}`,
       icon: <ClipboardList size={17} />
     }) : null;
+    const seenTimelineItems = new Set<string>();
     return items
       .filter((item) => Boolean(item.at))
       .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+      .filter((item) => {
+        const key = `${localDateKey(item.at)}:${item.title}:${item.detail}`.toLowerCase();
+        if (seenTimelineItems.has(key)) return false;
+        seenTimelineItems.add(key);
+        return true;
+      })
       .slice(0, 8);
   }, [burnLogs, coachPresence.history, foodLogs, waterLogs, weeklyReport]);
 
