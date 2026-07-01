@@ -1,15 +1,36 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { calculateAdaptiveNutritionTargets } from "@ascend/shared";
-import { ChevronDown, Send, Sparkles, TrendingDown, Utensils } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  Brain,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  Dumbbell,
+  Flame,
+  MessageCircle,
+  NotebookText,
+  Send,
+  Sparkles,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Utensils,
+  Waves,
+  Zap
+} from "lucide-react";
 import {
   createTrainerClientMission,
   createWeeklyCheckin,
   getTrainerClientMemory,
   getTrainerClientCoachPresence,
   getTrainerClient,
+  getTrainerClientBurnLogs,
   getTrainerClientFoodLogs,
   getTrainerClientMissions,
   getTrainerClientMessages,
@@ -17,6 +38,7 @@ import {
   getTrainerClientProgressPhotos,
   getTrainerClientProgressComparison,
   getTrainerClientWaterLogs,
+  getTrainerClientWeeklyReport,
   getTrainerClientWeightLogs,
   saveTrainerClientNutritionPlan,
   sendTrainerClientPraise,
@@ -26,13 +48,11 @@ import {
   CoachPresenceSettings,
   AscendMemoryResponse
 } from "@/lib/ascendApi";
-import { MetricCard } from "@/components/MetricCard";
 import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AthleteCoachPanel } from "@/components/athlete/AthleteCoachPanel";
-import { AscendMemoryCard } from "@/components/memory/AscendMemoryCard";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
@@ -42,14 +62,16 @@ type ProgressPhoto = Awaited<ReturnType<typeof getTrainerClientProgressPhotos>>[
 type WeightLog = Awaited<ReturnType<typeof getTrainerClientWeightLogs>>["weightLogs"][number];
 type WaterLog = Awaited<ReturnType<typeof getTrainerClientWaterLogs>>["waterLogs"][number];
 type Mission = Awaited<ReturnType<typeof getTrainerClientMissions>>["missions"][number];
+type BurnLog = Awaited<ReturnType<typeof getTrainerClientBurnLogs>>["burnLogs"][number];
+type WeeklyReport = Awaited<ReturnType<typeof getTrainerClientWeeklyReport>>["report"];
 type ProgressComparison = Awaited<ReturnType<typeof getTrainerClientProgressComparison>>["comparison"];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getTrainerClientNutritionPlan>>["coachPlan"];
-type CollapsibleKey = "coachPlan" | "dailyMission" | "messages" | "foodLogs" | "progressPhotos" | "weeklyReport" | "memory";
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
   if (goal === "muscle_gain") return "Muscle gain";
   if (goal === "maintenance") return "Maintenance";
+  if (goal === "performance") return "Performance";
   return "Goal not set";
 }
 
@@ -58,43 +80,183 @@ function asNumber(value: string | number | null | undefined) {
   return Number(value);
 }
 
-function CollapsibleSection({
+function formatShortDate(value?: string | null) {
+  if (!value) return "Not yet";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Not yet";
+  return date.toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "Not yet";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Not yet";
+  return date.toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+}
+
+function isToday(value?: string | null) {
+  return value ? localDateKey(value) === localDateKey() : false;
+}
+
+function dateGroupLabel(value?: string | null) {
+  if (!value) return "Recently";
+  const key = localDateKey(value);
+  const today = localDateKey();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = localDateKey(yesterday.toISOString());
+  if (key === today) return "Today";
+  if (key === yesterdayKey) return "Yesterday";
+  return formatShortDate(value);
+}
+
+function titleCase(value?: string | null) {
+  if (!value) return "Not set";
+  return value
+    .replace(/[_-]/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function workoutName(log?: BurnLog | null) {
+  return log?.metadata?.workoutTitle ?? log?.metadata?.activityType ?? "Workout";
+}
+
+function workoutCalories(log?: BurnLog | null) {
+  return Math.round(Number(log?.metadata?.estimatedCaloriesBurned ?? log?.metadata?.caloriesBurned ?? 0));
+}
+
+function SectionCard({
+  eyebrow,
   title,
-  preview,
   children,
-  id,
-  isOpen,
-  onToggle
+  action,
+  tone = "default"
 }: {
+  eyebrow?: string;
   title: string;
-  preview: string;
   children: ReactNode;
-  id?: string;
-  isOpen: boolean;
-  onToggle: () => void;
+  action?: ReactNode;
+  tone?: "default" | "zoe" | "success" | "warning";
 }) {
+  const toneClass =
+    tone === "zoe"
+      ? "border-purple-400/30 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.18),transparent_14rem),linear-gradient(180deg,rgba(20,18,31,0.98),rgba(17,24,39,0.96))]"
+      : tone === "success"
+        ? "border-lime/30 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.12),transparent_13rem),var(--surface)]"
+        : tone === "warning"
+          ? "border-amber/35 bg-amber/10"
+          : "border-line bg-surface";
+
   return (
-    <section id={id} className="mt-4 scroll-mt-20 rounded-lg border border-line bg-surface">
-      <button
-        type="button"
-        aria-expanded={isOpen}
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left"
-      >
+    <section className={`rounded-2xl border p-4 shadow-soft ${toneClass}`}>
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          <p className="mt-1 truncate text-sm text-zinc-400">{preview}</p>
+          {eyebrow ? <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">{eyebrow}</p> : null}
+          <h2 className="mt-1 text-lg font-semibold text-white">{title}</h2>
         </div>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-ink text-zinc-200">
-          <ChevronDown className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} size={18} />
-        </span>
-      </button>
-      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-        <div className="overflow-hidden">
-          <div className="border-t border-line p-4 pt-3">{children}</div>
-        </div>
+        {action}
       </div>
+      {children}
     </section>
+  );
+}
+
+function MetricTile({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <div className="rounded-2xl border border-white/5 bg-ink/80 p-3">
+      <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">{label}</p>
+      <p className="mt-2 text-xl font-semibold text-white">{value}</p>
+      {detail ? <p className="mt-1 text-xs leading-5 text-zinc-400">{detail}</p> : null}
+    </div>
+  );
+}
+
+function HandoverItem({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/5 bg-ink/70 p-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-calm/15 text-calm">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-white">{value}</p>
+        <p className="text-xs text-zinc-500">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function TimelineRow({ date, icon, title, detail }: { date: string; icon: ReactNode; title: string; detail: string }) {
+  return (
+    <article className="flex gap-3 rounded-2xl bg-ink/70 p-3">
+      <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface text-calm">{icon}</span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="text-sm font-semibold text-white">{title}</p>
+          <p className="text-xs text-zinc-500">{date}</p>
+        </div>
+        <p className="mt-1 text-xs leading-5 text-zinc-400">{detail}</p>
+      </div>
+    </article>
+  );
+}
+
+function WorkoutDetail({ workout }: { workout: BurnLog }) {
+  const exercises = workout.metadata?.exercises ?? [];
+  return (
+    <div className="mt-4 rounded-2xl border border-purple-300/20 bg-ink/80 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">Saved Workout</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">{workoutName(workout)}</h3>
+          <p className="mt-1 text-sm text-zinc-400">Workout Completed / {formatDateTime(workout.created_at)}</p>
+        </div>
+        <span className="rounded-full bg-lime px-3 py-1 text-xs font-bold text-ink">Completed</span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <MetricTile label="Duration" value={`${Number(workout.metadata?.durationMinutes ?? 0) || "--"} min`} />
+        <MetricTile label="Focus" value={titleCase(workout.metadata?.workoutType ?? workout.metadata?.activityType)} />
+        <MetricTile label="Difficulty" value={titleCase(workout.metadata?.workoutDifficultyLabel ?? workout.metadata?.workoutDifficulty)} />
+        <MetricTile label="Estimated burn" value={`~${workoutCalories(workout)} kcal`} />
+      </div>
+
+      {exercises.length ? (
+        <div className="mt-4 space-y-2">
+          <p className="text-sm font-semibold text-white">Exercises</p>
+          {exercises.map((exercise, index) => (
+            <article key={`${exercise.name ?? "exercise"}-${index}`} className="rounded-2xl border border-white/5 bg-surface p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-white">{exercise.name ?? `Exercise ${index + 1}`}</p>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    {[exercise.sets ? `${exercise.sets} sets` : null, exercise.reps ? `${exercise.reps} reps` : null, exercise.duration, exercise.rest ? `${exercise.rest} rest` : null]
+                      .filter(Boolean)
+                      .join(" / ") || "Coach Zoe workout item"}
+                  </p>
+                  {exercise.note ? <p className="mt-2 text-xs leading-5 text-zinc-500">{exercise.note}</p> : null}
+                </div>
+                <CheckCircle2 className="shrink-0 text-lime" size={20} />
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-2xl bg-surface p-3 text-sm leading-6 text-zinc-400">
+          Exercise detail was not saved with this older completion. New saved Coach Zoe workouts will appear here when exercise metadata is available.
+        </p>
+      )}
+
+      {workout.metadata?.coachMessage ? (
+        <div className="mt-4 rounded-2xl border border-calm/20 bg-calm/10 p-3">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">Coach tip</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-200">{workout.metadata.coachMessage}</p>
+        </div>
+      ) : null}
+      <p className="mt-3 text-xs text-zinc-500">
+        Calories and momentum are from the saved workout completion. No workout is regenerated for trainer review.
+      </p>
+    </div>
   );
 }
 
@@ -106,6 +268,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
+  const [burnLogs, setBurnLogs] = useState<BurnLog[]>([]);
+  const [weeklyReport, setWeeklyReport] = useState<WeeklyReport>(null);
   const [missions, setMissions] = useState<Mission[]>([]);
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
@@ -125,21 +289,13 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [missionTitle, setMissionTitle] = useState("");
   const [missionDueDate, setMissionDueDate] = useState("");
   const [checkin, setCheckin] = useState("");
-  const [status, setStatus] = useState("Loading client momentum...");
+  const [status, setStatus] = useState("Loading client handover...");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isSavingMission, setIsSavingMission] = useState(false);
   const [isSendingPraise, setIsSendingPraise] = useState(false);
   const [isSavingNutrition, setIsSavingNutrition] = useState(false);
-  const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
-    coachPlan: false,
-    dailyMission: false,
-    messages: false,
-    foodLogs: false,
-    progressPhotos: false,
-    weeklyReport: false,
-    memory: false
-  });
+  const [showWorkout, setShowWorkout] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -152,17 +308,19 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         setClient(profile.client);
         setStatus("");
 
-        const [foods, nextMessages, progress, weights, waters, nextMissions, comparison, nutritionPlan, presence, memory] = await Promise.allSettled([
+        const [foods, nextMessages, progress, weights, waters, burns, nextMissions, comparison, nutritionPlan, presence, memory, report] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
           getTrainerClientWeightLogs(clientId),
           getTrainerClientWaterLogs(clientId),
+          getTrainerClientBurnLogs(clientId),
           getTrainerClientMissions(clientId),
           getTrainerClientProgressComparison(clientId),
           getTrainerClientNutritionPlan(clientId),
           getTrainerClientCoachPresence(clientId),
-          getTrainerClientMemory(clientId)
+          getTrainerClientMemory(clientId),
+          getTrainerClientWeeklyReport(clientId)
         ]);
 
         if (!isMounted) return;
@@ -171,6 +329,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         if (progress.status === "fulfilled") setProgressPhotos(progress.value.progressPhotos);
         if (weights.status === "fulfilled") setWeightLogs(weights.value.weightLogs);
         if (waters.status === "fulfilled") setWaterLogs(waters.value.waterLogs);
+        if (burns.status === "fulfilled") setBurnLogs(burns.value.burnLogs);
         if (nextMissions.status === "fulfilled") setMissions(nextMissions.value.missions);
         if (comparison.status === "fulfilled") setProgressComparison(comparison.value.comparison);
         if (nutritionPlan.status === "fulfilled") {
@@ -187,9 +346,10 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         }
         if (presence.status === "fulfilled") setCoachPresence(presence.value);
         if (memory.status === "fulfilled") setAscendMemory(memory.value);
+        if (report.status === "fulfilled") setWeeklyReport(report.value.report);
 
-        if ([foods, nextMessages, progress, weights, waters, nextMissions].some((result) => result.status === "rejected")) {
-          setStatus("Some client sections could not load yet. The main client profile is still available.");
+        if ([foods, nextMessages, progress, weights, waters, burns, nextMissions, report].some((result) => result.status === "rejected")) {
+          setStatus("Some client sections could not load yet. The main handover is still available.");
         }
       } catch (error) {
         if (isMounted) setStatus(error instanceof Error ? error.message : "Could not load this client.");
@@ -202,19 +362,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     };
   }, [clientId]);
 
-  useEffect(() => {
-    setOpenSections((current) => {
-      const next = { ...current };
-      (Object.keys(next) as CollapsibleKey[]).forEach((key) => {
-        const stored = window.sessionStorage.getItem(`trainer-client-profile:${clientId}:${key}`);
-        if (stored === "open" || stored === "closed") next[key] = stored === "open";
-      });
-      return next;
-    });
-  }, [clientId]);
-
   const today = useMemo(() => localDateKey(), []);
-  const checkedInToday = client?.last_trainer_message_at ? localDateKey(client.last_trainer_message_at) === today : false;
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
   const todaysNutrition = todaysFood.reduce(
     (total, log) => ({
@@ -231,6 +379,18 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : 0;
   const score = client?.compliance_score;
   const latestFood = foodLogs[0];
+  const latestMessage = messages[messages.length - 1] ?? null;
+  const unreadMessages = messages.filter((message) => message.sender_user_id === clientId && !message.read_at).length;
+  const todaysCoachInsight = coachPresence.latest && isToday(coachPresence.latest.created_at) ? coachPresence.latest : null;
+  const latestWorkout = burnLogs.find((log) => log.metadata?.workoutTitle || log.metadata?.source === "coach_zoe_workout_planner") ?? burnLogs[0] ?? null;
+  const todaysWorkout = latestWorkout && isToday(latestWorkout.created_at) ? latestWorkout : null;
+  const workoutsThisWeek = burnLogs.filter((log) => {
+    const date = new Date(log.created_at);
+    return Number.isFinite(date.getTime()) && Date.now() - date.getTime() <= 7 * 24 * 60 * 60 * 1000;
+  });
+  const completedMissions = missions.filter((mission) => mission.status === "completed");
+  const openMissions = missions.filter((mission) => mission.status !== "completed");
+  const memoryHero = ascendMemory?.timeline?.find((item) => item.reflection) ?? ascendMemory?.timeline?.[0] ?? null;
   const nutritionTargets = calculateAdaptiveNutritionTargets({
     goalType: client?.goal_type,
     sex: client?.gender === "female" || client?.gender === "male" ? client.gender : "prefer_not_to_say",
@@ -244,6 +404,63 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         : "moderate",
     bodyComposition: client?.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
+
+  const timeline = useMemo(() => {
+    const items: Array<{ at: string; title: string; detail: string; icon: ReactNode }> = [];
+    foodLogs.slice(0, 4).forEach((log) => {
+      items.push({
+        at: log.logged_at,
+        title: "Food logged",
+        detail: `${log.estimated_food_name} / ${Number(log.calories ?? 0).toLocaleString()} kcal`,
+        icon: <Utensils size={17} />
+      });
+    });
+    waterLogs.slice(0, 3).forEach((log) => {
+      items.push({
+        at: log.logged_at,
+        title: "Water logged",
+        detail: `${(log.amount_ml / 1000).toFixed(1)}L recorded`,
+        icon: <Waves size={17} />
+      });
+    });
+    burnLogs.slice(0, 4).forEach((log) => {
+      items.push({
+        at: log.created_at,
+        title: log.metadata?.workoutTitle ? "Workout completed" : "Activity logged",
+        detail: `${workoutName(log)} / ~${workoutCalories(log)} kcal`,
+        icon: <Dumbbell size={17} />
+      });
+    });
+    coachPresence.history.slice(0, 3).forEach((message) => {
+      items.push({
+        at: message.created_at,
+        title: "Coach Zoe insight delivered",
+        detail: message.message,
+        icon: <Sparkles size={17} />
+      });
+    });
+    weeklyReport ? items.push({
+      at: weeklyReport.created_at,
+      title: "Weekly report generated",
+      detail: `Week of ${formatShortDate(weeklyReport.week_start)}`,
+      icon: <ClipboardList size={17} />
+    }) : null;
+    return items
+      .filter((item) => Boolean(item.at))
+      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+      .slice(0, 8);
+  }, [burnLogs, coachPresence.history, foodLogs, waterLogs, weeklyReport]);
+
+  const suggestedDiscussion = useMemo(() => {
+    if (todaysWorkout && todaysNutrition.proteinG < nutritionTargets.proteinTargetG * 0.6) {
+      return "Review recovery from today's workout and agree on one high-protein meal.";
+    }
+    if ((score ?? 100) < 50) return "Keep the next conversation simple: one supportive check-in and one achievable action.";
+    if (!todaysFood.length) return "Ask what made food logging difficult today and remove one friction point.";
+    if (weightDelta > 0.5 && client?.goal_type === "fat_loss") return "Review the weight trend and compare it with recent food consistency.";
+    if (todaysWorkout) return "Celebrate the completed workout, then align recovery, water, and protein.";
+    return "Reinforce the strongest consistent behaviour and choose one focus for the next session.";
+  }, [client?.goal_type, nutritionTargets.proteinTargetG, score, todaysFood.length, todaysNutrition.proteinG, todaysWorkout, weightDelta]);
 
   useEffect(() => {
     if (coachNutritionPlan) return;
@@ -262,7 +479,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       const response = await createWeeklyCheckin(clientId);
       setCheckin(response.summary);
     } catch {
-      setCheckin("Could not generate AI check-in yet. Make sure the AI provider is configured and has available credits.");
+      setCheckin("Could not generate the coach draft yet. Try again when the AI provider is available.");
     } finally {
       setIsGenerating(false);
     }
@@ -352,36 +569,24 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         coachNote: nutritionNote || null
       });
       setCoachNutritionPlan(response.coachPlan);
-      setNutritionStatus("Coach Plan saved. The client will be notified.");
+      setNutritionStatus("Coach plan saved. The client will see your targets.");
     } catch (error) {
-      setNutritionStatus(error instanceof Error ? error.message : "Could not save Coach Plan.");
+      setNutritionStatus(error instanceof Error ? error.message : "Could not save coach plan.");
     } finally {
       setIsSavingNutrition(false);
     }
   }
 
   async function setCoachPresencePause(pauseHours: number | null) {
-    setStatus(pauseHours ? "Pausing Coach Presence..." : "Resuming Coach Presence...");
+    setStatus(pauseHours ? "Pausing Coach Zoe support..." : "Resuming Coach Zoe support...");
     try {
       await pauseTrainerClientCoachPresence(clientId, pauseHours);
       const response = await getTrainerClientCoachPresence(clientId);
       setCoachPresence(response);
-      setStatus(pauseHours ? "Coach Presence paused for this client." : "Coach Presence resumed for this client.");
+      setStatus(pauseHours ? "Coach Zoe support paused for this client." : "Coach Zoe support resumed for this client.");
     } catch {
-      setStatus("Could not update Coach Presence for this client yet.");
+      setStatus("Could not update Coach Zoe support for this client yet.");
     }
-  }
-
-  function setSectionOpen(key: CollapsibleKey, isOpen: boolean) {
-    setOpenSections((current) => ({ ...current, [key]: isOpen }));
-    window.sessionStorage.setItem(`trainer-client-profile:${clientId}:${key}`, isOpen ? "open" : "closed");
-  }
-
-  function openMessagesForCheckIn() {
-    setSectionOpen("messages", true);
-    window.setTimeout(() => {
-      document.getElementById("trainer-section-messages")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 50);
   }
 
   return (
@@ -399,7 +604,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           </div>
         </div>
         {client?.goal_achieved_at ? (
-          <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm font-semibold text-lime">
+          <p className="mt-3 rounded-2xl border border-lime/40 bg-lime/10 p-3 text-sm font-semibold text-lime">
             Goal achieved. This is a great moment to celebrate and agree on the next goal.
           </p>
         ) : client?.goal_updated_at ? (
@@ -409,22 +614,21 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           <div className="mt-4 grid grid-cols-3 gap-2">
             <Link
               href={`/messages?userId=${client.id}`}
-              className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+              className="flex h-12 items-center justify-center rounded-2xl bg-lime font-semibold text-ink"
             >
               Open chat
             </Link>
-            <button
-              type="button"
-              onClick={openMessagesForCheckIn}
-              className="h-12 rounded-lg border border-calm/50 bg-calm/10 font-semibold text-calm"
+            <a
+              href="#trainer-message-card"
+              className="flex h-12 items-center justify-center rounded-2xl border border-calm/50 bg-calm/10 font-semibold text-calm"
             >
               Check-In
-            </button>
+            </a>
             <button
               type="button"
               disabled={isSendingPraise}
               onClick={handleSendPraise}
-              className="h-12 rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+              className="h-12 rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
             >
               {isSendingPraise ? "Sending..." : "Send praise"}
             </button>
@@ -432,94 +636,130 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ) : null}
       </section>
 
-      {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="mt-4 rounded-2xl border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+
+      <section className="mt-4 rounded-[1.75rem] border border-purple-400/30 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.18),transparent_16rem),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.2),transparent_16rem),linear-gradient(180deg,rgba(18,22,35,0.98),rgba(8,13,24,0.98))] p-5 shadow-soft">
+        <div className="flex items-start gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-purple-500/20 text-purple-200">
+            <Brain size={24} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">Coach Zoe Handover</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Since your last coaching session</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              The other 166 hours, summarized so you know what to discuss next.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <HandoverItem icon={<Dumbbell size={18} />} label="workouts completed" value={String(workoutsThisWeek.length)} />
+          <HandoverItem icon={<Utensils size={18} />} label="food logs this week" value={String(foodLogs.filter((log) => Date.now() - new Date(log.logged_at).getTime() <= 7 * 24 * 60 * 60 * 1000).length)} />
+          <HandoverItem icon={<Sparkles size={18} />} label="today's insight" value={todaysCoachInsight ? "Delivered" : "Not yet"} />
+          <HandoverItem icon={<Zap size={18} />} label="momentum" value={score === null || score === undefined ? "--" : `${score}/100`} />
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-ink/70 p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">Suggested discussion</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-200">{suggestedDiscussion}</p>
+        </div>
+      </section>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <SectionCard
+          eyebrow="Today's Insight"
+          title={todaysCoachInsight ? "What the client saw today" : "No insight delivered today"}
+          tone="zoe"
+          action={<Sparkles className="text-purple-200" size={22} />}
+        >
+          <p className="mt-3 rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-200">
+            {todaysCoachInsight?.message ?? "Coach Zoe has not delivered a new insight today. Use the latest activity below for context."}
+          </p>
+        </SectionCard>
+
+        <SectionCard
+          eyebrow="Coach Zoe Workout"
+          title={latestWorkout ? workoutName(latestWorkout) : "No saved Coach Zoe workout yet"}
+          tone={latestWorkout ? "success" : "default"}
+          action={<Dumbbell className="text-lime" size={22} />}
+        >
+          {latestWorkout ? (
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <MetricTile label="Status" value="Completed" detail={formatDateTime(latestWorkout.created_at)} />
+                <MetricTile label="Duration" value={`${Number(latestWorkout.metadata?.durationMinutes ?? 0) || "--"} min`} />
+                <MetricTile label="Difficulty" value={titleCase(latestWorkout.metadata?.workoutDifficultyLabel ?? latestWorkout.metadata?.workoutDifficulty)} />
+                <MetricTile label="Estimated burn" value={`~${workoutCalories(latestWorkout)} kcal`} />
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-ink/70 p-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Momentum earned</p>
+                  <p className="mt-1 text-lg font-semibold text-lime">+{Number(latestWorkout.metadata?.momentumEarned ?? 0) || 8}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowWorkout((current) => !current)}
+                  className="rounded-2xl bg-lime px-4 py-3 text-sm font-bold text-ink"
+                >
+                  {showWorkout ? "Hide Workout" : "View Workout"}
+                </button>
+              </div>
+              {showWorkout ? <WorkoutDetail workout={latestWorkout} /> : null}
+            </>
+          ) : (
+            <p className="mt-3 rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
+              When the client completes a Coach Zoe workout, the exact saved session appears here for review.
+            </p>
+          )}
+        </SectionCard>
+      </div>
 
       <AthleteCoachPanel clientId={clientId} />
 
-      <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
-        <p className="text-sm font-semibold text-calm">Today's Priorities</p>
-        <h2 className="mt-1 text-lg font-semibold">What needs your attention first</h2>
-        <div className="mt-3 space-y-2">
-          {(score ?? 100) < 50 ? (
-            <div className="rounded-lg border border-amber/40 bg-amber/10 p-3">
-              <p className="text-sm font-semibold text-amber">Momentum is low</p>
-              <p className="mt-1 text-sm leading-6 text-zinc-300">
-                {checkedInToday ? "You have already checked in today. Keep the next message short and supportive." : "Send a quick check-in so the client knows you noticed."}
-              </p>
-            </div>
-          ) : null}
-          {!todaysFood.length ? (
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-sm font-semibold">No food logged today</p>
-              <p className="mt-1 text-sm leading-6 text-zinc-400">A light reminder can help if nutrition is today's focus.</p>
-            </div>
-          ) : null}
-          {todaysFood.length && (score ?? 0) >= 50 ? (
-            <div className="rounded-lg bg-ink p-3">
-              <p className="text-sm font-semibold text-lime">Client is active today</p>
-              <p className="mt-1 text-sm leading-6 text-zinc-400">Review nutrition and reinforce the behaviour if it matches the plan.</p>
-            </div>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="mt-4 rounded-lg border border-calm/40 bg-surface p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-calm">Coach Presence</p>
-            <h2 className="mt-1 text-lg font-semibold">Support between check-ins</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Ascend only fills quiet gaps. Your messages and praise always take priority.
+      <SectionCard
+        eyebrow="AI Activity Timeline"
+        title="What happened between sessions"
+        action={<CalendarClock className="text-calm" size={22} />}
+      >
+        <div className="mt-4 space-y-2">
+          {timeline.map((item, index) => (
+            <TimelineRow key={`${item.title}-${item.at}-${index}`} date={dateGroupLabel(item.at)} icon={item.icon} title={item.title} detail={item.detail} />
+          ))}
+          {!timeline.length ? (
+            <p className="rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
+              No recent activity yet. Once the client logs food, water, workouts, or receives Coach Zoe support, the handover will build automatically.
             </p>
-          </div>
-          <span className={`rounded-lg px-3 py-2 text-xs font-semibold ${coachPresence.settings.paused ? "bg-amber/20 text-amber" : "bg-calm/20 text-calm"}`}>
-            {coachPresence.settings.paused ? "Paused" : "Active"}
-          </span>
+          ) : null}
         </div>
-        {coachPresence.latest ? (
-          <p className="mt-3 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">{coachPresence.latest.message}</p>
-        ) : (
-          <p className="mt-3 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">No Coach Presence messages yet.</p>
-        )}
-        {coachPresence.history.length > 1 ? (
-          <div className="mt-3 space-y-2">
-            {coachPresence.history.slice(1, 4).map((message) => (
-              <p key={message.id} className="rounded-lg bg-ink/70 p-3 text-xs leading-5 text-zinc-500">{message.message}</p>
-            ))}
-          </div>
-        ) : null}
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setCoachPresencePause(24)}
-            className="h-11 rounded-lg border border-amber/50 bg-amber/10 font-semibold text-amber"
-          >
-            Pause 24h
-          </button>
-          <button
-            type="button"
-            onClick={() => setCoachPresencePause(null)}
-            className="h-11 rounded-lg border border-calm/50 bg-calm/10 font-semibold text-calm"
-          >
-            Resume
-          </button>
-        </div>
-      </section>
+      </SectionCard>
 
-      <section className="mt-4 grid grid-cols-2 gap-3">
-        <MetricCard
-          label="Momentum"
-          value={`${score ?? "--"}/100`}
-          detail={score === null || score === undefined ? "No score yet" : score < 50 ? "High risk" : score < 70 ? "Watch" : "On track"}
-          tone={(score ?? 100) < 50 ? "warning" : "success"}
-        />
-        <MetricCard
-          label="Weight"
-          value={latestWeight ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg` : "--"}
-          detail={weightDelta ? `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg vs previous` : "No trend yet"}
-          tone={weightDelta > 0.5 ? "warning" : "default"}
-        />
-      </section>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <SectionCard eyebrow="Nutrition Snapshot" title="Today's intake" action={<Utensils className="text-lime" size={22} />}>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <MetricTile label="Calories" value={todaysNutrition.calories.toLocaleString()} detail={`${nutritionTargets.calorieTarget.toLocaleString()} kcal guide`} />
+            <MetricTile label="Protein" value={`${Math.round(todaysNutrition.proteinG)}g`} detail={`${nutritionTargets.proteinTargetG}g guide`} />
+            <MetricTile label="Carbs" value={`${Math.round(todaysNutrition.carbsG)}g`} detail={`${nutritionTargets.carbsTargetG}g guide`} />
+            <MetricTile label="Fat" value={`${Math.round(todaysNutrition.fatG)}g`} detail={`${nutritionTargets.fatTargetG}g guide`} />
+            <MetricTile label="Water" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail="2.5L target" />
+            <MetricTile label="Meals" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No meals today"} />
+          </div>
+          <Link
+            href={`/trainer/clients/${clientId}/meals`}
+            className="mt-4 flex h-12 items-center justify-center rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime"
+          >
+            View Full Meal History
+          </Link>
+        </SectionCard>
+
+        <SectionCard eyebrow="Progress Snapshot" title="Direction of travel" action={<BarChart3 className="text-calm" size={22} />}>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <MetricTile label="Momentum" value={score === null || score === undefined ? "--" : `${score}/100`} detail={score === null || score === undefined ? "No score yet" : score < 50 ? "Needs support" : score < 70 ? "Watch closely" : "On track"} />
+            <MetricTile label="Current weight" value={latestWeight ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg` : "--"} detail={weightDelta ? `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg vs previous` : "No trend yet"} />
+            <MetricTile label="Check-ins" value={`${progressComparison?.current.checkinDays ?? "--"}/7`} detail="active days this week" />
+            <MetricTile label="Workouts" value={String(workoutsThisWeek.length)} detail="logged in the last 7 days" />
+          </div>
+        </SectionCard>
+      </div>
 
       {progressComparison ? (
         <div className="mt-4">
@@ -527,85 +767,193 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         </div>
       ) : null}
 
-      <section className="mt-4 grid grid-cols-2 gap-3">
-        <MetricCard label="Food today" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No food today"} />
-        <MetricCard label="Water today" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail="2.5L target" />
-      </section>
-
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Nutrition today</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">Client intake compared with their daily guide.</p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <SectionCard
+          eyebrow="Messages"
+          title={latestMessage ? "Latest conversation" : "No conversation yet"}
+          action={<MessageCircle className="text-calm" size={22} />}
+        >
+          <div id="trainer-message-card" className="mt-3 rounded-2xl bg-ink/70 p-4">
+            {latestMessage ? (
+              <>
+                <p className="text-sm leading-6 text-zinc-200">{latestMessage.body}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                  <span>{latestMessage.sender_user_id === clientId ? "Client" : "Trainer"}</span>
+                  <span>/</span>
+                  <span>{formatDateTime(latestMessage.created_at)}</span>
+                  {unreadMessages ? <span className="rounded-full bg-amber/20 px-2 py-1 font-semibold text-amber">{unreadMessages} unread</span> : null}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm leading-6 text-zinc-400">Start with a short supportive message when the client needs a human touch.</p>
+            )}
           </div>
-          <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{todaysFood.length} logs</span>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {[
-            ["Calories", todaysNutrition.calories.toLocaleString(), `${nutritionTargets.calorieTarget.toLocaleString()} kcal`],
-            ["Protein", `${Math.round(todaysNutrition.proteinG)}g`, `${nutritionTargets.proteinTargetG}g guide`],
-            ["Carbs", `${Math.round(todaysNutrition.carbsG)}g`, `${nutritionTargets.carbsTargetG}g guide`],
-            ["Fat", `${Math.round(todaysNutrition.fatG)}g`, `${nutritionTargets.fatTargetG}g guide`]
-          ].map(([label, value, detail]) => (
-            <div key={label} className="rounded-lg bg-ink p-3">
-              <p className="text-xs uppercase text-zinc-400">{label}</p>
-              <p className="mt-2 text-xl font-semibold text-white">{value}</p>
-              <p className="mt-1 text-xs text-zinc-500">of {detail}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+          <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">
+            <textarea
+              value={messageBody}
+              onChange={(event) => setMessageBody(event.target.value)}
+              rows={1}
+              placeholder="Reply to client..."
+              className="min-h-12 flex-1 resize-none rounded-2xl border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
+            />
+            <button
+              type="submit"
+              disabled={!messageBody.trim() || isSendingMessage}
+              className="grid h-12 w-12 place-items-center rounded-2xl bg-lime text-ink disabled:opacity-60"
+              aria-label="Send message"
+            >
+              <Send size={18} />
+            </button>
+          </form>
+          {client?.id ? (
+            <Link
+              href={`/messages?userId=${client.id}`}
+              className="mt-3 flex h-12 items-center justify-center rounded-2xl border border-calm/40 bg-calm/10 font-semibold text-calm"
+            >
+              Open Conversation
+            </Link>
+          ) : null}
+        </SectionCard>
 
-      <CollapsibleSection
-        title="Coach Plan"
-        preview={coachNutritionPlan ? `${coachNutritionPlan.calories.toLocaleString()} kcal active plan` : "Using Ascend recommendation until you customize it"}
-        isOpen={openSections.coachPlan}
-        onToggle={() => setSectionOpen("coachPlan", !openSections.coachPlan)}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-calm">Customize Nutrition Plan</p>
-            <h2 className="mt-1 text-lg font-semibold">Coach Plan</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">
-              Ascend keeps its recommendation in the background. Saving a Coach Plan makes the client dashboard follow your targets.
+        <SectionCard eyebrow="Ascend Memory" title={memoryHero ? "Coach Zoe remembers" : "No memories yet"} action={<NotebookText className="text-purple-200" size={22} />} tone="zoe">
+          {memoryHero ? (
+            <article className="mt-3 rounded-2xl bg-ink/70 p-4">
+              <p className="text-sm font-semibold text-white">{memoryHero.title}</p>
+              <p className="mt-1 text-xs text-zinc-500">{formatShortDate(memoryHero.occurredAt)}</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-200">{memoryHero.reflection ?? memoryHero.subtitle}</p>
+            </article>
+          ) : (
+            <p className="mt-3 rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
+              Meaningful milestones will appear here after the client builds enough history.
             </p>
-          </div>
-          <span className="rounded-lg bg-ink px-3 py-2 text-xs font-semibold text-calm">
-            {coachNutritionPlan ? "Active" : "Optional"}
-          </span>
-        </div>
+          )}
+          {ascendMemory?.timeline?.length ? (
+            <div className="mt-3 grid gap-2">
+              {ascendMemory.timeline.slice(0, 3).map((item) => (
+                <div key={item.milestoneKey} className="flex items-center justify-between gap-3 rounded-2xl bg-ink/50 px-3 py-2">
+                  <span className="truncate text-sm text-zinc-300">{item.title}</span>
+                  <span className="shrink-0 text-xs text-zinc-500">{formatShortDate(item.occurredAt)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </SectionCard>
+      </div>
 
-        <div className="mt-4 rounded-lg border border-line bg-ink p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Ascend Recommendation</p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <SectionCard
+          eyebrow="Weekly Report"
+          title={weeklyReport ? "Latest report ready" : "Generate a coaching draft"}
+          action={<ClipboardList className="text-calm" size={22} />}
+        >
+          <div className="mt-3 rounded-2xl bg-ink/70 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">{weeklyReport ? `Week of ${formatShortDate(weeklyReport.week_start)}` : "No report generated yet"}</p>
+                <p className="mt-1 text-xs text-zinc-500">{weeklyReport ? `Last generated ${formatDateTime(weeklyReport.created_at)}` : "Use this when you want a quick trainer check-in draft."}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-bold ${weeklyReport ? "bg-lime text-ink" : "bg-surface text-zinc-300"}`}>
+                {weeklyReport ? "Ready" : "Not ready"}
+              </span>
+            </div>
+            {checkin ? (
+              <div className="mt-4">
+                <WeeklyReportSummary summary={checkin} audience="trainer" />
+              </div>
+            ) : weeklyReport?.summary ? (
+              <p className="mt-4 line-clamp-5 text-sm leading-6 text-zinc-300">{weeklyReport.summary}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            disabled={isGenerating}
+            onClick={generateCheckin}
+            className="mt-3 h-12 w-full rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
+          >
+            {isGenerating ? "Generating..." : checkin ? "Refresh coach draft" : "Generate Weekly Report"}
+          </button>
+        </SectionCard>
+
+        <SectionCard eyebrow="Coach Tools" title="Simple actions for next session" action={<Target className="text-lime" size={22} />}>
+          <form onSubmit={handleCreateMission} className="mt-3 space-y-3">
+            <textarea
+              value={missionTitle}
+              onChange={(event) => setMissionTitle(event.target.value)}
+              rows={2}
+              maxLength={180}
+              placeholder="Assign one mission, e.g. Walk 20 minutes today"
+              className="min-h-20 w-full resize-none rounded-2xl border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
+            />
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <input
+                type="date"
+                value={missionDueDate}
+                onChange={(event) => setMissionDueDate(event.target.value)}
+                className="h-12 rounded-2xl border border-line bg-ink px-3 text-sm outline-none focus:border-lime"
+              />
+              <button
+                type="submit"
+                disabled={!missionTitle.trim() || isSavingMission}
+                className="h-12 rounded-2xl bg-lime px-4 font-semibold text-ink disabled:opacity-60"
+              >
+                {isSavingMission ? "Assigning..." : "Assign"}
+              </button>
+            </div>
+          </form>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <MetricTile label="Open missions" value={String(openMissions.length)} />
+            <MetricTile label="Completed" value={String(completedMissions.length)} />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setCoachPresencePause(24)}
+              className="h-11 rounded-2xl border border-amber/50 bg-amber/10 font-semibold text-amber"
+            >
+              Pause Zoe 24h
+            </button>
+            <button
+              type="button"
+              onClick={() => setCoachPresencePause(null)}
+              className="h-11 rounded-2xl border border-calm/50 bg-calm/10 font-semibold text-calm"
+            >
+              Resume Zoe
+            </button>
+          </div>
+        </SectionCard>
+      </div>
+
+      <SectionCard eyebrow="Coach Nutrition Plan" title={coachNutritionPlan ? "Custom plan active" : "Using Ascend recommendation"} action={<Flame className="text-lime" size={22} />}>
+        <div className="mt-3 rounded-2xl border border-line bg-ink p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Ascend recommendation</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
             {nutritionTargets.calorieTarget.toLocaleString()} kcal / Protein {nutritionTargets.proteinTargetG}g / Carbs {nutritionTargets.carbsTargetG}g / Fat {nutritionTargets.fatTargetG}g
           </p>
         </div>
-
         <form onSubmit={handleSaveNutritionPlan} className="mt-4 space-y-3">
           <input
             value={nutritionLabel}
             onChange={(event) => setNutritionLabel(event.target.value)}
             placeholder="Plan label, e.g. Fat Loss Phase"
             maxLength={80}
-            className="h-12 w-full rounded-lg border border-line bg-ink px-3 text-sm outline-none focus:border-lime"
+            className="h-12 w-full rounded-2xl border border-line bg-ink px-3 text-sm outline-none focus:border-lime"
           />
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
               Calories
-              <input value={nutritionCalories} onChange={(event) => setNutritionCalories(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+              <input value={nutritionCalories} onChange={(event) => setNutritionCalories(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
               Protein
-              <input value={nutritionProtein} onChange={(event) => setNutritionProtein(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+              <input value={nutritionProtein} onChange={(event) => setNutritionProtein(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
               Carbohydrates
-              <input value={nutritionCarbs} onChange={(event) => setNutritionCarbs(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+              <input value={nutritionCarbs} onChange={(event) => setNutritionCarbs(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
               Fat
-              <input value={nutritionFat} onChange={(event) => setNutritionFat(event.target.value)} inputMode="numeric" className="h-12 rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
+              <input value={nutritionFat} onChange={(event) => setNutritionFat(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
           </div>
           <textarea
@@ -613,227 +961,77 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             onChange={(event) => setNutritionNote(event.target.value)}
             rows={3}
             maxLength={800}
-            placeholder="Optional coach note, e.g. Lean bulk, contest preparation, medical clearance received, custom goal."
-            className="min-h-24 w-full resize-none rounded-lg border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
+            placeholder="Optional coach note for the client plan."
+            className="min-h-24 w-full resize-none rounded-2xl border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
           />
           <button
             type="submit"
             disabled={isSavingNutrition}
-            className="h-12 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+            className="h-12 w-full rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
           >
-            {isSavingNutrition ? "Saving..." : "Save Changes"}
+            {isSavingNutrition ? "Saving..." : "Save Coach Plan"}
           </button>
         </form>
         {coachNutritionPlan?.updated_at ? (
           <p className="mt-3 text-xs text-zinc-500">Last updated {new Date(coachNutritionPlan.updated_at).toLocaleString()}</p>
         ) : null}
-        {nutritionStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300">{nutritionStatus}</p> : null}
-      </CollapsibleSection>
+        {nutritionStatus ? <p className="mt-3 rounded-2xl border border-line bg-ink p-3 text-sm text-zinc-300">{nutritionStatus}</p> : null}
+      </SectionCard>
 
-      <CollapsibleSection
-        title="Daily Mission"
-        preview={missions.length ? `${missions.length} missions, ${missions.filter((mission) => mission.status !== "completed").length} open` : "No missions assigned yet"}
-        isOpen={openSections.dailyMission}
-        onToggle={() => setSectionOpen("dailyMission", !openSections.dailyMission)}
-      >
-        <h2 className="text-base font-semibold text-calm">Daily mission</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Give one simple action for the client to complete between sessions.</p>
-        <form onSubmit={handleCreateMission} className="mt-4 space-y-3">
-          <textarea
-            value={missionTitle}
-            onChange={(event) => setMissionTitle(event.target.value)}
-            rows={2}
-            maxLength={180}
-            placeholder="Example: Walk 20 minutes today"
-            className="min-h-20 w-full resize-none rounded-lg border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
-          />
-          <input
-            type="date"
-            value={missionDueDate}
-            onChange={(event) => setMissionDueDate(event.target.value)}
-            className="h-12 w-full rounded-lg border border-line bg-ink px-3 text-sm outline-none focus:border-lime"
-          />
-          <button
-            type="submit"
-            disabled={!missionTitle.trim() || isSavingMission}
-            className="h-12 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
-          >
-            {isSavingMission ? "Assigning..." : "Assign mission"}
-          </button>
-        </form>
-        <div className="mt-4 space-y-2">
-          {missions.slice(0, 5).map((mission) => (
-            <article key={mission.id} className="rounded-lg bg-ink p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">{mission.title}</p>
-                  <p className="mt-1 text-xs text-zinc-500">Due {new Date(mission.due_date).toLocaleDateString()}</p>
-                </div>
-                <span className={`rounded px-2 py-1 text-xs ${mission.status === "completed" ? "bg-lime text-ink" : "bg-surface text-zinc-300"}`}>
-                  {mission.status === "completed" ? "Done" : "Open"}
-                </span>
-              </div>
-            </article>
-          ))}
-          {!missions.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No missions assigned yet.</p> : null}
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Messages"
-        preview={messages.length ? `${messages.length} messages${checkedInToday ? " / checked in today" : ""}` : "No messages yet"}
-        id="trainer-section-messages"
-        isOpen={openSections.messages}
-        onToggle={() => setSectionOpen("messages", !openSections.messages)}
-      >
-        <h2 className="text-base font-semibold">Client messages</h2>
-        <div className="mt-3 max-h-72 space-y-2 overflow-y-auto rounded-lg bg-ink p-3">
-          {messages.slice(-8).map((message) => {
-            const fromClient = message.sender_user_id === clientId;
-            return (
-              <article key={message.id} className={`flex ${fromClient ? "justify-start" : "justify-end"}`}>
-                <div className={`max-w-[82%] rounded-lg px-3 py-2 ${fromClient ? "bg-surface text-zinc-100" : "bg-lime text-ink"}`}>
-                  <p className="whitespace-pre-wrap text-sm leading-6">{message.body}</p>
-                  <p className={`mt-1 text-[11px] ${fromClient ? "text-zinc-500" : "text-ink/70"}`}>
-                    {new Date(message.created_at).toLocaleString()}
-                  </p>
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <SectionCard eyebrow="Food Evidence" title="Latest meals" action={<Utensils className="text-lime" size={22} />}>
+          <div className="mt-3 space-y-2">
+            {foodLogs.slice(0, 3).map((log) => (
+              <article key={log.id} className="rounded-2xl bg-ink/70 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {log.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" />
+                    ) : null}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">{log.estimated_food_name}</p>
+                      <p className="mt-1 text-xs text-zinc-400">
+                        P {Math.round(asNumber(log.protein_g))}g / C {Math.round(asNumber(log.carbs_g))}g / F {Math.round(asNumber(log.fat_g))}g
+                      </p>
+                    </div>
+                  </div>
+                  <p className="shrink-0 text-sm font-semibold">{log.calories} kcal</p>
                 </div>
               </article>
-            );
-          })}
-          {!messages.length ? <p className="rounded-lg bg-surface p-3 text-sm text-zinc-400">No messages with this client yet.</p> : null}
-        </div>
-        <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">
-          <textarea
-            value={messageBody}
-            onChange={(event) => setMessageBody(event.target.value)}
-            rows={1}
-            placeholder="Reply to client..."
-            className="min-h-12 flex-1 resize-none rounded-lg border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
-          />
-          <button
-            type="submit"
-            disabled={!messageBody.trim() || isSendingMessage}
-            className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink disabled:opacity-60"
-            aria-label="Send message"
-          >
-            <Send size={18} />
-          </button>
-        </form>
-      </CollapsibleSection>
+            ))}
+            {!foodLogs.length ? <p className="rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">No food logs yet.</p> : null}
+          </div>
+        </SectionCard>
 
-      <CollapsibleSection
-        title="Ascend Memory"
-        preview={ascendMemory?.timeline.length ? `${ascendMemory.timeline.length} journey milestones` : "No milestones yet"}
-        isOpen={openSections.memory}
-        onToggle={() => setSectionOpen("memory", !openSections.memory)}
-      >
-        <AscendMemoryCard memory={ascendMemory} />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Food Logs"
-        preview={foodLogs.length ? `${foodLogs.length} total logs, ${todaysFood.length} today` : "No food logs yet"}
-        isOpen={openSections.foodLogs}
-        onToggle={() => setSectionOpen("foodLogs", !openSections.foodLogs)}
-      >
-        <div className="flex items-center gap-3">
-          <Utensils className="text-lime" size={20} />
-          <h2 className="text-base font-semibold">Latest food logs</h2>
-        </div>
-        <div className="mt-3 space-y-2">
-          {foodLogs.slice(0, 5).map((log) => (
-            <article key={log.id} className="rounded-lg bg-ink p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  {log.image_url ? (
+        <SectionCard eyebrow="Progress Photos" title={progressPhotos.length ? `${progressPhotos.length} saved photos` : "No photos yet"} action={<Activity className="text-calm" size={22} />}>
+          <div id="progress-photos" className="mt-3 grid grid-cols-3 gap-2">
+            {progressPhotos.slice(0, 6).map((photo) => (
+              <article key={photo.id} className="overflow-hidden rounded-2xl bg-ink">
+                <div className="grid aspect-[3/4] place-items-center">
+                  {photo.image_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
-                  ) : null}
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{log.estimated_food_name}</p>
-                    <p className="mt-1 text-xs text-zinc-400">
-                      P {Math.round(asNumber(log.protein_g))}g / C {Math.round(asNumber(log.carbs_g))}g / F {Math.round(asNumber(log.fat_g))}g
-                    </p>
-                  </div>
+                    <img src={photo.image_url} alt={photo.photo_type} className="h-full w-full object-cover" loading="lazy" decoding="async" />
+                  ) : (
+                    <span className="text-xs text-zinc-500">No image</span>
+                  )}
                 </div>
-                <p className="shrink-0 text-sm font-semibold">{log.calories} kcal</p>
-              </div>
-            </article>
-          ))}
-          {!foodLogs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No food logs yet.</p> : null}
-        </div>
-        <Link
-          href={`/trainer/clients/${clientId}/meals`}
-          className="mt-3 flex h-12 items-center justify-center rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime"
-        >
-          View Full Meal History
-        </Link>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Progress Photos"
-        preview={progressPhotos.length ? `${progressPhotos.length} saved photos` : "No progress photos yet"}
-        id="progress-photos"
-        isOpen={openSections.progressPhotos}
-        onToggle={() => setSectionOpen("progressPhotos", !openSections.progressPhotos)}
-      >
-        <h2 className="text-base font-semibold">Progress photos</h2>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {progressPhotos.slice(0, 6).map((photo) => (
-            <article key={photo.id} className="overflow-hidden rounded-lg bg-ink">
-              <div className="grid aspect-[3/4] place-items-center">
-                {photo.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photo.image_url} alt={photo.photo_type} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                ) : (
-                  <span className="text-xs text-zinc-500">No image</span>
-                )}
-              </div>
-              <div className="p-2">
-                <p className="truncate text-xs font-medium capitalize">{photo.photo_type}</p>
-                <p className="mt-1 text-xs text-zinc-500">{new Date(photo.logged_at).toLocaleDateString()}</p>
-              </div>
-            </article>
-          ))}
-          {!progressPhotos.length ? <p className="col-span-3 rounded-lg bg-ink p-3 text-sm text-zinc-400">No progress photos yet.</p> : null}
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Weekly Report"
-        preview={checkin ? "Coach check-in draft ready" : "Generate a weekly coaching draft"}
-        isOpen={openSections.weeklyReport}
-        onToggle={() => setSectionOpen("weeklyReport", !openSections.weeklyReport)}
-      >
-        <div className="flex gap-3">
-          <Sparkles className="mt-0.5 text-calm" size={20} />
-          <div>
-            <p className="text-sm font-semibold text-calm">Coach check-in draft</p>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">A quick coaching summary from this client's recent logs. Edit the tone before sending if needed.</p>
+                <div className="p-2">
+                  <p className="truncate text-xs font-medium capitalize">{photo.photo_type}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{formatShortDate(photo.logged_at)}</p>
+                </div>
+              </article>
+            ))}
+            {!progressPhotos.length ? <p className="col-span-3 rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">Progress photos will appear here when the client uploads them.</p> : null}
           </div>
-        </div>
-        {checkin ? (
-          <div className="mt-4">
-            <WeeklyReportSummary summary={checkin} audience="trainer" />
-          </div>
-        ) : (
-          <p className="mt-4 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Generate a short draft with wins, watch-outs, and one suggested coach action.</p>
-        )}
-        <button
-          type="button"
-          disabled={isGenerating}
-          onClick={generateCheckin}
-          className="mt-4 h-12 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
-        >
-          {isGenerating ? "Generating..." : checkin ? "Refresh coach draft" : "Generate coach draft"}
-        </button>
-      </CollapsibleSection>
+        </SectionCard>
+      </div>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
         <div className="flex items-center gap-3">
-          <TrendingDown className="text-lime" size={20} />
-          <p className="text-sm text-zinc-300">Weight, water, food logs, and momentum come from Ascend records.</p>
+          {weightDelta < 0 ? <TrendingDown className="text-lime" size={20} /> : <TrendingUp className="text-calm" size={20} />}
+          <p className="text-sm text-zinc-300">Food, water, workouts, messages, memory, reports, and progress come from existing Ascend records.</p>
+          <ArrowRight className="ml-auto hidden text-zinc-600 sm:block" size={18} />
         </div>
       </section>
     </>

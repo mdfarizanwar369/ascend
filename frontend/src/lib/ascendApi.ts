@@ -1299,6 +1299,52 @@ export function getTrainerClientWaterLogs(clientId: string) {
   }>(`/trainer/clients/${clientId}/water-logs`);
 }
 
+export function getTrainerClientBurnLogs(clientId: string) {
+  return authed<{
+    burnLogs: Array<{
+      id: string;
+      metadata: {
+        activityType?: string;
+        durationMinutes?: number;
+        caloriesBurned?: number;
+        estimatedCaloriesBurned?: number;
+        caloriesSource?: "estimated_met" | "health_provider_actual";
+        workoutTitle?: string;
+        workoutType?: string;
+        workoutDifficulty?: "easy" | "moderate" | "challenging";
+        workoutDifficultyLabel?: string;
+        coachMessage?: string;
+        momentumEarned?: number;
+        source?: string;
+        exercises?: Array<{
+          name?: string;
+          sets?: string | number | null;
+          reps?: string | number | null;
+          duration?: string | null;
+          rest?: string | null;
+          note?: string | null;
+          completed?: boolean;
+        }>;
+      };
+      created_at: string;
+    }>;
+  }>(`/trainer/clients/${clientId}/burn-logs`);
+}
+
+export function getTrainerClientWeeklyReport(clientId: string) {
+  return authed<{
+    report: {
+      id: string;
+      week_start: string;
+      week_end: string;
+      summary: string;
+      ai_generated_checkin?: string | null;
+      compliance_score?: string | number | null;
+      created_at: string;
+    } | null;
+  }>(`/trainer/clients/${clientId}/weekly-report`);
+}
+
 export function getTrainerClientProgressPhotos(clientId: string) {
   return authed<{
     progressPhotos: Array<{

@@ -707,6 +707,47 @@ trainerRouter.get("/trainer/clients/:clientId/water-logs", requireAuth, requireA
   }
 });
 
+trainerRouter.get("/trainer/clients/:clientId/burn-logs", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    const result = await query(
+      `
+      select analytics_events.*
+      from analytics_events
+      join users u on u.id = analytics_events.user_id
+      where analytics_events.user_id = $1
+        and analytics_events.event_name = 'burn_log'
+        and u.status = 'active'
+      order by analytics_events.created_at desc
+      limit 100
+      `,
+      [req.params.clientId]
+    );
+    res.json({ burnLogs: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.get("/trainer/clients/:clientId/weekly-report", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    const result = await query(
+      `
+      select *
+      from weekly_reports
+      where user_id = $1
+      order by week_start desc, created_at desc
+      limit 1
+      `,
+      [req.params.clientId]
+    );
+    res.json({ report: result.rows[0] ?? null });
+  } catch (error) {
+    next(error);
+  }
+});
+
 trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
     const scope = await getAdminGymScope(req.user!);
