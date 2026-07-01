@@ -10,6 +10,7 @@ import {
   Brain,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Dumbbell,
   Flame,
@@ -66,6 +67,15 @@ type BurnLog = Awaited<ReturnType<typeof getTrainerClientBurnLogs>>["burnLogs"][
 type WeeklyReport = Awaited<ReturnType<typeof getTrainerClientWeeklyReport>>["report"];
 type ProgressComparison = Awaited<ReturnType<typeof getTrainerClientProgressComparison>>["comparison"];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getTrainerClientNutritionPlan>>["coachPlan"];
+type CoachingTimelineItem = {
+  id: string;
+  at: string;
+  title: string;
+  summary: string[];
+  icon: ReactNode;
+  priority: number;
+  workout?: BurnLog;
+};
 
 function formatGoal(goal?: string | null) {
   if (goal === "fat_loss") return "Fat loss";
@@ -186,17 +196,42 @@ function HandoverItem({ icon, label, value }: { icon: ReactNode; label: string; 
   );
 }
 
-function TimelineRow({ date, icon, title, detail }: { date: string; icon: ReactNode; title: string; detail: string }) {
+function CoachingTimelineCard({
+  item,
+  expanded,
+  onToggle
+}: {
+  item: CoachingTimelineItem;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <article className="flex gap-3 rounded-2xl bg-ink/70 p-3">
-      <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface text-calm">{icon}</span>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="text-sm font-semibold text-white">{title}</p>
-          <p className="text-xs text-zinc-500">{date}</p>
+    <article className="rounded-2xl bg-ink/70 p-3">
+      <div className="flex gap-3">
+        <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface text-calm">{item.icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-sm font-semibold text-white">{item.title}</p>
+            <p className="text-xs text-zinc-500">{dateGroupLabel(item.at)}</p>
+          </div>
+          <div className="mt-2 space-y-1">
+            {item.summary.slice(0, 3).map((line) => (
+              <p key={line} className="text-sm leading-5 text-zinc-300">{line}</p>
+            ))}
+          </div>
+          {item.workout ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              className="mt-3 inline-flex items-center gap-2 rounded-xl border border-purple-300/30 bg-purple-500/10 px-3 py-2 text-xs font-bold text-purple-200"
+            >
+              {expanded ? "Hide workout" : "Expand workout"}
+              <ChevronDown className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} size={14} />
+            </button>
+          ) : null}
         </div>
-        <p className="mt-1 text-xs leading-5 text-zinc-400">{detail}</p>
       </div>
+      {item.workout && expanded ? <WorkoutDetail workout={item.workout} /> : null}
     </article>
   );
 }
@@ -296,6 +331,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [isSendingPraise, setIsSendingPraise] = useState(false);
   const [isSavingNutrition, setIsSavingNutrition] = useState(false);
   const [showWorkout, setShowWorkout] = useState(false);
+  const [expandedTimelineWorkoutId, setExpandedTimelineWorkoutId] = useState<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -405,77 +441,180 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     bodyComposition: client?.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
 
-  const timeline = useMemo(() => {
-    const items: Array<{ at: string; title: string; detail: string; icon: ReactNode }> = [];
-    foodLogs.slice(0, 4).forEach((log) => {
+  const timelineGroups = useMemo(() => {
+    const items: CoachingTimelineItem[] = [];
+    const foodByDay = new Map<string, { at: string; meals: number; calories: number; proteinG: number }>();
+    foodLogs.forEach((log) => {
+      const key = localDateKey(log.logged_at);
+      const current = foodByDay.get(key);
+      const next = current ?? { at: log.logged_at, meals: 0, calories: 0, proteinG: 0 };
+      next.meals += 1;
+      next.calories += Number(log.calories ?? 0);
+      next.proteinG += asNumber(log.protein_g);
+      if (new Date(log.logged_at).getTime() > new Date(next.at).getTime()) next.at = log.logged_at;
+      foodByDay.set(key, next);
+    });
+    Array.from(foodByDay.values()).forEach((day) => {
+      const proteinAchieved = day.proteinG >= nutritionTargets.proteinTargetG * 0.9;
       items.push({
-        at: log.logged_at,
-        title: "Food logged",
-        detail: `${log.estimated_food_name} / ${Number(log.calories ?? 0).toLocaleString()} kcal`,
-        icon: <Utensils size={17} />
+        id: `nutrition-${localDateKey(day.at)}`,
+        at: day.at,
+        title: "Nutrition Summary",
+        summary: [
+          `${day.meals} meal${day.meals === 1 ? "" : "s"} logged`,
+          `${Math.round(day.calories).toLocaleString()} kcal / ${Math.round(day.proteinG)}g protein`,
+          proteinAchieved ? "Protein target achieved" : "Protein target still needs attention"
+        ],
+        icon: <Utensils size={17} />,
+        priority: proteinAchieved ? 72 : 82
       });
     });
 
     const waterByDay = new Map<string, { at: string; amountMl: number; logs: number }>();
     waterLogs.forEach((log) => {
       const key = localDateKey(log.logged_at);
-      const current = waterByDay.get(key);
-      if (!current) {
-        waterByDay.set(key, { at: log.logged_at, amountMl: log.amount_ml, logs: 1 });
-        return;
-      }
+      const current = waterByDay.get(key) ?? { at: log.logged_at, amountMl: 0, logs: 0 };
       current.amountMl += log.amount_ml;
       current.logs += 1;
       if (new Date(log.logged_at).getTime() > new Date(current.at).getTime()) current.at = log.logged_at;
+      waterByDay.set(key, current);
     });
-    Array.from(waterByDay.values()).slice(0, 3).forEach((day) => {
+    Array.from(waterByDay.values()).forEach((day) => {
+      const targetReached = day.amountMl >= 2500;
       items.push({
+        id: `hydration-${localDateKey(day.at)}`,
         at: day.at,
-        title: "Water logged",
-        detail: `${(day.amountMl / 1000).toFixed(1)}L total${day.logs > 1 ? ` across ${day.logs} logs` : ""}`,
-        icon: <Waves size={17} />
+        title: "Hydration",
+        summary: [
+          `${(day.amountMl / 1000).toFixed(1)}L logged`,
+          targetReached ? "Goal completed" : "Hydration target missed",
+          day.logs > 1 ? `${day.logs} check-ins combined` : "Single hydration check-in"
+        ],
+        icon: <Waves size={17} />,
+        priority: targetReached ? 58 : 80
       });
     });
 
-    burnLogs.slice(0, 4).forEach((log) => {
+    burnLogs.forEach((log) => {
+      const isCoachZoeWorkout = log.metadata?.source === "coach_zoe_workout_planner" || Boolean(log.metadata?.workoutTitle);
+      if (isCoachZoeWorkout) {
+        items.push({
+          id: `workout-${log.id}`,
+          at: log.created_at,
+          title: "Coach Zoe Workout Completed",
+          summary: [
+            "Workout generated by Coach Zoe",
+            `Completed ${workoutName(log)}`,
+            `${Number(log.metadata?.durationMinutes ?? 0) || "--"} mins / ~${workoutCalories(log)} kcal`
+          ],
+          icon: <Dumbbell size={17} />,
+          priority: 95,
+          workout: log
+        });
+        return;
+      }
       items.push({
+        id: `activity-${log.id}`,
         at: log.created_at,
-        title: log.metadata?.workoutTitle ? "Workout completed" : "Activity logged",
-        detail: `${workoutName(log)} / ~${workoutCalories(log)} kcal`,
-        icon: <Dumbbell size={17} />
+        title: "Activity Logged",
+        summary: [
+          `${workoutName(log)} recorded`,
+          `~${workoutCalories(log)} kcal burned`
+        ],
+        icon: <Flame size={17} />,
+        priority: 60
       });
     });
 
     const seenInsights = new Set<string>();
     coachPresence.history.forEach((message) => {
       const insightKey = `${localDateKey(message.created_at)}:${message.message.trim().toLowerCase()}`;
-      if (seenInsights.has(insightKey) || seenInsights.size >= 3) return;
+      if (seenInsights.has(insightKey)) return;
       seenInsights.add(insightKey);
       items.push({
+        id: `zoe-${message.id}`,
         at: message.created_at,
-        title: "Coach Zoe insight delivered",
-        detail: message.message,
-        icon: <Sparkles size={17} />
+        title: "Coach Zoe Insight",
+        summary: [message.message],
+        icon: <Sparkles size={17} />,
+        priority: 75
       });
     });
-    weeklyReport ? items.push({
-      at: weeklyReport.created_at,
-      title: "Weekly report generated",
-      detail: `Week of ${formatShortDate(weeklyReport.week_start)}`,
-      icon: <ClipboardList size={17} />
-    }) : null;
-    const seenTimelineItems = new Set<string>();
-    return items
+
+    missions.forEach((mission) => {
+      items.push({
+        id: `mission-assigned-${mission.id}`,
+        at: mission.created_at,
+        title: "Trainer Mission Assigned",
+        summary: [mission.title, `Due ${formatShortDate(mission.due_date)}`],
+        icon: <Target size={17} />,
+        priority: 66
+      });
+      if (mission.completed_at) {
+        items.push({
+          id: `mission-completed-${mission.id}`,
+          at: mission.completed_at,
+          title: "Trainer Mission Completed",
+          summary: [mission.title, "Client completed the assigned action"],
+          icon: <CheckCircle2 size={17} />,
+          priority: 84
+        });
+      }
+    });
+
+    if (latestWeight && previousWeight && Math.abs(weightDelta) >= 0.3) {
+      const movingTowardGoal =
+        (client?.goal_type === "fat_loss" && weightDelta < 0) ||
+        (client?.goal_type === "muscle_gain" && weightDelta > 0) ||
+        (client?.goal_type !== "fat_loss" && client?.goal_type !== "muscle_gain");
+      items.push({
+        id: `weight-${latestWeight.id}`,
+        at: latestWeight.logged_at,
+        title: movingTowardGoal ? "Weight Progress" : "Weight Trend Needs Review",
+        summary: [
+          `${asNumber(latestWeight.weight_kg).toFixed(1)}kg current weight`,
+          `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg vs previous`
+        ],
+        icon: movingTowardGoal ? <TrendingDown size={17} /> : <TrendingUp size={17} />,
+        priority: movingTowardGoal ? 70 : 86
+      });
+    }
+
+    if (weeklyReport) {
+      items.push({
+        id: `weekly-report-${weeklyReport.id}`,
+        at: weeklyReport.created_at,
+        title: "Weekly Reflection Generated",
+        summary: [`Week of ${formatShortDate(weeklyReport.week_start)}`, weeklyReport.compliance_score ? `Momentum ${Math.round(Number(weeklyReport.compliance_score))}/100` : "Report ready for review"],
+        icon: <ClipboardList size={17} />,
+        priority: 78
+      });
+    }
+
+    const grouped = new Map<string, CoachingTimelineItem[]>();
+    items
       .filter((item) => Boolean(item.at))
-      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-      .filter((item) => {
-        const key = `${localDateKey(item.at)}:${item.title}:${item.detail}`.toLowerCase();
-        if (seenTimelineItems.has(key)) return false;
-        seenTimelineItems.add(key);
-        return true;
+      .sort((a, b) => {
+        const dayDiff = new Date(b.at).getTime() - new Date(a.at).getTime();
+        if (localDateKey(a.at) !== localDateKey(b.at)) return dayDiff;
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        return dayDiff;
       })
-      .slice(0, 8);
-  }, [burnLogs, coachPresence.history, foodLogs, waterLogs, weeklyReport]);
+      .forEach((item) => {
+        const key = localDateKey(item.at);
+        grouped.set(key, [...(grouped.get(key) ?? []), item]);
+      });
+
+    return Array.from(grouped.entries())
+      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+      .slice(0, 4)
+      .map(([date, dayItems]) => ({
+        date,
+        label: dateGroupLabel(date),
+        items: dayItems.slice(0, 4)
+      }))
+      .filter((group) => group.items.length > 0);
+  }, [burnLogs, client?.goal_type, coachPresence.history, foodLogs, latestWeight, missions, nutritionTargets.proteinTargetG, previousWeight, waterLogs, weeklyReport, weightDelta]);
 
   const suggestedDiscussion = useMemo(() => {
     if (todaysWorkout && todaysNutrition.proteinG < nutritionTargets.proteinTargetG * 0.6) {
@@ -747,13 +886,25 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         title="What happened between sessions"
         action={<CalendarClock className="text-calm" size={22} />}
       >
-        <div className="mt-4 space-y-2">
-          {timeline.map((item, index) => (
-            <TimelineRow key={`${item.title}-${item.at}-${index}`} date={dateGroupLabel(item.at)} icon={item.icon} title={item.title} detail={item.detail} />
+        <div className="mt-4 space-y-4">
+          {timelineGroups.map((group) => (
+            <div key={group.date}>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{group.label}</p>
+              <div className="space-y-2">
+                {group.items.map((item) => (
+                  <CoachingTimelineCard
+                    key={item.id}
+                    item={item}
+                    expanded={expandedTimelineWorkoutId === item.id}
+                    onToggle={() => setExpandedTimelineWorkoutId((current) => (current === item.id ? null : item.id))}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
-          {!timeline.length ? (
+          {!timelineGroups.length ? (
             <p className="rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
-              No recent activity yet. Once the client logs food, water, workouts, or receives Coach Zoe support, the handover will build automatically.
+              No coaching summary yet. Once the client logs nutrition, completes workouts, receives Coach Zoe support, or finishes missions, this will summarize what mattered between sessions.
             </p>
           ) : null}
         </div>
