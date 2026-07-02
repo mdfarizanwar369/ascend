@@ -168,3 +168,11 @@ export function requireRole(roles: Role[]) {
     next();
   };
 }
+
+export function requirePlatformOwner(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) return res.status(401).json({ error: "Authentication required" });
+  if (!req.user.isPlatformOwner) {
+    return res.status(403).json({ error: "Founder access only" });
+  }
+  next();
+}

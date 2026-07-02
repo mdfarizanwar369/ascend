@@ -2006,3 +2006,133 @@ export function getAdminSubscriptions() {
     }>;
   }>("/admin/subscriptions");
 }
+
+export type FounderLeadStatus =
+  | "Not Contacted"
+  | "Email Sent"
+  | "Replied"
+  | "Meeting Booked"
+  | "Demo Completed"
+  | "Pilot"
+  | "Customer"
+  | "Lost";
+
+export type FounderLead = {
+  id: string;
+  gymName: string;
+  website: string | null;
+  country: string | null;
+  city: string | null;
+  publicEmail: string | null;
+  contactPerson: string | null;
+  ownerManagerName: string | null;
+  linkedinUrl: string | null;
+  instagramUrl: string | null;
+  gymSize: string | null;
+  ptFocus: string | null;
+  existingApp: string | null;
+  aiFitScore: number;
+  status: FounderLeadStatus;
+  expectedMrrCents: number;
+  currentMrrCents: number;
+  lastContactedAt: string | null;
+  nextActionAt: string | null;
+  research: Record<string, unknown>;
+  emailDrafts: Record<string, unknown>;
+  sourceUrls: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FounderDashboardSummary = {
+  leads: number;
+  emailsSent: number;
+  openRate: number | null;
+  replyRate: number;
+  meetingsBooked: number;
+  pilots: number;
+  customers: number;
+  mrrCents: number;
+  expectedMrrCents: number;
+};
+
+export function getFounderDashboard() {
+  return authedCached<{
+    summary: FounderDashboardSummary;
+    byStatus: Array<{ status: FounderLeadStatus; count: number }>;
+  }>("founder:dashboard", "/founder/dashboard", 15_000);
+}
+
+export function getFounderLeads() {
+  return authedCached<{ leads: FounderLead[] }>("founder:leads", "/founder/leads", 15_000);
+}
+
+export function createFounderLead(input: Partial<FounderLead> & { gymName: string }) {
+  invalidateCached("founder:");
+  return authed<{ lead: FounderLead }>("/founder/leads", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function updateFounderLead(leadId: string, input: Partial<FounderLead>) {
+  invalidateCached("founder:");
+  return authed<{ lead: FounderLead }>(`/founder/leads/${leadId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
+export function researchFounderWebsite(input: { website: string; gymName?: string }) {
+  return authed<{ research: Record<string, unknown>; sourceUrl: string; sourceChars: number }>("/founder/research", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function researchFounderLead(leadId: string) {
+  invalidateCached("founder:");
+  return authed<{ lead: FounderLead; research: Record<string, unknown>; sourceChars: number }>(`/founder/leads/${leadId}/research`, {
+    method: "POST"
+  });
+}
+
+export function generateFounderEmailDrafts(input: { leadId?: string; research?: Record<string, unknown>; outreachAngle?: string }) {
+  invalidateCached("founder:");
+  return authed<{ drafts: Record<string, unknown> }>("/founder/email-drafts", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function createFounderNote(leadId: string, input: { noteType: "general" | "meeting" | "objection" | "feature_request" | "next_action"; body: string }) {
+  return authed<{ note: unknown }>(`/founder/leads/${leadId}/notes`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getFounderNotes(leadId: string) {
+  return authed<{ notes: Array<{ id: string; lead_id: string; note_type: string; body: string; created_at: string }> }>(`/founder/leads/${leadId}/notes`);
+}
+
+export function createFounderConversation(input: {
+  leadId: string;
+  channel: "gmail" | "linkedin" | "instagram" | "manual";
+  direction: "outbound" | "inbound";
+  subject?: string | null;
+  body: string;
+  externalMessageId?: string | null;
+  sentAt?: string | null;
+  receivedAt?: string | null;
+}) {
+  invalidateCached("founder:");
+  return authed<{ conversation: unknown }>("/founder/conversations", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getFounderGmailStatus() {
+  return authed<{ connected: boolean; available: boolean; message: string; manualApprovalRequired: boolean }>("/founder/gmail/status");
+}

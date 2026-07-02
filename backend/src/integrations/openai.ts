@@ -1283,3 +1283,52 @@ export async function createClientWeeklyReport(context: string) {
     "You kept the week moving. Focus next on one repeatable win: log meals earlier in the day, drink water before training, and keep your next weigh-in consistent."
   );
 }
+
+export async function createFounderLeadResearch(context: string) {
+  const fallback = JSON.stringify({
+    gymSummary: "Research unavailable. Review the website manually and add notes before outreach.",
+    services: "Unknown",
+    communityFocus: "Unknown",
+    technologyUsed: "Unknown",
+    ptEmphasis: "Unknown",
+    estimatedSuitability: 5,
+    talkingPoints: ["Ask how trainers currently follow up between sessions."],
+    objections: ["Already has booking or member software."],
+    bestOutreachAngle: "Position Ascend as an accountability layer, not a replacement for existing gym software."
+  });
+
+  const reply = await createTextReply(
+    "You are an Ascend founder research assistant. Analyze a gym as a potential B2B lead for Ascend, a fitness accountability platform for gyms, trainers, and members. Use only the provided public website text and lead context. Do not invent private contacts. Return strict JSON only with keys: gymSummary, services, communityFocus, technologyUsed, ptEmphasis, estimatedSuitability, talkingPoints, objections, bestOutreachAngle. estimatedSuitability must be 1-10. talkingPoints and objections must be arrays of concise strings.",
+    context,
+    fallback
+  );
+
+  try {
+    return parseJsonObject(reply) as Record<string, unknown>;
+  } catch {
+    return JSON.parse(fallback) as Record<string, unknown>;
+  }
+}
+
+export async function createFounderEmailDrafts(context: string) {
+  const fallback = JSON.stringify({
+    subject: "Exploring Ascend for your coaching team",
+    coldEmail: "Hi team,\n\nI came across your gym and thought Ascend may be relevant. Ascend helps trainers and members stay accountable between sessions with nutrition, progress tracking, Coach Zoe, and trainer visibility.\n\nWould you be open to a short walkthrough?\n\nBest,\nFariz",
+    followUp1: "Hi team,\n\nJust following up in case this is relevant. Ascend is designed to complement existing gym tools by improving accountability between coached sessions.\n\nBest,\nFariz",
+    followUp2: "Hi team,\n\nLast note from me. If improving member accountability or trainer follow-up is a priority, I would be happy to show you Ascend in a short demo.\n\nBest,\nFariz",
+    linkedinMessage: "Hi, I came across your gym and thought Ascend may be relevant for trainer-led accountability between sessions. Open to a quick look?",
+    instagramDm: "Hi, love what you are building. I created Ascend to help gyms keep members accountable between sessions. Open to a quick demo?"
+  });
+
+  const reply = await createTextReply(
+    "You write concise, founder-led B2B outreach for Ascend. Personalize from the lead research. Be professional, warm, specific, and not hypey. Do not overclaim results. Do not mention funding. Return strict JSON only with keys: subject, coldEmail, followUp1, followUp2, linkedinMessage, instagramDm.",
+    context,
+    fallback
+  );
+
+  try {
+    return parseJsonObject(reply) as Record<string, unknown>;
+  } catch {
+    return JSON.parse(fallback) as Record<string, unknown>;
+  }
+}
