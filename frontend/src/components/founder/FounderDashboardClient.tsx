@@ -70,6 +70,14 @@ const emptyLead = {
   sourceUrls: [] as string[]
 };
 
+const outreachDraftOptions = [
+  { key: "coldEmail", label: "Cold email" },
+  { key: "followUp1", label: "Follow-up 1" },
+  { key: "followUp2", label: "Follow-up 2" },
+  { key: "linkedinMessage", label: "LinkedIn" },
+  { key: "instagramDm", label: "Instagram DM" }
+] as const;
+
 type Summary = Awaited<ReturnType<typeof getFounderDashboard>>["summary"];
 type Note = Awaited<ReturnType<typeof getFounderNotes>>["notes"][number];
 
@@ -88,6 +96,17 @@ function metricTone(value: number) {
   if (value >= 8) return "text-lime";
   if (value >= 6) return "text-amber";
   return "text-red-300";
+}
+
+function draftText(lead: FounderLead | null, key: string) {
+  const value = lead?.emailDrafts?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function draftSubject(lead: FounderLead | null, key: string) {
+  const subject = draftText(lead, "subject");
+  if (subject) return subject;
+  return key === "coldEmail" ? "Exploring Ascend for your coaching team" : "Following up about Ascend";
 }
 
 function StatCard({ title, value, detail, icon: Icon }: { title: string; value: string; detail: string; icon: typeof Target }) {
@@ -130,6 +149,9 @@ export function FounderDashboardClient() {
   const [gmailConfigured, setGmailConfigured] = useState(false);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
   const [gmailAutoSynced, setGmailAutoSynced] = useState(false);
+  const [selectedDraftKey, setSelectedDraftKey] = useState<(typeof outreachDraftOptions)[number]["key"]>("coldEmail");
+  const [approvedSubject, setApprovedSubject] = useState("");
+  const [approvedBody, setApprovedBody] = useState("");
 
   const selectedLead = useMemo(() => leads.find((lead) => lead.id === selectedId) ?? null, [leads, selectedId]);
 
@@ -188,6 +210,14 @@ export function FounderDashboardClient() {
     getFounderNotes(selectedLead.id)
       .then((response) => setNotes(response.notes))
       .catch(() => setNotes([]));
+  }, [selectedLead]);
+
+  useEffect(() => {
+    if (!selectedLead) return;
+    const firstAvailable = outreachDraftOptions.find((option) => draftText(selectedLead, option.key))?.key ?? "coldEmail";
+    setSelectedDraftKey(firstAvailable);
+    setApprovedSubject(draftSubject(selectedLead, firstAvailable));
+    setApprovedBody(draftText(selectedLead, firstAvailable));
   }, [selectedLead]);
 
   const filteredLeads = useMemo(() => {
@@ -257,6 +287,9 @@ export function FounderDashboardClient() {
     try {
       const response = await generateFounderEmailDrafts({ leadId: lead.id });
       setLeads((current) => current.map((item) => (item.id === lead.id ? { ...item, emailDrafts: response.drafts } : item)));
+      setSelectedDraftKey("coldEmail");
+      setApprovedSubject(String(response.drafts.subject ?? ""));
+      setApprovedBody(String(response.drafts.coldEmail ?? ""));
       setStatus("Email drafts ready. Review before sending.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Email drafts failed.");
@@ -296,10 +329,10 @@ export function FounderDashboardClient() {
   }
 
   async function sendApprovedEmail(lead: FounderLead) {
-    const subject = String(lead.emailDrafts?.subject ?? "");
-    const body = String(lead.emailDrafts?.coldEmail ?? "");
+    const subject = approvedSubject.trim();
+    const body = approvedBody.trim();
     if (!subject || !body) {
-      setStatus("Generate and review the email draft first.");
+      setStatus("Choose a draft and review the subject/body before sending.");
       return;
     }
     if (!lead.publicEmail) {
@@ -545,7 +578,7 @@ export function FounderDashboardClient() {
                 Generate outreach
               </button>
               <button
-                disabled={saving || !gmailConnected || !selectedLead.publicEmail}
+                disabled={saving || !gmailConnected || !selectedLead.publicEmail || !approvedSubject.trim() || !approvedBody.trim()}
                 onClick={() => sendApprovedEmail(selectedLead)}
                 className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
@@ -598,6 +631,78 @@ export function FounderDashboardClient() {
                 <Clipboard className="text-lime" />
               </div>
               <p className="mt-2 text-sm text-zinc-400">Ascend never sends automatically. Review the draft, then either send the approved email through Gmail or mark manual outreach as sent.</p>
+
+              {Object.keys(selectedLead.emailDrafts ?? {}).length ? (
+                <div className="mt-4 rounded-2xl border border-lime/30 bg-lime/10 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-lime">Manual approval composer</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-400">
+                        To: {selectedLead.publicEmail || "No public email saved yet"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-zinc-300">
+                      {gmailConnected ? "Gmail connected" : "Connect Gmail first"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    {outreachDraftOptions.map((option) => {
+                      const hasDraft = Boolean(draftText(selectedLead, option.key));
+                      return (
+                        <button
+                          key={option.key}
+                          type="button"
+                          disabled={!hasDraft}
+                          onClick={() => {
+                            setSelectedDraftKey(option.key);
+                            setApprovedSubject(draftSubject(selectedLead, option.key));
+                            setApprovedBody(draftText(selectedLead, option.key));
+                          }}
+                          className={`h-11 rounded-2xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            selectedDraftKey === option.key
+                              ? "border-lime bg-lime text-ink"
+                              : "border-line bg-ink text-zinc-200"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500" htmlFor="approved-email-subject">
+                    Subject
+                  </label>
+                  <input
+                    id="approved-email-subject"
+                    value={approvedSubject}
+                    onChange={(event) => setApprovedSubject(event.target.value)}
+                    className="mt-2 h-12 w-full rounded-2xl border border-line bg-ink px-4 text-sm text-white outline-none transition focus:border-lime"
+                  />
+
+                  <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500" htmlFor="approved-email-body">
+                    Approved message
+                  </label>
+                  <textarea
+                    id="approved-email-body"
+                    value={approvedBody}
+                    onChange={(event) => setApprovedBody(event.target.value)}
+                    className="mt-2 min-h-56 w-full rounded-2xl border border-line bg-ink p-4 text-sm leading-6 text-white outline-none transition focus:border-lime"
+                  />
+
+                  <button
+                    type="button"
+                    disabled={saving || !gmailConnected || !selectedLead.publicEmail || !approvedSubject.trim() || !approvedBody.trim()}
+                    onClick={() => sendApprovedEmail(selectedLead)}
+                    className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Mail size={17} />
+                    {saving ? "Sending..." : "Send approved email"}
+                  </button>
+                </div>
+              ) : null}
+
               <div className="mt-4 grid gap-3">
                 {Object.entries(selectedLead.emailDrafts ?? {}).map(([key, value]) => (
                   <DraftBlock key={key} title={key.replace(/([A-Z])/g, " $1")} value={value} />
