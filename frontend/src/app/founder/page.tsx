@@ -3,7 +3,7 @@ import { FounderDashboardClient } from "@/components/founder/FounderDashboardCli
 
 export default function FounderPage() {
   return (
-    <AppShell active="admin">
+    <AppShell active="founder">
       <FounderDashboardClient />
     </AppShell>
   );

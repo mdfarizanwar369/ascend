@@ -263,6 +263,7 @@ export function getMe() {
       assigned_trainer_name?: string | null;
       trainer_status?: string | null;
       profile_photo_url?: string | null;
+      is_platform_owner?: boolean;
       athlete_mode_enabled?: boolean;
       body_composition_nutrition?: BodyCompositionNutrition | null;
     };

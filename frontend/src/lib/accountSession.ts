@@ -6,6 +6,7 @@ export type AccountProfileSnapshot = {
   email: string;
   fullName: string;
   roles: string[];
+  isPlatformOwner?: boolean;
   profilePhotoUrl?: string | null;
 };
 
@@ -34,6 +35,7 @@ function normalizeProfile(response: Awaited<ReturnType<typeof getMe>>): AccountP
     email: response.user.email,
     fullName: response.user.full_name,
     roles: response.roles ?? [],
+    isPlatformOwner: response.user.is_platform_owner === true,
     profilePhotoUrl: response.user.profile_photo_url
   };
 }

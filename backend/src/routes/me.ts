@@ -43,7 +43,7 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     );
     user.body_composition_nutrition = bodyCompositionForNutrition(scanResult.rows.map(bodyCompositionScanFromDb)) ?? null;
   }
-  res.json({ user, roles: req.user!.roles });
+  res.json({ user: { ...user, is_platform_owner: req.user!.isPlatformOwner }, roles: req.user!.roles });
 });
 
 const MAX_PROFILE_PHOTO_BYTES = 400 * 1024;
