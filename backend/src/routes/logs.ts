@@ -5,7 +5,7 @@ import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl, createUploadUrl, uploadDataUrl } from "../integrations/s3";
-import { estimateFoodFromImage } from "../integrations/openai";
+import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
 import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
 import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
@@ -38,6 +38,10 @@ const foodLogQuerySchema = z.object({
 
 const foodImageDataSchema = z.object({
   imageDataUrl: imageDataUrlSchema
+});
+
+const foodTextEstimateSchema = z.object({
+  description: z.string().trim().min(2).max(500)
 });
 
 const photoUploadDataSchema = z.object({
@@ -186,6 +190,25 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
     }
     if (error instanceof Error) {
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message, ...(performance ? { performance } : {}) });
+      return;
+    }
+    next(error);
+  }
+});
+
+logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req, res, next) => {
+  try {
+    const input = foodTextEstimateSchema.parse(req.body);
+    const estimate = await estimateFoodFromText(input.description, { userId: req.user!.id, gymId: req.user!.gymId });
+    const allowance = await getFoodAiAllowance(req.user!.id);
+    res.json({ estimate, allowance });
+  } catch (error) {
+    if (error instanceof FoodAiLimitError) {
+      res.status(429).json({ error: error.message, allowance: error.allowance });
+      return;
+    }
+    if (error instanceof Error) {
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
       return;
     }
     next(error);

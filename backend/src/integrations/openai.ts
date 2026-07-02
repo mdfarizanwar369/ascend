@@ -784,6 +784,67 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
   return parseFoodEstimate(response.output_text);
 }
 
+async function estimateFoodTextWithGemini(description: string) {
+  const prompt =
+    "You are estimating nutrition for a fitness accountability app from a short food description, not a photo. Identify all foods mentioned, infer a realistic common portion only when the user does not specify one, and estimate calories and macros. Prioritize Malaysia and Singapore foods when they match the description, such as " +
+    LOCAL_FOODS.join(", ") +
+    ". Accept short natural entries like chicken rice, nasi lemak + fried chicken, 2 eggs and toast, protein shake, chicken breast 200g, banana, burger and fries. Do not ask follow-up questions. Return only strict JSON with these exact keys: foodName, confidence, calories, proteinG, carbsG, fatG, notes. Use confidence from 0 to 1. In notes, briefly state the portion assumption. User entry: " +
+    description;
+  const responseSchema = {
+    type: "OBJECT",
+    properties: {
+      foodName: { type: "STRING" },
+      confidence: { type: "NUMBER" },
+      calories: { type: "NUMBER" },
+      proteinG: { type: "NUMBER" },
+      carbsG: { type: "NUMBER" },
+      fatG: { type: "NUMBER" },
+      notes: { type: "STRING" }
+    },
+    required: ["foodName", "confidence", "calories", "proteinG", "carbsG", "fatG", "notes"]
+  };
+
+  try {
+    const result = await callGeminiWithOptions([{ text: prompt }], 700, {
+      models: [env.GEMINI_MODEL],
+      attemptsPerModel: 1,
+      timeoutMs: 18_000,
+      responseMimeType: "application/json",
+      responseSchema
+    });
+    return parseFoodEstimate(result.text);
+  } catch (error) {
+    foodAiErrorLog("food_text_json_attempt_failed", {
+      model: env.GEMINI_MODEL,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+    const result = await callGeminiWithOptions([{ text: prompt }], 700, {
+      models: [env.GEMINI_MODEL, "gemini-2.5-flash"],
+      attemptsPerModel: 1,
+      timeoutMs: 18_000
+    });
+    return parseFoodEstimate(result.text);
+  }
+}
+
+async function estimateFoodTextWithOpenAI(description: string) {
+  if (!openaiClient) return demoFoodEstimate();
+
+  const response = await openaiClient.responses.create({
+    model: env.OPENAI_MODEL,
+    input: [
+      {
+        role: "user",
+        content:
+          "Estimate calories and macros from this short food description. Identify all foods, infer common portions when unspecified, prioritize Malaysia and Singapore foods when relevant, and return strict JSON with foodName, confidence, calories, proteinG, carbsG, fatG, notes. User entry: " +
+          description
+      }
+    ]
+  });
+
+  return parseFoodEstimate(response.output_text);
+}
+
 function classifyFoodAiError(error: unknown): FoodAiError {
   if (error instanceof FoodAiError) return error;
   if (error instanceof GeminiError) {
@@ -931,6 +992,73 @@ export async function estimateFoodFromImage(
     throw classified;
   }
 
+}
+
+export async function estimateFoodFromText(
+  description: string,
+  context: { userId?: string | null; gymId?: string | null } = {}
+): Promise<FoodEstimate> {
+  const trimmed = description.trim().replace(/\s+/g, " ").slice(0, 500);
+  if (context.userId) {
+    await assertFoodAiAllowance(context.userId);
+  }
+
+  if (!providerConfigured()) {
+    await logAiUsage({
+      ...context,
+      eventType: "food_image_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "fallback",
+      metadata: { source: "manual_text", reason: "provider_not_configured", descriptionLength: trimmed.length }
+    });
+    return {
+      ...demoFoodEstimate(),
+      foodName: trimmed,
+      notes: "Live AI text analysis is temporarily unavailable. Please enter the macros manually before saving."
+    };
+  }
+
+  try {
+    const rawEstimate =
+      env.AI_PROVIDER === "gemini"
+        ? await estimateFoodTextWithGemini(trimmed)
+        : env.AI_PROVIDER === "openai"
+          ? await estimateFoodTextWithOpenAI(trimmed)
+          : {
+              ...demoFoodEstimate(),
+              foodName: trimmed,
+              notes: "Starter estimate. Live AI text analysis is temporarily unavailable."
+            };
+    const estimate = await normalizeWithLocalFoodDatabase(rawEstimate);
+    await logAiUsage({
+      ...context,
+      eventType: "food_image_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "success",
+      metadata: { source: "manual_text", confidence: estimate.confidence, foodName: estimate.foodName, descriptionLength: trimmed.length }
+    });
+    return estimate;
+  } catch (error) {
+    const classified = classifyFoodAiError(error);
+    foodAiErrorLog("food_text_analysis_failed", {
+      category: classified.category,
+      message: classified.message,
+      technicalDetail: classified.technicalDetail,
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL
+    });
+    await logAiUsage({
+      ...context,
+      eventType: "food_image_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "error",
+      metadata: { source: "manual_text", error: classified.technicalDetail ?? classified.message, category: classified.category }
+    });
+    throw classified;
+  }
 }
 
 export async function extractBodyCompositionFromImages(imageDataUrls: string[]) {

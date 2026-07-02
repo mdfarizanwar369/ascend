@@ -5,6 +5,7 @@ import { CalendarDays, Camera, Check, ImagePlus, Pencil, Save, Sparkles, Utensil
 import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
+  estimateFoodFromText,
   FoodAiAllowance,
   FoodAiPerformanceReport,
   getFoodAiAllowance,
@@ -372,6 +373,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
+  const [manualMealText, setManualMealText] = useState("");
   const [estimate, setEstimate] = useState<FoodEstimate | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [historyLogs, setHistoryLogs] = useState<FoodLog[]>([]);
@@ -391,6 +393,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [view, setView] = useState<"log" | "history">(initialView);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const foodNameInputRef = useRef<HTMLInputElement | null>(null);
   const foodLogsRequestRef = useRef(0);
   const saveLockRef = useRef(false);
 
@@ -550,6 +553,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setPreviewUrl(URL.createObjectURL(file));
     setSelectedFile(file);
     setEstimate(null);
+    setManualMealText("");
     setWasEdited(false);
     setAiFailed(false);
     setStatus("Photo selected. Estimating calories and macros...");
@@ -664,6 +668,45 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     }
   }
 
+  async function handleTextEstimate() {
+    const description = manualMealText.trim();
+    if (description.length < 2) {
+      setStatus("Type what you ate first, for example chicken rice or 2 eggs and toast.");
+      return;
+    }
+    setIsEstimating(true);
+    setAiFailed(false);
+    setEstimate(null);
+    setPreviewUrl(null);
+    setSelectedFile(null);
+    setSelectedImageDataUrl(null);
+    setWasEdited(false);
+    setStatus("Analysing your meal description...");
+
+    try {
+      const response = await estimateFoodFromText(description);
+      setEstimate(response.estimate);
+      if (response.allowance) setAllowance(response.allowance);
+      setStatus("Meal estimate ready. Review, edit if needed, then save.");
+    } catch (error) {
+      setEstimate({
+        foodName: description,
+        confidence: 0,
+        calories: 0,
+        proteinG: 0,
+        carbsG: 0,
+        fatG: 0,
+        notes: "AI could not estimate this text reliably. Please add the calories and macros before saving."
+      });
+      setWasEdited(true);
+      setAiFailed(true);
+      setStatus(estimateFailureMessage(error));
+      loadAllowance().catch(() => {});
+    } finally {
+      setIsEstimating(false);
+    }
+  }
+
   function updateEstimate<K extends keyof FoodEstimate>(key: K, value: FoodEstimate[K]) {
     if (!estimate) return;
     setEstimate({ ...estimate, [key]: value });
@@ -679,7 +722,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
     saveLockRef.current = true;
     setIsSaving(true);
-    setStatus("Saving food log and photo...");
+    setStatus(selectedImageDataUrl ? "Saving food log and photo..." : "Saving food log...");
 
     const savedLog = {
       id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -709,6 +752,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       const response = await saveFoodLog({
         imageS3Key: imageS3Key ?? undefined,
         mealType: savedLog.mealType,
+        description: manualMealText.trim() || undefined,
         estimatedFoodName: savedLog.estimatedFoodName,
         calories: savedLog.calories,
         proteinG: savedLog.proteinG,
@@ -1091,6 +1135,24 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
           </div>
         ) : null}
 
+        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+          <label className="text-sm font-semibold text-zinc-100" htmlFor="manual-meal-text">
+            Quick manual entry
+          </label>
+          <textarea
+            id="manual-meal-text"
+            value={manualMealText}
+            onChange={(event) => setManualMealText(event.target.value)}
+            disabled={isEstimating || isSaving}
+            rows={2}
+            className="mt-3 w-full resize-none rounded-lg border border-line bg-ink px-4 py-3 text-base text-white outline-none transition focus:border-lime disabled:opacity-60"
+            placeholder="Forgot to take a photo? Type what you ate..."
+          />
+          <p className="mt-3 text-xs leading-5 text-zinc-500">
+            Examples: Chicken rice, Nasi lemak, 2 eggs and toast, Protein shake, McChicken meal, Sushi 8 pieces.
+          </p>
+        </section>
+
         <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
           <div className="flex items-start gap-3">
             <Sparkles className="mt-0.5 text-calm" size={20} />
@@ -1104,27 +1166,36 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         {!estimate ? (
           <button
             className="mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-50"
-            disabled={!previewUrl || isEstimating}
-            onClick={handleEstimate}
+            disabled={isEstimating || (!previewUrl && manualMealText.trim().length < 2)}
+            onClick={manualMealText.trim().length >= 2 ? handleTextEstimate : handleEstimate}
           >
             <Sparkles className="mr-2" size={18} />
-            {isEstimating ? "Estimating..." : "Estimate again"}
+            {isEstimating ? "Analysing..." : "Analyse Meal"}
           </button>
         ) : (
           <form className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+            <div>
+              <p className="text-sm font-semibold text-lime">Detected Foods</p>
+              <p className="mt-1 text-xs text-zinc-500">Review the estimate before saving. Portions are editable.</p>
+            </div>
             {aiFailed ? (
               <button
                 className="flex h-12 w-full items-center justify-center rounded-lg bg-calm font-semibold text-ink disabled:opacity-60"
                 disabled={isEstimating}
-                onClick={handleEstimate}
+                onClick={selectedFile ? handleEstimate : handleTextEstimate}
                 type="button"
               >
                 <Sparkles className="mr-2" size={18} />
                 {isEstimating ? "Trying again..." : "Try AI again"}
               </button>
             ) : null}
-            <Field label="Food name">
-              <input className={inputClass} value={estimate.foodName} onChange={(event) => updateEstimate("foodName", event.target.value)} />
+            <Field label="Detected foods">
+              <input
+                ref={foodNameInputRef}
+                className={inputClass}
+                value={estimate.foodName}
+                onChange={(event) => updateEstimate("foodName", event.target.value)}
+              />
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Calories">
@@ -1172,9 +1243,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               </div>
             ) : null}
             <div className="grid grid-cols-2 gap-3">
-              <button className="flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white" type="button">
+              <button
+                className="flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white"
+                onClick={() => foodNameInputRef.current?.focus()}
+                type="button"
+              >
                 <Pencil className="mr-2" size={18} />
-                Editable
+                Edit
               </button>
               <button
                 className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
@@ -1183,7 +1258,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 type="button"
               >
                 {wasEdited ? <Save className="mr-2" size={18} /> : <Check className="mr-2" size={18} />}
-                {isSaving ? "Saving..." : "Save log"}
+                {isSaving ? "Saving..." : "Save Meal"}
               </button>
             </div>
           </form>

@@ -843,9 +843,20 @@ export function estimateFoodFromDataUrl(imageDataUrl: string) {
   );
 }
 
+export function estimateFoodFromText(description: string) {
+  return withTimeout(45_000, (signal) =>
+    authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance }>("/food-logs/estimate-text", {
+      method: "POST",
+      body: JSON.stringify({ description }),
+      signal
+    })
+  );
+}
+
 export function saveFoodLog(input: {
   imageS3Key?: string;
   mealType: string;
+  description?: string;
   estimatedFoodName: string;
   calories: number;
   proteinG: number;
