@@ -144,8 +144,8 @@ npm run seed
 
 This creates tables and seed data for:
 
-- Anytime Fitness Austin Green
-- Anytime Fitness Kulai Indahpura
+- Peak Performance Fitness - Central
+- Peak Performance Fitness - North
 - Sample trainers
 - Sample clients
 - Gym referral codes

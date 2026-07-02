@@ -1,6 +1,6 @@
 # Ascend Architecture And Implementation Roadmap
 
-Ascend is a mobile-first, installable PWA SaaS for fitness accountability across unlimited gyms, trainers, and members. The MVP launches with Anytime Fitness Austin Green and Anytime Fitness Kulai Indahpura, with gym and trainer referral attribution built into the subscription and revenue model from day one.
+Ascend is a mobile-first, installable PWA SaaS for fitness accountability across unlimited gyms, trainers, and members. The MVP launches with Peak Performance Fitness - Central and Peak Performance Fitness - North, with gym and trainer referral attribution built into the subscription and revenue model from day one.
 
 ## Approved Product Decisions
 
@@ -76,8 +76,8 @@ Core PostgreSQL tables:
 
 The initial seed includes:
 
-- Anytime Fitness Austin Green
-- Anytime Fitness Kulai Indahpura
+- Peak Performance Fitness - Central
+- Peak Performance Fitness - North
 - Sample gym owner/admin
 - Sample trainers
 - Sample clients

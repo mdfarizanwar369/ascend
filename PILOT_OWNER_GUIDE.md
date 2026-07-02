@@ -1,6 +1,6 @@
 # Ascend Pilot Guide: Gym Owners
 
-This guide covers the minimum needed to run a controlled pilot at Austin Green and Kulai Indahpura.
+This guide covers the minimum needed to run a controlled pilot at Central and North.
 
 ## Before Inviting Anyone
 

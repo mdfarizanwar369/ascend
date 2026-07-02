@@ -98,8 +98,8 @@ Migration includes:
 
 Seed data includes:
 
-- Anytime Fitness Austin Green.
-- Anytime Fitness Kulai Indahpura.
+- Peak Performance Fitness - Central.
+- Peak Performance Fitness - North.
 - Sample owner/admin.
 - Sample trainers.
 - Sample clients.

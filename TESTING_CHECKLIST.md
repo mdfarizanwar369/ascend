@@ -60,8 +60,8 @@ Fresh browser profile:
 Open or call:
 
 - [ ] `GET /api/v1/gyms`
-- [ ] `GET /api/v1/referrals/validate/AF-AUSTIN`
-- [ ] `GET /api/v1/referrals/validate/AF-KULAI`
+- [ ] `GET /api/v1/referrals/validate/PPF-CENTRAL`
+- [ ] `GET /api/v1/referrals/validate/PPF-NORTH`
 - [ ] `GET /api/v1/referrals/validate/TRAINER-JASON`
 - [ ] `GET /api/v1/referrals/validate/TRAINER-SITI`
 
@@ -78,7 +78,7 @@ Client signup:
 - [ ] Open `/login`.
 - [ ] Choose Client.
 - [ ] Create a new account.
-- [ ] Use referral code `AF-AUSTIN`.
+- [ ] Use referral code `PPF-CENTRAL`.
 - [ ] Complete onboarding.
 - [ ] Dashboard shows the entered name.
 - [ ] Account card shows Free Plan.
@@ -88,7 +88,7 @@ Trainer signup:
 - [ ] Open `/login`.
 - [ ] Choose Trainer.
 - [ ] Create a trainer account.
-- [ ] Use referral code `AF-KULAI`.
+- [ ] Use referral code `PPF-NORTH`.
 - [ ] Trainer is not sent to client onboarding.
 - [ ] Trainer sees pending approval or Trainer Pro gating.
 
@@ -236,15 +236,15 @@ With Gemini key:
 
 ### Multi-Gym Owner Isolation
 
-- [ ] Platform owner sees Austin Green and Kulai Indahpura.
+- [ ] Platform owner sees Central and North.
 - [ ] Platform owner can appoint a new gym owner.
 - [ ] Platform owner can assign one or multiple gyms to that owner.
-- [ ] Austin-only owner sees Austin users, trainers, clients, referrals, subscriptions, notifications, and analytics only.
-- [ ] Austin-only owner cannot open a Kulai client through a copied URL.
-- [ ] Austin-only owner cannot assign, deactivate, delete, message, grant a plan to, or change the role of a Kulai user.
-- [ ] Austin-only owner cannot create a Kulai gym or trainer referral.
-- [ ] Austin-only owner cannot see Kulai clients from the Trainer tab.
-- [ ] Kulai-only owner receives the same isolation in reverse.
+- [ ] Central-only owner sees Austin users, trainers, clients, referrals, subscriptions, notifications, and analytics only.
+- [ ] Central-only owner cannot open a North client through a copied URL.
+- [ ] Central-only owner cannot assign, deactivate, delete, message, grant a plan to, or change the role of a North user.
+- [ ] Central-only owner cannot create a North gym or trainer referral.
+- [ ] Central-only owner cannot see North clients from the Trainer tab.
+- [ ] North-only owner receives the same isolation in reverse.
 - [ ] Multi-gym owner sees the union of only their assigned gyms.
 - [ ] Removing a gym assignment removes access after the next authenticated request.
 

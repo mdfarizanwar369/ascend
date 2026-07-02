@@ -6,8 +6,8 @@ Last updated: 26 June 2026
 
 Ascend is ready for a controlled pilot run with a small client pool at:
 
-- Anytime Fitness Austin Green
-- Anytime Fitness Kulai Indahpura
+- Peak Performance Fitness - Central
+- Peak Performance Fitness - North
 
 The live app is available at:
 
@@ -56,7 +56,7 @@ The live app is available at:
 - Frontend/backend lint passes.
 - Full production build passes.
 - Production `/api/v1/gyms` returns both launch gyms.
-- Production `/api/v1/referrals/validate/AF-AUSTIN` returns the Austin Green gym referral.
+- Production `/api/v1/referrals/validate/PPF-CENTRAL` returns the Central gym referral.
 - Backend is configured to use Gemini Flash-Lite by default for lower pilot AI cost.
 - AI usage and pilot metrics dashboards are available for owner review.
 - Pilot Premium/Trainer Pro access is owner/admin controlled so clients cannot self-upgrade for free from a shared link.

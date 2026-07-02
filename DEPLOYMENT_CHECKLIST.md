@@ -160,8 +160,8 @@ Checks:
 - [ ] Migration completes.
 - [ ] Seed completes.
 - [ ] `/api/v1/gyms` returns both launch gyms.
-- [ ] `/api/v1/referrals/validate/AF-AUSTIN` works.
-- [ ] `/api/v1/referrals/validate/AF-KULAI` works.
+- [ ] `/api/v1/referrals/validate/PPF-CENTRAL` works.
+- [ ] `/api/v1/referrals/validate/PPF-NORTH` works.
 - [ ] `/api/v1/referrals/validate/TRAINER-JASON` works.
 - [ ] `/api/v1/referrals/validate/TRAINER-SITI` works.
 
@@ -222,7 +222,7 @@ POST https://backend-domain/api/v1/jobs/daily
 
 - [ ] Owner logs in.
 - [ ] Owner opens `/admin`.
-- [ ] Client signs up with `AF-AUSTIN`.
+- [ ] Client signs up with `PPF-CENTRAL`.
 - [ ] Client completes onboarding.
 - [ ] Owner assigns client to trainer.
 - [ ] Client activates Premium or payment test completes.

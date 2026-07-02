@@ -32,7 +32,7 @@ Test trainer signup:
 
 - Open `/login`.
 - Choose `Trainer`.
-- Create a new account with a gym referral code such as `AF-AUSTIN` or `AF-KULAI`.
+- Create a new account with a gym referral code such as `PPF-CENTRAL` or `PPF-NORTH`.
 - Expected: app sends the user to the trainer area, not client onboarding.
 - If Trainer Pro is not active, expected: trainer pages show the Trainer Pro upgrade screen.
 - After activating Trainer Pro, expected: back button from subscription returns to `/trainer`, not `/dashboard`.

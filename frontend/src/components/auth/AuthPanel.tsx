@@ -783,7 +783,7 @@ export function AuthPanel() {
                   autoComplete="off"
                   className={inputClass}
                   value={referralCode}
-                  placeholder={signupRole === "trainer" ? "AF-AUSTIN" : "Optional"}
+                  placeholder={signupRole === "trainer" ? "PPF-CENTRAL" : "Optional"}
                   onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
                 />
               </Field>

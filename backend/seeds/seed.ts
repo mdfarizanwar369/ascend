@@ -12,8 +12,8 @@ async function main() {
     await client.query("begin");
 
     const gyms = await Promise.all([
-      upsertGym(client, "Anytime Fitness Austin Green", "anytime-fitness-austin-green", "Austin Green, Johor"),
-      upsertGym(client, "Anytime Fitness Kulai Indahpura", "anytime-fitness-kulai-indahpura", "Kulai Indahpura, Johor")
+      upsertGym(client, "Peak Performance Fitness - Central", "peak-performance-fitness-central", "Central, Johor"),
+      upsertGym(client, "Peak Performance Fitness - North", "peak-performance-fitness-north", "North, Johor")
     ]);
 
     const admin = await upsertUser(client, {
@@ -44,8 +44,8 @@ async function main() {
     const jason = await upsertTrainer(client, jasonUser.id, gyms[0].id, ["Fat loss", "Beginner coaching"]);
     const siti = await upsertTrainer(client, sitiUser.id, gyms[1].id, ["Strength", "Nutrition habits"]);
 
-    await upsertReferral(client, "AF-AUSTIN", "gym", gyms[0].id, null, admin.id);
-    await upsertReferral(client, "AF-KULAI", "gym", gyms[1].id, null, admin.id);
+    await upsertReferral(client, "PPF-CENTRAL", "gym", gyms[0].id, null, admin.id);
+    await upsertReferral(client, "PPF-NORTH", "gym", gyms[1].id, null, admin.id);
     await upsertReferral(client, "TRAINER-JASON", "trainer", gyms[0].id, jason.id, jasonUser.id);
     await upsertReferral(client, "TRAINER-SITI", "trainer", gyms[1].id, siti.id, sitiUser.id);
 

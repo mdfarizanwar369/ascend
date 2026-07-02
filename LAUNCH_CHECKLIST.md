@@ -1,12 +1,12 @@
 # Ascend Pilot Launch Checklist
 
-Use this as the single go/no-go checklist before inviting real Austin Green or Kulai Indahpura users.
+Use this as the single go/no-go checklist before inviting real Central or North users.
 
 ## Launch Scope
 
 - Pilot gyms:
-  - Anytime Fitness Austin Green
-  - Anytime Fitness Kulai Indahpura
+  - Peak Performance Fitness - Central
+  - Peak Performance Fitness - North
 - Product surface:
   - Mobile-first PWA web app
   - Firebase Auth for identity

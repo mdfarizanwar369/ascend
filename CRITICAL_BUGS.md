@@ -39,11 +39,11 @@ Critical items block a live pilot.
 - Evidence to collect:
   - `npm run migrate` completed against Railway PostgreSQL public URL or Railway job.
   - `npm run seed` completed.
-  - `/api/v1/gyms` returns Austin Green and Kulai Indahpura.
-  - `/api/v1/referrals/validate/AF-AUSTIN` works.
+  - `/api/v1/gyms` returns Central and North.
+  - `/api/v1/referrals/validate/PPF-CENTRAL` works.
 - Evidence collected:
-  - Production `/api/v1/gyms` returns Anytime Fitness Austin Green and Anytime Fitness Kulai Indahpura.
-  - Production `/api/v1/referrals/validate/AF-AUSTIN` returns the Austin Green gym referral.
+  - Production `/api/v1/gyms` returns Peak Performance Fitness - Central and Peak Performance Fitness - North.
+  - Production `/api/v1/referrals/validate/PPF-CENTRAL` returns the Central gym referral.
 - Fastest resolution:
   - Use Railway PostgreSQL public connection string locally for migration/seed, then restore backend `DATABASE_URL` to Railway internal reference.
 

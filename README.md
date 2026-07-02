@@ -18,8 +18,8 @@ Owner account cleanup uses a two-step process: deactivate first, then permanentl
 
 Initial launch gyms:
 
-- Anytime Fitness Austin Green
-- Anytime Fitness Kulai Indahpura
+- Peak Performance Fitness - Central
+- Peak Performance Fitness - North
 
 ## Tech Stack
 
@@ -213,8 +213,8 @@ npm run seed
 
 Seeded referral codes include:
 
-- `AF-AUSTIN`
-- `AF-KULAI`
+- `PPF-CENTRAL`
+- `PPF-NORTH`
 - `TRAINER-JASON`
 - `TRAINER-SITI`
 

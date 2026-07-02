@@ -4,8 +4,8 @@ This guide is written for a non-technical founder.
 
 Goal: launch a small unpaid pilot test for:
 
-- Anytime Fitness Austin Green
-- Anytime Fitness Kulai Indahpura
+- Peak Performance Fitness - Central
+- Peak Performance Fitness - North
 
 For this pilot, clients do not need to pay. You will use the test plan activation inside the app so selected testers can unlock Premium and Trainer Pro during the pilot.
 
@@ -550,8 +550,8 @@ Expected:
 
 The seed should create:
 
-- Anytime Fitness Austin Green
-- Anytime Fitness Kulai Indahpura
+- Peak Performance Fitness - Central
+- Peak Performance Fitness - North
 - Sample trainers
 - Sample clients
 - Referral codes
@@ -560,8 +560,8 @@ The seed should create:
 Important referral codes:
 
 ```text
-AF-AUSTIN
-AF-KULAI
+PPF-CENTRAL
+PPF-NORTH
 TRAINER-JASON
 TRAINER-SITI
 ```
@@ -594,10 +594,10 @@ You should see both gyms.
 Now open:
 
 ```text
-https://YOUR-BACKEND-DOMAIN/api/v1/referrals/validate/AF-AUSTIN
+https://YOUR-BACKEND-DOMAIN/api/v1/referrals/validate/PPF-CENTRAL
 ```
 
-You should see Anytime Fitness Austin Green.
+You should see Peak Performance Fitness - Central.
 
 ## Part 12: Create Your Owner Account
 
@@ -632,7 +632,7 @@ Expected:
 
 ## Part 13: Create Pilot Trainer Accounts
 
-For Austin Green:
+For Central:
 
 1. Open `/login`.
 2. Choose `Trainer`.
@@ -640,10 +640,10 @@ For Austin Green:
 4. Use referral code:
 
 ```text
-AF-AUSTIN
+PPF-CENTRAL
 ```
 
-For Kulai:
+For North:
 
 1. Open `/login`.
 2. Choose `Trainer`.
@@ -651,7 +651,7 @@ For Kulai:
 4. Use referral code:
 
 ```text
-AF-KULAI
+PPF-NORTH
 ```
 
 After trainer signs up:
@@ -710,13 +710,13 @@ For a client who belongs to a gym but is not assigned yet:
 4. Use gym referral code:
 
 ```text
-AF-AUSTIN
+PPF-CENTRAL
 ```
 
 or:
 
 ```text
-AF-KULAI
+PPF-NORTH
 ```
 
 Then owner must assign them later in:
@@ -888,13 +888,13 @@ Later, you can schedule this once per day using Railway Cron or another schedule
 
 Suggested first pilot:
 
-Austin Green:
+Central:
 
 - 1 owner/admin
 - 1 trainer
 - 3 to 5 clients
 
-Kulai:
+North:
 
 - 1 owner/admin
 - 1 trainer
