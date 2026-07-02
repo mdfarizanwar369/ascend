@@ -49,7 +49,11 @@ const schema = z.object({
   TOYYIBPAY_SECRET_KEY: z.string().optional(),
   TOYYIBPAY_CATEGORY_CODE: z.string().optional(),
   TOYYIBPAY_RETURN_URL: z.string().optional(),
-  TOYYIBPAY_CALLBACK_URL: z.string().optional()
+  TOYYIBPAY_CALLBACK_URL: z.string().optional(),
+  GMAIL_CLIENT_ID: z.string().optional(),
+  GMAIL_CLIENT_SECRET: z.string().optional(),
+  GMAIL_REDIRECT_URI: z.string().optional(),
+  GMAIL_TOKEN_ENCRYPTION_KEY: z.string().optional()
 });
 
 export const env = schema.parse(process.env);

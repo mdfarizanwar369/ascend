@@ -2135,5 +2135,36 @@ export function createFounderConversation(input: {
 }
 
 export function getFounderGmailStatus() {
-  return authed<{ connected: boolean; available: boolean; message: string; manualApprovalRequired: boolean }>("/founder/gmail/status");
+  return authed<{
+    configured: boolean;
+    connected: boolean;
+    available: boolean;
+    gmailEmail: string | null;
+    lastSyncedAt: string | null;
+    connectedAt: string | null;
+    message: string;
+    manualApprovalRequired: boolean;
+  }>("/founder/gmail/status");
+}
+
+export function getFounderGmailAuthUrl() {
+  return authed<{ authUrl: string }>("/founder/gmail/auth-url");
+}
+
+export function sendFounderGmail(input: { leadId: string; to?: string; subject: string; body: string; approved: true }) {
+  invalidateCached("founder:");
+  return authed<{ sent: boolean; messageId: string; threadId: string; conversation: unknown }>("/founder/gmail/send", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function syncFounderGmailReplies() {
+  invalidateCached("founder:");
+  return authed<{ importedReplies: number }>("/founder/gmail/sync-replies", { method: "POST" });
+}
+
+export function disconnectFounderGmail() {
+  invalidateCached("founder:");
+  return authed<{ disconnected: boolean }>("/founder/gmail", { method: "DELETE" });
 }

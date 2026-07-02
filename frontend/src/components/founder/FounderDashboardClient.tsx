@@ -23,15 +23,19 @@ import {
   createFounderConversation,
   createFounderLead,
   createFounderNote,
+  disconnectFounderGmail,
   FounderLead,
   FounderLeadStatus,
   generateFounderEmailDrafts,
   getFounderDashboard,
+  getFounderGmailAuthUrl,
   getFounderGmailStatus,
   getFounderLeads,
   getFounderNotes,
   researchFounderLead,
   researchFounderWebsite,
+  sendFounderGmail,
+  syncFounderGmailReplies,
   updateFounderLead
 } from "@/lib/ascendApi";
 
@@ -122,6 +126,10 @@ export function FounderDashboardClient() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteBody, setNoteBody] = useState("");
   const [gmailStatus, setGmailStatus] = useState<string>("Checking Gmail integration...");
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailConfigured, setGmailConfigured] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
+  const [gmailAutoSynced, setGmailAutoSynced] = useState(false);
 
   const selectedLead = useMemo(() => leads.find((lead) => lead.id === selectedId) ?? null, [leads, selectedId]);
 
@@ -132,8 +140,12 @@ export function FounderDashboardClient() {
         getFounderDashboard(),
         getFounderLeads(),
         getFounderGmailStatus().catch((error) => ({
+          configured: false,
           connected: false,
           available: false,
+          gmailEmail: null,
+          lastSyncedAt: null,
+          connectedAt: null,
           manualApprovalRequired: true,
           message: error instanceof Error ? error.message : "Gmail status unavailable."
         }))
@@ -142,6 +154,9 @@ export function FounderDashboardClient() {
       setLeads(leadResponse.leads);
       setSelectedId((current) => current ?? leadResponse.leads[0]?.id ?? null);
       setGmailStatus(gmailResponse.message);
+      setGmailConnected(gmailResponse.connected);
+      setGmailConfigured(gmailResponse.configured);
+      setGmailEmail(gmailResponse.gmailEmail);
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Founder Dashboard could not load. Use the platform founder account.");
@@ -151,6 +166,19 @@ export function FounderDashboardClient() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!gmailConnected || gmailAutoSynced) return;
+    setGmailAutoSynced(true);
+    syncFounderGmailReplies()
+      .then(async (response) => {
+        if (response.importedReplies > 0) {
+          setStatus(`Gmail synced. ${response.importedReplies} reply${response.importedReplies === 1 ? "" : "ies"} imported.`);
+          await load();
+        }
+      })
+      .catch(() => undefined);
+  }, [gmailConnected, gmailAutoSynced]);
 
   useEffect(() => {
     if (!selectedLead) {
@@ -254,6 +282,67 @@ export function FounderDashboardClient() {
     });
     await changeLeadStatus(lead, "Email Sent");
     setStatus("Email marked as sent. No email was sent automatically.");
+  }
+
+  async function connectGmail() {
+    setSaving(true);
+    try {
+      const response = await getFounderGmailAuthUrl();
+      window.location.href = response.authUrl;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not start Gmail connection.");
+      setSaving(false);
+    }
+  }
+
+  async function sendApprovedEmail(lead: FounderLead) {
+    const subject = String(lead.emailDrafts?.subject ?? "");
+    const body = String(lead.emailDrafts?.coldEmail ?? "");
+    if (!subject || !body) {
+      setStatus("Generate and review the email draft first.");
+      return;
+    }
+    if (!lead.publicEmail) {
+      setStatus("This lead has no public email saved.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await sendFounderGmail({ leadId: lead.id, subject, body, approved: true });
+      setStatus(`Email sent to ${lead.publicEmail} and saved to the CRM.`);
+      await load();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Gmail send failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function syncReplies() {
+    setSaving(true);
+    try {
+      const response = await syncFounderGmailReplies();
+      setStatus(`Gmail sync complete. Imported ${response.importedReplies} replies.`);
+      await load();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Gmail reply sync failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function disconnectGmail() {
+    setSaving(true);
+    try {
+      await disconnectFounderGmail();
+      setGmailAutoSynced(false);
+      setStatus("Gmail disconnected.");
+      await load();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not disconnect Gmail.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function addNote() {
@@ -371,10 +460,41 @@ export function FounderDashboardClient() {
               <Mail className="text-lime" />
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-purple-300">Gmail Integration</p>
-                <h2 className="text-xl font-semibold">Manual approval only</h2>
+                <h2 className="text-xl font-semibold">{gmailConnected ? "Connected" : "Manual approval only"}</h2>
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-zinc-400">{gmailStatus}</p>
+            {gmailEmail ? <p className="mt-2 rounded-2xl border border-line bg-ink px-3 py-2 text-sm text-zinc-300">{gmailEmail}</p> : null}
+            <div className="mt-4 grid gap-2">
+              {!gmailConnected ? (
+                <button
+                  disabled={saving || !gmailConfigured}
+                  onClick={connectGmail}
+                  className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
+                >
+                  <Mail size={17} />
+                  Connect Gmail
+                </button>
+              ) : (
+                <>
+                  <button
+                    disabled={saving}
+                    onClick={syncReplies}
+                    className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
+                  >
+                    <RefreshCcw size={17} />
+                    Sync replies
+                  </button>
+                  <button
+                    disabled={saving}
+                    onClick={disconnectGmail}
+                    className="flex h-11 items-center justify-center rounded-2xl border border-line bg-ink text-sm font-semibold text-zinc-100 disabled:opacity-60"
+                  >
+                    Disconnect Gmail
+                  </button>
+                </>
+              )}
+            </div>
           </section>
         </aside>
       </section>
@@ -424,9 +544,17 @@ export function FounderDashboardClient() {
                 <Send size={17} />
                 Generate outreach
               </button>
+              <button
+                disabled={saving || !gmailConnected || !selectedLead.publicEmail}
+                onClick={() => sendApprovedEmail(selectedLead)}
+                className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+              >
+                <Mail size={17} />
+                Send approved email
+              </button>
               <button disabled={saving} onClick={() => saveOutboundDraft(selectedLead)} className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-line bg-ink font-semibold text-zinc-100 disabled:opacity-60">
                 <CheckCircle2 size={17} />
-                Mark email sent
+                Mark sent manually
               </button>
             </div>
 
@@ -469,7 +597,7 @@ export function FounderDashboardClient() {
                 </div>
                 <Clipboard className="text-lime" />
               </div>
-              <p className="mt-2 text-sm text-zinc-400">Ascend never sends automatically. Review, copy, send manually, then mark the email as sent.</p>
+              <p className="mt-2 text-sm text-zinc-400">Ascend never sends automatically. Review the draft, then either send the approved email through Gmail or mark manual outreach as sent.</p>
               <div className="mt-4 grid gap-3">
                 {Object.entries(selectedLead.emailDrafts ?? {}).map(([key, value]) => (
                   <DraftBlock key={key} title={key.replace(/([A-Z])/g, " $1")} value={value} />

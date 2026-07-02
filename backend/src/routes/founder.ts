@@ -3,6 +3,16 @@ import { z } from "zod";
 import { pool, query } from "../db/pool";
 import { requireAuth, requirePlatformOwner } from "../middleware/auth";
 import { createFounderEmailDrafts, createFounderLeadResearch } from "../integrations/openai";
+import {
+  completeFounderGmailOAuth,
+  createFounderGmailAuthUrl,
+  disconnectFounderGmail,
+  founderGmailConfigured,
+  getFounderGmailConnection,
+  sendFounderGmail,
+  syncFounderGmailReplies
+} from "../services/founderGmailService";
+import { env } from "../config/env";
 
 export const founderRouter = Router();
 
@@ -53,6 +63,14 @@ const emailDraftSchema = z.object({
   leadId: z.string().uuid().optional(),
   research: z.record(z.unknown()).optional(),
   outreachAngle: z.string().max(2000).optional()
+});
+
+const gmailSendSchema = z.object({
+  leadId: z.string().uuid(),
+  subject: z.string().min(1).max(300),
+  body: z.string().min(1).max(12000),
+  to: z.string().email().optional(),
+  approved: z.literal(true)
 });
 
 function toNull(value: unknown) {
@@ -112,7 +130,28 @@ function mapLead(row: Record<string, unknown>) {
   };
 }
 
+founderRouter.get("/founder/gmail/callback", async (req, res, next) => {
+  try {
+    const code = z.string().min(1).parse(req.query.code);
+    const state = z.string().min(1).parse(req.query.state);
+    await completeFounderGmailOAuth(code, state);
+    const redirect = new URL("/founder", env.FRONTEND_URL);
+    redirect.searchParams.set("gmail", "connected");
+    res.redirect(redirect.toString());
+  } catch (error) {
+    next(error);
+  }
+});
+
 founderRouter.use("/founder", requireAuth, requirePlatformOwner);
+
+founderRouter.get("/founder/gmail/auth-url", async (req, res, next) => {
+  try {
+    res.json({ authUrl: await createFounderGmailAuthUrl(req.user!.id) });
+  } catch (error) {
+    next(error);
+  }
+});
 
 founderRouter.get("/founder/leads", async (_req, res, next) => {
   try {
@@ -399,11 +438,73 @@ founderRouter.post("/founder/email-drafts", async (req, res, next) => {
   }
 });
 
-founderRouter.get("/founder/gmail/status", (_req, res) => {
-  res.json({
-    connected: false,
-    available: false,
-    message: "Gmail sending and reply sync require Google OAuth credentials and explicit manual approval before any email is sent.",
-    manualApprovalRequired: true
-  });
+founderRouter.get("/founder/gmail/status", async (req, res, next) => {
+  try {
+    const connection = await getFounderGmailConnection(req.user!.id);
+    res.json({
+      configured: founderGmailConfigured(),
+      connected: Boolean(connection),
+      available: founderGmailConfigured(),
+      gmailEmail: connection?.gmail_email ?? null,
+      lastSyncedAt: connection?.last_synced_at ?? null,
+      connectedAt: connection?.connected_at ?? null,
+      message: !founderGmailConfigured()
+        ? "Gmail OAuth is not configured yet. Add Gmail OAuth credentials in Railway before connecting."
+        : connection
+          ? `Connected to ${connection.gmail_email}. Emails still require manual approval before sending.`
+          : "Gmail is ready to connect. Emails will require manual approval before sending.",
+      manualApprovalRequired: true
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.post("/founder/gmail/send", async (req, res, next) => {
+  try {
+    const input = gmailSendSchema.parse(req.body);
+    const leadResult = await query<{ id: string; public_email: string | null; status: string }>("select id, public_email, status from founder_leads where id = $1", [input.leadId]);
+    const lead = leadResult.rows[0];
+    if (!lead) return res.status(404).json({ error: "Lead not found" });
+    const to = input.to ?? lead.public_email;
+    if (!to) return res.status(400).json({ error: "This lead does not have a public email address." });
+
+    const gmailMessage = await sendFounderGmail({
+      userId: req.user!.id,
+      to,
+      subject: input.subject,
+      body: input.body
+    });
+    const conversation = await query(
+      `
+      insert into founder_lead_conversations (
+        lead_id, channel, direction, subject, body, approved_by, sent_at, external_message_id, gmail_message_id, gmail_thread_id
+      )
+      values ($1, 'gmail', 'outbound', $2, $3, $4, now(), $5, $5, $6)
+      returning *
+      `,
+      [input.leadId, input.subject, input.body, req.user!.id, gmailMessage.id, gmailMessage.threadId]
+    );
+    await query("update founder_leads set status = 'Email Sent', last_contacted_at = now(), updated_at = now() where id = $1 and status = 'Not Contacted'", [input.leadId]);
+    res.json({ sent: true, messageId: gmailMessage.id, threadId: gmailMessage.threadId, conversation: conversation.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.post("/founder/gmail/sync-replies", async (req, res, next) => {
+  try {
+    res.json(await syncFounderGmailReplies(req.user!.id));
+  } catch (error) {
+    next(error);
+  }
+});
+
+founderRouter.delete("/founder/gmail", async (req, res, next) => {
+  try {
+    await disconnectFounderGmail(req.user!.id);
+    res.json({ disconnected: true });
+  } catch (error) {
+    next(error);
+  }
 });
