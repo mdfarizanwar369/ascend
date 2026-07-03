@@ -30,7 +30,7 @@ export function canAutoOfferInstall(input: {
   return input.eligible && !input.installed && !input.alreadyPrompted && !deferredPaths.has(input.pathname);
 }
 
-export const MARKETING_DEMO_SCENE_DURATIONS_MS = [3500, 4000, 3500, 4000, 3500, 4000, 3500, 4000] as const;
+export const MARKETING_DEMO_SCENE_DURATIONS_MS = [6000, 6000, 6000, 6000, 6000, 6000, 6000, 6000] as const;
 
 export function getMarketingDemoFrame(elapsedMs: number) {
   const totalDurationMs = MARKETING_DEMO_SCENE_DURATIONS_MS.reduce((total, duration) => total + duration, 0);
