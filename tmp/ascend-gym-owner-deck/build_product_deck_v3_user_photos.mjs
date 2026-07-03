@@ -5,6 +5,8 @@ import { Presentation, PresentationFile } from "@oai/artifact-tool";
 const ROOT = "C:/Users/Admin/Documents/Codex/2026-06-09/you-are-a-senior-startup-cto";
 const PHOTO_ROOT =
   "C:/Users/Admin/.codex/codex-remote-attachments/019eac58-81a5-7151-b134-1e02590880d1/70B0BCF4-AA09-4C9B-8A66-60DDD131B675";
+const WORKOUT_ROOT =
+  "C:/Users/Admin/.codex/codex-remote-attachments/019eac58-81a5-7151-b134-1e02590880d1/693E60D6-CA9F-4A2D-A315-0F7100F621AE";
 const OUT = path.join(ROOT, "outputs", "Ascend_Gym_Owner_Product_Deck_With_Screenshots_2026.pptx");
 const PREVIEW_DIR = path.join(ROOT, "outputs", "Ascend_Gym_Owner_Product_Deck_With_Screenshots_2026");
 
@@ -43,6 +45,11 @@ const assets = {
   tasksProgress: path.join(PHOTO_ROOT, "15-Photo-15.jpg"),
   mealHistory: path.join(PHOTO_ROOT, "16-Photo-16.jpg"),
   foodUpload: path.join(PHOTO_ROOT, "17-Photo-17.jpg"),
+  workoutGoal: path.join(WORKOUT_ROOT, "1-Photo-1.jpg"),
+  workoutTime: path.join(WORKOUT_ROOT, "2-Photo-2.jpg"),
+  workoutEquipment: path.join(WORKOUT_ROOT, "3-Photo-3.jpg"),
+  workoutPlan: path.join(WORKOUT_ROOT, "4-Photo-4.jpg"),
+  workoutComplete: path.join(WORKOUT_ROOT, "5-Photo-5.jpg"),
 };
 
 async function bytes(file) {
@@ -312,16 +319,31 @@ async function main() {
   // 8
   {
     const s = p.slides.add(); bg(s);
-    title(s, "Coach Zoe keeps the member moving between sessions.");
-    await phoneImage(s, assets.coachZoe, 88, 148, 250, 510);
-    card(s, 420, 190, 710, 340);
-    text(s, "So what?", 458, 232, 560, 34, { fontSize: 34, bold: true });
-    bullet(s, "Momentum is protected", "One useful nudge at the right time.", 460, 316, 560);
-    bullet(s, "Workouts become easier to start", "The member gets a plan when motivation is low.", 460, 414, 560, C.purple);
-    bullet(s, "The app remembers", "Recent activity shapes the next recommendation.", 460, 512, 560, C.green);
+    title(s, "Members get a workout they can actually start.");
+    await phoneImage(s, assets.workoutGoal, 70, 150, 214, 462);
+    await phoneImage(s, assets.workoutTime, 304, 150, 214, 462);
+    await phoneImage(s, assets.workoutEquipment, 538, 150, 214, 462);
+    card(s, 822, 190, 320, 386, { fill: "#102018", line: C.teal });
+    text(s, "Fast enough for real life", 856, 258, 230, 66, { fontSize: 32, bold: true });
+    bullet(s, "Goal", "Fat loss, strength, recovery or mobility.", 856, 350, 230);
+    bullet(s, "Time", "20, 30, 45 or 60+ minutes.", 856, 434, 230, C.purple);
+    bullet(s, "Equipment", "Gym, home, hotel or bands.", 856, 518, 230, C.green);
   }
 
   // 9
+  {
+    const s = p.slides.add(); bg(s);
+    title(s, "Workout completion becomes accountability.");
+    await phoneImage(s, assets.workoutPlan, 104, 132, 245, 500);
+    await phoneImage(s, assets.workoutComplete, 390, 132, 245, 500);
+    card(s, 726, 194, 390, 420, { fill: "#0b111b", line: "#2b3548" });
+    text(s, "So what?", 762, 254, 220, 36, { fontSize: 34, bold: true });
+    bullet(s, "Members finish the plan", "A clear session beats another vague instruction.", 762, 320, 290);
+    bullet(s, "Progress is saved", "Workout history, momentum and activity update automatically.", 762, 418, 290, C.teal);
+    bullet(s, "Trainers see effort", "The next conversation starts with evidence.", 762, 516, 290, C.purple);
+  }
+
+  // 10
   {
     const s = p.slides.add(); bg(s);
     title(s, "Trainers begin each day with a coaching plan.");

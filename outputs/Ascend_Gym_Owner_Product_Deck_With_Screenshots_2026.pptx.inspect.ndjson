@@ -1,418 +1,448 @@
-{"kind":"deck","id":"pr/cd4fd5","name":"Deck"}
-{"kind":"layout","layoutId":"4a11697e-6cc5-4860-bb15-08026571c72b","name":"Master","type":"master"}
-{"kind":"layout","layoutId":"a9299729-38d7-4004-9a7e-dfe7362e67db","name":"Title Slide","type":"title"}
-{"kind":"slide","id":"sl/y7u9wh","slide":1,"title":"ASCEND","textShapes":4}
-{"kind":"shape","id":"sh/58z25kb6","slide":1,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/yhgn29gr","slide":1,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/n29gr2p8","slide":1,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/gbq1oryt","slide":1,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/y90je9cv","slide":1,"text":"ASCEND","textPreview":"ASCEND","textChars":6,"textLines":1,"bbox":[128,52,220,30]}
-{"kind":"textbox","id":"sh/nuxc3ylc","slide":1,"text":"Your trainers coach members for one hour each week.","textPreview":"Your trainers coach members for one hour each week.","textChars":51,"textLines":1,"bbox":[72,150,650,126]}
-{"kind":"textbox","id":"sh/cbulwval","slide":1,"text":"Ascend coaches them during the other 166 hours.","textPreview":"Ascend coaches them during the other 166 hours.","textChars":47,"textLines":1,"bbox":[76,304,620,72]}
-{"kind":"shape","id":"sh/5sneloj2","slide":1,"bbox":[78,430,360,34]}
-{"kind":"textbox","id":"sh/tcj6tova","slide":1,"text":"The operating system for fitness accountability","textPreview":"The operating system for fitness accountability","textChars":47,"textLines":1,"bbox":[78,437,360,18]}
-{"kind":"shape","id":"sh/0rqd4vmt","slide":1,"bbox":[732,92,204,544]}
-{"kind":"shape","id":"sh/b6xkf6dc","slide":1,"bbox":[804.56,103,58.88,8]}
-{"kind":"shape","id":"sh/t47y1kre","slide":1,"bbox":[920,66,204,544]}
-{"kind":"shape","id":"sh/0je9cvix","slide":1,"bbox":[992.56,77,58.88,8]}
-{"kind":"shape","id":"sh/idonyd0z","slide":1,"bbox":[1104,108,174,484]}
-{"kind":"shape","id":"sh/p0bi9s36","slide":1,"bbox":[1166.36,119,49.28,8]}
-{"kind":"image","id":"im/0nuxc3yl","slide":1,"name":"","alt":"Ascend logo","bbox":[70,46,48,48]}
-{"kind":"image","id":"im/dg7adsji","slide":1,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[742,104,184,520]}
-{"kind":"image","id":"im/onyd0z61","slide":1,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[930,78,184,520]}
-{"kind":"image","id":"im/vy90je9c","slide":1,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[1114,120,154,460]}
-{"kind":"notes","id":"nt/y7u9wh","slide":1,"text":""}
-{"kind":"slide","id":"sl/pqg3ev","slide":2,"title":"The week breaks after the session.","textShapes":9}
-{"kind":"shape","id":"sh/g3ex0nux","slide":2,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/nih4byhg","slide":2,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/yxobm58z","slide":2,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/9cvixcze","slide":2,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/gr2p8nqx","slide":2,"text":"The week breaks after the session.","textPreview":"The week breaks after the session.","textChars":34,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/r65wjudg","slide":2,"bbox":[76,220,520,220]}
-{"kind":"textbox","id":"sh/ylc7u54z","slide":2,"text":"Results are built during the other 166 hours of the week.","textPreview":"Results are built during the other 166 hours of the week.","textChars":57,"textLines":1,"bbox":[110,260,452,130]}
-{"kind":"shape","id":"sh/90je9cvi","slide":2,"bbox":[110,384,178,34]}
-{"kind":"textbox","id":"sh/gfmlkjm1","slide":2,"text":"THE 166-HOUR GAP","textPreview":"THE 166-HOUR GAP","textChars":16,"textLines":1,"bbox":[110,391,178,18]}
-{"kind":"shape","id":"sh/65wjudg7","slide":2,"bbox":[670,256,9,9]}
-{"kind":"textbox","id":"sh/zqtcj6to","slide":2,"text":"Members drift","textPreview":"Members drift","textChars":13,"textLines":1,"bbox":[692,250,408,23]}
-{"kind":"textbox","id":"sh/obm58z25","slide":2,"text":"Habits happen away from the club.","textPreview":"Habits happen away from the club.","textChars":33,"textLines":1,"bbox":[692,277,408,38]}
-{"kind":"shape","id":"sh/hwfyxobm","slide":2,"bbox":[670,356,9,9]}
-{"kind":"textbox","id":"sh/6xkf6dcb","slide":2,"text":"Trainers guess","textPreview":"Trainers guess","textChars":14,"textLines":1,"bbox":[692,350,408,23]}
-{"kind":"textbox","id":"sh/zed8v6ps","slide":2,"text":"Signals arrive too late.","textPreview":"Signals arrive too late.","textChars":24,"textLines":1,"bbox":[692,377,408,38]}
-{"kind":"shape","id":"sh/oza1gvy9","slide":2,"bbox":[670,456,9,9]}
-{"kind":"textbox","id":"sh/hk3q5o7q","slide":2,"text":"Owners react","textPreview":"Owners react","textChars":12,"textLines":1,"bbox":[692,450,408,23]}
-{"kind":"textbox","id":"sh/al87ed8b","slide":2,"text":"Retention risk stays hidden.","textPreview":"Retention risk stays hidden.","textChars":28,"textLines":1,"bbox":[692,477,408,38]}
-{"kind":"notes","id":"nt/pqg3ev","slide":2,"text":""}
-{"kind":"slide","id":"sl/hcq0py","slide":3,"title":"How Ascend closes the 166-hour gap.","textShapes":18}
-{"kind":"shape","id":"sh/vixczed8","slide":3,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/k3q5o7qp","slide":3,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/donyd0z6","slide":3,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/6psfil0r","slide":3,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/val87ed8","slide":3,"text":"How Ascend closes the 166-hour gap.","textPreview":"How Ascend closes the 166-hour gap.","textChars":35,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/kre1w7mp","slide":3,"bbox":[90,174,440,420]}
-{"kind":"textbox","id":"sh/dcbulwva","slide":3,"text":"Traditional coaching","textPreview":"Traditional coaching","textChars":20,"textLines":1,"bbox":[130,214,300,32]}
-{"kind":"shape","id":"sh/2lszqtcj","slide":3,"bbox":[178,286,260,58]}
-{"kind":"textbox","id":"sh/v6psfil0","slide":3,"text":"PT Session","textPreview":"PT Session","textChars":10,"textLines":1,"bbox":[178,303,260,22]}
-{"kind":"textbox","id":"sh/bq1oryts","slide":3,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[290,350,36,34]}
-{"kind":"shape","id":"sh/m58z25kb","slide":3,"bbox":[178,402,260,58]}
-{"kind":"textbox","id":"sh/twra5gbq","slide":3,"text":"7 days with little visibility","textPreview":"7 days with little visibility","textChars":29,"textLines":1,"bbox":[178,419,260,22]}
-{"kind":"textbox","id":"sh/4byhgn29","slide":3,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[290,466,36,34]}
-{"kind":"shape","id":"sh/b2hwfyxo","slide":3,"bbox":[178,518,260,58]}
-{"kind":"textbox","id":"sh/mhk3q5o7","slide":3,"text":"Next PT Session","textPreview":"Next PT Session","textChars":15,"textLines":1,"bbox":[178,535,260,22]}
-{"kind":"textbox","id":"sh/t83itgfm","slide":3,"text":"The coach finds out after the week has already happened.","textPreview":"The coach finds out after the week has already happened.","textChars":56,"textLines":1,"bbox":[132,622,330,32]}
-{"kind":"shape","id":"sh/4nap4r65","slide":3,"bbox":[612,174,520,420]}
-{"kind":"textbox","id":"sh/bat47y1k","slide":3,"text":"Ascend coaching","textPreview":"Ascend coaching","textChars":15,"textLines":1,"bbox":[652,214,300,32]}
-{"kind":"shape","id":"sh/mp0bi9s3","slide":3,"bbox":[660,274,180,58]}
-{"kind":"textbox","id":"sh/uxc3ylc7","slide":3,"text":"PT Session","textPreview":"PT Session","textChars":10,"textLines":1,"bbox":[660,291,180,22]}
-{"kind":"shape","id":"sh/ji5snelo","slide":3,"bbox":[882,274,180,58]}
-{"kind":"textbox","id":"sh/c3ylc7u5","slide":3,"text":"Coach Zoe","textPreview":"Coach Zoe","textChars":9,"textLines":1,"bbox":[882,291,180,22]}
-{"kind":"shape","id":"sh/1kre1w7m","slide":3,"bbox":[660,350,180,58]}
-{"kind":"textbox","id":"sh/ulwval87","slide":3,"text":"Food Logging","textPreview":"Food Logging","textChars":12,"textLines":1,"bbox":[660,367,180,22]}
-{"kind":"shape","id":"sh/j6tovaho","slide":3,"bbox":[882,350,180,58]}
-{"kind":"textbox","id":"sh/crmhk3q5","slide":3,"text":"Workout Guidance","textPreview":"Workout Guidance","textChars":16,"textLines":1,"bbox":[882,367,180,22]}
-{"kind":"shape","id":"sh/1cfa9w3m","slide":3,"bbox":[660,426,180,58]}
-{"kind":"textbox","id":"sh/qh0fepkz","slide":3,"text":"Hydration","textPreview":"Hydration","textChars":9,"textLines":1,"bbox":[660,443,180,22]}
-{"kind":"shape","id":"sh/j2t83itg","slide":3,"bbox":[882,426,180,58]}
-{"kind":"textbox","id":"sh/pkzupwb2","slide":3,"text":"Progress Tracking","textPreview":"Progress Tracking","textChars":17,"textLines":1,"bbox":[882,443,180,22]}
-{"kind":"shape","id":"sh/0z61032l","slide":3,"bbox":[660,502,180,58]}
-{"kind":"textbox","id":"sh/7ed8bat4","slide":3,"text":"Trainer Visibility","textPreview":"Trainer Visibility","textChars":18,"textLines":1,"bbox":[660,519,180,22]}
-{"kind":"shape","id":"sh/itgfmlkj","slide":3,"bbox":[882,502,180,58]}
-{"kind":"textbox","id":"sh/p8nqxs72","slide":3,"text":"Next PT Session","textPreview":"Next PT Session","textChars":15,"textLines":1,"bbox":[882,519,180,22]}
-{"kind":"textbox","id":"sh/0nuxc3yl","slide":3,"text":"Every action between sessions becomes visible to the trainer.","textPreview":"Every action between sessions becomes visible to the trainer.","textChars":61,"textLines":1,"bbox":[658,622,420,30]}
-{"kind":"notes","id":"nt/hcq0py","slide":3,"text":""}
-{"kind":"slide","id":"sl/wudrhq","slide":4,"title":"Why AI?","textShapes":12}
-{"kind":"shape","id":"sh/hgn29gr2","slide":4,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/ap4r65wj","slide":4,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/za1gvy90","slide":4,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/s36hcrmh","slide":4,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/hoza1gvy","slide":4,"text":"Why AI?","textPreview":"Why AI?","textChars":7,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/a1gvy90j","slide":4,"bbox":[84,172,470,394]}
-{"kind":"textbox","id":"sh/zidonyd0","slide":4,"text":"Without Ascend","textPreview":"Without Ascend","textChars":14,"textLines":1,"bbox":[128,220,310,34]}
-{"kind":"textbox","id":"sh/s72x4nap","slide":4,"text":"Trainer manages 40 clients","textPreview":"Trainer manages 40 clients","textChars":26,"textLines":1,"bbox":[130,296,330,36]}
-{"kind":"textbox","id":"sh/lszqtcj6","slide":4,"text":"Meals\nWorkouts\nHydration\nHabits\nProgress\nMotivation","textPreview":"Meals | Workouts | Hydration | Habits | Progress | Motivation","textChars":51,"textLines":6,"bbox":[136,360,260,150]}
-{"kind":"textbox","id":"sh/h0fepkzu","slide":4,"text":"Important signals are missed.","textPreview":"Important signals are missed.","textChars":29,"textLines":1,"bbox":[130,520,340,28]}
-{"kind":"shape","id":"sh/sfil0rqd","slide":4,"bbox":[682,172,470,394]}
-{"kind":"textbox","id":"sh/zupwb2hw","slide":4,"text":"With Ascend","textPreview":"With Ascend","textChars":11,"textLines":1,"bbox":[726,220,310,34]}
-{"kind":"shape","id":"sh/a9w3m94f","slide":4,"bbox":[760,294,300,58]}
-{"kind":"textbox","id":"sh/hcrmhk3q","slide":4,"text":"AI observes","textPreview":"AI observes","textChars":11,"textLines":1,"bbox":[760,311,300,22]}
-{"kind":"textbox","id":"sh/orytsvu9","slide":4,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[892,354,36,34]}
-{"kind":"shape","id":"sh/z61032ls","slide":4,"bbox":[760,402,300,58]}
-{"kind":"textbox","id":"sh/al87ed8b","slide":4,"text":"AI summarizes","textPreview":"AI summarizes","textChars":13,"textLines":1,"bbox":[760,419,300,22]}
-{"kind":"textbox","id":"sh/hk3q5o7q","slide":4,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[892,462,36,34]}
-{"kind":"shape","id":"sh/oza1gvy9","slide":4,"bbox":[760,510,300,58]}
-{"kind":"textbox","id":"sh/kf6dcbul","slide":4,"text":"Trainer coaches","textPreview":"Trainer coaches","textChars":15,"textLines":1,"bbox":[760,527,300,22]}
-{"kind":"textbox","id":"sh/d0z61032","slide":4,"text":"AI replaces admin. Not coaching.","textPreview":"AI replaces admin. Not coaching.","textChars":32,"textLines":1,"bbox":[334,622,600,42]}
-{"kind":"notes","id":"nt/wudrhq","slide":4,"text":""}
-{"kind":"slide","id":"sl/3fn21e","slide":5,"title":"Ascend connects the three stakeholders that drive results.","textShapes":5}
-{"kind":"shape","id":"sh/neloj2t8","slide":5,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/czed8v6p","slide":5,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/5kb6xkf6","slide":5,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/u54zidon","slide":5,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/nqxs72x4","slide":5,"text":"Ascend connects the three stakeholders that drive results.","textPreview":"Ascend connects the three stakeholders that drive results.","textChars":58,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"textbox","id":"sh/cbulwval","slide":5,"text":"Client action creates trainer visibility. Trainer visibility creates owner confidence.","textPreview":"Client action creates trainer visibility. Trainer visibility creates owner confidence.","textChars":86,"textLines":1,"bbox":[70,143,850,52]}
-{"kind":"shape","id":"sh/5sneloj2","slide":5,"bbox":[84,190,232,454]}
-{"kind":"shape","id":"sh/y90je9cv","slide":5,"bbox":[166.08,201,67.84,8]}
-{"kind":"shape","id":"sh/36hcrmhk","slide":5,"bbox":[514,190,232,454]}
-{"kind":"shape","id":"sh/eloj2t83","slide":5,"bbox":[596.08,201,67.84,8]}
-{"kind":"shape","id":"sh/wra5gbq1","slide":5,"bbox":[940,190,232,454]}
-{"kind":"shape","id":"sh/7u54zido","slide":5,"bbox":[1022.08,201,67.84,8]}
-{"kind":"textbox","id":"sh/l0rqd4vm","slide":5,"text":"CLIENT","textPreview":"CLIENT","textChars":6,"textLines":1,"bbox":[126,648,150,22]}
-{"kind":"textbox","id":"sh/wfyxobm5","slide":5,"text":"TRAINER","textPreview":"TRAINER","textChars":7,"textLines":1,"bbox":[558,648,150,22]}
-{"kind":"textbox","id":"sh/7mp0bi9s","slide":5,"text":"OWNER","textPreview":"OWNER","textChars":5,"textLines":1,"bbox":[982,648,150,22]}
-{"kind":"shape","id":"sh/e1w7mp0b","slide":5,"bbox":[360,376,80,44]}
-{"kind":"shape","id":"sh/qxs72x4n","slide":5,"bbox":[790,376,80,44]}
-{"kind":"image","id":"im/2hwfyxob","slide":5,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[94,202,212,430]}
-{"kind":"image","id":"im/ulwval87","slide":5,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[524,202,212,430]}
-{"kind":"image","id":"im/1kre1w7m","slide":5,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[950,202,212,430]}
-{"kind":"notes","id":"nt/3fn21e","slide":5,"text":""}
-{"kind":"slide","id":"sl/4wbebl","slide":6,"title":"Members know what to do today before they scroll.","textShapes":8}
-{"kind":"shape","id":"sh/orytsvu9","slide":6,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/z61032ls","slide":6,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/al87ed8b","slide":6,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/h0fepkzu","slide":6,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/sfil0rqd","slide":6,"text":"Members know what to do today before they scroll.","textPreview":"Members know what to do today before they scroll.","textChars":49,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/zupwb2hw","slide":6,"bbox":[76,164,250,494]}
-{"kind":"shape","id":"sh/a9w3m94f","slide":6,"bbox":[164.2,175,73.6,8]}
-{"kind":"shape","id":"sh/obm58z25","slide":6,"bbox":[338,144,250,494]}
-{"kind":"shape","id":"sh/e1w7mp0b","slide":6,"bbox":[426.2,155,73.6,8]}
-{"kind":"shape","id":"sh/w7mp0bi9","slide":6,"bbox":[648,216,486,320]}
-{"kind":"textbox","id":"sh/psfil0rq","slide":6,"text":"What this solves","textPreview":"What this solves","textChars":16,"textLines":1,"bbox":[684,252,320,28]}
-{"kind":"shape","id":"sh/epkzupwb","slide":6,"bbox":[684,324,9,9]}
-{"kind":"textbox","id":"sh/7adsji5s","slide":6,"text":"Less overwhelm","textPreview":"Less overwhelm","textChars":14,"textLines":1,"bbox":[706,318,348,23]}
-{"kind":"textbox","id":"sh/wval87ed","slide":6,"text":"The member sees today's task before the full feature set.","textPreview":"The member sees today's task before the full feature set.","textChars":57,"textLines":1,"bbox":[706,345,348,38]}
-{"kind":"shape","id":"sh/pg3ex0nu","slide":6,"bbox":[684,418,9,9]}
-{"kind":"textbox","id":"sh/eloj2t83","slide":6,"text":"More consistency","textPreview":"More consistency","textChars":16,"textLines":1,"bbox":[706,412,348,23]}
-{"kind":"textbox","id":"sh/36hcrmhk","slide":6,"text":"Simple progress cards reinforce small daily actions.","textPreview":"Simple progress cards reinforce small daily actions.","textChars":52,"textLines":1,"bbox":[706,439,348,38]}
-{"kind":"shape","id":"sh/zupwb2hw","slide":6,"bbox":[684,512,9,9]}
-{"kind":"textbox","id":"sh/a9w3m94f","slide":6,"text":"Coach Zoe feels present","textPreview":"Coach Zoe feels present","textChars":23,"textLines":1,"bbox":[706,506,348,23]}
-{"kind":"textbox","id":"sh/h0fepkzu","slide":6,"text":"One timely insight, not a wall of AI text.","textPreview":"One timely insight, not a wall of AI text.","textChars":42,"textLines":1,"bbox":[706,533,348,38]}
-{"kind":"image","id":"im/4fu18jqh","slide":6,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[86,176,230,470]}
-{"kind":"image","id":"im/szqtcj6t","slide":6,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[348,156,230,470]}
-{"kind":"notes","id":"nt/4wbebl","slide":6,"text":""}
-{"kind":"slide","id":"sl/ln7byy","slide":7,"title":"Food logging that works in real life.","textShapes":13}
-{"kind":"shape","id":"sh/dcbulwva","slide":7,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/6psfil0r","slide":7,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/val87ed8","slide":7,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/k3q5o7qp","slide":7,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/donyd0z6","slide":7,"text":"Food logging that works in real life.","textPreview":"Food logging that works in real life.","textChars":37,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/2x4nap4r","slide":7,"bbox":[60,136,232,490]}
-{"kind":"shape","id":"sh/vixczed8","slide":7,"bbox":[142.08,147,67.84,8]}
-{"kind":"shape","id":"sh/d0z61032","slide":7,"bbox":[302,136,232,490]}
-{"kind":"shape","id":"sh/dsji5sne","slide":7,"bbox":[384.08,147,67.84,8]}
-{"kind":"shape","id":"sh/vmtwra5g","slide":7,"bbox":[608,168,500,424]}
-{"kind":"textbox","id":"sh/61032lsz","slide":7,"text":"No perfect photos. No calorie database. Just describe the meal.","textPreview":"No perfect photos. No calorie database. Just describe the meal.","textChars":63,"textLines":1,"bbox":[646,204,410,24]}
-{"kind":"textbox","id":"sh/d4vmtwra","slide":7,"text":"Take Photo","textPreview":"Take Photo","textChars":10,"textLines":1,"bbox":[650,252,170,30]}
-{"kind":"textbox","id":"sh/oj2t83it","slide":7,"text":"OR","textPreview":"OR","textChars":2,"textLines":1,"bbox":[804,254,60,28]}
-{"kind":"textbox","id":"sh/vy90je9c","slide":7,"text":"Type what you ate","textPreview":"Type what you ate","textChars":17,"textLines":1,"bbox":[890,252,190,30]}
-{"kind":"shape","id":"sh/6dcbulwv","slide":7,"bbox":[660,318,390,86]}
-{"kind":"textbox","id":"sh/d8v6psfi","slide":7,"text":"Chicken rice • Nasi lemak","textPreview":"Chicken rice • Nasi lemak","textChars":25,"textLines":1,"bbox":[684,334,340,20]}
-{"kind":"textbox","id":"sh/onyd0z61","slide":7,"text":"Protein shake • McChicken meal","textPreview":"Protein shake • McChicken meal","textChars":30,"textLines":1,"bbox":[684,360,340,20]}
-{"kind":"textbox","id":"sh/kre1w7mp","slide":7,"text":"2 eggs and toast","textPreview":"2 eggs and toast","textChars":16,"textLines":1,"bbox":[684,384,340,18]}
-{"kind":"textbox","id":"sh/dcbulwva","slide":7,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[838,410,36,34]}
-{"kind":"shape","id":"sh/6psfil0r","slide":7,"bbox":[712,456,290,58]}
-{"kind":"textbox","id":"sh/val87ed8","slide":7,"text":"AI analyses the meal","textPreview":"AI analyses the meal","textChars":20,"textLines":1,"bbox":[712,473,290,22]}
-{"kind":"textbox","id":"sh/k3q5o7qp","slide":7,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[838,518,36,34]}
-{"kind":"textbox","id":"sh/donyd0z6","slide":7,"text":"Calories  •  Protein  •  Carbs  •  Fat","textPreview":"Calories  •  Protein  •  Carbs  •  Fat","textChars":38,"textLines":1,"bbox":[654,552,420,28]}
-{"kind":"textbox","id":"sh/2x4nap4r","slide":7,"text":"Save","textPreview":"Save","textChars":4,"textLines":1,"bbox":[654,582,420,26]}
-{"kind":"image","id":"im/donyd0z6","slide":7,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[70,148,212,466]}
-{"kind":"image","id":"im/3ex0nuxc","slide":7,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[312,148,212,466]}
-{"kind":"notes","id":"nt/ln7byy","slide":7,"text":""}
-{"kind":"slide","id":"sl/s7nj6o","slide":8,"title":"Coach Zoe keeps the member moving between sessions.","textShapes":8}
-{"kind":"shape","id":"sh/tsvu9kni","slide":8,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/m1cfa9w3","slide":8,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/bm58z25k","slide":8,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/4vmtwra5","slide":8,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/tgfmlkjm","slide":8,"text":"Coach Zoe keeps the member moving between sessions.","textPreview":"Coach Zoe keeps the member moving between sessions.","textChars":51,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/mp0bi9s3","slide":8,"bbox":[78,136,270,534]}
-{"kind":"shape","id":"sh/bat47y1k","slide":8,"bbox":[173,147,80,8]}
-{"kind":"shape","id":"sh/t83itgfm","slide":8,"bbox":[420,190,710,340]}
-{"kind":"textbox","id":"sh/9gr2p8nq","slide":8,"text":"So what?","textPreview":"So what?","textChars":8,"textLines":1,"bbox":[458,232,560,34]}
-{"kind":"shape","id":"sh/gvy90je9","slide":8,"bbox":[460,322,9,9]}
-{"kind":"textbox","id":"sh/ra5gbq1o","slide":8,"text":"Momentum is protected","textPreview":"Momentum is protected","textChars":21,"textLines":1,"bbox":[482,316,538,23]}
-{"kind":"textbox","id":"sh/2p8nqxs7","slide":8,"text":"One useful nudge at the right time.","textPreview":"One useful nudge at the right time.","textChars":35,"textLines":1,"bbox":[482,343,538,38]}
-{"kind":"shape","id":"sh/94fu18jq","slide":8,"bbox":[460,420,9,9]}
-{"kind":"textbox","id":"sh/kjm1cfa9","slide":8,"text":"Workouts become easier to start","textPreview":"Workouts become easier to start","textChars":31,"textLines":1,"bbox":[482,414,538,23]}
-{"kind":"textbox","id":"sh/r2p8nqxs","slide":8,"text":"The member gets a plan when motivation is low.","textPreview":"The member gets a plan when motivation is low.","textChars":46,"textLines":1,"bbox":[482,441,538,38]}
-{"kind":"shape","id":"sh/2hwfyxob","slide":8,"bbox":[460,518,9,9]}
-{"kind":"textbox","id":"sh/9w3m94fu","slide":8,"text":"The app remembers","textPreview":"The app remembers","textChars":17,"textLines":1,"bbox":[482,512,538,23]}
-{"kind":"textbox","id":"sh/kb6xkf6d","slide":8,"text":"Recent activity shapes the next recommendation.","textPreview":"Recent activity shapes the next recommendation.","textChars":47,"textLines":1,"bbox":[482,539,538,38]}
-{"kind":"image","id":"im/90je9cvi","slide":8,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[88,148,250,510]}
-{"kind":"notes","id":"nt/s7nj6o","slide":8,"text":""}
-{"kind":"slide","id":"sl/y4g2jm","slide":9,"title":"Trainers begin each day with a coaching plan.","textShapes":8}
-{"kind":"shape","id":"sh/pwb2hwfy","slide":9,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/i5sneloj","slide":9,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/7qpg3ex0","slide":9,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/wjudg7ad","slide":9,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/p4r65wju","slide":9,"text":"Trainers begin each day with a coaching plan.","textPreview":"Trainers begin each day with a coaching plan.","textChars":45,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/ed8v6psf","slide":9,"bbox":[86,130,252,510]}
-{"kind":"shape","id":"sh/7y1kre1w","slide":9,"bbox":[174.88,141,74.24,8]}
-{"kind":"shape","id":"sh/p8nqxs72","slide":9,"bbox":[366,140,252,490]}
-{"kind":"shape","id":"sh/xobm58z2","slide":9,"bbox":[454.88,151,74.24,8]}
-{"kind":"shape","id":"sh/fil0rqd4","slide":9,"bbox":[716,200,400,358]}
-{"kind":"textbox","id":"sh/qxs72x4n","slide":9,"text":"Why trainers care","textPreview":"Why trainers care","textChars":17,"textLines":1,"bbox":[750,248,280,28]}
-{"kind":"shape","id":"sh/x0nuxc3y","slide":9,"bbox":[750,320,9,9]}
-{"kind":"textbox","id":"sh/4fu18jqh","slide":9,"text":"Faster triage","textPreview":"Faster triage","textChars":13,"textLines":1,"bbox":[772,314,278,23]}
-{"kind":"textbox","id":"sh/fu18jqh0","slide":9,"text":"Premium and Athlete clients surface in one priority list.","textPreview":"Premium and Athlete clients surface in one priority list.","textChars":57,"textLines":1,"bbox":[772,341,278,38]}
-{"kind":"shape","id":"sh/m94fu18j","slide":9,"bbox":[750,410,9,9]}
-{"kind":"textbox","id":"sh/xc3ylc7u","slide":9,"text":"Clear next action","textPreview":"Clear next action","textChars":17,"textLines":1,"bbox":[772,404,278,23]}
-{"kind":"textbox","id":"sh/4r65wjud","slide":9,"text":"Each card suggests what the coach should do next.","textPreview":"Each card suggests what the coach should do next.","textChars":49,"textLines":1,"bbox":[772,431,278,38]}
-{"kind":"shape","id":"sh/032lszqt","slide":9,"bbox":[750,486,9,9]}
-{"kind":"textbox","id":"sh/tovahoza","slide":9,"text":"Weekly summary","textPreview":"Weekly summary","textChars":14,"textLines":1,"bbox":[772,480,278,23]}
-{"kind":"textbox","id":"sh/ixczed8v","slide":9,"text":"Trainers can see improving, plateaued and at-risk clients.","textPreview":"Trainers can see improving, plateaued and at-risk clients.","textChars":58,"textLines":1,"bbox":[772,507,278,38]}
-{"kind":"image","id":"im/l87ed8ba","slide":9,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[96,142,232,486]}
-{"kind":"image","id":"im/fyxobm58","slide":9,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[376,152,232,466]}
-{"kind":"notes","id":"nt/y4g2jm","slide":9,"text":""}
-{"kind":"slide","id":"sl/ngxj7c","slide":10,"title":"Every client check-in starts with evidence, not guesswork.","textShapes":10}
-{"kind":"shape","id":"sh/bat47y1k","slide":10,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/4vmtwra5","slide":10,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/tgfmlkjm","slide":10,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/m1cfa9w3","slide":10,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/bm58z25k","slide":10,"text":"Every client check-in starts with evidence, not guesswork.","textPreview":"Every client check-in starts with evidence, not guesswork.","textChars":58,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/47y1kre1","slide":10,"bbox":[84,126,266,524]}
-{"kind":"shape","id":"sh/tsvu9kni","slide":10,"bbox":[177.64,137,78.72,8]}
-{"kind":"shape","id":"sh/bq1oryts","slide":10,"bbox":[378,126,266,524]}
-{"kind":"shape","id":"sh/3ex0nuxc","slide":10,"bbox":[471.64,137,78.72,8]}
-{"kind":"shape","id":"sh/lkjm1cfa","slide":10,"bbox":[710,214,260,136]}
-{"kind":"textbox","id":"sh/szqtcj6t","slide":10,"text":"MEAL EVIDENCE","textPreview":"MEAL EVIDENCE","textChars":13,"textLines":1,"bbox":[734,237,212,18]}
-{"kind":"textbox","id":"sh/32lszqtc","slide":10,"text":"Latest","textPreview":"Latest","textChars":6,"textLines":1,"bbox":[734,269,212,34]}
-{"kind":"textbox","id":"sh/ahoza1gv","slide":10,"text":"Food logs are visible where the coach reviews the client.","textPreview":"Food logs are visible where the coach reviews the client.","textChars":57,"textLines":1,"bbox":[734,310,212,22]}
-{"kind":"shape","id":"sh/l87ed8ba","slide":10,"bbox":[710,384,260,136]}
-{"kind":"textbox","id":"sh/sneloj2t","slide":10,"text":"MISSIONS","textPreview":"MISSIONS","textChars":8,"textLines":1,"bbox":[734,407,212,18]}
-{"kind":"textbox","id":"sh/3q5o7qpg","slide":10,"text":"Assign","textPreview":"Assign","textChars":6,"textLines":1,"bbox":[734,439,212,34]}
-{"kind":"textbox","id":"sh/e9cvixcz","slide":10,"text":"Simple actions keep the client accountable between sessions.","textPreview":"Simple actions keep the client accountable between sessions.","textChars":60,"textLines":1,"bbox":[734,480,212,22]}
-{"kind":"shape","id":"sh/m58z25kb","slide":10,"bbox":[994,384,220,136]}
-{"kind":"textbox","id":"sh/bq1oryts","slide":10,"text":"NUTRITION PLAN","textPreview":"NUTRITION PLAN","textChars":14,"textLines":1,"bbox":[1018,407,172,18]}
-{"kind":"textbox","id":"sh/4byhgn29","slide":10,"text":"Adjust","textPreview":"Adjust","textChars":6,"textLines":1,"bbox":[1018,439,172,34]}
-{"kind":"textbox","id":"sh/twra5gbq","slide":10,"text":"Trainer can set context without replacing Ascend's recommendation.","textPreview":"Trainer can set context without replacing Ascend's recommendation.","textChars":66,"textLines":1,"bbox":[1018,480,172,22]}
-{"kind":"image","id":"im/bulwval8","slide":10,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[94,138,246,500]}
-{"kind":"image","id":"im/p0bi9s36","slide":10,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[388,138,246,500]}
-{"kind":"notes","id":"nt/ngxj7c","slide":10,"text":""}
-{"kind":"slide","id":"sl/mhzo49","slide":11,"title":"Every week begins with a coaching summary instead of guesswork.","textShapes":8}
-{"kind":"shape","id":"sh/tovahoza","slide":11,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/ixczed8v","slide":11,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/bi9s36hc","slide":11,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/0fepkzup","slide":11,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/p0bi9s36","slide":11,"text":"Every week begins with a coaching summary instead of guesswork.","textPreview":"Every week begins with a coaching summary instead of guesswork.","textChars":63,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/i9s36hcr","slide":11,"bbox":[82,116,270,534]}
-{"kind":"shape","id":"sh/bulwval8","slide":11,"bbox":[177,127,80,8]}
-{"kind":"shape","id":"sh/t47y1kre","slide":11,"bbox":[430,214,660,310]}
-{"kind":"textbox","id":"sh/9s36hcrm","slide":11,"text":"A coaching briefing, not an activity dump","textPreview":"A coaching briefing, not an activity dump","textChars":41,"textLines":1,"bbox":[466,252,520,34]}
-{"kind":"shape","id":"sh/g7adsji5","slide":11,"bbox":[466,334,9,9]}
-{"kind":"textbox","id":"sh/rmhk3q5o","slide":11,"text":"Nutrition summary","textPreview":"Nutrition summary","textChars":17,"textLines":1,"bbox":[488,328,478,23]}
-{"kind":"textbox","id":"sh/y1kre1w7","slide":11,"text":"Meals, calories and protein are grouped by day.","textPreview":"Meals, calories and protein are grouped by day.","textChars":47,"textLines":1,"bbox":[488,355,478,38]}
-{"kind":"shape","id":"sh/90je9cvi","slide":11,"bbox":[466,426,9,9]}
-{"kind":"textbox","id":"sh/gfmlkjm1","slide":11,"text":"Hydration summary","textPreview":"Hydration summary","textChars":17,"textLines":1,"bbox":[488,420,478,23]}
-{"kind":"textbox","id":"sh/rytsvu9k","slide":11,"text":"Water logs become one coaching signal.","textPreview":"Water logs become one coaching signal.","textChars":38,"textLines":1,"bbox":[488,447,478,38]}
-{"kind":"shape","id":"sh/yd0z6103","slide":11,"bbox":[466,518,9,9]}
-{"kind":"textbox","id":"sh/9cvixcze","slide":11,"text":"Coach Zoe interventions","textPreview":"Coach Zoe interventions","textChars":23,"textLines":1,"bbox":[488,512,478,23]}
-{"kind":"textbox","id":"sh/gr2p8nqx","slide":11,"text":"The trainer sees when Zoe supported the client.","textPreview":"The trainer sees when Zoe supported the client.","textChars":47,"textLines":1,"bbox":[488,539,478,38]}
-{"kind":"image","id":"im/h0fepkzu","slide":11,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[92,128,250,510]}
-{"kind":"notes","id":"nt/mhzo49","slide":11,"text":""}
-{"kind":"slide","id":"sl/7yxoyj","slide":12,"title":"Premium members receive a coaching experience worth paying for.","textShapes":8}
-{"kind":"shape","id":"sh/sneloj2t","slide":12,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/32lszqtc","slide":12,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/ahoza1gv","slide":12,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/lkjm1cfa","slide":12,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/szqtcj6t","slide":12,"text":"Premium members receive a coaching experience worth paying for.","textPreview":"Premium members receive a coaching experience worth paying for.","textChars":63,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/3ex0nuxc","slide":12,"bbox":[68,108,256,544]}
-{"kind":"shape","id":"sh/at47y1kr","slide":12,"bbox":[158.24,119,75.52,8]}
-{"kind":"shape","id":"sh/w3m94fu1","slide":12,"bbox":[348,108,256,544]}
-{"kind":"shape","id":"sh/udg7adsj","slide":12,"bbox":[438.24,119,75.52,8]}
-{"kind":"shape","id":"sh/cj6tovah","slide":12,"bbox":[676,214,420,300]}
-{"kind":"textbox","id":"sh/54zidony","slide":12,"text":"Why this matters commercially","textPreview":"Why this matters commercially","textChars":29,"textLines":1,"bbox":[712,250,330,32]}
-{"kind":"shape","id":"sh/upwb2hwf","slide":12,"bbox":[712,328,9,9]}
-{"kind":"textbox","id":"sh/nap4r65w","slide":12,"text":"Higher perceived value","textPreview":"Higher perceived value","textChars":22,"textLines":1,"bbox":[734,322,288,23]}
-{"kind":"textbox","id":"sh/cvixczed","slide":12,"text":"Body scans turn Athlete Mode into a premium coaching product.","textPreview":"Body scans turn Athlete Mode into a premium coaching product.","textChars":61,"textLines":1,"bbox":[734,349,288,38]}
-{"kind":"shape","id":"sh/5gbq1ory","slide":12,"bbox":[712,420,9,9]}
-{"kind":"textbox","id":"sh/u18jqh0f","slide":12,"text":"Better reviews","textPreview":"Better reviews","textChars":14,"textLines":1,"bbox":[734,414,288,23]}
-{"kind":"textbox","id":"sh/jm1cfa9w","slide":12,"text":"Trainer can discuss body fat, muscle and nutrition without a data dump.","textPreview":"Trainer can discuss body fat, muscle and nutrition without a data dump.","textChars":71,"textLines":1,"bbox":[734,441,288,38]}
-{"kind":"shape","id":"sh/bm58z25k","slide":12,"bbox":[712,512,9,9]}
-{"kind":"textbox","id":"sh/m1cfa9w3","slide":12,"text":"More retention hooks","textPreview":"More retention hooks","textChars":20,"textLines":1,"bbox":[734,506,288,23]}
-{"kind":"textbox","id":"sh/tsvu9kni","slide":12,"text":"Progress beyond the scale gives clients a reason to continue.","textPreview":"Progress beyond the scale gives clients a reason to continue.","textChars":61,"textLines":1,"bbox":[734,533,288,38]}
-{"kind":"image","id":"im/cfa9w3m9","slide":12,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[78,120,236,520]}
-{"kind":"image","id":"im/87ed8bat","slide":12,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[358,120,236,520]}
-{"kind":"notes","id":"nt/7yxoyj","slide":12,"text":""}
-{"kind":"slide","id":"sl/9kr2d6","slide":13,"title":"Progress beyond the scale gives clients a reason to stay.","textShapes":8}
-{"kind":"shape","id":"sh/4fu18jqh","slide":13,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/fu18jqh0","slide":13,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/m94fu18j","slide":13,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/xobm58z2","slide":13,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/83itgfml","slide":13,"text":"Progress beyond the scale gives clients a reason to stay.","textPreview":"Progress beyond the scale gives clients a reason to stay.","textChars":57,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/fil0rqd4","slide":13,"bbox":[82,104,280,554]}
-{"kind":"shape","id":"sh/qxs72x4n","slide":13,"bbox":[180.4,115,83.2,8]}
-{"kind":"shape","id":"sh/4zidonyd","slide":13,"bbox":[456,188,620,360]}
-{"kind":"textbox","id":"sh/mhk3q5o7","slide":13,"text":"What the coach can review","textPreview":"What the coach can review","textChars":25,"textLines":1,"bbox":[496,226,420,32]}
-{"kind":"shape","id":"sh/b2hwfyxo","slide":13,"bbox":[498,318,9,9]}
-{"kind":"textbox","id":"sh/4nap4r65","slide":13,"text":"Current vs previous","textPreview":"Current vs previous","textChars":19,"textLines":1,"bbox":[520,312,428,23]}
-{"kind":"textbox","id":"sh/t83itgfm","slide":13,"text":"Weight, body fat, muscle and score changes are easy to compare.","textPreview":"Weight, body fat, muscle and score changes are easy to compare.","textChars":63,"textLines":1,"bbox":[520,339,428,38]}
-{"kind":"shape","id":"sh/m58z25kb","slide":13,"bbox":[498,418,9,9]}
-{"kind":"textbox","id":"sh/bq1oryts","slide":13,"text":"Source evidence","textPreview":"Source evidence","textChars":15,"textLines":1,"bbox":[520,412,428,23]}
-{"kind":"textbox","id":"sh/4byhgn29","slide":13,"text":"The scan photo stays attached so reviews feel credible.","textPreview":"The scan photo stays attached so reviews feel credible.","textChars":55,"textLines":1,"bbox":[520,439,428,38]}
-{"kind":"shape","id":"sh/twra5gbq","slide":13,"bbox":[498,518,9,9]}
-{"kind":"textbox","id":"sh/m1cfa9w3","slide":13,"text":"Nutrition update","textPreview":"Nutrition update","textChars":16,"textLines":1,"bbox":[520,512,428,23]}
-{"kind":"textbox","id":"sh/bm58z25k","slide":13,"text":"Athlete targets can use confirmed scan data without changing normal members.","textPreview":"Athlete targets can use confirmed scan data without changing normal members.","textChars":76,"textLines":1,"bbox":[520,539,428,38]}
-{"kind":"image","id":"im/87ed8bat","slide":13,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[92,116,260,530]}
-{"kind":"notes","id":"nt/9kr2d6","slide":13,"text":""}
-{"kind":"slide","id":"sl/7jazfo","slide":14,"title":"Owners see the business levers that deserve attention.","textShapes":3}
-{"kind":"shape","id":"sh/p0bi9s36","slide":14,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/i9s36hcr","slide":14,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/bulwval8","slide":14,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/032lszqt","slide":14,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/tovahoza","slide":14,"text":"Owners see the business levers that deserve attention.","textPreview":"Owners see the business levers that deserve attention.","textChars":54,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/ixczed8v","slide":14,"bbox":[78,120,258,524]}
-{"kind":"shape","id":"sh/bi9s36hc","slide":14,"bbox":[168.92,131,76.16,8]}
-{"kind":"shape","id":"sh/tcj6tova","slide":14,"bbox":[415,143,480,480]}
-{"kind":"shape","id":"sh/obm58z25","slide":14,"bbox":[936,224,230,300]}
-{"kind":"textbox","id":"sh/zqtcj6to","slide":14,"text":"CEO view","textPreview":"CEO view","textChars":8,"textLines":1,"bbox":[966,260,180,28]}
-{"kind":"textbox","id":"sh/65wjudg7","slide":14,"text":"Revenue opportunities. Retention watchlist. Trainer performance. Members needing attention. Growth opportunities.","textPreview":"Revenue opportunities. Retention watchlist. Trainer performance. Members needing attention. Growth opportunities.","textChars":113,"textLines":1,"bbox":[966,314,160,150]}
-{"kind":"image","id":"im/p0bi9s36","slide":14,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[88,132,238,500]}
-{"kind":"image","id":"im/itgfmlkj","slide":14,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[420,148,470,470]}
-{"kind":"notes","id":"nt/7jazfo","slide":14,"text":""}
-{"kind":"slide","id":"sl/vdsr9v","slide":15,"title":"The owner dashboard should drive action, not report trivia.","textShapes":12}
-{"kind":"shape","id":"sh/6xkf6dcb","slide":15,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/hk3q5o7q","slide":15,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/oza1gvy9","slide":15,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/zqtcj6to","slide":15,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/65wjudg7","slide":15,"text":"The owner dashboard should drive action, not report trivia.","textPreview":"The owner dashboard should drive action, not report trivia.","textChars":59,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/hwfyxobm","slide":15,"bbox":[72,106,255,542]}
-{"kind":"shape","id":"sh/obm58z25","slide":15,"bbox":[161.9,117,75.2,8]}
-{"kind":"shape","id":"sh/a9w3m94f","slide":15,"bbox":[398,178,760,402]}
-{"kind":"textbox","id":"sh/8bat47y1","slide":15,"text":"Trainer Engagement","textPreview":"Trainer Engagement","textChars":18,"textLines":1,"bbox":[436,218,350,34]}
-{"kind":"shape","id":"sh/1w7mp0bi","slide":15,"bbox":[438,292,210,136]}
-{"kind":"textbox","id":"sh/q5o7qpg3","slide":15,"text":"CLIENTS CONTACTED","textPreview":"CLIENTS CONTACTED","textChars":17,"textLines":1,"bbox":[462,315,162,18]}
-{"kind":"textbox","id":"sh/jqh0fepk","slide":15,"text":"24","textPreview":"24","textChars":2,"textLines":1,"bbox":[462,347,162,34]}
-{"kind":"textbox","id":"sh/8nqxs72x","slide":15,"text":"This week","textPreview":"This week","textChars":9,"textLines":1,"bbox":[462,388,162,22]}
-{"kind":"shape","id":"sh/18jqh0fe","slide":15,"bbox":[678,292,210,136]}
-{"kind":"textbox","id":"sh/qh0fepkz","slide":15,"text":"WEEKLY REVIEWS","textPreview":"WEEKLY REVIEWS","textChars":14,"textLines":1,"bbox":[702,315,162,18]}
-{"kind":"textbox","id":"sh/j2t83itg","slide":15,"text":"9","textPreview":"9","textChars":1,"textLines":1,"bbox":[702,347,162,34]}
-{"kind":"textbox","id":"sh/crmhk3q5","slide":15,"text":"Completed","textPreview":"Completed","textChars":9,"textLines":1,"bbox":[702,388,162,22]}
-{"kind":"shape","id":"sh/1cfa9w3m","slide":15,"bbox":[918,292,210,136]}
-{"kind":"textbox","id":"sh/5wjudg7a","slide":15,"text":"FOLLOW-UPS","textPreview":"FOLLOW-UPS","textChars":10,"textLines":1,"bbox":[942,315,162,18]}
-{"kind":"textbox","id":"sh/gbq1oryt","slide":15,"text":"7","textPreview":"7","textChars":1,"textLines":1,"bbox":[942,347,162,34]}
-{"kind":"textbox","id":"sh/nuxc3ylc","slide":15,"text":"Outstanding","textPreview":"Outstanding","textChars":11,"textLines":1,"bbox":[942,388,162,22]}
-{"kind":"textbox","id":"sh/y90je9cv","slide":15,"text":"Owners care about whether trainers are creating accountability, not internal system metrics.","textPreview":"Owners care about whether trainers are creating accountability, not internal system metrics.","textChars":92,"textLines":1,"bbox":[440,472,630,46]}
-{"kind":"image","id":"im/q5o7qpg3","slide":15,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[82,118,235,518]}
-{"kind":"notes","id":"nt/vdsr9v","slide":15,"text":""}
-{"kind":"slide","id":"sl/j9qwif","slide":16,"title":"A pilot should prove usage, not promise miracles.","textShapes":14}
-{"kind":"shape","id":"sh/wb2hwfyx","slide":16,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/3q5o7qpg","slide":16,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/e9cvixcz","slide":16,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/loj2t83i","slide":16,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/w3m94fu1","slide":16,"text":"A pilot should prove usage, not promise miracles.","textPreview":"A pilot should prove usage, not promise miracles.","textChars":49,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/3itgfmlk","slide":16,"bbox":[78,230,246,200]}
-{"kind":"textbox","id":"sh/ex0nuxc3","slide":16,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[102,258,60,50]}
-{"kind":"textbox","id":"sh/lkjm1cfa","slide":16,"text":"1-2 clubs","textPreview":"1-2 clubs","textChars":9,"textLines":1,"bbox":[102,334,190,26]}
-{"kind":"textbox","id":"sh/szqtcj6t","slide":16,"text":"Controlled","textPreview":"Controlled","textChars":10,"textLines":1,"bbox":[102,374,180,28]}
-{"kind":"shape","id":"sh/il0rqd4v","slide":16,"bbox":[370,230,246,200]}
-{"kind":"textbox","id":"sh/b6xkf6dc","slide":16,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[394,258,60,50]}
-{"kind":"textbox","id":"sh/0rqd4vmt","slide":16,"text":"Selected trainers","textPreview":"Selected trainers","textChars":17,"textLines":1,"bbox":[394,334,190,26]}
-{"kind":"textbox","id":"sh/tcj6tova","slide":16,"text":"Coaching buy-in","textPreview":"Coaching buy-in","textChars":15,"textLines":1,"bbox":[394,374,180,28]}
-{"kind":"shape","id":"sh/idonyd0z","slide":16,"bbox":[662,230,246,200]}
-{"kind":"textbox","id":"sh/byhgn29g","slide":16,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[686,258,60,50]}
-{"kind":"textbox","id":"sh/0je9cvix","slide":16,"text":"Selected members","textPreview":"Selected members","textChars":16,"textLines":1,"bbox":[686,334,190,26]}
-{"kind":"textbox","id":"sh/t47y1kre","slide":16,"text":"Real usage","textPreview":"Real usage","textChars":10,"textLines":1,"bbox":[686,374,180,28]}
-{"kind":"shape","id":"sh/i9s36hcr","slide":16,"bbox":[954,230,246,200]}
-{"kind":"textbox","id":"sh/bulwval8","slide":16,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[978,258,60,50]}
-{"kind":"textbox","id":"sh/3itgfmlk","slide":16,"text":"60-90 days","textPreview":"60-90 days","textChars":10,"textLines":1,"bbox":[978,334,190,26]}
-{"kind":"textbox","id":"sh/ex0nuxc3","slide":16,"text":"Enough signal","textPreview":"Enough signal","textChars":13,"textLines":1,"bbox":[978,374,180,28]}
-{"kind":"shape","id":"sh/loj2t83i","slide":16,"bbox":[160,500,960,76]}
-{"kind":"textbox","id":"sh/w3m94fu1","slide":16,"text":"Measure usage. Trainer action. Member feedback.","textPreview":"Measure usage. Trainer action. Member feedback.","textChars":47,"textLines":1,"bbox":[190,524,900,30]}
-{"kind":"notes","id":"nt/j9qwif","slide":16,"text":""}
-{"kind":"slide","id":"sl/9caajz","slide":17,"title":"Ascend doesn't replace coaching. It extends coaching.","textShapes":11}
-{"kind":"shape","id":"sh/cbulwval","slide":17,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/nqxs72x4","slide":17,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/u54zidon","slide":17,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/5kb6xkf6","slide":17,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/czed8v6p","slide":17,"text":"Ascend doesn't replace coaching. It extends coaching.","textPreview":"Ascend doesn't replace coaching. It extends coaching.","textChars":53,"textLines":1,"bbox":[68,56,980,94]}
-{"kind":"shape","id":"sh/neloj2t8","slide":17,"bbox":[86,184,500,292]}
-{"kind":"textbox","id":"sh/ytsvu9kn","slide":17,"text":"Trainer","textPreview":"Trainer","textChars":7,"textLines":1,"bbox":[132,226,260,42]}
-{"kind":"textbox","id":"sh/58z25kb6","slide":17,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[134,278,160,100]}
-{"kind":"textbox","id":"sh/gn29gr2p","slide":17,"text":"hour","textPreview":"hour","textChars":4,"textLines":1,"bbox":[292,314,180,50]}
-{"kind":"textbox","id":"sh/u54zidon","slide":17,"text":"per week","textPreview":"per week","textChars":8,"textLines":1,"bbox":[138,398,260,28]}
-{"kind":"shape","id":"sh/nqxs72x4","slide":17,"bbox":[690,184,500,292]}
-{"kind":"textbox","id":"sh/cbulwval","slide":17,"text":"Ascend","textPreview":"Ascend","textChars":6,"textLines":1,"bbox":[736,226,260,42]}
-{"kind":"textbox","id":"sh/5sneloj2","slide":17,"text":"166","textPreview":"166","textChars":3,"textLines":1,"bbox":[738,278,240,100]}
-{"kind":"textbox","id":"sh/ytsvu9kn","slide":17,"text":"hours","textPreview":"hours","textChars":5,"textLines":1,"bbox":[986,314,170,50]}
-{"kind":"textbox","id":"sh/neloj2t8","slide":17,"text":"per week","textPreview":"per week","textChars":8,"textLines":1,"bbox":[742,398,260,28]}
-{"kind":"textbox","id":"sh/czed8v6p","slide":17,"text":"Members stay accountable. Trainers stay informed. Owners stay in control.","textPreview":"Members stay accountable. Trainers stay informed. Owners stay in control.","textChars":73,"textLines":1,"bbox":[132,534,1010,36]}
-{"kind":"textbox","id":"sh/5kb6xkf6","slide":17,"text":"The gym session starts results. Consistency finishes them.","textPreview":"The gym session starts results. Consistency finishes them.","textChars":58,"textLines":1,"bbox":[190,596,900,28]}
-{"kind":"notes","id":"nt/9caajz","slide":17,"text":""}
-{"kind":"slide","id":"sl/ill104","slide":18,"title":"ASCEND","textShapes":6}
-{"kind":"shape","id":"sh/cfa9w3m9","slide":18,"bbox":[0,0,1280,720]}
-{"kind":"shape","id":"sh/judg7ads","slide":18,"bbox":[0,586,1280,134]}
-{"kind":"shape","id":"sh/u9knih4b","slide":18,"bbox":[990,0,290,720]}
-{"kind":"shape","id":"sh/1orytsvu","slide":18,"bbox":[944,112,260,260]}
-{"kind":"textbox","id":"sh/jm1cfa9w","slide":18,"text":"ASCEND","textPreview":"ASCEND","textChars":6,"textLines":1,"bbox":[128,52,220,30]}
-{"kind":"textbox","id":"sh/u18jqh0f","slide":18,"text":"Let's show the live product.","textPreview":"Let's show the live product.","textChars":28,"textLines":1,"bbox":[78,170,640,94]}
-{"kind":"textbox","id":"sh/5gbq1ory","slide":18,"text":"A short walkthrough can show how Ascend supports members, trainers and club operations without replacing the coaching model already inside the gym.","textPreview":"A short walkthrough can show how Ascend supports members, trainers and club operations without replacing the coaching model already insid...","textChars":147,"textLines":1,"bbox":[82,304,620,76]}
-{"kind":"shape","id":"sh/cvixczed","slide":18,"bbox":[84,430,260,34]}
-{"kind":"textbox","id":"sh/m1cfa9w3","slide":18,"text":"www.getascend.fit","textPreview":"www.getascend.fit","textChars":17,"textLines":1,"bbox":[84,437,260,18]}
-{"kind":"textbox","id":"sh/bm58z25k","slide":18,"text":"Fariz Anwar","textPreview":"Fariz Anwar","textChars":11,"textLines":1,"bbox":[84,532,280,30]}
-{"kind":"textbox","id":"sh/47y1kre1","slide":18,"text":"Founder / Ascend","textPreview":"Founder / Ascend","textChars":16,"textLines":1,"bbox":[84,568,280,24]}
-{"kind":"shape","id":"sh/tsvu9kni","slide":18,"bbox":[784,92,204,524]}
-{"kind":"shape","id":"sh/mp0bi9s3","slide":18,"bbox":[856.56,103,58.88,8]}
-{"kind":"shape","id":"sh/4vmtwra5","slide":18,"bbox":[980,112,190,484]}
-{"kind":"shape","id":"sh/tgfmlkjm","slide":18,"bbox":[1047.8,123,54.4,8]}
-{"kind":"image","id":"im/1032lszq","slide":18,"name":"","alt":"Ascend logo","bbox":[70,46,48,48]}
-{"kind":"image","id":"im/0rqd4vmt","slide":18,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[794,104,184,500]}
-{"kind":"image","id":"im/tovahoza","slide":18,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[990,124,170,460]}
-{"kind":"notes","id":"nt/ill104","slide":18,"text":""}
+{"kind":"deck","id":"pr/by882e","name":"Deck"}
+{"kind":"layout","layoutId":"bba2e686-d055-4ad2-879b-86467155bb8e","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"4bd6a200-a1ed-4263-8479-e6f5c06596cb","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/8h27ml","slide":1,"title":"ASCEND","textShapes":4}
+{"kind":"shape","id":"sh/0z61032l","slide":1,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/7ed8bat4","slide":1,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/itgfmlkj","slide":1,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/p8nqxs72","slide":1,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/72x4nap4","slide":1,"text":"ASCEND","textPreview":"ASCEND","textChars":6,"textLines":1,"bbox":[128,52,220,30]}
+{"kind":"textbox","id":"sh/ih4byhgn","slide":1,"text":"Your trainers coach members for one hour each week.","textPreview":"Your trainers coach members for one hour each week.","textChars":51,"textLines":1,"bbox":[72,150,650,126]}
+{"kind":"textbox","id":"sh/p4r65wju","slide":1,"text":"Ascend coaches them during the other 166 hours.","textPreview":"Ascend coaches them during the other 166 hours.","textChars":47,"textLines":1,"bbox":[76,304,620,72]}
+{"kind":"shape","id":"sh/wjudg7ad","slide":1,"bbox":[78,430,360,34]}
+{"kind":"textbox","id":"sh/6tovahoz","slide":1,"text":"The operating system for fitness accountability","textPreview":"The operating system for fitness accountability","textChars":47,"textLines":1,"bbox":[78,437,360,18]}
+{"kind":"shape","id":"sh/vahoza1g","slide":1,"bbox":[732,92,204,544]}
+{"kind":"shape","id":"sh/ovahoza1","slide":1,"bbox":[804.56,103,58.88,8]}
+{"kind":"shape","id":"sh/6hcrmhk3","slide":1,"bbox":[920,66,204,544]}
+{"kind":"shape","id":"sh/z25kb6xk","slide":1,"bbox":[992.56,77,58.88,8]}
+{"kind":"shape","id":"sh/d8v6psfi","slide":1,"bbox":[1104,108,174,484]}
+{"kind":"shape","id":"sh/6dcbulwv","slide":1,"bbox":[1166.36,119,49.28,8]}
+{"kind":"image","id":"im/dsji5sne","slide":1,"name":"","alt":"Ascend logo","bbox":[70,46,48,48]}
+{"kind":"image","id":"im/u9knih4b","slide":1,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[742,104,184,520]}
+{"kind":"image","id":"im/jm1cfa9w","slide":1,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[930,78,184,520]}
+{"kind":"image","id":"im/cvixczed","slide":1,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[1114,120,154,460]}
+{"kind":"notes","id":"nt/8h27ml","slide":1,"text":""}
+{"kind":"slide","id":"sl/q2wv28","slide":2,"title":"The week breaks after the session.","textShapes":9}
+{"kind":"shape","id":"sh/mhk3q5o7","slide":2,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/t83itgfm","slide":2,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/4nap4r65","slide":2,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/bq1oryts","slide":2,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/m58z25kb","slide":2,"text":"The week breaks after the session.","textPreview":"The week breaks after the session.","textChars":34,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/twra5gbq","slide":2,"bbox":[76,220,520,220]}
+{"kind":"textbox","id":"sh/4byhgn29","slide":2,"text":"Results are built during the other 166 hours of the week.","textPreview":"Results are built during the other 166 hours of the week.","textChars":57,"textLines":1,"bbox":[110,260,452,130]}
+{"kind":"shape","id":"sh/bm58z25k","slide":2,"bbox":[110,384,178,34]}
+{"kind":"textbox","id":"sh/m1cfa9w3","slide":2,"text":"THE 166-HOUR GAP","textPreview":"THE 166-HOUR GAP","textChars":16,"textLines":1,"bbox":[110,391,178,18]}
+{"kind":"shape","id":"sh/cfa9w3m9","slide":2,"bbox":[670,256,9,9]}
+{"kind":"textbox","id":"sh/1032lszq","slide":2,"text":"Members drift","textPreview":"Members drift","textChars":13,"textLines":1,"bbox":[692,250,408,23]}
+{"kind":"textbox","id":"sh/u9knih4b","slide":2,"text":"Habits happen away from the club.","textPreview":"Habits happen away from the club.","textChars":33,"textLines":1,"bbox":[692,277,408,38]}
+{"kind":"shape","id":"sh/judg7ads","slide":2,"bbox":[670,356,9,9]}
+{"kind":"textbox","id":"sh/c7u54zid","slide":2,"text":"Trainers guess","textPreview":"Trainers guess","textChars":14,"textLines":1,"bbox":[692,350,408,23]}
+{"kind":"textbox","id":"sh/1orytsvu","slide":2,"text":"Signals arrive too late.","textPreview":"Signals arrive too late.","textChars":24,"textLines":1,"bbox":[692,377,408,38]}
+{"kind":"shape","id":"sh/u18jqh0f","slide":2,"bbox":[670,456,9,9]}
+{"kind":"textbox","id":"sh/jm1cfa9w","slide":2,"text":"Owners react","textPreview":"Owners react","textChars":12,"textLines":1,"bbox":[692,450,408,23]}
+{"kind":"textbox","id":"sh/cvixczed","slide":2,"text":"Retention risk stays hidden.","textPreview":"Retention risk stays hidden.","textChars":28,"textLines":1,"bbox":[692,477,408,38]}
+{"kind":"notes","id":"nt/q2wv28","slide":2,"text":""}
+{"kind":"slide","id":"sl/05lmql","slide":3,"title":"How Ascend closes the 166-hour gap.","textShapes":18}
+{"kind":"shape","id":"sh/lwval87e","slide":3,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/e9cvixcz","slide":3,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/3q5o7qpg","slide":3,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/w3m94fu1","slide":3,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/loj2t83i","slide":3,"text":"How Ascend closes the 166-hour gap.","textPreview":"How Ascend closes the 166-hour gap.","textChars":35,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/ex0nuxc3","slide":3,"bbox":[90,174,440,420]}
+{"kind":"textbox","id":"sh/3itgfmlk","slide":3,"text":"Traditional coaching","textPreview":"Traditional coaching","textChars":20,"textLines":1,"bbox":[130,214,300,32]}
+{"kind":"shape","id":"sh/szqtcj6t","slide":3,"bbox":[178,286,260,58]}
+{"kind":"textbox","id":"sh/lkjm1cfa","slide":3,"text":"PT Session","textPreview":"PT Session","textChars":10,"textLines":1,"bbox":[178,303,260,22]}
+{"kind":"textbox","id":"sh/hcrmhk3q","slide":3,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[290,350,36,34]}
+{"kind":"shape","id":"sh/orytsvu9","slide":3,"bbox":[178,402,260,58]}
+{"kind":"textbox","id":"sh/z61032ls","slide":3,"text":"7 days with little visibility","textPreview":"7 days with little visibility","textChars":29,"textLines":1,"bbox":[178,419,260,22]}
+{"kind":"textbox","id":"sh/al87ed8b","slide":3,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[290,466,36,34]}
+{"kind":"shape","id":"sh/h0fepkzu","slide":3,"bbox":[178,518,260,58]}
+{"kind":"textbox","id":"sh/sfil0rqd","slide":3,"text":"Next PT Session","textPreview":"Next PT Session","textChars":15,"textLines":1,"bbox":[178,535,260,22]}
+{"kind":"textbox","id":"sh/zupwb2hw","slide":3,"text":"The coach finds out after the week has already happened.","textPreview":"The coach finds out after the week has already happened.","textChars":56,"textLines":1,"bbox":[132,622,330,32]}
+{"kind":"shape","id":"sh/a9w3m94f","slide":3,"bbox":[612,174,520,420]}
+{"kind":"textbox","id":"sh/hwfyxobm","slide":3,"text":"Ascend coaching","textPreview":"Ascend coaching","textChars":15,"textLines":1,"bbox":[652,214,300,32]}
+{"kind":"shape","id":"sh/obm58z25","slide":3,"bbox":[660,274,180,58]}
+{"kind":"textbox","id":"sh/knih4byh","slide":3,"text":"PT Session","textPreview":"PT Session","textChars":10,"textLines":1,"bbox":[660,291,180,22]}
+{"kind":"shape","id":"sh/d8bat47y","slide":3,"bbox":[882,274,180,58]}
+{"kind":"textbox","id":"sh/2lszqtcj","slide":3,"text":"Coach Zoe","textPreview":"Coach Zoe","textChars":9,"textLines":1,"bbox":[882,291,180,22]}
+{"kind":"shape","id":"sh/v6psfil0","slide":3,"bbox":[660,350,180,58]}
+{"kind":"textbox","id":"sh/kf6dcbul","slide":3,"text":"Food Logging","textPreview":"Food Logging","textChars":12,"textLines":1,"bbox":[660,367,180,22]}
+{"kind":"shape","id":"sh/d0z61032","slide":3,"bbox":[882,350,180,58]}
+{"kind":"textbox","id":"sh/29gr2p8n","slide":3,"text":"Workout Guidance","textPreview":"Workout Guidance","textChars":16,"textLines":1,"bbox":[882,367,180,22]}
+{"kind":"shape","id":"sh/vu9knih4","slide":3,"bbox":[660,426,180,58]}
+{"kind":"textbox","id":"sh/k3q5o7qp","slide":3,"text":"Hydration","textPreview":"Hydration","textChars":9,"textLines":1,"bbox":[660,443,180,22]}
+{"kind":"shape","id":"sh/donyd0z6","slide":3,"bbox":[882,426,180,58]}
+{"kind":"textbox","id":"sh/3itgfmlk","slide":3,"text":"Progress Tracking","textPreview":"Progress Tracking","textChars":17,"textLines":1,"bbox":[882,443,180,22]}
+{"kind":"shape","id":"sh/ex0nuxc3","slide":3,"bbox":[660,502,180,58]}
+{"kind":"textbox","id":"sh/loj2t83i","slide":3,"text":"Trainer Visibility","textPreview":"Trainer Visibility","textChars":18,"textLines":1,"bbox":[660,519,180,22]}
+{"kind":"shape","id":"sh/w3m94fu1","slide":3,"bbox":[882,502,180,58]}
+{"kind":"textbox","id":"sh/3q5o7qpg","slide":3,"text":"Next PT Session","textPreview":"Next PT Session","textChars":15,"textLines":1,"bbox":[882,519,180,22]}
+{"kind":"textbox","id":"sh/e9cvixcz","slide":3,"text":"Every action between sessions becomes visible to the trainer.","textPreview":"Every action between sessions becomes visible to the trainer.","textChars":61,"textLines":1,"bbox":[658,622,420,30]}
+{"kind":"notes","id":"nt/05lmql","slide":3,"text":""}
+{"kind":"slide","id":"sl/9ezuws","slide":4,"title":"Why AI?","textShapes":12}
+{"kind":"shape","id":"sh/p4r65wju","slide":4,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/ed8v6psf","slide":4,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/7y1kre1w","slide":4,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/0bi9s36h","slide":4,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/pwb2hwfy","slide":4,"text":"Why AI?","textPreview":"Why AI?","textChars":7,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/i5sneloj","slide":4,"bbox":[84,172,470,394]}
+{"kind":"textbox","id":"sh/7qpg3ex0","slide":4,"text":"Without Ascend","textPreview":"Without Ascend","textChars":14,"textLines":1,"bbox":[128,220,310,34]}
+{"kind":"textbox","id":"sh/0z61032l","slide":4,"text":"Trainer manages 40 clients","textPreview":"Trainer manages 40 clients","textChars":26,"textLines":1,"bbox":[130,296,330,36]}
+{"kind":"textbox","id":"sh/pkzupwb2","slide":4,"text":"Meals\nWorkouts\nHydration\nHabits\nProgress\nMotivation","textPreview":"Meals | Workouts | Hydration | Habits | Progress | Motivation","textChars":51,"textLines":6,"bbox":[136,360,260,150]}
+{"kind":"textbox","id":"sh/5sneloj2","slide":4,"text":"Important signals are missed.","textPreview":"Important signals are missed.","textChars":29,"textLines":1,"bbox":[130,520,340,28]}
+{"kind":"shape","id":"sh/cbulwval","slide":4,"bbox":[682,172,470,394]}
+{"kind":"textbox","id":"sh/nqxs72x4","slide":4,"text":"With Ascend","textPreview":"With Ascend","textChars":11,"textLines":1,"bbox":[726,220,310,34]}
+{"kind":"shape","id":"sh/u54zidon","slide":4,"bbox":[760,294,300,58]}
+{"kind":"textbox","id":"sh/5kb6xkf6","slide":4,"text":"AI observes","textPreview":"AI observes","textChars":11,"textLines":1,"bbox":[760,311,300,22]}
+{"kind":"textbox","id":"sh/czed8v6p","slide":4,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[892,354,36,34]}
+{"kind":"shape","id":"sh/neloj2t8","slide":4,"bbox":[760,402,300,58]}
+{"kind":"textbox","id":"sh/ytsvu9kn","slide":4,"text":"AI summarizes","textPreview":"AI summarizes","textChars":13,"textLines":1,"bbox":[760,419,300,22]}
+{"kind":"textbox","id":"sh/58z25kb6","slide":4,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[892,462,36,34]}
+{"kind":"shape","id":"sh/gn29gr2p","slide":4,"bbox":[760,510,300,58]}
+{"kind":"textbox","id":"sh/cvixczed","slide":4,"text":"Trainer coaches","textPreview":"Trainer coaches","textChars":15,"textLines":1,"bbox":[760,527,300,22]}
+{"kind":"textbox","id":"sh/5gbq1ory","slide":4,"text":"AI replaces admin. Not coaching.","textPreview":"AI replaces admin. Not coaching.","textChars":32,"textLines":1,"bbox":[334,622,600,42]}
+{"kind":"notes","id":"nt/9ezuws","slide":4,"text":""}
+{"kind":"slide","id":"sl/bsh526","slide":5,"title":"Ascend connects the three stakeholders that drive results.","textShapes":5}
+{"kind":"shape","id":"sh/qd4vmtwr","slide":5,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/x4nap4r6","slide":5,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/8jqh0fep","slide":5,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/fa9w3m94","slide":5,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/qpg3ex0n","slide":5,"text":"Ascend connects the three stakeholders that drive results.","textPreview":"Ascend connects the three stakeholders that drive results.","textChars":58,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"textbox","id":"sh/xczed8v6","slide":5,"text":"Client action creates trainer visibility. Trainer visibility creates owner confidence.","textPreview":"Client action creates trainer visibility. Trainer visibility creates owner confidence.","textChars":86,"textLines":1,"bbox":[70,143,850,52]}
+{"kind":"shape","id":"sh/8v6psfil","slide":5,"bbox":[84,190,232,454]}
+{"kind":"shape","id":"sh/je9cvixc","slide":5,"bbox":[166.08,201,67.84,8]}
+{"kind":"shape","id":"sh/svu9knih","slide":5,"bbox":[514,190,232,454]}
+{"kind":"shape","id":"sh/hgn29gr2","slide":5,"bbox":[596.08,201,67.84,8]}
+{"kind":"shape","id":"sh/za1gvy90","slide":5,"bbox":[940,190,232,454]}
+{"kind":"shape","id":"sh/s36hcrmh","slide":5,"bbox":[1022.08,201,67.84,8]}
+{"kind":"textbox","id":"sh/a1gvy90j","slide":5,"text":"CLIENT","textPreview":"CLIENT","textChars":6,"textLines":1,"bbox":[126,648,150,22]}
+{"kind":"textbox","id":"sh/zidonyd0","slide":5,"text":"TRAINER","textPreview":"TRAINER","textChars":7,"textLines":1,"bbox":[558,648,150,22]}
+{"kind":"textbox","id":"sh/s72x4nap","slide":5,"text":"OWNER","textPreview":"OWNER","textChars":5,"textLines":1,"bbox":[982,648,150,22]}
+{"kind":"shape","id":"sh/lszqtcj6","slide":5,"bbox":[360,376,80,44]}
+{"kind":"shape","id":"sh/pg3ex0nu","slide":5,"bbox":[790,376,80,44]}
+{"kind":"image","id":"im/vmtwra5g","slide":5,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[94,202,212,430]}
+{"kind":"image","id":"im/t83itgfm","slide":5,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[524,202,212,430]}
+{"kind":"image","id":"im/m58z25kb","slide":5,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[950,202,212,430]}
+{"kind":"notes","id":"nt/bsh526","slide":5,"text":""}
+{"kind":"slide","id":"sl/6ohr22","slide":6,"title":"Members know what to do today before they scroll.","textShapes":8}
+{"kind":"shape","id":"sh/9cvixcze","slide":6,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/ylc7u54z","slide":6,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/r65wjudg","slide":6,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/g3ex0nux","slide":6,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/5o7qpg3e","slide":6,"text":"Members know what to do today before they scroll.","textPreview":"Members know what to do today before they scroll.","textChars":49,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/yxobm58z","slide":6,"bbox":[76,164,250,494]}
+{"kind":"shape","id":"sh/nih4byhg","slide":6,"bbox":[164.2,175,73.6,8]}
+{"kind":"shape","id":"sh/9s36hcrm","slide":6,"bbox":[338,144,250,494]}
+{"kind":"shape","id":"sh/d8v6psfi","slide":6,"bbox":[426.2,155,73.6,8]}
+{"kind":"shape","id":"sh/z25kb6xk","slide":6,"bbox":[648,216,486,320]}
+{"kind":"textbox","id":"sh/6hcrmhk3","slide":6,"text":"What this solves","textPreview":"What this solves","textChars":16,"textLines":1,"bbox":[684,252,320,28]}
+{"kind":"shape","id":"sh/dg7adsji","slide":6,"bbox":[684,324,9,9]}
+{"kind":"textbox","id":"sh/ovahoza1","slide":6,"text":"Less overwhelm","textPreview":"Less overwhelm","textChars":14,"textLines":1,"bbox":[706,318,348,23]}
+{"kind":"textbox","id":"sh/vahoza1g","slide":6,"text":"The member sees today's task before the full feature set.","textPreview":"The member sees today's task before the full feature set.","textChars":57,"textLines":1,"bbox":[706,345,348,38]}
+{"kind":"shape","id":"sh/6tovahoz","slide":6,"bbox":[684,418,9,9]}
+{"kind":"textbox","id":"sh/dsji5sne","slide":6,"text":"More consistency","textPreview":"More consistency","textChars":16,"textLines":1,"bbox":[706,412,348,23]}
+{"kind":"textbox","id":"sh/o7qpg3ex","slide":6,"text":"Simple progress cards reinforce small daily actions.","textPreview":"Simple progress cards reinforce small daily actions.","textChars":52,"textLines":1,"bbox":[706,439,348,38]}
+{"kind":"shape","id":"sh/kjm1cfa9","slide":6,"bbox":[684,512,9,9]}
+{"kind":"textbox","id":"sh/94fu18jq","slide":6,"text":"Coach Zoe feels present","textPreview":"Coach Zoe feels present","textChars":23,"textLines":1,"bbox":[706,506,348,23]}
+{"kind":"textbox","id":"sh/2hwfyxob","slide":6,"text":"One timely insight, not a wall of AI text.","textPreview":"One timely insight, not a wall of AI text.","textChars":42,"textLines":1,"bbox":[706,533,348,38]}
+{"kind":"image","id":"im/h0fepkzu","slide":6,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[86,176,230,470]}
+{"kind":"image","id":"im/je9cvixc","slide":6,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[348,156,230,470]}
+{"kind":"notes","id":"nt/6ohr22","slide":6,"text":""}
+{"kind":"slide","id":"sl/v6lr9k","slide":7,"title":"Food logging that works in real life.","textShapes":13}
+{"kind":"shape","id":"sh/cvixczed","slide":7,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/nap4r65w","slide":7,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/upwb2hwf","slide":7,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/54zidony","slide":7,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/cj6tovah","slide":7,"text":"Food logging that works in real life.","textPreview":"Food logging that works in real life.","textChars":37,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/nyd0z610","slide":7,"bbox":[60,136,232,490]}
+{"kind":"shape","id":"sh/udg7adsj","slide":7,"bbox":[142.08,147,67.84,8]}
+{"kind":"shape","id":"sh/cfa9w3m9","slide":7,"bbox":[302,136,232,490]}
+{"kind":"shape","id":"sh/25kb6xkf","slide":7,"bbox":[384.08,147,67.84,8]}
+{"kind":"shape","id":"sh/kb6xkf6d","slide":7,"bbox":[608,168,500,424]}
+{"kind":"textbox","id":"sh/9w3m94fu","slide":7,"text":"No perfect photos. No calorie database. Just describe the meal.","textPreview":"No perfect photos. No calorie database. Just describe the meal.","textChars":63,"textLines":1,"bbox":[646,204,410,24]}
+{"kind":"textbox","id":"sh/2t83itgf","slide":7,"text":"Take Photo","textPreview":"Take Photo","textChars":10,"textLines":1,"bbox":[650,252,170,30]}
+{"kind":"textbox","id":"sh/re1w7mp0","slide":7,"text":"OR","textPreview":"OR","textChars":2,"textLines":1,"bbox":[804,254,60,28]}
+{"kind":"textbox","id":"sh/kzupwb2h","slide":7,"text":"Type what you ate","textPreview":"Type what you ate","textChars":17,"textLines":1,"bbox":[890,252,190,30]}
+{"kind":"shape","id":"sh/9knih4by","slide":7,"bbox":[660,318,390,86]}
+{"kind":"textbox","id":"sh/2p8nqxs7","slide":7,"text":"Chicken rice • Nasi lemak","textPreview":"Chicken rice • Nasi lemak","textChars":25,"textLines":1,"bbox":[684,334,340,20]}
+{"kind":"textbox","id":"sh/ra5gbq1o","slide":7,"text":"Protein shake • McChicken meal","textPreview":"Protein shake • McChicken meal","textChars":30,"textLines":1,"bbox":[684,360,340,20]}
+{"kind":"textbox","id":"sh/nyd0z610","slide":7,"text":"2 eggs and toast","textPreview":"2 eggs and toast","textChars":16,"textLines":1,"bbox":[684,384,340,18]}
+{"kind":"textbox","id":"sh/udg7adsj","slide":7,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[838,410,36,34]}
+{"kind":"shape","id":"sh/54zidony","slide":7,"bbox":[712,456,290,58]}
+{"kind":"textbox","id":"sh/cj6tovah","slide":7,"text":"AI analyses the meal","textPreview":"AI analyses the meal","textChars":20,"textLines":1,"bbox":[712,473,290,22]}
+{"kind":"textbox","id":"sh/nap4r65w","slide":7,"text":"↓","textPreview":"↓","textChars":1,"textLines":1,"bbox":[838,518,36,34]}
+{"kind":"textbox","id":"sh/upwb2hwf","slide":7,"text":"Calories  •  Protein  •  Carbs  •  Fat","textPreview":"Calories  •  Protein  •  Carbs  •  Fat","textChars":38,"textLines":1,"bbox":[654,552,420,28]}
+{"kind":"textbox","id":"sh/5gbq1ory","slide":7,"text":"Save","textPreview":"Save","textChars":4,"textLines":1,"bbox":[654,582,420,26]}
+{"kind":"image","id":"im/0fepkzup","slide":7,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[70,148,212,466]}
+{"kind":"image","id":"im/4fu18jqh","slide":7,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[312,148,212,466]}
+{"kind":"notes","id":"nt/v6lr9k","slide":7,"text":""}
+{"kind":"slide","id":"sl/00veph","slide":8,"title":"Members get a workout they can actually start.","textShapes":8}
+{"kind":"shape","id":"sh/d8v6psfi","slide":8,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/6hcrmhk3","slide":8,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/z25kb6xk","slide":8,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/ovahoza1","slide":8,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/dg7adsji","slide":8,"text":"Members get a workout they can actually start.","textPreview":"Members get a workout they can actually start.","textChars":46,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/6tovahoz","slide":8,"bbox":[60,138,234,486]}
+{"kind":"shape","id":"sh/vahoza1g","slide":8,"bbox":[142.76,149,68.48,8]}
+{"kind":"shape","id":"sh/dsji5sne","slide":8,"bbox":[294,138,234,486]}
+{"kind":"shape","id":"sh/pwb2hwfy","slide":8,"bbox":[376.76,149,68.48,8]}
+{"kind":"shape","id":"sh/7qpg3ex0","slide":8,"bbox":[528,138,234,486]}
+{"kind":"shape","id":"sh/i5sneloj","slide":8,"bbox":[610.76,149,68.48,8]}
+{"kind":"shape","id":"sh/wjudg7ad","slide":8,"bbox":[822,190,320,386]}
+{"kind":"textbox","id":"sh/7y1kre1w","slide":8,"text":"Fast enough for real life","textPreview":"Fast enough for real life","textChars":25,"textLines":1,"bbox":[856,258,230,66]}
+{"kind":"shape","id":"sh/ed8v6psf","slide":8,"bbox":[856,356,9,9]}
+{"kind":"textbox","id":"sh/p8nqxs72","slide":8,"text":"Goal","textPreview":"Goal","textChars":4,"textLines":1,"bbox":[878,350,208,23]}
+{"kind":"textbox","id":"sh/0nuxc3yl","slide":8,"text":"Fat loss, strength, recovery or mobility.","textPreview":"Fat loss, strength, recovery or mobility.","textChars":41,"textLines":1,"bbox":[878,377,208,38]}
+{"kind":"shape","id":"sh/wval87ed","slide":8,"bbox":[856,440,9,9]}
+{"kind":"textbox","id":"sh/pg3ex0nu","slide":8,"text":"Time","textPreview":"Time","textChars":4,"textLines":1,"bbox":[878,434,208,23]}
+{"kind":"textbox","id":"sh/epkzupwb","slide":8,"text":"20, 30, 45 or 60+ minutes.","textPreview":"20, 30, 45 or 60+ minutes.","textChars":26,"textLines":1,"bbox":[878,461,208,38]}
+{"kind":"shape","id":"sh/7adsji5s","slide":8,"bbox":[856,524,9,9]}
+{"kind":"textbox","id":"sh/w7mp0bi9","slide":8,"text":"Equipment","textPreview":"Equipment","textChars":9,"textLines":1,"bbox":[878,518,208,23]}
+{"kind":"textbox","id":"sh/psfil0rq","slide":8,"text":"Gym, home, hotel or bands.","textPreview":"Gym, home, hotel or bands.","textChars":26,"textLines":1,"bbox":[878,545,208,38]}
+{"kind":"image","id":"im/xs72x4na","slide":8,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[70,150,214,462]}
+{"kind":"image","id":"im/7y1kre1w","slide":8,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[304,150,214,462]}
+{"kind":"image","id":"im/i5sneloj","slide":8,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[538,150,214,462]}
+{"kind":"notes","id":"nt/00veph","slide":8,"text":""}
+{"kind":"slide","id":"sl/jivd94","slide":9,"title":"Workout completion becomes accountability.","textShapes":8}
+{"kind":"shape","id":"sh/wjudg7ad","slide":9,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/7y1kre1w","slide":9,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/ed8v6psf","slide":9,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/pwb2hwfy","slide":9,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/0bi9s36h","slide":9,"text":"Workout completion becomes accountability.","textPreview":"Workout completion becomes accountability.","textChars":42,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/7qpg3ex0","slide":9,"bbox":[94,120,265,524]}
+{"kind":"shape","id":"sh/i5sneloj","slide":9,"bbox":[187.3,131,78.4,8]}
+{"kind":"shape","id":"sh/0z61032l","slide":9,"bbox":[380,120,265,524]}
+{"kind":"shape","id":"sh/qpg3ex0n","slide":9,"bbox":[473.3,131,78.4,8]}
+{"kind":"shape","id":"sh/8v6psfil","slide":9,"bbox":[726,194,390,420]}
+{"kind":"textbox","id":"sh/xczed8v6","slide":9,"text":"So what?","textPreview":"So what?","textChars":8,"textLines":1,"bbox":[762,254,220,36]}
+{"kind":"shape","id":"sh/qd4vmtwr","slide":9,"bbox":[762,326,9,9]}
+{"kind":"textbox","id":"sh/fyxobm58","slide":9,"text":"Members finish the plan","textPreview":"Members finish the plan","textChars":23,"textLines":1,"bbox":[784,320,268,23]}
+{"kind":"textbox","id":"sh/8jqh0fep","slide":9,"text":"A clear session beats another vague instruction.","textPreview":"A clear session beats another vague instruction.","textChars":48,"textLines":1,"bbox":[784,347,268,38]}
+{"kind":"shape","id":"sh/x4nap4r6","slide":9,"bbox":[762,424,9,9]}
+{"kind":"textbox","id":"sh/q1orytsv","slide":9,"text":"Progress is saved","textPreview":"Progress is saved","textChars":17,"textLines":1,"bbox":[784,418,268,23]}
+{"kind":"textbox","id":"sh/fmlkjm1c","slide":9,"text":"Workout history, momentum and activity update automatically.","textPreview":"Workout history, momentum and activity update automatically.","textChars":60,"textLines":1,"bbox":[784,445,268,38]}
+{"kind":"shape","id":"sh/r2p8nqxs","slide":9,"bbox":[762,522,9,9]}
+{"kind":"textbox","id":"sh/2hwfyxob","slide":9,"text":"Trainers see effort","textPreview":"Trainers see effort","textChars":19,"textLines":1,"bbox":[784,516,268,23]}
+{"kind":"textbox","id":"sh/94fu18jq","slide":9,"text":"The next conversation starts with evidence.","textPreview":"The next conversation starts with evidence.","textChars":43,"textLines":1,"bbox":[784,543,268,38]}
+{"kind":"image","id":"im/c7u54zid","slide":9,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[104,132,245,500]}
+{"kind":"image","id":"im/wfyxobm5","slide":9,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[390,132,245,500]}
+{"kind":"notes","id":"nt/jivd94","slide":9,"text":""}
+{"kind":"slide","id":"sl/wka1q5","slide":10,"title":"Trainers begin each day with a coaching plan.","textShapes":8}
+{"kind":"shape","id":"sh/s36hcrmh","slide":10,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/zidonyd0","slide":10,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/a1gvy90j","slide":10,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/hgn29gr2","slide":10,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/svu9knih","slide":10,"text":"Trainers begin each day with a coaching plan.","textPreview":"Trainers begin each day with a coaching plan.","textChars":45,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/za1gvy90","slide":10,"bbox":[86,130,252,510]}
+{"kind":"shape","id":"sh/ap4r65wj","slide":10,"bbox":[174.88,141,74.24,8]}
+{"kind":"shape","id":"sh/sji5snel","slide":10,"bbox":[366,140,252,490]}
+{"kind":"shape","id":"sh/qh0fepkz","slide":10,"bbox":[454.88,151,74.24,8]}
+{"kind":"shape","id":"sh/8nqxs72x","slide":10,"bbox":[716,200,400,358]}
+{"kind":"textbox","id":"sh/18jqh0fe","slide":10,"text":"Why trainers care","textPreview":"Why trainers care","textChars":17,"textLines":1,"bbox":[750,248,280,28]}
+{"kind":"shape","id":"sh/q5o7qpg3","slide":10,"bbox":[750,320,9,9]}
+{"kind":"textbox","id":"sh/jqh0fepk","slide":10,"text":"Faster triage","textPreview":"Faster triage","textChars":13,"textLines":1,"bbox":[772,314,278,23]}
+{"kind":"textbox","id":"sh/8bat47y1","slide":10,"text":"Premium and Athlete clients surface in one priority list.","textPreview":"Premium and Athlete clients surface in one priority list.","textChars":57,"textLines":1,"bbox":[772,341,278,38]}
+{"kind":"shape","id":"sh/1w7mp0bi","slide":10,"bbox":[750,410,9,9]}
+{"kind":"textbox","id":"sh/uxc3ylc7","slide":10,"text":"Clear next action","textPreview":"Clear next action","textChars":17,"textLines":1,"bbox":[772,404,278,23]}
+{"kind":"textbox","id":"sh/ji5snelo","slide":10,"text":"Each card suggests what the coach should do next.","textPreview":"Each card suggests what the coach should do next.","textChars":49,"textLines":1,"bbox":[772,431,278,38]}
+{"kind":"shape","id":"sh/bat47y1k","slide":10,"bbox":[750,486,9,9]}
+{"kind":"textbox","id":"sh/mp0bi9s3","slide":10,"text":"Weekly summary","textPreview":"Weekly summary","textChars":14,"textLines":1,"bbox":[772,480,278,23]}
+{"kind":"textbox","id":"sh/tgfmlkjm","slide":10,"text":"Trainers can see improving, plateaued and at-risk clients.","textPreview":"Trainers can see improving, plateaued and at-risk clients.","textChars":58,"textLines":1,"bbox":[772,507,278,38]}
+{"kind":"image","id":"im/4fu18jqh","slide":10,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[96,142,232,486]}
+{"kind":"image","id":"im/szqtcj6t","slide":10,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[376,152,232,466]}
+{"kind":"notes","id":"nt/wka1q5","slide":10,"text":""}
+{"kind":"slide","id":"sl/94u40t","slide":11,"title":"Every client check-in starts with evidence, not guesswork.","textShapes":10}
+{"kind":"shape","id":"sh/y90je9cv","slide":11,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/5wjudg7a","slide":11,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/gbq1oryt","slide":11,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/n29gr2p8","slide":11,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/yhgn29gr","slide":11,"text":"Every client check-in starts with evidence, not guesswork.","textPreview":"Every client check-in starts with evidence, not guesswork.","textChars":58,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/58z25kb6","slide":11,"bbox":[84,126,266,524]}
+{"kind":"shape","id":"sh/gn29gr2p","slide":11,"bbox":[177.64,137,78.72,8]}
+{"kind":"shape","id":"sh/ytsvu9kn","slide":11,"bbox":[378,126,266,524]}
+{"kind":"shape","id":"sh/83itgfml","slide":11,"bbox":[471.64,137,78.72,8]}
+{"kind":"shape","id":"sh/qxs72x4n","slide":11,"bbox":[710,214,260,136]}
+{"kind":"textbox","id":"sh/fil0rqd4","slide":11,"text":"MEAL EVIDENCE","textPreview":"MEAL EVIDENCE","textChars":13,"textLines":1,"bbox":[734,237,212,18]}
+{"kind":"textbox","id":"sh/4fu18jqh","slide":11,"text":"Latest","textPreview":"Latest","textChars":6,"textLines":1,"bbox":[734,269,212,34]}
+{"kind":"textbox","id":"sh/x0nuxc3y","slide":11,"text":"Food logs are visible where the coach reviews the client.","textPreview":"Food logs are visible where the coach reviews the client.","textChars":57,"textLines":1,"bbox":[734,310,212,22]}
+{"kind":"shape","id":"sh/m94fu18j","slide":11,"bbox":[710,384,260,136]}
+{"kind":"textbox","id":"sh/fu18jqh0","slide":11,"text":"MISSIONS","textPreview":"MISSIONS","textChars":8,"textLines":1,"bbox":[734,407,212,18]}
+{"kind":"textbox","id":"sh/4r65wjud","slide":11,"text":"Assign","textPreview":"Assign","textChars":6,"textLines":1,"bbox":[734,439,212,34]}
+{"kind":"textbox","id":"sh/xc3ylc7u","slide":11,"text":"Simple actions keep the client accountable between sessions.","textPreview":"Simple actions keep the client accountable between sessions.","textChars":60,"textLines":1,"bbox":[734,480,212,22]}
+{"kind":"shape","id":"sh/x4nap4r6","slide":11,"bbox":[994,384,220,136]}
+{"kind":"textbox","id":"sh/8jqh0fep","slide":11,"text":"NUTRITION PLAN","textPreview":"NUTRITION PLAN","textChars":14,"textLines":1,"bbox":[1018,407,172,18]}
+{"kind":"textbox","id":"sh/fyxobm58","slide":11,"text":"Adjust","textPreview":"Adjust","textChars":6,"textLines":1,"bbox":[1018,439,172,34]}
+{"kind":"textbox","id":"sh/qd4vmtwr","slide":11,"text":"Trainer can set context without replacing Ascend's recommendation.","textPreview":"Trainer can set context without replacing Ascend's recommendation.","textChars":66,"textLines":1,"bbox":[1018,480,172,22]}
+{"kind":"image","id":"im/qd4vmtwr","slide":11,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[94,138,246,500]}
+{"kind":"image","id":"im/e1w7mp0b","slide":11,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[388,138,246,500]}
+{"kind":"notes","id":"nt/94u40t","slide":11,"text":""}
+{"kind":"slide","id":"sl/i9mb0k","slide":12,"title":"Every week begins with a coaching summary instead of guesswork.","textShapes":8}
+{"kind":"shape","id":"sh/ih4byhgn","slide":12,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/p8nqxs72","slide":12,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/0nuxc3yl","slide":12,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/7ed8bat4","slide":12,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/itgfmlkj","slide":12,"text":"Every week begins with a coaching summary instead of guesswork.","textPreview":"Every week begins with a coaching summary instead of guesswork.","textChars":63,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/pkzupwb2","slide":12,"bbox":[82,116,270,534]}
+{"kind":"shape","id":"sh/0z61032l","slide":12,"bbox":[177,127,80,8]}
+{"kind":"shape","id":"sh/i5sneloj","slide":12,"bbox":[430,214,660,310]}
+{"kind":"textbox","id":"sh/0nuxc3yl","slide":12,"text":"A coaching briefing, not an activity dump","textPreview":"A coaching briefing, not an activity dump","textChars":41,"textLines":1,"bbox":[466,252,520,34]}
+{"kind":"shape","id":"sh/p8nqxs72","slide":12,"bbox":[466,334,9,9]}
+{"kind":"textbox","id":"sh/ih4byhgn","slide":12,"text":"Nutrition summary","textPreview":"Nutrition summary","textChars":17,"textLines":1,"bbox":[488,328,478,23]}
+{"kind":"textbox","id":"sh/72x4nap4","slide":12,"text":"Meals, calories and protein are grouped by day.","textPreview":"Meals, calories and protein are grouped by day.","textChars":47,"textLines":1,"bbox":[488,355,478,38]}
+{"kind":"shape","id":"sh/0z61032l","slide":12,"bbox":[466,426,9,9]}
+{"kind":"textbox","id":"sh/pkzupwb2","slide":12,"text":"Hydration summary","textPreview":"Hydration summary","textChars":17,"textLines":1,"bbox":[488,420,478,23]}
+{"kind":"textbox","id":"sh/itgfmlkj","slide":12,"text":"Water logs become one coaching signal.","textPreview":"Water logs become one coaching signal.","textChars":38,"textLines":1,"bbox":[488,447,478,38]}
+{"kind":"shape","id":"sh/7ed8bat4","slide":12,"bbox":[466,518,9,9]}
+{"kind":"textbox","id":"sh/0bi9s36h","slide":12,"text":"Coach Zoe interventions","textPreview":"Coach Zoe interventions","textChars":23,"textLines":1,"bbox":[488,512,478,23]}
+{"kind":"textbox","id":"sh/pwb2hwfy","slide":12,"text":"The trainer sees when Zoe supported the client.","textPreview":"The trainer sees when Zoe supported the client.","textChars":47,"textLines":1,"bbox":[488,539,478,38]}
+{"kind":"image","id":"im/epkzupwb","slide":12,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[92,128,250,510]}
+{"kind":"notes","id":"nt/i9mb0k","slide":12,"text":""}
+{"kind":"slide","id":"sl/qfa2ib","slide":13,"title":"Premium members receive a coaching experience worth paying for.","textShapes":8}
+{"kind":"shape","id":"sh/nap4r65w","slide":13,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/cvixczed","slide":13,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/5gbq1ory","slide":13,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/udg7adsj","slide":13,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/nyd0z610","slide":13,"text":"Premium members receive a coaching experience worth paying for.","textPreview":"Premium members receive a coaching experience worth paying for.","textChars":63,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/cj6tovah","slide":13,"bbox":[68,108,256,544]}
+{"kind":"shape","id":"sh/54zidony","slide":13,"bbox":[158.24,119,75.52,8]}
+{"kind":"shape","id":"sh/judg7ads","slide":13,"bbox":[348,108,256,544]}
+{"kind":"shape","id":"sh/nyd0z610","slide":13,"bbox":[438.24,119,75.52,8]}
+{"kind":"shape","id":"sh/54zidony","slide":13,"bbox":[676,214,420,300]}
+{"kind":"textbox","id":"sh/cj6tovah","slide":13,"text":"Why this matters commercially","textPreview":"Why this matters commercially","textChars":29,"textLines":1,"bbox":[712,250,330,32]}
+{"kind":"shape","id":"sh/nap4r65w","slide":13,"bbox":[712,328,9,9]}
+{"kind":"textbox","id":"sh/upwb2hwf","slide":13,"text":"Higher perceived value","textPreview":"Higher perceived value","textChars":22,"textLines":1,"bbox":[734,322,288,23]}
+{"kind":"textbox","id":"sh/5gbq1ory","slide":13,"text":"Body scans turn Athlete Mode into a premium coaching product.","textPreview":"Body scans turn Athlete Mode into a premium coaching product.","textChars":61,"textLines":1,"bbox":[734,349,288,38]}
+{"kind":"shape","id":"sh/cvixczed","slide":13,"bbox":[712,420,9,9]}
+{"kind":"textbox","id":"sh/jm1cfa9w","slide":13,"text":"Better reviews","textPreview":"Better reviews","textChars":14,"textLines":1,"bbox":[734,414,288,23]}
+{"kind":"textbox","id":"sh/u18jqh0f","slide":13,"text":"Trainer can discuss body fat, muscle and nutrition without a data dump.","textPreview":"Trainer can discuss body fat, muscle and nutrition without a data dump.","textChars":71,"textLines":1,"bbox":[734,441,288,38]}
+{"kind":"shape","id":"sh/25kb6xkf","slide":13,"bbox":[712,512,9,9]}
+{"kind":"textbox","id":"sh/rqd4vmtw","slide":13,"text":"More retention hooks","textPreview":"More retention hooks","textChars":20,"textLines":1,"bbox":[734,506,288,23]}
+{"kind":"textbox","id":"sh/kb6xkf6d","slide":13,"text":"Progress beyond the scale gives clients a reason to continue.","textPreview":"Progress beyond the scale gives clients a reason to continue.","textChars":61,"textLines":1,"bbox":[734,533,288,38]}
+{"kind":"image","id":"im/7qpg3ex0","slide":13,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[78,120,236,520]}
+{"kind":"image","id":"im/p8nqxs72","slide":13,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[358,120,236,520]}
+{"kind":"notes","id":"nt/qfa2ib","slide":13,"text":""}
+{"kind":"slide","id":"sl/yd029r","slide":14,"title":"Progress beyond the scale gives clients a reason to stay.","textShapes":8}
+{"kind":"shape","id":"sh/qxs72x4n","slide":14,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/xobm58z2","slide":14,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/83itgfml","slide":14,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/fu18jqh0","slide":14,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/m94fu18j","slide":14,"text":"Progress beyond the scale gives clients a reason to stay.","textPreview":"Progress beyond the scale gives clients a reason to stay.","textChars":57,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/x0nuxc3y","slide":14,"bbox":[82,104,280,554]}
+{"kind":"shape","id":"sh/4fu18jqh","slide":14,"bbox":[180.4,115,83.2,8]}
+{"kind":"shape","id":"sh/mlkjm1cf","slide":14,"bbox":[456,188,620,360]}
+{"kind":"textbox","id":"sh/gbq1oryt","slide":14,"text":"What the coach can review","textPreview":"What the coach can review","textChars":25,"textLines":1,"bbox":[496,226,420,32]}
+{"kind":"shape","id":"sh/5wjudg7a","slide":14,"bbox":[498,318,9,9]}
+{"kind":"textbox","id":"sh/y90je9cv","slide":14,"text":"Current vs previous","textPreview":"Current vs previous","textChars":19,"textLines":1,"bbox":[520,312,428,23]}
+{"kind":"textbox","id":"sh/nuxc3ylc","slide":14,"text":"Weight, body fat, muscle and score changes are easy to compare.","textPreview":"Weight, body fat, muscle and score changes are easy to compare.","textChars":63,"textLines":1,"bbox":[520,339,428,38]}
+{"kind":"shape","id":"sh/gn29gr2p","slide":14,"bbox":[498,418,9,9]}
+{"kind":"textbox","id":"sh/58z25kb6","slide":14,"text":"Source evidence","textPreview":"Source evidence","textChars":15,"textLines":1,"bbox":[520,412,428,23]}
+{"kind":"textbox","id":"sh/yhgn29gr","slide":14,"text":"The scan photo stays attached so reviews feel credible.","textPreview":"The scan photo stays attached so reviews feel credible.","textChars":55,"textLines":1,"bbox":[520,439,428,38]}
+{"kind":"shape","id":"sh/n29gr2p8","slide":14,"bbox":[498,518,9,9]}
+{"kind":"textbox","id":"sh/czed8v6p","slide":14,"text":"Nutrition update","textPreview":"Nutrition update","textChars":16,"textLines":1,"bbox":[520,512,428,23]}
+{"kind":"textbox","id":"sh/5kb6xkf6","slide":14,"text":"Athlete targets can use confirmed scan data without changing normal members.","textPreview":"Athlete targets can use confirmed scan data without changing normal members.","textChars":76,"textLines":1,"bbox":[520,539,428,38]}
+{"kind":"image","id":"im/idonyd0z","slide":14,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[92,116,260,530]}
+{"kind":"notes","id":"nt/yd029r","slide":14,"text":""}
+{"kind":"slide","id":"sl/4pem88","slide":15,"title":"Owners see the business levers that deserve attention.","textShapes":3}
+{"kind":"shape","id":"sh/8v6psfil","slide":15,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/fa9w3m94","slide":15,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/qpg3ex0n","slide":15,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/x4nap4r6","slide":15,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/8jqh0fep","slide":15,"text":"Owners see the business levers that deserve attention.","textPreview":"Owners see the business levers that deserve attention.","textChars":54,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/fyxobm58","slide":15,"bbox":[78,120,258,524]}
+{"kind":"shape","id":"sh/qd4vmtwr","slide":15,"bbox":[168.92,131,76.16,8]}
+{"kind":"shape","id":"sh/87ed8bat","slide":15,"bbox":[415,143,480,480]}
+{"kind":"shape","id":"sh/7y1kre1w","slide":15,"bbox":[936,224,230,300]}
+{"kind":"textbox","id":"sh/wjudg7ad","slide":15,"text":"CEO view","textPreview":"CEO view","textChars":8,"textLines":1,"bbox":[966,260,180,28]}
+{"kind":"textbox","id":"sh/p4r65wju","slide":15,"text":"Revenue opportunities. Retention watchlist. Trainer performance. Members needing attention. Growth opportunities.","textPreview":"Revenue opportunities. Retention watchlist. Trainer performance. Members needing attention. Growth opportunities.","textChars":113,"textLines":1,"bbox":[966,314,160,150]}
+{"kind":"image","id":"im/gr2p8nqx","slide":15,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[88,132,238,500]}
+{"kind":"image","id":"im/tovahoza","slide":15,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[420,148,470,470]}
+{"kind":"notes","id":"nt/4pem88","slide":15,"text":""}
+{"kind":"slide","id":"sl/dpuzub","slide":16,"title":"The owner dashboard should drive action, not report trivia.","textShapes":12}
+{"kind":"shape","id":"sh/mp0bi9s3","slide":16,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/tgfmlkjm","slide":16,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/4vmtwra5","slide":16,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/bm58z25k","slide":16,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/m1cfa9w3","slide":16,"text":"The owner dashboard should drive action, not report trivia.","textPreview":"The owner dashboard should drive action, not report trivia.","textChars":59,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/tsvu9kni","slide":16,"bbox":[72,106,255,542]}
+{"kind":"shape","id":"sh/47y1kre1","slide":16,"bbox":[161.9,117,75.2,8]}
+{"kind":"shape","id":"sh/m58z25kb","slide":16,"bbox":[398,178,760,402]}
+{"kind":"textbox","id":"sh/o7qpg3ex","slide":16,"text":"Trainer Engagement","textPreview":"Trainer Engagement","textChars":18,"textLines":1,"bbox":[436,218,350,34]}
+{"kind":"shape","id":"sh/dsji5sne","slide":16,"bbox":[438,292,210,136]}
+{"kind":"textbox","id":"sh/61032lsz","slide":16,"text":"CLIENTS CONTACTED","textPreview":"CLIENTS CONTACTED","textChars":17,"textLines":1,"bbox":[462,315,162,18]}
+{"kind":"textbox","id":"sh/vmtwra5g","slide":16,"text":"24","textPreview":"24","textChars":2,"textLines":1,"bbox":[462,347,162,34]}
+{"kind":"textbox","id":"sh/oj2t83it","slide":16,"text":"This week","textPreview":"This week","textChars":9,"textLines":1,"bbox":[462,388,162,22]}
+{"kind":"shape","id":"sh/d4vmtwra","slide":16,"bbox":[678,292,210,136]}
+{"kind":"textbox","id":"sh/6dcbulwv","slide":16,"text":"WEEKLY REVIEWS","textPreview":"WEEKLY REVIEWS","textChars":14,"textLines":1,"bbox":[702,315,162,18]}
+{"kind":"textbox","id":"sh/vy90je9c","slide":16,"text":"9","textPreview":"9","textChars":1,"textLines":1,"bbox":[702,347,162,34]}
+{"kind":"textbox","id":"sh/onyd0z61","slide":16,"text":"Completed","textPreview":"Completed","textChars":9,"textLines":1,"bbox":[702,388,162,22]}
+{"kind":"shape","id":"sh/d8v6psfi","slide":16,"bbox":[918,292,210,136]}
+{"kind":"textbox","id":"sh/1cfa9w3m","slide":16,"text":"FOLLOW-UPS","textPreview":"FOLLOW-UPS","textChars":10,"textLines":1,"bbox":[942,315,162,18]}
+{"kind":"textbox","id":"sh/crmhk3q5","slide":16,"text":"7","textPreview":"7","textChars":1,"textLines":1,"bbox":[942,347,162,34]}
+{"kind":"textbox","id":"sh/j6tovaho","slide":16,"text":"Outstanding","textPreview":"Outstanding","textChars":11,"textLines":1,"bbox":[942,388,162,22]}
+{"kind":"textbox","id":"sh/ulwval87","slide":16,"text":"Owners care about whether trainers are creating accountability, not internal system metrics.","textPreview":"Owners care about whether trainers are creating accountability, not internal system metrics.","textChars":92,"textLines":1,"bbox":[440,472,630,46]}
+{"kind":"image","id":"im/mlkjm1cf","slide":16,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[82,118,235,518]}
+{"kind":"notes","id":"nt/dpuzub","slide":16,"text":""}
+{"kind":"slide","id":"sl/cxkqyv","slide":17,"title":"A pilot should prove usage, not promise miracles.","textShapes":14}
+{"kind":"shape","id":"sh/6psfil0r","slide":17,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/dcbulwva","slide":17,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/kre1w7mp","slide":17,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/vixczed8","slide":17,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/2x4nap4r","slide":17,"text":"A pilot should prove usage, not promise miracles.","textPreview":"A pilot should prove usage, not promise miracles.","textChars":49,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/donyd0z6","slide":17,"bbox":[78,230,246,200]}
+{"kind":"textbox","id":"sh/k3q5o7qp","slide":17,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[102,258,60,50]}
+{"kind":"textbox","id":"sh/vu9knih4","slide":17,"text":"1-2 clubs","textPreview":"1-2 clubs","textChars":9,"textLines":1,"bbox":[102,334,190,26]}
+{"kind":"textbox","id":"sh/29gr2p8n","slide":17,"text":"Controlled","textPreview":"Controlled","textChars":10,"textLines":1,"bbox":[102,374,180,28]}
+{"kind":"shape","id":"sh/kre1w7mp","slide":17,"bbox":[370,230,246,200]}
+{"kind":"textbox","id":"sh/dcbulwva","slide":17,"text":"2","textPreview":"2","textChars":1,"textLines":1,"bbox":[394,258,60,50]}
+{"kind":"textbox","id":"sh/6psfil0r","slide":17,"text":"Selected trainers","textPreview":"Selected trainers","textChars":17,"textLines":1,"bbox":[394,334,190,26]}
+{"kind":"textbox","id":"sh/val87ed8","slide":17,"text":"Coaching buy-in","textPreview":"Coaching buy-in","textChars":15,"textLines":1,"bbox":[394,374,180,28]}
+{"kind":"shape","id":"sh/k3q5o7qp","slide":17,"bbox":[662,230,246,200]}
+{"kind":"textbox","id":"sh/donyd0z6","slide":17,"text":"3","textPreview":"3","textChars":1,"textLines":1,"bbox":[686,258,60,50]}
+{"kind":"textbox","id":"sh/2x4nap4r","slide":17,"text":"Selected members","textPreview":"Selected members","textChars":16,"textLines":1,"bbox":[686,334,190,26]}
+{"kind":"textbox","id":"sh/vixczed8","slide":17,"text":"Real usage","textPreview":"Real usage","textChars":10,"textLines":1,"bbox":[686,374,180,28]}
+{"kind":"shape","id":"sh/kf6dcbul","slide":17,"bbox":[954,230,246,200]}
+{"kind":"textbox","id":"sh/d0z61032","slide":17,"text":"4","textPreview":"4","textChars":1,"textLines":1,"bbox":[978,258,60,50]}
+{"kind":"textbox","id":"sh/dsji5sne","slide":17,"text":"60-90 days","textPreview":"60-90 days","textChars":10,"textLines":1,"bbox":[978,334,190,26]}
+{"kind":"textbox","id":"sh/o7qpg3ex","slide":17,"text":"Enough signal","textPreview":"Enough signal","textChars":13,"textLines":1,"bbox":[978,374,180,28]}
+{"kind":"shape","id":"sh/vmtwra5g","slide":17,"bbox":[160,500,960,76]}
+{"kind":"textbox","id":"sh/61032lsz","slide":17,"text":"Measure usage. Trainer action. Member feedback.","textPreview":"Measure usage. Trainer action. Member feedback.","textChars":47,"textLines":1,"bbox":[190,524,900,30]}
+{"kind":"notes","id":"nt/cxkqyv","slide":17,"text":""}
+{"kind":"slide","id":"sl/rql50g","slide":18,"title":"Ascend doesn't replace coaching. It extends coaching.","textShapes":11}
+{"kind":"shape","id":"sh/36hcrmhk","slide":18,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/wra5gbq1","slide":18,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/lc7u54zi","slide":18,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/ed8bat47","slide":18,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/7u54zido","slide":18,"text":"Ascend doesn't replace coaching. It extends coaching.","textPreview":"Ascend doesn't replace coaching. It extends coaching.","textChars":53,"textLines":1,"bbox":[68,56,980,94]}
+{"kind":"shape","id":"sh/wfyxobm5","slide":18,"bbox":[86,184,500,292]}
+{"kind":"textbox","id":"sh/l0rqd4vm","slide":18,"text":"Trainer","textPreview":"Trainer","textChars":7,"textLines":1,"bbox":[132,226,260,42]}
+{"kind":"textbox","id":"sh/e1w7mp0b","slide":18,"text":"1","textPreview":"1","textChars":1,"textLines":1,"bbox":[134,278,160,100]}
+{"kind":"textbox","id":"sh/7mp0bi9s","slide":18,"text":"hour","textPreview":"hour","textChars":4,"textLines":1,"bbox":[292,314,180,50]}
+{"kind":"textbox","id":"sh/zed8v6ps","slide":18,"text":"per week","textPreview":"per week","textChars":8,"textLines":1,"bbox":[138,398,260,28]}
+{"kind":"shape","id":"sh/6xkf6dcb","slide":18,"bbox":[690,184,500,292]}
+{"kind":"textbox","id":"sh/hk3q5o7q","slide":18,"text":"Ascend","textPreview":"Ascend","textChars":6,"textLines":1,"bbox":[736,226,260,42]}
+{"kind":"textbox","id":"sh/oza1gvy9","slide":18,"text":"166","textPreview":"166","textChars":3,"textLines":1,"bbox":[738,278,240,100]}
+{"kind":"textbox","id":"sh/zqtcj6to","slide":18,"text":"hours","textPreview":"hours","textChars":5,"textLines":1,"bbox":[986,314,170,50]}
+{"kind":"textbox","id":"sh/65wjudg7","slide":18,"text":"per week","textPreview":"per week","textChars":8,"textLines":1,"bbox":[742,398,260,28]}
+{"kind":"textbox","id":"sh/hwfyxobm","slide":18,"text":"Members stay accountable. Trainers stay informed. Owners stay in control.","textPreview":"Members stay accountable. Trainers stay informed. Owners stay in control.","textChars":73,"textLines":1,"bbox":[132,534,1010,36]}
+{"kind":"textbox","id":"sh/obm58z25","slide":18,"text":"The gym session starts results. Consistency finishes them.","textPreview":"The gym session starts results. Consistency finishes them.","textChars":58,"textLines":1,"bbox":[190,596,900,28]}
+{"kind":"notes","id":"nt/rql50g","slide":18,"text":""}
+{"kind":"slide","id":"sl/0hytm6","slide":19,"title":"ASCEND","textShapes":6}
+{"kind":"shape","id":"sh/oj2t83it","slide":19,"bbox":[0,0,1280,720]}
+{"kind":"shape","id":"sh/vy90je9c","slide":19,"bbox":[0,586,1280,134]}
+{"kind":"shape","id":"sh/6dcbulwv","slide":19,"bbox":[990,0,290,720]}
+{"kind":"shape","id":"sh/dsji5sne","slide":19,"bbox":[944,112,260,260]}
+{"kind":"textbox","id":"sh/vmtwra5g","slide":19,"text":"ASCEND","textPreview":"ASCEND","textChars":6,"textLines":1,"bbox":[128,52,220,30]}
+{"kind":"textbox","id":"sh/61032lsz","slide":19,"text":"Let's show the live product.","textPreview":"Let's show the live product.","textChars":28,"textLines":1,"bbox":[78,170,640,94]}
+{"kind":"textbox","id":"sh/dg7adsji","slide":19,"text":"A short walkthrough can show how Ascend supports members, trainers and club operations without replacing the coaching model already inside the gym.","textPreview":"A short walkthrough can show how Ascend supports members, trainers and club operations without replacing the coaching model already insid...","textChars":147,"textLines":1,"bbox":[82,304,620,76]}
+{"kind":"shape","id":"sh/ovahoza1","slide":19,"bbox":[84,430,260,34]}
+{"kind":"textbox","id":"sh/mtwra5gb","slide":19,"text":"www.getascend.fit","textPreview":"www.getascend.fit","textChars":17,"textLines":1,"bbox":[84,437,260,18]}
+{"kind":"textbox","id":"sh/fepkzupw","slide":19,"text":"Fariz Anwar","textPreview":"Fariz Anwar","textChars":11,"textLines":1,"bbox":[84,532,280,30]}
+{"kind":"textbox","id":"sh/4zidonyd","slide":19,"text":"Founder / Ascend","textPreview":"Founder / Ascend","textChars":16,"textLines":1,"bbox":[84,568,280,24]}
+{"kind":"shape","id":"sh/xkf6dcbu","slide":19,"bbox":[784,92,204,524]}
+{"kind":"shape","id":"sh/mlkjm1cf","slide":19,"bbox":[856.56,103,58.88,8]}
+{"kind":"shape","id":"sh/4r65wjud","slide":19,"bbox":[980,112,190,484]}
+{"kind":"shape","id":"sh/xc3ylc7u","slide":19,"bbox":[1047.8,123,54.4,8]}
+{"kind":"image","id":"im/9knih4by","slide":19,"name":"","alt":"Ascend logo","bbox":[70,46,48,48]}
+{"kind":"image","id":"im/onyd0z61","slide":19,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[794,104,184,500]}
+{"kind":"image","id":"im/d4vmtwra","slide":19,"name":"","geometry":"roundRect","alt":"Ascend product screenshot","bbox":[990,124,170,460]}
+{"kind":"notes","id":"nt/0hytm6","slide":19,"text":""}
