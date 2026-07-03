@@ -190,6 +190,7 @@ function down(slide, left, top, color = C.muted) {
 }
 
 async function main() {
+  await fs.rm(PREVIEW_DIR, { recursive: true, force: true });
   await fs.mkdir(PREVIEW_DIR, { recursive: true });
   const p = Presentation.create({ slideSize: { width: 1280, height: 720 } });
 
@@ -197,9 +198,9 @@ async function main() {
   {
     const s = p.slides.add(); bg(s); await logo(s);
     text(s, "ASCEND", 128, 52, 220, 30, { fontSize: 25, bold: true });
-    text(s, "The operating system for fitness accountability.", 72, 150, 650, 122, { fontSize: 50, bold: true });
-    text(s, "A working platform that helps members stay consistent, trainers coach between sessions and owners see the business signals that matter.", 76, 302, 610, 70, { fontSize: 21, color: C.muted });
-    pill(s, "Built for members, trainers and gym operators", 78, 406, 330, { fill: "#111d2d", color: C.teal });
+    text(s, "Your trainers coach members for one hour each week.", 72, 150, 650, 126, { fontSize: 48, bold: true });
+    text(s, "Ascend coaches them during the other 166 hours.", 76, 304, 620, 72, { fontSize: 32, bold: true, color: C.teal });
+    pill(s, "The operating system for fitness accountability", 78, 430, 360, { fill: "#111d2d", color: C.teal });
     await phoneImage(s, assets.foodUpload, 742, 104, 184, 520);
     await phoneImage(s, assets.trainerPriorities, 930, 78, 184, 520);
     await phoneImage(s, assets.ownerCommand, 1114, 120, 154, 460);
@@ -208,11 +209,11 @@ async function main() {
   // 2
   {
     const s = p.slides.add(); bg(s);
-    title(s, "The gym session is not the hard part.", "The gap happens after the client walks out of the club.");
+    title(s, "The week breaks after the session.");
     bigQuote(s, "Results are built during the other 166 hours of the week.");
-    bullet(s, "Members lose momentum", "Nutrition, water, workouts and habits happen away from the trainer.", 670, 230, 430);
-    bullet(s, "Trainers lose visibility", "By the next session, the important signals are already stale.", 670, 330, 430, C.purple);
-    bullet(s, "Owners lose the business picture", "Retention risk, upgrade potential and trainer activity are hard to see in one place.", 670, 430, 430, C.amber);
+    bullet(s, "Members drift", "Habits happen away from the club.", 670, 250, 430);
+    bullet(s, "Trainers guess", "Signals arrive too late.", 670, 350, 430, C.purple);
+    bullet(s, "Owners react", "Retention risk stays hidden.", 670, 450, 430, C.amber);
   }
 
   // 3
@@ -242,6 +243,26 @@ async function main() {
   // 4
   {
     const s = p.slides.add(); bg(s);
+    title(s, "Why AI?");
+    card(s, 84, 172, 470, 394, { fill: "#0b111b", line: "#2b3548" });
+    text(s, "Without Ascend", 128, 220, 310, 34, { fontSize: 32, bold: true });
+    text(s, "Trainer manages 40 clients", 130, 296, 330, 36, { fontSize: 28, bold: true, color: C.amber });
+    text(s, "Meals\nWorkouts\nHydration\nHabits\nProgress\nMotivation", 136, 360, 260, 150, { fontSize: 22, color: C.muted });
+    text(s, "Important signals are missed.", 130, 520, 340, 28, { fontSize: 24, bold: true, color: C.red });
+
+    card(s, 682, 172, 470, 394, { fill: "#102018", line: C.teal });
+    text(s, "With Ascend", 726, 220, 310, 34, { fontSize: 32, bold: true });
+    journeyStep(s, "AI observes", 760, 294, 300, C.teal);
+    down(s, 892, 354, C.teal);
+    journeyStep(s, "AI summarizes", 760, 402, 300, C.teal);
+    down(s, 892, 462, C.teal);
+    journeyStep(s, "Trainer coaches", 760, 510, 300, C.amber);
+    text(s, "AI replaces admin. Not coaching.", 334, 622, 600, 42, { fontSize: 34, bold: true, color: C.teal, alignment: "center" });
+  }
+
+  // 5
+  {
+    const s = p.slides.add(); bg(s);
     title(s, "Ascend connects the three stakeholders that drive results.", "Client action creates trainer visibility. Trainer visibility creates owner confidence.");
     await phoneImage(s, assets.coachZoe, 94, 202, 212, 430);
     await phoneImage(s, assets.trainerPriorities, 524, 202, 212, 430);
@@ -253,7 +274,7 @@ async function main() {
     shape(s, "chevron", 790, 376, 80, 44, { fill: C.teal });
   }
 
-  // 5
+  // 6
   {
     const s = p.slides.add(); bg(s);
     title(s, "Members know what to do today before they scroll.");
@@ -266,7 +287,7 @@ async function main() {
     bullet(s, "Coach Zoe feels present", "One timely insight, not a wall of AI text.", 684, 506, 370, C.teal);
   }
 
-  // 6
+  // 7
   {
     const s = p.slides.add(); bg(s);
     title(s, "Food logging that works in real life.");
@@ -288,19 +309,19 @@ async function main() {
     text(s, "Save", 654, 582, 420, 26, { fontSize: 23, bold: true, color: C.teal, alignment: "center" });
   }
 
-  // 7
+  // 8
   {
     const s = p.slides.add(); bg(s);
     title(s, "Coach Zoe keeps the member moving between sessions.");
     await phoneImage(s, assets.coachZoe, 88, 148, 250, 510);
     card(s, 420, 190, 710, 340);
-    text(s, "Coach Zoe supports the 166 hours", 458, 232, 560, 34, { fontSize: 30, bold: true });
-    bullet(s, "Daily coaching insight", "Protein, hydration, recovery, consistency and motivation from existing data.", 460, 312, 560);
-    bullet(s, "Workout planning", "Generate today's workout from goal, time, location and equipment.", 460, 408, 560, C.purple);
-    bullet(s, "Workout memory", "Completed workouts can influence future recommendations.", 460, 504, 560, C.green);
+    text(s, "So what?", 458, 232, 560, 34, { fontSize: 34, bold: true });
+    bullet(s, "Momentum is protected", "One useful nudge at the right time.", 460, 316, 560);
+    bullet(s, "Workouts become easier to start", "The member gets a plan when motivation is low.", 460, 414, 560, C.purple);
+    bullet(s, "The app remembers", "Recent activity shapes the next recommendation.", 460, 512, 560, C.green);
   }
 
-  // 8
+  // 9
   {
     const s = p.slides.add(); bg(s);
     title(s, "Trainers begin each day with a coaching plan.");
@@ -313,7 +334,7 @@ async function main() {
     bullet(s, "Weekly summary", "Trainers can see improving, plateaued and at-risk clients.", 750, 480, 300, C.teal);
   }
 
-  // 9
+  // 10
   {
     const s = p.slides.add(); bg(s);
     title(s, "Every client check-in starts with evidence, not guesswork.");
@@ -324,7 +345,7 @@ async function main() {
     metricCard(s, "Nutrition plan", "Adjust", "Trainer can set context without replacing Ascend's recommendation.", 994, 384, 220, C.amber);
   }
 
-  // 10
+  // 11
   {
     const s = p.slides.add(); bg(s);
     title(s, "Every week begins with a coaching summary instead of guesswork.");
@@ -336,7 +357,7 @@ async function main() {
     bullet(s, "Coach Zoe interventions", "The trainer sees when Zoe supported the client.", 466, 512, 500, C.purple);
   }
 
-  // 11
+  // 12
   {
     const s = p.slides.add(); bg(s);
     title(s, "Premium members receive a coaching experience worth paying for.");
@@ -349,7 +370,7 @@ async function main() {
     bullet(s, "More retention hooks", "Progress beyond the scale gives clients a reason to continue.", 712, 506, 310, C.green);
   }
 
-  // 12
+  // 13
   {
     const s = p.slides.add(); bg(s);
     title(s, "Progress beyond the scale gives clients a reason to stay.");
@@ -361,22 +382,22 @@ async function main() {
     bullet(s, "Nutrition update", "Athlete targets can use confirmed scan data without changing normal members.", 498, 512, 450, C.purple);
   }
 
-  // 13
+  // 14
   {
     const s = p.slides.add(); bg(s);
     title(s, "Owners see the business levers that deserve attention.");
-    await phoneImage(s, assets.ownerCommand, 88, 132, 238, 500);
+    await phoneImage(s, assets.ownerOpportunities, 88, 132, 238, 500);
     await imageCard(s, assets.ownerInsights, 420, 148, 470, 470);
     card(s, 936, 224, 230, 300);
     text(s, "CEO view", 966, 260, 180, 28, { fontSize: 25, bold: true });
     text(s, "Revenue opportunities. Retention watchlist. Trainer performance. Members needing attention. Growth opportunities.", 966, 314, 160, 150, { fontSize: 16, color: C.muted });
   }
 
-  // 14
+  // 15
   {
     const s = p.slides.add(); bg(s);
     title(s, "The owner dashboard should drive action, not report trivia.");
-    await phoneImage(s, assets.ownerOpportunities, 82, 118, 235, 518);
+    await phoneImage(s, assets.trainerPriorities, 82, 118, 235, 518);
     card(s, 398, 178, 760, 402);
     text(s, "Trainer Engagement", 436, 218, 350, 34, { fontSize: 31, bold: true });
     metricCard(s, "Clients contacted", "24", "This week", 438, 292, 210, C.teal);
@@ -385,47 +406,15 @@ async function main() {
     text(s, "Owners care about whether trainers are creating accountability, not internal system metrics.", 440, 472, 630, 46, { fontSize: 22, bold: true, color: C.ink });
   }
 
-  // 15
-  {
-    const s = p.slides.add(); bg(s);
-    title(s, "The product is broad enough for a real pilot.", "The question is no longer whether it can be built. It is whether members and trainers use it.");
-    const items = [
-      ["Member", "Food, water, workouts, habits, progress, Coach Zoe"],
-      ["Premium", "AI food scans, weekly reports, trainer support"],
-      ["Athlete", "Body Scan, DNA, coach intelligence, scan-powered nutrition"],
-      ["Trainer", "Priorities, client profile, coach tools, AI timeline"],
-      ["Owner", "Business health, engagement, revenue and opportunities"],
-      ["Android", "Google Play wrapper, Health Connect activity sync"],
-    ];
-    items.forEach((item, i) => {
-      const x = 82 + (i % 3) * 382;
-      const y = 208 + Math.floor(i / 3) * 172;
-      card(s, x, y, 328, 126);
-      text(s, item[0], x + 26, y + 26, 240, 26, { fontSize: 24, bold: true, color: i % 2 ? C.purple : C.teal });
-      text(s, item[1], x + 26, y + 64, 270, 36, { fontSize: 16, color: C.muted });
-    });
-  }
-
   // 16
   {
     const s = p.slides.add(); bg(s);
-    title(s, "Why a gym owner should care.", "Ascend is designed around the business outcomes that matter inside a club.");
-    featureRow(s, "Retention", "Earlier intervention before members disengage.", 120, 214, C.teal);
-    featureRow(s, "Trainer effectiveness", "Less guessing, better reviews, stronger renewal moments.", 120, 310, C.purple);
-    featureRow(s, "Premium revenue", "AI coaching, Body Scan and Athlete Mode create paid upgrade paths.", 120, 406, C.green);
-    featureRow(s, "Owner visibility", "The club can see engagement, referrals, AI cost and trainer activity in one place.", 120, 502, C.amber);
-    await phoneImage(s, assets.trainerPriorities, 874, 156, 204, 450);
-  }
-
-  // 17
-  {
-    const s = p.slides.add(); bg(s);
-    title(s, "A pilot should prove usage, not promise miracles.", "Start small, measure honestly and let the gym decide from real behaviour.");
+    title(s, "A pilot should prove usage, not promise miracles.");
     const steps = [
-      ["1-2 clubs", "Controlled environment"],
-      ["Selected trainers", "Coaches willing to use it"],
-      ["Selected members", "Premium and Athlete candidates"],
-      ["60-90 days", "Enough time to see patterns"],
+      ["1-2 clubs", "Controlled"],
+      ["Selected trainers", "Coaching buy-in"],
+      ["Selected members", "Real usage"],
+      ["60-90 days", "Enough signal"],
     ];
     steps.forEach((step, i) => {
       const x = 78 + i * 292;
@@ -434,27 +423,29 @@ async function main() {
       text(s, step[0], x + 24, 334, 190, 26, { fontSize: 23, bold: true });
       text(s, step[1], x + 24, 374, 180, 28, { fontSize: 16, color: C.muted });
     });
-    card(s, 120, 500, 1040, 76);
-    text(s, "Measure active users, food logs, workouts saved, trainer follow-ups, weekly reports, body scans, member feedback, trainer feedback and PT renewal opportunities.", 154, 526, 960, 28, { fontSize: 19 });
+    card(s, 160, 500, 960, 76);
+    text(s, "Measure usage. Trainer action. Member feedback.", 190, 524, 900, 30, { fontSize: 28, bold: true, alignment: "center" });
   }
 
-  // 18
+  // 17
   {
     const s = p.slides.add(); bg(s);
     title(s, "Ascend doesn't replace coaching. It extends coaching.");
-    card(s, 104, 202, 440, 270, { fill: "#0b111b", line: C.amber });
-    text(s, "Trainer", 150, 248, 260, 48, { fontSize: 44, bold: true });
-    text(s, "1 hour per week", 152, 324, 300, 42, { fontSize: 34, bold: true, color: C.amber });
-    text(s, "The gym session starts results.", 154, 390, 300, 28, { fontSize: 20, color: C.muted });
-    card(s, 704, 202, 440, 270, { fill: "#102018", line: C.teal });
-    text(s, "Ascend", 750, 248, 260, 48, { fontSize: 44, bold: true });
-    text(s, "166 hours per week", 752, 324, 330, 42, { fontSize: 34, bold: true, color: C.teal });
-    text(s, "Consistency finishes them.", 754, 390, 300, 28, { fontSize: 20, color: C.muted });
-    text(s, "Members stay accountable. Trainers stay informed. Owners stay in control.", 146, 534, 980, 40, { fontSize: 30, bold: true, alignment: "center" });
-    text(s, "The gym session starts results. Consistency finishes them.", 190, 594, 900, 28, { fontSize: 23, color: C.muted, alignment: "center" });
+    card(s, 86, 184, 500, 292, { fill: "#0b111b", line: C.amber });
+    text(s, "Trainer", 132, 226, 260, 42, { fontSize: 42, bold: true });
+    text(s, "1", 134, 278, 160, 100, { fontSize: 100, bold: true, color: C.amber });
+    text(s, "hour", 292, 314, 180, 50, { fontSize: 46, bold: true, color: C.amber });
+    text(s, "per week", 138, 398, 260, 28, { fontSize: 24, color: C.muted });
+    card(s, 690, 184, 500, 292, { fill: "#102018", line: C.teal });
+    text(s, "Ascend", 736, 226, 260, 42, { fontSize: 42, bold: true });
+    text(s, "166", 738, 278, 240, 100, { fontSize: 100, bold: true, color: C.teal });
+    text(s, "hours", 986, 314, 170, 50, { fontSize: 46, bold: true, color: C.teal });
+    text(s, "per week", 742, 398, 260, 28, { fontSize: 24, color: C.muted });
+    text(s, "Members stay accountable. Trainers stay informed. Owners stay in control.", 132, 534, 1010, 36, { fontSize: 30, bold: true, alignment: "center" });
+    text(s, "The gym session starts results. Consistency finishes them.", 190, 596, 900, 28, { fontSize: 24, color: C.muted, alignment: "center" });
   }
 
-  // 19
+  // 18
   {
     const s = p.slides.add(); bg(s); await logo(s);
     text(s, "ASCEND", 128, 52, 220, 30, { fontSize: 25, bold: true });
