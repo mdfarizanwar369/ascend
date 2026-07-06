@@ -12,6 +12,7 @@ import {
   getComplianceToday,
   getHabitLogs,
   getHabits,
+  getAthleteDashboard,
   getFoodLogs,
   getHealthSyncStatus,
   getLatestRecognition,
@@ -24,6 +25,7 @@ import {
   getTodayMission,
   getWaterLogs,
   getWeightLogs,
+  AthleteDashboard,
   AscendMemoryResponse,
   CoachPresenceSettings,
   CoachPresenceMessage
@@ -39,6 +41,7 @@ import { DelightBadge, DelightProgressBar } from "@/components/Delight";
 import { AscendHeroPanel, MomentumHalo } from "@/components/AscendVisualIdentity";
 import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
 import { AccountBarSkeleton, DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
+import { isConsumerTodayV2Enabled } from "@/lib/consumerTodayVersion";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -276,6 +279,7 @@ export function ClientDashboard() {
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
   const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
   const [healthSyncStatus, setHealthSyncStatus] = useState<HealthSyncStatus | null>(null);
+  const [athleteDashboard, setAthleteDashboard] = useState<AthleteDashboard | null>(null);
   const [coachPresence, setCoachPresence] = useState<{
     latest: CoachPresenceMessage | null;
     history: CoachPresenceMessage[];
@@ -305,6 +309,7 @@ export function ClientDashboard() {
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
   const progressDetailsRef = useRef<HTMLDivElement | null>(null);
+  const consumerTodayV2 = isConsumerTodayV2Enabled();
 
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
@@ -372,6 +377,10 @@ export function ClientDashboard() {
         getAscendMemory(),
         getHealthSyncStatus()
       ]);
+      const athleteDashboardRequest =
+        consumerTodayV2 && me.user.athlete_mode_enabled
+          ? getAthleteDashboard().catch(() => null)
+          : Promise.resolve(null);
 
       const plan = await subscriptionRequest;
       if (requestId !== dashboardRequestRef.current) return;
@@ -441,6 +450,11 @@ export function ClientDashboard() {
           if (requestId === dashboardRequestRef.current) setSectionLoading({ core: false, secondary: false });
         });
 
+      void athleteDashboardRequest.then((response) => {
+        if (requestId !== dashboardRequestRef.current) return;
+        setAthleteDashboard(response?.athlete ?? null);
+      });
+
       comparisonRequest
         .then((response) => {
           if (requestId === dashboardRequestRef.current) setProgressComparison(response.comparison);
@@ -452,7 +466,7 @@ export function ClientDashboard() {
     } finally {
       dashboardLoadInFlightRef.current = false;
     }
-  }, []);
+  }, [consumerTodayV2]);
 
   useEffect(() => {
     let isMounted = true;
@@ -958,6 +972,89 @@ export function ClientDashboard() {
           : "Coach Zoe noticed something worth your attention."
     };
   })();
+  const firstName = user?.full_name?.trim().split(/\s+/)[0] ?? "there";
+  const primaryAction = (() => {
+    if (!todaysFood.length || proteinLeft > 25) return { label: "Log Meal", href: "/food-log" };
+    if (todaysWaterMl < nutritionTargets.waterTargetMl) return { label: "Log Water", href: "/water-log" };
+    if (!latestWorkoutCompletedToday && !syncedWorkoutCompleted) return { label: "Start Workout", href: "/coach" };
+    if (!latestWeightLoggedToday) return { label: "Log Weight", href: "/weight-log" };
+    if (completedHabitIds.size === 0) return { label: "Open Habits", href: "/habits" };
+    return { label: "View Progress", href: "/progress" };
+  })();
+  const heroSupportingCopy = (() => {
+    if (recentCelebration?.secondary) return recentCelebration.secondary;
+    if (currentStreak >= 7) return "You're building a rhythm that is starting to stick.";
+    if (score >= 70) return "You're doing a good job staying in motion this week.";
+    return dynamicEncouragement;
+  })();
+  const coachedFocusMessage = (() => {
+    if (dailyMission?.title) {
+      return {
+        message: dailyMission.title,
+        detail: dailyMission.trainer_name ? `Shared by ${dailyMission.trainer_name}.` : "Your trainer is keeping today's focus simple."
+      };
+    }
+    if (latestRecognition?.message) {
+      return {
+        message: latestRecognition.message,
+        detail: latestRecognition.trainer_name ? `From ${latestRecognition.trainer_name}.` : "A note from your coach."
+      };
+    }
+    if (coachPresence.latest?.message) {
+      return {
+        message: coachPresence.latest.message,
+        detail: "Support between sessions, shaped by your recent activity."
+      };
+    }
+    return {
+      message: "Your coach wants today's basics to feel easy to complete.",
+      detail: "Open your messages when you're ready for the latest note."
+    };
+  })();
+  const athleteTrainingFocus = (() => {
+    if (!athleteDashboard) return "Open Athlete Mode to review today's readiness and targets.";
+    const todayTarget = athleteDashboard.targets.find((target) => target.cadence === "daily" && target.notes);
+    if (todayTarget?.notes) return todayTarget.notes;
+    if (athleteDashboard.latestReview?.summary) return athleteDashboard.latestReview.summary;
+    if (athleteDashboard.readinessTrend.warningPatterns[0]) return athleteDashboard.readinessTrend.warningPatterns[0];
+    return "Use today's check-in to guide training intensity.";
+  })();
+  const progressPreview = (() => {
+    if (weightLostFromStart >= 0.1) {
+      return {
+        title: `↓ ${weightLostFromStart.toFixed(1)} kg since you started`,
+        detail: "The trend is moving in the right direction."
+      };
+    }
+    if (currentStreak >= 2) {
+      return {
+        title: `${currentStreak}-day streak`,
+        detail: "Consistency is getting easier to trust."
+      };
+    }
+    if (latestMemoryMilestone?.title) {
+      return {
+        title: latestMemoryMilestone.title,
+        detail: "Your recent progress is starting to form a story."
+      };
+    }
+    if (goalProgress !== null) {
+      return {
+        title: `${goalProgress}% toward your goal`,
+        detail: "Small check-ins are moving you closer."
+      };
+    }
+    return {
+      title: "Your progress starts with one honest check-in",
+      detail: "Today becomes your baseline for what comes next."
+    };
+  })();
+  const progressHighlights = [
+    hasPremiumAccess ? weeklyReportPreview : null,
+    photoPreview,
+    memoryPreview,
+    user?.athlete_mode_enabled ? bodyScanPreview : null
+  ].filter((item): item is string => Boolean(item)).slice(0, 3);
 
   function revealTodayProgress() {
     window.setTimeout(() => {
@@ -1100,44 +1197,211 @@ export function ClientDashboard() {
         ) : null}
 
         <AscendHeroPanel
-          eyebrow={recentCelebration ? "Nice Work" : "Next Best Move"}
-          title={recentCelebration?.title ?? enhancedNextAction.title}
-          body={recentCelebration?.detail ?? enhancedNextAction.detail}
+          eyebrow={consumerTodayV2 ? "Today's focus" : recentCelebration ? "Nice Work" : "Next Best Move"}
+          title={consumerTodayV2 ? `${greeting}, ${firstName}.` : recentCelebration?.title ?? enhancedNextAction.title}
+          body={consumerTodayV2 ? (recentCelebration?.title ?? enhancedNextAction.title) : recentCelebration?.detail ?? enhancedNextAction.detail}
           tone="momentum"
           visual={<MomentumHalo value={score} />}
           className="border-calm/35 from-calm/14 via-surface to-purple-500/16 shadow-[0_24px_80px_rgba(8,12,20,0.55)]"
         >
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm text-zinc-300">{greeting}</p>
-              <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
-            </div>
-            <p className="max-w-[22rem] text-sm leading-6 text-zinc-300">{dynamicEncouragement}</p>
-          </div>
-          {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-400">{recentCelebration.secondary}</p> : null}
-          {recentCelebration ? (
-            <button
-              type="button"
-              onClick={revealTodayProgress}
-              className="ascend-cta-pulse mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
-            >
-              View Today&apos;s Progress
-            </button>
-          ) : enhancedNextAction.href === "/dashboard" ? (
-            <button
-              type="button"
-              onClick={revealTodayProgress}
-              className="ascend-cta-pulse mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
-            >
-              {enhancedNextAction.cta}
-            </button>
+          {consumerTodayV2 ? (
+            <>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
+                </div>
+                <p className="max-w-[24rem] text-sm leading-6 text-zinc-300">{heroSupportingCopy}</p>
+              </div>
+              <a href={primaryAction.href} className="ascend-cta-pulse mt-6 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+                {primaryAction.label} <ArrowRight size={18} />
+              </a>
+            </>
           ) : (
-            <a href={enhancedNextAction.href} className="ascend-cta-pulse mt-6 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
-              {enhancedNextAction.cta} <ArrowRight size={18} />
-            </a>
+            <>
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm text-zinc-300">{greeting}</p>
+                  <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
+                </div>
+                <p className="max-w-[22rem] text-sm leading-6 text-zinc-300">{dynamicEncouragement}</p>
+              </div>
+              {recentCelebration ? <p className="mt-2 text-xs leading-5 text-zinc-400">{recentCelebration.secondary}</p> : null}
+              {recentCelebration ? (
+                <button
+                  type="button"
+                  onClick={revealTodayProgress}
+                  className="ascend-cta-pulse mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
+                >
+                  View Today&apos;s Progress
+                </button>
+              ) : enhancedNextAction.href === "/dashboard" ? (
+                <button
+                  type="button"
+                  onClick={revealTodayProgress}
+                  className="ascend-cta-pulse mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]"
+                >
+                  {enhancedNextAction.cta}
+                </button>
+              ) : (
+                <a href={enhancedNextAction.href} className="ascend-cta-pulse mt-6 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+                  {enhancedNextAction.cta} <ArrowRight size={18} />
+                </a>
+              )}
+            </>
           )}
         </AscendHeroPanel>
+        {consumerTodayV2 ? (
+          <>
+            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-calm">Daily progress</p>
+                  <p className="mt-1 text-sm text-zinc-400">A calm view of what matters today.</p>
+                </div>
+                <span className="rounded-full bg-ink px-3 py-2 text-sm font-semibold text-lime">{dailyCompletion}%</span>
+              </div>
+              <div className="mt-4"><DelightProgressBar value={dailyCompletion} /></div>
+              <div className="mt-4 grid grid-cols-5 gap-2">
+                {[
+                  { label: "Meal", value: todaysFood.length ? `${todaysFood.length}` : "Open", done: todaysFood.length > 0, icon: Beef },
+                  { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, done: todaysWaterMl >= nutritionTargets.waterTargetMl, icon: Droplets },
+                  { label: "Move", value: syncedSteps > 0 ? `${Math.round(syncedSteps / 1000)}k` : `${todaysBurnCalories}`, done: todaysBurnCalories > 0 || syncedWorkoutCompleted, icon: Activity },
+                  { label: "Weight", value: latestWeightLoggedToday && currentWeight ? `${currentWeight.toFixed(1)}` : "Open", done: latestWeightLoggedToday, icon: Scale },
+                  { label: "Habit", value: completedHabitIds.size ? `${completedHabitIds.size}` : "Open", done: completedHabitIds.size > 0, icon: Target }
+                ].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.label} className={`rounded-2xl border p-3 text-center ${item.done ? "border-calm/30 bg-calm/10" : "border-line bg-ink"}`}>
+                      <span className={`mx-auto grid h-8 w-8 place-items-center rounded-full ${item.done ? "bg-lime text-ink" : "bg-surface text-zinc-400"}`}>
+                        <Icon size={16} />
+                      </span>
+                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">{item.label}</p>
+                      <p className="mt-1 text-sm font-semibold text-white">{item.value}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
 
+            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-purple-400/25 bg-[linear-gradient(180deg,rgba(139,92,246,0.10),rgba(18,23,33,0.96))] p-5 shadow-soft">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-9 w-9 place-items-center rounded-2xl bg-purple-400/12 text-purple-200">
+                      <Sparkles size={18} />
+                    </span>
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">{user?.assigned_trainer_id ? "Coach Focus" : "Today's Insight"}</p>
+                      <p className="text-sm font-semibold text-white">{user?.assigned_trainer_id ? "Your coach" : "Coach Zoe"}</p>
+                    </div>
+                  </div>
+                  <p className="mt-4 text-lg font-semibold leading-8 text-white">
+                    {user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">
+                    {user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail}
+                  </p>
+                </div>
+                <DelightBadge tone="purple">{user?.assigned_trainer_id ? "Human coach" : "Adaptive"}</DelightBadge>
+              </div>
+              {user?.assigned_trainer_id ? (
+                <a href="/messages" className="mt-4 inline-flex h-11 items-center justify-center rounded-xl border border-purple-300/30 bg-ink px-4 text-sm font-semibold text-purple-100">
+                  View Coach Note
+                </a>
+              ) : null}
+            </section>
+
+            {consumerTodayV2 && user?.athlete_mode_enabled ? (
+              <a href="/athlete" className="ascend-card-rise mt-4 block rounded-[1.6rem] border border-purple-400/30 bg-purple-400/10 p-5 shadow-soft">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-purple-200">Today's readiness</p>
+                    <h2 className="mt-2 text-xl font-semibold text-white">{athleteDashboard?.readiness.status ?? "Complete today's athlete check-in"}</h2>
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl bg-ink/70 p-3">
+                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Readiness</p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {athleteDashboard?.readiness.score !== null && athleteDashboard?.readiness.score !== undefined
+                            ? `${athleteDashboard.readiness.score}/100`
+                            : "No score yet"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-ink/70 p-3">
+                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Event countdown</p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {athleteDashboard?.countdown
+                            ? `${athleteDashboard.countdown.days} days`
+                            : "Set your event date"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl bg-ink/70 p-3">
+                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Training focus</p>
+                        <p className="mt-1 text-sm font-semibold text-white">{athleteTrainingFocus}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-purple-400/20 px-3 py-1 text-xs font-semibold text-purple-100">Athlete</span>
+                </div>
+              </a>
+            ) : null}
+
+            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Quick actions</p>
+                  <p className="mt-1 text-sm text-zinc-400">Jump straight into today's next check-in.</p>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-4 gap-2">
+                {[
+                  { label: "Log Meal", href: "/food-log", icon: Beef },
+                  { label: "Log Water", href: "/water-log", icon: Droplets },
+                  { label: "Log Weight", href: "/weight-log", icon: Scale },
+                  { label: "Start Workout", href: "/coach", icon: Activity }
+                ].map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <a key={action.label} href={action.href} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-ink px-2 py-3 text-center">
+                      <span className="grid h-9 w-9 place-items-center rounded-full bg-surface text-calm">
+                        <Icon size={16} />
+                      </span>
+                      <span className="text-xs font-semibold leading-4 text-white">{action.label}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section ref={progressDetailsRef} className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-calm">Progress preview</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">{progressPreview.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{progressPreview.detail}</p>
+                </div>
+                <a href="/progress" className="rounded-full bg-ink px-3 py-2 text-xs font-semibold text-lime">
+                  View Progress
+                </a>
+              </div>
+              {progressHighlights.length ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {progressHighlights.map((highlight) => (
+                    <span key={highlight} className="rounded-full border border-line bg-ink px-3 py-2 text-xs text-zinc-300">
+                      {highlight}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <a href="/reports" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Reflection</a>
+                <a href="/habits" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Habits</a>
+                {user?.athlete_mode_enabled ? <a href="/athlete" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Body Scan</a> : null}
+                {hasPremiumAccess ? <a href="/messages" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Messages</a> : null}
+              </div>
+            </section>
+          </>
+        ) : (
+          <>
         <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-lime/30 bg-[linear-gradient(180deg,rgba(61,230,209,0.08),rgba(18,23,33,0.96))] p-5 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1533,6 +1797,8 @@ export function ClientDashboard() {
             </section>
           </div>
         </CollapsibleSection>
+          </>
+        )}
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-ink/95 px-4 pb-3 pt-2 backdrop-blur">
