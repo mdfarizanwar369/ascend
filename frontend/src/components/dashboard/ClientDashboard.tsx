@@ -981,7 +981,17 @@ export function ClientDashboard() {
     if (completedHabitIds.size === 0) return { label: "Open Habits", href: "/habits" };
     return { label: "View Progress", href: "/progress" };
   })();
+  const isFirstDayState =
+    !foodLogs.length &&
+    !weightLogs.length &&
+    !waterLogs.length &&
+    !burnLogs.length &&
+    !habits.length &&
+    !habitLogs.length &&
+    !progressPhotos.length &&
+    currentStreak === 0;
   const heroSupportingCopy = (() => {
+    if (isFirstDayState) return "Start with one small check-in. A meal, a glass of water, or a short walk is enough for today.";
     if (recentCelebration?.secondary) return recentCelebration.secondary;
     if (currentStreak >= 7) return "You're building a rhythm that is starting to stick.";
     if (score >= 70) return "You're doing a good job staying in motion this week.";
@@ -1019,16 +1029,56 @@ export function ClientDashboard() {
     if (athleteDashboard.readinessTrend.warningPatterns[0]) return athleteDashboard.readinessTrend.warningPatterns[0];
     return "Use today's check-in to guide training intensity.";
   })();
+  const dailyStatus = (() => {
+    if (isFirstDayState) {
+      return {
+        title: "You're starting from a clean slate today",
+        detail: "Nothing is behind. One honest check-in is enough to begin.",
+        tone: "teal" as const
+      };
+    }
+    if (dailyCompletion >= 80) {
+      return {
+        title: "You're in a good place today",
+        detail: "Keep the rhythm light and protect the progress you've built.",
+        tone: "lime" as const
+      };
+    }
+    if (dailyCompletion >= 40) {
+      return {
+        title: "You're on your way today",
+        detail: "A couple of small check-ins would steady the day.",
+        tone: "teal" as const
+      };
+    }
+    return {
+      title: "Today still feels easy to rescue",
+      detail: "Start with the simplest action and let momentum do the rest.",
+      tone: "purple" as const
+    };
+  })();
   const progressPreview = (() => {
     if (weightLostFromStart >= 0.1) {
       return {
-        title: `↓ ${weightLostFromStart.toFixed(1)} kg since you started`,
+        title: `You're ${weightLostFromStart.toFixed(1)} kg lighter than when you started.`,
         detail: "The trend is moving in the right direction."
+      };
+    }
+    if (goalCompletedToday) {
+      return {
+        title: "You hit your goal today.",
+        detail: "Take the win in before you decide what comes next."
+      };
+    }
+    if (currentStreak >= 7) {
+      return {
+        title: `This is your best ${currentStreak}-day streak in a while.`,
+        detail: "Repetition is starting to feel more natural."
       };
     }
     if (currentStreak >= 2) {
       return {
-        title: `${currentStreak}-day streak`,
+        title: `${currentStreak} steady days in a row.`,
         detail: "Consistency is getting easier to trust."
       };
     }
@@ -1055,6 +1105,23 @@ export function ClientDashboard() {
     memoryPreview,
     user?.athlete_mode_enabled ? bodyScanPreview : null
   ].filter((item): item is string => Boolean(item)).slice(0, 3);
+  const athleteTodaySummary = (() => {
+    if (!user?.athlete_mode_enabled) return null;
+    if (!athleteDashboard) {
+      return "Open Athlete Mode for today's readiness and event countdown.";
+    }
+    const parts = [
+      athleteDashboard.readiness.status,
+      athleteDashboard.countdown ? `${athleteDashboard.countdown.days} days out` : null,
+      athleteTrainingFocus
+    ].filter((item): item is string => Boolean(item));
+    return parts.slice(0, 2).join(" · ");
+  })();
+  const coachCardTitle = user?.assigned_trainer_id
+    ? dailyMission?.trainer_name ?? latestRecognition?.trainer_name ?? "Your coach"
+    : "Coach Zoe";
+  const coachCardMessage = user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message;
+  const coachCardDetail = user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
 
   function revealTodayProgress() {
     window.setTimeout(() => {
@@ -1253,10 +1320,11 @@ export function ClientDashboard() {
         {consumerTodayV2 ? (
           <>
             <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-calm">Daily progress</p>
-                  <p className="mt-1 text-sm text-zinc-400">A calm view of what matters today.</p>
+                  <p className="text-sm font-semibold text-calm">Today at a glance</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">{dailyStatus.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{dailyStatus.detail}</p>
                 </div>
                 <span className="rounded-full bg-ink px-3 py-2 text-sm font-semibold text-lime">{dailyCompletion}%</span>
               </div>
@@ -1281,122 +1349,81 @@ export function ClientDashboard() {
                   );
                 })}
               </div>
-            </section>
-
-            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-purple-400/25 bg-[linear-gradient(180deg,rgba(139,92,246,0.10),rgba(18,23,33,0.96))] p-5 shadow-soft">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="grid h-9 w-9 place-items-center rounded-2xl bg-purple-400/12 text-purple-200">
-                      <Sparkles size={18} />
-                    </span>
-                    <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">{user?.assigned_trainer_id ? "Coach Focus" : "Today's Insight"}</p>
-                      <p className="text-sm font-semibold text-white">{user?.assigned_trainer_id ? "Your coach" : "Coach Zoe"}</p>
-                    </div>
-                  </div>
-                  <p className="mt-4 text-lg font-semibold leading-8 text-white">
-                    {user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-zinc-400">
-                    {user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail}
-                  </p>
-                </div>
-                <DelightBadge tone="purple">{user?.assigned_trainer_id ? "Human coach" : "Adaptive"}</DelightBadge>
-              </div>
-              {user?.assigned_trainer_id ? (
-                <a href="/messages" className="mt-4 inline-flex h-11 items-center justify-center rounded-xl border border-purple-300/30 bg-ink px-4 text-sm font-semibold text-purple-100">
-                  View Coach Note
-                </a>
-              ) : null}
-            </section>
-
-            {consumerTodayV2 && user?.athlete_mode_enabled ? (
-              <a href="/athlete" className="ascend-card-rise mt-4 block rounded-[1.6rem] border border-purple-400/30 bg-purple-400/10 p-5 shadow-soft">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-purple-200">Today's readiness</p>
-                    <h2 className="mt-2 text-xl font-semibold text-white">{athleteDashboard?.readiness.status ?? "Complete today's athlete check-in"}</h2>
-                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <div className="rounded-xl bg-ink/70 p-3">
-                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Readiness</p>
-                        <p className="mt-1 text-sm font-semibold text-white">
-                          {athleteDashboard?.readiness.score !== null && athleteDashboard?.readiness.score !== undefined
-                            ? `${athleteDashboard.readiness.score}/100`
-                            : "No score yet"}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-ink/70 p-3">
-                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Event countdown</p>
-                        <p className="mt-1 text-sm font-semibold text-white">
-                          {athleteDashboard?.countdown
-                            ? `${athleteDashboard.countdown.days} days`
-                            : "Set your event date"}
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-ink/70 p-3">
-                        <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Training focus</p>
-                        <p className="mt-1 text-sm font-semibold text-white">{athleteTrainingFocus}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-purple-400/20 px-3 py-1 text-xs font-semibold text-purple-100">Athlete</span>
-                </div>
-              </a>
-            ) : null}
-
-            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-white">Quick actions</p>
-                  <p className="mt-1 text-sm text-zinc-400">Jump straight into today's next check-in.</p>
-                </div>
-              </div>
               <div className="mt-4 grid grid-cols-4 gap-2">
                 {[
-                  { label: "Log Meal", href: "/food-log", icon: Beef },
-                  { label: "Log Water", href: "/water-log", icon: Droplets },
-                  { label: "Log Weight", href: "/weight-log", icon: Scale },
-                  { label: "Start Workout", href: "/coach", icon: Activity }
+                  { label: "Meal", href: "/food-log", icon: Beef },
+                  { label: "Water", href: "/water-log", icon: Droplets },
+                  { label: "Weight", href: "/weight-log", icon: Scale },
+                  { label: "Workout", href: "/coach", icon: Activity }
                 ].map((action) => {
                   const Icon = action.icon;
                   return (
-                    <a key={action.label} href={action.href} className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-ink px-2 py-3 text-center">
-                      <span className="grid h-9 w-9 place-items-center rounded-full bg-surface text-calm">
-                        <Icon size={16} />
+                    <a key={action.label} href={action.href} className="flex min-h-16 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-ink px-2 py-3 text-center">
+                      <span className="grid h-8 w-8 place-items-center rounded-full bg-surface text-calm">
+                        <Icon size={15} />
                       </span>
-                      <span className="text-xs font-semibold leading-4 text-white">{action.label}</span>
+                      <span className="text-[11px] font-semibold leading-4 text-white">{action.label}</span>
                     </a>
                   );
                 })}
               </div>
             </section>
 
+            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-purple-400/25 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(18,23,33,0.96))] p-5 shadow-soft">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-purple-400/12 text-purple-200">
+                  <Sparkles size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white">{coachCardTitle}</p>
+                  <p className="mt-2 text-lg font-semibold leading-8 text-white">{coachCardMessage}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{coachCardDetail}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {user?.assigned_trainer_id ? (
+                      <a href="/messages" className="inline-flex h-10 items-center justify-center rounded-full border border-purple-300/30 bg-ink px-4 text-sm font-semibold text-purple-100">
+                        View Coach Note
+                      </a>
+                    ) : (
+                      <a href="/coach" className="inline-flex h-10 items-center justify-center rounded-full border border-purple-300/30 bg-ink px-4 text-sm font-semibold text-purple-100">
+                        Open Coach Zoe
+                      </a>
+                    )}
+                    {user?.athlete_mode_enabled ? (
+                      <a href="/athlete" className="inline-flex h-10 items-center justify-center rounded-full border border-line bg-ink px-4 text-sm font-semibold text-zinc-300">
+                        {athleteTodaySummary ?? "Athlete Mode"}
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </section>
+
             <section ref={progressDetailsRef} className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-calm">Progress preview</p>
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-calm/10 text-calm">
+                  <ArrowRight size={18} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-calm">Your story</p>
                   <h2 className="mt-2 text-xl font-semibold text-white">{progressPreview.title}</h2>
                   <p className="mt-2 text-sm leading-6 text-zinc-400">{progressPreview.detail}</p>
+                  {progressHighlights.length ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {progressHighlights.map((highlight) => (
+                        <span key={highlight} className="rounded-full border border-line bg-ink px-3 py-2 text-xs text-zinc-300">
+                          {highlight}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <a href="/progress" className="rounded-full border border-calm/30 bg-ink px-3 py-2 text-xs font-semibold text-calm">View Progress</a>
+                    <a href="/reports" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Reflection</a>
+                    <a href="/habits" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Habits</a>
+                    {user?.athlete_mode_enabled ? <a href="/athlete" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Body Scan</a> : null}
+                    {hasPremiumAccess ? <a href="/messages" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Messages</a> : null}
+                  </div>
                 </div>
-                <a href="/progress" className="rounded-full bg-ink px-3 py-2 text-xs font-semibold text-lime">
-                  View Progress
-                </a>
-              </div>
-              {progressHighlights.length ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {progressHighlights.map((highlight) => (
-                    <span key={highlight} className="rounded-full border border-line bg-ink px-3 py-2 text-xs text-zinc-300">
-                      {highlight}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <a href="/reports" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Reflection</a>
-                <a href="/habits" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Habits</a>
-                {user?.athlete_mode_enabled ? <a href="/athlete" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Body Scan</a> : null}
-                {hasPremiumAccess ? <a href="/messages" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Messages</a> : null}
               </div>
             </section>
           </>
