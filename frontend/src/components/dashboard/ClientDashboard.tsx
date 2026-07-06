@@ -1469,7 +1469,7 @@ export function ClientDashboard() {
                   <p className={`text-sm font-semibold ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>Your story</p>
                   <h2 className="mt-2 text-xl font-semibold text-white">{progressPreview.title}</h2>
                   <p className="mt-2 text-sm leading-6 text-zinc-400">{progressPreview.detail}</p>
-                  <a href="/progress" className="mt-4 inline-flex items-center gap-2 rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">
+                  <a href="/journey" className="mt-4 inline-flex items-center gap-2 rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">
                     View Journey <ArrowRight size={15} />
                   </a>
                 </div>
