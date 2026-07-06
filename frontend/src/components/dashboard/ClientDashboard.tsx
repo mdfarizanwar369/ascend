@@ -114,6 +114,16 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
 
+function HeroMomentumStat({ score, label }: { score: number; label: string }) {
+  return (
+    <div className="min-w-[5.5rem] rounded-2xl border border-white/10 bg-ink/75 px-3 py-3 text-left shadow-[0_14px_36px_rgba(8,12,20,0.28)]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Momentum</p>
+      <p className="mt-2 text-2xl font-semibold text-white">{score}</p>
+      <p className="mt-1 text-xs text-calm">{label}</p>
+    </div>
+  );
+}
+
 function progressCopy(goal?: string | null) {
   if (goal === "fat_loss") return "toward your weight-loss goal";
   if (goal === "muscle_gain") return "toward your muscle-gain goal";
@@ -991,10 +1001,10 @@ export function ClientDashboard() {
     !progressPhotos.length &&
     currentStreak === 0;
   const heroSupportingCopy = (() => {
-    if (isFirstDayState) return "Start with one small check-in. A meal, a glass of water, or a short walk is enough for today.";
+    if (isFirstDayState) return "Start with one simple check-in. That is enough for today.";
     if (recentCelebration?.secondary) return recentCelebration.secondary;
-    if (currentStreak >= 7) return "You're building a rhythm that is starting to stick.";
-    if (score >= 70) return "You're doing a good job staying in motion this week.";
+    if (currentStreak >= 7) return "You're already moving better than last week.";
+    if (score >= 70) return "Your recent consistency is starting to compound.";
     return dynamicEncouragement;
   })();
   const coachedFocusMessage = (() => {
@@ -1032,79 +1042,73 @@ export function ClientDashboard() {
   const dailyStatus = (() => {
     if (isFirstDayState) {
       return {
-        title: "You're starting from a clean slate today",
-        detail: "Nothing is behind. One honest check-in is enough to begin.",
+        title: "A calm first day",
+        detail: "Nothing is behind. One check-in is enough to get started.",
         tone: "teal" as const
       };
     }
     if (dailyCompletion >= 80) {
       return {
-        title: "You're in a good place today",
-        detail: "Keep the rhythm light and protect the progress you've built.",
+        title: "You're doing well today",
+        detail: currentStreak >= 3 ? `This is already better than ${currentStreak} days ago.` : "Protect the rhythm you already built.",
         tone: "lime" as const
       };
     }
     if (dailyCompletion >= 40) {
       return {
-        title: "You're on your way today",
-        detail: "A couple of small check-ins would steady the day.",
+        title: "One or two actions will steady today",
+        detail: proteinLeft > 25 ? "Protein is the clearest win right now." : waterLeftMl > 500 ? "Hydration is the easiest win right now." : "A small check-in will change the feel of the day.",
         tone: "teal" as const
       };
     }
     return {
-      title: "Today still feels easy to rescue",
-      detail: "Start with the simplest action and let momentum do the rest.",
+      title: "Today is still easy to turn around",
+      detail: latestWorkoutCompletedYesterday ? "Yesterday counts. Today just needs one honest follow-through." : "Start with the easiest check-in and let momentum return.",
       tone: "purple" as const
     };
   })();
   const progressPreview = (() => {
     if (weightLostFromStart >= 0.1) {
       return {
-        title: `You're ${weightLostFromStart.toFixed(1)} kg lighter than when you started.`,
-        detail: "The trend is moving in the right direction."
+        title: "You're lighter than when you started.",
+        detail: `${weightLostFromStart.toFixed(1)}kg down. Every small decision is adding up.`
       };
     }
     if (goalCompletedToday) {
       return {
         title: "You hit your goal today.",
-        detail: "Take the win in before you decide what comes next."
+        detail: "Take the win in. This came from repetition, not luck."
       };
     }
     if (currentStreak >= 7) {
       return {
-        title: `This is your best ${currentStreak}-day streak in a while.`,
-        detail: "Repetition is starting to feel more natural."
+        title: "This is one of your best recent stretches.",
+        detail: `${currentStreak} steady days. The routine is starting to feel more natural.`
       };
     }
     if (currentStreak >= 2) {
       return {
-        title: `${currentStreak} steady days in a row.`,
-        detail: "Consistency is getting easier to trust."
+        title: "Consistency is starting to show up.",
+        detail: `${currentStreak} steady days in a row. Keep the chain feeling easy.`
       };
     }
     if (latestMemoryMilestone?.title) {
       return {
         title: latestMemoryMilestone.title,
-        detail: "Your recent progress is starting to form a story."
+        detail: "Your recent progress is starting to feel like a real story."
       };
     }
     if (goalProgress !== null) {
       return {
-        title: `${goalProgress}% toward your goal`,
-        detail: "Small check-ins are moving you closer."
+        title: "You're moving closer to your goal.",
+        detail: `${goalProgress}% there. Small check-ins are still doing the heavy lifting.`
       };
     }
     return {
-      title: "Your progress starts with one honest check-in",
-      detail: "Today becomes your baseline for what comes next."
+      title: "Today can be the start of your story.",
+      detail: "One honest check-in is enough to begin building momentum."
     };
   })();
-  const progressHighlights = [
-    hasPremiumAccess ? weeklyReportPreview : null,
-    photoPreview,
-    memoryPreview,
-    user?.athlete_mode_enabled ? bodyScanPreview : null
-  ].filter((item): item is string => Boolean(item)).slice(0, 3);
   const athleteTodaySummary = (() => {
     if (!user?.athlete_mode_enabled) return null;
     if (!athleteDashboard) {
@@ -1122,6 +1126,61 @@ export function ClientDashboard() {
     : "Coach Zoe";
   const coachCardMessage = user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message;
   const coachCardDetail = user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
+  const coachCardSnippet = coachCardMessage.length > 88 ? `${coachCardMessage.slice(0, 85).trimEnd()}...` : coachCardMessage;
+  const storyToneClass =
+    goalCompletedToday || weightLostFromStart >= 0.1
+      ? "border-amber/25 bg-[linear-gradient(180deg,rgba(248,184,78,0.09),rgba(18,23,33,0.96))]"
+      : "border-line bg-surface";
+  const coachToneClass = user?.assigned_trainer_id
+    ? "border-calm/25 bg-[linear-gradient(180deg,rgba(72,187,255,0.07),rgba(18,23,33,0.96))]"
+    : "border-purple-400/20 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(18,23,33,0.96))]";
+  const todayTiles = [
+    {
+      label: "Meal",
+      href: "/food-log",
+      icon: Beef,
+      value: todaysFood.length > 0 ? "Logged" : "Not yet",
+      detail: todaysFood.length > 0 ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"} today` : "Tap to log what you ate",
+      done: todaysFood.length > 0,
+      tone: todaysFood.length > 0 ? "lime" : proteinLeft > 25 ? "amber" : "teal"
+    },
+    {
+      label: "Water",
+      href: "/water-log",
+      icon: Droplets,
+      value: todaysWaterMl >= nutritionTargets.waterTargetMl ? "Done" : `${(todaysWaterMl / 1000).toFixed(1)}L`,
+      detail: todaysWaterMl >= nutritionTargets.waterTargetMl ? "Hydration goal reached" : `${Math.max(0, Number(((nutritionTargets.waterTargetMl - todaysWaterMl) / 1000).toFixed(1)))}L to go`,
+      done: todaysWaterMl >= nutritionTargets.waterTargetMl,
+      tone: todaysWaterMl >= nutritionTargets.waterTargetMl ? "lime" : "teal"
+    },
+    {
+      label: "Movement",
+      href: "/coach",
+      icon: Activity,
+      value: latestWorkoutCompletedToday || syncedWorkoutCompleted ? "Done" : syncedSteps > 0 ? `${Math.round(syncedSteps / 1000)}k steps` : "Open",
+      detail: latestWorkoutCompletedToday || syncedWorkoutCompleted ? (latestWorkoutTitle ?? "Workout completed today") : syncedSteps > 0 ? "Detected automatically" : "Tap to start or log a workout",
+      done: latestWorkoutCompletedToday || syncedWorkoutCompleted || todaysBurnCalories > 0,
+      tone: latestWorkoutCompletedToday || syncedWorkoutCompleted || todaysBurnCalories > 0 ? "lime" : latestWorkoutCompletedYesterday ? "blue" : "teal"
+    },
+    {
+      label: "Weight",
+      href: "/weight-log",
+      icon: Scale,
+      value: latestWeightLoggedToday && currentWeight ? `${currentWeight.toFixed(1)}kg` : "Not yet",
+      detail: latestWeightLoggedToday ? "Today's check-in saved" : "Tap to record your weight",
+      done: latestWeightLoggedToday,
+      tone: latestWeightLoggedToday ? "lime" : "teal"
+    },
+    {
+      label: "Habit",
+      href: "/habits",
+      icon: Target,
+      value: completedHabitIds.size > 0 ? `${completedHabitIds.size} done` : habits.length ? "Open" : "Create",
+      detail: habits.length ? (completedHabitIds.size > 0 ? "Small promises kept today" : "Tap to complete one habit") : "Start with one repeatable habit",
+      done: completedHabitIds.size > 0,
+      tone: completedHabitIds.size > 0 ? "lime" : "purple"
+    }
+  ] as const;
 
   function revealTodayProgress() {
     window.setTimeout(() => {
@@ -1268,7 +1327,7 @@ export function ClientDashboard() {
           title={consumerTodayV2 ? `${greeting}, ${firstName}.` : recentCelebration?.title ?? enhancedNextAction.title}
           body={consumerTodayV2 ? (recentCelebration?.title ?? enhancedNextAction.title) : recentCelebration?.detail ?? enhancedNextAction.detail}
           tone="momentum"
-          visual={<MomentumHalo value={score} />}
+          visual={consumerTodayV2 ? <HeroMomentumStat score={score} label={scoreLabel} /> : <MomentumHalo value={score} />}
           className="border-calm/35 from-calm/14 via-surface to-purple-500/16 shadow-[0_24px_80px_rgba(8,12,20,0.55)]"
         >
           {consumerTodayV2 ? (
@@ -1277,7 +1336,7 @@ export function ClientDashboard() {
                 <div className="flex flex-wrap items-center gap-2">
                   <DelightBadge tone={recentCelebration ? "lime" : "teal"}>{momentumHeadline}</DelightBadge>
                 </div>
-                <p className="max-w-[24rem] text-sm leading-6 text-zinc-300">{heroSupportingCopy}</p>
+                <p className="max-w-[23rem] text-sm leading-6 text-zinc-300">{heroSupportingCopy}</p>
               </div>
               <a href={primaryAction.href} className="ascend-cta-pulse mt-6 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
                 {primaryAction.label} <ArrowRight size={18} />
@@ -1322,62 +1381,65 @@ export function ClientDashboard() {
             <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-calm">Today at a glance</p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">{dailyStatus.title}</h2>
+                  <p className="text-sm font-semibold text-calm">Today</p>
+                  <h2 className="mt-2 text-lg font-semibold text-white">{dailyStatus.title}</h2>
                   <p className="mt-2 text-sm leading-6 text-zinc-400">{dailyStatus.detail}</p>
                 </div>
                 <span className="rounded-full bg-ink px-3 py-2 text-sm font-semibold text-lime">{dailyCompletion}%</span>
               </div>
               <div className="mt-4"><DelightProgressBar value={dailyCompletion} /></div>
-              <div className="mt-4 grid grid-cols-5 gap-2">
-                {[
-                  { label: "Meal", value: todaysFood.length ? `${todaysFood.length}` : "Open", done: todaysFood.length > 0, icon: Beef },
-                  { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, done: todaysWaterMl >= nutritionTargets.waterTargetMl, icon: Droplets },
-                  { label: "Move", value: syncedSteps > 0 ? `${Math.round(syncedSteps / 1000)}k` : `${todaysBurnCalories}`, done: todaysBurnCalories > 0 || syncedWorkoutCompleted, icon: Activity },
-                  { label: "Weight", value: latestWeightLoggedToday && currentWeight ? `${currentWeight.toFixed(1)}` : "Open", done: latestWeightLoggedToday, icon: Scale },
-                  { label: "Habit", value: completedHabitIds.size ? `${completedHabitIds.size}` : "Open", done: completedHabitIds.size > 0, icon: Target }
-                ].map((item) => {
+              <div className="mt-4 space-y-2">
+                {todayTiles.map((item) => {
                   const Icon = item.icon;
+                  const toneClass =
+                    item.tone === "lime"
+                      ? "border-lime/25 bg-lime/8"
+                      : item.tone === "amber"
+                        ? "border-amber/25 bg-amber/8"
+                        : item.tone === "purple"
+                          ? "border-purple-400/25 bg-purple-400/8"
+                          : item.tone === "blue"
+                            ? "border-sky-400/25 bg-sky-400/8"
+                            : "border-line bg-ink";
+                  const iconTone =
+                    item.done
+                      ? "bg-lime text-ink"
+                      : item.tone === "amber"
+                        ? "bg-amber/12 text-amber"
+                        : item.tone === "purple"
+                          ? "bg-purple-400/12 text-purple-200"
+                          : item.tone === "blue"
+                            ? "bg-sky-400/12 text-sky-200"
+                            : "bg-surface text-calm";
                   return (
-                    <div key={item.label} className={`rounded-2xl border p-3 text-center ${item.done ? "border-calm/30 bg-calm/10" : "border-line bg-ink"}`}>
-                      <span className={`mx-auto grid h-8 w-8 place-items-center rounded-full ${item.done ? "bg-lime text-ink" : "bg-surface text-zinc-400"}`}>
-                        <Icon size={16} />
+                    <a key={item.label} href={item.href} className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 transition-colors ${toneClass}`}>
+                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${iconTone}`}>
+                        <Icon size={17} />
                       </span>
-                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">{item.label}</p>
-                      <p className="mt-1 text-sm font-semibold text-white">{item.value}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-4 grid grid-cols-4 gap-2">
-                {[
-                  { label: "Meal", href: "/food-log", icon: Beef },
-                  { label: "Water", href: "/water-log", icon: Droplets },
-                  { label: "Weight", href: "/weight-log", icon: Scale },
-                  { label: "Workout", href: "/coach", icon: Activity }
-                ].map((action) => {
-                  const Icon = action.icon;
-                  return (
-                    <a key={action.label} href={action.href} className="flex min-h-16 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-ink px-2 py-3 text-center">
-                      <span className="grid h-8 w-8 place-items-center rounded-full bg-surface text-calm">
-                        <Icon size={15} />
-                      </span>
-                      <span className="text-[11px] font-semibold leading-4 text-white">{action.label}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-white">{item.label}</p>
+                          <span className="text-xs font-medium text-zinc-500">{item.value}</span>
+                        </div>
+                        <p className="mt-1 text-sm text-zinc-400">{item.detail}</p>
+                      </div>
+                      <span className="text-xs font-semibold text-zinc-500">{item.done ? "Edit" : "Open"}</span>
                     </a>
                   );
                 })}
               </div>
             </section>
 
-            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-purple-400/25 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(18,23,33,0.96))] p-5 shadow-soft">
+            <section className={`ascend-card-rise mt-4 rounded-[1.6rem] border p-5 shadow-soft ${coachToneClass}`}>
               <div className="flex items-start gap-3">
                 <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-purple-400/12 text-purple-200">
                   <Sparkles size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-white">{coachCardTitle}</p>
-                  <p className="mt-2 text-lg font-semibold leading-8 text-white">{coachCardMessage}</p>
-                  <p className="mt-2 text-sm leading-6 text-zinc-400">{coachCardDetail}</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">Today's Insight</p>
+                  <p className="mt-1 text-sm font-semibold text-white">{coachCardTitle}</p>
+                  <p className="mt-3 text-lg font-semibold leading-8 text-white">{coachCardSnippet}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {user?.assigned_trainer_id ? (
                       <a href="/messages" className="inline-flex h-10 items-center justify-center rounded-full border border-purple-300/30 bg-ink px-4 text-sm font-semibold text-purple-100">
@@ -1389,7 +1451,7 @@ export function ClientDashboard() {
                       </a>
                     )}
                     {user?.athlete_mode_enabled ? (
-                      <a href="/athlete" className="inline-flex h-10 items-center justify-center rounded-full border border-line bg-ink px-4 text-sm font-semibold text-zinc-300">
+                      <a href="/athlete" className="inline-flex h-10 items-center justify-center rounded-full border border-sky-400/20 bg-ink px-4 text-sm font-semibold text-sky-100">
                         {athleteTodaySummary ?? "Athlete Mode"}
                       </a>
                     ) : null}
@@ -1398,31 +1460,18 @@ export function ClientDashboard() {
               </div>
             </section>
 
-            <section ref={progressDetailsRef} className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
+            <section ref={progressDetailsRef} className={`ascend-card-rise mt-4 rounded-[1.6rem] border p-5 shadow-soft ${storyToneClass}`}>
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-calm/10 text-calm">
-                  <ArrowRight size={18} />
+                <span className={`mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${goalCompletedToday || weightLostFromStart >= 0.1 ? "bg-amber/12 text-amber" : "bg-calm/10 text-calm"}`}>
+                  <Sparkles size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-calm">Your story</p>
+                  <p className={`text-sm font-semibold ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>Your story</p>
                   <h2 className="mt-2 text-xl font-semibold text-white">{progressPreview.title}</h2>
                   <p className="mt-2 text-sm leading-6 text-zinc-400">{progressPreview.detail}</p>
-                  {progressHighlights.length ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {progressHighlights.map((highlight) => (
-                        <span key={highlight} className="rounded-full border border-line bg-ink px-3 py-2 text-xs text-zinc-300">
-                          {highlight}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <a href="/progress" className="rounded-full border border-calm/30 bg-ink px-3 py-2 text-xs font-semibold text-calm">View Progress</a>
-                    <a href="/reports" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Reflection</a>
-                    <a href="/habits" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Habits</a>
-                    {user?.athlete_mode_enabled ? <a href="/athlete" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Body Scan</a> : null}
-                    {hasPremiumAccess ? <a href="/messages" className="rounded-full border border-line bg-ink px-3 py-2 text-xs font-semibold text-zinc-300">Messages</a> : null}
-                  </div>
+                  <a href="/progress" className="mt-4 inline-flex items-center gap-2 rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">
+                    View Journey <ArrowRight size={15} />
+                  </a>
                 </div>
               </div>
             </section>
