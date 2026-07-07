@@ -1155,7 +1155,7 @@ export function ClientDashboard() {
     },
     {
       label: "Movement",
-      href: "/coach",
+      href: "/burn-log",
       icon: Activity,
       value: latestWorkoutCompletedToday || syncedWorkoutCompleted ? "Done" : syncedSteps > 0 ? `${Math.round(syncedSteps / 1000)}k steps` : "Open",
       detail: latestWorkoutCompletedToday || syncedWorkoutCompleted ? (latestWorkoutTitle ?? "Workout completed today") : syncedSteps > 0 ? "Detected automatically" : "Tap to start or log a workout",
