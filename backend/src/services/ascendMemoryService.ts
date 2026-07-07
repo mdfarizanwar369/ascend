@@ -143,12 +143,15 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
   const [
     food,
     weights,
+    workouts,
+    progressPhotos,
     scans,
     milestones,
     recognitions,
     coachPresence,
     weeklyReports,
-    streak
+    streak,
+    monthlyConsistency
   ] = await Promise.all([
     query<{ first_at: string | null; days_30: string | number; total: string | number }>(
       "select min(logged_at) as first_at, count(distinct logged_at::date) filter (where logged_at >= current_date - interval '29 days') as days_30, count(*) as total from food_logs where user_id = $1",
@@ -156,6 +159,25 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
     ),
     query<{ weight_kg: string | number; logged_at: string }>(
       "select weight_kg, logged_at from weight_logs where user_id = $1 order by logged_at asc",
+      [userId]
+    ),
+    query<{ created_at: string; metadata: Record<string, unknown> | null }>(
+      `
+      select created_at, metadata
+      from analytics_events
+      where user_id = $1
+        and event_name = 'burn_log'
+      order by created_at asc
+      `,
+      [userId]
+    ),
+    query<{ logged_at: string; image_url: string | null }>(
+      `
+      select logged_at, image_url
+      from progress_photos
+      where user_id = $1
+      order by logged_at asc
+      `,
       [userId]
     ),
     query("select * from body_composition_scans where user_id = $1 and user_confirmed = true order by scan_date asc, created_at asc", [userId]),
@@ -175,7 +197,27 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
       "select count(*) as count, max(created_at) as latest_at from weekly_reports where user_id = $1",
       [userId]
     ),
-    activityStreaks(userId)
+    activityStreaks(userId),
+    query<{ month_key: string; active_days: string | number }>(
+      `
+      with activity as (
+        select logged_at::date as activity_date from food_logs where user_id = $1 and logged_at >= current_date - interval '180 days'
+        union
+        select logged_at::date from weight_logs where user_id = $1 and logged_at >= current_date - interval '180 days'
+        union
+        select logged_at::date from water_logs where user_id = $1 and logged_at >= current_date - interval '180 days'
+        union
+        select logged_at::date from habit_logs where user_id = $1 and completed = true and logged_at >= current_date - interval '180 days'
+        union
+        select created_at::date from analytics_events where user_id = $1 and event_name = 'burn_log' and created_at >= now() - interval '180 days'
+      )
+      select to_char(date_trunc('month', activity_date), 'YYYY-MM') as month_key, count(distinct activity_date)::int as active_days
+      from activity
+      group by 1
+      order by 1 asc
+      `,
+      [userId]
+    )
   ]);
 
   const events: MemoryEvent[] = [{
@@ -201,6 +243,33 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
     });
   }
 
+  const firstWorkoutAt = workouts.rows[0]?.created_at ?? null;
+  if (firstWorkoutAt) {
+    const workoutName = String(workouts.rows[0]?.metadata?.workoutTitle ?? workouts.rows[0]?.metadata?.activityType ?? "First workout");
+    events.push({
+      milestoneKey: "first-workout",
+      type: "first_workout",
+      title: "First Workout Completed",
+      subtitle: workoutName,
+      occurredAt: isoDate(firstWorkoutAt),
+      priority: 5,
+      metadata: { totalWorkouts: workouts.rows.length }
+    });
+  }
+
+  const firstPhotoAt = progressPhotos.rows[0]?.logged_at ?? null;
+  if (firstPhotoAt) {
+    events.push({
+      milestoneKey: "first-progress-photo",
+      type: "first_photo",
+      title: "First Progress Photo",
+      subtitle: "You started tracking change that the scale can miss.",
+      occurredAt: isoDate(firstPhotoAt),
+      priority: 4,
+      metadata: { totalPhotos: progressPhotos.rows.length }
+    });
+  }
+
   for (const threshold of [7, 14, 30, 90]) {
     if (streak.best >= threshold) {
       events.push({
@@ -216,6 +285,17 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
   }
 
   const weightRows = weights.rows;
+  if (weightRows[0]?.logged_at) {
+    events.push({
+      milestoneKey: "first-weight",
+      type: "first_weight",
+      title: "First Weight Logged",
+      subtitle: "You gave your journey a measurable starting point.",
+      occurredAt: isoDate(weightRows[0].logged_at),
+      priority: 3,
+      metadata: { firstWeightKg: numberValue(weightRows[0].weight_kg) }
+    });
+  }
   const firstWeight = numberValue(weightRows[0]?.weight_kg ?? context.starting_weight_kg);
   const latestWeight = numberValue(weightRows[weightRows.length - 1]?.weight_kg);
   if (firstWeight !== null && latestWeight !== null) {
@@ -234,6 +314,27 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
         });
       }
     }
+  }
+
+  const lowestWeight = weightRows.reduce<{ value: number | null; loggedAt: string | null }>(
+    (best, row) => {
+      const value = numberValue(row.weight_kg);
+      if (value === null) return best;
+      if (best.value === null || value < best.value) return { value, loggedAt: row.logged_at };
+      return best;
+    },
+    { value: null, loggedAt: null }
+  );
+  if (lowestWeight.value !== null && lowestWeight.loggedAt && weightRows.length >= 3) {
+    events.push({
+      milestoneKey: "lowest-weight",
+      type: "lowest_weight",
+      title: "Lowest Recorded Weight",
+      subtitle: `${lowestWeight.value}kg is your lightest logged point so far.`,
+      occurredAt: isoDate(lowestWeight.loggedAt),
+      priority: 5,
+      metadata: { lowestWeightKg: lowestWeight.value }
+    });
   }
 
   for (const milestone of milestones.rows) {
@@ -331,6 +432,52 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
       priority: 10,
       metadata: { weeklyReports: Number(weeklyReports.rows[0]?.count ?? 0) }
     });
+  }
+
+  const bestMonth = [...monthlyConsistency.rows]
+    .map((row) => ({ monthKey: row.month_key, activeDays: Number(row.active_days ?? 0) }))
+    .sort((left, right) => right.activeDays - left.activeDays || right.monthKey.localeCompare(left.monthKey))[0];
+  if (bestMonth && bestMonth.activeDays >= 10) {
+    events.push({
+      milestoneKey: `best-month-${bestMonth.monthKey}`,
+      type: "best_month",
+      title: "Best Month So Far",
+      subtitle: `${bestMonth.activeDays} active days made this your strongest month yet.`,
+      occurredAt: isoDate(`${bestMonth.monthKey}-28`),
+      priority: 9,
+      metadata: { monthKey: bestMonth.monthKey, activeDays: bestMonth.activeDays }
+    });
+  }
+
+  const activityDays = await query<{ activity_date: string }>(
+    `
+    select distinct to_char(activity_date::date, 'YYYY-MM-DD') as activity_date
+    from (
+      select logged_at::date as activity_date from food_logs where user_id = $1
+      union all select logged_at::date from weight_logs where user_id = $1
+      union all select logged_at::date from water_logs where user_id = $1
+      union all select logged_at::date from habit_logs where user_id = $1 and completed = true
+      union all select created_at::date from analytics_events where user_id = $1 and event_name = 'burn_log'
+    ) activity
+    order by activity_date asc
+    `,
+    [userId]
+  );
+  for (let index = 1; index < activityDays.rows.length; index += 1) {
+    const previous = new Date(`${activityDays.rows[index - 1].activity_date}T00:00:00Z`);
+    const current = new Date(`${activityDays.rows[index].activity_date}T00:00:00Z`);
+    const gap = Math.round((current.getTime() - previous.getTime()) / 86_400_000);
+    if (gap >= 14) {
+      events.push({
+        milestoneKey: `comeback-${activityDays.rows[index].activity_date}`,
+        type: "comeback",
+        title: "Comeback After A Break",
+        subtitle: `You came back after ${gap} days away. That return matters.`,
+        occurredAt: isoDate(activityDays.rows[index].activity_date),
+        priority: 11,
+        metadata: { gapDays: gap }
+      });
+    }
   }
 
   return events.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());

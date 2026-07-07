@@ -47,9 +47,30 @@ function isSessionTarget(type: string) {
   return type.includes("session") || type === "runs";
 }
 
+function friendlyAthleteDashboardError(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/not enabled for this account/i.test(message)) {
+    return {
+      title: "Athlete Mode is not active on this account.",
+      detail: "This screen is reserved for members using Athlete Mode. You can keep using Ascend normally from Home."
+    };
+  }
+  if (/disabled globally/i.test(message)) {
+    return {
+      title: "Athlete Mode is temporarily unavailable.",
+      detail: "The Athlete Mode workspace is not available right now. Please try again later or return to Home."
+    };
+  }
+  return {
+    title: "Athlete Mode could not load.",
+    detail: "Please try again in a moment. If this keeps happening, return to Home and try again later."
+  };
+}
+
 export function AthleteDashboardClient() {
   const [data, setData] = useState<AthleteDashboard | null>(null);
   const [status, setStatus] = useState("Loading your athlete dashboard...");
+  const [loadError, setLoadError] = useState<{ title: string; detail: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState({ sport: "", division: "", competitionName: "", competitionDate: "", coachName: "", goalWeightKg: "" });
   const [checkin, setCheckin] = useState({ sleepHours: "8", energy: "7", soreness: "4", stress: "4", hunger: "5", motivation: "7" });
@@ -59,6 +80,7 @@ export function AthleteDashboardClient() {
     const response = await getAthleteDashboard();
     setData(response.athlete);
     setStatus("");
+    setLoadError(null);
     const next = response.athlete.profile;
     setProfile({
       sport: next.sport ?? "",
@@ -92,7 +114,10 @@ export function AthleteDashboardClient() {
   }
 
   useEffect(() => {
-    load().catch((error) => setStatus(error instanceof Error ? error.message : "Athlete Mode could not load."));
+    load().catch((error) => {
+      setLoadError(friendlyAthleteDashboardError(error));
+      setStatus("");
+    });
   }, []);
 
   async function saveProfile(event: FormEvent) {
@@ -149,6 +174,18 @@ export function AthleteDashboardClient() {
   }
 
   if (!data) {
+    if (loadError) {
+      return (
+        <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-soft">
+          <p className="text-sm font-semibold text-purple-200">Athlete Mode</p>
+          <h1 className="mt-2 text-2xl font-semibold text-white">{loadError.title}</h1>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">{loadError.detail}</p>
+          <Link href="/dashboard" className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-lime px-4 text-sm font-semibold text-ink">
+            Return to Home
+          </Link>
+        </section>
+      );
+    }
     return (
       <>
         <DashboardHeroSkeleton footer={<SkeletonBlock className="h-3 w-36" />} />

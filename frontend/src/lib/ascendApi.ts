@@ -985,10 +985,12 @@ export function activatePilotSubscription(plan: Exclude<SubscriptionPlan, "free"
   });
 }
 
-export function sendCoachMessage(message: string) {
+export type CoachChatMode = "general" | "progress" | "consistency" | "meal_advice" | "workout";
+
+export function sendCoachMessage(message: string, mode: CoachChatMode = "general") {
   return authed<{ reply: string }>("/ai/chat", {
     method: "POST",
-    body: JSON.stringify({ message })
+    body: JSON.stringify({ message, mode })
   });
 }
 

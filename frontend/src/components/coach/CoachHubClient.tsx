@@ -1,13 +1,20 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
-import { Check, CheckCircle2, Dumbbell, RotateCcw, Send, Sparkles } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Check, CheckCircle2, Dumbbell, MessageCircle, RotateCcw, Send, Sparkles, UtensilsCrossed, Zap } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
+  CoachChatMode,
   GeneratedWorkout,
   WorkoutPlannerGoal,
   WorkoutPlannerLocation,
   generateTodayWorkout,
+  getBurnLogs,
+  getCoachPresence,
+  getFoodLogs,
+  getGoalStatus,
+  getHealthSyncStatus,
+  getMyStreak,
   saveCompletedWorkout,
   sendCoachMessage
 } from "@/lib/ascendApi";
@@ -41,8 +48,7 @@ type WorkoutPlannerTime = NonNullable<WorkoutAnswers["timeAvailable"]>;
 const starterMessages: ChatMessage[] = [
   {
     role: "assistant",
-    text:
-      "Tell me what you ate, what you are about to eat, or ask for today's workout. I will keep it practical and fit it to your goal."
+    text: "Ask about meals, workouts, recovery, habits, or how to make today easier to follow through on."
   }
 ];
 
@@ -75,6 +81,41 @@ const equipmentByLocation: Record<WorkoutPlannerLocation, string[]> = {
   hotel: ["Bodyweight", "Dumbbells", "Resistance Bands"],
   outdoors: ["Bodyweight", "Walking or Running Route", "Park Bench or Bars"]
 };
+
+function asNumber(value: string | number | null | undefined) {
+  if (value === null || value === undefined) return 0;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function buildTodaysInsight({
+  coachPresence,
+  foodCountToday,
+  latestWorkoutToday,
+  latestWorkoutYesterday,
+  streak,
+  todaySteps,
+  averageSteps7d,
+  goalAchieved
+}: {
+  coachPresence?: string | null;
+  foodCountToday: number;
+  latestWorkoutToday: boolean;
+  latestWorkoutYesterday: boolean;
+  streak: number;
+  todaySteps: number;
+  averageSteps7d: number;
+  goalAchieved: boolean;
+}) {
+  if (goalAchieved) return "You already hit an important milestone. Today is about protecting the win.";
+  if (coachPresence) return coachPresence;
+  if (latestWorkoutToday) return "You already trained today. Recovery, water, and protein matter most now.";
+  if (latestWorkoutYesterday) return "You trained yesterday. Recovery matters today.";
+  if (foodCountToday === 0) return "Protein is your biggest opportunity today.";
+  if (streak >= 7) return "One workout today keeps your streak feeling real.";
+  if (averageSteps7d > 0 && todaySteps < averageSteps7d) return "A short walk would already move you closer to your usual rhythm.";
+  return "One honest action is enough to keep today moving.";
+}
 
 function OptionButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -269,7 +310,7 @@ function WorkoutPlannerCard({
           <Dumbbell size={19} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold">Coach Zoe Workout Planner</h2>
+          <h2 className="text-lg font-semibold">Generate Today&apos;s Workout</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">A quick session for today, based on where you are and how much time you have.</p>
         </div>
       </div>
@@ -313,7 +354,7 @@ function WorkoutPlannerCard({
   );
 }
 
-export function CoachClient() {
+export function CoachHubClient() {
   const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
@@ -327,10 +368,45 @@ export function CoachClient() {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
   const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
+  const [todaysInsight, setTodaysInsight] = useState("One honest action is enough to keep today moving.");
   const saveWorkoutLockRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const completedCount = useMemo(() => checkedExercises.size, [checkedExercises]);
   const allExercisesCompleted = Boolean(workout && workout.exercises.length > 0 && completedCount === workout.exercises.length);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([getCoachPresence(), getMyStreak(), getBurnLogs(), getFoodLogs({ range: "today", order: "newest", limit: 12 }), getHealthSyncStatus(), getGoalStatus()])
+      .then(([coachPresenceResponse, streakResponse, burnResponse, foodResponse, healthResponse, goalResponse]) => {
+        if (!active) return;
+        const todayKey = new Date().toDateString();
+        const latestWorkoutToday = burnResponse.burnLogs.some((log) => new Date(log.created_at).toDateString() === todayKey);
+        const latestWorkoutYesterday = burnResponse.burnLogs.some((log) => {
+          const date = new Date();
+          date.setDate(date.getDate() - 1);
+          return new Date(log.created_at).toDateString() === date.toDateString();
+        });
+        setTodaysInsight(
+          buildTodaysInsight({
+            coachPresence: coachPresenceResponse.latest?.message ?? null,
+            foodCountToday: foodResponse.foodLogs.length,
+            latestWorkoutToday,
+            latestWorkoutYesterday,
+            streak: streakResponse.streak.current,
+            todaySteps: healthResponse.status.summary?.todaySteps ?? 0,
+            averageSteps7d: healthResponse.status.summary?.averageSteps7d ?? 0,
+            goalAchieved: Boolean(goalResponse.goalStatus?.achieved_at)
+          })
+        );
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function nextWorkoutCompletionKey() {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -352,18 +428,33 @@ export function CoachClient() {
     setMessages((current) => [...current, { role: "user", text: trimmed }]);
 
     try {
-      const response = await sendCoachMessage(trimmed);
+      const response = await sendCoachMessage(trimmed, "general");
       setMessages((current) => [...current, { role: "assistant", text: response.reply }]);
     } catch (error) {
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
-          text:
-            "The coach is having a short connection issue. For now, make the next choice simple: pick one protein source, add fruit or vegetables if you can, and keep the portion comfortable. Try sending your question again in a minute."
+          text: "The coach is having a short connection issue. Keep today simple: one useful meal, one useful movement, and one useful check-in."
         }
       ]);
       setStatus(error instanceof Error ? error.message : "AI coach is temporarily busy.");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  async function sendPresetPrompt(input: { label: string; prompt: string; mode: CoachChatMode }) {
+    if (isSending) return;
+    setMessage("");
+    setStatus("");
+    setIsSending(true);
+    setMessages((current) => [...current, { role: "user", text: input.label }]);
+    try {
+      const response = await sendCoachMessage(input.prompt, input.mode);
+      setMessages((current) => [...current, { role: "assistant", text: response.reply }]);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Coach Zoe is temporarily busy.");
     } finally {
       setIsSending(false);
     }
@@ -446,6 +537,18 @@ export function CoachClient() {
     }
   }
 
+  function focusCoachInput() {
+    inputRef.current?.focus();
+  }
+
+  const quickActions = [
+    { label: "Ask Zoe", icon: MessageCircle, action: "focus" },
+    { label: "Generate Today's Workout", icon: Dumbbell, action: "workout" },
+    { label: "Meal Advice", icon: UtensilsCrossed, action: "meal" },
+    { label: "Explain my progress", icon: Zap, action: "progress" },
+    { label: "Help me stay consistent", icon: Sparkles, action: "consistency" }
+  ] as const;
+
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto flex min-h-screen max-w-md flex-col">
@@ -456,29 +559,78 @@ export function CoachClient() {
           </span>
           <div>
             <h1 className="text-xl font-semibold">Coach Zoe</h1>
-            <p className="text-xs text-zinc-400">Meals and workouts between sessions</p>
+            <p className="text-xs text-zinc-400">A steady voice between sessions</p>
           </div>
         </header>
 
         {status ? <p className="mt-3 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm text-amber">{status}</p> : null}
 
+        <section className="mt-4 rounded-[1.7rem] border border-purple-400/20 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_15rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-5 shadow-soft">
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">Today&apos;s Insight</p>
+          <h2 className="mt-3 text-2xl font-semibold leading-tight text-white">{todaysInsight}</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">Coach Zoe is watching the small signals so today feels easier to act on.</p>
+        </section>
+
+        <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+          <div className="flex items-center gap-2">
+            <Sparkles className="text-calm" size={18} />
+            <div>
+              <p className="text-sm font-semibold text-white">Quick Coach Actions</p>
+              <p className="text-xs text-zinc-400">Practical help without the guesswork.</p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {quickActions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={action.label}
+                  type="button"
+                  onClick={() => {
+                    if (action.action === "focus") {
+                      focusCoachInput();
+                      return;
+                    }
+                    if (action.action === "workout") {
+                      startWorkoutPlanner();
+                      return;
+                    }
+                    if (action.action === "meal") {
+                      void sendPresetPrompt({
+                        label: "Meal Advice",
+                        prompt: "Use my recent history and give me meal advice for today.",
+                        mode: "meal_advice"
+                      });
+                      return;
+                    }
+                    if (action.action === "progress") {
+                      void sendPresetPrompt({
+                        label: "Explain my progress",
+                        prompt: "Explain my recent progress using my actual data and tell me what matters most today.",
+                        mode: "progress"
+                      });
+                      return;
+                    }
+                    void sendPresetPrompt({
+                      label: "Help me stay consistent",
+                      prompt: "Help me stay consistent today using my recent patterns.",
+                      mode: "consistency"
+                    });
+                  }}
+                  className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-ink/80 px-3 py-3 text-left"
+                >
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface text-calm">
+                    <Icon size={17} />
+                  </span>
+                  <span className="text-sm font-semibold text-zinc-100">{action.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <div className="space-y-3 py-4">
-          {!plannerOpen ? (
-            <button
-              type="button"
-              onClick={startWorkoutPlanner}
-              className="flex w-full items-center justify-between rounded-2xl border border-lime/25 bg-[radial-gradient(circle_at_top_right,rgba(53,242,208,0.18),transparent_14rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(7,9,13,0.98))] p-4 text-left shadow-soft"
-            >
-              <span>
-                <span className="block text-xs font-bold uppercase tracking-[0.24em] text-lime">New</span>
-                <span className="mt-2 block text-lg font-semibold text-zinc-100">Generate Today&apos;s Workout</span>
-                <span className="mt-1 block text-sm text-zinc-400">Four quick answers. One practical session.</span>
-              </span>
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-lime text-ink">
-                <Dumbbell size={20} />
-              </span>
-            </button>
-          ) : (
+          {plannerOpen ? (
             <WorkoutPlannerCard
               answers={answers}
               checkedExercises={checkedExercises}
@@ -507,7 +659,7 @@ export function CoachClient() {
               workoutSaved={Boolean(savedWorkoutSummary)}
               workout={workout}
             />
-          )}
+          ) : null}
 
           {workout ? (
             <div className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
@@ -591,6 +743,7 @@ export function CoachClient() {
 
         <form className="sticky bottom-0 flex gap-2 bg-ink pb-4 pt-2" onSubmit={handleSubmit}>
           <input
+            ref={inputRef}
             className="h-12 flex-1 rounded-lg border border-line bg-surface px-3 outline-none focus:border-lime"
             placeholder="Ask Coach Zoe"
             value={message}
