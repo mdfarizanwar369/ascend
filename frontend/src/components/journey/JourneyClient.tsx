@@ -142,6 +142,7 @@ function buildBiggestAchievement({
   streakBest,
   foodLogs,
   burnLogs,
+  waterLogs,
   memory,
   bodyComposition
 }: {
@@ -150,6 +151,7 @@ function buildBiggestAchievement({
   streakBest: number;
   foodLogs: FoodLog[];
   burnLogs: BurnLog[];
+  waterLogs: WaterLog[];
   memory: AscendMemoryResponse | null;
   bodyComposition: BodyCompositionSummary | null;
 }) {
@@ -187,6 +189,13 @@ function buildBiggestAchievement({
           detail: "The routine is becoming part of your normal week."
         }
       : null,
+    waterLogs.length >= 14
+      ? {
+          rank: 4 + waterLogs.length / 14,
+          title: "Hydration has become part of your routine.",
+          detail: "The quieter habits still matter because they support everything else."
+        }
+      : null,
     bodyComposition?.scanCount
       ? {
           rank: 7 + bodyComposition.scanCount,
@@ -204,8 +213,11 @@ function buildBiggestAchievement({
   ].filter((item): item is { rank: number; title: string; detail: string } => Boolean(item));
 
   return candidates.sort((left, right) => right.rank - left.rank)[0] ?? {
-    title: "Your journey is taking shape.",
-    detail: "The first few check-ins matter because they turn intention into something visible."
+    title: foodLogs.length || burnLogs.length || weightLogs.length ? "You have already started building proof." : "Your story starts with one honest day.",
+    detail:
+      foodLogs.length || burnLogs.length || weightLogs.length
+        ? "A handful of real check-ins already matters more than waiting for the perfect start."
+        : "The first meal, workout, or weight log is enough for Ascend to begin remembering your progress."
   };
 }
 
@@ -213,14 +225,19 @@ function buildTimeline(
   memory: AscendMemoryResponse | null,
   foodLogs: FoodLog[],
   burnLogs: BurnLog[],
+  weightLogs: WeightLog[],
+  waterLogs: WaterLog[],
   progressPhotos: ProgressPhoto[],
   goalStatus: GoalStatus | null,
-  bodyComposition: BodyCompositionSummary | null
+  bodyComposition: BodyCompositionSummary | null,
+  weeklyReport: WeeklyReport | null
 ) {
   const items: TimelineItem[] = [];
   const earliestActivity =
     startOfTimeline(foodLogs, (item) => item.logged_at) ??
     startOfTimeline(burnLogs, (item) => item.created_at) ??
+    startOfTimeline(weightLogs, (item) => item.logged_at) ??
+    startOfTimeline(waterLogs, (item) => item.logged_at) ??
     startOfTimeline(progressPhotos, (item) => item.logged_at) ??
     memory?.timeline[memory.timeline.length - 1]?.occurredAt ??
     null;
@@ -259,6 +276,17 @@ function buildTimeline(
     });
   }
 
+  const firstWeight = [...weightLogs].sort((left, right) => new Date(left.logged_at).getTime() - new Date(right.logged_at).getTime())[0];
+  if (firstWeight) {
+    items.push({
+      key: "first-weight",
+      occurredAt: firstWeight.logged_at,
+      title: "First weight logged",
+      subtitle: `${asNumber(firstWeight.weight_kg).toFixed(1)}kg gave your journey a visible starting point.`,
+      tone: "calm"
+    });
+  }
+
   const firstPhoto = [...progressPhotos].sort((left, right) => new Date(left.logged_at).getTime() - new Date(right.logged_at).getTime())[0];
   if (firstPhoto) {
     items.push({
@@ -277,6 +305,16 @@ function buildTimeline(
       title: "Goal achieved",
       subtitle: "A milestone earned through repetition.",
       tone: "lime"
+    });
+  }
+
+  if (weeklyReport?.created_at) {
+    items.push({
+      key: "weekly-reflection",
+      occurredAt: weeklyReport.created_at,
+      title: "Weekly reflection generated",
+      subtitle: "Your recent week was turned into a story you can learn from.",
+      tone: "purple"
     });
   }
 
@@ -323,12 +361,16 @@ function buildCoachMoments({
   recognition,
   messages,
   coachPresence,
-  trainerName
+  trainerName,
+  burnLogs,
+  foodLogs
 }: {
   recognition: Recognition;
   messages: Message[];
   coachPresence: CoachPresenceMessage[];
   trainerName?: string | null;
+  burnLogs: BurnLog[];
+  foodLogs: FoodLog[];
 }) {
   if (trainerName) {
     const trainerMoments = [
@@ -353,15 +395,43 @@ function buildCoachMoments({
     return trainerMoments.slice(0, 3);
   }
 
-  return coachPresence.slice(0, 3).map((message) => ({
+  const actualCoachPresence = coachPresence.slice(0, 3).map((message) => ({
     key: `zoe-${message.id}`,
-    title: "Coach Zoe noticed something",
+    title: "Coach Zoe insight",
     body: message.message,
     date: message.created_at
   }));
+  if (actualCoachPresence.length) return actualCoachPresence;
+
+  if (burnLogs.length) {
+    const latestWorkout = burnLogs[0];
+    return [{
+      key: "coach-workout-memory",
+      title: "Coach Zoe adapted to your training",
+      body: `Your latest workout was ${latestWorkout.metadata.workoutTitle ?? latestWorkout.metadata.activityType ?? "a training session"}. That now shapes your next recommendation.`,
+      date: latestWorkout.created_at
+    }];
+  }
+
+  if (foodLogs.length) {
+    return [{
+      key: "coach-food-memory",
+      title: "Coach Zoe is learning your nutrition pattern",
+      body: `${foodLogs.length} meal logs already give Zoe a clearer read on what usually helps your momentum.`,
+      date: foodLogs[0].logged_at
+    }];
+  }
+
+  return [];
 }
 
-function buildMemoryMoments(memory: AscendMemoryResponse | null, biggestAchievement: { title: string; detail: string }, workoutCount: number) {
+function buildMemoryMoments(
+  memory: AscendMemoryResponse | null,
+  biggestAchievement: { title: string; detail: string },
+  workoutCount: number,
+  foodLogs: FoodLog[],
+  streakCurrent: number
+) {
   const reflected = (memory?.timeline ?? []).filter((item) => item.reflection).slice(0, 2);
   if (reflected.length) {
     return reflected.map((item) => ({
@@ -379,8 +449,12 @@ function buildMemoryMoments(memory: AscendMemoryResponse | null, biggestAchievem
     },
     {
       key: "effort",
-      title: workoutCount ? "Your effort is starting to stack." : "Your story is still beginning.",
-      body: workoutCount ? `You have already completed ${workoutCount} workouts. That is how identity changes.` : "One honest day is enough to start building something real."
+      title: workoutCount ? "You are building evidence, not guessing." : "Your story is still beginning.",
+      body: workoutCount
+        ? `You have already completed ${workoutCount} workouts and logged ${foodLogs.length} meals. That is how a rough intention becomes a real pattern.`
+        : streakCurrent >= 1
+          ? `A ${streakCurrent}-day streak already means this is no longer just an idea.`
+          : "One honest day is enough to start building something real."
     }
   ];
 }
@@ -422,9 +496,17 @@ function buildNextMilestone({
     };
   }
 
+  if (foodLogs.length < 14) {
+    const remaining = Math.max(3, 14 - foodLogs.length);
+    return {
+      title: `Log ${remaining} more meals to reveal your pattern`,
+      detail: "A deeper meal history gives Ascend sharper coaching instead of broad guesses."
+    };
+  }
+
   return {
-    title: `Log ${Math.min(3, Math.max(1, 3 - (foodLogs.length % 3)))} more meals this week`,
-    detail: "The next milestone is usually a simple check-in, not a dramatic change."
+    title: `Protect your next ${Math.max(streakCurrent + 1, 7)}-day rhythm`,
+    detail: "The next milestone is usually a manageable rhythm you can actually keep."
   };
 }
 
@@ -535,8 +617,8 @@ export function JourneyClient() {
   }, []);
 
   const timeline = useMemo(
-    () => buildTimeline(ascendMemory, foodLogs, burnLogs, progressPhotos, goalStatus, bodyComposition),
-    [ascendMemory, foodLogs, burnLogs, progressPhotos, goalStatus, bodyComposition]
+    () => buildTimeline(ascendMemory, foodLogs, burnLogs, weightLogs, waterLogs, progressPhotos, goalStatus, bodyComposition, weeklyReport),
+    [ascendMemory, foodLogs, burnLogs, weightLogs, waterLogs, progressPhotos, goalStatus, bodyComposition, weeklyReport]
   );
   const biggestAchievement = useMemo(
     () =>
@@ -546,10 +628,11 @@ export function JourneyClient() {
         streakBest,
         foodLogs,
         burnLogs,
+        waterLogs,
         memory: ascendMemory,
         bodyComposition
       }),
-    [weightLogs, streakCurrent, streakBest, foodLogs, burnLogs, ascendMemory, bodyComposition]
+    [weightLogs, streakCurrent, streakBest, foodLogs, burnLogs, waterLogs, ascendMemory, bodyComposition]
   );
   const weightBars = useMemo(() => buildWeightBars(weightLogs), [weightLogs]);
   const coachMoments = useMemo(
@@ -558,13 +641,15 @@ export function JourneyClient() {
         recognition: latestRecognition,
         messages: trainerMessages,
         coachPresence: coachPresenceHistory,
-        trainerName: user?.assigned_trainer_name
+        trainerName: user?.assigned_trainer_name,
+        burnLogs,
+        foodLogs
       }),
-    [latestRecognition, trainerMessages, coachPresenceHistory, user?.assigned_trainer_name]
+    [latestRecognition, trainerMessages, coachPresenceHistory, user?.assigned_trainer_name, burnLogs, foodLogs]
   );
   const memoryMoments = useMemo(
-    () => buildMemoryMoments(ascendMemory, biggestAchievement, burnLogs.length),
-    [ascendMemory, biggestAchievement, burnLogs.length]
+    () => buildMemoryMoments(ascendMemory, biggestAchievement, burnLogs.length, foodLogs, streakCurrent),
+    [ascendMemory, biggestAchievement, burnLogs.length, foodLogs, streakCurrent]
   );
   const nextMilestone = useMemo(
     () =>
@@ -582,11 +667,13 @@ export function JourneyClient() {
       timeline[timeline.length - 1]?.occurredAt ??
       ascendMemory?.timeline[ascendMemory.timeline.length - 1]?.occurredAt ??
       foodLogs[foodLogs.length - 1]?.logged_at ??
+      waterLogs[waterLogs.length - 1]?.logged_at ??
+      weightLogs[weightLogs.length - 1]?.logged_at ??
       burnLogs[burnLogs.length - 1]?.created_at ??
       progressPhotos[progressPhotos.length - 1]?.logged_at ??
       null
     );
-  }, [timeline, ascendMemory, foodLogs, burnLogs, progressPhotos]);
+  }, [timeline, ascendMemory, foodLogs, waterLogs, weightLogs, burnLogs, progressPhotos]);
 
   const premiumLocked = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && ascendMemory?.access === "none";
 

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Check, CheckCircle2, Dumbbell, MessageCircle, RotateCcw, Send, Sparkles, UtensilsCrossed, Zap } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
+  CoachChatMode,
   GeneratedWorkout,
   WorkoutPlannerGoal,
   WorkoutPlannerLocation,
@@ -427,7 +428,7 @@ export function CoachHubClient() {
     setMessages((current) => [...current, { role: "user", text: trimmed }]);
 
     try {
-      const response = await sendCoachMessage(trimmed);
+      const response = await sendCoachMessage(trimmed, "general");
       setMessages((current) => [...current, { role: "assistant", text: response.reply }]);
     } catch (error) {
       setMessages((current) => [
@@ -443,14 +444,14 @@ export function CoachHubClient() {
     }
   }
 
-  async function sendPresetPrompt(prompt: string) {
+  async function sendPresetPrompt(input: { label: string; prompt: string; mode: CoachChatMode }) {
     if (isSending) return;
     setMessage("");
     setStatus("");
     setIsSending(true);
-    setMessages((current) => [...current, { role: "user", text: prompt }]);
+    setMessages((current) => [...current, { role: "user", text: input.label }]);
     try {
-      const response = await sendCoachMessage(prompt);
+      const response = await sendCoachMessage(input.prompt, input.mode);
       setMessages((current) => [...current, { role: "assistant", text: response.reply }]);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Coach Zoe is temporarily busy.");
@@ -595,14 +596,26 @@ export function CoachHubClient() {
                       return;
                     }
                     if (action.action === "meal") {
-                      void sendPresetPrompt("Give me practical meal advice for today based on my recent progress.");
+                      void sendPresetPrompt({
+                        label: "Meal Advice",
+                        prompt: "Use my recent history and give me meal advice for today.",
+                        mode: "meal_advice"
+                      });
                       return;
                     }
                     if (action.action === "progress") {
-                      void sendPresetPrompt("Explain my recent progress in a simple way and tell me what matters most today.");
+                      void sendPresetPrompt({
+                        label: "Explain my progress",
+                        prompt: "Explain my recent progress using my actual data and tell me what matters most today.",
+                        mode: "progress"
+                      });
                       return;
                     }
-                    void sendPresetPrompt("Help me stay consistent today with one practical focus.");
+                    void sendPresetPrompt({
+                      label: "Help me stay consistent",
+                      prompt: "Help me stay consistent today using my recent patterns.",
+                      mode: "consistency"
+                    });
                   }}
                   className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-ink/80 px-3 py-3 text-left"
                 >

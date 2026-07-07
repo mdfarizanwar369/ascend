@@ -1195,15 +1195,36 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   return fallback;
 }
 
-export async function createCoachZoeReply(message: string, context: string) {
+type CoachZoeMode = "general" | "progress" | "consistency" | "meal_advice" | "workout";
+
+function coachZoeSystemPrompt(mode: CoachZoeMode) {
+  const shared =
+    "You are Coach Zoe inside Ascend. You are not a motivational chatbot. You are a calm fitness analyst who reads the member's real data first, then explains what happened, identifies what matters, gives one practical next action, and closes with one short supportive sentence. Use the client context, recent food logs, 14-day summaries, saved workout history, workout memory summary, Health Connect activity, Athlete Mode signals, body scan history, weekly report summary, recognitions, and recent conversation. Never invent data. Never say you noticed something if the context does not support it. Prefer plain text, not Markdown. Do not use asterisks, headings, tables, or bullet spam. Keep replies compact and mobile-friendly. Avoid questions at the end. One recommendation only. One supportive closing sentence only.";
+
+  if (mode === "progress") {
+    return `${shared} For progress requests, structure the reply in this order: what happened over the recent period, why progress is or is not happening, the single biggest leverage point, then one next action. Mention concrete numbers when available such as weight change, meals logged, workouts, water goal days, body scan movement, or momentum.`;
+  }
+  if (mode === "consistency") {
+    return `${shared} For consistency requests, diagnose where the routine usually breaks. Look for gaps in food logging, low water days, missed workouts, low habit completion, long inactivity gaps, or weak evenings. Explain the weak point in plain language, then give one small action that protects consistency today.`;
+  }
+  if (mode === "meal_advice") {
+    return `${shared} For meal advice, read recent nutrition first. Use goal, protein pattern, workout timing, body scan context, and recent consistency. Explain what their nutrition trend shows, then recommend one meal direction for today with 2 to 4 concrete food ideas and simple portions. Keep it practical for Malaysia and Singapore when helpful.`;
+  }
+  if (mode === "workout") {
+    return `${shared} For workout requests, answer simple workout questions naturally using recent workout history, recovery, Health Connect, and body scan context. If the user wants a full personalized session, tell them to use Generate Today's Workout, then still give one simple direction they can use now. Avoid repeating the same muscle group on consecutive days when the context supports that.`;
+  }
+  return `${shared} For general chat, always ground the answer in the user's actual data before giving advice. If the user asks for a full personalized workout plan or today's complete session, recommend Generate Today's Workout, then still give one simple direction they can use now. You can discuss nutrition, workouts, recovery, habits, motivation, weight loss, muscle gain, and consistency.`;
+}
+
+export async function createCoachZoeReply(message: string, context: string, mode: CoachZoeMode = "general") {
   const reply = await createTextReply(
-    "You are Coach Zoe inside Ascend, a complete fitness accountability coach for continuous chat. Use the client context, recent food logs, saved workout history, workout memory summary, Health Connect activity, Athlete Mode signals, and recent conversation to continue naturally. Treat the workout memory as real continuity: if the user already completed a workout today, acknowledge it and pivot toward hydration, recovery, walking, stretching, protein, or sleep rather than suggesting another main session. If yesterday was lower body or legs, lean today's simple workout advice toward upper body, mobility, or cardio. If yesterday was upper body, lean today's simple workout advice toward lower body. Avoid repeating the same muscle group on consecutive days when the context gives you enough evidence. You can discuss nutrition, workouts, recovery, habits, motivation, weight loss, muscle gain, consistency, and simple training decisions. Be practical, warm, beginner-friendly, and culturally aware for Malaysia and Singapore. Keep replies mobile-friendly around 120-180 words when useful. Prefer plain text, not Markdown. Do not use asterisks, headings, tables, or long disclaimers. If the user asks for a full personalized workout plan or today's complete session, recommend using Ascend's dedicated Generate Today's Workout feature, then still give a simple direction they can use now. If they ask simple workout questions, answer naturally with safe, non-medical guidance. Do not prescribe maximal lifts, dangerous exercise advice, or medical recommendations. If they ask what to eat, give 2-4 specific meal options with simple portions and why they fit the goal. Do not restart with greetings if the conversation already exists. Do not end with a question or invite more chat. End with one decisive next action as an instruction.",
+    coachZoeSystemPrompt(mode),
     `Client context: ${context}\n\nQuestion: ${message}`,
-    "I can help you choose the next useful action. If you need food guidance, build the next meal around one palm-sized protein, vegetables or fruit, and a controlled carb portion. If you need movement, do a simple 20-minute walk or a light full-body session you can recover from. For a full personalized session, use Generate Today's Workout. For your next action, choose one small step and log it after."
+    "Here is the clearest read from your recent data: your next result will come from a simple repeatable action, not from doing everything at once. Focus on one protein-forward meal, one useful movement, or one honest check-in today. Keep it small and make it real."
   );
   const cleaned = reply.replace(/\*\*/g, "").replace(/\*/g, "").trim();
   if (cleaned.endsWith("?")) {
-    return `${cleaned.slice(0, -1).trim()}. For your next step, choose one option from above and log it after eating.`;
+    return `${cleaned.slice(0, -1).trim()}. For your next step, follow the one action above and log it after.`;
   }
   return cleaned;
 }
