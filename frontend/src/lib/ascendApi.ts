@@ -894,6 +894,38 @@ export function createCheckout(plan: Exclude<SubscriptionPlan, "free">) {
   });
 }
 
+export function verifyGooglePlaySubscription(input: {
+  purchaseToken: string;
+  productId?: string;
+  packageName?: string;
+}) {
+  invalidateCached("subscription:");
+  return authed<{
+    subscription: {
+      id?: string;
+      plan: SubscriptionPlan;
+      provider?: string;
+      status: string;
+      amount_cents?: number;
+      currency?: string;
+      current_period_end?: string | null;
+    };
+    purchase: {
+      plan: Exclude<SubscriptionPlan, "free">;
+      productId: string;
+      purchaseToken: string;
+      status: string;
+      currentPeriodEnd?: string | null;
+      acknowledgementState: "pending" | "acknowledged";
+      autoRenewEnabled: boolean;
+      latestOrderId?: string | null;
+    };
+  }>("/subscriptions/google-play/verify", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
 export function getMySubscription() {
   return authedCached<{
     subscription: {

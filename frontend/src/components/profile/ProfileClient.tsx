@@ -11,7 +11,8 @@ import { cancelSubscription, getBillingPortal, getMe, getMySubscription, removeP
 import { compressProfileImage } from "@/lib/profileImage";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/PerceivedLoading";
-import { getNativeBillingMessage, shouldHideHostedBilling } from "@/lib/billingPlatform";
+import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayBilling } from "@/lib/billingPlatform";
+import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -67,7 +68,9 @@ export function ProfileClient() {
   const backHref = roles.some((role) => role === "owner" || role === "admin") ? "/admin" : roles.includes("trainer") ? "/trainer" : "/dashboard";
   const shownPhoto = preview || user?.profile_photo_url || null;
   const hasHostedBilling = subscriptionProvider === "stripe" || subscriptionProvider === "lemonsqueezy";
+  const isGooglePlaySubscription = subscriptionProvider === "google_play";
   const hideHostedBilling = shouldHideHostedBilling();
+  const nativePlayBilling = shouldUseAndroidPlayBilling();
   const nativeBillingMessage = getNativeBillingMessage();
   const hasPaidPlan = plan !== "free" || rawPlan !== "free";
   const isCancelled = subscriptionStatus === "canceled";
@@ -132,6 +135,23 @@ export function ProfileClient() {
   }
 
   async function openBillingPortal(action: "manage" | "cancel") {
+    if (isGooglePlaySubscription && !nativePlayBilling) {
+      setBillingStatus("This Premium subscription is managed by Google Play. Open Ascend on your Android device to change or cancel it.");
+      return;
+    }
+
+    if (nativePlayBilling || isGooglePlaySubscription) {
+      setBillingStatus("Opening Google Play subscription management...");
+      try {
+        await openNativeGooglePlaySubscriptions();
+      } catch (error) {
+        setBillingStatus(error instanceof Error ? error.message : "Could not open Google Play subscription management.");
+      } finally {
+        setIsBillingWorking(false);
+      }
+      return;
+    }
+
     if (hideHostedBilling) {
       setBillingStatus(nativeBillingMessage ?? "Subscription management is not available in this app build yet.");
       return;
@@ -151,6 +171,14 @@ export function ProfileClient() {
 
   async function cancelManualSubscription() {
     if (isBillingWorking) return;
+    if (isGooglePlaySubscription && !nativePlayBilling) {
+      setBillingStatus("This Premium subscription is managed by Google Play. Open Ascend on your Android device to change or cancel it.");
+      return;
+    }
+    if (nativePlayBilling || isGooglePlaySubscription) {
+      await openBillingPortal("cancel");
+      return;
+    }
     const confirmed = window.confirm("Cancel this subscription? Future renewals will stop. Access normally continues until the end of the current period.");
     if (!confirmed) return;
     setIsBillingWorking(true);
@@ -258,7 +286,28 @@ export function ProfileClient() {
             </Link>
             {hasPaidPlan ? (
               <>
-                {hasHostedBilling && !hideHostedBilling ? (
+                {isGooglePlaySubscription ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openBillingPortal("manage")}
+                      disabled={isBillingWorking}
+                      className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+                    >
+                      <ExternalLink className="mr-2" size={18} />
+                      Manage in Google Play
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openBillingPortal("cancel")}
+                      disabled={isBillingWorking}
+                      className="flex h-11 items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
+                    >
+                      <XCircle className="mr-2" size={18} />
+                      Cancel in Google Play
+                    </button>
+                  </>
+                ) : hasHostedBilling && !hideHostedBilling ? (
                   <>
                     <button
                       type="button"
@@ -299,7 +348,9 @@ export function ProfileClient() {
           </div>
           {billingStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">{billingStatus}</p> : null}
           <p className="mt-3 text-xs leading-5 text-zinc-500">
-            {hideHostedBilling
+            {nativePlayBilling || isGooglePlaySubscription
+              ? "Google Play manages Android Premium billing. Web checkout continues to use Stripe."
+              : hideHostedBilling
               ? "Premium access can still be granted manually for closed testing while in-app billing is being prepared."
               : "Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions."}
           </p>

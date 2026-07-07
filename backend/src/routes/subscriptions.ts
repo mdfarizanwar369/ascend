@@ -5,10 +5,17 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { createCheckout } from "../services/subscriptionService";
 import { getPaymentProvider, LemonSqueezyProvider, StripeProvider, ToyyibPayProvider } from "../integrations/payments";
 import { env } from "../config/env";
+import { applyVerifiedGooglePlaySubscription, syncGooglePlaySubscriptionForUser, verifyGooglePlaySubscriptionPurchase } from "../services/googlePlayBillingService";
 
 export const subscriptionsRouter = Router();
 
 subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
+  try {
+    await syncGooglePlaySubscriptionForUser(req.user!.id);
+  } catch {
+    // Keep subscription reads resilient even if Google Play cannot be reached.
+  }
+
   const result = await query(
     `
     select *
@@ -23,6 +30,35 @@ subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
     [req.user!.id]
   );
   res.json({ subscription: result.rows[0] ?? { plan: "free", status: "active" } });
+});
+
+subscriptionsRouter.post("/subscriptions/google-play/verify", requireAuth, async (req, res, next) => {
+  try {
+    const input = z.object({
+      purchaseToken: z.string().min(1),
+      productId: z.string().min(1).optional(),
+      packageName: z.string().min(1).optional(),
+    }).parse(req.body);
+
+    const purchase = await verifyGooglePlaySubscriptionPurchase(input);
+    const subscription = await applyVerifiedGooglePlaySubscription(req.user!.id, purchase);
+
+    res.status(201).json({
+      subscription,
+      purchase: {
+        plan: purchase.plan,
+        productId: purchase.productId,
+        purchaseToken: purchase.purchaseToken,
+        status: purchase.status,
+        currentPeriodEnd: purchase.currentPeriodEnd,
+        acknowledgementState: purchase.acknowledgementState,
+        autoRenewEnabled: purchase.autoRenewEnabled,
+        latestOrderId: purchase.latestOrderId,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 subscriptionsRouter.post("/subscriptions/checkout", requireAuth, async (req, res, next) => {

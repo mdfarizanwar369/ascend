@@ -14,12 +14,16 @@ export function isIosBillingEnabled() {
   return envFlagEnabled(process.env.NEXT_PUBLIC_IOS_BILLING_ENABLED);
 }
 
+export function shouldUseAndroidPlayBilling() {
+  return isNativeAndroidCapacitor() && isAndroidPlayBillingEnabled();
+}
+
 export function shouldHideHostedBilling() {
   if (!isNativeCapacitorPlatform()) return false;
 
   const platform = getNativeCapacitorPlatform();
-  if (platform === "android") return !isAndroidPlayBillingEnabled();
-  if (platform === "ios") return !isIosBillingEnabled();
+  if (platform === "android") return true;
+  if (platform === "ios") return true;
 
   return false;
 }

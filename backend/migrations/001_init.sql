@@ -4,7 +4,7 @@ create type user_role as enum ('client', 'trainer', 'admin', 'owner');
 create type goal_type as enum ('fat_loss', 'muscle_gain', 'maintenance');
 create type referral_type as enum ('gym', 'trainer');
 create type subscription_plan as enum ('free', 'premium', 'trainer_pro');
-create type subscription_provider as enum ('lemonsqueezy', 'toyyibpay', 'stripe', 'manual');
+create type subscription_provider as enum ('lemonsqueezy', 'toyyibpay', 'stripe', 'manual', 'google_play');
 create type subscription_status as enum ('active', 'trialing', 'past_due', 'canceled', 'expired');
 create type risk_alert_type as enum ('inactive_7_days', 'low_compliance', 'no_food_logs', 'weight_trend_off_goal');
 create type risk_severity as enum ('low', 'medium', 'high');
