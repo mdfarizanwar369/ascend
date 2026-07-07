@@ -59,6 +59,7 @@ type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhot
 type CoachNutritionPlan = Awaited<ReturnType<typeof getMyNutritionPlan>>["coachPlan"];
 type HealthSyncStatus = Awaited<ReturnType<typeof getHealthSyncStatus>>["status"];
 type CollapsibleKey =
+  | "todaysNumbers"
   | "track"
   | "journey"
   | "habitsGoals";
@@ -309,6 +310,7 @@ export function ClientDashboard() {
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
   const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
+    todaysNumbers: false,
     track: false,
     journey: false,
     habitsGoals: false
@@ -1057,6 +1059,14 @@ export function ClientDashboard() {
     scoreLabel
   ].filter((item): item is string => Boolean(item));
   const habitsGoalsPreview = habitsGoalHighlights.slice(0, 2).join(" • ");
+  const hasTodaysNumbers =
+    calories > 0 ||
+    protein > 0 ||
+    todaysWaterMl > 0 ||
+    Boolean(currentWeight) ||
+    score > 0 ||
+    syncedSteps > 0 ||
+    todaysBurnCalories > 0;
   const dailyCoachingMessage = (() => {
     if (coachPresence.latest?.message && proactiveCoachInsight.key === "steady") {
       return {
@@ -1542,6 +1552,72 @@ export function ClientDashboard() {
                 })}
               </div>
             </section>
+
+            <CollapsibleSection
+              title="Today's Numbers"
+              icon={<Zap size={17} />}
+              tone="teal"
+              preview="Quick health snapshot"
+              isOpen={openSections.todaysNumbers}
+              onToggle={() => setSectionOpen("todaysNumbers", !openSections.todaysNumbers)}
+            >
+              {hasTodaysNumbers ? (
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {[
+                    {
+                      key: "calories",
+                      icon: "🔥",
+                      label: "Calories",
+                      value: `${calories.toLocaleString()} / ${calorieTarget.toLocaleString()}`,
+                      detail: "kcal"
+                    },
+                    {
+                      key: "protein",
+                      icon: "🥩",
+                      label: "Protein",
+                      value: `${protein}g / ${proteinTarget}g`,
+                      detail: "today"
+                    },
+                    {
+                      key: "water",
+                      icon: "💧",
+                      label: "Water",
+                      value: `${(todaysWaterMl / 1000).toFixed(1)}L / ${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L`,
+                      detail: "today"
+                    },
+                    {
+                      key: "weight",
+                      icon: "⚖️",
+                      label: "Weight",
+                      value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "No check-in yet",
+                      detail: currentWeight ? weightTrend(latestWeight, previousWeight) : "optional today"
+                    },
+                    {
+                      key: "momentum",
+                      icon: "⚡",
+                      label: "Momentum",
+                      value: scoreLabel,
+                      detail: `${score}/100`
+                    }
+                  ].map((item) => (
+                    <div key={item.key} className="rounded-xl border border-white/6 bg-ink px-3 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base leading-none">{item.icon}</span>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{item.label}</p>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold leading-5 text-white">{item.value}</p>
+                      <p className="mt-1 text-[11px] text-zinc-500">{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-line bg-ink px-4 py-4">
+                  <p className="text-sm leading-6 text-zinc-400">
+                    We&apos;ll start building your daily numbers as you log meals, workouts and progress.
+                  </p>
+                </div>
+              )}
+            </CollapsibleSection>
 
             <section className={`ascend-card-rise mt-4 rounded-[1.6rem] border p-5 shadow-soft ${coachToneClass}`}>
               <div className="flex items-start gap-3">
