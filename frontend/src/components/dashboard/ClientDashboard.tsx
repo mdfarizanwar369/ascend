@@ -663,9 +663,18 @@ export function ClientDashboard() {
   const shouldShowProfileReminder = profileIncomplete && hasExperiencedAscend;
   const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
   const score = momentumScore ?? fallbackScore;
-  const scoreLabel = score >= 80 ? "Strong momentum" : score >= 60 ? "Building momentum" : "Start with one check-in";
-  const momentumHeadline = score >= 70 ? "You're on track" : "Let's get back on track";
   const currentStreak = Number(streak?.current ?? 0);
+  const scoreLabel =
+    currentStreak >= 7
+      ? `${currentStreak}-day streak`
+      : currentStreak >= 2
+        ? `${currentStreak}-day rhythm`
+        : score >= 80
+          ? "Best this month"
+          : score >= 60
+            ? "Building momentum"
+            : "Start today";
+  const momentumHeadline = score >= 70 ? "You're on track" : "Let's get back on track";
   const streakTitle = currentStreak >= 2 ? `${currentStreak}-day consistency streak` : currentStreak === 1 ? "You checked in today" : "Start a streak today";
   const streakCopy =
     currentStreak >= 5
@@ -711,6 +720,15 @@ export function ClientDashboard() {
       .reduce((total, log) => total + asNumber(log.protein_g), 0);
     return dailyProtein >= proteinTarget;
   }).length;
+  const recentFoodDayStats = summarizeRecentFoodDays(foodLogs, 3);
+  const lowProteinDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.protein < proteinTarget * 0.6).length;
+  const highCaloriesDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.calories > calorieTarget * 1.1).length;
+  const lowCaloriesDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.calories < calorieTarget * 0.65).length;
+  const healthSyncSummary = healthSyncStatus?.summary ?? null;
+  const hasSyncedActivity = Boolean(healthSyncSummary?.connected);
+  const syncedSteps = healthSyncSummary?.todaySteps ?? 0;
+  const syncedWorkoutCompleted = healthSyncSummary?.workoutCompletedToday === true;
+  const syncedWorkoutCount = healthSyncSummary?.workoutsThisWeek ?? 0;
 
   const goalProgress = (() => {
     if (!startWeight || !targetWeight || !currentWeight || startWeight === targetWeight) return null;
@@ -780,6 +798,16 @@ export function ClientDashboard() {
   const latestWorkoutTitle = typeof latestBurnLog?.metadata?.workoutTitle === "string" ? latestBurnLog.metadata.workoutTitle : null;
   const latestWorkoutCompletedToday = Boolean(latestBurnLog && localDateKey(latestBurnLog.created_at) === today);
   const latestWorkoutCompletedYesterday = Boolean(latestBurnLog && localDateKey(latestBurnLog.created_at) === yesterday);
+  const daysSinceLastWorkout = latestBurnLog ? Math.max(0, Math.floor((Date.now() - new Date(latestBurnLog.created_at).getTime()) / 86_400_000)) : null;
+  const isFirstDayState =
+    !foodLogs.length &&
+    !weightLogs.length &&
+    !waterLogs.length &&
+    !burnLogs.length &&
+    !habits.length &&
+    !habitLogs.length &&
+    !progressPhotos.length &&
+    currentStreak === 0;
   const enhancedNextAction = (() => {
     if (latestWorkoutCompletedToday && latestWorkoutTitle) {
       return {
@@ -821,6 +849,99 @@ export function ClientDashboard() {
     }
     return nextAction;
   })();
+  const todayPriority = (() => {
+    if (isFirstDayState) {
+      return {
+        key: "Meal" as const,
+        hero: "Log your first meal",
+        reason: "A first meal check-in gives Ascend something real to understand instead of guessing.",
+        cardTitle: "A gentle first step",
+        cardDetail: "Start with the easiest check-in. Everything else can stay simple today."
+      };
+    }
+    if (latestWorkoutCompletedToday) {
+      if (waterLeftMl > 500) {
+        return {
+          key: "Water" as const,
+          hero: "Recovery starts with water",
+          reason: `You already trained${latestWorkoutTitle ? ` with ${latestWorkoutTitle}` : ""}. Hydration is the easiest way to support recovery today.`,
+          cardTitle: "Today's priority",
+          cardDetail: "The rest can stay light. Recovery matters more than volume right now."
+        };
+      }
+      if (proteinLeft > 25) {
+        return {
+          key: "Meal" as const,
+          hero: "Support today's workout with protein",
+          reason: "You already put in the training effort. One protein-rich meal helps that work pay off.",
+          cardTitle: "Today's priority",
+          cardDetail: "You do not need to do everything. Just support the work you already did."
+        };
+      }
+    }
+    if (lowProteinDays3 >= 2 || (proteinLeft > 25 && !todaysFood.length)) {
+      return {
+        key: "Meal" as const,
+        hero: "Protein is the clearest win today",
+        reason: lowProteinDays3 >= 2
+          ? "Protein has been the weak point over the last few days. Fixing that gives you the biggest return today."
+          : "You have not logged a meal yet, and protein is still the biggest gap.",
+        cardTitle: "Today's priority",
+        cardDetail: "Let food do the heavy lifting. The other check-ins can follow naturally."
+      };
+    }
+    if (todaysWaterMl < nutritionTargets.waterTargetMl && (weeklyWaterDays.size <= 2 || waterLeftMl >= 750)) {
+      return {
+        key: "Water" as const,
+        hero: `Drink another ${Math.max(0.3, Number((waterLeftMl / 1000).toFixed(1)))}L`,
+        reason: weeklyWaterDays.size <= 2
+          ? "Hydration has been the habit most likely to slip recently. That is why water comes first today."
+          : "Water is the easiest useful action left today, and it will make the rest of the day feel better.",
+        cardTitle: "Today's priority",
+        cardDetail: "This is the simplest win available right now."
+      };
+    }
+    if (!latestWorkoutCompletedToday && !syncedWorkoutCompleted && (daysSinceLastWorkout === null || daysSinceLastWorkout >= 3)) {
+      return {
+        key: "Movement" as const,
+        hero: "A little movement will help today",
+        reason: daysSinceLastWorkout === null
+          ? "You have not logged movement yet, so even a short session would give the day some momentum."
+          : `It has been ${daysSinceLastWorkout} days since your last workout. Movement is the clearest way to get back into rhythm.`,
+        cardTitle: "Today's priority",
+        cardDetail: "This does not need to be a perfect workout. It just needs to happen."
+      };
+    }
+    if (!latestWeightLoggedToday && weeklyWeightDays.size <= 1) {
+      return {
+        key: "Weight" as const,
+        hero: "A quick weigh-in will sharpen today",
+        reason: "Your recent weight picture is still thin. One check-in gives your progress more context.",
+        cardTitle: "Today's priority",
+        cardDetail: "You are not chasing a number. You are gathering a clearer signal."
+      };
+    }
+    if (habits.length > 0 && completedHabitIds.size === 0) {
+      return {
+        key: "Habit" as const,
+        hero: "Protect the promises you made yourself",
+        reason: currentStreak >= 2
+          ? "You already have momentum. One completed habit is enough to protect it."
+          : "A completed habit is the easiest way to make today feel intentional.",
+        cardTitle: "Today's priority",
+        cardDetail: "One small promise kept is enough for today."
+      };
+    }
+    return {
+      key: null,
+      hero: "Protect the progress you've already built",
+      reason: currentStreak >= 3
+        ? `You have already put together ${currentStreak} steady days. Today's job is to keep things easy, not dramatic.`
+        : "The basics are already in motion. Today is more about protecting rhythm than chasing more.",
+      cardTitle: "You're in a good place",
+      cardDetail: "Nothing needs urgent attention. Stay steady and let the day stay light."
+    };
+  })();
   const taskItems = [
     { label: "Food logged", done: todaysFood.length > 0, href: "/food-log" },
     { label: "Water completed", done: todaysWaterMl >= nutritionTargets.waterTargetMl, href: "/water-log" },
@@ -830,10 +951,6 @@ export function ClientDashboard() {
   ];
   const completedTaskCount = taskItems.filter((item) => item.done).length;
   const dailyCompletion = Math.round((completedTaskCount / taskItems.length) * 100);
-  const recentFoodDayStats = summarizeRecentFoodDays(foodLogs, 3);
-  const lowProteinDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.protein < proteinTarget * 0.6).length;
-  const highCaloriesDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.calories > calorieTarget * 1.1).length;
-  const lowCaloriesDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.calories < calorieTarget * 0.65).length;
   const highlightedTaskKey = recentAction
     ? recentAction.type === "food"
       ? "Food logged"
@@ -852,18 +969,6 @@ export function ClientDashboard() {
     { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
     { label: "Activity", value: `${todaysBurnCalories}`, detail: "kcal burn" }
   ];
-  const quickSnapshotItems = [
-    { label: "Calories", value: calories.toLocaleString(), detail: `${calorieTarget.toLocaleString()} guide` },
-    { label: "Protein", value: `${protein}g`, detail: `${proteinTarget}g guide` },
-    { label: "Water", value: `${(todaysWaterMl / 1000).toFixed(1)}L`, detail: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide` },
-    { label: "Weight", value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "--", detail: weightTrend(latestWeight, previousWeight) },
-    { label: "Momentum", value: `${score}/100`, detail: scoreLabel }
-  ];
-  const healthSyncSummary = healthSyncStatus?.summary ?? null;
-  const hasSyncedActivity = Boolean(healthSyncSummary?.connected);
-  const syncedSteps = healthSyncSummary?.todaySteps ?? 0;
-  const syncedWorkoutCompleted = healthSyncSummary?.workoutCompletedToday === true;
-  const syncedWorkoutCount = healthSyncSummary?.workoutsThisWeek ?? 0;
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : null;
   const latestMemoryMilestone = ascendMemory?.timeline?.[0];
   const proactiveCoachInsight = buildCoachZoeProactiveInsight({
@@ -928,9 +1033,10 @@ export function ClientDashboard() {
       ? `Body fat ${athleteBodyComposition.bodyFatPercent ?? "--"}% / ${athleteBodyComposition.scanCount} scans`
       : "Your first Body Scan is waiting"
     : "Athlete Mode only";
-  const trackPreview = foodLogs.length || todaysWaterMl > 0 || latestWeight || latestBurnLog
+  const trackPreview = calories > 0 || protein > 0 || todaysWaterMl > 0 || currentWeight || todaysBurnCalories > 0
     ? [
-        todaysFood.length ? `${todaysFood.length} meal${todaysFood.length === 1 ? "" : "s"}` : null,
+        calories > 0 ? `${calories.toLocaleString()} kcal` : null,
+        protein > 0 ? `${protein}g protein` : null,
         todaysWaterMl > 0 ? `${(todaysWaterMl / 1000).toFixed(1)}L` : null,
         currentWeight ? `${currentWeight.toFixed(1)}kg` : null,
         todaysBurnCalories > 0 ? `${todaysBurnCalories} kcal` : null,
@@ -948,7 +1054,7 @@ export function ClientDashboard() {
     habits.length ? `${completedHabitIds.size}/${habits.length} habits` : null,
     currentStreak > 0 ? `${currentStreak}-day streak` : null,
     goalProgress !== null ? `${goalProgress}% goal progress` : null,
-    `${score}/100 momentum`
+    scoreLabel
   ].filter((item): item is string => Boolean(item));
   const habitsGoalsPreview = habitsGoalHighlights.slice(0, 2).join(" • ");
   const dailyCoachingMessage = (() => {
@@ -984,6 +1090,11 @@ export function ClientDashboard() {
   })();
   const firstName = user?.full_name?.trim().split(/\s+/)[0] ?? "there";
   const primaryAction = (() => {
+    if (consumerTodayV2 && todayPriority.key === "Meal") return { label: "Log Meal", href: "/food-log" };
+    if (consumerTodayV2 && todayPriority.key === "Water") return { label: "Log Water", href: "/water-log" };
+    if (consumerTodayV2 && todayPriority.key === "Movement") return { label: "Log Movement", href: "/burn-log" };
+    if (consumerTodayV2 && todayPriority.key === "Weight") return { label: "Log Weight", href: "/weight-log" };
+    if (consumerTodayV2 && todayPriority.key === "Habit") return { label: "Open Habits", href: "/habits" };
     if (!todaysFood.length || proteinLeft > 25) return { label: "Log Meal", href: "/food-log" };
     if (todaysWaterMl < nutritionTargets.waterTargetMl) return { label: "Log Water", href: "/water-log" };
     if (!latestWorkoutCompletedToday && !syncedWorkoutCompleted) return { label: "Start Workout", href: "/coach" };
@@ -991,16 +1102,8 @@ export function ClientDashboard() {
     if (completedHabitIds.size === 0) return { label: "Open Habits", href: "/habits" };
     return { label: "View Progress", href: "/progress" };
   })();
-  const isFirstDayState =
-    !foodLogs.length &&
-    !weightLogs.length &&
-    !waterLogs.length &&
-    !burnLogs.length &&
-    !habits.length &&
-    !habitLogs.length &&
-    !progressPhotos.length &&
-    currentStreak === 0;
   const heroSupportingCopy = (() => {
+    if (consumerTodayV2) return todayPriority.reason;
     if (isFirstDayState) return "Start with one simple check-in. That is enough for today.";
     if (recentCelebration?.secondary) return recentCelebration.secondary;
     if (currentStreak >= 7) return "You're already moving better than last week.";
@@ -1043,21 +1146,21 @@ export function ClientDashboard() {
     if (isFirstDayState) {
       return {
         title: "A calm first day",
-        detail: "Nothing is behind. One check-in is enough to get started.",
+        detail: "You do not need five tasks. You just need one honest start.",
         tone: "teal" as const
       };
     }
-    if (dailyCompletion >= 80) {
+    if (todayPriority.key === null || dailyCompletion >= 80) {
       return {
-        title: "You're doing well today",
-        detail: currentStreak >= 3 ? `This is already better than ${currentStreak} days ago.` : "Protect the rhythm you already built.",
+        title: todayPriority.cardTitle,
+        detail: todayPriority.cardDetail,
         tone: "lime" as const
       };
     }
-    if (dailyCompletion >= 40) {
+    if (todayPriority.key) {
       return {
-        title: "One or two actions will steady today",
-        detail: proteinLeft > 25 ? "Protein is the clearest win right now." : waterLeftMl > 500 ? "Hydration is the easiest win right now." : "A small check-in will change the feel of the day.",
+        title: todayPriority.cardTitle,
+        detail: todayPriority.cardDetail,
         tone: "teal" as const
       };
     }
@@ -1180,7 +1283,14 @@ export function ClientDashboard() {
       done: completedHabitIds.size > 0,
       tone: completedHabitIds.size > 0 ? "lime" : "purple"
     }
-  ] as const;
+  ].map((item) => ({
+    ...item,
+    priority: todayPriority.key === item.label,
+    subdued: todayPriority.key !== null && item.done && todayPriority.key !== item.label
+  })).sort((left, right) => {
+    if (left.priority === right.priority) return 0;
+    return left.priority ? -1 : 1;
+  });
 
   function revealTodayProgress() {
     window.setTimeout(() => {
@@ -1325,7 +1435,7 @@ export function ClientDashboard() {
         <AscendHeroPanel
           eyebrow={consumerTodayV2 ? "Today's focus" : recentCelebration ? "Nice Work" : "Next Best Move"}
           title={consumerTodayV2 ? `${greeting}, ${firstName}.` : recentCelebration?.title ?? enhancedNextAction.title}
-          body={consumerTodayV2 ? (recentCelebration?.title ?? enhancedNextAction.title) : recentCelebration?.detail ?? enhancedNextAction.detail}
+          body={consumerTodayV2 ? todayPriority.hero : recentCelebration?.detail ?? enhancedNextAction.detail}
           tone="momentum"
           visual={consumerTodayV2 ? <HeroMomentumStat score={score} label={scoreLabel} /> : <MomentumHalo value={score} />}
           className="border-calm/35 from-calm/14 via-surface to-purple-500/16 shadow-[0_24px_80px_rgba(8,12,20,0.55)]"
@@ -1381,7 +1491,7 @@ export function ClientDashboard() {
             <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-calm">Today</p>
+                  <p className="text-sm font-semibold text-calm">{todayPriority.key ? "Today's priority" : "Today"}</p>
                   <h2 className="mt-2 text-lg font-semibold text-white">{dailyStatus.title}</h2>
                   <p className="mt-2 text-sm leading-6 text-zinc-400">{dailyStatus.detail}</p>
                 </div>
@@ -1401,6 +1511,8 @@ export function ClientDashboard() {
                           : item.tone === "blue"
                             ? "border-sky-400/25 bg-sky-400/8"
                             : "border-line bg-ink";
+                  const priorityClass = item.priority ? "border-calm/40 bg-[linear-gradient(180deg,rgba(61,230,209,0.10),rgba(18,23,33,0.96))] shadow-[0_12px_35px_rgba(61,230,209,0.08)]" : "";
+                  const subduedClass = item.subdued ? "opacity-65" : "";
                   const iconTone =
                     item.done
                       ? "bg-lime text-ink"
@@ -1412,13 +1524,14 @@ export function ClientDashboard() {
                             ? "bg-sky-400/12 text-sky-200"
                             : "bg-surface text-calm";
                   return (
-                    <a key={item.label} href={item.href} className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 transition-colors ${toneClass}`}>
+                    <a key={item.label} href={item.href} className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 transition-colors ${toneClass} ${priorityClass} ${subduedClass}`}>
                       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${iconTone}`}>
                         <Icon size={17} />
                       </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold text-white">{item.label}</p>
+                          {item.priority ? <span className="rounded-full bg-calm/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-calm">Now</span> : null}
                           <span className="text-xs font-medium text-zinc-500">{item.value}</span>
                         </div>
                         <p className="mt-1 text-sm text-zinc-400">{item.detail}</p>
@@ -1573,42 +1686,6 @@ export function ClientDashboard() {
           ) : null}
         </section>
 
-        <section ref={progressDetailsRef} className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-calm">Quick Snapshot</p>
-              <p className="mt-1 text-sm text-zinc-400">The numbers that matter today.</p>
-            </div>
-            <a href="/momentum-score" className="rounded-full bg-ink px-3 py-2 text-xs font-semibold text-lime">
-              How is this calculated?
-            </a>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {quickSnapshotItems.map((item) => {
-              const Icon = snapshotIcon(item.label);
-              const progressValue =
-                item.label === "Calories" ? calorieProgress :
-                item.label === "Protein" ? proteinProgress :
-                item.label === "Water" ? clamp(Math.round((todaysWaterMl / nutritionTargets.waterTargetMl) * 100)) :
-                item.label === "Momentum" ? score :
-                currentWeight ? clamp(goalProgress ?? 48) : 0;
-              return (
-              <div key={item.label} className="rounded-2xl border border-white/5 bg-ink p-3.5">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-2xl bg-surface text-calm">
-                    <Icon size={18} />
-                  </span>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{item.label}</span>
-                </div>
-                <p className="mt-3 text-xl font-semibold text-white">{item.value}</p>
-                <p className="mt-1 text-[11px] leading-4 text-zinc-500">{item.detail}</p>
-                <div className="mt-3"><DelightProgressBar value={progressValue} /></div>
-              </div>
-            );
-            })}
-          </div>
-        </section>
-
         <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-purple-400/25 bg-[linear-gradient(180deg,rgba(139,92,246,0.10),rgba(18,23,33,0.96))] p-5 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -1637,7 +1714,7 @@ export function ClientDashboard() {
           onToggle={() => setSectionOpen("track", !openSections.track)}
         >
           <div className="space-y-4">
-            <section className="rounded-xl border border-line bg-ink p-4">
+            <section ref={progressDetailsRef} className="rounded-xl border border-line bg-ink p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-white">Nutrition</p>
@@ -1682,7 +1759,7 @@ export function ClientDashboard() {
               </div>
             </section>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <a href="/weight-log" className="rounded-xl border border-line bg-ink p-4">
                 <p className="text-sm font-semibold text-white">Weight</p>
                 <p className="mt-2 text-lg font-semibold">{currentWeight ? `${currentWeight.toFixed(1)}kg` : "Record your first weigh-in"}</p>
@@ -1697,6 +1774,11 @@ export function ClientDashboard() {
                 <p className="text-sm font-semibold text-white">Activity</p>
                 <p className="mt-2 text-lg font-semibold">{todaysBurnCalories ? `${todaysBurnCalories} kcal` : "Add movement"}</p>
                 <p className="mt-1 text-xs text-zinc-400">{workoutPreview}</p>
+              </a>
+              <a href="/momentum-score" className="rounded-xl border border-line bg-ink p-4">
+                <p className="text-sm font-semibold text-white">Momentum</p>
+                <p className="mt-2 text-lg font-semibold">{score}/100</p>
+                <p className="mt-1 text-xs text-zinc-400">{scoreLabel}</p>
               </a>
             </div>
 
