@@ -60,7 +60,7 @@ export async function ensureAscendMemorySchema() {
   `);
 }
 
-async function activePremiumContext(userId: string) {
+async function activeClientContext(userId: string) {
   const result = await query<{
     id: string;
     full_name: string | null;
@@ -96,11 +96,7 @@ async function activePremiumContext(userId: string) {
     `,
     [userId]
   );
-  const context = result.rows[0] ?? null;
-  if (!context) return null;
-  const premium = (context.current_plan === "premium" || context.current_plan === "trainer_pro") &&
-    (context.subscription_status === null || ["active", "trialing", "past_due"].includes(context.subscription_status));
-  return premium ? context : null;
+  return result.rows[0] ?? null;
 }
 
 async function activityStreaks(userId: string) {
@@ -139,7 +135,7 @@ async function activityStreaks(userId: string) {
   return { best, bestDate, activeDays7 };
 }
 
-async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<ReturnType<typeof activePremiumContext>>>) {
+async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<ReturnType<typeof activeClientContext>>>) {
   const [
     food,
     weights,
@@ -491,7 +487,7 @@ function deterministicReflection(event: MemoryEvent) {
   return "This is part of your Ascend story. Small actions become meaningful when you can look back and see that you kept going.";
 }
 
-function reflectionContext(event: MemoryEvent, context: NonNullable<Awaited<ReturnType<typeof activePremiumContext>>>, events: MemoryEvent[]) {
+function reflectionContext(event: MemoryEvent, context: NonNullable<Awaited<ReturnType<typeof activeClientContext>>>, events: MemoryEvent[]) {
   return JSON.stringify({
     currentDate: new Date().toISOString().slice(0, 10),
     milestone: event,
@@ -512,7 +508,7 @@ function reflectionContext(event: MemoryEvent, context: NonNullable<Awaited<Retu
   });
 }
 
-async function maybeCreateReflection(userId: string, context: NonNullable<Awaited<ReturnType<typeof activePremiumContext>>>, events: MemoryEvent[]) {
+async function maybeCreateReflection(userId: string, context: NonNullable<Awaited<ReturnType<typeof activeClientContext>>>, events: MemoryEvent[]) {
   const candidates = [...events].sort((a, b) => b.priority - a.priority || new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
   const existing = await query<{ milestone_key: string }>("select milestone_key from ascend_memory_reflections where user_id = $1", [userId]);
   const existingKeys = new Set(existing.rows.map((row) => row.milestone_key));
@@ -578,10 +574,16 @@ async function maybeCreateReflection(userId: string, context: NonNullable<Awaite
 }
 
 export async function getAscendMemoryTimeline(userId: string) {
-  const context = await activePremiumContext(userId);
+  const context = await activeClientContext(userId);
   if (!context) return { timeline: [], stats: { aiReflectionsThisMonth: 0, monthlyLimit: 4, cacheHits: 0 }, access: "none" as const };
   const events = await buildMemoryEvents(userId, context);
-  await maybeCreateReflection(userId, context, events);
+  const premiumAccess =
+    (context.current_plan === "premium" || context.current_plan === "trainer_pro") &&
+    (context.subscription_status === null || ["active", "trialing", "past_due"].includes(context.subscription_status));
+
+  if (premiumAccess) {
+    await maybeCreateReflection(userId, context, events);
+  }
 
   const reflections = await query<{
     id: string;
@@ -593,28 +595,30 @@ export async function getAscendMemoryTimeline(userId: string) {
     [userId]
   );
   const reflectionMap = new Map(reflections.rows.map((row) => [row.milestone_key, row]));
-  const monthly = await query<{ count: string | number }>(
-    "select count(*) as count from ascend_memory_reflections where user_id = $1 and ai_generated = true and created_at >= date_trunc('month', now())",
-    [userId]
-  );
+  const monthly = premiumAccess
+    ? await query<{ count: string | number }>(
+        "select count(*) as count from ascend_memory_reflections where user_id = $1 and ai_generated = true and created_at >= date_trunc('month', now())",
+        [userId]
+      )
+    : { rows: [{ count: 0 }] };
 
   const timeline: AscendMemoryTimelineItem[] = events.map((event) => {
     const reflection = reflectionMap.get(event.milestoneKey);
     return {
       ...event,
       id: reflection?.id,
-      reflection: reflection?.reflection ?? null,
-      aiGenerated: reflection?.ai_generated ?? false
+      reflection: premiumAccess ? reflection?.reflection ?? null : null,
+      aiGenerated: premiumAccess ? reflection?.ai_generated ?? false : false
     };
   });
 
   return {
-    access: context.athlete_mode_enabled ? "athlete" as const : "premium" as const,
-    timeline,
+    access: context.athlete_mode_enabled ? "athlete" as const : premiumAccess ? "premium" as const : "free" as const,
+    timeline: premiumAccess ? timeline : timeline.slice(0, 12),
     stats: {
       aiReflectionsThisMonth: Number(monthly.rows[0]?.count ?? 0),
       monthlyLimit: 4,
-      cacheHits: timeline.filter((item) => item.reflection).length
+      cacheHits: premiumAccess ? timeline.filter((item) => item.reflection).length : 0
     }
   };
 }

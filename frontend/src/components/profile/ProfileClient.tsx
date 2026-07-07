@@ -11,6 +11,7 @@ import { cancelSubscription, getBillingPortal, getMe, getMySubscription, removeP
 import { compressProfileImage } from "@/lib/profileImage";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/PerceivedLoading";
+import { getNativeBillingMessage, shouldHideHostedBilling } from "@/lib/billingPlatform";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -66,6 +67,8 @@ export function ProfileClient() {
   const backHref = roles.some((role) => role === "owner" || role === "admin") ? "/admin" : roles.includes("trainer") ? "/trainer" : "/dashboard";
   const shownPhoto = preview || user?.profile_photo_url || null;
   const hasHostedBilling = subscriptionProvider === "stripe" || subscriptionProvider === "lemonsqueezy";
+  const hideHostedBilling = shouldHideHostedBilling();
+  const nativeBillingMessage = getNativeBillingMessage();
   const hasPaidPlan = plan !== "free" || rawPlan !== "free";
   const isCancelled = subscriptionStatus === "canceled";
   const renewalLabel = isCancelled ? "Access ends" : "Renewal date";
@@ -129,6 +132,11 @@ export function ProfileClient() {
   }
 
   async function openBillingPortal(action: "manage" | "cancel") {
+    if (hideHostedBilling) {
+      setBillingStatus(nativeBillingMessage ?? "Subscription management is not available in this app build yet.");
+      return;
+    }
+
     if (isBillingWorking) return;
     setIsBillingWorking(true);
     setBillingStatus(action === "cancel" ? "Opening cancellation options..." : "Opening subscription management...");
@@ -218,7 +226,9 @@ export function ProfileClient() {
           ) : (
             <div className="mt-5 rounded-lg border border-calm/40 bg-calm/10 p-4 text-left">
               <p className="text-sm font-semibold text-calm">Profile photos are available with Premium.</p>
-              <Link href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">View plans</Link>
+              <Link href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+                {hideHostedBilling ? "Premium options" : "View plans"}
+              </Link>
             </div>
           )}
         </section>
@@ -244,11 +254,11 @@ export function ProfileClient() {
           </div>
           <div className="mt-4 grid gap-3">
             <Link href="/subscription" className="flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200">
-              View plans
+              {hideHostedBilling ? "Premium options" : "View plans"}
             </Link>
             {hasPaidPlan ? (
               <>
-                {hasHostedBilling ? (
+                {hasHostedBilling && !hideHostedBilling ? (
                   <>
                     <button
                       type="button"
@@ -269,6 +279,10 @@ export function ProfileClient() {
                       {isCancelled ? "Cancellation Scheduled" : "Cancel Subscription"}
                     </button>
                   </>
+                ) : hasHostedBilling && hideHostedBilling ? (
+                  <p className="rounded-lg border border-calm/40 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">
+                    {nativeBillingMessage}
+                  </p>
                 ) : (
                   <button
                     type="button"
@@ -285,7 +299,9 @@ export function ProfileClient() {
           </div>
           {billingStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">{billingStatus}</p> : null}
           <p className="mt-3 text-xs leading-5 text-zinc-500">
-            Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions.
+            {hideHostedBilling
+              ? "Premium access can still be granted manually for closed testing while in-app billing is being prepared."
+              : "Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions."}
           </p>
         </section>
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">

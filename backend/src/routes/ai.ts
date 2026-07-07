@@ -3,7 +3,7 @@ import { createCoachWorkoutPlan, createCoachZoeReply, estimateBurnFromText } fro
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
-import { logAiUsage } from "../services/aiUsageService";
+import { getCoachZoeAccess, logAiUsage } from "../services/aiUsageService";
 import { env } from "../config/env";
 import { aiRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
@@ -89,7 +89,7 @@ function summarizeWeightRows(rows: Array<Record<string, unknown>>) {
     logs: ordered.length,
     firstWeightKg: first,
     latestWeightKg: latest,
-    changeKg14d: delta
+    changeKgWindow: delta
   };
 }
 
@@ -102,10 +102,120 @@ function summarizeHabitRows(rows: Array<Record<string, unknown>>) {
   };
 }
 
-aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
+function coverageStats(rows: Array<Record<string, unknown>>, key: "logged_at" | "created_at", daysWindow = 90) {
+  const weekdayActive = new Set<string>();
+  const weekendActive = new Set<string>();
+  let weekdaySlots = 0;
+  let weekendSlots = 0;
+
+  for (const row of rows) {
+    const value = String(row[key] ?? "");
+    if (!value) continue;
+    const normalized = localDateKey(value);
+    const day = new Date(`${normalized}T00:00:00Z`).getUTCDay();
+    if (day === 0 || day === 6) weekendActive.add(normalized);
+    else weekdayActive.add(normalized);
+  }
+
+  for (let index = 0; index < daysWindow; index += 1) {
+    const date = new Date();
+    date.setUTCDate(date.getUTCDate() - index);
+    const day = date.getUTCDay();
+    if (day === 0 || day === 6) weekendSlots += 1;
+    else weekdaySlots += 1;
+  }
+
+  const weekdayCoverage = weekdaySlots ? Math.round((weekdayActive.size / weekdaySlots) * 100) : 0;
+  const weekendCoverage = weekendSlots ? Math.round((weekendActive.size / weekendSlots) * 100) : 0;
+
+  return { weekdayCoverage, weekendCoverage };
+}
+
+function summarizeLongTermSignals(input: {
+  foodRows: Array<Record<string, unknown>>;
+  waterRows: Array<Record<string, unknown>>;
+  weightRows: Array<Record<string, unknown>>;
+  burnRows: Array<Record<string, unknown>>;
+  habitRows: Array<Record<string, unknown>>;
+}) {
+  const foodCoverage = coverageStats(input.foodRows, "logged_at");
+  const waterCoverage = coverageStats(input.waterRows, "logged_at");
+  const habitCoverage = coverageStats(input.habitRows, "logged_at");
+  const workoutCoverage = coverageStats(input.burnRows, "created_at");
+
+  const workoutWeeks = new Set(
+    input.burnRows
+      .map((row) => String(row.created_at ?? ""))
+      .filter(Boolean)
+      .map((value) => {
+        const date = new Date(value);
+        const weekStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+        weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
+        return weekStart.toISOString().slice(0, 10);
+      })
+  );
+
+  const orderedWeights = [...input.weightRows]
+    .map((row) => ({
+      loggedAt: String(row.logged_at ?? ""),
+      weightKg: asNumber(row.weight_kg)
+    }))
+    .filter((row) => row.loggedAt && row.weightKg !== null)
+    .sort((left, right) => new Date(left.loggedAt).getTime() - new Date(right.loggedAt).getTime());
+  const latestWeight = orderedWeights.at(-1) ?? null;
+  const weight30Baseline = [...orderedWeights]
+    .reverse()
+    .find((row) => new Date(row.loggedAt).getTime() <= Date.now() - 30 * 86_400_000) ?? orderedWeights[0] ?? null;
+  const weight90Baseline = orderedWeights[0] ?? null;
+  const weightChange30d =
+    latestWeight && weight30Baseline ? Math.round((latestWeight.weightKg! - weight30Baseline.weightKg!) * 10) / 10 : null;
+  const weightChange90d =
+    latestWeight && weight90Baseline ? Math.round((latestWeight.weightKg! - weight90Baseline.weightKg!) * 10) / 10 : null;
+
+  const recurringPatterns: string[] = [];
+  if (foodCoverage.weekdayCoverage - foodCoverage.weekendCoverage >= 20) {
+    recurringPatterns.push("Food logging usually drops on weekends.");
+  }
+  if (waterCoverage.weekdayCoverage - waterCoverage.weekendCoverage >= 20) {
+    recurringPatterns.push("Hydration tracking becomes less consistent on weekends.");
+  }
+  if (habitCoverage.weekdayCoverage - habitCoverage.weekendCoverage >= 20) {
+    recurringPatterns.push("Habit check-ins are stronger on weekdays than weekends.");
+  }
+  if (workoutCoverage.weekendCoverage - workoutCoverage.weekdayCoverage >= 20) {
+    recurringPatterns.push("Training is more consistent on weekends than weekdays.");
+  }
+  if (orderedWeights.length >= 4 && weightChange30d !== null && Math.abs(weightChange30d) <= 0.3 && weightChange90d !== null && Math.abs(weightChange90d) >= 0.8) {
+    recurringPatterns.push("Progress appears to be plateauing over the last month.");
+  }
+
+  return {
+    windowDays: 90,
+    foodCoverage,
+    waterCoverage,
+    habitCoverage,
+    workoutCoverage,
+    workouts90d: input.burnRows.length,
+    averageWorkoutsPerWeek90d: Math.round((input.burnRows.length / (90 / 7)) * 10) / 10,
+    activeWorkoutWeeks90d: workoutWeeks.size,
+    weightChange30d,
+    weightChange90d,
+    recurringPatterns
+  };
+}
+
+aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     const { message, mode } = coachChatSchema.parse(req.body);
-    const [contextResult, recentFoodResult, food14dResult, recentBurnResult, burn14dResult, athleteResult, bodyScanResult, bodyScanHistoryResult, recentMessagesResult, healthSyncSummary, momentumResult, water14dResult, weight14dResult, habit14dResult, weeklyReportResult, recognitionResult] = await Promise.all([
+    const coachAccess = await getCoachZoeAccess(req.user!.id);
+    if (mode === "general" && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
+      return res.status(402).json({
+        error: "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights and a coach that learns from your journey."
+      });
+    }
+
+    const analysisWindowDays = coachAccess.premiumDepth ? 30 : 7;
+    const [contextResult, recentFoodResult, foodWindowResult, recentBurnResult, burnWindowResult, athleteResult, bodyScanResult, bodyScanHistoryResult, recentMessagesResult, healthSyncSummary, momentumResult, waterWindowResult, weightWindowResult, habitWindowResult, weeklyReportResult, recognitionResult, longTermFoodResult, longTermWaterResult, longTermWeightResult, longTermHabitResult, longTermBurnResult] = await Promise.all([
       query<{ metadata: Record<string, unknown> | null; created_at: string }>(
         `
         select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
@@ -129,10 +239,10 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
         select estimated_food_name, calories, protein_g, carbs_g, fat_g, meal_type, logged_at
         from food_logs
         where user_id = $1
-          and logged_at >= now() - interval '14 days'
+          and logged_at >= now() - ($2::int * interval '1 day')
         order by logged_at desc
         `,
-        [req.user!.id]
+        [req.user!.id, analysisWindowDays]
       ),
       query(
         `
@@ -151,10 +261,10 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
         from analytics_events
         where user_id = $1
           and event_name = 'burn_log'
-          and created_at >= now() - interval '14 days'
+          and created_at >= now() - ($2::int * interval '1 day')
         order by created_at desc
         `,
-        [req.user!.id]
+        [req.user!.id, analysisWindowDays]
       ),
       query(
         `
@@ -212,30 +322,30 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
         select amount_ml, logged_at
         from water_logs
         where user_id = $1
-          and logged_at >= now() - interval '14 days'
+          and logged_at >= now() - ($2::int * interval '1 day')
         order by logged_at desc
         `,
-        [req.user!.id]
+        [req.user!.id, analysisWindowDays]
       ),
       query(
         `
         select weight_kg, logged_at
         from weight_logs
         where user_id = $1
-          and logged_at >= now() - interval '14 days'
+          and logged_at >= now() - ($2::int * interval '1 day')
         order by logged_at desc
         `,
-        [req.user!.id]
+        [req.user!.id, analysisWindowDays]
       ),
       query(
         `
         select completed, logged_at
         from habit_logs
         where user_id = $1
-          and logged_at >= now() - interval '14 days'
+          and logged_at >= now() - ($2::int * interval '1 day')
         order by logged_at desc
         `,
-        [req.user!.id]
+        [req.user!.id, analysisWindowDays]
       ),
       query(
         `
@@ -256,20 +366,91 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
         limit 3
         `,
         [req.user!.id]
-      )
+      ),
+      coachAccess.premiumDepth
+        ? query(
+            `
+            select estimated_food_name, calories, protein_g, carbs_g, fat_g, meal_type, logged_at
+            from food_logs
+            where user_id = $1
+              and logged_at >= now() - interval '90 days'
+            order by logged_at desc
+            `,
+            [req.user!.id]
+          )
+        : Promise.resolve({ rows: [] }),
+      coachAccess.premiumDepth
+        ? query(
+            `
+            select amount_ml, logged_at
+            from water_logs
+            where user_id = $1
+              and logged_at >= now() - interval '90 days'
+            order by logged_at desc
+            `,
+            [req.user!.id]
+          )
+        : Promise.resolve({ rows: [] }),
+      coachAccess.premiumDepth
+        ? query(
+            `
+            select weight_kg, logged_at
+            from weight_logs
+            where user_id = $1
+              and logged_at >= now() - interval '90 days'
+            order by logged_at desc
+            `,
+            [req.user!.id]
+          )
+        : Promise.resolve({ rows: [] }),
+      coachAccess.premiumDepth
+        ? query(
+            `
+            select completed, logged_at
+            from habit_logs
+            where user_id = $1
+              and logged_at >= now() - interval '90 days'
+            order by logged_at desc
+            `,
+            [req.user!.id]
+          )
+        : Promise.resolve({ rows: [] }),
+      coachAccess.premiumDepth
+        ? query(
+            `
+            select metadata, created_at
+            from analytics_events
+            where user_id = $1
+              and event_name = 'burn_log'
+              and created_at >= now() - interval '90 days'
+            order by created_at desc
+            `,
+            [req.user!.id]
+          )
+        : Promise.resolve({ rows: [] })
     ]);
+    const foodWindow = summarizeFoodRows(foodWindowResult.rows);
+    const waterWindow = summarizeWaterRows(waterWindowResult.rows);
+    const weightWindow = summarizeWeightRows(weightWindowResult.rows);
+    const habitsWindow = summarizeHabitRows(habitWindowResult.rows);
+    const longTermJourney = coachAccess.premiumDepth
+      ? summarizeLongTermSignals({
+          foodRows: longTermFoodResult.rows,
+          waterRows: longTermWaterResult.rows,
+          weightRows: longTermWeightResult.rows,
+          burnRows: longTermBurnResult.rows,
+          habitRows: longTermHabitResult.rows
+        })
+      : null;
+
     const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
       currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null
     });
-    const food14d = summarizeFoodRows(food14dResult.rows);
-    const water14d = summarizeWaterRows(water14dResult.rows);
-    const weight14d = summarizeWeightRows(weight14dResult.rows);
-    const habits14d = summarizeHabitRows(habit14dResult.rows);
-    const burn14d = {
-      workouts: burn14dResult.rows.length,
-      latestWorkoutAt: burn14dResult.rows[0]?.created_at ?? null,
-      completedToday: burn14dResult.rows.some((row) => localDateKey(String(row.created_at ?? "")) === localDateKey(new Date())),
-      completedYesterday: burn14dResult.rows.some((row) => {
+    const burnWindow = {
+      workouts: burnWindowResult.rows.length,
+      latestWorkoutAt: burnWindowResult.rows[0]?.created_at ?? null,
+      completedToday: burnWindowResult.rows.some((row) => localDateKey(String(row.created_at ?? "")) === localDateKey(new Date())),
+      completedYesterday: burnWindowResult.rows.some((row) => {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         return localDateKey(String(row.created_at ?? "")) === localDateKey(yesterday);
@@ -292,6 +473,12 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
       bmrKcal: asNumber(row.bmr_kcal)
     }));
     const promptContext = JSON.stringify({
+      coachAccess: {
+        tier: coachAccess.tier,
+        analysisDepth: coachAccess.premiumDepth ? "complete_journey" : "recent_history_only",
+        askZoeDailyLimit: coachAccess.dailyAskZoeLimit,
+        askZoeDailyRemaining: coachAccess.dailyAskZoeRemaining
+      },
       profile: contextResult.rows[0] ?? {},
       recentFoodLogs: recentFoodResult.rows,
       recentWorkouts: recentBurnResult.rows,
@@ -299,12 +486,13 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
       athleteMode: athleteResult.rows[0] ?? null,
       latestBodyScan: bodyScanResult.rows[0] ?? null,
       bodyScanHistory,
-      analysisWindow14d: {
-        weightTrend: weight14d,
-        food: food14d,
-        water: water14d,
-        habits: habits14d,
-        workouts: burn14d,
+      recentAnalysisWindow: {
+        windowDays: analysisWindowDays,
+        weightTrend: weightWindow,
+        food: foodWindow,
+        water: waterWindow,
+        habits: habitsWindow,
+        workouts: burnWindow,
         momentumScore: Number(momentumResult.rows[0]?.score ?? 0) || null,
         latestWeeklyReport,
         latestRecognition: recognitionResult.rows[0]
@@ -315,6 +503,7 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
             }
           : null
       },
+      longTermJourney,
       recentConversation: recentMessagesResult.rows.reverse(),
       healthSync: healthSyncSummary
         ? {
@@ -336,7 +525,13 @@ aiRouter.post("/ai/chat", requireAuth, requireActivePlan("premium"), aiRateLimit
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       status: "success",
       inputUnits: message.length + promptContext.length,
-      outputUnits: reply.length
+      outputUnits: reply.length,
+      metadata: {
+        mode,
+        coachTier: coachAccess.tier,
+        analysisWindowDays,
+        premiumDepth: coachAccess.premiumDepth
+      }
     });
 
     await query("insert into ai_chat_messages (user_id, role, message) values ($1, 'user', $2), ($1, 'assistant', $3)", [
@@ -361,11 +556,12 @@ aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), ai
   }
 });
 
-aiRouter.post("/ai/workout", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
+aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     const input = workoutPlannerSchema.parse(req.body);
-    const [profileResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
+    const [coachAccess, profileResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
       await Promise.all([
+        getCoachZoeAccess(req.user!.id),
         query<{ metadata: Record<string, unknown> | null; created_at: string }>(
           `
           select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
@@ -443,6 +639,10 @@ aiRouter.post("/ai/workout", requireAuth, requireActivePlan("premium"), aiRateLi
     });
 
     const promptContext = JSON.stringify({
+      coachAccess: {
+        tier: coachAccess.tier,
+        analysisDepth: coachAccess.premiumDepth ? "complete_journey" : "recent_history_only"
+      },
       profile: profileResult.rows[0] ?? {},
       recentFoodConsistency: recentFoodResult.rows[0] ?? {},
       recentWorkouts: recentBurnResult.rows,
@@ -479,7 +679,7 @@ aiRouter.post("/ai/workout", requireAuth, requireActivePlan("premium"), aiRateLi
       status: "success",
       inputUnits: JSON.stringify(input).length + promptContext.length,
       outputUnits: JSON.stringify(workout).length,
-      metadata: { feature: "coach_zoe_workout_planner" }
+      metadata: { feature: "coach_zoe_workout_planner", mode: "workout", coachTier: coachAccess.tier }
     });
 
     res.json({ workout });

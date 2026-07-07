@@ -595,7 +595,7 @@ export type AscendMemoryItem = {
 };
 
 export type AscendMemoryResponse = {
-  access: "none" | "premium" | "athlete";
+  access: "none" | "free" | "premium" | "athlete";
   timeline: AscendMemoryItem[];
   stats: {
     aiReflectionsThisMonth: number;

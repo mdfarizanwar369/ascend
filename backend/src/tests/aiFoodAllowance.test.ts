@@ -59,4 +59,32 @@ describe("AI food scan allowance", () => {
     });
     expect(queryMock).toHaveBeenCalledTimes(1);
   });
+
+  it("gives free users ten Ask Zoe conversations per day", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ primary_role: "client", roles: ["client"], active_plan: null }] })
+      .mockResolvedValueOnce({ rows: [{ used: "3" }] });
+
+    const { getCoachZoeAccess } = await import("../services/aiUsageService");
+    await expect(getCoachZoeAccess("00000000-0000-0000-0000-000000000005")).resolves.toMatchObject({
+      tier: "free",
+      premiumDepth: false,
+      dailyAskZoeLimit: 10,
+      dailyAskZoeUsed: 3,
+      dailyAskZoeRemaining: 7
+    });
+  });
+
+  it("keeps premium Ask Zoe unlimited", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ primary_role: "client", roles: ["client"], active_plan: "premium" }] });
+
+    const { getCoachZoeAccess } = await import("../services/aiUsageService");
+    await expect(getCoachZoeAccess("00000000-0000-0000-0000-000000000006")).resolves.toMatchObject({
+      tier: "premium",
+      premiumDepth: true,
+      dailyAskZoeLimit: null,
+      dailyAskZoeRemaining: null
+    });
+    expect(queryMock).toHaveBeenCalledTimes(1);
+  });
 });

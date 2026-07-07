@@ -6,7 +6,7 @@ import { getAscendMemoryTimeline } from "../services/ascendMemoryService";
 
 export const memoryRouter = Router();
 
-memoryRouter.get("/memory/me", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+memoryRouter.get("/memory/me", requireAuth, async (req, res, next) => {
   try {
     res.json(await getAscendMemoryTimeline(req.user!.id));
   } catch (error) {

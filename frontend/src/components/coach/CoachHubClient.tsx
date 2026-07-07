@@ -431,14 +431,18 @@ export function CoachHubClient() {
       const response = await sendCoachMessage(trimmed, "general");
       setMessages((current) => [...current, { role: "assistant", text: response.reply }]);
     } catch (error) {
+      const nextStatus = error instanceof Error ? error.message : "AI coach is temporarily busy.";
+      const limitReached = /free coaching sessions|ascend plus/i.test(nextStatus);
       setMessages((current) => [
         ...current,
         {
           role: "assistant",
-          text: "The coach is having a short connection issue. Keep today simple: one useful meal, one useful movement, and one useful check-in."
+          text: limitReached
+            ? nextStatus
+            : "The coach is having a short connection issue. Keep today simple: one useful meal, one useful movement, and one useful check-in."
         }
       ]);
-      setStatus(error instanceof Error ? error.message : "AI coach is temporarily busy.");
+      setStatus(nextStatus);
     } finally {
       setIsSending(false);
     }

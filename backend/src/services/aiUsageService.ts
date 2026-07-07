@@ -14,6 +14,14 @@ export type FoodAiAllowance = {
   remaining: number | null;
 };
 
+export type CoachZoeAccess = {
+  tier: "free" | "premium";
+  premiumDepth: boolean;
+  dailyAskZoeLimit: number | null;
+  dailyAskZoeUsed: number;
+  dailyAskZoeRemaining: number | null;
+};
+
 export class FoodAiLimitError extends Error {
   constructor(public readonly allowance: FoodAiAllowance) {
     super(
@@ -22,6 +30,15 @@ export class FoodAiLimitError extends Error {
         : "Daily AI food scan limit reached. You can still log food manually."
     );
     this.name = "FoodAiLimitError";
+  }
+}
+
+export class CoachZoeLimitError extends Error {
+  constructor() {
+    super(
+      "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights, and a coach that learns from your journey."
+    );
+    this.name = "CoachZoeLimitError";
   }
 }
 
@@ -156,23 +173,7 @@ function parseRoles(roles: Role[] | string | null | undefined): Role[] {
     .filter((role): role is Role => ["client", "trainer", "admin", "owner"].includes(role));
 }
 
-function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePlan: SubscriptionPlan }): Omit<FoodAiAllowance, "used" | "remaining"> {
-  if (input.primaryRole === "owner" || input.primaryRole === "admin" || input.roles.includes("owner") || input.roles.includes("admin")) {
-    return { period: "unlimited", label: "Unlimited owner/admin AI scans", limit: null };
-  }
-
-  if (input.primaryRole === "trainer" || input.roles.includes("trainer") || input.activePlan === "trainer_pro") {
-    return { period: "day", label: "Trainer AI scans today", limit: 10 };
-  }
-
-  if (input.activePlan === "premium") {
-    return { period: "day", label: "Premium AI scans today", limit: 5 };
-  }
-
-  return { period: "week", label: "Free weekly AI scans", limit: 5 };
-}
-
-export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowance> {
+async function getAiAccessProfile(userId: string) {
   const profileResult = await query<{
     primary_role: Role;
     roles: Role[] | string | null;
@@ -196,11 +197,37 @@ export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowanc
     `,
     [userId]
   );
+
   const profile = profileResult.rows[0];
-  const access = allowanceForAccess({
+  return {
     primaryRole: profile?.primary_role ?? "client",
     roles: parseRoles(profile?.roles),
     activePlan: profile?.active_plan ?? "free"
+  };
+}
+
+function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePlan: SubscriptionPlan }): Omit<FoodAiAllowance, "used" | "remaining"> {
+  if (input.primaryRole === "owner" || input.primaryRole === "admin" || input.roles.includes("owner") || input.roles.includes("admin")) {
+    return { period: "unlimited", label: "Unlimited owner/admin AI scans", limit: null };
+  }
+
+  if (input.primaryRole === "trainer" || input.roles.includes("trainer") || input.activePlan === "trainer_pro") {
+    return { period: "day", label: "Trainer AI scans today", limit: 10 };
+  }
+
+  if (input.activePlan === "premium") {
+    return { period: "day", label: "Premium AI scans today", limit: 5 };
+  }
+
+  return { period: "week", label: "Free weekly AI scans", limit: 5 };
+}
+
+export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowance> {
+  const profile = await getAiAccessProfile(userId);
+  const access = allowanceForAccess({
+    primaryRole: profile.primaryRole,
+    roles: profile.roles,
+    activePlan: profile.activePlan
   });
 
   if (access.limit === null) {
@@ -227,6 +254,62 @@ export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowanc
     used,
     remaining: Math.max(access.limit - used, 0)
   };
+}
+
+export async function getCoachZoeAccess(userId: string): Promise<CoachZoeAccess> {
+  const profile = await getAiAccessProfile(userId);
+  const unlimited =
+    profile.primaryRole === "owner" ||
+    profile.primaryRole === "admin" ||
+    profile.primaryRole === "trainer" ||
+    profile.roles.includes("owner") ||
+    profile.roles.includes("admin") ||
+    profile.roles.includes("trainer") ||
+    profile.activePlan === "premium" ||
+    profile.activePlan === "trainer_pro";
+
+  if (unlimited) {
+    return {
+      tier: "premium",
+      premiumDepth: true,
+      dailyAskZoeLimit: null,
+      dailyAskZoeUsed: 0,
+      dailyAskZoeRemaining: null
+    };
+  }
+
+  const usedResult = await query<{ used: string }>(
+    `
+    select count(*) as used
+    from ai_usage_events
+    where user_id = $1
+      and event_type = 'ai_chat_message'
+      and cache_hit = false
+      and status = 'success'
+      and coalesce(metadata->>'mode', 'general') = 'general'
+      and coalesce(metadata->>'feature', '') <> 'coach_zoe_workout_planner'
+      and created_at >= current_date
+    `,
+    [userId]
+  );
+  const used = Number(usedResult.rows[0]?.used ?? 0);
+  const limit = 10;
+
+  return {
+    tier: "free",
+    premiumDepth: false,
+    dailyAskZoeLimit: limit,
+    dailyAskZoeUsed: used,
+    dailyAskZoeRemaining: Math.max(limit - used, 0)
+  };
+}
+
+export async function assertCoachZoeConversationAccess(userId: string) {
+  const access = await getCoachZoeAccess(userId);
+  if (access.dailyAskZoeLimit !== null && (access.dailyAskZoeRemaining ?? 0) <= 0) {
+    throw new CoachZoeLimitError();
+  }
+  return access;
 }
 
 export async function assertFoodAiAllowance(userId: string) {

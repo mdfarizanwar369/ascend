@@ -91,7 +91,9 @@ export function AscendMemoryCard({
       </div>
 
       <p className="mt-4 text-xs leading-5 text-zinc-500">
-        {memory.stats.aiReflectionsThisMonth}/{memory.stats.monthlyLimit} monthly reflections used. Reflections are cached and never regenerated for the same milestone.
+        {memory.access === "free"
+          ? "Free Journey shows your recent milestones and memories. Premium adds deeper reflections and longer-term pattern insights."
+          : `${memory.stats.aiReflectionsThisMonth}/${memory.stats.monthlyLimit} monthly reflections used. Reflections are cached and never regenerated for the same milestone.`}
       </p>
     </section>
   );

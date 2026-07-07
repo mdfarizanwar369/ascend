@@ -38,7 +38,7 @@ progressRouter.post("/progress-photos", requireAuth, requireActivePlan("premium"
   }
 });
 
-progressRouter.get("/progress-photos", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+progressRouter.get("/progress-photos", requireAuth, async (req, res, next) => {
   try {
     const result = await query("select * from progress_photos where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
     res.json({ progressPhotos: await withProgressImageUrls(result.rows) });

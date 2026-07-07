@@ -7,6 +7,7 @@ import { cancelSubscription, createCheckout, getBillingPortal, getMe, getMySubsc
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { PublicFooter } from "@/components/legal/PublicFooter";
+import { getNativeBillingMessage, shouldHideHostedBilling } from "@/lib/billingPlatform";
 
 const features: Record<SubscriptionPlan, string[]> = {
   free: ["Weight tracking", "Water tracking", "Basic logs"],
@@ -30,6 +31,8 @@ export function SubscriptionClient() {
   const [billingStatus, setBillingStatus] = useState("active");
   const [currentPeriodEnd, setCurrentPeriodEnd] = useState<string | null>(null);
   const hasHostedBilling = provider === "stripe" || provider === "lemonsqueezy";
+  const hideHostedBilling = shouldHideHostedBilling();
+  const nativeBillingMessage = getNativeBillingMessage();
 
   const loadSubscription = useCallback(async () => {
     const [response, profile] = await Promise.all([getMySubscription(), getMe().catch(() => null)]);
@@ -100,6 +103,11 @@ export function SubscriptionClient() {
   }, [loadSubscription]);
 
   async function startCheckout(plan: Exclude<SubscriptionPlan, "free">) {
+    if (hideHostedBilling) {
+      setStatus(nativeBillingMessage ?? "Premium upgrades are not available in this app build yet.");
+      return;
+    }
+
     setIsLoadingPlan(plan);
     setStatus("Opening secure checkout...");
 
@@ -113,6 +121,11 @@ export function SubscriptionClient() {
   }
 
   async function openBillingPortal() {
+    if (hideHostedBilling) {
+      setStatus(nativeBillingMessage ?? "Subscription management is not available in this app build yet.");
+      return;
+    }
+
     setStatus("Opening your billing portal...");
     try {
       const response = await getBillingPortal();
@@ -160,7 +173,7 @@ export function SubscriptionClient() {
             <div>
               <p className="text-sm font-semibold text-lime">{status}</p>
               <p className="mt-1 text-sm leading-6 text-zinc-300">
-                Pay securely by card. Stripe manages checkout, recurring billing, receipts, renewals, and cancellations.
+                {nativeBillingMessage ?? "Pay securely by card. Stripe manages checkout, recurring billing, receipts, renewals, and cancellations."}
               </p>
             </div>
           </div>
@@ -195,7 +208,7 @@ export function SubscriptionClient() {
                       <ShieldCheck className="mr-2" size={18} />
                       Current plan
                     </div>
-                    {hasHostedBilling ? (
+                    {hasHostedBilling && !hideHostedBilling ? (
                       <>
                         <button
                           type="button"
@@ -215,6 +228,10 @@ export function SubscriptionClient() {
                           {billingStatus === "canceled" ? "Cancellation Scheduled" : "Cancel Subscription"}
                         </button>
                       </>
+                    ) : hasHostedBilling && hideHostedBilling ? (
+                      <p className="rounded-lg border border-calm/40 bg-calm/10 p-3 text-center text-sm text-zinc-200">
+                        {nativeBillingMessage ?? "Subscription management is not available in this app build yet."}
+                      </p>
                     ) : activePlan !== "free" ? (
                       <button
                         type="button"
@@ -229,16 +246,22 @@ export function SubscriptionClient() {
                   </div>
                 ) : paidPlan ? (
                   <div className="mt-4 grid grid-cols-1 gap-2">
-                    <button
-                      type="button"
-                      disabled={isLoadingPlan !== null || (hasHostedBilling && billingStatus === "past_due")}
-                      onClick={() => startCheckout(checkoutPlan)}
-                      className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
-                    >
-                      <CreditCard className="mr-2" size={18} />
-                      {isLoadingPlan === plan ? "Opening..." : "Subscribe monthly"}
-                    </button>
-                    {hasHostedBilling && billingStatus === "past_due" ? (
+                    {hideHostedBilling ? (
+                      <p className="rounded-lg border border-calm/40 bg-calm/10 p-3 text-center text-sm text-zinc-200">
+                        {nativeBillingMessage}
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isLoadingPlan !== null || (hasHostedBilling && billingStatus === "past_due")}
+                        onClick={() => startCheckout(checkoutPlan)}
+                        className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+                      >
+                        <CreditCard className="mr-2" size={18} />
+                        {isLoadingPlan === plan ? "Opening..." : "Subscribe monthly"}
+                      </button>
+                    )}
+                    {!hideHostedBilling && hasHostedBilling && billingStatus === "past_due" ? (
                       <button
                         type="button"
                         onClick={openBillingPortal}
@@ -262,7 +285,9 @@ export function SubscriptionClient() {
           })}
         </section>
         <p className="mt-5 text-center text-xs leading-5 text-zinc-500">
-          By subscribing, you agree to the monthly renewal and cancellation terms shown at checkout.
+          {hideHostedBilling
+            ? "Premium access can still be granted manually for closed testing while in-app billing is being prepared."
+            : "By subscribing, you agree to the monthly renewal and cancellation terms shown at checkout."}
         </p>
         {billingStatus === "canceled" && currentPeriodEnd ? (
           <p className="mt-2 text-center text-xs text-zinc-500">You can reactivate from Manage billing before access ends.</p>

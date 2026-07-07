@@ -751,6 +751,10 @@ export function JourneyClient() {
   useEffect(() => {
     let active = true;
 
+    function fulfilledValue<T>(result: PromiseSettledResult<T>, fallback: T) {
+      return result.status === "fulfilled" ? result.value : fallback;
+    }
+
     async function loadJourney() {
       try {
         setLoading(true);
@@ -771,7 +775,6 @@ export function JourneyClient() {
           memoryResponse,
           goalResponse,
           comparisonResponse,
-          reportResponse,
           coachPresenceResponse,
           recognitionResponse
         ] = await Promise.all([
@@ -785,14 +788,20 @@ export function JourneyClient() {
           getAscendMemory(),
           getGoalStatus(),
           getMyProgressComparison(),
-          getCurrentWeeklyReport(),
           getCoachPresence(),
           getLatestRecognition()
         ]);
 
-        const trainerMessageResponse = meResponse.user.assigned_trainer_id ? await getMessages(meResponse.user.assigned_trainer_id) : null;
-        const bodyCompositionResponse = meResponse.user.athlete_mode_enabled ? await getBodyCompositionSummary() : null;
+        const [reportResult, trainerMessageResult, bodyCompositionResult] = await Promise.allSettled([
+          getCurrentWeeklyReport(),
+          meResponse.user.assigned_trainer_id ? getMessages(meResponse.user.assigned_trainer_id) : Promise.resolve(null),
+          meResponse.user.athlete_mode_enabled ? getBodyCompositionSummary() : Promise.resolve(null)
+        ]);
         if (!active) return;
+
+        const reportResponse = fulfilledValue(reportResult, { report: null });
+        const trainerMessageResponse = fulfilledValue(trainerMessageResult, null);
+        const bodyCompositionResponse = fulfilledValue(bodyCompositionResult, null);
 
         setStreakCurrent(streakResponse.streak.current);
         setStreakBest(streakResponse.streak.best);
@@ -900,6 +909,7 @@ export function JourneyClient() {
   }, [timeline, ascendMemory, foodLogs, waterLogs, weightLogs, burnLogs, progressPhotos]);
 
   const premiumLocked = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && ascendMemory?.access === "none";
+  const showPremiumJourneyNote = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && ascendMemory?.access === "free";
 
   if (loading) {
     return (
@@ -1214,6 +1224,15 @@ export function JourneyClient() {
               <p className="text-sm font-semibold text-white">Ascend Memory</p>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
                 Premium unlocks milestone reflections so your journey feels remembered, not just logged.
+              </p>
+            </div>
+          ) : null}
+
+          {showPremiumJourneyNote ? (
+            <div className="mt-4 rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
+              <p className="text-sm font-semibold text-white">Journey gets deeper with Premium</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-400">
+                Free shows your recent milestones and memories. Premium adds long-term reflections, pattern recognition, and richer monthly progress insight.
               </p>
             </div>
           ) : null}
