@@ -26,7 +26,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
     { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: canTrain },
     { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: canAdmin },
-    { href: "/founder", label: "Founder Dashboard 👑", icon: Crown, key: "founder", show: canFounder }
+    { href: "/founder", label: "Founder Dashboard", icon: Crown, key: "founder", show: canFounder }
   ].filter((item) => item.show);
   const backHref = active === "founder" ? "/founder" : active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";
 
@@ -67,7 +67,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
         <header className="flex items-center justify-between py-3">
           <div className="flex items-center gap-2">
             <BackButton fallbackHref={backHref} />
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/dashboard" className="flex items-center gap-2">
               <BrandMark size="sm" />
               <span>
                 <span className="block text-lg font-semibold leading-5">Ascend</span>
@@ -109,13 +109,15 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           })}
         </div>
       </nav>
-      <Link
-        href="/food-log"
-        className="fixed bottom-24 right-5 grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-xl shadow-lime/20"
-        aria-label="Log food photo"
-      >
-        <Camera size={24} />
-      </Link>
+      {active === "client" ? (
+        <Link
+          href="/food-log"
+          className="fixed bottom-24 right-5 grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-xl shadow-lime/20"
+          aria-label="Log food photo"
+        >
+          <Camera size={24} />
+        </Link>
+      ) : null}
     </main>
   );
 }

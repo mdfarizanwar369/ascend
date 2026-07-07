@@ -1566,35 +1566,30 @@ export function ClientDashboard() {
                   {[
                     {
                       key: "calories",
-                      icon: "🔥",
                       label: "Calories",
                       value: `${calories.toLocaleString()} / ${calorieTarget.toLocaleString()}`,
                       detail: "kcal"
                     },
                     {
                       key: "protein",
-                      icon: "🥩",
                       label: "Protein",
                       value: `${protein}g / ${proteinTarget}g`,
                       detail: "today"
                     },
                     {
                       key: "water",
-                      icon: "💧",
                       label: "Water",
                       value: `${(todaysWaterMl / 1000).toFixed(1)}L / ${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L`,
                       detail: "today"
                     },
                     {
                       key: "weight",
-                      icon: "⚖️",
                       label: "Weight",
                       value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "No check-in yet",
                       detail: currentWeight ? weightTrend(latestWeight, previousWeight) : "optional today"
                     },
                     {
                       key: "momentum",
-                      icon: "⚡",
                       label: "Momentum",
                       value: scoreLabel,
                       detail: `${score}/100`
@@ -1602,7 +1597,12 @@ export function ClientDashboard() {
                   ].map((item) => (
                     <div key={item.key} className="rounded-xl border border-white/6 bg-ink px-3 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-base leading-none">{item.icon}</span>
+                        <span className="grid h-7 w-7 place-items-center rounded-lg bg-surface text-calm">
+                          {(() => {
+                            const Icon = snapshotIcon(item.label);
+                            return <Icon size={14} />;
+                          })()}
+                        </span>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{item.label}</p>
                       </div>
                       <p className="mt-3 text-sm font-semibold leading-5 text-white">{item.value}</p>

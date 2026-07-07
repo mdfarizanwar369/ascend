@@ -159,6 +159,18 @@ function friendlyBodyScanError(error: unknown) {
   return "Ascend could not save this scan yet. Check the highlighted values and try again.";
 }
 
+function friendlyBodyScanLoadError(error: unknown, coachView: boolean) {
+  const message = error instanceof Error ? error.message : "";
+  if (/not enabled for this (account|client)/i.test(message)) {
+    return coachView
+      ? "This client does not have Athlete Mode active yet, so there is no Body Scan workspace to review."
+      : "Body Scan is available after Athlete Mode is enabled on your account.";
+  }
+  if (/disabled globally/i.test(message)) return "Body Scan is temporarily unavailable. Please try again later.";
+  if (/network|fetch|timeout/i.test(message)) return "Body Scan is taking too long to load. Please try again in a moment.";
+  return "Body Scan could not load yet.";
+}
+
 function prepareDraftForReview(draft: BodyCompositionScan): BodyCompositionScan {
   return {
     ...emptyDraft(),
@@ -605,7 +617,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       }
       setStatus("");
     } catch (error) {
-      setStatus(error instanceof Error ? friendlyBodyScanError(error) : "Body Scan could not load yet.");
+      setStatus(friendlyBodyScanLoadError(error, coachView));
     }
   }, [clientId, coachView]);
 
