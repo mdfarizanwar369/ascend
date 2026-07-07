@@ -4,23 +4,22 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
-  ArrowRight,
   Award,
   CalendarDays,
   Camera,
-  CheckCircle2,
-  Flame,
-  ImageIcon,
+  ChevronDown,
+  ChevronUp,
+  Dumbbell,
+  ForkKnife,
   MessageCircle,
   Scale,
   Sparkles,
   Target,
   TrendingUp,
-  Zap
+  Trophy,
 } from "lucide-react";
 import {
   getAscendMemory,
-  getAthleteDashboard,
   getBodyCompositionSummary,
   getBurnLogs,
   getCoachPresence,
@@ -36,9 +35,7 @@ import {
   getProgressPhotos,
   getWaterLogs,
   getWeightLogs,
-  type AscendMemoryItem,
   type AscendMemoryResponse,
-  type AthleteDashboard,
   type BodyCompositionSummary,
   type CoachPresenceMessage
 } from "@/lib/ascendApi";
@@ -67,7 +64,12 @@ type TimelineItem = {
   title: string;
   subtitle: string;
   tone: "calm" | "lime" | "amber" | "purple";
+  category: "workout" | "weight" | "meal" | "photo" | "coach" | "milestone";
+  milestone: boolean;
+  score: number;
 };
+
+type TimelineFilter = TimelineItem["category"] | "all";
 
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -233,6 +235,9 @@ function buildTimeline(
   weeklyReport: WeeklyReport | null
 ) {
   const items: TimelineItem[] = [];
+  const pushItem = (item: TimelineItem | null) => {
+    if (item) items.push(item);
+  };
   const earliestActivity =
     startOfTimeline(foodLogs, (item) => item.logged_at) ??
     startOfTimeline(burnLogs, (item) => item.created_at) ??
@@ -243,23 +248,43 @@ function buildTimeline(
     null;
 
   if (earliestActivity) {
-    items.push({
+    pushItem({
       key: "journey-started",
       occurredAt: earliestActivity,
       title: "Started Ascend",
       subtitle: "The first honest check-in is where the story began.",
-      tone: "calm"
+      tone: "calm",
+      category: "milestone",
+      milestone: true,
+      score: 8
     });
   }
 
   const firstMeal = [...foodLogs].sort((left, right) => new Date(left.logged_at).getTime() - new Date(right.logged_at).getTime())[0];
   if (firstMeal) {
-    items.push({
+    pushItem({
       key: "first-meal",
       occurredAt: firstMeal.logged_at,
       title: "First meal logged",
       subtitle: firstMeal.estimated_food_name,
-      tone: "lime"
+      tone: "lime",
+      category: "meal",
+      milestone: true,
+      score: 7
+    });
+  }
+
+  const latestMeal = [...foodLogs].sort((left, right) => new Date(right.logged_at).getTime() - new Date(left.logged_at).getTime())[0];
+  if (latestMeal) {
+    pushItem({
+      key: `latest-meal-${latestMeal.id}`,
+      occurredAt: latestMeal.logged_at,
+      title: "Recent meal logged",
+      subtitle: latestMeal.estimated_food_name,
+      tone: "lime",
+      category: "meal",
+      milestone: false,
+      score: 2
     });
   }
 
@@ -267,74 +292,153 @@ function buildTimeline(
     .filter((item) => item.metadata.workoutTitle || item.metadata.activityType)
     .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime())[0];
   if (firstWorkout) {
-    items.push({
+    pushItem({
       key: "first-workout",
       occurredAt: firstWorkout.created_at,
       title: "First workout completed",
       subtitle: firstWorkout.metadata.workoutTitle ?? firstWorkout.metadata.activityType ?? "Activity logged",
-      tone: "purple"
+      tone: "purple",
+      category: "workout",
+      milestone: true,
+      score: 9
+    });
+  }
+
+  const latestWorkout = [...burnLogs]
+    .filter((item) => item.metadata.workoutTitle || item.metadata.activityType)
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
+  if (latestWorkout) {
+    pushItem({
+      key: `latest-workout-${latestWorkout.id}`,
+      occurredAt: latestWorkout.created_at,
+      title: "Workout completed",
+      subtitle: latestWorkout.metadata.workoutTitle ?? latestWorkout.metadata.activityType ?? "Activity logged",
+      tone: "purple",
+      category: "workout",
+      milestone: false,
+      score: 3
     });
   }
 
   const firstWeight = [...weightLogs].sort((left, right) => new Date(left.logged_at).getTime() - new Date(right.logged_at).getTime())[0];
   if (firstWeight) {
-    items.push({
+    pushItem({
       key: "first-weight",
       occurredAt: firstWeight.logged_at,
       title: "First weight logged",
       subtitle: `${asNumber(firstWeight.weight_kg).toFixed(1)}kg gave your journey a visible starting point.`,
-      tone: "calm"
+      tone: "calm",
+      category: "weight",
+      milestone: true,
+      score: 7
+    });
+  }
+
+  const latestWeight = [...weightLogs].sort((left, right) => new Date(right.logged_at).getTime() - new Date(left.logged_at).getTime())[0];
+  if (latestWeight) {
+    pushItem({
+      key: `latest-weight-${latestWeight.id}`,
+      occurredAt: latestWeight.logged_at,
+      title: "Weight check-in",
+      subtitle: `Reached ${asNumber(latestWeight.weight_kg).toFixed(1)}kg.`,
+      tone: "calm",
+      category: "weight",
+      milestone: false,
+      score: 2
+    });
+  }
+
+  const latestWater = [...waterLogs].sort((left, right) => new Date(right.logged_at).getTime() - new Date(left.logged_at).getTime())[0];
+  if (latestWater) {
+    pushItem({
+      key: `latest-water-${latestWater.id}`,
+      occurredAt: latestWater.logged_at,
+      title: "Hydration logged",
+      subtitle: `${(asNumber(latestWater.amount_ml) / 1000).toFixed(1)}L added to your day.`,
+      tone: "calm",
+      category: "coach",
+      milestone: false,
+      score: 1
     });
   }
 
   const firstPhoto = [...progressPhotos].sort((left, right) => new Date(left.logged_at).getTime() - new Date(right.logged_at).getTime())[0];
   if (firstPhoto) {
-    items.push({
+    pushItem({
       key: "first-photo",
       occurredAt: firstPhoto.logged_at,
       title: "First progress photo",
       subtitle: "You started tracking what the scale cannot always show.",
-      tone: "amber"
+      tone: "amber",
+      category: "photo",
+      milestone: true,
+      score: 8
     });
   }
 
   if (goalStatus?.achieved_at) {
-    items.push({
+    pushItem({
       key: "goal-achieved",
       occurredAt: goalStatus.achieved_at,
       title: "Goal achieved",
       subtitle: "A milestone earned through repetition.",
-      tone: "lime"
+      tone: "lime",
+      category: "milestone",
+      milestone: true,
+      score: 10
     });
   }
 
   if (weeklyReport?.created_at) {
-    items.push({
+    pushItem({
       key: "weekly-reflection",
       occurredAt: weeklyReport.created_at,
       title: "Weekly reflection generated",
       subtitle: "Your recent week was turned into a story you can learn from.",
-      tone: "purple"
+      tone: "purple",
+      category: "coach",
+      milestone: false,
+      score: 4
     });
   }
 
   if (bodyComposition?.latestScan?.scanDate) {
-    items.push({
+    pushItem({
       key: "first-body-scan",
       occurredAt: bodyComposition.latestScan.scanDate,
       title: bodyComposition.scanCount > 1 ? "Latest body scan saved" : "First body scan saved",
       subtitle: bodyComposition.dnaScore.current !== null ? `Body Progress Score ${bodyComposition.dnaScore.current}` : "A new body scan is now part of your story.",
-      tone: "purple"
+      tone: "purple",
+      category: "milestone",
+      milestone: true,
+      score: bodyComposition.scanCount > 1 ? 8 : 9
     });
   }
 
   for (const item of memory?.timeline ?? []) {
-    items.push({
+    const key = `${item.title} ${item.subtitle} ${item.milestoneKey}`.toLowerCase();
+    const category: TimelineItem["category"] =
+      key.includes("meal") ? "meal" :
+      key.includes("workout") ? "workout" :
+      key.includes("weight") || key.includes("kg") ? "weight" :
+      key.includes("photo") ? "photo" :
+      key.includes("scan") || key.includes("goal") || key.includes("streak") || key.includes("best month") || key.includes("comeback") ? "milestone" :
+      "coach";
+    const milestone =
+      category === "milestone" ||
+      key.includes("first ") ||
+      key.includes("goal") ||
+      key.includes("streak") ||
+      key.includes("best month");
+    pushItem({
       key: `memory-${item.milestoneKey}`,
       occurredAt: item.occurredAt,
       title: item.title,
       subtitle: item.reflection ?? item.subtitle,
-      tone: item.aiGenerated ? "purple" : "calm"
+      tone: item.aiGenerated ? "purple" : "calm",
+      category,
+      milestone,
+      score: milestone ? 8 : item.aiGenerated ? 4 : 3
     });
   }
 
@@ -346,8 +450,119 @@ function buildTimeline(
       if (seenTitles.has(normalized)) return false;
       seenTitles.add(normalized);
       return true;
-    })
-    .slice(0, 12);
+    });
+}
+
+function timelineIcon(item: TimelineItem) {
+  if (item.category === "workout") return <Dumbbell size={16} />;
+  if (item.category === "weight") return <Scale size={16} />;
+  if (item.category === "meal") return <ForkKnife size={16} />;
+  if (item.category === "photo") return <Camera size={16} />;
+  if (item.category === "coach") return <Sparkles size={16} />;
+  return <Trophy size={16} />;
+}
+
+function filterIcon(filter: TimelineFilter) {
+  if (filter === "workout") return "🏋️";
+  if (filter === "weight") return "⚖️";
+  if (filter === "meal") return "🍽";
+  if (filter === "photo") return "📷";
+  if (filter === "coach") return "🤖";
+  if (filter === "milestone") return "🏆";
+  return "All";
+}
+
+function buildTimelineHighlights(
+  timeline: TimelineItem[],
+  biggestAchievement: { title: string; detail: string }
+) {
+  const milestoneItems = timeline
+    .filter((item) => item.milestone)
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+    });
+
+  const seenTitles = new Set<string>();
+  const highlights: Array<{
+    key: string;
+    title: string;
+    subtitle: string;
+    tone: TimelineItem["tone"];
+  }> = [
+    {
+      key: "biggest-achievement",
+      title: biggestAchievement.title,
+      subtitle: biggestAchievement.detail,
+      tone: "amber"
+    }
+  ];
+
+  seenTitles.add(biggestAchievement.title.toLowerCase());
+
+  for (const item of milestoneItems) {
+    const normalized = item.title.toLowerCase();
+    if (seenTitles.has(normalized)) continue;
+    seenTitles.add(normalized);
+    highlights.push({
+      key: item.key,
+      title: item.title,
+      subtitle: item.subtitle,
+      tone: item.tone
+    });
+    if (highlights.length === 3) break;
+  }
+
+  return highlights.slice(0, 3);
+}
+
+function groupTimelineByDate(items: TimelineItem[]) {
+  const groups = new Map<string, TimelineItem[]>();
+
+  for (const item of items) {
+    const key = localDateKey(item.occurredAt);
+    const current = groups.get(key) ?? [];
+    current.push(item);
+    groups.set(key, current);
+  }
+
+  return [...groups.entries()]
+    .map(([dateKey, groupItems]) => ({
+      dateKey,
+      label: formatTimelineGroupLabel(dateKey),
+      items: groupItems.sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
+    }))
+    .sort((left, right) => new Date(right.dateKey).getTime() - new Date(left.dateKey).getTime());
+}
+
+function formatTimelineGroupLabel(dateKey: string) {
+  const today = localDateKey(new Date().toISOString());
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = localDateKey(yesterdayDate.toISOString());
+  if (dateKey === today) return "Today";
+  if (dateKey === yesterday) return "Yesterday";
+  return formatShortDate(dateKey);
+}
+
+function CompactTimelineRow({ item, showConnector }: { item: TimelineItem; showConnector: boolean }) {
+  return (
+    <div className="relative flex gap-3">
+      <div className="flex w-10 shrink-0 flex-col items-center">
+        <span className={`grid h-10 w-10 place-items-center rounded-2xl border text-zinc-200 ${toneClasses(item.tone)}`}>
+          {timelineIcon(item)}
+        </span>
+        {showConnector ? <span className="mt-2 h-full min-h-6 w-px bg-white/10" /> : null}
+      </div>
+      <div className="min-w-0 flex-1 pb-4">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-sm font-semibold text-white">{item.title}</p>
+          <p className="shrink-0 text-xs text-zinc-500">{formatShortDate(item.occurredAt)}</p>
+        </div>
+        <p className="mt-1 text-sm leading-6 text-zinc-400">{item.subtitle}</p>
+      </div>
+    </div>
+  );
 }
 
 function toneClasses(tone: TimelineItem["tone"]) {
@@ -529,8 +744,9 @@ export function JourneyClient() {
   const [coachPresenceHistory, setCoachPresenceHistory] = useState<CoachPresenceMessage[]>([]);
   const [latestRecognition, setLatestRecognition] = useState<Recognition>(null);
   const [trainerMessages, setTrainerMessages] = useState<Message[]>([]);
-  const [athleteDashboard, setAthleteDashboard] = useState<AthleteDashboard | null>(null);
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionSummary | null>(null);
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("all");
+  const [timelineExpanded, setTimelineExpanded] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -575,7 +791,6 @@ export function JourneyClient() {
         ]);
 
         const trainerMessageResponse = meResponse.user.assigned_trainer_id ? await getMessages(meResponse.user.assigned_trainer_id) : null;
-        const athleteResponse = meResponse.user.athlete_mode_enabled ? await getAthleteDashboard() : null;
         const bodyCompositionResponse = meResponse.user.athlete_mode_enabled ? await getBodyCompositionSummary() : null;
         if (!active) return;
 
@@ -593,7 +808,6 @@ export function JourneyClient() {
         setCoachPresenceHistory(coachPresenceResponse.history);
         setLatestRecognition(recognitionResponse.recognition);
         setTrainerMessages(trainerMessageResponse?.messages ?? []);
-        setAthleteDashboard(athleteResponse?.athlete ?? null);
         setBodyComposition(bodyCompositionResponse?.summary ?? null);
         setOverallConsistency(
           complianceResponse.compliance?.score
@@ -635,6 +849,16 @@ export function JourneyClient() {
     [weightLogs, streakCurrent, streakBest, foodLogs, burnLogs, waterLogs, ascendMemory, bodyComposition]
   );
   const weightBars = useMemo(() => buildWeightBars(weightLogs), [weightLogs]);
+  const timelineHighlights = useMemo(
+    () => buildTimelineHighlights(timeline, biggestAchievement),
+    [timeline, biggestAchievement]
+  );
+  const filteredTimeline = useMemo(
+    () => (timelineFilter === "all" ? timeline : timeline.filter((item) => item.category === timelineFilter)),
+    [timeline, timelineFilter]
+  );
+  const recentTimeline = useMemo(() => filteredTimeline.slice(0, 3), [filteredTimeline]);
+  const fullTimelineGroups = useMemo(() => groupTimelineByDate(filteredTimeline.slice(3)), [filteredTimeline]);
   const coachMoments = useMemo(
     () =>
       buildCoachMoments({
@@ -739,16 +963,42 @@ export function JourneyClient() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-amber/20 bg-[linear-gradient(180deg,rgba(248,184,78,0.1),rgba(18,23,33,0.98))] p-5 shadow-soft">
-          <div className="flex items-start gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber/15 text-amber">
-              <Award size={20} />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-amber">Biggest Achievement</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">{biggestAchievement.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">{biggestAchievement.detail}</p>
+        <section className="mt-4 rounded-2xl border border-amber/20 bg-[linear-gradient(180deg,rgba(248,184,78,0.08),rgba(18,23,33,0.98))] p-4 shadow-soft">
+          <div className="flex items-center gap-2">
+            <Award className="text-amber" size={18} />
+            <div>
+              <p className="text-sm font-semibold text-white">Highlights</p>
+              <p className="text-xs text-zinc-400">The moments worth remembering first.</p>
             </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            {timelineHighlights.map((item, index) => (
+              <article
+                key={item.key}
+                className={`rounded-2xl border p-4 shadow-soft ${
+                  index === 0
+                    ? "border-amber/20 bg-[linear-gradient(180deg,rgba(248,184,78,0.1),rgba(18,23,33,0.98))]"
+                    : item.tone === "purple"
+                      ? "border-purple-400/20 bg-purple-400/8"
+                      : item.tone === "lime"
+                        ? "border-calm/20 bg-calm/8"
+                        : "border-line bg-ink/80"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${index === 0 ? "bg-amber/15 text-amber" : "bg-ink text-zinc-200"}`}>
+                    {index === 0 ? <Award size={20} /> : <Trophy size={18} />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className={`text-sm font-semibold ${index === 0 ? "text-amber" : "text-zinc-300"}`}>
+                      {index === 0 ? "Biggest achievement" : "Highlight"}
+                    </p>
+                    <h2 className="mt-2 text-lg font-semibold text-white">{item.title}</h2>
+                    <p className="mt-2 text-sm leading-6 text-zinc-300">{item.subtitle}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -757,26 +1007,124 @@ export function JourneyClient() {
             <CalendarDays className="text-calm" size={18} />
             <div>
               <p className="text-sm font-semibold text-white">Timeline</p>
-              <p className="text-xs text-zinc-400">Newest moments first.</p>
+              <p className="text-xs text-zinc-400">A lighter view of how your story is unfolding.</p>
             </div>
           </div>
-          <div className="mt-4 space-y-3">
-            {timeline.length ? (
-              timeline.map((item) => (
-                <article key={item.key} className={`rounded-2xl border p-4 ${toneClasses(item.tone)}`}>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-white">{item.title}</p>
-                    <p className="text-xs text-zinc-500">{formatShortDate(item.occurredAt)}</p>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-zinc-300">{item.subtitle}</p>
-                </article>
-              ))
-            ) : (
-              <p className="rounded-2xl border border-line bg-ink/80 p-4 text-sm leading-6 text-zinc-400">
-                Your journey timeline will fill in as soon as you start logging meals, movement, weight, or progress photos.
-              </p>
-            )}
+
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {(["all", "workout", "weight", "meal", "photo", "coach", "milestone"] as TimelineFilter[]).map((filter) => {
+              const active = timelineFilter === filter;
+              const label =
+                filter === "all" ? "All" :
+                filter === "workout" ? "Workouts" :
+                filter === "weight" ? "Weight" :
+                filter === "meal" ? "Meals" :
+                filter === "photo" ? "Photos" :
+                filter === "coach" ? "Coach" :
+                "Milestones";
+
+              return (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setTimelineFilter(filter)}
+                  className={`shrink-0 rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                    active ? "border-calm/40 bg-calm/12 text-calm" : "border-line bg-ink/70 text-zinc-300"
+                  }`}
+                >
+                  <span className="mr-2">{filterIcon(filter)}</span>
+                  {label}
+                </button>
+              );
+            })}
           </div>
+
+          <div className="mt-5">
+            <div className="flex items-center gap-2">
+              <Activity className="text-calm" size={16} />
+              <div>
+                <p className="text-sm font-semibold text-white">Recent Moments</p>
+                <p className="text-xs text-zinc-400">The latest few chapters, kept easy to scan.</p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              {recentTimeline.length ? (
+                recentTimeline.map((item, index) => (
+                  <CompactTimelineRow
+                    key={item.key}
+                    item={item}
+                    showConnector={index < recentTimeline.length - 1}
+                  />
+                ))
+              ) : (
+                <p className="rounded-2xl border border-line bg-ink/80 p-4 text-sm leading-6 text-zinc-400">
+                  No moments yet for this filter. Try another view or keep logging so your story can grow.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {filteredTimeline.length > 3 ? (
+            <div className="mt-4 border-t border-white/6 pt-4">
+              <button
+                type="button"
+                onClick={() => setTimelineExpanded((value) => !value)}
+                className="flex w-full items-center justify-between rounded-2xl border border-line bg-ink/70 px-4 py-3 text-left transition hover:border-calm/25"
+              >
+                <span className="text-sm font-semibold text-white">
+                  {timelineExpanded ? "Hide full timeline" : `Show full timeline (${filteredTimeline.length} moments)`}
+                </span>
+                {timelineExpanded ? <ChevronUp className="text-zinc-400" size={18} /> : <ChevronDown className="text-zinc-400" size={18} />}
+              </button>
+
+              <div
+                className={`grid transition-all duration-300 ease-out ${
+                  timelineExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <div className="mt-4 space-y-5">
+                    {fullTimelineGroups.map((group) => (
+                      <div key={group.dateKey}>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{group.label}</p>
+                        <div className="mt-3">
+                          {group.items.map((item, index) =>
+                            item.milestone ? (
+                              <article key={item.key} className={`mb-3 rounded-2xl border p-4 ${toneClasses(item.tone)}`}>
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3">
+                                    <span className="grid h-10 w-10 place-items-center rounded-2xl bg-ink text-zinc-200">
+                                      {timelineIcon(item)}
+                                    </span>
+                                    <p className="text-sm font-semibold text-white">{item.title}</p>
+                                  </div>
+                                  <p className="text-xs text-zinc-500">{formatShortDate(item.occurredAt)}</p>
+                                </div>
+                                <p className="mt-3 text-sm leading-6 text-zinc-300">{item.subtitle}</p>
+                              </article>
+                            ) : (
+                              <CompactTimelineRow
+                                key={item.key}
+                                item={item}
+                                showConnector={index < group.items.length - 1}
+                              />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {!timeline.length ? (
+            <p className="mt-4 rounded-2xl border border-line bg-ink/80 p-4 text-sm leading-6 text-zinc-400">
+              Your journey timeline will fill in as soon as you start logging meals, movement, weight, or progress photos.
+            </p>
+          ) : null}
         </section>
 
         <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
