@@ -561,7 +561,7 @@ export function JourneyClient() {
         ] = await Promise.all([
           getMyStreak(),
           getComplianceToday(),
-          getFoodLogs({ range: "all", order: "newest", limit: 200 }),
+          getFoodLogs({ range: "all", order: "newest", limit: 100 }),
           getWaterLogs(),
           getWeightLogs(),
           getBurnLogs(),
