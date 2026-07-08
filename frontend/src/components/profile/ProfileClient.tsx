@@ -366,6 +366,14 @@ export function ProfileClient() {
             </Link>
           </div>
         </section>
+
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm font-semibold">Account</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Manage sensitive account actions, including account deletion.</p>
+          <Link href="/profile/account" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200">
+            Open Account Settings
+          </Link>
+        </section>
         {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
       </div>
     </main>

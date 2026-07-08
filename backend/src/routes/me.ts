@@ -11,8 +11,13 @@ import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integratio
 import { imageDataUrlSchema, parseImageDataUrl } from "../utils/images";
 import { withProfilePhotoUrl } from "../services/profilePhotoService";
 import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "../services/bodyCompositionService";
+import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 
 export const meRouter = Router();
+
+const accountDeletionSchema = z.object({
+  confirmationText: z.string().trim().max(20)
+});
 
 meRouter.get("/me", requireAuth, async (req, res) => {
   const result = await query(
@@ -153,6 +158,23 @@ meRouter.patch("/me/goal-milestones/:milestoneId/acknowledge", requireAuth, asyn
     const milestone = await acknowledgeGoalMilestone(req.user!.id, req.params.milestoneId);
     if (!milestone) return res.status(404).json({ error: "Milestone not found" });
     res.json({ milestone });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.post("/me/account-deletion", requireAuth, async (req, res, next) => {
+  try {
+    const input = accountDeletionSchema.parse(req.body);
+    if (input.confirmationText.toUpperCase() !== "DELETE") {
+      return res.status(400).json({ error: "Type DELETE to confirm account deletion." });
+    }
+
+    const result = await submitSelfAccountDeletion(req.user!.id, {
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+
+    res.json(result);
   } catch (error) {
     next(error);
   }

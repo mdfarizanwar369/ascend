@@ -10,7 +10,7 @@ export function AuthStateGuard() {
   useEffect(() => {
     let auth;
     let isReady = false;
-    const publicPaths = new Set(["/", "/login", "/launch", "/reset"]);
+    const publicPaths = new Set(["/", "/login", "/launch", "/reset", "/privacy", "/terms", "/refund-policy", "/contact", "/delete-account"]);
     if (publicPaths.has(window.location.pathname)) return;
 
     try {

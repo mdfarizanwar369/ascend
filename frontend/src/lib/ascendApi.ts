@@ -226,6 +226,29 @@ export function updateGuideProfile(input: {
   });
 }
 
+export function requestAccountDeletion(confirmationText: string) {
+  invalidateCached();
+  return authed<{
+    outcome: "deleted" | "requested";
+    message: string;
+    request: {
+      id: string;
+      email: string;
+      fullName: string;
+      primaryRole: string;
+      mode: "immediate" | "manual_review";
+      status: "requested" | "completed" | "rejected";
+      reasonCodes: Array<"managed_role" | "live_paid_subscription" | "platform_owner">;
+      requestedAt: string;
+      processedAt: string | null;
+      notes: string | null;
+    };
+  }>("/me/account-deletion", {
+    method: "POST",
+    body: JSON.stringify({ confirmationText })
+  });
+}
+
 export function bootstrapOwner() {
   invalidateCached();
   return authed<{

@@ -1,30 +1,18 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { signOut } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SubscriptionPlan } from "@ascend/shared";
-import { getFirebaseClientAuth } from "@/lib/firebase";
 import { formatPlan } from "@/lib/subscriptionPlan";
-import { clearCachedAccountProfile } from "@/lib/accountSession";
-import { disableCoachNotifications } from "@/lib/coachNotifications";
 import Link from "next/link";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { clearLocalAscendSession } from "@/lib/authSession";
 
 function displayName(fullName?: string | null, email?: string | null) {
   const trimmedName = fullName?.trim();
   if (trimmedName) return trimmedName;
   return email ?? "Signed in";
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number) {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) => {
-      window.setTimeout(() => reject(new Error("timeout")), ms);
-    })
-  ]);
 }
 
 function roleAccessLabel(roles: string[]) {
@@ -73,27 +61,9 @@ export function AccountBar({
   async function handleLogout() {
     if (isLoggingOut) return;
     setIsLoggingOut(true);
-    clearCachedAccountProfile();
-    window.sessionStorage.clear();
 
     try {
-      const { isNativeAndroidCapacitor } = await import("@/lib/nativePlatform");
-      const cleanupTasks: Promise<unknown>[] = [
-        withTimeout(disableCoachNotifications(), 2_500).catch(() => undefined),
-        withTimeout(signOut(getFirebaseClientAuth()), 4_000).catch(() => undefined)
-      ];
-
-      if (isNativeAndroidCapacitor()) {
-        const { FirebaseAuthentication } = await import("@capacitor-firebase/authentication");
-        cleanupTasks.unshift(withTimeout(FirebaseAuthentication.signOut(), 4_000).catch(() => undefined));
-      }
-
-      await Promise.allSettled(cleanupTasks);
-    } catch {
-      await Promise.allSettled([
-        withTimeout(disableCoachNotifications(), 2_500).catch(() => undefined),
-        withTimeout(signOut(getFirebaseClientAuth()), 4_000).catch(() => undefined)
-      ]);
+      await clearLocalAscendSession();
     } finally {
       router.replace("/login");
       window.setTimeout(() => {

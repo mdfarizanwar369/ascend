@@ -64,6 +64,7 @@ export default function PrivacyPage() {
           ],
           bullets: [
             "For privacy requests, email support@getascend.fit with the subject Privacy Request.",
+            "Ascend also provides a public account deletion resource at /delete-account and an in-app self-service path under Profile -> Account -> Delete Account.",
             "Deleting your Ascend account removes Ascend-held Health Connect records from our systems subject to normal backup and legal retention limits. Revoking Health Connect on your Android device stops future Health Connect access.",
             "Ascend does not sell personal information or use health and fitness data for third-party advertising.",
             "International processing may occur where our service providers operate, with reasonable safeguards applied."

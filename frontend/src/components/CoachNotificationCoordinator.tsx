@@ -16,7 +16,7 @@ import {
 import { INSTALL_ELIGIBLE_EVENT, readInstallValue, installStorageKeys } from "@/lib/installAscend";
 
 function isAppPath(pathname: string) {
-  return !new Set(["/", "/login", "/launch", "/reset", "/onboarding", "/privacy", "/terms", "/refund-policy"]).has(pathname);
+  return !new Set(["/", "/login", "/launch", "/reset", "/onboarding", "/privacy", "/terms", "/refund-policy", "/contact", "/delete-account"]).has(pathname);
 }
 
 export function CoachNotificationCoordinator() {
