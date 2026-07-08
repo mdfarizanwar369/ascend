@@ -500,6 +500,12 @@ export function getBurnLogs() {
         coachMessage?: string;
         momentumEarned?: number;
         source?: string;
+        workoutCompletionKey?: string;
+        trainerHomeworkAssignmentId?: string;
+        trainerHomeworkAssignedDate?: string;
+        trainerHomeworkDueDate?: string;
+        trainerHomeworkCoachNote?: string | null;
+        trainerHomeworkTrainerName?: string | null;
       };
       created_at: string;
     }>;
@@ -1155,6 +1161,12 @@ export function completeCoachHomework(assignmentId: string, input: { completedAt
         coachMessage?: string;
         momentumEarned?: number;
         source?: string;
+        workoutCompletionKey?: string;
+        trainerHomeworkAssignmentId?: string;
+        trainerHomeworkAssignedDate?: string;
+        trainerHomeworkDueDate?: string;
+        trainerHomeworkCoachNote?: string | null;
+        trainerHomeworkTrainerName?: string | null;
       };
       created_at: string;
     };

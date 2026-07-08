@@ -3,8 +3,7 @@ import { env } from "../config/env";
 import { buildWorkoutMemorySummary } from "./workoutMemoryService";
 import { buildWorkoutPlannerContext } from "./workoutPlannerPersonalizationService";
 import { getHealthSyncSummary } from "./healthSyncService";
-import { createCoachPresenceForEvent } from "./coachPresenceService";
-import { createWorkoutCompletionSummary } from "./workoutCompletionService";
+import { persistCompletedWorkout, resolveWorkoutWeightKg } from "./workoutCompletionService";
 import { sendNotificationToUser } from "./notificationService";
 import { createTrainerHomeworkPlan } from "../integrations/openai";
 
@@ -153,24 +152,6 @@ export async function refreshHomeworkStatuses(clientId?: string) {
     `,
     params
   );
-}
-
-async function resolveWorkoutWeightKg(userId: string) {
-  const result = await query<{ weight_kg: string | number | null }>(
-    `
-    select coalesce(
-      (select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1),
-      (select weight_kg from body_composition_scans where user_id = $1 and user_confirmed = true order by scan_date desc, created_at desc limit 1),
-      u.starting_weight_kg
-    ) as weight_kg
-    from users u
-    where u.id = $1
-    limit 1
-    `,
-    [userId]
-  );
-  const weight = Number(result.rows[0]?.weight_kg ?? 0);
-  return Number.isFinite(weight) && weight > 0 ? weight : null;
 }
 
 export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGenerationInput) {
@@ -513,51 +494,27 @@ export async function completeTrainerHomework(input: {
   const workout = parseWorkoutJson(assignment.workout_json);
   if (!workout) throw new Error("Homework workout is unavailable.");
 
-  const weightKg = await resolveWorkoutWeightKg(input.clientId);
-  const summary = createWorkoutCompletionSummary({
+  const clientGymResult = await query<{ gym_id: string | null }>("select gym_id from users where id = $1 limit 1", [input.clientId]);
+  const completion = await persistCompletedWorkout({
+    userId: input.clientId,
+    gymId: clientGymResult.rows[0]?.gym_id ?? null,
+    workoutCompletionKey: `trainer-homework:${input.assignmentId}`,
     workoutTitle: workout.title,
     workoutType: workout.focus,
-    difficulty: workout.intensity,
-    durationMinutes: workout.estimatedDurationMinutes,
-    exercises: workout.exercises,
-    weightKg,
-    actualCaloriesBurned: null
-  });
-
-  const metadata = {
-    activityType: summary.workoutType,
-    durationMinutes: workout.estimatedDurationMinutes,
-    caloriesBurned: summary.caloriesBurned,
-    estimatedCaloriesBurned: summary.estimatedCaloriesBurned,
-    caloriesSource: summary.caloriesSource,
-    workoutTitle: workout.title,
-    workoutType: summary.workoutType,
     workoutDifficulty: workout.intensity,
-    workoutDifficultyLabel: summary.difficultyLabel,
-    exercises: summary.exerciseList,
-    coachMessage: summary.coachMessage,
-    momentumEarned: 8,
-    workoutCompletionKey: `trainer-homework:${input.assignmentId}`,
+    durationMinutes: workout.estimatedDurationMinutes,
+    completedAt: input.completedAt,
+    exercises: workout.exercises,
+    healthProviderCaloriesBurned: null,
     source: "coach_homework",
-    trainerHomeworkAssignmentId: input.assignmentId,
-    trainerHomeworkAssignedDate: assignment.assignment_date,
-    trainerHomeworkDueDate: assignment.due_date,
-    trainerHomeworkCoachNote: assignment.coach_note,
-    trainerHomeworkTrainerName: assignment.trainer_name,
-    weightKgUsed: summary.weightKgUsed,
-    metValue: summary.metValue
-  };
-
-  const burnResult = await query(
-    `
-    insert into analytics_events (user_id, gym_id, event_name, metadata, created_at)
-    select u.id, u.gym_id, 'burn_log', $2, $3
-    from users u
-    where u.id = $1
-    returning *
-    `,
-    [input.clientId, metadata, input.completedAt]
-  );
+    extraMetadata: {
+      trainerHomeworkAssignmentId: input.assignmentId,
+      trainerHomeworkAssignedDate: assignment.assignment_date,
+      trainerHomeworkDueDate: assignment.due_date,
+      trainerHomeworkCoachNote: assignment.coach_note,
+      trainerHomeworkTrainerName: assignment.trainer_name
+    }
+  });
 
   await query(
     `
@@ -568,10 +525,9 @@ export async function completeTrainerHomework(input: {
         updated_at = now()
     where id = $1
     `,
-    [input.assignmentId, input.completedAt, burnResult.rows[0]?.id ?? null]
+    [input.assignmentId, input.completedAt, completion.burnLog.id]
   );
 
-  void createCoachPresenceForEvent(input.clientId, "workout_logged").catch(() => undefined);
   await notifyHomeworkCompleted({
     assignmentId: input.assignmentId,
     trainerUserId: String(assignment.assigned_by_user_id),
@@ -579,17 +535,5 @@ export async function completeTrainerHomework(input: {
     completedDate: localDateString(input.completedAt)
   }).catch(() => ({ sent: 0, skipped: true }));
 
-  return {
-    burnLog: burnResult.rows[0],
-    summary: {
-      workoutTitle: workout.title,
-      durationMinutes: workout.estimatedDurationMinutes,
-      workoutType: summary.workoutType,
-      difficulty: summary.difficultyLabel,
-      estimatedCaloriesBurned: summary.estimatedCaloriesBurned,
-      caloriesLabel: summary.caloriesSource === "health_provider_actual" ? "Calories Burned" : "Estimated Calories Burned",
-      coachMessage: summary.coachMessage,
-      momentumEarned: 8
-    }
-  };
+  return completion;
 }

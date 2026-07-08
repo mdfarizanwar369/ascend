@@ -146,6 +146,7 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
     recognitions,
     coachPresence,
     weeklyReports,
+    coachHomework,
     streak,
     monthlyConsistency
   ] = await Promise.all([
@@ -193,6 +194,38 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
       "select count(*) as count, max(created_at) as latest_at from weekly_reports where user_id = $1",
       [userId]
     ),
+    query<{
+      id: string;
+      title: string;
+      assignment_date: string;
+      due_date: string;
+      status: string;
+      completed_at: string | null;
+      coach_note: string | null;
+      trainer_name: string | null;
+      completed_burn_log_id: string | null;
+    }>(
+      `
+      select tha.id, tha.title, tha.assignment_date, tha.due_date, tha.status, tha.completed_at, tha.coach_note,
+        assigned_by.full_name as trainer_name, tha.completed_burn_log_id
+      from trainer_homework_assignments tha
+      join users assigned_by on assigned_by.id = tha.assigned_by_user_id
+      where tha.client_id = $1
+      order by tha.assignment_date asc, tha.created_at asc
+      limit 24
+      `,
+      [userId]
+    ).catch(() => ({ rows: [] as Array<{
+      id: string;
+      title: string;
+      assignment_date: string;
+      due_date: string;
+      status: string;
+      completed_at: string | null;
+      coach_note: string | null;
+      trainer_name: string | null;
+      completed_burn_log_id: string | null;
+    }> })),
     activityStreaks(userId),
     query<{ month_key: string; active_days: string | number }>(
       `
@@ -443,6 +476,40 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
       priority: 9,
       metadata: { monthKey: bestMonth.monthKey, activeDays: bestMonth.activeDays }
     });
+  }
+
+  for (const homework of coachHomework.rows) {
+    const trainerName = homework.trainer_name ?? "your coach";
+    events.push({
+      milestoneKey: `coach-homework-assigned-${homework.id}`,
+      type: "coach_homework_assigned",
+      title: "Coach Homework Assigned",
+      subtitle: `${trainerName} assigned ${homework.title}.`,
+      occurredAt: isoDate(homework.assignment_date),
+      priority: 4,
+      metadata: {
+        trainerName,
+        dueDate: homework.due_date,
+        status: homework.status,
+        coachNote: homework.coach_note
+      }
+    });
+
+    if (homework.completed_at) {
+      events.push({
+        milestoneKey: `coach-homework-completed-${homework.id}`,
+        type: "coach_homework_completed",
+        title: "Coach Homework Completed",
+        subtitle: `${homework.title} completed for ${trainerName}.`,
+        occurredAt: isoDate(homework.completed_at),
+        priority: 6,
+        metadata: {
+          trainerName,
+          completedBurnLogId: homework.completed_burn_log_id,
+          coachNote: homework.coach_note
+        }
+      });
+    }
   }
 
   const activityDays = await query<{ activity_date: string }>(

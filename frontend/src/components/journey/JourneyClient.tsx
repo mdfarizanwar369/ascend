@@ -292,11 +292,20 @@ function buildTimeline(
     .filter((item) => item.metadata.workoutTitle || item.metadata.activityType)
     .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime())[0];
   if (firstWorkout) {
+    const firstWorkoutSource = String(firstWorkout.metadata.source ?? "");
+    const firstWorkoutTitle =
+      firstWorkoutSource === "coach_homework"
+        ? "First coach homework completed"
+        : "First workout completed";
+    const firstWorkoutSubtitle =
+      firstWorkoutSource === "coach_homework"
+        ? `${String(firstWorkout.metadata.trainerHomeworkTrainerName ?? "Your coach")} assigned ${firstWorkout.metadata.workoutTitle ?? firstWorkout.metadata.activityType ?? "this session"}.`
+        : firstWorkout.metadata.workoutTitle ?? firstWorkout.metadata.activityType ?? "Activity logged";
     pushItem({
       key: "first-workout",
       occurredAt: firstWorkout.created_at,
-      title: "First workout completed",
-      subtitle: firstWorkout.metadata.workoutTitle ?? firstWorkout.metadata.activityType ?? "Activity logged",
+      title: firstWorkoutTitle,
+      subtitle: firstWorkoutSubtitle,
       tone: "purple",
       category: "workout",
       milestone: true,
@@ -308,11 +317,20 @@ function buildTimeline(
     .filter((item) => item.metadata.workoutTitle || item.metadata.activityType)
     .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
   if (latestWorkout) {
+    const latestWorkoutSource = String(latestWorkout.metadata.source ?? "");
+    const latestWorkoutTitle =
+      latestWorkoutSource === "coach_homework"
+        ? "Coach homework completed"
+        : "Workout completed";
+    const latestWorkoutSubtitle =
+      latestWorkoutSource === "coach_homework"
+        ? `${latestWorkout.metadata.workoutTitle ?? latestWorkout.metadata.activityType ?? "Homework session"} / Estimated burn ${Math.round(asNumber(latestWorkout.metadata.estimatedCaloriesBurned ?? latestWorkout.metadata.caloriesBurned))} kcal`
+        : latestWorkout.metadata.workoutTitle ?? latestWorkout.metadata.activityType ?? "Activity logged";
     pushItem({
       key: `latest-workout-${latestWorkout.id}`,
       occurredAt: latestWorkout.created_at,
-      title: "Workout completed",
-      subtitle: latestWorkout.metadata.workoutTitle ?? latestWorkout.metadata.activityType ?? "Activity logged",
+      title: latestWorkoutTitle,
+      subtitle: latestWorkoutSubtitle,
       tone: "purple",
       category: "workout",
       milestone: false,

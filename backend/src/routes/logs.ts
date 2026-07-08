@@ -11,7 +11,7 @@ import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
 import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
-import { createWorkoutCompletionSummary } from "../services/workoutCompletionService";
+import { persistCompletedWorkout } from "../services/workoutCompletionService";
 
 export const logsRouter = Router();
 
@@ -82,24 +82,6 @@ const completedWorkoutSchema = z.object({
   })).min(1).max(20),
   healthProviderCaloriesBurned: z.number().int().positive().optional().nullable()
 });
-
-async function resolveWorkoutWeightKg(userId: string) {
-  const result = await query<{ weight_kg: string | number | null }>(
-    `
-    select coalesce(
-      (select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1),
-      (select weight_kg from body_composition_scans where user_id = $1 and user_confirmed = true order by scan_date desc, created_at desc limit 1),
-      u.starting_weight_kg
-    ) as weight_kg
-    from users u
-    where u.id = $1
-    limit 1
-    `,
-    [userId]
-  );
-  const weight = Number(result.rows[0]?.weight_kg ?? 0);
-  return Number.isFinite(weight) && weight > 0 ? weight : null;
-}
 
 logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) => {
   try {
@@ -368,90 +350,21 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
 logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = completedWorkoutSchema.parse(req.body);
-    const existing = await query(
-      `
-      select *
-      from analytics_events
-      where user_id = $1
-        and event_name = 'burn_log'
-        and metadata->>'workoutCompletionKey' = $2
-      order by created_at desc
-      limit 1
-      `,
-      [req.user!.id, input.workoutCompletionKey]
-    );
-
-    if (existing.rows[0]) {
-      const existingMetadata = (existing.rows[0].metadata ?? {}) as Record<string, unknown>;
-      return res.json({
-        burnLog: existing.rows[0],
-        summary: {
-          workoutTitle: String(existingMetadata.workoutTitle ?? input.workoutTitle),
-          durationMinutes: Number(existingMetadata.durationMinutes ?? input.durationMinutes),
-          workoutType: String(existingMetadata.workoutType ?? input.workoutType),
-          difficulty: String(existingMetadata.workoutDifficultyLabel ?? input.workoutDifficulty),
-          estimatedCaloriesBurned: Number(existingMetadata.estimatedCaloriesBurned ?? existingMetadata.caloriesBurned ?? 0),
-          caloriesLabel: existingMetadata.caloriesSource === "health_provider_actual" ? "Calories Burned" : "Estimated Calories Burned",
-          coachMessage: String(existingMetadata.coachMessage ?? "Great work staying active today."),
-          momentumEarned: 8
-        }
-      });
-    }
-
-    const weightKg = await resolveWorkoutWeightKg(req.user!.id);
-    const summary = createWorkoutCompletionSummary({
+    const result = await persistCompletedWorkout({
+      userId: req.user!.id,
+      gymId: req.user!.gymId ?? null,
+      workoutCompletionKey: input.workoutCompletionKey,
       workoutTitle: input.workoutTitle,
       workoutType: input.workoutType,
-      difficulty: input.workoutDifficulty,
-      durationMinutes: input.durationMinutes,
-      exercises: input.exercises,
-      weightKg,
-      actualCaloriesBurned: input.healthProviderCaloriesBurned ?? null
-    });
-
-    const metadata = {
-      activityType: summary.workoutType,
-      durationMinutes: input.durationMinutes,
-      caloriesBurned: summary.caloriesBurned,
-      estimatedCaloriesBurned: summary.estimatedCaloriesBurned,
-      caloriesSource: summary.caloriesSource,
-      workoutTitle: input.workoutTitle,
-      workoutType: summary.workoutType,
       workoutDifficulty: input.workoutDifficulty,
-      workoutDifficultyLabel: summary.difficultyLabel,
-      exercises: summary.exerciseList,
-      coachMessage: summary.coachMessage,
-      momentumEarned: 8,
-      workoutCompletionKey: input.workoutCompletionKey,
-      source: "coach_zoe_workout_planner",
-      weightKgUsed: summary.weightKgUsed,
-      metValue: summary.metValue
-    };
-
-    const result = await query(
-      `
-      insert into analytics_events (user_id, gym_id, event_name, metadata, created_at)
-      values ($1, $2, 'burn_log', $3, coalesce($4, now()))
-      returning *
-      `,
-      [req.user!.id, req.user!.gymId ?? null, metadata, input.completedAt ?? null]
-    );
-
-    void createCoachPresenceForEvent(req.user!.id, "workout_logged").catch(() => undefined);
-
-    res.status(201).json({
-      burnLog: result.rows[0],
-      summary: {
-        workoutTitle: input.workoutTitle,
-        durationMinutes: input.durationMinutes,
-        workoutType: summary.workoutType,
-        difficulty: summary.difficultyLabel,
-        estimatedCaloriesBurned: summary.estimatedCaloriesBurned,
-        caloriesLabel: summary.caloriesSource === "health_provider_actual" ? "Calories Burned" : "Estimated Calories Burned",
-        coachMessage: summary.coachMessage,
-        momentumEarned: 8
-      }
+      durationMinutes: input.durationMinutes,
+      completedAt: input.completedAt ?? null,
+      exercises: input.exercises,
+      healthProviderCaloriesBurned: input.healthProviderCaloriesBurned ?? null,
+      source: "coach_zoe_workout_planner"
     });
+
+    res.status(201).json(result);
   } catch (error) {
     next(error);
   }
