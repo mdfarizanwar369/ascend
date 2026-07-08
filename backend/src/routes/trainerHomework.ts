@@ -57,15 +57,18 @@ const trainerHomeworkCompletionSchema = z.object({
   completedAt: z.string().datetime().optional()
 });
 
-trainerHomeworkRouter.use((_req, res, next) => {
-  if (!trainerHomeworkEnabled()) {
-    return res.status(404).json({ error: "Coach Homework is not enabled." });
-  }
-  next();
-});
+function homeworkDisabledSummary() {
+  return { assigned: 0, completed: 0, missed: 0 };
+}
 
 trainerHomeworkRouter.post("/trainer/clients/:clientId/homework/generate", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!trainerHomeworkEnabled()) {
+      return res.json({
+        workout: null,
+        disabled: true
+      });
+    }
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const input = trainerHomeworkGenerateSchema.parse(req.body);
     const preview = await generateTrainerHomeworkPreview({
@@ -81,6 +84,13 @@ trainerHomeworkRouter.post("/trainer/clients/:clientId/homework/generate", requi
 
 trainerHomeworkRouter.get("/trainer/clients/:clientId/homework", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!trainerHomeworkEnabled()) {
+      return res.json({
+        assignments: [],
+        summary: homeworkDisabledSummary(),
+        disabled: true
+      });
+    }
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const assignments = await getTrainerHomeworkHistory(req.params.clientId);
     res.json({
@@ -98,6 +108,12 @@ trainerHomeworkRouter.get("/trainer/clients/:clientId/homework", requireAuth, re
 
 trainerHomeworkRouter.post("/trainer/clients/:clientId/homework", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (!trainerHomeworkEnabled()) {
+      return res.json({
+        assignment: null,
+        disabled: true
+      });
+    }
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     const input = trainerHomeworkAssignSchema.parse(req.body);
     const assignment = await assignTrainerHomework({
@@ -121,6 +137,7 @@ trainerHomeworkRouter.post("/trainer/clients/:clientId/homework", requireAuth, r
 
 trainerHomeworkRouter.get("/me/coach-homework/current", requireAuth, async (req, res, next) => {
   try {
+    if (!trainerHomeworkEnabled()) return res.json({ assignment: null, disabled: true });
     if (!req.user?.roles.includes("client") && req.user?.primaryRole !== "client") return res.json({ assignment: null });
     const assignment = await getCurrentClientHomework(req.user!.id);
     res.json({ assignment });
@@ -131,6 +148,7 @@ trainerHomeworkRouter.get("/me/coach-homework/current", requireAuth, async (req,
 
 trainerHomeworkRouter.get("/me/coach-homework/:assignmentId", requireAuth, async (req, res, next) => {
   try {
+    if (!trainerHomeworkEnabled()) return res.json({ assignment: null, disabled: true });
     if (!req.user?.roles.includes("client") && req.user?.primaryRole !== "client") return res.status(404).json({ error: "Homework not found" });
     const assignment = await getClientHomeworkById(req.user!.id, req.params.assignmentId);
     if (!assignment) return res.status(404).json({ error: "Homework not found" });
@@ -142,6 +160,13 @@ trainerHomeworkRouter.get("/me/coach-homework/:assignmentId", requireAuth, async
 
 trainerHomeworkRouter.post("/me/coach-homework/:assignmentId/complete", requireAuth, async (req, res, next) => {
   try {
+    if (!trainerHomeworkEnabled()) {
+      return res.json({
+        burnLog: null,
+        summary: null,
+        disabled: true
+      });
+    }
     if (!req.user?.roles.includes("client") && req.user?.primaryRole !== "client") return res.status(404).json({ error: "Homework not found" });
     const input = trainerHomeworkCompletionSchema.parse(req.body);
     const result = await completeTrainerHomework({
