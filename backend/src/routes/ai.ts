@@ -9,6 +9,7 @@ import { aiRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
+import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 
 export const aiRouter = Router();
 
@@ -559,14 +560,24 @@ aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), ai
 aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     const input = workoutPlannerSchema.parse(req.body);
-    const [coachAccess, profileResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
+    const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
       await Promise.all([
         getCoachZoeAccess(req.user!.id),
-        query<{ metadata: Record<string, unknown> | null; created_at: string }>(
+        query(
           `
           select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
           from users
           where id = $1
+          `,
+          [req.user!.id]
+        ),
+        query(
+          `
+          select weight_kg, logged_at
+          from weight_logs
+          where user_id = $1
+          order by logged_at desc
+          limit 1
           `,
           [req.user!.id]
         ),
@@ -638,29 +649,35 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
       currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null
     });
 
-    const promptContext = JSON.stringify({
-      coachAccess: {
-        tier: coachAccess.tier,
-        analysisDepth: coachAccess.premiumDepth ? "complete_journey" : "recent_history_only"
-      },
-      profile: profileResult.rows[0] ?? {},
-      recentFoodConsistency: recentFoodResult.rows[0] ?? {},
-      recentWorkouts: recentBurnResult.rows,
-      workoutMemory,
-      athleteMode: athleteResult.rows[0] ?? null,
-      latestBodyScan: bodyScanResult.rows[0] ?? null,
-      recentCoachZoeContext: recentMessagesResult.rows.reverse(),
-      healthSync: healthSyncSummary
-        ? {
-            todaySteps: healthSyncSummary.todaySteps,
-            averageSteps7d: healthSyncSummary.averageSteps7d,
-            todayActiveCalories: healthSyncSummary.todayActiveCalories,
-            workoutsThisWeek: healthSyncSummary.workoutsThisWeek,
-            workoutCompletedToday: healthSyncSummary.workoutCompletedToday,
-            lastSyncedAt: healthSyncSummary.lastSyncedAt
-          }
-        : null
-    });
+    const promptContext = JSON.stringify(
+      buildWorkoutPlannerContext({
+        coachAccess,
+        profile: profileResult.rows[0] ?? null,
+        latestWeightKg: latestWeightResult.rows[0]?.weight_kg ? Number(latestWeightResult.rows[0].weight_kg) : null,
+        recentFoodConsistency: recentFoodResult.rows[0] ?? null,
+        recentWorkouts: recentBurnResult.rows,
+        workoutMemory,
+        athleteMode: athleteResult.rows[0] ?? null,
+        latestBodyScan: bodyScanResult.rows[0] ?? null,
+        recentCoachZoeContext: recentMessagesResult.rows.reverse(),
+        healthSync: healthSyncSummary
+          ? {
+              todaySteps: healthSyncSummary.todaySteps,
+              averageSteps7d: healthSyncSummary.averageSteps7d,
+              todayActiveCalories: healthSyncSummary.todayActiveCalories,
+              workoutsThisWeek: healthSyncSummary.workoutsThisWeek,
+              workoutCompletedToday: healthSyncSummary.workoutCompletedToday,
+              lastSyncedAt: healthSyncSummary.lastSyncedAt
+            }
+          : null,
+        request: {
+          location: input.location,
+          timeAvailable: input.timeAvailable,
+          goal: input.goal,
+          equipment: input.equipment
+        }
+      })
+    );
 
     const workout = await createCoachWorkoutPlan({
       location: input.location,
