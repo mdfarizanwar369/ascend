@@ -1048,6 +1048,33 @@ export type GeneratedWorkout = {
   disclaimer: string;
 };
 
+export type CoachHomeworkWorkout = GeneratedWorkout & {
+  whyItFits: string;
+};
+
+export type TrainerHomeworkStatus = "assigned" | "completed" | "missed";
+
+export type TrainerHomeworkAssignment = {
+  id: string;
+  client_id: string;
+  assigned_by_user_id: string;
+  trainer_name: string | null;
+  title: string;
+  goal: string;
+  location: string;
+  equipment: string[];
+  duration_minutes: number;
+  intensity: "easy" | "moderate" | "challenging" | string;
+  coach_note: string | null;
+  assignment_date: string;
+  due_date: string;
+  status: TrainerHomeworkStatus;
+  assigned_at: string;
+  completed_at: string | null;
+  completion_percent: number;
+  workout: CoachHomeworkWorkout | null;
+};
+
 export function generateTodayWorkout(input: {
   location: WorkoutPlannerLocation;
   timeAvailable: "20" | "30" | "45" | "60";
@@ -1055,6 +1082,93 @@ export function generateTodayWorkout(input: {
   equipment: string;
 }) {
   return authed<{ workout: GeneratedWorkout }>("/ai/workout", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function generateTrainerHomeworkPreview(clientId: string, input: {
+  location: "home" | "commercial_gym" | "hotel_gym" | "outdoor" | "minimal_equipment";
+  timeAvailable: "20" | "30" | "45" | "60";
+  goal: "fat_loss" | "strength" | "hypertrophy" | "mobility" | "recovery" | "conditioning" | "technique" | "cardio" | "full_body";
+  equipment: string[];
+  assignmentDate: string;
+  dueDate: string;
+  coachNote?: string | null;
+}) {
+  return authed<{ workout: CoachHomeworkWorkout }>(`/trainer/clients/${clientId}/homework/generate`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getTrainerHomeworkAssignments(clientId: string) {
+  return authed<{
+    assignments: TrainerHomeworkAssignment[];
+    summary: { assigned: number; completed: number; missed: number };
+  }>(`/trainer/clients/${clientId}/homework`);
+}
+
+export function assignTrainerHomework(clientId: string, input: {
+  location: "home" | "commercial_gym" | "hotel_gym" | "outdoor" | "minimal_equipment";
+  timeAvailable: "20" | "30" | "45" | "60";
+  goal: "fat_loss" | "strength" | "hypertrophy" | "mobility" | "recovery" | "conditioning" | "technique" | "cardio" | "full_body";
+  equipment: string[];
+  assignmentDate: string;
+  dueDate: string;
+  coachNote?: string | null;
+  workout: CoachHomeworkWorkout;
+}) {
+  invalidateCached("trainer:");
+  return authed<{ assignment: TrainerHomeworkAssignment }>(`/trainer/clients/${clientId}/homework`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getCurrentCoachHomework() {
+  return authed<{ assignment: TrainerHomeworkAssignment | null }>("/me/coach-homework/current");
+}
+
+export function getCoachHomework(assignmentId: string) {
+  return authed<{ assignment: TrainerHomeworkAssignment }>(`/me/coach-homework/${assignmentId}`);
+}
+
+export function completeCoachHomework(assignmentId: string, input: { completedAt?: string } = {}) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
+  return authed<{
+    burnLog: {
+      id: string;
+      metadata: {
+        activityType?: string;
+        durationMinutes?: number;
+        caloriesBurned?: number;
+        estimatedCaloriesBurned?: number;
+        caloriesSource?: "estimated_met" | "health_provider_actual";
+        workoutTitle?: string;
+        workoutType?: string;
+        workoutDifficulty?: "easy" | "moderate" | "challenging";
+        workoutDifficultyLabel?: string;
+        coachMessage?: string;
+        momentumEarned?: number;
+        source?: string;
+      };
+      created_at: string;
+    };
+    summary: {
+      workoutTitle: string;
+      durationMinutes: number;
+      workoutType: string;
+      difficulty: string;
+      estimatedCaloriesBurned: number;
+      caloriesLabel: string;
+      coachMessage: string;
+      momentumEarned: number;
+    };
+  }>(`/me/coach-homework/${assignmentId}/complete`, {
     method: "POST",
     body: JSON.stringify(input)
   });

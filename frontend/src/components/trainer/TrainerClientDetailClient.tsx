@@ -54,6 +54,7 @@ import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { AthleteCoachPanel } from "@/components/athlete/AthleteCoachPanel";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { buildCoachingTimelineGroups, CoachingTimelineGroups } from "@/components/trainer/TrainerCoachingTimeline";
+import { TrainerHomeworkPanel } from "@/components/trainer/TrainerHomeworkPanel";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -654,6 +655,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           )}
         </SectionCard>
       </div>
+
+      <TrainerHomeworkPanel clientId={clientId} />
 
       <AthleteCoachPanel clientId={clientId} />
 

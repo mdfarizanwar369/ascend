@@ -1267,11 +1267,27 @@ export type CoachWorkoutPlan = {
   disclaimer: string;
 };
 
+export type TrainerHomeworkWorkoutPlan = CoachWorkoutPlan & {
+  whyItFits: string;
+};
+
 type WorkoutPlannerInput = {
   location: string;
   timeAvailable: string;
   goal: string;
   equipment: string;
+  context: string;
+};
+
+type TrainerHomeworkPlannerInput = {
+  trainerName: string;
+  location: string;
+  timeAvailable: string;
+  goal: string;
+  equipment: string[];
+  assignmentDate: string;
+  dueDate: string;
+  coachNote?: string | null;
   context: string;
 };
 
@@ -1372,6 +1388,54 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput): Promis
     return normalizeWorkoutPlan(parseJsonObject(reply), input);
   } catch {
     return fallbackWorkoutPlan(input);
+  }
+}
+
+export async function createTrainerHomeworkPlan(input: TrainerHomeworkPlannerInput): Promise<TrainerHomeworkWorkoutPlan> {
+  const fallback = {
+    ...fallbackWorkoutPlan({
+      location: input.location,
+      timeAvailable: input.timeAvailable,
+      goal: input.goal,
+      equipment: input.equipment.join(", "),
+      context: input.context
+    }),
+    whyItFits: "It matches your coach's goal for the day, your recent activity, and your current training context."
+  };
+
+  if (!providerConfigured()) return fallback;
+
+  try {
+    const reply = await createTextReply(
+      "You are Ascend's invisible trainer-workout assistant. Create a coach homework workout that will be presented as coming from the human trainer, not AI. Use the trainer inputs, client profile, personalization signals, recent workouts, workout memory summary, activity history, Health Connect summary, athlete mode, body scan data, and coach note if available. Do not mention AI. Do not say 'generated'. Respect missing data and use safe beginner-friendly defaults when details are incomplete. Age, body weight, recent training history, activity level, and any explicit limitations must influence exercise selection, intensity, volume, rest, and impact. Keep it practical, safe, and easy for a trainer to approve in under a minute. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer, whyItFits. exercises must be an array of objects with name, sets, reps, duration, rest, note. whyItFits should explain in 1-2 short sentences why the session suits the client.",
+      `Trainer homework request: ${JSON.stringify({
+        trainerName: input.trainerName,
+        location: input.location,
+        timeAvailable: input.timeAvailable,
+        goal: input.goal,
+        equipment: input.equipment,
+        assignmentDate: input.assignmentDate,
+        dueDate: input.dueDate,
+        coachNote: input.coachNote ?? null
+      })}\n\nClient context: ${input.context}\n\nCreate the coach homework as strict JSON now.`,
+      JSON.stringify(fallback)
+    );
+
+    const normalized = normalizeWorkoutPlan(parseJsonObject(reply), {
+      location: input.location,
+      timeAvailable: input.timeAvailable,
+      goal: input.goal,
+      equipment: input.equipment.join(", "),
+      context: input.context
+    });
+
+    const parsed = parseJsonObject(reply);
+    return {
+      ...normalized,
+      whyItFits: toCleanString((parsed as Record<string, unknown>).whyItFits, fallback.whyItFits, 220)
+    };
+  } catch {
+    return fallback;
   }
 }
 

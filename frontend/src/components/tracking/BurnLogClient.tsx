@@ -1,13 +1,15 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Flame, Save } from "lucide-react";
-import { estimateBurnFromText, getBurnLogs, getMe, getMySubscription, saveBurnLog } from "@/lib/ascendApi";
+import { estimateBurnFromText, getBurnLogs, getCurrentCoachHomework, getMe, getMySubscription, saveBurnLog, TrainerHomeworkAssignment } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 import { rememberDashboardRecord } from "@/lib/dataSync";
+import { trainerHomeworkEnabled } from "@/lib/trainerHomeworkFlag";
 
 const burnRates: Record<string, number> = {
   Walking: 4,
@@ -35,6 +37,7 @@ function understandBurnText(text: string) {
 }
 
 export function BurnLogClient() {
+  const homeworkFeatureEnabled = trainerHomeworkEnabled();
   const [activityType, setActivityType] = useState("Strength training");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [activityText, setActivityText] = useState("");
@@ -45,6 +48,7 @@ export function BurnLogClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [isEstimating, setIsEstimating] = useState(false);
   const [canUseAiEstimate, setCanUseAiEstimate] = useState(false);
+  const [homework, setHomework] = useState<TrainerHomeworkAssignment | null>(null);
   const saveLockRef = useRef(false);
 
   const estimatedCalories = useMemo(() => {
@@ -106,6 +110,23 @@ export function BurnLogClient() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!homeworkFeatureEnabled) return;
+    let isMounted = true;
+
+    getCurrentCoachHomework()
+      .then((response) => {
+        if (isMounted) setHomework(response.assignment);
+      })
+      .catch(() => {
+        if (isMounted) setHomework(null);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [homeworkFeatureEnabled]);
 
   useEffect(() => {
     let isMounted = true;
@@ -175,6 +196,29 @@ export function BurnLogClient() {
             </div>
           </div>
         </section>
+
+        {homework ? (
+          <section className="mt-4 rounded-lg border border-calm/30 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.12),transparent_12rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">Coach Homework</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{homework.title}</h2>
+            <p className="mt-2 text-sm text-zinc-300">Assigned by {homework.trainer_name ?? "your coach"}</p>
+            <div className="mt-3 space-y-1 text-sm text-zinc-400">
+              <p>Scheduled for {new Date(`${homework.assignment_date}T00:00:00`).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</p>
+              <p>Due {new Date(`${homework.due_date}T00:00:00`).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</p>
+            </div>
+            {homework.coach_note ? (
+              <div className="mt-3 rounded-2xl border border-lime/20 bg-lime/10 p-3 text-sm text-zinc-100">
+                Coach note: {homework.coach_note}
+              </div>
+            ) : null}
+            <Link
+              href={`/coach-homework/${homework.id}`}
+              className="mt-4 flex h-12 items-center justify-center rounded-2xl bg-lime font-semibold text-ink"
+            >
+              Start Homework
+            </Link>
+          </section>
+        ) : null}
 
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
           <Field label="Tell Ascend what you did">

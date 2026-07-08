@@ -1,9 +1,11 @@
 import { calculateDailyComplianceScores } from "./complianceJob";
 import { generateRiskAlerts } from "./riskAlertJob";
+import { sendHomeworkDueNotifications } from "../services/trainerHomeworkService";
 
 export async function runDailyJobs() {
   await calculateDailyComplianceScores();
   await generateRiskAlerts();
+  await sendHomeworkDueNotifications();
 }
 
 if (require.main === module) {
@@ -17,4 +19,3 @@ if (require.main === module) {
       process.exit(1);
     });
 }
-
