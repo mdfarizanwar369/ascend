@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Camera, Droplets, Home, Scale, Sparkles } from "lucide-react";
 import { GoalType } from "@ascend/shared";
 import { completeOnboarding, getMe } from "@/lib/ascendApi";
-import { Field, inputClass } from "@/components/Field";
+import { Field, inputClass, selectClass } from "@/components/Field";
 
 const draftKey = "ascend:onboarding:v2:draft";
 const welcomeSeenKey = "ascend:onboarding:v2:welcome-seen";
@@ -278,7 +278,7 @@ export function ProgressiveClientOnboarding() {
               <input className={inputClass} value={draft.heightCm} inputMode="decimal" placeholder="cm" onChange={(event) => updateDraft({ heightCm: event.target.value })} />
             </Field>
             <Field label="Sex for calorie estimate">
-              <select className={inputClass} value={draft.gender} onChange={(event) => updateDraft({ gender: event.target.value as Draft["gender"] })}>
+              <select className={selectClass} value={draft.gender} onChange={(event) => updateDraft({ gender: event.target.value as Draft["gender"] })}>
                 <option value="prefer_not_to_say">Prefer not to say</option>
                 <option value="female">Female</option>
                 <option value="male">Male</option>
@@ -300,7 +300,7 @@ export function ProgressiveClientOnboarding() {
 
         {draft.step === 3 ? (
           <Field label="Activity level">
-            <select className={inputClass} value={draft.activityLevel} onChange={(event) => updateDraft({ activityLevel: event.target.value as Draft["activityLevel"] })}>
+            <select className={selectClass} value={draft.activityLevel} onChange={(event) => updateDraft({ activityLevel: event.target.value as Draft["activityLevel"] })}>
               <option value="low">Low - mostly sitting</option>
               <option value="moderate">Moderate - train/walk a few days weekly</option>
               <option value="high">High - active most days</option>

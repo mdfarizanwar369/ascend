@@ -17,5 +17,7 @@ export function Field({
 }
 
 export const inputClass =
-  "h-12 w-full rounded-lg border border-line bg-ink px-3 text-white outline-none focus:border-lime";
+  "ascend-field h-12 w-full rounded-lg border px-3 outline-none focus:border-lime";
 
+export const selectClass =
+  "ascend-field ascend-select h-12 w-full rounded-lg border px-3 pr-10 outline-none focus:border-lime";

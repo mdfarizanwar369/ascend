@@ -460,7 +460,7 @@ export function FounderDashboardClient() {
                     value={lead.status}
                     onClick={(event) => event.stopPropagation()}
                     onChange={(event) => changeLeadStatus(lead, event.target.value as FounderLeadStatus)}
-                    className="rounded-xl border border-line bg-surface px-3 py-2 text-sm"
+                    className="ascend-field ascend-select rounded-xl border px-3 py-2 pr-10 text-sm"
                   >
                     {statuses.map((item) => <option key={item} value={item}>{item}</option>)}
                   </select>

@@ -1,6 +1,8 @@
 type CoachZoeGoalType = "fat_loss" | "muscle_gain" | "maintenance";
 
 export type CoachZoeProactiveInsightKey =
+  | "first_time_user"
+  | "first_day_complete"
   | "workout_completed"
   | "streak_milestone"
   | "recovery_day"
@@ -56,6 +58,8 @@ export type CoachZoeProactiveInput = {
   latestWorkout?: CoachZoeWorkoutSnapshot | null;
   healthSync?: CoachZoeHealthSyncSnapshot | null;
   recentMilestoneTitle?: string | null;
+  historyDaysTracked?: number | null;
+  totalLoggedActivities?: number | null;
 };
 
 export type CoachZoeProactiveInsight = {
@@ -84,9 +88,29 @@ function streakMilestone(streak: number) {
   return [90, 30, 14, 10, 7].find((value) => streak === value) ?? null;
 }
 
+type CoachZoeDataConfidence =
+  | "FIRST_TIME_USER"
+  | "FIRST_DAY_COMPLETE"
+  | "EARLY_HISTORY"
+  | "TREND_READY"
+  | "LONG_TERM_HISTORY";
+
+function detectDataConfidence(input: CoachZoeProactiveInput): CoachZoeDataConfidence {
+  const totalLoggedActivities = numberOrZero(input.totalLoggedActivities);
+  const historyDaysTracked = numberOrZero(input.historyDaysTracked);
+
+  if (totalLoggedActivities <= 0) return "FIRST_TIME_USER";
+  if (historyDaysTracked <= 1) return "FIRST_DAY_COMPLETE";
+  if (historyDaysTracked <= 6) return "EARLY_HISTORY";
+  if (historyDaysTracked <= 29) return "TREND_READY";
+  return "LONG_TERM_HISTORY";
+}
+
 export function buildCoachZoeProactiveInsight(input: CoachZoeProactiveInput): CoachZoeProactiveInsight {
+  const confidence = detectDataConfidence(input);
   const streak = numberOrZero(input.currentStreak);
-  const momentumDelta = numberOrZero(input.momentumScore) - numberOrZero(input.previousMomentumScore);
+  const hasPreviousMomentum = input.previousMomentumScore !== null && input.previousMomentumScore !== undefined;
+  const momentumDelta = hasPreviousMomentum ? numberOrZero(input.momentumScore) - numberOrZero(input.previousMomentumScore) : 0;
   const proteinRatio = input.proteinTargetG > 0 ? input.proteinTodayG / input.proteinTargetG : 0;
   const calorieRatio = input.calorieTarget > 0 ? input.caloriesToday / input.calorieTarget : 0;
   const waterRatio = input.waterTargetMl > 0 ? input.waterTodayMl / input.waterTargetMl : 0;
@@ -102,6 +126,26 @@ export function buildCoachZoeProactiveInsight(input: CoachZoeProactiveInput): Co
   const todaySteps = numberOrZero(healthSync?.todaySteps);
   const averageSteps = numberOrZero(healthSync?.averageSteps7d);
   const workoutName = cleanWorkoutName(latestWorkout?.title);
+
+  if (confidence === "FIRST_TIME_USER") {
+    return {
+      key: "first_time_user",
+      title: "Today's Insight",
+      body: "Welcome to Ascend. Today is not about being perfect. Record your first meal, workout, weight, or water check-in so I can start learning your rhythm.",
+      href: "/dashboard",
+      priority: 120
+    };
+  }
+
+  if (confidence === "FIRST_DAY_COMPLETE") {
+    return {
+      key: "first_day_complete",
+      title: "Today's Insight",
+      body: "Great start. You have already given Ascend a real starting point. Keep tomorrow simple and build from this first honest day.",
+      href: "/dashboard",
+      priority: 110
+    };
+  }
 
   if (latestWorkout?.completedToday) {
     const followUp =
@@ -199,7 +243,7 @@ export function buildCoachZoeProactiveInsight(input: CoachZoeProactiveInput): Co
     };
   }
 
-  if (input.goalType === "fat_loss" && weightTrendKg !== null && weightTrendKg <= -0.3) {
+  if ((confidence === "TREND_READY" || confidence === "LONG_TERM_HISTORY") && input.goalType === "fat_loss" && weightTrendKg !== null && weightTrendKg <= -0.3) {
     return {
       key: "weight_trend_positive",
       title: "Today's Insight",
@@ -209,7 +253,7 @@ export function buildCoachZoeProactiveInsight(input: CoachZoeProactiveInput): Co
     };
   }
 
-  if (input.goalType === "muscle_gain" && weightTrendKg !== null && weightTrendKg >= 0.2) {
+  if ((confidence === "TREND_READY" || confidence === "LONG_TERM_HISTORY") && input.goalType === "muscle_gain" && weightTrendKg !== null && weightTrendKg >= 0.2) {
     return {
       key: "weight_trend_positive",
       title: "Today's Insight",
@@ -219,7 +263,7 @@ export function buildCoachZoeProactiveInsight(input: CoachZoeProactiveInput): Co
     };
   }
 
-  if (input.goalType === "fat_loss" && weightTrendKg !== null && weightTrendKg >= 0.4) {
+  if ((confidence === "TREND_READY" || confidence === "LONG_TERM_HISTORY") && input.goalType === "fat_loss" && weightTrendKg !== null && weightTrendKg >= 0.4) {
     return {
       key: "weight_trend_watch",
       title: "Today's Insight",
@@ -229,7 +273,7 @@ export function buildCoachZoeProactiveInsight(input: CoachZoeProactiveInput): Co
     };
   }
 
-  if (momentumDelta >= 10) {
+  if ((confidence === "TREND_READY" || confidence === "LONG_TERM_HISTORY") && hasPreviousMomentum && momentumDelta >= 10) {
     return {
       key: "momentum_improving",
       title: "Today's Insight",

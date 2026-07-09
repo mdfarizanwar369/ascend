@@ -205,6 +205,66 @@ function summarizeLongTermSignals(input: {
   };
 }
 
+function summarizeDataConfidence(input: {
+  foodRows: Array<Record<string, unknown>>;
+  waterRows: Array<Record<string, unknown>>;
+  weightRows: Array<Record<string, unknown>>;
+  burnRows: Array<Record<string, unknown>>;
+  habitRows: Array<Record<string, unknown>>;
+  bodyScanHistory: Array<{ scanDate: string | null; weightKg: number | null; bodyFatPercent: number | null; skeletalMuscleMassKg: number | null; visceralFat: number | null; bmrKcal: number | null }>;
+}) {
+  const historyDays = new Set<string>();
+  for (const row of input.foodRows) {
+    const value = String(row.logged_at ?? "");
+    if (value) historyDays.add(localDateKey(value));
+  }
+  for (const row of input.waterRows) {
+    const value = String(row.logged_at ?? "");
+    if (value) historyDays.add(localDateKey(value));
+  }
+  for (const row of input.weightRows) {
+    const value = String(row.logged_at ?? "");
+    if (value) historyDays.add(localDateKey(value));
+  }
+  for (const row of input.burnRows) {
+    const value = String(row.created_at ?? "");
+    if (value) historyDays.add(localDateKey(value));
+  }
+  for (const row of input.habitRows) {
+    const value = String(row.logged_at ?? "");
+    if (value) historyDays.add(localDateKey(value));
+  }
+  for (const row of input.bodyScanHistory) {
+    if (row.scanDate) historyDays.add(localDateKey(row.scanDate));
+  }
+
+  const totalActivities =
+    input.foodRows.length +
+    input.waterRows.length +
+    input.weightRows.length +
+    input.burnRows.length +
+    input.habitRows.length +
+    input.bodyScanHistory.length;
+
+  const historyDayCount = historyDays.size;
+  const state =
+    totalActivities === 0
+      ? "FIRST_TIME_USER"
+      : historyDayCount <= 1
+        ? "FIRST_DAY_COMPLETE"
+        : historyDayCount <= 6
+          ? "EARLY_HISTORY"
+          : historyDayCount <= 29
+            ? "TREND_READY"
+            : "LONG_TERM_HISTORY";
+
+  return {
+    state,
+    historyDayCount,
+    totalActivities
+  };
+}
+
 aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     const { message, mode } = coachChatSchema.parse(req.body);
@@ -473,6 +533,14 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
       visceralFat: asNumber(row.visceral_fat),
       bmrKcal: asNumber(row.bmr_kcal)
     }));
+    const dataConfidence = summarizeDataConfidence({
+      foodRows: foodWindowResult.rows,
+      waterRows: waterWindowResult.rows,
+      weightRows: weightWindowResult.rows,
+      burnRows: burnWindowResult.rows,
+      habitRows: habitWindowResult.rows,
+      bodyScanHistory
+    });
     const promptContext = JSON.stringify({
       coachAccess: {
         tier: coachAccess.tier,
@@ -489,6 +557,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
       bodyScanHistory,
       recentAnalysisWindow: {
         windowDays: analysisWindowDays,
+        dataConfidence,
         weightTrend: weightWindow,
         food: foodWindow,
         water: waterWindow,

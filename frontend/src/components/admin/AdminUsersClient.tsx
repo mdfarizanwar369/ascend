@@ -18,14 +18,12 @@ import {
 import { CoachingMode, SubscriptionPlan } from "@ascend/shared";
 import { Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
-import { Field, inputClass } from "@/components/Field";
+import { Field, inputClass, selectClass } from "@/components/Field";
 
 type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
 type Gym = Awaited<ReturnType<typeof getGyms>>["gyms"][number];
 type Role = AdminUser["primary_role"];
-
-const selectClass = `${inputClass} appearance-none`;
 
 function formatRole(role: string) {
   return role.charAt(0).toUpperCase() + role.slice(1);

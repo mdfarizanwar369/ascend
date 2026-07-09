@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { CoachingMode } from "@ascend/shared";
-import { Field, inputClass } from "@/components/Field";
+import { Field, inputClass, selectClass } from "@/components/Field";
 import { completeOnboarding, validateReferral } from "@/lib/ascendApi";
 
 const draftKey = "ascend:onboarding:draft";
@@ -160,7 +160,7 @@ export function OnboardingForm() {
       </Field>
       <Field label="Referral code" hint="Optional. Use your gym or trainer code if you have one.">
         <input
-          className={inputClass}
+          className={selectClass}
           value={referralCode}
           onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
         />
@@ -222,14 +222,14 @@ export function OnboardingForm() {
         </Field>
       </div>
       <Field label="Activity level">
-        <select className={inputClass} value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as "low" | "moderate" | "high")}>
+        <select className={selectClass} value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as "low" | "moderate" | "high")}>
           <option value="low">Low - mostly sitting</option>
           <option value="moderate">Moderate - train/walk a few days weekly</option>
           <option value="high">High - active most days</option>
         </select>
       </Field>
       <Field label="Sex for calorie estimate">
-        <select className={inputClass} value={gender} onChange={(event) => setGender(event.target.value as "female" | "male" | "prefer_not_to_say")}>
+        <select className={selectClass} value={gender} onChange={(event) => setGender(event.target.value as "female" | "male" | "prefer_not_to_say")}>
           <option value="prefer_not_to_say">Prefer not to say</option>
           <option value="female">Female</option>
           <option value="male">Male</option>

@@ -783,19 +783,19 @@ export function JourneyClient() {
         setUser(meResponse.user);
 
         const [
-          streakResponse,
-          complianceResponse,
-          foodResponse,
-          waterResponse,
-          weightResponse,
-          burnResponse,
-          photoResponse,
-          memoryResponse,
-          goalResponse,
-          comparisonResponse,
-          coachPresenceResponse,
-          recognitionResponse
-        ] = await Promise.all([
+          streakResult,
+          complianceResult,
+          foodResult,
+          waterResult,
+          weightResult,
+          burnResult,
+          photoResult,
+          memoryResult,
+          goalResult,
+          comparisonResult,
+          coachPresenceResult,
+          recognitionResult
+        ] = await Promise.allSettled([
           getMyStreak(),
           getComplianceToday(),
           getFoodLogs({ range: "all", order: "newest", limit: 100 }),
@@ -820,6 +820,33 @@ export function JourneyClient() {
         const reportResponse = fulfilledValue(reportResult, { report: null });
         const trainerMessageResponse = fulfilledValue(trainerMessageResult, null);
         const bodyCompositionResponse = fulfilledValue(bodyCompositionResult, null);
+        const streakResponse = fulfilledValue(streakResult, {
+          streak: { current: 0, best: 0, activeDaysThisWeek: 0, checkedInToday: false }
+        });
+        const complianceResponse = fulfilledValue(complianceResult, { compliance: null });
+        const foodResponse = fulfilledValue(foodResult, { foodLogs: [] as FoodLog[] });
+        const waterResponse = fulfilledValue(waterResult, { waterLogs: [] as WaterLog[] });
+        const weightResponse = fulfilledValue(weightResult, { weightLogs: [] as WeightLog[] });
+        const burnResponse = fulfilledValue(burnResult, { burnLogs: [] as BurnLog[] });
+        const photoResponse = fulfilledValue(photoResult, { progressPhotos: [] as ProgressPhoto[] });
+        const memoryResponse = fulfilledValue(memoryResult, { access: "free", timeline: [], stats: { aiReflectionsThisMonth: 0, monthlyLimit: 0, cacheHits: 0 } });
+        const goalResponse = fulfilledValue(goalResult, { goalStatus: {} as GoalStatus });
+        const comparisonResponse = fulfilledValue(comparisonResult, {
+          comparison: {
+            periodDays: 30,
+            daysTracked: 0,
+            hasComparison: false,
+            current: { weightKg: null, momentum: null, checkinDays: 0 },
+            baseline: { weightKg: null, momentum: null, checkinDays: 0 },
+            highlights: []
+          }
+        });
+        const coachPresenceResponse = fulfilledValue(coachPresenceResult, {
+          latest: null,
+          history: [],
+          settings: { style: "balanced" as const, paused: false, pauseUntil: null }
+        });
+        const recognitionResponse = fulfilledValue(recognitionResult, { recognition: null });
 
         setStreakCurrent(streakResponse.streak.current);
         setStreakBest(streakResponse.streak.best);
@@ -885,6 +912,13 @@ export function JourneyClient() {
     [timeline, timelineFilter]
   );
   const recentTimeline = useMemo(() => filteredTimeline.slice(0, 3), [filteredTimeline]);
+  const isFirstJourneyDay =
+    !foodLogs.length &&
+    !waterLogs.length &&
+    !weightLogs.length &&
+    !burnLogs.length &&
+    !progressPhotos.length &&
+    !(ascendMemory?.timeline.length);
   const fullTimelineGroups = useMemo(() => groupTimelineByDate(filteredTimeline.slice(3)), [filteredTimeline]);
   const coachMoments = useMemo(
     () =>
@@ -990,6 +1024,21 @@ export function JourneyClient() {
             </div>
           </div>
         </section>
+
+        {isFirstJourneyDay ? (
+          <section className="mt-4 rounded-2xl border border-calm/20 bg-[linear-gradient(180deg,rgba(61,230,209,0.08),rgba(18,23,33,0.98))] p-5 shadow-soft">
+            <p className="text-sm font-semibold text-calm">Welcome to your Journey</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">Your story begins with one honest check-in.</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-300">
+              Record your first meal, workout, weight, water, or habit today and Ascend will start building your progress story automatically.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link href="/food-log" className="rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">Log first meal</Link>
+              <Link href="/burn-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Log movement</Link>
+              <Link href="/weight-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Record weight</Link>
+            </div>
+          </section>
+        ) : null}
 
         <section className="mt-4 rounded-2xl border border-amber/20 bg-[linear-gradient(180deg,rgba(248,184,78,0.08),rgba(18,23,33,0.98))] p-4 shadow-soft">
           <div className="flex items-center gap-2">

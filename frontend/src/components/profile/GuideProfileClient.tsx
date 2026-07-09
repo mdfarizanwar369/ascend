@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Save, Sparkles } from "lucide-react";
 import { calculateAdaptiveNutritionTargets, GoalType } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
-import { Field, inputClass } from "@/components/Field";
+import { Field, inputClass, selectClass } from "@/components/Field";
 import { getMe, getWeightLogs, updateGuideProfile } from "@/lib/ascendApi";
 
 function toInputValue(value: string | number | null | undefined) {
@@ -146,7 +146,7 @@ export function GuideProfileClient() {
 
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
           <Field label="Current goal">
-            <select className={inputClass} value={goalType} onChange={(event) => setGoalType(event.target.value as GoalType)}>
+            <select className={selectClass} value={goalType} onChange={(event) => setGoalType(event.target.value as GoalType)}>
               <option value="fat_loss">Fat loss</option>
               <option value="muscle_gain">Muscle gain</option>
               <option value="maintenance">Maintain my result</option>
@@ -171,7 +171,7 @@ export function GuideProfileClient() {
           </div>
 
           <Field label="Activity level">
-            <select className={inputClass} value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as "low" | "moderate" | "high")}>
+            <select className={selectClass} value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as "low" | "moderate" | "high")}>
               <option value="low">Low - mostly sitting</option>
               <option value="moderate">Moderate - train/walk a few days weekly</option>
               <option value="high">High - active most days</option>
@@ -179,7 +179,7 @@ export function GuideProfileClient() {
           </Field>
 
           <Field label="Sex for calorie estimate">
-            <select className={inputClass} value={gender} onChange={(event) => setGender(event.target.value as "female" | "male" | "prefer_not_to_say")}>
+            <select className={selectClass} value={gender} onChange={(event) => setGender(event.target.value as "female" | "male" | "prefer_not_to_say")}>
               <option value="prefer_not_to_say">Prefer not to say</option>
               <option value="female">Female</option>
               <option value="male">Male</option>

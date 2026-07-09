@@ -4,12 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy, Plus, QrCode, TrendingUp } from "lucide-react";
 import { createAdminReferral, getAdminReferrals, getAdminTrainers } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
-import { Field, inputClass } from "@/components/Field";
+import { Field, inputClass, selectClass } from "@/components/Field";
 
 type Referral = Awaited<ReturnType<typeof getAdminReferrals>>["referrals"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
-
-const selectClass = `${inputClass} appearance-none`;
 
 function money(cents: string | number) {
   return `RM ${(Number(cents) / 100).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;

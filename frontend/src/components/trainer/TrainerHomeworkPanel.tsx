@@ -224,7 +224,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
             <select
               value={location}
               onChange={(event) => setLocation(event.target.value as typeof location)}
-              className="h-12 rounded-2xl border border-line bg-surface px-3 text-white outline-none focus:border-lime"
+              className="ascend-field ascend-select h-12 rounded-2xl border px-3 pr-10 outline-none focus:border-lime"
             >
               {locationOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -238,7 +238,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
             <select
               value={timeAvailable}
               onChange={(event) => setTimeAvailable(event.target.value as typeof timeAvailable)}
-              className="h-12 rounded-2xl border border-line bg-surface px-3 text-white outline-none focus:border-lime"
+              className="ascend-field ascend-select h-12 rounded-2xl border px-3 pr-10 outline-none focus:border-lime"
             >
               {timeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -254,7 +254,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
           <select
             value={goal}
             onChange={(event) => setGoal(event.target.value as typeof goal)}
-            className="h-12 rounded-2xl border border-line bg-surface px-3 text-white outline-none focus:border-lime"
+            className="ascend-field ascend-select h-12 rounded-2xl border px-3 pr-10 outline-none focus:border-lime"
           >
             {goalOptions.map((option) => (
               <option key={option.value} value={option.value}>

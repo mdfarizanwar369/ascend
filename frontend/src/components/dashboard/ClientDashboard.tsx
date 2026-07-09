@@ -955,10 +955,20 @@ export function ClientDashboard() {
   ];
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : null;
   const latestMemoryMilestone = ascendMemory?.timeline?.[0];
+  const historyDayKeys = new Set<string>();
+  for (const item of foodLogs) historyDayKeys.add(localDateKey(item.logged_at));
+  for (const item of waterLogs) historyDayKeys.add(localDateKey(item.logged_at));
+  for (const item of weightLogs) historyDayKeys.add(localDateKey(item.logged_at));
+  for (const item of burnLogs) historyDayKeys.add(localDateKey(item.created_at));
+  for (const item of habitLogs) historyDayKeys.add(localDateKey(item.logged_at));
+  for (const item of progressPhotos) historyDayKeys.add(localDateKey(item.logged_at));
+  const totalLoggedActivities =
+    foodLogs.length + waterLogs.length + weightLogs.length + burnLogs.length + habitLogs.length + progressPhotos.length;
   const proactiveCoachInsight = buildCoachZoeProactiveInsight({
     goalType: user?.goal_type ?? null,
     currentStreak,
     momentumScore: score,
+    previousMomentumScore: progressComparison?.baseline.momentum ?? null,
     todaysFoodCount: todaysFood.length,
     caloriesToday: calories,
     calorieTarget,
@@ -995,7 +1005,9 @@ export function ClientDashboard() {
           workoutCompletedToday: healthSyncSummary.workoutCompletedToday
         }
       : null,
-    recentMilestoneTitle: latestMemoryMilestone?.title ?? null
+    recentMilestoneTitle: latestMemoryMilestone?.title ?? null,
+    historyDaysTracked: historyDayKeys.size,
+    totalLoggedActivities
   });
   const weightPreview = latestWeight
     ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg${weightDelta !== null ? ` / ${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg` : ""}`

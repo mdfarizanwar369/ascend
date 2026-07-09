@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Flame, Save } from "lucide-react";
 import { estimateBurnFromText, getBurnLogs, getCurrentCoachHomework, getMe, getMySubscription, saveBurnLog, TrainerHomeworkAssignment } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
-import { Field, inputClass } from "@/components/Field";
+import { Field, inputClass, selectClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 import { rememberDashboardRecord } from "@/lib/dataSync";
@@ -224,7 +224,7 @@ export function BurnLogClient() {
           <Field label="Tell Ascend what you did">
             <div className="space-y-2">
             <input
-              className={inputClass}
+              className={selectClass}
               value={activityText}
                 onChange={(event) => {
                   setActivityText(event.target.value);
@@ -246,7 +246,7 @@ export function BurnLogClient() {
 
           <Field label="Activity">
             <select
-              className={inputClass}
+              className={selectClass}
               value={activityType}
               onChange={(event) => {
                 setActivityType(event.target.value);

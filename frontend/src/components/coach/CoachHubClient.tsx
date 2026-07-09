@@ -8,6 +8,7 @@ import {
   GeneratedWorkout,
   WorkoutPlannerGoal,
   WorkoutPlannerLocation,
+  getAscendMemory,
   generateTodayWorkout,
   getBurnLogs,
   getCoachPresence,
@@ -91,6 +92,8 @@ function asNumber(value: string | number | null | undefined) {
 function buildTodaysInsight({
   coachPresence,
   foodCountToday,
+  totalWorkoutLogs,
+  hasJourneyHistory,
   latestWorkoutToday,
   latestWorkoutYesterday,
   streak,
@@ -100,6 +103,8 @@ function buildTodaysInsight({
 }: {
   coachPresence?: string | null;
   foodCountToday: number;
+  totalWorkoutLogs: number;
+  hasJourneyHistory: boolean;
   latestWorkoutToday: boolean;
   latestWorkoutYesterday: boolean;
   streak: number;
@@ -107,6 +112,12 @@ function buildTodaysInsight({
   averageSteps7d: number;
   goalAchieved: boolean;
 }) {
+  if (!hasJourneyHistory && totalWorkoutLogs === 0 && foodCountToday === 0 && streak === 0 && todaySteps === 0 && averageSteps7d === 0 && !goalAchieved) {
+    return "Welcome to Ascend. Give me one honest check-in today and I'll start coaching from something real.";
+  }
+  if (!hasJourneyHistory && (foodCountToday + totalWorkoutLogs) >= 1 && streak <= 1 && !goalAchieved) {
+    return "Great start. One real check-in is enough to begin building momentum.";
+  }
   if (goalAchieved) return "You already hit an important milestone. Today is about protecting the win.";
   if (coachPresence) return coachPresence;
   if (latestWorkoutToday) return "You already trained today. Recovery, water, and protein matter most now.";
@@ -378,8 +389,8 @@ export function CoachHubClient() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([getCoachPresence(), getMyStreak(), getBurnLogs(), getFoodLogs({ range: "today", order: "newest", limit: 12 }), getHealthSyncStatus(), getGoalStatus()])
-      .then(([coachPresenceResponse, streakResponse, burnResponse, foodResponse, healthResponse, goalResponse]) => {
+    Promise.all([getCoachPresence(), getMyStreak(), getBurnLogs(), getFoodLogs({ range: "today", order: "newest", limit: 12 }), getHealthSyncStatus(), getGoalStatus(), getAscendMemory()])
+      .then(([coachPresenceResponse, streakResponse, burnResponse, foodResponse, healthResponse, goalResponse, memoryResponse]) => {
         if (!active) return;
         const todayKey = new Date().toDateString();
         const latestWorkoutToday = burnResponse.burnLogs.some((log) => new Date(log.created_at).toDateString() === todayKey);
@@ -392,6 +403,8 @@ export function CoachHubClient() {
           buildTodaysInsight({
             coachPresence: coachPresenceResponse.latest?.message ?? null,
             foodCountToday: foodResponse.foodLogs.length,
+            totalWorkoutLogs: burnResponse.burnLogs.length,
+            hasJourneyHistory: memoryResponse.timeline.length > 0,
             latestWorkoutToday,
             latestWorkoutYesterday,
             streak: streakResponse.streak.current,
