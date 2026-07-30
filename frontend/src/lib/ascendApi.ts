@@ -14,7 +14,9 @@ import {
   TrainerSessionIntelligence,
   TrainerSessionStartMode,
   WorkoutCaptureDraft,
-  WorkoutProgressionSnapshot
+  WorkoutProgressionSnapshot,
+  WorkoutProgressionHistoryItem,
+  WorkoutProgressionIntelligenceV3
 } from "@ascend/shared";
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
@@ -753,6 +755,7 @@ export function saveCompletedWorkout(input: {
       coachMessage: string;
       momentumEarned: number;
       progression: WorkoutProgressionSnapshot | null;
+      progressionV3: WorkoutProgressionIntelligenceV3 | null;
     };
   }>("/burn-logs/completed-workout", {
     method: "POST",
@@ -980,6 +983,7 @@ export function saveCapturedWorkout(input: {
       coachMessage: string;
       momentumEarned: number;
       progression: WorkoutProgressionSnapshot | null;
+      progressionV3: WorkoutProgressionIntelligenceV3 | null;
     } | null;
   }>("/burn-logs/captured-workout", {
     method: "POST",
@@ -992,6 +996,23 @@ export function getRecentDetailedWorkouts(limit = 5) {
     enabled: boolean;
     workouts: Array<{ id: string; metadata: Record<string, unknown>; created_at: string }>;
   }>(`/burn-logs/detailed/recent?limit=${Math.min(10, Math.max(1, Math.round(limit)))}`);
+}
+
+export function getWorkoutProgressionHistory(limit = 10) {
+  return authed<{ enabled: boolean; history: WorkoutProgressionHistoryItem[] }>(
+    `/burn-logs/progression?limit=${Math.min(25, Math.max(1, Math.round(limit)))}`
+  );
+}
+
+export function backfillWorkoutProgression() {
+  return authed<{ enabled: boolean; workoutsScanned: number; observationsProjected: number }>("/burn-logs/progression/backfill", { method: "POST" });
+}
+
+export function confirmWorkoutExerciseAlias(input: { aliasName: string; canonicalName: string; relationship: "same" | "different" }) {
+  return authed<{ enabled: boolean; alias: { aliasKey: string; canonicalKey: string; relationship: "same" | "different" } | null }>(
+    "/burn-logs/progression/aliases",
+    { method: "PUT", body: JSON.stringify(input) }
+  );
 }
 
 export function verifyGooglePlaySubscription(input: {

@@ -1,12 +1,18 @@
 import { query } from "../db/pool";
 import { createCoachPresenceForEvent } from "./coachPresenceService";
-import { WorkoutProgressionSnapshot } from "@ascend/shared";
+import { WorkoutProgressionIntelligenceV3, WorkoutProgressionSnapshot } from "@ascend/shared";
 import { env } from "../config/env";
 import {
   buildWorkoutProgression,
   progressionWorkoutFromMetadata,
   workoutEvidenceTypeForSource
 } from "./workoutProgressionEngine";
+import {
+  backfillWorkoutExerciseObservations,
+  buildPersistedWorkoutIntelligenceV3,
+  projectWorkoutExerciseObservations,
+  WorkoutObservation
+} from "./workoutProgressionV3Service";
 
 type WorkoutExerciseInput = {
   name: string;
@@ -72,6 +78,7 @@ export type PersistedWorkoutCompletion = {
     coachMessage: string;
     momentumEarned: number;
     progression: WorkoutProgressionSnapshot | null;
+    progressionV3: WorkoutProgressionIntelligenceV3 | null;
   };
 };
 
@@ -220,6 +227,10 @@ function buildCompletionResponseFromMetadata(metadata: Record<string, unknown>, 
     && (metadata.progression as Record<string, unknown>).version === "workout_progression_v1"
     ? metadata.progression as WorkoutProgressionSnapshot
     : null;
+  const progressionV3 = metadata.progressionV3 && typeof metadata.progressionV3 === "object"
+    && (metadata.progressionV3 as Record<string, unknown>).version === "workout_progression_v3"
+    ? metadata.progressionV3 as WorkoutProgressionIntelligenceV3
+    : null;
   return {
     workoutTitle: String(metadata.workoutTitle ?? fallback.workoutTitle),
     durationMinutes: Number(metadata.durationMinutes ?? fallback.durationMinutes),
@@ -229,8 +240,50 @@ function buildCompletionResponseFromMetadata(metadata: Record<string, unknown>, 
     caloriesLabel: metadata.caloriesSource === "health_provider_actual" ? "Calories Burned" : "Estimated Calories Burned",
     coachMessage: String(metadata.coachMessage ?? "Great work staying active today."),
     momentumEarned: Number(metadata.momentumEarned ?? 8),
-    progression
+    progression,
+    progressionV3
   };
+}
+
+async function enrichSavedWorkoutWithV3(input: PersistCompletedWorkoutInput, event: {
+  id: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}, exercises: WorkoutExerciseInput[]) {
+  const evidenceType = workoutEvidenceTypeForSource(input.source);
+  const stored = event.metadata.progressionV3 as WorkoutProgressionIntelligenceV3 | undefined;
+  if (!env.WORKOUT_PROGRESSION_INTELLIGENCE_V3 || evidenceType !== "observed_performance") {
+    return { burnLog: event, progressionV3: stored?.version === "workout_progression_v3" ? stored : null };
+  }
+  if (stored?.version === "workout_progression_v3") {
+    return { burnLog: event, progressionV3: stored };
+  }
+  const observation: WorkoutObservation = {
+    sourceEventId: event.id,
+    userId: input.userId,
+    sourceType: input.source,
+    workoutTitle: input.workoutTitle,
+    workoutType: String(event.metadata.workoutType ?? input.workoutType),
+    difficulty: input.workoutDifficulty,
+    completedAt: event.created_at,
+    exercises
+  };
+  const observationCount = await query<{ count: string }>(
+    "select count(*)::text as count from workout_exercise_observations where user_id = $1 and source_event_id <> $2",
+    [input.userId, event.id]
+  );
+  if (Number(observationCount.rows[0]?.count ?? 0) === 0) {
+    await backfillWorkoutExerciseObservations(input.userId, 100);
+  }
+  const progressionV3 = await buildPersistedWorkoutIntelligenceV3(observation);
+  await projectWorkoutExerciseObservations(observation);
+  if (!progressionV3) return { burnLog: event, progressionV3: null };
+  const updated = await query<{ id: string; metadata: Record<string, unknown>; created_at: string }>(
+    `update analytics_events set metadata = metadata || jsonb_build_object('progressionV3', $2::jsonb)
+     where id = $1 and user_id = $3 returning id, metadata, created_at`,
+    [event.id, JSON.stringify(progressionV3), input.userId]
+  );
+  return { burnLog: updated.rows[0] ?? { ...event, metadata: { ...event.metadata, progressionV3 } }, progressionV3 };
 }
 
 export async function persistCompletedWorkout(input: PersistCompletedWorkoutInput): Promise<PersistedWorkoutCompletion> {
@@ -252,13 +305,15 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
   );
 
   if (existing.rows[0]) {
-    const existingMetadata = (existing.rows[0].metadata ?? {}) as Record<string, unknown>;
+    let existingMetadata = (existing.rows[0].metadata ?? {}) as Record<string, unknown>;
+    const enriched = await enrichSavedWorkoutWithV3(input, {
+      id: existing.rows[0].id,
+      metadata: existingMetadata,
+      created_at: existing.rows[0].created_at
+    }, cleanExerciseList(input.exercises));
+    existingMetadata = enriched.burnLog.metadata;
     return {
-      burnLog: {
-        id: existing.rows[0].id,
-        metadata: existingMetadata,
-        created_at: existing.rows[0].created_at
-      },
+      burnLog: enriched.burnLog,
       summary: buildCompletionResponseFromMetadata(existingMetadata, {
         workoutTitle: input.workoutTitle,
         durationMinutes: input.durationMinutes,
@@ -343,10 +398,14 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
     [input.userId, input.gymId ?? null, metadata, input.completedAt ?? null]
   );
 
+  const enriched = await enrichSavedWorkoutWithV3(input, result.rows[0], summary.exerciseList);
+  const progressionV3 = enriched.progressionV3;
+  const savedBurnLog = enriched.burnLog;
+
   void createCoachPresenceForEvent(input.userId, "workout_logged").catch(() => undefined);
 
   return {
-    burnLog: result.rows[0],
+    burnLog: savedBurnLog,
     summary: {
       workoutTitle: input.workoutTitle,
       durationMinutes: input.durationMinutes,
@@ -356,7 +415,8 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
       caloriesLabel: summary.caloriesSource === "health_provider_actual" ? "Calories Burned" : "Estimated Calories Burned",
       coachMessage: summary.coachMessage,
       momentumEarned: 8,
-      progression
+      progression,
+      progressionV3
     }
   };
 }

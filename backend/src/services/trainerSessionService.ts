@@ -5,6 +5,7 @@ import {
   TrainerSessionIntelligence,
   TrainerSessionNarratives,
   TrainerSessionStartMode,
+  WorkoutProgressionIntelligenceV3,
   WorkoutCaptureDraft,
   createRepeatWorkoutCaptureDraft
 } from "@ascend/shared";
@@ -172,6 +173,38 @@ export function buildTrainerSessionIntelligence(
       : "Your completed session is now part of your training story and ready for future comparison.";
 
   return { headline, highlights, watchouts, nextSessionStartingPoint, clientCelebration, exerciseComparisons };
+}
+
+export function trainerIntelligenceFromProgressionV3(
+  progression: WorkoutProgressionIntelligenceV3 | null,
+  fallback: TrainerSessionIntelligence
+): TrainerSessionIntelligence {
+  if (!progression) return fallback;
+  const exerciseComparisons: TrainerExerciseComparison[] = progression.exerciseInsights.map((insight) => ({
+    exerciseName: insight.exerciseName,
+    status: insight.status === "personal_best" || insight.status === "progressed"
+      ? "progressed"
+      : insight.status === "maintained"
+        ? "maintained"
+        : insight.status === "baseline"
+          ? "new"
+          : insight.status === "changed"
+            ? "reduced"
+            : "not_comparable",
+    summary: insight.summary
+  }));
+  const achievements = progression.achievements.slice(0, 3);
+  return {
+    headline: progression.headline,
+    highlights: achievements.length ? achievements : fallback.highlights,
+    watchouts: progression.reviewNotes.slice(0, 2).map((note) => `${note} Review the context before changing the plan.`),
+    nextSessionStartingPoint: progression.nextSessionFocus ?? fallback.nextSessionStartingPoint,
+    clientCelebration: achievements[0]
+      ?? (progression.overallStatus === "maintained"
+        ? "You matched your recent performance and added another consistent session."
+        : fallback.clientCelebration),
+    exerciseComparisons
+  };
 }
 
 export function buildTrainerSessionNarratives(
@@ -420,6 +453,15 @@ export async function completeTrainerSession(input: {
       userConfirmed: true
     }
   });
+  const finalIntelligence = trainerIntelligenceFromProgressionV3(completion.summary.progressionV3, intelligence);
+
+  if (completion.summary.progressionV3) {
+    await query(
+      `update analytics_events set metadata = metadata || jsonb_build_object('sessionIntelligence', $2::jsonb)
+       where id = $1 and user_id = $3`,
+      [completion.burnLog.id, JSON.stringify(finalIntelligence), input.clientId]
+    );
+  }
 
   await query(
     `
@@ -432,7 +474,7 @@ export async function completeTrainerSession(input: {
       version = version + 1, updated_at = now()
     where id = $1 and client_id = $2 and created_by_user_id = $3 and status in ('draft', 'completed')
     `,
-    [input.sessionId, input.clientId, input.actorUserId, input.completedAt ?? null, input.draft.durationMinutes, input.draft, cleanText(input.narratives.clientRecap, 600), cleanText(input.narratives.betweenSessionFocus, 400), cleanText(input.narratives.trainerNextSessionNote, 600), completion.burnLog.id, input.draft.confidence, input.draft.uncertainties, intelligence]
+    [input.sessionId, input.clientId, input.actorUserId, input.completedAt ?? null, input.draft.durationMinutes, input.draft, cleanText(input.narratives.clientRecap, 600), cleanText(input.narratives.betweenSessionFocus, 400), cleanText(input.narratives.trainerNextSessionNote, 600), completion.burnLog.id, input.draft.confidence, input.draft.uncertainties, finalIntelligence]
   );
   const completedSession = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId);
   return completedSession ? { session: completedSession, completion } : null;

@@ -14,6 +14,11 @@ import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
 import { env } from "../config/env";
 import { canUseWorkoutCapture } from "../services/workoutCaptureAccess";
+import {
+  backfillWorkoutExerciseObservations,
+  getWorkoutProgressionHistory,
+  saveExerciseAlias
+} from "../services/workoutProgressionV3Service";
 
 export const logsRouter = Router();
 
@@ -464,6 +469,40 @@ logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next)
       [req.user!.id, limit]
     );
     res.json({ enabled: true, workouts: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.get("/burn-logs/progression", requireAuth, async (req, res, next) => {
+  try {
+    if (!env.WORKOUT_PROGRESSION_INTELLIGENCE_V3) return res.json({ enabled: false, history: [] });
+    const limit = z.coerce.number().int().min(1).max(25).default(10).parse(req.query.limit);
+    res.json({ enabled: true, history: await getWorkoutProgressionHistory(req.user!.id, limit) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.post("/burn-logs/progression/backfill", requireAuth, async (req, res, next) => {
+  try {
+    if (!env.WORKOUT_PROGRESSION_INTELLIGENCE_V3) return res.json({ enabled: false, workoutsScanned: 0, observationsProjected: 0 });
+    const result = await backfillWorkoutExerciseObservations(req.user!.id);
+    res.json({ enabled: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.put("/burn-logs/progression/aliases", requireAuth, async (req, res, next) => {
+  try {
+    if (!env.WORKOUT_PROGRESSION_INTELLIGENCE_V3) return res.json({ enabled: false, alias: null });
+    const input = z.object({
+      aliasName: z.string().trim().min(2).max(120),
+      canonicalName: z.string().trim().min(2).max(120),
+      relationship: z.enum(["same", "different"])
+    }).parse(req.body);
+    res.json({ enabled: true, alias: await saveExerciseAlias(req.user!.id, input.aliasName, input.canonicalName, input.relationship) });
   } catch (error) {
     next(error);
   }

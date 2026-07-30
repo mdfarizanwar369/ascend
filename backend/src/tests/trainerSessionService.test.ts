@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkoutCaptureDraft } from "@ascend/shared";
-import { buildTrainerSessionIntelligence, buildTrainerSessionNarratives, toClientCoachedSession, trainerSessionDraftText } from "../services/trainerSessionService";
+import { buildTrainerSessionIntelligence, buildTrainerSessionNarratives, toClientCoachedSession, trainerIntelligenceFromProgressionV3, trainerSessionDraftText } from "../services/trainerSessionService";
 
 function draft(overrides: Partial<WorkoutCaptureDraft> = {}): WorkoutCaptureDraft {
   return {
@@ -63,6 +63,24 @@ describe("trainer session narratives", () => {
 });
 
 describe("trainer session copilot", () => {
+  it("uses shared V3 personal-best intelligence after completion", () => {
+    const fallback = buildTrainerSessionIntelligence(draft(), null);
+    const intelligence = trainerIntelligenceFromProgressionV3({
+      version: "workout_progression_v3",
+      evidenceType: "observed_performance",
+      overallStatus: "personal_best",
+      headline: "1 verified personal best.",
+      achievements: ["Bench Press: new verified load best at 60kg."],
+      reviewNotes: [],
+      nextSessionFocus: "Start with 60kg again.",
+      exerciseInsights: [{ exerciseName: "Bench Press", exerciseKey: "bench press", status: "personal_best", summary: "Bench Press: new verified load best at 60kg.", current: { sets: 3, reps: "10", totalReps: 30, load: 60, loadUnit: "kg" }, previous: null, currentDurationSeconds: null, previousDurationSeconds: null, comparableObservationCount: 3, confidence: 1, nextSessionSuggestion: "Start with 60kg again." }],
+      confidence: 1
+    }, fallback);
+    expect(intelligence.headline).toContain("personal best");
+    expect(intelligence.nextSessionStartingPoint).toContain("60kg");
+    expect(intelligence.exerciseComparisons[0].status).toBe("progressed");
+  });
+
   it("detects higher confirmed load as progression", () => {
     const intelligence = buildTrainerSessionIntelligence(draft(), draft({ exercises: [{ ...draft().exercises[0], load: 55 }] }));
     expect(intelligence.headline).toContain("1 verified progression");

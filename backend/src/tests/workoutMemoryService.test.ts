@@ -88,4 +88,26 @@ describe("Workout memory service", () => {
     expect(summary.latestVerifiedProgression).toBeNull();
     expect(summary.coachSummary.latestProgression).toBeNull();
   });
+
+  it("prefers compact V3 progression facts for Coach Zoe", () => {
+    const summary = buildWorkoutMemorySummary([{
+      created_at: "2026-06-30T09:15:00+08:00",
+      metadata: {
+        workoutTitle: "Upper Body Strength",
+        progressionV3: {
+          version: "workout_progression_v3",
+          evidenceType: "observed_performance",
+          overallStatus: "personal_best",
+          headline: "1 verified personal best.",
+          achievements: ["Bench Press: new verified load best at 60kg."],
+          reviewNotes: [],
+          nextSessionFocus: "Start with 60kg again.",
+          exerciseInsights: [],
+          confidence: 0.95
+        }
+      }
+    }], { now: new Date("2026-06-30T18:00:00+08:00") });
+    expect(summary.latestProgressionIntelligence?.status).toBe("personal_best");
+    expect(summary.coachSummary.latestProgression).toContain("60kg");
+  });
 });

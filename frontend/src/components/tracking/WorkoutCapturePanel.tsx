@@ -16,12 +16,14 @@ import type {
   WorkoutCaptureDraft,
   WorkoutCaptureExercise
 } from "@ascend/shared";
-import { analyzeWorkoutCapture, getRecentDetailedWorkouts, saveCapturedWorkout } from "@/lib/ascendApi";
+import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
 import { workoutProgressionEnabled } from "@/lib/workoutProgressionFlag";
+import { workoutProgressionV3Enabled } from "@/lib/workoutProgressionV3Flag";
 
 type RecentWorkout = Awaited<ReturnType<typeof getRecentDetailedWorkouts>>["workouts"][number];
 type SavedSummary = NonNullable<Awaited<ReturnType<typeof saveCapturedWorkout>>["summary"]>;
+type ProgressionHistoryItem = Awaited<ReturnType<typeof getWorkoutProgressionHistory>>["history"][number];
 
 type WorkoutCapturePanelProps = {
   onBusyChange?: (busy: boolean) => void;
@@ -69,6 +71,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   const [draft, setDraft] = useState<WorkoutCaptureDraft | null>(null);
   const [completionKey, setCompletionKey] = useState<string | null>(null);
   const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
+  const [progressionHistory, setProgressionHistory] = useState<ProgressionHistoryItem[]>([]);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -94,6 +97,17 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (!workoutProgressionV3Enabled()) return;
+    let mounted = true;
+    getWorkoutProgressionHistory(5)
+      .then((response) => {
+        if (mounted && response.enabled) setProgressionHistory(response.history);
+      })
+      .catch(() => undefined);
+    return () => { mounted = false; };
   }, []);
 
   const canSave = useMemo(() => {
@@ -240,7 +254,26 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           </div>
         </div>
         <p className="mt-4 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
-        {workoutProgressionEnabled() && savedSummary.progression ? (
+        {workoutProgressionV3Enabled() && savedSummary.progressionV3 ? (
+          <div className="mt-3 rounded-lg border border-purple-400/35 bg-purple-400/10 p-3">
+            <div className="flex items-center gap-2 text-purple-200">
+              <Sparkles size={17} aria-hidden="true" />
+              <p className="text-xs font-bold uppercase tracking-[0.14em]">
+                {savedSummary.progressionV3.overallStatus === "personal_best" ? "Personal best" : "Progress intelligence"}
+              </p>
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-white">{savedSummary.progressionV3.headline}</p>
+            {(savedSummary.progressionV3.achievements[0] ?? savedSummary.progressionV3.reviewNotes[0]) ? (
+              <p className="mt-1 text-sm leading-6 text-zinc-300">{savedSummary.progressionV3.achievements[0] ?? savedSummary.progressionV3.reviewNotes[0]}</p>
+            ) : null}
+            {savedSummary.progressionV3.nextSessionFocus ? (
+              <div className="mt-3 border-t border-purple-300/15 pt-3">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-zinc-400">Next time</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-200">{savedSummary.progressionV3.nextSessionFocus}</p>
+              </div>
+            ) : null}
+          </div>
+        ) : workoutProgressionEnabled() && savedSummary.progression ? (
           <div className="mt-3 rounded-lg border border-purple-400/35 bg-purple-400/10 p-3">
             <div className="flex items-center gap-2 text-purple-200">
               <Sparkles size={17} aria-hidden="true" />
@@ -324,6 +357,24 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
                   </span>
                   <ChevronRight size={18} className="shrink-0 text-zinc-400" />
                 </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {workoutProgressionV3Enabled() && progressionHistory.length ? (
+          <div className="border-t border-line pt-4">
+            <p className="text-sm font-semibold text-white">Recent progression</p>
+            <div className="mt-2 space-y-2">
+              {progressionHistory.slice(0, 3).map((item) => (
+                <div key={item.workoutEventId} className="rounded-lg border border-line bg-ink p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-white">{item.workoutTitle}</p>
+                    <span className="text-xs text-zinc-500">{new Date(item.completedAt).toLocaleDateString([], { day: "numeric", month: "short" })}</span>
+                  </div>
+                  <p className="mt-1 text-sm leading-5 text-zinc-300">{item.intelligence.headline}</p>
+                  {item.intelligence.nextSessionFocus ? <p className="mt-1 text-xs leading-5 text-zinc-500">Next: {item.intelligence.nextSessionFocus}</p> : null}
+                </div>
               ))}
             </div>
           </div>

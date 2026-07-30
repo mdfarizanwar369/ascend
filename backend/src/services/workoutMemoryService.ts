@@ -1,4 +1,9 @@
-import { WORKOUT_PROGRESSION_VERSION, WorkoutProgressionSnapshot } from "@ascend/shared";
+import {
+  WORKOUT_PROGRESSION_V3_VERSION,
+  WORKOUT_PROGRESSION_VERSION,
+  WorkoutProgressionIntelligenceV3,
+  WorkoutProgressionSnapshot
+} from "@ascend/shared";
 
 type WorkoutEventRow = {
   metadata?: Record<string, unknown> | null;
@@ -40,6 +45,14 @@ export type WorkoutMemorySummary = {
     headline: string;
     highlights: string[];
   } | null;
+  latestProgressionIntelligence: {
+    workoutName: string;
+    completionDate: string;
+    status: WorkoutProgressionIntelligenceV3["overallStatus"];
+    headline: string;
+    achievement: string | null;
+    nextSessionFocus: string | null;
+  } | null;
   coachSummary: {
     lastWorkout: string | null;
     completed: string | null;
@@ -78,6 +91,18 @@ function parseProgression(value: unknown): WorkoutProgressionSnapshot | null {
     !Array.isArray(progression.highlights)
   ) return null;
   return progression as WorkoutProgressionSnapshot;
+}
+
+function parseProgressionV3(value: unknown): WorkoutProgressionIntelligenceV3 | null {
+  if (!value || typeof value !== "object") return null;
+  const progression = value as Partial<WorkoutProgressionIntelligenceV3>;
+  if (
+    progression.version !== WORKOUT_PROGRESSION_V3_VERSION ||
+    progression.evidenceType !== "observed_performance" ||
+    typeof progression.headline !== "string" ||
+    !Array.isArray(progression.achievements)
+  ) return null;
+  return progression as WorkoutProgressionIntelligenceV3;
 }
 
 function workoutTypeFromMetadata(metadata: Record<string, unknown>) {
@@ -164,6 +189,22 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       };
     })
     .find((progression): progression is NonNullable<typeof progression> => Boolean(progression)) ?? null;
+  const latestProgressionIntelligence = rows
+    .map((row) => {
+      const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+      const progression = parseProgressionV3(metadata.progressionV3);
+      if (!progression) return null;
+      const createdAt = row.created_at ? new Date(row.created_at) : new Date(now);
+      return {
+        workoutName: parseText(metadata.workoutTitle) ?? workoutTypeFromMetadata(metadata),
+        completionDate: Number.isNaN(createdAt.getTime()) ? todayKey : localDateKey(createdAt),
+        status: progression.overallStatus,
+        headline: progression.headline,
+        achievement: progression.achievements[0] ?? null,
+        nextSessionFocus: progression.nextSessionFocus
+      };
+    })
+    .find((progression): progression is NonNullable<typeof progression> => Boolean(progression)) ?? null;
   const recommendation = latestWorkout ? recommendationFromHistory(latestWorkout.focusArea, latestWorkout.completedToday) : "A simple full body or walking session";
   const continuity = latestWorkout ? continuityNote(latestWorkout.workoutName, latestWorkout.completedToday, latestWorkout.focusArea) : null;
 
@@ -178,6 +219,7 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       focusArea: workout.focusArea
     })),
     latestVerifiedProgression,
+    latestProgressionIntelligence,
     coachSummary: {
       lastWorkout: latestWorkout?.workoutName ?? null,
       completed: latestWorkout ? (latestWorkout.completedToday ? "Today" : latestWorkout.completedYesterday ? "Yesterday" : latestWorkout.completionDate) : null,
@@ -186,7 +228,11 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       currentStreak: options.currentStreak ?? null,
       momentum: options.currentMomentum ?? latestWorkout?.momentumEarned ?? null,
       todaysRecommendation: recommendation,
-      latestProgression: latestVerifiedProgression?.highlights[0] ?? latestVerifiedProgression?.headline ?? null
+      latestProgression: latestProgressionIntelligence?.achievement
+        ?? latestProgressionIntelligence?.headline
+        ?? latestVerifiedProgression?.highlights[0]
+        ?? latestVerifiedProgression?.headline
+        ?? null
     }
   };
 }
