@@ -7,7 +7,12 @@ import {
   WorkoutCaptureAnalysisResponse,
   WorkoutCaptureDifficulty,
   WorkoutCaptureExercise,
-  WorkoutCaptureSourceMode
+  WorkoutCaptureSourceMode,
+  ClientCoachedSession,
+  TrainerCoachingSession,
+  TrainerSessionNarratives,
+  TrainerSessionStartMode,
+  WorkoutCaptureDraft
 } from "@ascend/shared";
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
@@ -1271,6 +1276,72 @@ export function completeCoachHomework(assignmentId: string, input: { completedAt
   });
 }
 
+export type TrainerSessionOverview = {
+  enabled: boolean;
+  activeSession: TrainerCoachingSession | null;
+  recentSessions: TrainerCoachingSession[];
+  previousWorkout: WorkoutCaptureDraft | null;
+};
+
+export function getTrainerSessionOverview(clientId: string) {
+  return authed<TrainerSessionOverview>(`/trainer/clients/${clientId}/coaching-sessions`);
+}
+
+export function startTrainerCoachingSession(clientId: string, mode: TrainerSessionStartMode) {
+  return authed<{ session: TrainerCoachingSession }>(`/trainer/clients/${clientId}/coaching-sessions`, {
+    method: "POST",
+    body: JSON.stringify({ mode })
+  });
+}
+
+export function updateTrainerCoachingSession(clientId: string, sessionId: string, input: {
+  version: number;
+  rawInput: string;
+  durationMinutes?: number | null;
+  workoutDraft?: WorkoutCaptureDraft | null;
+}) {
+  return authed<{ session: TrainerCoachingSession }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}`, {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
+export function interpretTrainerCoachingSession(clientId: string, sessionId: string, input: {
+  rawInput: string;
+  durationMinutes: number;
+  sourceMode: "text" | "dictation";
+}) {
+  return authed<{ draft: WorkoutCaptureDraft; narratives: TrainerSessionNarratives; estimatedCaloriesBurned: number; caloriesLabel: string }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/interpret`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function completeTrainerCoachingSession(clientId: string, sessionId: string, input: {
+  userConfirmed: true;
+  draft: WorkoutCaptureDraft;
+  narratives: TrainerSessionNarratives;
+  completedAt?: string | null;
+}) {
+  invalidateCached("trainer:");
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
+  return authed<{ session: TrainerCoachingSession; completion: { summary: { estimatedCaloriesBurned: number; momentumEarned: number; coachMessage: string } } }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/complete`, {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function cancelTrainerCoachingSession(clientId: string, sessionId: string) {
+  return authed<{ cancelled: boolean }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}`, { method: "DELETE" });
+}
+
+export function getMyCoachedSessions(limit = 10) {
+  return authed<{ enabled: boolean; sessions: ClientCoachedSession[] }>(`/me/coaching-sessions?limit=${Math.min(25, Math.max(1, limit))}`);
+}
+
 export function getCurrentWeeklyReport() {
   return authedCached<{
     report: {
@@ -1573,10 +1644,15 @@ export function getTrainerClientBurnLogs(clientId: string) {
         coachMessage?: string;
         momentumEarned?: number;
         source?: string;
+        trainerName?: string;
+        trainerUserId?: string;
+        coachingSessionId?: string;
         exercises?: Array<{
           name?: string;
           sets?: string | number | null;
           reps?: string | number | null;
+          load?: number | null;
+          loadUnit?: "kg" | "lb" | null;
           duration?: string | null;
           rest?: string | null;
           note?: string | null;

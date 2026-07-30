@@ -12,6 +12,8 @@ import { rememberDashboardRecord } from "@/lib/dataSync";
 import { trainerHomeworkEnabled } from "@/lib/trainerHomeworkFlag";
 import { workoutCaptureEnabled } from "@/lib/workoutCaptureFlag";
 import { WorkoutCapturePanel } from "@/components/tracking/WorkoutCapturePanel";
+import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
+import { CoachedSessionsCard } from "@/components/tracking/CoachedSessionsCard";
 
 const burnRates: Record<string, number> = {
   Walking: 4,
@@ -39,6 +41,7 @@ function understandBurnText(text: string) {
 }
 
 export function BurnLogClient() {
+  const coachedSessionsEnabled = trainerSessionCaptureEnabled();
   const homeworkFeatureEnabled = trainerHomeworkEnabled();
   const captureFeatureEnabled = workoutCaptureEnabled();
   const [canUseDetailedCapture, setCanUseDetailedCapture] = useState(false);
@@ -339,6 +342,7 @@ export function BurnLogClient() {
         ) : (
           <WorkoutCapturePanel onBusyChange={setDetailedBusy} onSaved={handleDetailedSaved} />
         )}
+        {coachedSessionsEnabled ? <CoachedSessionsCard /> : null}
       </div>
     </main>
   );

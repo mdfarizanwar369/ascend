@@ -55,6 +55,7 @@ import { AthleteCoachPanel } from "@/components/athlete/AthleteCoachPanel";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { buildCoachingTimelineGroups, CoachingTimelineGroups } from "@/components/trainer/TrainerCoachingTimeline";
 import { TrainerHomeworkPanel } from "@/components/trainer/TrainerHomeworkPanel";
+import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -235,6 +236,7 @@ function WorkoutDetail({ workout }: { workout: BurnLog }) {
 }
 
 export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
+  const sessionCaptureEnabled = trainerSessionCaptureEnabled();
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -357,6 +359,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const unreadMessages = messages.filter((message) => message.sender_user_id === clientId && !message.read_at).length;
   const todaysCoachInsight = coachPresence.latest && isToday(coachPresence.latest.created_at) ? coachPresence.latest : null;
   const latestWorkout = burnLogs.find((log) => log.metadata?.source === "coach_zoe_workout_planner" || Boolean(log.metadata?.workoutTitle)) ?? null;
+  const latestWorkoutIsCoached = latestWorkout?.metadata?.source === "trainer_logged_session";
   const todaysWorkout = latestWorkout && isToday(latestWorkout.created_at) ? latestWorkout : null;
   const workoutsThisWeek = burnLogs.filter((log) => {
     const date = new Date(log.created_at);
@@ -554,6 +557,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ) : null}
         {client?.id ? (
           <div className="mt-4 grid grid-cols-3 gap-2">
+            {sessionCaptureEnabled ? (
+              <Link href={`/trainer/clients/${client.id}/session`} className="col-span-3 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-bold text-ink">
+                <Dumbbell size={19} /> Record PT Session
+              </Link>
+            ) : null}
             <Link
               href={`/messages?userId=${client.id}`}
               className="flex h-12 items-center justify-center rounded-2xl bg-lime font-semibold text-ink"
@@ -620,7 +628,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         </SectionCard>
 
         <SectionCard
-          eyebrow="Coach Zoe Workout"
+          eyebrow={latestWorkoutIsCoached ? "Coached Session" : "Coach Zoe Workout"}
           title={latestWorkout ? workoutName(latestWorkout) : "No saved Coach Zoe workout yet"}
           tone={latestWorkout ? "success" : "default"}
           action={<Dumbbell className="text-lime" size={22} />}

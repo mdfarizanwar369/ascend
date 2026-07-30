@@ -45,7 +45,7 @@ export type PersistCompletedWorkoutInput = {
   completedAt?: string | null;
   exercises: WorkoutExerciseInput[];
   healthProviderCaloriesBurned?: number | null;
-  source: "coach_zoe_workout_planner" | "coach_homework" | "ai_workout_capture";
+  source: "coach_zoe_workout_planner" | "coach_homework" | "ai_workout_capture" | "trainer_logged_session";
   extraMetadata?: Record<string, unknown>;
 };
 
