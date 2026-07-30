@@ -27,6 +27,34 @@ export type TrainerSessionIntelligence = {
   exerciseComparisons: TrainerExerciseComparison[];
 };
 
+export type TrainerSessionDeltaAction = "update" | "remove" | "add";
+
+export type TrainerSessionDeltaChange = {
+  action: TrainerSessionDeltaAction;
+  targetExerciseName: string | null;
+  name: string | null;
+  sets: number | null;
+  reps: string | null;
+  load: number | null;
+  loadDelta: number | null;
+  loadUnit: "kg" | "lb" | null;
+  durationMinutes: number | null;
+  restSeconds: number | null;
+  note: string | null;
+  originalText: string;
+  confidence: number;
+  needsConfirmation: boolean;
+};
+
+export type TrainerSessionDelta = {
+  changes: TrainerSessionDeltaChange[];
+  durationMinutes: number | null;
+  workoutType: string | null;
+  difficulty: WorkoutCaptureDraft["difficulty"] | null;
+  confidence: number;
+  uncertainties: string[];
+};
+
 export type TrainerCoachingSession = {
   id: string;
   clientId: string;

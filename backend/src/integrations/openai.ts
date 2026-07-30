@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { FoodEstimate, LOCAL_FOODS, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
+import { FoodEstimate, LOCAL_FOODS, TrainerSessionDelta, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
 import { env } from "../config/env";
 import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
@@ -12,6 +12,7 @@ import {
   timeFoodAiSyncStage
 } from "../services/foodAiPerformance";
 import { buildWorkoutCapturePrompt, createFallbackWorkoutCapture, normalizeWorkoutCaptureResponse } from "../services/workoutCaptureService";
+import { buildTrainerSessionDeltaPrompt, createFallbackTrainerSessionDelta, normalizeTrainerSessionDeltaResponse } from "../services/trainerSessionDeltaService";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -1541,6 +1542,50 @@ export async function createWorkoutCaptureDraft(input: {
         sourceMode: input.sourceMode,
         reason: error instanceof Error ? error.name : "unknown_error"
       }
+    }).catch(() => undefined);
+    return fallback;
+  }
+}
+
+export async function createTrainerSessionDelta(input: {
+  text: string;
+  baseWorkout: WorkoutCaptureDraft;
+  userId?: string | null;
+  gymId?: string | null;
+}): Promise<TrainerSessionDelta> {
+  const fallback = createFallbackTrainerSessionDelta(input.text);
+  if (!providerConfigured()) return fallback;
+  const fallbackJson = JSON.stringify(fallback);
+  const prompt = buildTrainerSessionDeltaPrompt(input.text, input.baseWorkout);
+  try {
+    const reply = await createTextReply(
+      "You apply a trainer's short change notes to a confirmed workout. Accuracy is more important than completeness. Return changes only, never alter unmentioned exercises, and return strict JSON.",
+      prompt,
+      fallbackJson
+    );
+    const delta = normalizeTrainerSessionDeltaResponse(reply, input.text);
+    void logAiUsage({
+      userId: input.userId,
+      gymId: input.gymId,
+      eventType: "trainer_session_delta_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: reply === fallbackJson ? "fallback" : "success",
+      inputUnits: prompt.length,
+      outputUnits: reply.length,
+      metadata: { changeCount: delta.changes.length, confidence: delta.confidence, uncertaintyCount: delta.uncertainties.length }
+    }).catch(() => undefined);
+    return delta;
+  } catch (error) {
+    void logAiUsage({
+      userId: input.userId,
+      gymId: input.gymId,
+      eventType: "trainer_session_delta_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "fallback",
+      inputUnits: prompt.length,
+      metadata: { reason: error instanceof Error ? error.name : "unknown_error" }
     }).catch(() => undefined);
     return fallback;
   }

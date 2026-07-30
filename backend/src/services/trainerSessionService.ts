@@ -9,7 +9,9 @@ import {
   createRepeatWorkoutCaptureDraft
 } from "@ascend/shared";
 import { query } from "../db/pool";
-import { createWorkoutCaptureDraft } from "../integrations/openai";
+import { env } from "../config/env";
+import { createTrainerSessionDelta, createWorkoutCaptureDraft } from "../integrations/openai";
+import { mergeTrainerSessionDelta } from "./trainerSessionDeltaService";
 import { PersistedWorkoutCompletion, persistCompletedWorkout, resolveWorkoutWeightKg, createWorkoutCompletionSummary } from "./workoutCompletionService";
 
 type SessionRow = {
@@ -286,7 +288,7 @@ export async function startTrainerSession(input: {
     do update set updated_at = now()
     returning id
     `,
-    [input.clientId, input.trainerId ?? null, input.actorUserId, input.gymId ?? null, previousDraft, previousDraft?.durationMinutes ?? null, previousDraft ? trainerSessionDraftText(previousDraft) : ""]
+    [input.clientId, input.trainerId ?? null, input.actorUserId, input.gymId ?? null, previousDraft, previousDraft?.durationMinutes ?? null, previousDraft && !env.TRAINER_SESSION_DELTA_V2 ? trainerSessionDraftText(previousDraft) : ""]
   );
   if (previousDraft) {
     const session = await getTrainerSession(result.rows[0].id, input.clientId, input.actorUserId);
@@ -339,6 +341,7 @@ export async function interpretTrainerSession(input: {
   rawInput: string;
   durationMinutes: number;
   sourceMode: "text" | "dictation";
+  interpretationMode: "full" | "delta";
 }) {
   const session = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId);
   if (!session || session.status !== "draft") return null;
@@ -351,13 +354,23 @@ export async function interpretTrainerSession(input: {
     const exercises = Array.isArray(row.metadata?.exercises) ? row.metadata.exercises : [];
     return exercises.map((exercise) => exercise && typeof exercise === "object" ? String((exercise as Record<string, unknown>).name ?? "").trim() : "").filter(Boolean);
   });
-  const draft = await createWorkoutCaptureDraft({
-    text: cleanText(input.rawInput, 2_000),
-    sourceMode: input.sourceMode,
-    recentExerciseNames,
-    userId: input.actorUserId,
-    gymId: input.actorGymId ?? null
-  });
+  const useDelta = env.TRAINER_SESSION_DELTA_V2
+    && input.interpretationMode === "delta"
+    && session.workoutDraft?.sourceMode === "repeat";
+  const deltaResult = useDelta && session.workoutDraft
+    ? mergeTrainerSessionDelta(
+        session.workoutDraft,
+        await createTrainerSessionDelta({ text: cleanText(input.rawInput, 2_000), baseWorkout: session.workoutDraft, userId: input.actorUserId, gymId: input.actorGymId ?? null }),
+        input.rawInput
+      )
+    : null;
+  const draft = deltaResult?.draft ?? await createWorkoutCaptureDraft({
+      text: cleanText(input.rawInput, 2_000),
+      sourceMode: input.sourceMode,
+      recentExerciseNames,
+      userId: input.actorUserId,
+      gymId: input.actorGymId ?? null
+    });
   if (!draft.durationMinutes) draft.durationMinutes = clamp(Math.round(input.durationMinutes), 5, 300);
   const previous = await findPreviousDraft(input.clientId, input.sessionId);
   const narratives = buildTrainerSessionNarratives(draft, session.clientName, previous);
@@ -384,7 +397,7 @@ export async function interpretTrainerSession(input: {
     [input.sessionId, input.clientId, input.actorUserId, cleanText(input.rawInput, 5_000), draft.durationMinutes, draft, narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote, draft.confidence, draft.uncertainties, intelligence]
   );
 
-  return { draft, narratives, intelligence, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
+  return { draft, narratives, intelligence, delta: deltaResult?.delta ?? null, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
 }
 
 export async function completeTrainerSession(input: {

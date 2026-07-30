@@ -60,9 +60,9 @@ async function ensureClientAccess(req: Request, clientId: string) {
 
 trainerSessionsRouter.get("/trainer/clients/:clientId/coaching-sessions", ...trainerGuard, async (req, res, next) => {
   try {
-    if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ enabled: false, activeSession: null, recentSessions: [], previousWorkout: null });
+    if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ enabled: false, deltaEnabled: false, activeSession: null, recentSessions: [], previousWorkout: null });
     if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
-    res.json({ enabled: true, ...await getTrainerSessionOverview(req.params.clientId, req.user!.id) });
+    res.json({ enabled: true, deltaEnabled: env.TRAINER_SESSION_DELTA_V2, ...await getTrainerSessionOverview(req.params.clientId, req.user!.id) });
   } catch (error) { next(error); }
 });
 
@@ -72,7 +72,7 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions", ...tr
     if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
     const body = z.object({ mode: z.enum(["repeat_last", "blank"]) }).parse(req.body);
     const session = await startTrainerSession({ clientId: req.params.clientId, actorUserId: req.user!.id, trainerId: req.user!.trainerId ?? null, gymId: req.user!.gymId ?? null, mode: body.mode });
-    res.status(201).json({ session });
+    res.status(201).json({ session, deltaEnabled: env.TRAINER_SESSION_DELTA_V2 });
   } catch (error) { next(error); }
 });
 
@@ -91,7 +91,12 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessio
   try {
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.status(404).json({ error: "Session capture is not available." });
     if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
-    const body = z.object({ rawInput: z.string().trim().min(2).max(5_000), durationMinutes: z.number().int().min(5).max(300), sourceMode: z.enum(["text", "dictation"]).default("text") }).parse(req.body);
+    const body = z.object({
+      rawInput: z.string().trim().min(2).max(5_000),
+      durationMinutes: z.number().int().min(5).max(300),
+      sourceMode: z.enum(["text", "dictation"]).default("text"),
+      interpretationMode: z.enum(["full", "delta"]).default("full")
+    }).parse(req.body);
     const result = await interpretTrainerSession({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, actorGymId: req.user!.gymId ?? null, ...body });
     if (!result) return res.status(404).json({ error: "Session draft not found." });
     res.json(result);

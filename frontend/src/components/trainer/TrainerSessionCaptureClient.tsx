@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { TrainerCoachingSession, TrainerSessionIntelligence, TrainerSessionNarratives, WorkoutCaptureDraft, WorkoutCaptureExercise } from "@ascend/shared";
+import type { TrainerCoachingSession, TrainerSessionDelta, TrainerSessionIntelligence, TrainerSessionNarratives, WorkoutCaptureDraft, WorkoutCaptureExercise } from "@ascend/shared";
 import { Check, ChevronDown, ChevronUp, Clock3, Dumbbell, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
@@ -12,6 +12,7 @@ import {
   startTrainerCoachingSession,
   updateTrainerCoachingSession
 } from "@/lib/ascendApi";
+import { trainerSessionDeltaEnabled } from "@/lib/trainerSessionDeltaFlag";
 
 type Phase = "loading" | "start" | "capture" | "review" | "success";
 
@@ -27,7 +28,27 @@ function exerciseSummary(exercise: WorkoutCaptureExercise) {
     .join(" / ") || "Details not captured";
 }
 
+function normalizedExerciseName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function deltaExerciseSummary(change: TrainerSessionDelta["changes"][number], previousWorkout: WorkoutCaptureDraft | null, draft: WorkoutCaptureDraft | null) {
+  const target = normalizedExerciseName(change.targetExerciseName ?? change.name ?? "");
+  const before = previousWorkout?.exercises.find((exercise) => normalizedExerciseName(exercise.name) === target) ?? null;
+  if (change.action === "remove") {
+    return { before: before ? exerciseSummary(before) : "Not safely matched", after: "Removed" };
+  }
+  const afterTarget = normalizedExerciseName(change.name ?? change.targetExerciseName ?? "");
+  const after = draft?.exercises.find((exercise) => normalizedExerciseName(exercise.name) === afterTarget) ?? null;
+  return {
+    before: before ? exerciseSummary(before) : "New exercise",
+    after: after ? exerciseSummary(after) : "Needs confirmation"
+  };
+}
+
 export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) {
+  const deltaFeatureEnabled = trainerSessionDeltaEnabled();
+  const [serverDeltaEnabled, setServerDeltaEnabled] = useState(false);
   const [phase, setPhase] = useState<Phase>("loading");
   const [session, setSession] = useState<TrainerCoachingSession | null>(null);
   const [previousWorkout, setPreviousWorkout] = useState<WorkoutCaptureDraft | null>(null);
@@ -36,6 +57,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   const [draft, setDraft] = useState<WorkoutCaptureDraft | null>(null);
   const [narratives, setNarratives] = useState<TrainerSessionNarratives | null>(null);
   const [intelligence, setIntelligence] = useState<TrainerSessionIntelligence | null>(null);
+  const [delta, setDelta] = useState<TrainerSessionDelta | null>(null);
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -49,6 +71,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       .then((overview) => {
         if (!mounted) return;
         setPreviousWorkout(overview.previousWorkout);
+        setServerDeltaEnabled(overview.deltaEnabled === true);
         if (!overview.enabled) {
           setStatus("Session capture is not available in this build.");
           setPhase("start");
@@ -77,6 +100,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   const canInterpret = rawInput.trim().length >= 2 || Boolean(session?.workoutDraft?.exercises.length);
   const title = session?.clientName ? `Session with ${session.clientName}` : "Record PT Session";
   const previousSummary = useMemo(() => previousWorkout ? `${previousWorkout.title} / ${previousWorkout.exercises.length} exercises` : "No earlier detailed session", [previousWorkout]);
+  const deltaMode = deltaFeatureEnabled && serverDeltaEnabled && session?.workoutDraft?.sourceMode === "repeat";
 
   async function start(mode: "repeat_last" | "blank") {
     setBusy(true);
@@ -84,8 +108,10 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     try {
       const response = await startTrainerCoachingSession(clientId, mode);
       setSession(response.session);
+      setServerDeltaEnabled(response.deltaEnabled === true);
       setRawInput(response.session.rawInput);
       setDraft(response.session.workoutDraft);
+      setDelta(null);
       setDurationMinutes(response.session.durationMinutes ?? 45);
       setPhase("capture");
       setStatus("Session started. Type shorthand or use your keyboard microphone.");
@@ -111,10 +137,16 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
         setIntelligence(currentSession.intelligence);
         setPhase("review");
       } else {
-        const result = await interpretTrainerCoachingSession(clientId, session.id, { rawInput, durationMinutes, sourceMode: "dictation" });
+        const result = await interpretTrainerCoachingSession(clientId, session.id, {
+          rawInput,
+          durationMinutes,
+          sourceMode: "dictation",
+          interpretationMode: deltaMode ? "delta" : "full"
+        });
         setDraft(result.draft);
         setNarratives(result.narratives);
         setIntelligence(result.intelligence);
+        setDelta(result.delta);
         setEstimatedCalories(result.estimatedCaloriesBurned);
         setPhase("review");
       }
@@ -151,7 +183,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     setBusy(true);
     try {
       await cancelTrainerCoachingSession(clientId, session.id);
-      setSession(null); setDraft(null); setRawInput(""); setPhase("start"); setStatus("Draft discarded.");
+      setSession(null); setDraft(null); setDelta(null); setRawInput(""); setPhase("start"); setStatus("Draft discarded.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Could not discard the draft."); }
     finally { setBusy(false); }
   }
@@ -190,13 +222,14 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               {session.workoutDraft?.exercises.slice(0, 6).map((exercise) => <p key={exercise.name} className="mt-3 rounded-xl bg-ink p-3 text-sm">{exercise.name}<span className="block text-zinc-500">{exerciseSummary(exercise)}</span></p>)}
             </aside>
             <section className="rounded-2xl border border-lime/30 bg-surface p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-lime">Live session</p><h2 className="mt-1 text-xl font-semibold">Add what happened</h2></div><Clock3 className="text-lime" /></div>
-              <label className="mt-5 block text-sm font-semibold">Session notes</label>
-              <textarea value={rawInput} onChange={(event) => setRawInput(event.target.value)} rows={9} autoFocus placeholder={'Bench 60kg 10,10,8\nLat pulldown 45kg 3x12\nBike 8 min'} className="mt-2 w-full resize-none rounded-xl border border-line bg-ink p-4 text-lg leading-8 text-white outline-none focus:border-lime" />
+              <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-lime">{deltaMode ? "Delta Logging" : "Live session"}</p><h2 className="mt-1 text-xl font-semibold">{deltaMode ? "Only record what changed" : "Add what happened"}</h2></div><Clock3 className="text-lime" /></div>
+              {deltaMode ? <p className="mt-3 rounded-xl border border-calm/20 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">Everything from the last session stays unless you change it. Try: <span className="text-calm">bench +5kg, lunges skipped, add bike 10 min</span>.</p> : null}
+              <label className="mt-5 block text-sm font-semibold">{deltaMode ? "Changes" : "Session notes"}</label>
+              <textarea value={rawInput} onChange={(event) => setRawInput(event.target.value)} rows={9} autoFocus placeholder={deltaMode ? "Bench +5kg\nLunges skipped\nAdd bike 10 min" : 'Bench 60kg 10,10,8\nLat pulldown 45kg 3x12\nBike 8 min'} className="mt-2 w-full resize-none rounded-xl border border-line bg-ink p-4 text-lg leading-8 text-white outline-none focus:border-lime" />
               <p className="mt-2 text-sm text-zinc-500">Fastest option: tap your phone keyboard microphone and speak naturally.</p>
               <label className="mt-4 block text-sm font-semibold">Duration</label>
               <div className="mt-2 flex items-center gap-2"><input type="number" min={5} max={300} value={durationMinutes} onChange={(event) => setDurationMinutes(Math.max(5, Number(event.target.value) || 5))} className={`${inputClass} max-w-28`} /><span className="text-zinc-400">minutes</span></div>
-              <button disabled={busy || !canInterpret} onClick={finishAndReview} className="mt-5 min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink disabled:opacity-40"><Sparkles className="mr-2 inline" size={19} />{busy ? "Preparing..." : "Finish & Review"}</button>
+              <button disabled={busy || !canInterpret} onClick={finishAndReview} className="mt-5 min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink disabled:opacity-40"><Sparkles className="mr-2 inline" size={19} />{busy ? "Preparing..." : deltaMode && !rawInput.trim() ? "No Changes - Review" : "Finish & Review"}</button>
               <button disabled={busy} onClick={discard} className="mt-3 min-h-12 w-full text-sm text-zinc-400"><Trash2 className="mr-2 inline" size={16} />Discard draft</button>
             </section>
           </div>
@@ -224,6 +257,10 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               </div>
             </section>
             <aside className="space-y-4">
+              {delta && (delta.changes.length || delta.uncertainties.length) ? <section className="rounded-2xl border border-lime/30 bg-lime/10 p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-lime">{delta.changes.length ? "Changes applied" : "Changes to review"}</p><div className="mt-3 space-y-2">{delta.changes.map((change, index) => {
+                const comparison = deltaExerciseSummary(change, previousWorkout, draft);
+                return <div key={`${change.action}-${change.targetExerciseName ?? change.name}-${index}`} className="rounded-xl bg-ink/70 p-3"><p className="text-sm font-semibold capitalize">{change.action}: {change.targetExerciseName ?? change.name}</p><p className="mt-1 text-xs text-zinc-400">{change.originalText || "Review this change before saving."}</p><div className="mt-2 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-panel/80 p-2"><span className="text-zinc-500">Before</span><p className="mt-1 text-zinc-200">{comparison.before}</p></div><div className="rounded-lg bg-panel/80 p-2"><span className="text-zinc-500">Now</span><p className="mt-1 text-white">{comparison.after}</p></div></div></div>;
+              })}</div>{delta.uncertainties.length ? <p className="mt-3 text-sm leading-6 text-amber">{delta.uncertainties.join(" ")}</p> : null}</section> : null}
               {intelligence ? <section className="rounded-2xl border border-calm/30 bg-calm/10 p-4"><div className="flex items-center gap-2 text-calm"><Sparkles size={18} /><p className="text-xs font-bold uppercase tracking-[0.16em]">Session Copilot</p></div><h3 className="mt-2 text-lg font-semibold">{intelligence.headline}</h3>{intelligence.highlights.length ? <div className="mt-3 space-y-2">{intelligence.highlights.map((highlight) => <p key={highlight} className="rounded-xl bg-ink/70 p-3 text-sm text-zinc-200"><Check className="mr-2 inline text-lime" size={16} />{highlight}</p>)}</div> : null}{intelligence.watchouts.length ? <div className="mt-3 rounded-xl border border-amber/30 bg-amber/10 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber">Check next time</p>{intelligence.watchouts.map((watchout) => <p key={watchout} className="mt-2 text-sm leading-6 text-zinc-200">{watchout}</p>)}</div> : null}<div className="mt-3 rounded-xl bg-ink/70 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Next-session starting point</p><p className="mt-2 text-sm leading-6 text-zinc-200">{intelligence.nextSessionStartingPoint}</p></div></section> : null}
               <section className="rounded-2xl border border-line bg-surface p-4"><p className="text-sm text-zinc-400">Estimated Calories Burned</p><p className="mt-1 text-3xl font-semibold">~{estimatedCalories ?? "--"} kcal</p><p className="mt-2 text-xs text-zinc-500">Estimated from session type, effort, duration and client weight when available.</p></section>
               <section className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-200">Client recap</p><textarea value={narratives.clientRecap} onChange={(e) => setNarratives({ ...narratives, clientRecap: e.target.value })} rows={4} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /><p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-calm">Between-session focus</p><textarea value={narratives.betweenSessionFocus} onChange={(e) => setNarratives({ ...narratives, betweenSessionFocus: e.target.value })} rows={3} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /></section>

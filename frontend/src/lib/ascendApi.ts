@@ -12,6 +12,7 @@ import {
   TrainerCoachingSession,
   TrainerSessionNarratives,
   TrainerSessionIntelligence,
+  TrainerSessionDelta,
   TrainerSessionStartMode,
   WorkoutCaptureDraft
 } from "@ascend/shared";
@@ -1279,6 +1280,7 @@ export function completeCoachHomework(assignmentId: string, input: { completedAt
 
 export type TrainerSessionOverview = {
   enabled: boolean;
+  deltaEnabled: boolean;
   activeSession: TrainerCoachingSession | null;
   recentSessions: TrainerCoachingSession[];
   previousWorkout: WorkoutCaptureDraft | null;
@@ -1289,7 +1291,7 @@ export function getTrainerSessionOverview(clientId: string) {
 }
 
 export function startTrainerCoachingSession(clientId: string, mode: TrainerSessionStartMode) {
-  return authed<{ session: TrainerCoachingSession }>(`/trainer/clients/${clientId}/coaching-sessions`, {
+  return authed<{ session: TrainerCoachingSession; deltaEnabled: boolean }>(`/trainer/clients/${clientId}/coaching-sessions`, {
     method: "POST",
     body: JSON.stringify({ mode })
   });
@@ -1311,8 +1313,9 @@ export function interpretTrainerCoachingSession(clientId: string, sessionId: str
   rawInput: string;
   durationMinutes: number;
   sourceMode: "text" | "dictation";
+  interpretationMode?: "full" | "delta";
 }) {
-  return authed<{ draft: WorkoutCaptureDraft; narratives: TrainerSessionNarratives; intelligence: TrainerSessionIntelligence; estimatedCaloriesBurned: number; caloriesLabel: string }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/interpret`, {
+  return authed<{ draft: WorkoutCaptureDraft; narratives: TrainerSessionNarratives; intelligence: TrainerSessionIntelligence; delta: TrainerSessionDelta | null; estimatedCaloriesBurned: number; caloriesLabel: string }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/interpret`, {
     method: "POST",
     body: JSON.stringify(input)
   });
