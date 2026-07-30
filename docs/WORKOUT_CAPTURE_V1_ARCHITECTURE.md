@@ -6,6 +6,7 @@ Workout Capture extends the existing Movement/Burn Log. It does not replace Quic
 
 V1 supports:
 
+- a feature-flagged Quick Activity / Detailed Workout choice inside the existing Burn Log;
 - typed or pasted workout shorthand;
 - device keyboard dictation, which arrives as ordinary text;
 - an AI-assisted Workout Receipt;
@@ -16,7 +17,7 @@ V1 does not record, upload, or retain audio. Photo and screenshot source modes e
 
 ## Data flow
 
-1. The member chooses Quick Activity or Detailed Workout in a future flagged UI.
+1. The member chooses Quick Activity or Detailed Workout in the flagged Burn Log UI. Quick Activity remains the default.
 2. Quick Activity continues using the existing `/ai/burn-estimate` and `/burn-logs` paths.
 3. Detailed Workout sends text to `POST /ai/workout-capture`.
 4. The backend asks the configured AI provider for strict JSON and normalizes the response through deterministic rules.
@@ -69,7 +70,7 @@ Both remain off by default. The backend degrades to valid empty responses while 
 
 1. Keep both flags off in production.
 2. Enable locally for parser regression tests.
-3. Add the private UI entry point for owner/test accounts.
+3. Enable the private UI only in the preview/test environment.
 4. Test at least 50 shorthand examples across strength, cardio, circuits, mobility, kg, lb, missing values, and ambiguous speech-to-text.
 5. Require at least 95% correct extraction for supplied sets, reps, loads, and units; measure correction rate separately.
 6. Test web, iPhone Safari/PWA, Android Chrome/PWA, and the native wrapper.

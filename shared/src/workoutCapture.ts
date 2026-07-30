@@ -60,3 +60,76 @@ export type WorkoutCaptureAnalysisResponse = {
   enabled: boolean;
   draft: WorkoutCaptureDraft | null;
 };
+
+function metadataText(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function metadataNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function metadataDuration(value: unknown) {
+  if (typeof value === "number") {
+    const parsed = metadataNumber(value);
+    return parsed === null ? null : Math.round(parsed);
+  }
+  if (typeof value !== "string") return null;
+  const parsed = metadataNumber(value.match(/\d+(?:\.\d+)?/)?.[0]);
+  return parsed === null ? null : Math.round(parsed);
+}
+
+function metadataDifficulty(value: unknown): WorkoutCaptureDifficulty {
+  const normalized = metadataText(value)?.toLowerCase();
+  return normalized === "easy" || normalized === "challenging" ? normalized : "moderate";
+}
+
+function metadataPattern(value: unknown): WorkoutMovementPattern {
+  return WORKOUT_MOVEMENT_PATTERNS.includes(value as WorkoutMovementPattern) ? value as WorkoutMovementPattern : "other";
+}
+
+function exerciseFromMetadata(value: unknown): WorkoutCaptureExercise | null {
+  if (!value || typeof value !== "object") return null;
+  const exercise = value as Record<string, unknown>;
+  const name = metadataText(exercise.name);
+  if (!name) return null;
+  const loadUnit = exercise.loadUnit === "kg" || exercise.loadUnit === "lb" ? exercise.loadUnit : null;
+
+  return {
+    name,
+    originalText: null,
+    sets: metadataDuration(exercise.sets),
+    reps: metadataText(exercise.reps),
+    load: metadataNumber(exercise.load),
+    loadUnit,
+    durationMinutes: metadataDuration(exercise.durationMinutes ?? exercise.duration),
+    restSeconds: metadataDuration(exercise.restSeconds ?? exercise.rest),
+    note: metadataText(exercise.note),
+    movementPattern: metadataPattern(exercise.movementPattern),
+    confidence: 1,
+    needsConfirmation: false
+  };
+}
+
+export function createRepeatWorkoutCaptureDraft(metadata: Record<string, unknown>): WorkoutCaptureDraft | null {
+  const exercises = Array.isArray(metadata.exercises)
+    ? metadata.exercises.map(exerciseFromMetadata).filter((exercise): exercise is WorkoutCaptureExercise => Boolean(exercise))
+    : [];
+  if (!exercises.length) return null;
+
+  return {
+    version: WORKOUT_CAPTURE_VERSION,
+    sourceMode: "repeat",
+    originalInput: "",
+    title: metadataText(metadata.workoutTitle) ?? "My Workout",
+    workoutType: metadataText(metadata.workoutType ?? metadata.activityType) ?? "General Fitness",
+    difficulty: metadataDifficulty(metadata.workoutDifficulty),
+    durationMinutes: metadataDuration(metadata.durationMinutes),
+    exercises,
+    confidence: 1,
+    uncertainties: [],
+    requiresReview: true
+  };
+}

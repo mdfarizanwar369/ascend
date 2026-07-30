@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Flame, Save } from "lucide-react";
+import { Flame, ListChecks, Save, Zap } from "lucide-react";
 import { estimateBurnFromText, getBurnLogs, getCurrentCoachHomework, getMe, getMySubscription, saveBurnLog, TrainerHomeworkAssignment } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
@@ -10,6 +10,8 @@ import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { trainerHomeworkEnabled } from "@/lib/trainerHomeworkFlag";
+import { workoutCaptureEnabled } from "@/lib/workoutCaptureFlag";
+import { WorkoutCapturePanel } from "@/components/tracking/WorkoutCapturePanel";
 
 const burnRates: Record<string, number> = {
   Walking: 4,
@@ -38,6 +40,9 @@ function understandBurnText(text: string) {
 
 export function BurnLogClient() {
   const homeworkFeatureEnabled = trainerHomeworkEnabled();
+  const captureFeatureEnabled = workoutCaptureEnabled();
+  const [loggingMode, setLoggingMode] = useState<"quick" | "detailed">("quick");
+  const [detailedBusy, setDetailedBusy] = useState(false);
   const [activityType, setActivityType] = useState("Strength training");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [activityText, setActivityText] = useState("");
@@ -50,6 +55,11 @@ export function BurnLogClient() {
   const [canUseAiEstimate, setCanUseAiEstimate] = useState(false);
   const [homework, setHomework] = useState<TrainerHomeworkAssignment | null>(null);
   const saveLockRef = useRef(false);
+
+  const handleDetailedSaved = useCallback((burnLog: { id: string; metadata: Record<string, unknown>; created_at: string }, calories: number) => {
+    rememberDashboardRecord("burn", burnLog);
+    setTodayCalories((current) => current + calories);
+  }, []);
 
   const estimatedCalories = useMemo(() => {
     return aiCalories ?? Math.round((burnRates[activityType] ?? 6) * Number(durationMinutes || 0));
@@ -178,7 +188,7 @@ export function BurnLogClient() {
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
         <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
+          <BackButton fallbackHref="/dashboard" disabled={isSaving || detailedBusy} />
           <div>
             <p className="text-sm text-zinc-400">Daily tracking</p>
             <h1 className="text-2xl font-semibold">Activity burn</h1>
@@ -220,6 +230,34 @@ export function BurnLogClient() {
           </section>
         ) : null}
 
+        {captureFeatureEnabled ? (
+          <section className="mt-4 rounded-lg border border-line bg-surface p-1" aria-label="Movement logging depth">
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                type="button"
+                onClick={() => setLoggingMode("quick")}
+                disabled={detailedBusy}
+                aria-pressed={loggingMode === "quick"}
+                className={`flex min-h-14 items-center justify-center gap-2 rounded-md px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "quick" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}
+              >
+                <Zap size={18} />
+                <span>Quick Activity</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLoggingMode("detailed")}
+                disabled={isSaving}
+                aria-pressed={loggingMode === "detailed"}
+                className={`flex min-h-14 items-center justify-center gap-2 rounded-md px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "detailed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}
+              >
+                <ListChecks size={18} />
+                <span>Detailed Workout</span>
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {!captureFeatureEnabled || loggingMode === "quick" ? (
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
           <Field label="Tell Ascend what you did">
             <div className="space-y-2">
@@ -293,6 +331,9 @@ export function BurnLogClient() {
             {isSaving ? "Saving..." : "Save activity"}
           </button>
         </form>
+        ) : (
+          <WorkoutCapturePanel onBusyChange={setDetailedBusy} onSaved={handleDetailedSaved} />
+        )}
       </div>
     </main>
   );

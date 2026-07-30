@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createRepeatWorkoutCaptureDraft } from "@ascend/shared";
 import {
   buildWorkoutCapturePrompt,
   createFallbackWorkoutCapture,
@@ -94,5 +95,29 @@ describe("Workout Capture V1", () => {
     expect(prompt).toContain("Dumbbell Bench Press");
     expect(prompt).toContain("Cable Row");
     expect(prompt).toContain("Member input: DB bench 3x10");
+  });
+
+  it("converts saved structured workout metadata into a safe repeat draft", () => {
+    const draft = createRepeatWorkoutCaptureDraft({
+      workoutTitle: "Pull Day",
+      workoutType: "Strength",
+      workoutDifficulty: "Challenging",
+      durationMinutes: 50,
+      exercises: [
+        { name: "Cable row", sets: 3, reps: "10", load: 45, loadUnit: "kg", rest: "90 sec", movementPattern: "pull" },
+        { name: "", sets: 2, reps: "12" }
+      ]
+    });
+
+    expect(draft).toMatchObject({
+      sourceMode: "repeat",
+      title: "Pull Day",
+      workoutType: "Strength",
+      difficulty: "challenging",
+      durationMinutes: 50,
+      requiresReview: true
+    });
+    expect(draft?.exercises).toHaveLength(1);
+    expect(draft?.exercises[0]).toMatchObject({ load: 45, loadUnit: "kg", restSeconds: 90, movementPattern: "pull" });
   });
 });
