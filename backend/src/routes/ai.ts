@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createCoachWorkoutPlan, createCoachZoeReply, estimateBurnFromText } from "../integrations/openai";
+import { createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText } from "../integrations/openai";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
@@ -616,11 +616,53 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
   }
 });
 
+const workoutCaptureSchema = z.object({
+  text: z.string().trim().min(2).max(2_000),
+  sourceMode: z.enum(["text", "dictation"]).default("text")
+});
+
 aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
   try {
     const text = z.string().trim().min(2).max(500).parse(req.body.text);
     const estimate = await estimateBurnFromText(text);
     res.json({ estimate });
+  } catch (error) {
+    next(error);
+  }
+});
+
+aiRouter.post("/ai/workout-capture", requireAuth, aiRateLimit, async (req, res, next) => {
+  try {
+    if (!env.WORKOUT_CAPTURE_V1) return res.json({ enabled: false, draft: null });
+
+    const input = workoutCaptureSchema.parse(req.body);
+    const recent = await query<{ metadata: Record<string, unknown> | null }>(
+      `
+      select metadata
+      from analytics_events
+      where user_id = $1
+        and event_name = 'burn_log'
+        and jsonb_typeof(metadata->'exercises') = 'array'
+      order by created_at desc
+      limit 10
+      `,
+      [req.user!.id]
+    );
+    const recentExerciseNames = recent.rows.flatMap((row) => {
+      const exercises = Array.isArray(row.metadata?.exercises) ? row.metadata.exercises : [];
+      return exercises
+        .map((exercise) => exercise && typeof exercise === "object" ? String((exercise as Record<string, unknown>).name ?? "").trim() : "")
+        .filter(Boolean);
+    });
+    const draft = await createWorkoutCaptureDraft({
+      text: input.text,
+      sourceMode: input.sourceMode,
+      recentExerciseNames: [...new Set(recentExerciseNames)].slice(0, 30),
+      userId: req.user!.id,
+      gymId: req.user!.gymId
+    });
+
+    res.json({ enabled: true, draft });
   } catch (error) {
     next(error);
   }

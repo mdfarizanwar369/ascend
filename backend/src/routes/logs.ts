@@ -12,6 +12,7 @@ import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
+import { env } from "../config/env";
 
 export const logsRouter = Router();
 
@@ -80,6 +81,33 @@ const completedWorkoutSchema = z.object({
     rest: z.string().trim().max(40).nullable().optional(),
     note: z.string().trim().max(160).nullable().optional()
   })).min(1).max(20),
+  healthProviderCaloriesBurned: z.number().int().positive().optional().nullable()
+});
+
+const capturedWorkoutSchema = z.object({
+  workoutCompletionKey: z.string().uuid(),
+  userConfirmed: z.literal(true),
+  captureVersion: z.literal("workout_capture_v1"),
+  sourceMode: z.enum(["text", "dictation", "photo", "screenshot", "trainer_program", "repeat"]),
+  captureConfidence: z.number().min(0).max(1),
+  uncertaintyCount: z.number().int().min(0).max(30).default(0),
+  workoutTitle: z.string().trim().min(2).max(120),
+  workoutType: z.string().trim().min(2).max(80),
+  workoutDifficulty: z.enum(["easy", "moderate", "challenging"]),
+  durationMinutes: z.number().int().min(5).max(300),
+  completedAt: z.string().datetime().optional(),
+  exercises: z.array(z.object({
+    name: z.string().trim().min(1).max(120),
+    sets: z.number().int().min(1).max(10).nullable().optional(),
+    reps: z.string().trim().max(40).nullable().optional(),
+    load: z.number().min(0).max(1_000).nullable().optional(),
+    loadUnit: z.enum(["kg", "lb"]).nullable().optional(),
+    durationMinutes: z.number().int().min(1).max(300).nullable().optional(),
+    restSeconds: z.number().int().min(0).max(600).nullable().optional(),
+    note: z.string().trim().max(160).nullable().optional(),
+    movementPattern: z.enum(["squat", "hinge", "push", "pull", "carry", "core", "cardio", "mobility", "recovery", "other"]),
+    confidence: z.number().min(0).max(1).nullable().optional()
+  })).min(1).max(30),
   healthProviderCaloriesBurned: z.number().int().positive().optional().nullable()
 });
 
@@ -365,6 +393,72 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
     });
 
     res.status(201).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, next) => {
+  try {
+    if (!env.WORKOUT_CAPTURE_V1) return res.json({ enabled: false, burnLog: null, summary: null });
+
+    const input = capturedWorkoutSchema.parse(req.body);
+    const result = await persistCompletedWorkout({
+      userId: req.user!.id,
+      gymId: req.user!.gymId ?? null,
+      workoutCompletionKey: input.workoutCompletionKey,
+      workoutTitle: input.workoutTitle,
+      workoutType: input.workoutType,
+      workoutDifficulty: input.workoutDifficulty,
+      durationMinutes: input.durationMinutes,
+      completedAt: input.completedAt ?? null,
+      exercises: input.exercises.map((exercise) => ({
+        name: exercise.name,
+        sets: exercise.sets ?? null,
+        reps: exercise.reps ?? null,
+        load: exercise.load ?? null,
+        loadUnit: exercise.loadUnit ?? null,
+        duration: exercise.durationMinutes ? `${exercise.durationMinutes} min` : null,
+        rest: exercise.restSeconds !== null && exercise.restSeconds !== undefined ? `${exercise.restSeconds} sec` : null,
+        note: exercise.note ?? null,
+        movementPattern: exercise.movementPattern,
+        confidence: exercise.confidence ?? null
+      })),
+      healthProviderCaloriesBurned: input.healthProviderCaloriesBurned ?? null,
+      source: "ai_workout_capture",
+      extraMetadata: {
+        captureVersion: input.captureVersion,
+        captureSourceMode: input.sourceMode,
+        captureConfidence: input.captureConfidence,
+        captureUncertaintyCount: input.uncertaintyCount,
+        userConfirmed: true
+      }
+    });
+
+    res.status(201).json({ enabled: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next) => {
+  try {
+    if (!env.WORKOUT_CAPTURE_V1) return res.json({ enabled: false, workouts: [] });
+
+    const limit = z.coerce.number().int().min(1).max(10).default(5).parse(req.query.limit);
+    const result = await query(
+      `
+      select id, metadata, created_at
+      from analytics_events
+      where user_id = $1
+        and event_name = 'burn_log'
+        and jsonb_typeof(metadata->'exercises') = 'array'
+      order by created_at desc
+      limit $2
+      `,
+      [req.user!.id, limit]
+    );
+    res.json({ enabled: true, workouts: result.rows });
   } catch (error) {
     next(error);
   }

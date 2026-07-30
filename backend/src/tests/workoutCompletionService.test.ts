@@ -47,4 +47,29 @@ describe("Workout completion service", () => {
     expect(summary.coachMessage.length).toBeGreaterThan(20);
     expect(summary.exerciseList[0]?.name).toBe("Easy walk");
   });
+
+  it("preserves confirmed capture load and movement metadata", () => {
+    const summary = createWorkoutCompletionSummary({
+      workoutTitle: "Upper Body Strength",
+      workoutType: "Strength",
+      difficulty: "moderate",
+      durationMinutes: 45,
+      exercises: [{
+        name: "Dumbbell bench press",
+        sets: 3,
+        reps: "10",
+        load: 25,
+        loadUnit: "kg",
+        movementPattern: "push",
+        confidence: 0.96
+      }]
+    });
+
+    expect(summary.exerciseList[0]).toMatchObject({
+      load: 25,
+      loadUnit: "kg",
+      movementPattern: "push",
+      confidence: 0.96
+    });
+  });
 });

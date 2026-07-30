@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { FoodEstimate, LOCAL_FOODS } from "@ascend/shared";
+import { FoodEstimate, LOCAL_FOODS, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
 import { env } from "../config/env";
 import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
@@ -11,6 +11,7 @@ import {
   timeFoodAiStage,
   timeFoodAiSyncStage
 } from "../services/foodAiPerformance";
+import { buildWorkoutCapturePrompt, createFallbackWorkoutCapture, normalizeWorkoutCaptureResponse } from "../services/workoutCaptureService";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -1485,6 +1486,63 @@ export async function estimateBurnFromText(text: string) {
     return JSON.parse(cleanJsonText(reply)) as ReturnType<typeof fallbackBurnEstimate>;
   } catch {
     return fallbackBurnEstimate(text);
+  }
+}
+
+export async function createWorkoutCaptureDraft(input: {
+  text: string;
+  sourceMode: WorkoutCaptureSourceMode;
+  recentExerciseNames?: string[];
+  userId?: string | null;
+  gymId?: string | null;
+}): Promise<WorkoutCaptureDraft> {
+  const fallback = createFallbackWorkoutCapture(input.text, input.sourceMode);
+  if (!providerConfigured()) return fallback;
+
+  const fallbackJson = JSON.stringify(fallback);
+  const prompt = buildWorkoutCapturePrompt(input.text, input.recentExerciseNames);
+  try {
+    const reply = await createTextReply(
+      "You parse workout notes for Ascend. Accuracy matters more than completeness. Never guess missing numbers. Return strict JSON only.",
+      prompt,
+      fallbackJson
+    );
+    const draft = normalizeWorkoutCaptureResponse(reply, input.text, input.sourceMode);
+    const usedFallback = reply === fallbackJson;
+
+    void logAiUsage({
+      userId: input.userId,
+      gymId: input.gymId,
+      eventType: "workout_capture_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: usedFallback ? "fallback" : "success",
+      inputUnits: prompt.length,
+      outputUnits: reply.length,
+      metadata: {
+        sourceMode: input.sourceMode,
+        exerciseCount: draft.exercises.length,
+        confidence: draft.confidence,
+        uncertaintyCount: draft.uncertainties.length
+      }
+    }).catch(() => undefined);
+
+    return draft;
+  } catch (error) {
+    void logAiUsage({
+      userId: input.userId,
+      gymId: input.gymId,
+      eventType: "workout_capture_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "fallback",
+      inputUnits: prompt.length,
+      metadata: {
+        sourceMode: input.sourceMode,
+        reason: error instanceof Error ? error.name : "unknown_error"
+      }
+    }).catch(() => undefined);
+    return fallback;
   }
 }
 

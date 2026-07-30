@@ -39,6 +39,7 @@ Set these on the Railway backend service.
 | `GEMINI_MODEL` | Yes for Gemini pilot | `gemini-2.5-flash` | Gemini model. |
 | `OPENAI_API_KEY` | Optional | OpenAI API key | Optional fallback if `AI_PROVIDER=openai`. |
 | `OPENAI_MODEL` | Optional | `gpt-4.1-mini` | Optional OpenAI model. |
+| `WORKOUT_CAPTURE_V1` | No | `false` | Enables the authenticated Workout Capture analysis and save APIs. Keep off outside the private pilot. |
 | `TOYYIBPAY_BASE_URL` | Yes for billing | `https://toyyibpay.com` | ToyyibPay API and checkout base. |
 | `TOYYIBPAY_SECRET_KEY` | Yes for billing | ToyyibPay key | Creates bills. |
 | `TOYYIBPAY_CATEGORY_CODE` | Yes for billing | ToyyibPay category | Creates bills under merchant category. |
@@ -62,6 +63,7 @@ Local defaults:
 
 ```text
 NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+NEXT_PUBLIC_WORKOUT_CAPTURE_V1=false
 PORT=4000
 DATABASE_URL=postgres://ascend:ascend@localhost:5432/ascend
 CORS_ORIGIN=http://localhost:3000

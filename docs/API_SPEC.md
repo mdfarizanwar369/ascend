@@ -130,3 +130,13 @@ Trainer body-composition endpoints are read-only except for manual coach entry. 
 - `POST /jobs/daily`
 
 Requires `x-cron-secret: <CRON_SECRET>` or `?secret=<CRON_SECRET>`. Runs daily compliance scoring and risk-alert generation.
+
+## Workout Capture V1 (private pilot)
+
+These authenticated endpoints return empty disabled responses unless `WORKOUT_CAPTURE_V1=true`. The frontend entry point remains hidden unless `NEXT_PUBLIC_WORKOUT_CAPTURE_V1=true`.
+
+- `POST /ai/workout-capture` converts text or device-dictated text into a review-only draft. It never saves automatically.
+- `POST /burn-logs/captured-workout` requires `userConfirmed: true` and a UUID completion key, then reuses the existing completed-workout persistence and calorie estimation.
+- `GET /burn-logs/detailed/recent?limit=5` returns at most 10 recent structured workouts for repeat-workout suggestions.
+
+Raw capture text is used for analysis but is not stored in the saved workout metadata. Confirmed structured exercises are stored in the existing `analytics_events` burn-log stream, so current dashboard, Journey, Coach Zoe memory, reports, and assigned-trainer views continue using one workout source of truth.

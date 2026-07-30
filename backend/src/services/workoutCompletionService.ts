@@ -5,9 +5,13 @@ type WorkoutExerciseInput = {
   name: string;
   sets?: number | null;
   reps?: string | null;
+  load?: number | null;
+  loadUnit?: "kg" | "lb" | null;
   duration?: string | null;
   rest?: string | null;
   note?: string | null;
+  movementPattern?: string | null;
+  confidence?: number | null;
 };
 
 type WorkoutCaloriesInput = {
@@ -41,7 +45,7 @@ export type PersistCompletedWorkoutInput = {
   completedAt?: string | null;
   exercises: WorkoutExerciseInput[];
   healthProviderCaloriesBurned?: number | null;
-  source: "coach_zoe_workout_planner" | "coach_homework";
+  source: "coach_zoe_workout_planner" | "coach_homework" | "ai_workout_capture";
   extraMetadata?: Record<string, unknown>;
 };
 
@@ -117,9 +121,13 @@ function cleanExerciseList(exercises: WorkoutExerciseInput[]) {
       name: exercise.name.trim().slice(0, 120),
       sets: typeof exercise.sets === "number" ? clamp(Math.round(exercise.sets), 1, 10) : null,
       reps: typeof exercise.reps === "string" ? exercise.reps.trim().slice(0, 40) : null,
+      load: typeof exercise.load === "number" && Number.isFinite(exercise.load) ? clamp(exercise.load, 0, 1_000) : null,
+      loadUnit: exercise.loadUnit === "kg" || exercise.loadUnit === "lb" ? exercise.loadUnit : null,
       duration: typeof exercise.duration === "string" ? exercise.duration.trim().slice(0, 40) : null,
       rest: typeof exercise.rest === "string" ? exercise.rest.trim().slice(0, 40) : null,
-      note: typeof exercise.note === "string" ? exercise.note.trim().slice(0, 160) : null
+      note: typeof exercise.note === "string" ? exercise.note.trim().slice(0, 160) : null,
+      movementPattern: typeof exercise.movementPattern === "string" ? exercise.movementPattern.trim().slice(0, 40) : null,
+      confidence: typeof exercise.confidence === "number" && Number.isFinite(exercise.confidence) ? clamp(exercise.confidence, 0, 1) : null
     }))
     .filter((exercise) => exercise.name.length > 0);
 }

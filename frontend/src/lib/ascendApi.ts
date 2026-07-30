@@ -1,4 +1,14 @@
-import { CoachingMode, FoodEstimate, GoalType, NutritionTargetInput, SubscriptionPlan } from "@ascend/shared";
+import {
+  CoachingMode,
+  FoodEstimate,
+  GoalType,
+  NutritionTargetInput,
+  SubscriptionPlan,
+  WorkoutCaptureAnalysisResponse,
+  WorkoutCaptureDifficulty,
+  WorkoutCaptureExercise,
+  WorkoutCaptureSourceMode
+} from "@ascend/shared";
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
 
@@ -921,6 +931,58 @@ export function createCheckout(plan: Exclude<SubscriptionPlan, "free">) {
     method: "POST",
     body: JSON.stringify({ plan })
   });
+}
+
+export function analyzeWorkoutCapture(input: { text: string; sourceMode?: "text" | "dictation" }) {
+  return authed<WorkoutCaptureAnalysisResponse>("/ai/workout-capture", {
+    method: "POST",
+    body: JSON.stringify({ text: input.text, sourceMode: input.sourceMode ?? "text" })
+  });
+}
+
+export function saveCapturedWorkout(input: {
+  workoutCompletionKey: string;
+  userConfirmed: true;
+  captureVersion: "workout_capture_v1";
+  sourceMode: WorkoutCaptureSourceMode;
+  captureConfidence: number;
+  uncertaintyCount: number;
+  workoutTitle: string;
+  workoutType: string;
+  workoutDifficulty: WorkoutCaptureDifficulty;
+  durationMinutes: number;
+  completedAt?: string;
+  exercises: WorkoutCaptureExercise[];
+  healthProviderCaloriesBurned?: number | null;
+}) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
+  return authed<{
+    enabled: boolean;
+    burnLog: { id: string; metadata: Record<string, unknown>; created_at: string } | null;
+    summary: {
+      workoutTitle: string;
+      durationMinutes: number;
+      workoutType: string;
+      difficulty: string;
+      estimatedCaloriesBurned: number;
+      caloriesLabel: string;
+      coachMessage: string;
+      momentumEarned: number;
+    } | null;
+  }>("/burn-logs/captured-workout", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
+}
+
+export function getRecentDetailedWorkouts(limit = 5) {
+  return authed<{
+    enabled: boolean;
+    workouts: Array<{ id: string; metadata: Record<string, unknown>; created_at: string }>;
+  }>(`/burn-logs/detailed/recent?limit=${Math.min(10, Math.max(1, Math.round(limit)))}`);
 }
 
 export function verifyGooglePlaySubscription(input: {

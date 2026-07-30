@@ -12,6 +12,7 @@ export * from "./ascendDna";
 export * from "./coachZoeProactive";
 export * from "./notificationEngine";
 export * from "./bodyScanImage";
+export * from "./workoutCapture";
 
 export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {
   const isIpadOs = platform === "MacIntel" && maxTouchPoints > 1;
