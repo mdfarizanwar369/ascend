@@ -54,7 +54,7 @@ Exercise names remain member-friendly. Recent confirmed names are supplied to th
 - Backend: `WORKOUT_CAPTURE_V1=false`
 - Frontend: `NEXT_PUBLIC_WORKOUT_CAPTURE_V1=false`
 
-Both remain off by default. The backend degrades to valid empty responses while disabled, so accidental frontend calls cannot affect unrelated screens.
+Both remain off by default. During the private pilot, all three backend endpoints also require the authenticated platform-owner identity. Other accounts receive valid disabled responses, so accidental calls cannot affect normal Movement logging.
 
 ## Reliability and safety
 
@@ -70,7 +70,7 @@ Both remain off by default. The backend degrades to valid empty responses while 
 
 1. Keep both flags off in production.
 2. Enable locally for parser regression tests.
-3. Enable the private UI only in the preview/test environment.
+3. Enable the private UI only for the platform-owner pilot account. The UI uses `/me`; the backend independently enforces the same owner boundary.
 4. Test at least 50 shorthand examples across strength, cardio, circuits, mobility, kg, lb, missing values, and ambiguous speech-to-text.
 5. Require at least 95% correct extraction for supplied sets, reps, loads, and units; measure correction rate separately.
 6. Test web, iPhone Safari/PWA, Android Chrome/PWA, and the native wrapper.

@@ -10,6 +10,7 @@ import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
+import { canUseWorkoutCapture } from "../services/workoutCaptureAccess";
 
 export const aiRouter = Router();
 
@@ -633,7 +634,9 @@ aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), ai
 
 aiRouter.post("/ai/workout-capture", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
-    if (!env.WORKOUT_CAPTURE_V1) return res.json({ enabled: false, draft: null });
+    if (!canUseWorkoutCapture(env.WORKOUT_CAPTURE_V1, req.user!.isPlatformOwner)) {
+      return res.json({ enabled: false, draft: null });
+    }
 
     const input = workoutCaptureSchema.parse(req.body);
     const recent = await query<{ metadata: Record<string, unknown> | null }>(

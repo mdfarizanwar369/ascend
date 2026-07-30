@@ -13,6 +13,7 @@ import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncSta
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
 import { env } from "../config/env";
+import { canUseWorkoutCapture } from "../services/workoutCaptureAccess";
 
 export const logsRouter = Router();
 
@@ -400,7 +401,9 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
 
 logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, next) => {
   try {
-    if (!env.WORKOUT_CAPTURE_V1) return res.json({ enabled: false, burnLog: null, summary: null });
+    if (!canUseWorkoutCapture(env.WORKOUT_CAPTURE_V1, req.user!.isPlatformOwner)) {
+      return res.json({ enabled: false, burnLog: null, summary: null });
+    }
 
     const input = capturedWorkoutSchema.parse(req.body);
     const result = await persistCompletedWorkout({
@@ -443,7 +446,9 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
 
 logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next) => {
   try {
-    if (!env.WORKOUT_CAPTURE_V1) return res.json({ enabled: false, workouts: [] });
+    if (!canUseWorkoutCapture(env.WORKOUT_CAPTURE_V1, req.user!.isPlatformOwner)) {
+      return res.json({ enabled: false, workouts: [] });
+    }
 
     const limit = z.coerce.number().int().min(1).max(10).default(5).parse(req.query.limit);
     const result = await query(
