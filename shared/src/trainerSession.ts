@@ -10,6 +10,23 @@ export type TrainerSessionNarratives = {
   trainerNextSessionNote: string;
 };
 
+export type TrainerExerciseComparisonStatus = "progressed" | "maintained" | "reduced" | "new" | "not_comparable";
+
+export type TrainerExerciseComparison = {
+  exerciseName: string;
+  status: TrainerExerciseComparisonStatus;
+  summary: string;
+};
+
+export type TrainerSessionIntelligence = {
+  headline: string;
+  highlights: string[];
+  watchouts: string[];
+  nextSessionStartingPoint: string;
+  clientCelebration: string;
+  exerciseComparisons: TrainerExerciseComparison[];
+};
+
 export type TrainerCoachingSession = {
   id: string;
   clientId: string;
@@ -24,6 +41,7 @@ export type TrainerCoachingSession = {
   rawInput: string;
   workoutDraft: WorkoutCaptureDraft | null;
   narratives: TrainerSessionNarratives | null;
+  intelligence: TrainerSessionIntelligence | null;
   workoutEventId: string | null;
   estimatedCaloriesBurned: number | null;
   caloriesLabel: string | null;
@@ -44,5 +62,7 @@ export type ClientCoachedSession = {
   exercises: WorkoutCaptureDraft["exercises"];
   clientRecap: string;
   betweenSessionFocus: string;
+  progressHighlights: string[];
+  clientCelebration: string;
   completedAt: string;
 };

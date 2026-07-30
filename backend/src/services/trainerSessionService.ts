@@ -1,6 +1,8 @@
 import {
   ClientCoachedSession,
   TrainerCoachingSession,
+  TrainerExerciseComparison,
+  TrainerSessionIntelligence,
   TrainerSessionNarratives,
   TrainerSessionStartMode,
   WorkoutCaptureDraft,
@@ -26,6 +28,7 @@ type SessionRow = {
   client_recap: string | null;
   between_session_focus: string | null;
   trainer_next_session_note: string | null;
+  session_intelligence: TrainerSessionIntelligence | null;
   workout_event_id: string | null;
   workout_completion_key: string;
   estimated_calories_burned?: string | number | null;
@@ -79,6 +82,7 @@ function mapSession(row: SessionRow): TrainerCoachingSession {
     rawInput: row.status === "draft" ? row.raw_input : "",
     workoutDraft: row.structured_workout,
     narratives,
+    intelligence: row.session_intelligence,
     workoutEventId: row.workout_event_id,
     estimatedCaloriesBurned: Number.isFinite(estimatedCalories) && estimatedCalories > 0 ? estimatedCalories : null,
     caloriesLabel: row.calories_label ?? null,
@@ -112,6 +116,81 @@ function firstProgression(previous: WorkoutCaptureDraft | null, current: Workout
     }
   }
   return null;
+}
+
+function normalizedExerciseName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function totalReps(value: string | null, sets: number | null) {
+  if (!value) return null;
+  if (/\d\s*(?:-|\u2013|\u2014|to)\s*\d/i.test(value)) return null;
+  const values = value.match(/\d+(?:\.\d+)?/g)?.map(Number).filter(Number.isFinite) ?? [];
+  if (!values.length) return null;
+  if (values.length > 1) return values.reduce((sum, current) => sum + current, 0);
+  return sets ? values[0] * sets : values[0];
+}
+
+function compareExercise(current: WorkoutCaptureDraft["exercises"][number], previous?: WorkoutCaptureDraft["exercises"][number]): TrainerExerciseComparison {
+  if (!previous) return { exerciseName: current.name, status: "new", summary: `${current.name} was added to this session.` };
+  const currentReps = totalReps(current.reps, current.sets);
+  const previousReps = totalReps(previous.reps, previous.sets);
+  const comparableLoad = current.load !== null && previous.load !== null && current.loadUnit === previous.loadUnit;
+  const unit = current.loadUnit ?? "";
+
+  if (comparableLoad && current.load! > previous.load!) {
+    return { exerciseName: current.name, status: "progressed", summary: `${current.name}: ${previous.load}${unit} to ${current.load}${unit}.` };
+  }
+  if (comparableLoad && current.load! < previous.load!) {
+    return { exerciseName: current.name, status: "reduced", summary: `${current.name}: load changed from ${previous.load}${unit} to ${current.load}${unit}.` };
+  }
+  if (comparableLoad && current.load === previous.load && currentReps !== null && previousReps !== null && currentReps > previousReps) {
+    return { exerciseName: current.name, status: "progressed", summary: `${current.name}: more total repetitions at ${current.load}${unit}.` };
+  }
+  if (comparableLoad && current.load === previous.load && currentReps !== null && previousReps !== null && currentReps < previousReps) {
+    return { exerciseName: current.name, status: "reduced", summary: `${current.name}: fewer total repetitions at ${current.load}${unit}.` };
+  }
+  if ((comparableLoad && current.load === previous.load) || (currentReps !== null && currentReps === previousReps)) {
+    return { exerciseName: current.name, status: "maintained", summary: `${current.name} was maintained from the previous session.` };
+  }
+  return { exerciseName: current.name, status: "not_comparable", summary: `${current.name} was recorded, but the previous details are not directly comparable.` };
+}
+
+export function buildTrainerSessionIntelligence(
+  current: WorkoutCaptureDraft,
+  previous: WorkoutCaptureDraft | null
+): TrainerSessionIntelligence {
+  const previousByName = new Map((previous?.exercises ?? []).map((exercise) => [normalizedExerciseName(exercise.name), exercise]));
+  const exerciseComparisons = current.exercises.map((exercise) => compareExercise(exercise, previousByName.get(normalizedExerciseName(exercise.name))));
+  const progressed = exerciseComparisons.filter((comparison) => comparison.status === "progressed");
+  const reduced = exerciseComparisons.filter((comparison) => comparison.status === "reduced");
+  const maintained = exerciseComparisons.filter((comparison) => comparison.status === "maintained");
+  const highlights = [
+    ...progressed.slice(0, 3).map((comparison) => comparison.summary),
+    ...(!progressed.length && maintained.length ? [`${maintained.length} exercise${maintained.length === 1 ? "" : "s"} matched the previous session.`] : []),
+    ...(!previous ? ["This creates a confirmed baseline for future coached sessions."] : [])
+  ].slice(0, 3);
+  const watchouts = [
+    ...reduced.slice(0, 2).map((comparison) => `${comparison.summary} Check context before progressing next time.`),
+    ...current.uncertainties.slice(0, Math.max(0, 2 - reduced.length)).map((uncertainty) => `Confirm next time: ${uncertainty.replace(/[.]$/, "")}.`),
+    ...(current.difficulty === "challenging" && progressed.length >= 2 ? ["Several movements progressed in a challenging session; check recovery before the next hard session."] : [])
+  ].slice(0, 2);
+  const anchor = progressed[0] ?? maintained[0] ?? exerciseComparisons[0];
+  const nextSessionStartingPoint = anchor
+    ? `Start from the confirmed ${anchor.exerciseName} result and adjust after the client's warm-up and feedback.`
+    : "Use this session as the baseline and adjust after the client's warm-up and feedback.";
+  const headline = progressed.length
+    ? `${progressed.length} verified progression${progressed.length === 1 ? "" : "s"} from the previous session.`
+    : previous
+      ? maintained.length ? "The session was consistent with the previous performance." : "The session is saved, with limited directly comparable data."
+      : "The first coached-session baseline is now established.";
+  const clientCelebration = progressed.length
+    ? `You progressed ${progressed.length} movement${progressed.length === 1 ? "" : "s"} compared with your last coached session.`
+    : maintained.length
+      ? "You repeated key work consistently and added another reliable session to your progress."
+      : "Your completed session is now part of your training story and ready for future comparison.";
+
+  return { headline, highlights, watchouts, nextSessionStartingPoint, clientCelebration, exerciseComparisons };
 }
 
 export function buildTrainerSessionNarratives(
@@ -213,9 +292,10 @@ export async function startTrainerSession(input: {
     const session = await getTrainerSession(result.rows[0].id, input.clientId, input.actorUserId);
     if (session && !session.narratives) {
       const narratives = buildTrainerSessionNarratives(previousDraft, session.clientName, previousDraft);
+      const intelligence = buildTrainerSessionIntelligence(previousDraft, previousDraft);
       await query(
-        `update trainer_coaching_sessions set client_recap = $2, between_session_focus = $3, trainer_next_session_note = $4, updated_at = now() where id = $1 and status = 'draft'`,
-        [result.rows[0].id, narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote]
+        `update trainer_coaching_sessions set client_recap = $2, between_session_focus = $3, trainer_next_session_note = $4, session_intelligence = $5, updated_at = now() where id = $1 and status = 'draft'`,
+        [result.rows[0].id, narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote, intelligence]
       );
     }
   }
@@ -281,6 +361,7 @@ export async function interpretTrainerSession(input: {
   if (!draft.durationMinutes) draft.durationMinutes = clamp(Math.round(input.durationMinutes), 5, 300);
   const previous = await findPreviousDraft(input.clientId, input.sessionId);
   const narratives = buildTrainerSessionNarratives(draft, session.clientName, previous);
+  const intelligence = buildTrainerSessionIntelligence(draft, previous);
   const weightKg = await resolveWorkoutWeightKg(input.clientId);
   const calories = createWorkoutCompletionSummary({
     workoutTitle: draft.title,
@@ -296,13 +377,14 @@ export async function interpretTrainerSession(input: {
     update trainer_coaching_sessions
     set raw_input = $4, duration_minutes = $5, structured_workout = $6,
       client_recap = $7, between_session_focus = $8, trainer_next_session_note = $9,
-      ai_confidence = $10, uncertain_fields = $11, version = version + 1, updated_at = now()
+      ai_confidence = $10, uncertain_fields = $11, session_intelligence = $12,
+      version = version + 1, updated_at = now()
     where id = $1 and client_id = $2 and created_by_user_id = $3 and status = 'draft'
     `,
-    [input.sessionId, input.clientId, input.actorUserId, cleanText(input.rawInput, 5_000), draft.durationMinutes, draft, narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote, draft.confidence, draft.uncertainties]
+    [input.sessionId, input.clientId, input.actorUserId, cleanText(input.rawInput, 5_000), draft.durationMinutes, draft, narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote, draft.confidence, draft.uncertainties, intelligence]
   );
 
-  return { draft, narratives, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
+  return { draft, narratives, intelligence, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
 }
 
 export async function completeTrainerSession(input: {
@@ -320,6 +402,8 @@ export async function completeTrainerSession(input: {
   const completionKeyResult = await query<{ workout_completion_key: string }>("select workout_completion_key from trainer_coaching_sessions where id = $1", [input.sessionId]);
   const workoutCompletionKey = completionKeyResult.rows[0]?.workout_completion_key;
   if (!workoutCompletionKey) return null;
+  const previous = await findPreviousDraft(input.clientId, input.sessionId);
+  const intelligence = buildTrainerSessionIntelligence(input.draft, previous);
 
   const completion = await persistCompletedWorkout({
     userId: input.clientId,
@@ -350,6 +434,7 @@ export async function completeTrainerSession(input: {
       trainerName: session.trainerName,
       clientRecap: cleanText(input.narratives.clientRecap, 600),
       betweenSessionFocus: cleanText(input.narratives.betweenSessionFocus, 400),
+      sessionIntelligence: intelligence,
       captureVersion: input.draft.version,
       userConfirmed: true
     }
@@ -362,10 +447,11 @@ export async function completeTrainerSession(input: {
       raw_input = '', structured_workout = $6, client_recap = $7,
       between_session_focus = $8, trainer_next_session_note = $9,
       workout_event_id = $10, ai_confidence = $11, uncertain_fields = $12,
+      session_intelligence = $13,
       version = version + 1, updated_at = now()
     where id = $1 and client_id = $2 and created_by_user_id = $3 and status in ('draft', 'completed')
     `,
-    [input.sessionId, input.clientId, input.actorUserId, input.completedAt ?? null, input.draft.durationMinutes, input.draft, cleanText(input.narratives.clientRecap, 600), cleanText(input.narratives.betweenSessionFocus, 400), cleanText(input.narratives.trainerNextSessionNote, 600), completion.burnLog.id, input.draft.confidence, input.draft.uncertainties]
+    [input.sessionId, input.clientId, input.actorUserId, input.completedAt ?? null, input.draft.durationMinutes, input.draft, cleanText(input.narratives.clientRecap, 600), cleanText(input.narratives.betweenSessionFocus, 400), cleanText(input.narratives.trainerNextSessionNote, 600), completion.burnLog.id, input.draft.confidence, input.draft.uncertainties, intelligence]
   );
   const completedSession = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId);
   return completedSession ? { session: completedSession, completion } : null;
@@ -379,27 +465,30 @@ export async function cancelTrainerSession(sessionId: string, clientId: string, 
   return Boolean(result.rowCount);
 }
 
+export function toClientCoachedSession(session: TrainerCoachingSession): ClientCoachedSession {
+  const draft = session.workoutDraft!;
+  return {
+    id: session.id,
+    trainerName: session.trainerName,
+    title: sessionTitle(draft),
+    workoutType: draft.workoutType,
+    difficulty: draft.difficulty,
+    durationMinutes: draft.durationMinutes ?? session.durationMinutes ?? 5,
+    estimatedCaloriesBurned: session.estimatedCaloriesBurned ?? 0,
+    caloriesLabel: session.caloriesLabel ?? "Estimated Calories Burned",
+    exercises: draft.exercises,
+    clientRecap: session.narratives?.clientRecap ?? "Your coached workout has been saved.",
+    betweenSessionFocus: session.narratives?.betweenSessionFocus ?? "Keep building on today's session.",
+    progressHighlights: session.intelligence?.highlights ?? [],
+    clientCelebration: session.intelligence?.clientCelebration ?? "Your completed session is now part of your progress.",
+    completedAt: session.completedAt!
+  };
+}
+
 export async function getClientCoachedSessions(clientId: string, limit = 10): Promise<ClientCoachedSession[]> {
   const result = await query<SessionRow>(
     `${SESSION_SELECT} where session.client_id = $1 and session.status = 'completed' order by session.completed_at desc limit $2`,
     [clientId, clamp(Math.round(limit), 1, 25)]
   );
-  return result.rows.map((row) => {
-    const session = mapSession(row);
-    const draft = session.workoutDraft!;
-    return {
-      id: session.id,
-      trainerName: session.trainerName,
-      title: sessionTitle(draft),
-      workoutType: draft.workoutType,
-      difficulty: draft.difficulty,
-      durationMinutes: draft.durationMinutes ?? session.durationMinutes ?? 5,
-      estimatedCaloriesBurned: session.estimatedCaloriesBurned ?? 0,
-      caloriesLabel: session.caloriesLabel ?? "Estimated Calories Burned",
-      exercises: draft.exercises,
-      clientRecap: session.narratives?.clientRecap ?? "Your coached workout has been saved.",
-      betweenSessionFocus: session.narratives?.betweenSessionFocus ?? "Keep building on today's session.",
-      completedAt: session.completedAt!
-    };
-  });
+  return result.rows.map(mapSession).map(toClientCoachedSession);
 }

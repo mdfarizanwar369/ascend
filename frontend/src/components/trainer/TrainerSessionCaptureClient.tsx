@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { TrainerCoachingSession, TrainerSessionNarratives, WorkoutCaptureDraft, WorkoutCaptureExercise } from "@ascend/shared";
+import type { TrainerCoachingSession, TrainerSessionIntelligence, TrainerSessionNarratives, WorkoutCaptureDraft, WorkoutCaptureExercise } from "@ascend/shared";
 import { Check, ChevronDown, ChevronUp, Clock3, Dumbbell, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
@@ -35,6 +35,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [draft, setDraft] = useState<WorkoutCaptureDraft | null>(null);
   const [narratives, setNarratives] = useState<TrainerSessionNarratives | null>(null);
+  const [intelligence, setIntelligence] = useState<TrainerSessionIntelligence | null>(null);
   const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,6 +60,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
           setDurationMinutes(overview.activeSession.durationMinutes ?? elapsedMinutes(overview.activeSession.startedAt));
           setDraft(overview.activeSession.workoutDraft);
           setNarratives(overview.activeSession.narratives);
+          setIntelligence(overview.activeSession.intelligence);
           setPhase(overview.activeSession.rawInput.trim() && overview.activeSession.workoutDraft?.sourceMode !== "repeat" && overview.activeSession.narratives ? "review" : "capture");
         } else {
           setPhase("start");
@@ -106,11 +108,13 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       if (!rawInput.trim() && currentSession.workoutDraft) {
         setDraft({ ...currentSession.workoutDraft, durationMinutes });
         setNarratives(currentSession.narratives);
+        setIntelligence(currentSession.intelligence);
         setPhase("review");
       } else {
         const result = await interpretTrainerCoachingSession(clientId, session.id, { rawInput, durationMinutes, sourceMode: "dictation" });
         setDraft(result.draft);
         setNarratives(result.narratives);
+        setIntelligence(result.intelligence);
         setEstimatedCalories(result.estimatedCaloriesBurned);
         setPhase("review");
       }
@@ -220,6 +224,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               </div>
             </section>
             <aside className="space-y-4">
+              {intelligence ? <section className="rounded-2xl border border-calm/30 bg-calm/10 p-4"><div className="flex items-center gap-2 text-calm"><Sparkles size={18} /><p className="text-xs font-bold uppercase tracking-[0.16em]">Session Copilot</p></div><h3 className="mt-2 text-lg font-semibold">{intelligence.headline}</h3>{intelligence.highlights.length ? <div className="mt-3 space-y-2">{intelligence.highlights.map((highlight) => <p key={highlight} className="rounded-xl bg-ink/70 p-3 text-sm text-zinc-200"><Check className="mr-2 inline text-lime" size={16} />{highlight}</p>)}</div> : null}{intelligence.watchouts.length ? <div className="mt-3 rounded-xl border border-amber/30 bg-amber/10 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber">Check next time</p>{intelligence.watchouts.map((watchout) => <p key={watchout} className="mt-2 text-sm leading-6 text-zinc-200">{watchout}</p>)}</div> : null}<div className="mt-3 rounded-xl bg-ink/70 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Next-session starting point</p><p className="mt-2 text-sm leading-6 text-zinc-200">{intelligence.nextSessionStartingPoint}</p></div></section> : null}
               <section className="rounded-2xl border border-line bg-surface p-4"><p className="text-sm text-zinc-400">Estimated Calories Burned</p><p className="mt-1 text-3xl font-semibold">~{estimatedCalories ?? "--"} kcal</p><p className="mt-2 text-xs text-zinc-500">Estimated from session type, effort, duration and client weight when available.</p></section>
               <section className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-200">Client recap</p><textarea value={narratives.clientRecap} onChange={(e) => setNarratives({ ...narratives, clientRecap: e.target.value })} rows={4} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /><p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-calm">Between-session focus</p><textarea value={narratives.betweenSessionFocus} onChange={(e) => setNarratives({ ...narratives, betweenSessionFocus: e.target.value })} rows={3} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /></section>
               <button disabled={busy || !draft.title.trim()} onClick={complete} className="min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink disabled:opacity-40"><Save className="mr-2 inline" size={19} />{busy ? "Saving..." : "Confirm & Share"}</button>

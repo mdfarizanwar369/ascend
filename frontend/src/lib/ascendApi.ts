@@ -11,6 +11,7 @@ import {
   ClientCoachedSession,
   TrainerCoachingSession,
   TrainerSessionNarratives,
+  TrainerSessionIntelligence,
   TrainerSessionStartMode,
   WorkoutCaptureDraft
 } from "@ascend/shared";
@@ -1311,7 +1312,7 @@ export function interpretTrainerCoachingSession(clientId: string, sessionId: str
   durationMinutes: number;
   sourceMode: "text" | "dictation";
 }) {
-  return authed<{ draft: WorkoutCaptureDraft; narratives: TrainerSessionNarratives; estimatedCaloriesBurned: number; caloriesLabel: string }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/interpret`, {
+  return authed<{ draft: WorkoutCaptureDraft; narratives: TrainerSessionNarratives; intelligence: TrainerSessionIntelligence; estimatedCaloriesBurned: number; caloriesLabel: string }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/interpret`, {
     method: "POST",
     body: JSON.stringify(input)
   });
@@ -1647,6 +1648,7 @@ export function getTrainerClientBurnLogs(clientId: string) {
         trainerName?: string;
         trainerUserId?: string;
         coachingSessionId?: string;
+        sessionIntelligence?: TrainerSessionIntelligence;
         exercises?: Array<{
           name?: string;
           sets?: string | number | null;

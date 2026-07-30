@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkoutCaptureDraft } from "@ascend/shared";
-import { buildTrainerSessionNarratives, trainerSessionDraftText } from "../services/trainerSessionService";
+import { buildTrainerSessionIntelligence, buildTrainerSessionNarratives, toClientCoachedSession, trainerSessionDraftText } from "../services/trainerSessionService";
 
 function draft(overrides: Partial<WorkoutCaptureDraft> = {}): WorkoutCaptureDraft {
   return {
@@ -59,5 +59,68 @@ describe("trainer session narratives", () => {
   it("turns a repeated session into editable gym-floor shorthand", () => {
     const text = trainerSessionDraftText(draft());
     expect(text).toBe("Bench Press 3x10 60kg");
+  });
+});
+
+describe("trainer session copilot", () => {
+  it("detects higher confirmed load as progression", () => {
+    const intelligence = buildTrainerSessionIntelligence(draft(), draft({ exercises: [{ ...draft().exercises[0], load: 55 }] }));
+    expect(intelligence.headline).toContain("1 verified progression");
+    expect(intelligence.highlights[0]).toContain("55kg to 60kg");
+  });
+
+  it("detects more repetitions at the same load", () => {
+    const intelligence = buildTrainerSessionIntelligence(
+      draft({ exercises: [{ ...draft().exercises[0], reps: "10,10,10" }] }),
+      draft({ exercises: [{ ...draft().exercises[0], reps: "10,8,8" }] })
+    );
+    expect(intelligence.exerciseComparisons[0]).toMatchObject({ status: "progressed" });
+    expect(intelligence.highlights[0]).toContain("more total repetitions");
+  });
+
+  it("flags a reduced load for trainer context without calling it failure", () => {
+    const intelligence = buildTrainerSessionIntelligence(
+      draft({ exercises: [{ ...draft().exercises[0], load: 50 }] }),
+      draft({ exercises: [{ ...draft().exercises[0], load: 60 }] })
+    );
+    expect(intelligence.watchouts[0]).toContain("Check context");
+    expect(intelligence.clientCelebration).not.toMatch(/failed|worse|declined/i);
+  });
+
+  it("does not claim progress when details are not comparable", () => {
+    const intelligence = buildTrainerSessionIntelligence(
+      draft({ exercises: [{ ...draft().exercises[0], load: null, reps: null }] }),
+      draft({ exercises: [{ ...draft().exercises[0], load: null, reps: null }] })
+    );
+    expect(intelligence.exerciseComparisons[0].status).toBe("not_comparable");
+    expect(intelligence.headline).not.toContain("progression");
+  });
+
+  it("does not turn ambiguous rep ranges into false progression", () => {
+    const intelligence = buildTrainerSessionIntelligence(
+      draft({ exercises: [{ ...draft().exercises[0], load: null, reps: "10-12" }] }),
+      draft({ exercises: [{ ...draft().exercises[0], load: null, reps: "8-10" }] })
+    );
+    expect(intelligence.exerciseComparisons[0].status).toBe("not_comparable");
+    expect(intelligence.headline).not.toContain("progression");
+  });
+
+  it("keeps private planning and watchouts out of the client receipt", () => {
+    const workout = draft();
+    const intelligence = buildTrainerSessionIntelligence(workout, null);
+    intelligence.watchouts = ["Private load concern"];
+    const clientReceipt = toClientCoachedSession({
+      id: "session-1", clientId: "client-1", trainerId: "trainer-1", createdByUserId: "user-1",
+      trainerName: "Coach Sam", clientName: "Alex", status: "completed", startedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(), durationMinutes: 45, rawInput: "private raw notes", workoutDraft: workout,
+      narratives: { clientRecap: "Session complete.", betweenSessionFocus: "Hydrate.", trainerNextSessionNote: "Private trainer plan" },
+      intelligence, workoutEventId: "event-1", estimatedCaloriesBurned: 250, caloriesLabel: "Estimated Calories Burned",
+      version: 2, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    });
+    expect(clientReceipt).not.toHaveProperty("rawInput");
+    expect(clientReceipt).not.toHaveProperty("trainerNextSessionNote");
+    expect(clientReceipt).not.toHaveProperty("watchouts");
+    expect(JSON.stringify(clientReceipt)).not.toContain("Private load concern");
+    expect(JSON.stringify(clientReceipt)).not.toContain("Private trainer plan");
   });
 });
