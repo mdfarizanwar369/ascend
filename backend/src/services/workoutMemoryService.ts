@@ -1,3 +1,5 @@
+import { WORKOUT_PROGRESSION_VERSION, WorkoutProgressionSnapshot } from "@ascend/shared";
+
 type WorkoutEventRow = {
   metadata?: Record<string, unknown> | null;
   created_at?: string | Date;
@@ -31,6 +33,13 @@ export type WorkoutMemorySummary = {
     completionDate: string;
     focusArea: string;
   }>;
+  latestVerifiedProgression: {
+    workoutName: string;
+    completionDate: string;
+    status: WorkoutProgressionSnapshot["overallStatus"];
+    headline: string;
+    highlights: string[];
+  } | null;
   coachSummary: {
     lastWorkout: string | null;
     completed: string | null;
@@ -39,6 +48,7 @@ export type WorkoutMemorySummary = {
     currentStreak: number | null;
     momentum: number | null;
     todaysRecommendation: string;
+    latestProgression: string | null;
   };
 };
 
@@ -56,6 +66,18 @@ function parseNumber(value: unknown) {
 
 function parseText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function parseProgression(value: unknown): WorkoutProgressionSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const progression = value as Partial<WorkoutProgressionSnapshot>;
+  if (
+    progression.version !== WORKOUT_PROGRESSION_VERSION ||
+    progression.evidenceType !== "observed_performance" ||
+    typeof progression.headline !== "string" ||
+    !Array.isArray(progression.highlights)
+  ) return null;
+  return progression as WorkoutProgressionSnapshot;
 }
 
 function workoutTypeFromMetadata(metadata: Record<string, unknown>) {
@@ -127,6 +149,21 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
     .slice(0, 5);
 
   const latestWorkout = recentWorkouts[0] ?? null;
+  const latestVerifiedProgression = rows
+    .map((row) => {
+      const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+      const progression = parseProgression(metadata.progression);
+      if (!progression) return null;
+      const createdAt = row.created_at ? new Date(row.created_at) : new Date(now);
+      return {
+        workoutName: parseText(metadata.workoutTitle) ?? workoutTypeFromMetadata(metadata),
+        completionDate: Number.isNaN(createdAt.getTime()) ? todayKey : localDateKey(createdAt),
+        status: progression.overallStatus,
+        headline: progression.headline,
+        highlights: progression.highlights.slice(0, 2)
+      };
+    })
+    .find((progression): progression is NonNullable<typeof progression> => Boolean(progression)) ?? null;
   const recommendation = latestWorkout ? recommendationFromHistory(latestWorkout.focusArea, latestWorkout.completedToday) : "A simple full body or walking session";
   const continuity = latestWorkout ? continuityNote(latestWorkout.workoutName, latestWorkout.completedToday, latestWorkout.focusArea) : null;
 
@@ -140,6 +177,7 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       completionDate: workout.completionDate,
       focusArea: workout.focusArea
     })),
+    latestVerifiedProgression,
     coachSummary: {
       lastWorkout: latestWorkout?.workoutName ?? null,
       completed: latestWorkout ? (latestWorkout.completedToday ? "Today" : latestWorkout.completedYesterday ? "Yesterday" : latestWorkout.completionDate) : null,
@@ -147,7 +185,8 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       estimatedBurn: latestWorkout?.estimatedCaloriesBurned ? `${latestWorkout.estimatedCaloriesBurned} kcal` : null,
       currentStreak: options.currentStreak ?? null,
       momentum: options.currentMomentum ?? latestWorkout?.momentumEarned ?? null,
-      todaysRecommendation: recommendation
+      todaysRecommendation: recommendation,
+      latestProgression: latestVerifiedProgression?.highlights[0] ?? latestVerifiedProgression?.headline ?? null
     }
   };
 }

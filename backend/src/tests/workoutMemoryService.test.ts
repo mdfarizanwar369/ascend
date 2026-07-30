@@ -45,4 +45,47 @@ describe("Workout memory service", () => {
     expect(summary.recommendation).toContain("Upper body");
     expect(summary.continuityNote).toContain("lower body");
   });
+
+  it("exposes compact verified progression to Coach Zoe memory", () => {
+    const summary = buildWorkoutMemorySummary([
+      {
+        created_at: "2026-06-30T09:15:00+08:00",
+        metadata: {
+          workoutTitle: "Upper Body Strength",
+          workoutType: "Strength",
+          progression: {
+            version: "workout_progression_v1",
+            evidenceType: "observed_performance",
+            overallStatus: "progressed",
+            headline: "1 verified progression from your earlier workouts.",
+            highlights: ["Bench Press moved from 50kg to 55kg with comparable completed reps."],
+            changesToReview: [],
+            comparisons: [],
+            confidence: 0.95
+          }
+        }
+      }
+    ], { now: new Date("2026-06-30T18:00:00+08:00") });
+
+    expect(summary.latestVerifiedProgression).toMatchObject({
+      workoutName: "Upper Body Strength",
+      status: "progressed"
+    });
+    expect(summary.coachSummary.latestProgression).toContain("50kg to 55kg");
+  });
+
+  it("ignores malformed or unverified progression metadata", () => {
+    const summary = buildWorkoutMemorySummary([
+      {
+        created_at: "2026-06-30T09:15:00+08:00",
+        metadata: {
+          workoutTitle: "Simple Walk",
+          progression: { version: "unknown", headline: "Invented progress", highlights: [] }
+        }
+      }
+    ], { now: new Date("2026-06-30T18:00:00+08:00") });
+
+    expect(summary.latestVerifiedProgression).toBeNull();
+    expect(summary.coachSummary.latestProgression).toBeNull();
+  });
 });

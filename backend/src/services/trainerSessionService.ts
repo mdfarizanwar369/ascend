@@ -11,6 +11,7 @@ import {
 import { query } from "../db/pool";
 import { createWorkoutCaptureDraft } from "../integrations/openai";
 import { PersistedWorkoutCompletion, persistCompletedWorkout, resolveWorkoutWeightKg, createWorkoutCompletionSummary } from "./workoutCompletionService";
+import { buildWorkoutProgression, ProgressionWorkoutInput } from "./workoutProgressionEngine";
 
 type SessionRow = {
   id: string;
@@ -107,66 +108,46 @@ export function trainerSessionDraftText(draft: WorkoutCaptureDraft) {
 }
 
 function firstProgression(previous: WorkoutCaptureDraft | null, current: WorkoutCaptureDraft) {
-  if (!previous) return null;
-  for (const exercise of current.exercises) {
-    const earlier = previous.exercises.find((candidate) => candidate.name.toLowerCase() === exercise.name.toLowerCase());
-    if (!earlier || exercise.load === null || earlier.load === null || exercise.loadUnit !== earlier.loadUnit) continue;
-    if (exercise.load > earlier.load) {
-      return `${exercise.name} moved from ${earlier.load}${earlier.loadUnit ?? ""} to ${exercise.load}${exercise.loadUnit ?? ""}.`;
-    }
-  }
-  return null;
+  return progressionFromDrafts(current, previous)?.comparisons.find((comparison) => comparison.status === "progressed")?.summary ?? null;
 }
 
-function normalizedExerciseName(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function progressionWorkoutFromDraft(id: string, draft: WorkoutCaptureDraft): ProgressionWorkoutInput {
+  return {
+    id,
+    completedAt: new Date().toISOString(),
+    evidenceType: "observed_performance",
+    exercises: draft.exercises
+  };
 }
 
-function totalReps(value: string | null, sets: number | null) {
-  if (!value) return null;
-  if (/\d\s*(?:-|\u2013|\u2014|to)\s*\d/i.test(value)) return null;
-  const values = value.match(/\d+(?:\.\d+)?/g)?.map(Number).filter(Number.isFinite) ?? [];
-  if (!values.length) return null;
-  if (values.length > 1) return values.reduce((sum, current) => sum + current, 0);
-  return sets ? values[0] * sets : values[0];
-}
-
-function compareExercise(current: WorkoutCaptureDraft["exercises"][number], previous?: WorkoutCaptureDraft["exercises"][number]): TrainerExerciseComparison {
-  if (!previous) return { exerciseName: current.name, status: "new", summary: `${current.name} was added to this session.` };
-  const currentReps = totalReps(current.reps, current.sets);
-  const previousReps = totalReps(previous.reps, previous.sets);
-  const comparableLoad = current.load !== null && previous.load !== null && current.loadUnit === previous.loadUnit;
-  const unit = current.loadUnit ?? "";
-
-  if (comparableLoad && current.load! > previous.load!) {
-    return { exerciseName: current.name, status: "progressed", summary: `${current.name}: ${previous.load}${unit} to ${current.load}${unit}.` };
-  }
-  if (comparableLoad && current.load! < previous.load!) {
-    return { exerciseName: current.name, status: "reduced", summary: `${current.name}: load changed from ${previous.load}${unit} to ${current.load}${unit}.` };
-  }
-  if (comparableLoad && current.load === previous.load && currentReps !== null && previousReps !== null && currentReps > previousReps) {
-    return { exerciseName: current.name, status: "progressed", summary: `${current.name}: more total repetitions at ${current.load}${unit}.` };
-  }
-  if (comparableLoad && current.load === previous.load && currentReps !== null && previousReps !== null && currentReps < previousReps) {
-    return { exerciseName: current.name, status: "reduced", summary: `${current.name}: fewer total repetitions at ${current.load}${unit}.` };
-  }
-  if ((comparableLoad && current.load === previous.load) || (currentReps !== null && currentReps === previousReps)) {
-    return { exerciseName: current.name, status: "maintained", summary: `${current.name} was maintained from the previous session.` };
-  }
-  return { exerciseName: current.name, status: "not_comparable", summary: `${current.name} was recorded, but the previous details are not directly comparable.` };
+function progressionFromDrafts(current: WorkoutCaptureDraft, previous: WorkoutCaptureDraft | null) {
+  return buildWorkoutProgression(
+    progressionWorkoutFromDraft("current-session", current),
+    previous ? [progressionWorkoutFromDraft("previous-session", previous)] : []
+  );
 }
 
 export function buildTrainerSessionIntelligence(
   current: WorkoutCaptureDraft,
   previous: WorkoutCaptureDraft | null
 ): TrainerSessionIntelligence {
-  const previousByName = new Map((previous?.exercises ?? []).map((exercise) => [normalizedExerciseName(exercise.name), exercise]));
-  const exerciseComparisons = current.exercises.map((exercise) => compareExercise(exercise, previousByName.get(normalizedExerciseName(exercise.name))));
+  const progression = progressionFromDrafts(current, previous);
+  const exerciseComparisons: TrainerExerciseComparison[] = (progression?.comparisons ?? []).map((comparison) => ({
+    exerciseName: comparison.exerciseName,
+    status: comparison.status === "baseline"
+      ? "new"
+      : comparison.status === "changed" && (comparison.reason === "lower_load" || comparison.reason === "fewer_reps")
+        ? "reduced"
+        : comparison.status === "changed" || comparison.status === "not_comparable"
+          ? "not_comparable"
+          : comparison.status,
+    summary: comparison.summary
+  }));
   const progressed = exerciseComparisons.filter((comparison) => comparison.status === "progressed");
   const reduced = exerciseComparisons.filter((comparison) => comparison.status === "reduced");
   const maintained = exerciseComparisons.filter((comparison) => comparison.status === "maintained");
   const highlights = [
-    ...progressed.slice(0, 3).map((comparison) => comparison.summary),
+    ...(progression?.highlights ?? []).slice(0, 3),
     ...(!progressed.length && maintained.length ? [`${maintained.length} exercise${maintained.length === 1 ? "" : "s"} matched the previous session.`] : []),
     ...(!previous ? ["This creates a confirmed baseline for future coached sessions."] : [])
   ].slice(0, 3);

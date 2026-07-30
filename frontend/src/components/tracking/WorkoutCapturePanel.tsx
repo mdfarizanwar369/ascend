@@ -18,6 +18,7 @@ import type {
 } from "@ascend/shared";
 import { analyzeWorkoutCapture, getRecentDetailedWorkouts, saveCapturedWorkout } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
+import { workoutProgressionEnabled } from "@/lib/workoutProgressionFlag";
 
 type RecentWorkout = Awaited<ReturnType<typeof getRecentDetailedWorkouts>>["workouts"][number];
 type SavedSummary = NonNullable<Awaited<ReturnType<typeof saveCapturedWorkout>>["summary"]>;
@@ -239,6 +240,20 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           </div>
         </div>
         <p className="mt-4 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
+        {workoutProgressionEnabled() && savedSummary.progression ? (
+          <div className="mt-3 rounded-lg border border-purple-400/35 bg-purple-400/10 p-3">
+            <div className="flex items-center gap-2 text-purple-200">
+              <Sparkles size={17} aria-hidden="true" />
+              <p className="text-xs font-bold uppercase tracking-[0.14em]">
+                {savedSummary.progression.overallStatus === "progressed" ? "Progress detected" : "Performance saved"}
+              </p>
+            </div>
+            <p className="mt-2 text-sm font-semibold leading-6 text-white">{savedSummary.progression.headline}</p>
+            {savedSummary.progression.highlights[0] ? (
+              <p className="mt-1 text-sm leading-6 text-zinc-300">{savedSummary.progression.highlights[0]}</p>
+            ) : null}
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={resetCapture}

@@ -1,5 +1,12 @@
 import { query } from "../db/pool";
 import { createCoachPresenceForEvent } from "./coachPresenceService";
+import { WorkoutProgressionSnapshot } from "@ascend/shared";
+import { env } from "../config/env";
+import {
+  buildWorkoutProgression,
+  progressionWorkoutFromMetadata,
+  workoutEvidenceTypeForSource
+} from "./workoutProgressionEngine";
 
 type WorkoutExerciseInput = {
   name: string;
@@ -64,6 +71,7 @@ export type PersistedWorkoutCompletion = {
     caloriesLabel: string;
     coachMessage: string;
     momentumEarned: number;
+    progression: WorkoutProgressionSnapshot | null;
   };
 };
 
@@ -208,6 +216,10 @@ function buildCompletionResponseFromMetadata(metadata: Record<string, unknown>, 
   workoutType: string;
   workoutDifficulty: string;
 }): PersistedWorkoutCompletion["summary"] {
+  const progression = metadata.progression && typeof metadata.progression === "object"
+    && (metadata.progression as Record<string, unknown>).version === "workout_progression_v1"
+    ? metadata.progression as WorkoutProgressionSnapshot
+    : null;
   return {
     workoutTitle: String(metadata.workoutTitle ?? fallback.workoutTitle),
     durationMinutes: Number(metadata.durationMinutes ?? fallback.durationMinutes),
@@ -216,7 +228,8 @@ function buildCompletionResponseFromMetadata(metadata: Record<string, unknown>, 
     estimatedCaloriesBurned: Number(metadata.estimatedCaloriesBurned ?? metadata.caloriesBurned ?? 0),
     caloriesLabel: metadata.caloriesSource === "health_provider_actual" ? "Calories Burned" : "Estimated Calories Burned",
     coachMessage: String(metadata.coachMessage ?? "Great work staying active today."),
-    momentumEarned: Number(metadata.momentumEarned ?? 8)
+    momentumEarned: Number(metadata.momentumEarned ?? 8),
+    progression
   };
 }
 
@@ -265,6 +278,35 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
     weightKg,
     actualCaloriesBurned: input.healthProviderCaloriesBurned ?? null
   });
+  const evidenceType = workoutEvidenceTypeForSource(input.source);
+  let progression: WorkoutProgressionSnapshot | null = null;
+  if (env.WORKOUT_PROGRESSION_INTELLIGENCE_V1 && evidenceType === "observed_performance") {
+    const historyResult = await query<{
+      id: string;
+      metadata: Record<string, unknown> | null;
+      created_at: string;
+    }>(
+      `
+      select id, metadata, created_at
+      from analytics_events
+      where user_id = $1
+        and event_name = 'burn_log'
+        and jsonb_typeof(metadata->'exercises') = 'array'
+      order by created_at desc
+      limit 50
+      `,
+      [input.userId]
+    );
+    const history = historyResult.rows
+      .map((row) => progressionWorkoutFromMetadata({ id: row.id, metadata: row.metadata, createdAt: row.created_at }))
+      .filter((workout): workout is NonNullable<typeof workout> => Boolean(workout));
+    progression = buildWorkoutProgression({
+      id: input.workoutCompletionKey,
+      completedAt: input.completedAt ?? new Date().toISOString(),
+      evidenceType,
+      exercises: summary.exerciseList
+    }, history);
+  }
 
   const metadata: Record<string, unknown> = {
     activityType: summary.workoutType,
@@ -281,8 +323,10 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
     momentumEarned: 8,
     workoutCompletionKey: input.workoutCompletionKey,
     source: input.source,
+    evidenceType,
     weightKgUsed: summary.weightKgUsed,
     metValue: summary.metValue,
+    ...(progression ? { progression } : {}),
     ...(input.extraMetadata ?? {})
   };
 
@@ -311,7 +355,8 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
       estimatedCaloriesBurned: summary.estimatedCaloriesBurned,
       caloriesLabel: summary.caloriesSource === "health_provider_actual" ? "Calories Burned" : "Estimated Calories Burned",
       coachMessage: summary.coachMessage,
-      momentumEarned: 8
+      momentumEarned: 8,
+      progression
     }
   };
 }

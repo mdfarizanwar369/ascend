@@ -63,6 +63,7 @@ const schema = z.object({
   GMAIL_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   TRAINER_HOMEWORK_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  WORKOUT_PROGRESSION_INTELLIGENCE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   TRAINER_SESSION_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true")
 });
 

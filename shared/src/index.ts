@@ -13,6 +13,7 @@ export * from "./coachZoeProactive";
 export * from "./notificationEngine";
 export * from "./bodyScanImage";
 export * from "./workoutCapture";
+export * from "./workoutProgression";
 export * from "./trainerSession";
 
 export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {

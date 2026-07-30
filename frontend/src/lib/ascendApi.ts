@@ -13,7 +13,8 @@ import {
   TrainerSessionNarratives,
   TrainerSessionIntelligence,
   TrainerSessionStartMode,
-  WorkoutCaptureDraft
+  WorkoutCaptureDraft,
+  WorkoutProgressionSnapshot
 } from "@ascend/shared";
 import { api } from "./api";
 import { getFirebaseToken } from "./authToken";
@@ -751,6 +752,7 @@ export function saveCompletedWorkout(input: {
       caloriesLabel: string;
       coachMessage: string;
       momentumEarned: number;
+      progression: WorkoutProgressionSnapshot | null;
     };
   }>("/burn-logs/completed-workout", {
     method: "POST",
@@ -977,6 +979,7 @@ export function saveCapturedWorkout(input: {
       caloriesLabel: string;
       coachMessage: string;
       momentumEarned: number;
+      progression: WorkoutProgressionSnapshot | null;
     } | null;
   }>("/burn-logs/captured-workout", {
     method: "POST",
