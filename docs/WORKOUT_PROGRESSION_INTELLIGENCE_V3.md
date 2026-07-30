@@ -68,7 +68,7 @@ The member Detailed Workout UI remains separately controlled by the existing Wor
 
 ## Backfill and retry safety
 
-The first V3 workout lazily projects earlier eligible workouts when no observation history exists. A manual authenticated backfill endpoint is also available. Projection is idempotent.
+The first V3 workout lazily projects earlier eligible workouts when no observation history exists. A manual authenticated backfill endpoint is also available. Backfill uses a fixed three-query batch path rather than issuing queries per workout, and projection is idempotent.
 
 If the source workout saves but enrichment is interrupted, retrying the same completion key repairs missing V3 intelligence instead of creating a duplicate workout.
 

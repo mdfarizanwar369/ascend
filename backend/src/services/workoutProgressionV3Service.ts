@@ -47,6 +47,23 @@ export type HistoricalExerciseObservation = {
 
 type ExerciseAlias = { aliasKey: string; canonicalKey: string; relationship: "same" | "different" };
 
+type ProjectedExerciseObservation = {
+  sourceEventId: string;
+  sourceType: string;
+  position: number;
+  exerciseKey: string;
+  displayName: string;
+  sets: number | null;
+  repsText: string | null;
+  totalReps: number | null;
+  load: number | null;
+  loadUnit: "kg" | "lb" | null;
+  durationSeconds: number | null;
+  difficulty: string;
+  confidence: number;
+  completedAt: string;
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -354,12 +371,12 @@ export async function loadExerciseHistory(userId: string, exerciseKeys: string[]
   }));
 }
 
-export async function projectWorkoutExerciseObservations(workout: WorkoutObservation) {
-  if (workoutEvidenceTypeForSource(workout.sourceType) !== "observed_performance") return 0;
-  const aliases = await getAliases(workout.userId);
-  const observations = mergeWorkoutExercises(workout.exercises, aliases).map((exercise) => {
+function projectedObservations(workout: WorkoutObservation, aliases: ExerciseAlias[]): ProjectedExerciseObservation[] {
+  return mergeWorkoutExercises(workout.exercises, aliases).map((exercise) => {
     const values = performance(exercise);
     return {
+      sourceEventId: workout.sourceEventId,
+      sourceType: workout.sourceType,
       position: exercise.position,
       exerciseKey: exercise.exerciseKey,
       displayName: exercise.name.trim(),
@@ -369,25 +386,28 @@ export async function projectWorkoutExerciseObservations(workout: WorkoutObserva
       load: values.load,
       loadUnit: values.loadUnit,
       durationSeconds: parseDurationSeconds(exercise.duration),
-      confidence: clamp(finite(exercise.confidence) ?? 1, 0, 1)
+      difficulty: workout.difficulty,
+      confidence: clamp(finite(exercise.confidence) ?? 1, 0, 1),
+      completedAt: workout.completedAt
     };
   });
+}
+
+async function upsertProjectedObservations(userId: string, observations: ProjectedExerciseObservation[]) {
   if (!observations.length) return 0;
-  await query(
-    "delete from workout_exercise_observations where source_event_id = $1 and not (exercise_position = any($2::int[]))",
-    [workout.sourceEventId, observations.map((item) => item.position)]
-  );
   const result = await query(
     `
     insert into workout_exercise_observations (
       user_id, source_event_id, source_type, exercise_position, exercise_key, display_name,
       sets, reps_text, total_reps, load, load_unit, duration_seconds, difficulty, confidence, completed_at
     )
-    select $1, $2, $3, item.position, item.exercise_key, item.display_name, item.sets, item.reps_text,
-      item.total_reps, item.load, item.load_unit, item.duration_seconds, $4, item.confidence, $5
-    from jsonb_to_recordset($6::jsonb) as item(
-      position integer, exercise_key text, display_name text, sets integer, reps_text text,
-      total_reps numeric, load numeric, load_unit text, duration_seconds integer, confidence numeric
+    select $1, item.source_event_id, item.source_type, item.position, item.exercise_key, item.display_name,
+      item.sets, item.reps_text, item.total_reps, item.load, item.load_unit, item.duration_seconds,
+      item.difficulty, item.confidence, item.completed_at
+    from jsonb_to_recordset($2::jsonb) as item(
+      source_event_id uuid, source_type text, position integer, exercise_key text, display_name text,
+      sets integer, reps_text text, total_reps numeric, load numeric, load_unit text,
+      duration_seconds integer, difficulty text, confidence numeric, completed_at timestamptz
     )
     on conflict (source_event_id, exercise_position) do update set
       exercise_key = excluded.exercise_key, display_name = excluded.display_name, sets = excluded.sets,
@@ -395,7 +415,9 @@ export async function projectWorkoutExerciseObservations(workout: WorkoutObserva
       load_unit = excluded.load_unit, duration_seconds = excluded.duration_seconds,
       difficulty = excluded.difficulty, confidence = excluded.confidence, completed_at = excluded.completed_at
     `,
-    [workout.userId, workout.sourceEventId, workout.sourceType, workout.difficulty, workout.completedAt, JSON.stringify(observations.map((item) => ({
+    [userId, JSON.stringify(observations.map((item) => ({
+      source_event_id: item.sourceEventId,
+      source_type: item.sourceType,
       position: item.position,
       exercise_key: item.exerciseKey,
       display_name: item.displayName,
@@ -405,10 +427,24 @@ export async function projectWorkoutExerciseObservations(workout: WorkoutObserva
       load: item.load,
       load_unit: item.loadUnit,
       duration_seconds: item.durationSeconds,
-      confidence: item.confidence
+      difficulty: item.difficulty,
+      confidence: item.confidence,
+      completed_at: item.completedAt
     })))]
   );
   return result.rowCount ?? observations.length;
+}
+
+export async function projectWorkoutExerciseObservations(workout: WorkoutObservation) {
+  if (workoutEvidenceTypeForSource(workout.sourceType) !== "observed_performance") return 0;
+  const aliases = await getAliases(workout.userId);
+  const observations = projectedObservations(workout, aliases);
+  if (!observations.length) return 0;
+  await query(
+    "delete from workout_exercise_observations where source_event_id = $1 and not (exercise_position = any($2::int[]))",
+    [workout.sourceEventId, observations.map((item) => item.position)]
+  );
+  return upsertProjectedObservations(workout.userId, observations);
 }
 
 export async function buildPersistedWorkoutIntelligenceV3(workout: WorkoutObservation) {
@@ -473,11 +509,12 @@ export async function backfillWorkoutExerciseObservations(userId: string, limit 
      order by created_at desc limit $2`,
     [userId, clamp(Math.round(limit), 1, 2_000)]
   );
-  let projected = 0;
-  for (const row of result.rows) {
+  const aliases = await getAliases(userId);
+  const observations = result.rows.flatMap((row) => {
     const workout = metadataWorkout(row);
-    if (workout) projected += await projectWorkoutExerciseObservations(workout);
-  }
+    return workout ? projectedObservations(workout, aliases) : [];
+  });
+  const projected = await upsertProjectedObservations(userId, observations);
   return { workoutsScanned: result.rows.length, observationsProjected: projected };
 }
 
