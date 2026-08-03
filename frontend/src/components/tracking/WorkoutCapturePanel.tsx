@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   CheckCircle2,
   ChevronRight,
@@ -14,7 +15,8 @@ import { createRepeatWorkoutCaptureDraft } from "@ascend/shared";
 import type {
   WorkoutCaptureDifficulty,
   WorkoutCaptureDraft,
-  WorkoutCaptureExercise
+  WorkoutCaptureExercise,
+  WorkoutCaptureAllowance
 } from "@ascend/shared";
 import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
@@ -72,6 +74,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   const [completionKey, setCompletionKey] = useState<string | null>(null);
   const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([]);
   const [progressionHistory, setProgressionHistory] = useState<ProgressionHistoryItem[]>([]);
+  const [allowance, setAllowance] = useState<WorkoutCaptureAllowance | null>(null);
   const [isLoadingRecent, setIsLoadingRecent] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -88,7 +91,10 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     let mounted = true;
     getRecentDetailedWorkouts(3)
       .then((response) => {
-        if (mounted && response.enabled) setRecentWorkouts(response.workouts);
+        if (mounted && response.enabled) {
+          setRecentWorkouts(response.workouts);
+          setAllowance(response.allowance);
+        }
       })
       .catch(() => undefined)
       .finally(() => {
@@ -155,10 +161,11 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     try {
       const response = await analyzeWorkoutCapture({ text: workoutText, sourceMode: "text" });
       if (!response.enabled || !response.draft) {
-        setStatus("Detailed Workout is not enabled in this test build.");
+        setStatus("Detailed Workout is temporarily unavailable. Quick Activity is still ready to use.");
         return;
       }
       setDraft(response.draft);
+      setAllowance(response.allowance);
       setCompletionKey(newCompletionKey());
       setStatus("");
     } catch (error) {
@@ -224,11 +231,12 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         exercises: draft.exercises
       });
       if (!response.enabled || !response.burnLog || !response.summary) {
-        setStatus("Detailed Workout is not enabled in this test build.");
+        setStatus("Detailed Workout is temporarily unavailable. Quick Activity is still ready to use.");
         return;
       }
       onSaved(response.burnLog, response.summary.estimatedCaloriesBurned);
       setSavedSummary(response.summary);
+      setAllowance(response.allowance);
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Your workout was not saved. Please check your connection and try again.");
@@ -239,6 +247,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   }
 
   if (savedSummary) {
+    const freeLimitReached = allowance?.tier === "free" && allowance.remaining === 0;
     return (
       <section className="mt-4 rounded-lg border border-lime/40 bg-surface p-5" aria-live="polite">
         <div className="flex items-start gap-3">
@@ -287,18 +296,26 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
             ) : null}
           </div>
         ) : null}
-        <button
-          type="button"
-          onClick={resetCapture}
-          className="mt-4 flex h-12 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white active:scale-[0.99]"
-        >
-          Log another workout
-        </button>
+        {freeLimitReached ? (
+          <div className="mt-4 rounded-lg border border-calm/30 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">
+            <p>Your three free Detailed Workouts are saved. Quick Activity remains unlimited.</p>
+            <Link href="/subscription" className="mt-2 inline-flex font-semibold text-calm">Explore unlimited workouts</Link>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={resetCapture}
+            className="mt-4 flex h-12 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white active:scale-[0.99]"
+          >
+            Log another workout
+          </button>
+        )}
       </section>
     );
   }
 
   if (!draft) {
+    const freeLimitReached = allowance?.tier === "free" && allowance.remaining === 0;
     return (
       <section className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
         <div className="flex items-start gap-3">
@@ -310,6 +327,15 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
             <p className="mt-1 text-sm leading-6 text-zinc-400">Type, paste, or use your keyboard microphone. Short notes are enough.</p>
           </div>
         </div>
+
+        {allowance ? (
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-ink px-3 py-2 text-sm">
+            <span className="text-zinc-400">Your access</span>
+            <span className="font-semibold text-white">
+              {allowance.tier === "premium" ? "Unlimited Detailed Workouts" : `${allowance.remaining} of ${allowance.limit} available now`}
+            </span>
+          </div>
+        ) : null}
 
         <div>
           <label htmlFor="workout-capture-text" className="text-sm font-medium text-zinc-200">What did you do?</label>
@@ -328,12 +354,19 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           <p className="mt-2 text-xs leading-5 text-zinc-500">Ascend creates a review first. Nothing is saved automatically.</p>
         </div>
 
+        {freeLimitReached ? (
+          <div className="rounded-lg border border-calm/30 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">
+            <p>You&apos;ve saved three Detailed Workouts in the last seven days. Quick Activity remains unlimited.</p>
+            <Link href="/subscription" className="mt-2 inline-flex font-semibold text-calm">Explore unlimited workouts</Link>
+          </div>
+        ) : null}
+
         {status ? <p className="rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300" role="status">{status}</p> : null}
 
         <button
           type="button"
           onClick={analyze}
-          disabled={isAnalyzing || workoutText.trim().length < 2}
+          disabled={isAnalyzing || workoutText.trim().length < 2 || freeLimitReached}
           className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]"
         >
           <Sparkles className="mr-2" size={18} />
@@ -349,7 +382,8 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
                   key={workout.id}
                   type="button"
                   onClick={() => chooseRecentWorkout(workout)}
-                  className="flex min-h-12 w-full items-center justify-between rounded-lg border border-line bg-ink px-3 py-2 text-left active:scale-[0.99]"
+                  disabled={freeLimitReached}
+                  className="flex min-h-12 w-full items-center justify-between rounded-lg border border-line bg-ink px-3 py-2 text-left active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>
                     <span className="block font-medium text-white">{metadataText(workout.metadata.workoutTitle) ?? "Saved workout"}</span>

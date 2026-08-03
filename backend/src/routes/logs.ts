@@ -13,7 +13,7 @@ import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncSta
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
 import { env } from "../config/env";
-import { canUseWorkoutCapture } from "../services/workoutCaptureAccess";
+import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import {
   backfillWorkoutExerciseObservations,
   getWorkoutProgressionHistory,
@@ -406,11 +406,25 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
 
 logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, next) => {
   try {
-    if (!canUseWorkoutCapture(env.WORKOUT_CAPTURE_V1, req.user!.isPlatformOwner)) {
-      return res.json({ enabled: false, burnLog: null, summary: null });
-    }
-
     const input = capturedWorkoutSchema.parse(req.body);
+    const access = await getWorkoutCaptureAccess({
+      featureEnabled: env.WORKOUT_CAPTURE_V1,
+      userId: req.user!.id,
+      primaryRole: req.user!.primaryRole,
+      roles: req.user!.roles,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      workoutCompletionKey: input.workoutCompletionKey
+    });
+    if (!access.enabled) {
+      return res.json({ enabled: false, burnLog: null, summary: null, allowance: null });
+    }
+    if (!access.canCapture) {
+      return res.status(429).json({
+        error: "You've used your three free Detailed Workouts in the last seven days. Quick Activity is still unlimited, or upgrade for unlimited Detailed Workouts.",
+        code: "WORKOUT_CAPTURE_LIMIT_REACHED",
+        allowance: access.allowance
+      });
+    }
     const result = await persistCompletedWorkout({
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,
@@ -443,7 +457,14 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       }
     });
 
-    res.status(201).json({ enabled: true, ...result });
+    const refreshedAccess = await getWorkoutCaptureAccess({
+      featureEnabled: env.WORKOUT_CAPTURE_V1,
+      userId: req.user!.id,
+      primaryRole: req.user!.primaryRole,
+      roles: req.user!.roles,
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+    res.status(201).json({ enabled: true, ...result, allowance: refreshedAccess.allowance });
   } catch (error) {
     next(error);
   }
@@ -451,8 +472,15 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
 
 logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next) => {
   try {
-    if (!canUseWorkoutCapture(env.WORKOUT_CAPTURE_V1, req.user!.isPlatformOwner)) {
-      return res.json({ enabled: false, workouts: [] });
+    const access = await getWorkoutCaptureAccess({
+      featureEnabled: env.WORKOUT_CAPTURE_V1,
+      userId: req.user!.id,
+      primaryRole: req.user!.primaryRole,
+      roles: req.user!.roles,
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+    if (!access.enabled) {
+      return res.json({ enabled: false, workouts: [], allowance: null });
     }
 
     const limit = z.coerce.number().int().min(1).max(10).default(5).parse(req.query.limit);
@@ -468,7 +496,7 @@ logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next)
       `,
       [req.user!.id, limit]
     );
-    res.json({ enabled: true, workouts: result.rows });
+    res.json({ enabled: true, workouts: result.rows, allowance: access.allowance });
   } catch (error) {
     next(error);
   }

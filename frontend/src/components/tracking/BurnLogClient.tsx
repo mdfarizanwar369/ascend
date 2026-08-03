@@ -44,7 +44,7 @@ export function BurnLogClient() {
   const coachedSessionsEnabled = trainerSessionCaptureEnabled();
   const homeworkFeatureEnabled = trainerHomeworkEnabled();
   const captureFeatureEnabled = workoutCaptureEnabled();
-  const [canUseDetailedCapture, setCanUseDetailedCapture] = useState(false);
+  const canUseDetailedCapture = captureFeatureEnabled;
   const [loggingMode, setLoggingMode] = useState<"quick" | "detailed">("quick");
   const [detailedBusy, setDetailedBusy] = useState(false);
   const [activityType, setActivityType] = useState("Strength training");
@@ -154,19 +154,17 @@ export function BurnLogClient() {
           subscriptionResponse.subscription.current_period_end
         );
         setCanUseAiEstimate(plan === "premium" || plan === "trainer_pro" || meResponse.roles.includes("admin") || meResponse.roles.includes("owner"));
-        setCanUseDetailedCapture(captureFeatureEnabled && meResponse.user.is_platform_owner === true);
       })
       .catch(() => {
         if (isMounted) {
           setCanUseAiEstimate(false);
-          setCanUseDetailedCapture(false);
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [captureFeatureEnabled]);
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

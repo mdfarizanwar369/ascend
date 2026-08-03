@@ -56,9 +56,18 @@ export type WorkoutCaptureDraft = {
   requiresReview: true;
 };
 
+export type WorkoutCaptureAllowance = {
+  tier: "free" | "premium";
+  period: "rolling_7_days" | "unlimited";
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+};
+
 export type WorkoutCaptureAnalysisResponse = {
   enabled: boolean;
   draft: WorkoutCaptureDraft | null;
+  allowance: WorkoutCaptureAllowance | null;
 };
 
 function metadataText(value: unknown) {

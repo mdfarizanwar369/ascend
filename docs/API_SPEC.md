@@ -131,9 +131,11 @@ Trainer body-composition endpoints are read-only except for manual coach entry. 
 
 Requires `x-cron-secret: <CRON_SECRET>` or `?secret=<CRON_SECRET>`. Runs daily compliance scoring and risk-alert generation.
 
-## Workout Capture V1 (private pilot)
+## Workout Capture V1
 
 These authenticated endpoints return empty disabled responses unless `WORKOUT_CAPTURE_V1=true`. The frontend entry point remains hidden unless `NEXT_PUBLIC_WORKOUT_CAPTURE_V1=true`.
+
+Free members can confirm up to three Detailed Workouts in a rolling seven-day period. Premium, Trainer Pro, Admin, and Owner accounts have unlimited access. The backend enforces the allowance for both AI analysis and confirmed saves; Quick Activity remains unlimited.
 
 - `POST /ai/workout-capture` converts text or device-dictated text into a review-only draft. It never saves automatically.
 - `POST /burn-logs/captured-workout` requires `userConfirmed: true` and a UUID completion key, then reuses the existing completed-workout persistence and calorie estimation.

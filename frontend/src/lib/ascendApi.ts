@@ -5,6 +5,7 @@ import {
   NutritionTargetInput,
   SubscriptionPlan,
   WorkoutCaptureAnalysisResponse,
+  WorkoutCaptureAllowance,
   WorkoutCaptureDifficulty,
   WorkoutCaptureExercise,
   WorkoutCaptureSourceMode,
@@ -972,6 +973,7 @@ export function saveCapturedWorkout(input: {
   invalidateCached("athlete:");
   return authed<{
     enabled: boolean;
+    allowance: WorkoutCaptureAllowance | null;
     burnLog: { id: string; metadata: Record<string, unknown>; created_at: string } | null;
     summary: {
       workoutTitle: string;
@@ -994,6 +996,7 @@ export function saveCapturedWorkout(input: {
 export function getRecentDetailedWorkouts(limit = 5) {
   return authed<{
     enabled: boolean;
+    allowance: WorkoutCaptureAllowance | null;
     workouts: Array<{ id: string; metadata: Record<string, unknown>; created_at: string }>;
   }>(`/burn-logs/detailed/recent?limit=${Math.min(10, Math.max(1, Math.round(limit)))}`);
 }

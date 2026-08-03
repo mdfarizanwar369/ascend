@@ -54,7 +54,7 @@ Exercise names remain member-friendly. Recent confirmed names are supplied to th
 - Backend: `WORKOUT_CAPTURE_V1=false`
 - Frontend: `NEXT_PUBLIC_WORKOUT_CAPTURE_V1=false`
 
-Both remain off by default. During the private pilot, all three backend endpoints also require the authenticated platform-owner identity. Other accounts receive valid disabled responses, so accidental calls cannot affect normal Movement logging.
+Both remain off by default. When enabled, authenticated Free members receive three confirmed Detailed Workouts per rolling seven days. Premium, Trainer Pro, Admin, and Owner accounts receive unlimited access. The backend enforces access before AI analysis and before saving, while idempotent retries of an existing completion key remain valid. Quick Activity is unaffected and remains unlimited.
 
 ## Reliability and safety
 

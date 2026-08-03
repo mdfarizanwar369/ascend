@@ -10,7 +10,7 @@ import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
-import { canUseWorkoutCapture } from "../services/workoutCaptureAccess";
+import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 
 export const aiRouter = Router();
 
@@ -634,8 +634,22 @@ aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), ai
 
 aiRouter.post("/ai/workout-capture", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
-    if (!canUseWorkoutCapture(env.WORKOUT_CAPTURE_V1, req.user!.isPlatformOwner)) {
-      return res.json({ enabled: false, draft: null });
+    const access = await getWorkoutCaptureAccess({
+      featureEnabled: env.WORKOUT_CAPTURE_V1,
+      userId: req.user!.id,
+      primaryRole: req.user!.primaryRole,
+      roles: req.user!.roles,
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+    if (!access.enabled) {
+      return res.json({ enabled: false, draft: null, allowance: null });
+    }
+    if (!access.canCapture) {
+      return res.status(429).json({
+        error: "You've used your three free Detailed Workouts in the last seven days. Quick Activity is still unlimited, or upgrade for unlimited Detailed Workouts.",
+        code: "WORKOUT_CAPTURE_LIMIT_REACHED",
+        allowance: access.allowance
+      });
     }
 
     const input = workoutCaptureSchema.parse(req.body);
@@ -665,7 +679,7 @@ aiRouter.post("/ai/workout-capture", requireAuth, aiRateLimit, async (req, res, 
       gymId: req.user!.gymId
     });
 
-    res.json({ enabled: true, draft });
+    res.json({ enabled: true, draft, allowance: access.allowance });
   } catch (error) {
     next(error);
   }
