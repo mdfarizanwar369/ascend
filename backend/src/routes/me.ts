@@ -12,6 +12,7 @@ import { imageDataUrlSchema, parseImageDataUrl } from "../utils/images";
 import { withProfilePhotoUrl } from "../services/profilePhotoService";
 import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "../services/bodyCompositionService";
 import { submitSelfAccountDeletion } from "../services/accountDeletionService";
+import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNutritionPreference } from "../services/nutritionTargetService";
 
 export const meRouter = Router();
 
@@ -132,6 +133,23 @@ meRouter.patch("/me/guide-profile", requireAuth, async (req, res, next) => {
     const input = guideProfileSchema.parse(req.body);
     const user = await updateGuideProfile(req.user!.id, input);
     res.json({ user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.get("/me/nutrition-targets", requireAuth, async (req, res, next) => {
+  try {
+    res.json({ targets: await resolveNutritionTargets(req.user!.id) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.put("/me/nutrition-targets", requireAuth, async (req, res, next) => {
+  try {
+    const input = memberNutritionPreferenceSchema.parse(req.body);
+    res.json({ targets: await saveMemberNutritionPreference(req.user!.id, input) });
   } catch (error) {
     next(error);
   }

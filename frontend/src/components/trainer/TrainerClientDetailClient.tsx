@@ -381,6 +381,10 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         : "moderate",
     bodyComposition: client?.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
+  const effectiveCalorieTarget = client?.nutrition_targets?.calories ?? nutritionTargets.calorieTarget;
+  const effectiveProteinTarget = client?.nutrition_targets?.proteinG ?? nutritionTargets.proteinTargetG;
+  const effectiveCarbsTarget = client?.nutrition_targets?.carbsG ?? nutritionTargets.carbsTargetG;
+  const effectiveFatTarget = client?.nutrition_targets?.fatG ?? nutritionTargets.fatTargetG;
 
   const timelineGroups = useMemo(() => buildCoachingTimelineGroups({
     foodLogs,
@@ -393,11 +397,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     previousWeight,
     weightDelta,
     goalType: client?.goal_type,
-    proteinTargetG: nutritionTargets.proteinTargetG
-  }, { maxDays: 3, maxItemsPerDay: 4 }), [burnLogs, client?.goal_type, coachPresence.history, foodLogs, latestWeight, missions, nutritionTargets.proteinTargetG, previousWeight, waterLogs, weeklyReport, weightDelta]);
+    proteinTargetG: effectiveProteinTarget
+  }, { maxDays: 3, maxItemsPerDay: 4 }), [burnLogs, client?.goal_type, coachPresence.history, effectiveProteinTarget, foodLogs, latestWeight, missions, previousWeight, waterLogs, weeklyReport, weightDelta]);
 
   const suggestedDiscussion = useMemo(() => {
-    if (todaysWorkout && todaysNutrition.proteinG < nutritionTargets.proteinTargetG * 0.6) {
+    if (todaysWorkout && todaysNutrition.proteinG < effectiveProteinTarget * 0.6) {
       return "Review recovery from today's workout and agree on one high-protein meal.";
     }
     if ((score ?? 100) < 50) return "Keep the next conversation simple: one supportive check-in and one achievable action.";
@@ -405,16 +409,16 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     if (weightDelta > 0.5 && client?.goal_type === "fat_loss") return "Review the weight trend and compare it with recent food consistency.";
     if (todaysWorkout) return "Celebrate the completed workout, then align recovery, water, and protein.";
     return "Reinforce the strongest consistent behaviour and choose one focus for the next session.";
-  }, [client?.goal_type, nutritionTargets.proteinTargetG, score, todaysFood.length, todaysNutrition.proteinG, todaysWorkout, weightDelta]);
+  }, [client?.goal_type, effectiveProteinTarget, score, todaysFood.length, todaysNutrition.proteinG, todaysWorkout, weightDelta]);
 
   useEffect(() => {
     if (coachNutritionPlan) return;
     if (nutritionCalories || nutritionProtein || nutritionCarbs || nutritionFat) return;
-    setNutritionCalories(String(nutritionTargets.calorieTarget));
-    setNutritionProtein(String(nutritionTargets.proteinTargetG));
-    setNutritionCarbs(String(nutritionTargets.carbsTargetG));
-    setNutritionFat(String(nutritionTargets.fatTargetG));
-  }, [coachNutritionPlan, nutritionCalories, nutritionProtein, nutritionCarbs, nutritionFat, nutritionTargets]);
+    setNutritionCalories(String(effectiveCalorieTarget));
+    setNutritionProtein(String(effectiveProteinTarget));
+    setNutritionCarbs(String(effectiveCarbsTarget));
+    setNutritionFat(String(effectiveFatTarget));
+  }, [coachNutritionPlan, effectiveCalorieTarget, effectiveCarbsTarget, effectiveFatTarget, effectiveProteinTarget, nutritionCalories, nutritionProtein, nutritionCarbs, nutritionFat]);
 
   async function generateCheckin() {
     setIsGenerating(true);
@@ -693,10 +697,10 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <SectionCard eyebrow="Nutrition Snapshot" title="Today's intake" action={<Utensils className="text-lime" size={22} />}>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <MetricTile label="Calories" value={todaysNutrition.calories.toLocaleString()} detail={`${nutritionTargets.calorieTarget.toLocaleString()} kcal guide`} />
-            <MetricTile label="Protein" value={`${Math.round(todaysNutrition.proteinG)}g`} detail={`${nutritionTargets.proteinTargetG}g guide`} />
-            <MetricTile label="Carbs" value={`${Math.round(todaysNutrition.carbsG)}g`} detail={`${nutritionTargets.carbsTargetG}g guide`} />
-            <MetricTile label="Fat" value={`${Math.round(todaysNutrition.fatG)}g`} detail={`${nutritionTargets.fatTargetG}g guide`} />
+            <MetricTile label="Calories" value={todaysNutrition.calories.toLocaleString()} detail={`${effectiveCalorieTarget.toLocaleString()} kcal guide`} />
+            <MetricTile label="Protein" value={`${Math.round(todaysNutrition.proteinG)}g`} detail={`${effectiveProteinTarget}g guide`} />
+            <MetricTile label="Carbs" value={`${Math.round(todaysNutrition.carbsG)}g`} detail={`${effectiveCarbsTarget}g guide`} />
+            <MetricTile label="Fat" value={`${Math.round(todaysNutrition.fatG)}g`} detail={`${effectiveFatTarget}g guide`} />
             <MetricTile label="Water" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail="2.5L target" />
             <MetricTile label="Meals" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No meals today"} />
           </div>
@@ -884,7 +888,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         <div className="mt-3 rounded-2xl border border-line bg-ink p-3">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Ascend recommendation</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            {nutritionTargets.calorieTarget.toLocaleString()} kcal / Protein {nutritionTargets.proteinTargetG}g / Carbs {nutritionTargets.carbsTargetG}g / Fat {nutritionTargets.fatTargetG}g
+            {effectiveCalorieTarget.toLocaleString()} kcal / Protein {effectiveProteinTarget}g / Carbs {effectiveCarbsTarget}g / Fat {effectiveFatTarget}g
           </p>
         </div>
         <form onSubmit={handleSaveNutritionPlan} className="mt-4 space-y-3">

@@ -240,6 +240,7 @@ export function updateGuideProfile(input: {
   targetWeightKg?: number | null;
 }) {
   invalidateCached("me:");
+  invalidateCached("nutrition:");
   return authed("/me/guide-profile", {
     method: "PATCH",
     body: JSON.stringify(input)
@@ -382,6 +383,7 @@ export function saveWeightLog(input: { weightKg: number; loggedAt?: string }) {
   invalidateCached("memory:");
   invalidateCached("coach:");
   invalidateCached("athlete:");
+  invalidateCached("nutrition:");
   return authed<{
     weightLog: {
       id: string;
@@ -1082,6 +1084,44 @@ export type CoachNutritionPlan = {
   updated_by_name?: string | null;
 };
 
+export type ResolvedNutritionTargets = {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  waterMl: number;
+  source: "coach_plan" | "member_custom" | "body_scan" | "ascend_recommendation";
+  sourceLabel: string;
+  explanation: string;
+  updatedAt: string | null;
+  editableByMember: boolean;
+  memberPreferenceMode: "ascend" | "custom";
+  savedMemberTargets: {
+    calories: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+  } | null;
+};
+
+export function getMyNutritionTargets() {
+  return authedCached<{ targets: ResolvedNutritionTargets }>("nutrition:targets", "/me/nutrition-targets", 15_000);
+}
+
+export function saveMyNutritionTargets(input: {
+  mode: "ascend" | "custom";
+  calories?: number;
+  proteinG?: number;
+  carbsG?: number;
+  fatG?: number;
+}) {
+  invalidateCached("nutrition:");
+  return authed<{ targets: ResolvedNutritionTargets }>("/me/nutrition-targets", {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+}
+
 export function getMyNutritionPlan() {
   return authed<{ coachPlan: CoachNutritionPlan | null }>("/me/nutrition-plan");
 }
@@ -1597,6 +1637,7 @@ export function getTrainerClient(clientId: string) {
       profile_photo_url?: string | null;
       athlete_mode_enabled?: boolean;
       body_composition_nutrition?: BodyCompositionNutrition | null;
+      nutrition_targets?: ResolvedNutritionTargets;
     };
   }>(`/trainer/clients/${clientId}`);
 }
@@ -2298,14 +2339,15 @@ export function saveBodyCompositionScan(scan: BodyCompositionScan) {
   invalidateCached("athlete:");
   invalidateCached("me:");
   invalidateCached("trainer:");
-  return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>("/athlete/body-composition/scans", {
+  invalidateCached("nutrition:");
+  return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary; nutritionTargets: ResolvedNutritionTargets }>("/athlete/body-composition/scans", {
     method: "POST",
     body: JSON.stringify(scan)
   });
 }
 
 export function getBodyCompositionSummary() {
-  return authedCached<{ summary: BodyCompositionSummary }>("athlete:body-composition:summary", "/athlete/body-composition/summary", 20_000);
+  return authedCached<{ summary: BodyCompositionSummary; nutritionTargets: ResolvedNutritionTargets }>("athlete:body-composition:summary", "/athlete/body-composition/summary", 20_000);
 }
 
 export function getBodyCompositionScans() {
@@ -2313,14 +2355,15 @@ export function getBodyCompositionScans() {
 }
 
 export function getTrainerBodyComposition(clientId: string) {
-  return authed<{ summary: BodyCompositionSummary; scans: BodyCompositionScan[] }>(`/trainer/clients/${clientId}/body-composition`);
+  return authed<{ summary: BodyCompositionSummary; scans: BodyCompositionScan[]; nutritionTargets: ResolvedNutritionTargets }>(`/trainer/clients/${clientId}/body-composition`);
 }
 
 export function saveTrainerBodyCompositionScan(clientId: string, scan: BodyCompositionScan) {
   if (bodyCompositionSaveDebugEnabled()) console.info("[body-composition-save] Entering saveTrainerBodyCompositionScan()", { clientId, scan });
   invalidateCached("trainer:");
   invalidateCached("athlete:");
-  return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary }>(`/trainer/clients/${clientId}/body-composition/scans`, {
+  invalidateCached("nutrition:");
+  return authed<{ scan: BodyCompositionScan; summary: BodyCompositionSummary; nutritionTargets: ResolvedNutritionTargets }>(`/trainer/clients/${clientId}/body-composition/scans`, {
     method: "POST",
     body: JSON.stringify(scan)
   });

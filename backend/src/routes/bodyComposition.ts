@@ -9,6 +9,7 @@ import { extractBodyCompositionFromImages } from "../integrations/openai";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { canManageClient } from "../services/clientAccessService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
+import { resolveNutritionTargets } from "../services/nutritionTargetService";
 import {
   BodyCompositionScan,
   BodyCompositionScanInput,
@@ -274,7 +275,11 @@ bodyCompositionRouter.post("/athlete/body-composition/scans", (req, _res, next) 
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
     const scan = await saveScan(req.user!.id, req.user!.id, req.body);
     void createCoachPresenceForEvent(req.user!.id, "body_scan").catch(() => undefined);
-    res.status(201).json({ scan, summary: await summaryFor(req.user!.id) });
+    const [summary, nutritionTargets] = await Promise.all([
+      summaryFor(req.user!.id),
+      resolveNutritionTargets(req.user!.id)
+    ]);
+    res.status(201).json({ scan, summary, nutritionTargets });
   } catch (error) {
     next(error);
   }
@@ -292,7 +297,11 @@ bodyCompositionRouter.get("/athlete/body-composition/scans", requireAuth, async 
 bodyCompositionRouter.get("/athlete/body-composition/summary", requireAuth, async (req, res, next) => {
   try {
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
-    res.json({ summary: await summaryFor(req.user!.id) });
+    const [summary, nutritionTargets] = await Promise.all([
+      summaryFor(req.user!.id),
+      resolveNutritionTargets(req.user!.id)
+    ]);
+    res.json({ summary, nutritionTargets });
   } catch (error) {
     next(error);
   }
@@ -302,7 +311,12 @@ bodyCompositionRouter.get("/trainer/clients/:clientId/body-composition", require
   try {
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     if (!await requireEnabledAthlete(req.params.clientId)) return res.status(404).json({ error: "Athlete Mode is not enabled for this client." });
-    res.json({ summary: await summaryFor(req.params.clientId), scans: await getScans(req.params.clientId, Number(req.query.limit ?? 50), Number(req.query.offset ?? 0)) });
+    const [summary, scans, nutritionTargets] = await Promise.all([
+      summaryFor(req.params.clientId),
+      getScans(req.params.clientId, Number(req.query.limit ?? 50), Number(req.query.offset ?? 0)),
+      resolveNutritionTargets(req.params.clientId)
+    ]);
+    res.json({ summary, scans, nutritionTargets });
   } catch (error) {
     next(error);
   }
@@ -328,7 +342,11 @@ bodyCompositionRouter.post("/trainer/clients/:clientId/body-composition/scans", 
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     if (!await requireEnabledAthlete(req.params.clientId)) return res.status(404).json({ error: "Athlete Mode is not enabled for this client." });
     const scan = await saveScan(req.params.clientId, req.user!.id, { ...req.body, importSource: "manual_entry" });
-    res.status(201).json({ scan, summary: await summaryFor(req.params.clientId) });
+    const [summary, nutritionTargets] = await Promise.all([
+      summaryFor(req.params.clientId),
+      resolveNutritionTargets(req.params.clientId)
+    ]);
+    res.status(201).json({ scan, summary, nutritionTargets });
   } catch (error) {
     next(error);
   }

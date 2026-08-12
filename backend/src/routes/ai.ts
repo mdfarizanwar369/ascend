@@ -11,6 +11,7 @@ import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
+import { resolveNutritionTargets } from "../services/nutritionTargetService";
 
 export const aiRouter = Router();
 
@@ -277,7 +278,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
     }
 
     const analysisWindowDays = coachAccess.premiumDepth ? 30 : 7;
-    const [contextResult, recentFoodResult, foodWindowResult, recentBurnResult, burnWindowResult, athleteResult, bodyScanResult, bodyScanHistoryResult, recentMessagesResult, healthSyncSummary, momentumResult, waterWindowResult, weightWindowResult, habitWindowResult, weeklyReportResult, recognitionResult, longTermFoodResult, longTermWaterResult, longTermWeightResult, longTermHabitResult, longTermBurnResult] = await Promise.all([
+    const [contextResult, recentFoodResult, foodWindowResult, recentBurnResult, burnWindowResult, athleteResult, bodyScanResult, bodyScanHistoryResult, recentMessagesResult, healthSyncSummary, momentumResult, waterWindowResult, weightWindowResult, habitWindowResult, weeklyReportResult, recognitionResult, longTermFoodResult, longTermWaterResult, longTermWeightResult, longTermHabitResult, longTermBurnResult, resolvedNutritionTargets] = await Promise.all([
       query<{ metadata: Record<string, unknown> | null; created_at: string }>(
         `
         select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
@@ -489,7 +490,8 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
             `,
             [req.user!.id]
           )
-        : Promise.resolve({ rows: [] })
+        : Promise.resolve({ rows: [] }),
+      resolveNutritionTargets(req.user!.id)
     ]);
     const foodWindow = summarizeFoodRows(foodWindowResult.rows);
     const waterWindow = summarizeWaterRows(waterWindowResult.rows);
@@ -550,6 +552,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
         askZoeDailyRemaining: coachAccess.dailyAskZoeRemaining
       },
       profile: contextResult.rows[0] ?? {},
+      nutritionTargets: resolvedNutritionTargets,
       recentFoodLogs: recentFoodResult.rows,
       recentWorkouts: recentBurnResult.rows,
       workoutMemory,

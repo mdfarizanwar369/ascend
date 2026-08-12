@@ -133,6 +133,13 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
         : "moderate",
     bodyComposition: client?.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   }, weights.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at }))), [client, weights]);
+  const effectiveTargets = useMemo(() => ({
+    ...targets,
+    calorieTarget: client?.nutrition_targets?.calories ?? targets.calorieTarget,
+    proteinTargetG: client?.nutrition_targets?.proteinG ?? targets.proteinTargetG,
+    carbsTargetG: client?.nutrition_targets?.carbsG ?? targets.carbsTargetG,
+    fatTargetG: client?.nutrition_targets?.fatG ?? targets.fatTargetG
+  }), [client?.nutrition_targets, targets]);
 
   useEffect(() => {
     let isMounted = true;
@@ -192,16 +199,16 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
     return visibleKeys.map((dateKey) => {
       const logs = [...(map.get(dateKey) ?? [])].sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime());
       const totals = summarizeLogs(logs);
-      const status = complianceStatus(logs, totals, targets);
+      const status = complianceStatus(logs, totals, effectiveTargets);
       return {
         dateKey,
         logs,
         totals,
         status,
-        insights: coachingInsights(logs, totals, targets)
+        insights: coachingInsights(logs, totals, effectiveTargets)
       };
     });
-  }, [foodLogs, order, range, targets]);
+  }, [effectiveTargets, foodLogs, order, range]);
 
   if (isInitialLoading) {
     return (

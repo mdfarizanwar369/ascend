@@ -1,7 +1,8 @@
-import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, NotificationCandidate, NotificationEngine } from "@ascend/shared";
+import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, NotificationCandidate, NotificationEngine } from "@ascend/shared";
 import { query } from "../db/pool";
 import { getFirebaseMessaging } from "../integrations/firebase";
 import { getHealthSyncSummary } from "./healthSyncService";
+import { resolveNutritionTargets } from "./nutritionTargetService";
 
 type Platform = "android" | "ios" | "desktop" | "web";
 
@@ -251,7 +252,7 @@ async function getCurrentStreak(userId: string) {
 }
 
 async function buildProactiveInsightForUser(userId: string, todayKey: string) {
-  const [profileResult, recentFood, recentWater, recentBurns, recentWeights, momentumResult, healthSyncSummary, currentStreakResult, memoryResult] = await Promise.all([
+  const [profileResult, recentFood, recentWater, recentBurns, recentWeights, momentumResult, healthSyncSummary, currentStreakResult, memoryResult, nutritionTargets] = await Promise.all([
     query<{
       goal_type: "fat_loss" | "muscle_gain" | "maintenance" | null;
       gender: "female" | "male" | "prefer_not_to_say" | null;
@@ -334,14 +335,15 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
       limit 1
       `,
       [userId]
-    ).catch(() => ({ rows: [] as Array<{ title: string }> }))
+    ).catch(() => ({ rows: [] as Array<{ title: string }> })),
+    resolveNutritionTargets(userId)
   ]);
 
   const foodByDate = new Map(recentFood.rows.map((row) => [row.logged_date, row]));
   const recent3Keys = Array.from({ length: 3 }, (_, index) => dateKeyDaysAgo(todayKey, index));
-  const lowProteinDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.protein_g ?? 0) < 75).length;
-  const highCaloriesDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.calories ?? 0) > 2300).length;
-  const lowCaloriesDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.calories ?? 0) < 1200).length;
+  const lowProteinDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.protein_g ?? 0) < nutritionTargets.proteinG * 0.6).length;
+  const highCaloriesDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.calories ?? 0) > nutritionTargets.calories * 1.1).length;
+  const lowCaloriesDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.calories ?? 0) < nutritionTargets.calories * 0.65).length;
   const todayFood = foodByDate.get(todayKey);
   const latestBurn = recentBurns.rows[0] ?? null;
   const latestBurnAt = latestBurn ? new Date(latestBurn.created_at).getTime() : null;
@@ -351,15 +353,6 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
   const currentMomentum = momentumResult.rows[0] ? Number(momentumResult.rows[0].score) : null;
   const previousMomentum = momentumResult.rows[1] ? Number(momentumResult.rows[1].score) : null;
   const profile = profileResult.rows[0];
-  const nutritionTargets = calculateAdaptiveNutritionTargets({
-    goalType: profile?.goal_type ?? undefined,
-    sex: profile?.gender ?? undefined,
-    ageYears: profile?.age_years ?? undefined,
-    activityLevel: profile?.activity_level ?? undefined,
-    heightCm: profile?.height_cm ?? undefined,
-    weightKg: latestWeight ?? profile?.starting_weight_kg ?? undefined,
-    targetWeightKg: profile?.target_weight_kg ?? undefined
-  }, recentWeights.rows.map((row) => ({ weightKg: row.weight_kg, loggedAt: row.logged_at })));
 
   const insight = buildCoachZoeProactiveInsight({
     goalType: profile?.goal_type ?? null,
@@ -368,11 +361,11 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
     previousMomentumScore: previousMomentum,
     todaysFoodCount: Number(todayFood?.meal_count ?? 0),
     caloriesToday: Number(todayFood?.calories ?? 0),
-    calorieTarget: nutritionTargets.calorieTarget,
+    calorieTarget: nutritionTargets.calories,
     proteinTodayG: Number(todayFood?.protein_g ?? 0),
-    proteinTargetG: nutritionTargets.proteinTargetG,
+    proteinTargetG: nutritionTargets.proteinG,
     waterTodayMl: Number(recentWater.rows[0]?.water_today_ml ?? 0),
-    waterTargetMl: nutritionTargets.waterTargetMl,
+    waterTargetMl: nutritionTargets.waterMl,
     workoutDays7: recentBurns.rows.length,
     daysSinceWorkout,
     lowProteinDays3,
@@ -429,7 +422,7 @@ export async function runCoachNotificationJob(limit = 500) {
   let sent = 0;
   for (const user of users.rows) {
     const todayKey = new Date().toISOString().slice(0, 10);
-    const [events, sentTodayResult, openedTodayResult, foodTodayResult, weeklyReflectionResult, proactiveInsight] = await Promise.all([
+    const [events, sentTodayResult, openedTodayResult, foodTodayResult, weeklyReflectionResult, proactiveInsight, nutritionTargets] = await Promise.all([
       buildDnaEvents(user.id),
       query<{
         coaching: string;
@@ -463,20 +456,21 @@ export async function runCoachNotificationJob(limit = 500) {
         "select count(*) as report_count from weekly_reports where user_id = $1 and created_at >= now() - interval '7 days'",
         [user.id]
       ),
-      buildProactiveInsightForUser(user.id, todayKey).catch(() => null)
+      buildProactiveInsightForUser(user.id, todayKey).catch(() => null),
+      resolveNutritionTargets(user.id)
     ]);
     const now = new Date();
     const dna = AscendDNAService.buildProfile({ now, events });
     const sentToday = sentTodayResult.rows[0];
     const foodToday = foodTodayResult.rows[0];
     const foodCount = Number(foodToday?.food_count ?? 0);
-    const proteinLeft = Math.max(0, 90 - Number(foodToday?.protein_g ?? 0));
-    const waterLeftMl = Math.max(0, 2500 - Number(foodToday?.water_ml ?? 0));
+    const proteinLeft = Math.max(0, nutritionTargets.proteinG - Number(foodToday?.protein_g ?? 0));
+    const waterLeftMl = Math.max(0, nutritionTargets.waterMl - Number(foodToday?.water_ml ?? 0));
     const nextBestMove = AscendDNAService.getNextBestMove({
       now,
       dna,
       todaysFoodCount: foodCount,
-      caloriesLeft: foodCount ? 0 : 1200,
+      caloriesLeft: foodCount ? 0 : nutritionTargets.calories,
       calorieOver: 0,
       proteinLeft,
       waterLeftMl,

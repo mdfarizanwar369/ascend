@@ -23,6 +23,7 @@ import {
 import {
   BodyCompositionScan,
   BodyCompositionSummary,
+  ResolvedNutritionTargets,
   extractBodyComposition,
   getBodyCompositionScans,
   getBodyCompositionSummary,
@@ -188,7 +189,10 @@ function prepareDraftForReview(draft: BodyCompositionScan): BodyCompositionScan 
   };
 }
 
-function nutritionGuide(summary: BodyCompositionSummary | null, scanOverride?: BodyCompositionScan | null) {
+function nutritionGuide(summary: BodyCompositionSummary | null, scanOverride?: BodyCompositionScan | null, resolved?: ResolvedNutritionTargets | null) {
+  if (resolved) {
+    return { calories: resolved.calories, protein: resolved.proteinG, carbs: resolved.carbsG, fat: resolved.fatG };
+  }
   const calories = summary?.derived.estimatedDailyEnergyNeedsKcal ?? null;
   const scan = scanOverride ?? summary?.latestScan ?? null;
   const leanMass = scanOverride
@@ -317,10 +321,10 @@ function StageProgress({ activeStage, busy }: { activeStage: BodyScanImportStage
   );
 }
 
-function coachInsight(summary: BodyCompositionSummary | null, scan: BodyCompositionScan) {
+function coachInsight(summary: BodyCompositionSummary | null, scan: BodyCompositionScan, nutritionTargets?: ResolvedNutritionTargets | null) {
   const alert = summary?.coachAlerts.find((item) => item.severity !== "positive") ?? summary?.coachAlerts[0];
   if (alert?.message) return alert.message;
-  const protein = nutritionGuide(summary, scan).protein;
+  const protein = nutritionGuide(summary, scan, nutritionTargets).protein;
   if (protein) return `Use this scan to keep protein near ${protein}g daily and review your next scan in about four weeks.`;
   return "Keep training consistent, log your meals honestly, and compare again in about four weeks.";
 }
@@ -393,9 +397,9 @@ function progressRows(summary: BodyCompositionSummary | null) {
   ];
 }
 
-function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null; scan: BodyCompositionScan | null }) {
+function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyCompositionSummary | null; scan: BodyCompositionScan | null; nutritionTargets: ResolvedNutritionTargets | null }) {
   if (!scan) return null;
-  const guide = nutritionGuide(summary, scan);
+  const guide = nutritionGuide(summary, scan, nutritionTargets);
   const summaryText = bodySummary(summary, scan);
   const score = summary?.dnaScore.current ?? null;
   const scoreChange = summary?.dnaScore.change ?? null;
@@ -497,7 +501,10 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
       </div>
 
       <div className="mt-3 rounded-lg border border-line bg-ink p-3">
-        <p className="text-sm font-semibold">Nutrition Updated</p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-semibold">{nutritionTargets?.source === "body_scan" ? "Nutrition Updated" : "Nutrition Guide"}</p>
+          {nutritionTargets ? <span className="text-xs text-zinc-400">{nutritionTargets.sourceLabel}</span> : null}
+        </div>
         <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
           <p className="rounded-lg bg-surface p-2"><span className="block text-lg font-semibold text-white">{guide.calories ?? "--"}</span>kcal</p>
           <p className="rounded-lg bg-surface p-2"><span className="block text-lg font-semibold text-white">{guide.protein ?? "--"}g</span>protein</p>
@@ -508,7 +515,7 @@ function ResultsCard({ summary, scan }: { summary: BodyCompositionSummary | null
 
       <div className="mt-3 rounded-lg border border-teal-400/30 bg-teal-400/10 p-3">
         <p className="text-sm font-semibold">Coach Insight</p>
-        <p className="mt-2 text-sm leading-6 text-zinc-200">{coachInsight(summary, scan)}</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-200">{coachInsight(summary, scan, nutritionTargets)}</p>
       </div>
 
       <div className="mt-3 rounded-lg border border-line bg-ink p-3">
@@ -591,6 +598,7 @@ function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) 
 
 export function BodyCompositionClient({ clientId, coachView = false }: { clientId?: string; coachView?: boolean }) {
   const [summary, setSummary] = useState<BodyCompositionSummary | null>(null);
+  const [nutritionTargets, setNutritionTargets] = useState<ResolvedNutritionTargets | null>(null);
   const [scans, setScans] = useState<BodyCompositionScan[]>([]);
   const [draft, setDraft] = useState<BodyCompositionScan>(emptyDraft());
   const [selectedImages, setSelectedImages] = useState<OptimizedBodyScanImage[]>([]);
@@ -610,10 +618,12 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         const response = await getTrainerBodyComposition(clientId);
         setSummary(response.summary);
         setScans(response.scans);
+        setNutritionTargets(response.nutritionTargets);
       } else {
         const [summaryResponse, scanResponse] = await Promise.all([getBodyCompositionSummary(), getBodyCompositionScans()]);
         setSummary(summaryResponse.summary);
         setScans(scanResponse.scans);
+        setNutritionTargets(summaryResponse.nutritionTargets);
       }
       setStatus("");
     } catch (error) {
@@ -626,7 +636,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   const trendValues = useMemo(() => [...scans].reverse().map((scan) => Number(scan.bodyFatPercent ?? scan.weightKg ?? 0)).filter(Boolean), [scans]);
   const draftHasValues = showManualEntry && detectedMetricCount(draft) > 0;
   const displayScan = draftHasValues ? draft : summary?.latestScan ?? null;
-  const guide = nutritionGuide(summary, draftHasValues ? draft : null);
+  const guide = nutritionGuide(summary, draftHasValues ? draft : null, nutritionTargets);
   const latest = summary?.latestScan ?? null;
   const fitnessAge = latest?.metabolicAge ?? null;
   const nextScanDate = latest?.scanDate ? new Date(new Date(latest.scanDate).getTime() + 30 * 86_400_000) : null;
@@ -780,6 +790,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         summaryLatestScanId: response.summary.latestScan?.id ?? null
       });
       setSummary(response.summary);
+      setNutritionTargets(response.nutritionTargets);
       setLastSavedScan(response.scan);
       await load();
       setDraft(emptyDraft());
@@ -834,7 +845,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       <StageProgress activeStage={activeStage} busy={busy} />
 
       <div className="mt-4 space-y-4">
-        {lastSavedScan ? <ResultsCard summary={summary} scan={lastSavedScan} /> : null}
+        {lastSavedScan ? <ResultsCard summary={summary} scan={lastSavedScan} nutritionTargets={nutritionTargets} /> : null}
         {!scans.length && !showManualEntry && !lastSavedScan ? <EmptyState /> : null}
         <DnaScoreCard summary={summary} draftScan={draftHasValues ? draft : null} />
         {coachView ? <CoachSnapshot summary={summary} /> : null}

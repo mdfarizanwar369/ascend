@@ -17,7 +17,7 @@ import {
   getHealthSyncStatus,
   getLatestRecognition,
   getMe,
-  getMyNutritionPlan,
+  getMyNutritionTargets,
   getMyProgressComparison,
   getGoalStatus,
   getMyStreak,
@@ -53,7 +53,7 @@ type Streak = Awaited<ReturnType<typeof getMyStreak>>["streak"];
 type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
-type CoachNutritionPlan = Awaited<ReturnType<typeof getMyNutritionPlan>>["coachPlan"];
+type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>>["targets"];
 type HealthSyncStatus = Awaited<ReturnType<typeof getHealthSyncStatus>>["status"];
 type CollapsibleKey =
   | "todaysNumbers";
@@ -276,7 +276,7 @@ export function ClientDashboard() {
   const [goalStatus, setGoalStatus] = useState<GoalStatus | null>(null);
   const [progressComparison, setProgressComparison] = useState<ProgressComparison | null>(null);
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([]);
-  const [coachNutritionPlan, setCoachNutritionPlan] = useState<CoachNutritionPlan>(null);
+  const [resolvedNutritionTargets, setResolvedNutritionTargets] = useState<ResolvedNutritionTargets | null>(null);
   const [healthSyncStatus, setHealthSyncStatus] = useState<HealthSyncStatus | null>(null);
   const [athleteDashboard, setAthleteDashboard] = useState<AthleteDashboard | null>(null);
   const [coachPresence, setCoachPresence] = useState<{
@@ -367,7 +367,7 @@ export function ClientDashboard() {
       ]);
       const secondaryDataRequest = Promise.allSettled([
         getProgressPhotos(),
-        getMyNutritionPlan(),
+        getMyNutritionTargets(),
         getCoachPresence(),
         getAscendMemory(),
         getHealthSyncStatus()
@@ -431,10 +431,10 @@ export function ClientDashboard() {
       setStatus("");
 
       void secondaryDataRequest
-        .then(([photos, nutritionPlan, presence, memory, healthSync]) => {
+        .then(([photos, nutritionTargets, presence, memory, healthSync]) => {
           if (requestId !== dashboardRequestRef.current) return;
           if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
-          if (nutritionPlan.status === "fulfilled") setCoachNutritionPlan(nutritionPlan.value.coachPlan);
+          if (nutritionTargets.status === "fulfilled") setResolvedNutritionTargets(nutritionTargets.value.targets);
           if (presence.status === "fulfilled") setCoachPresence(presence.value);
           if (memory.status === "fulfilled") setAscendMemory(memory.value);
           if (healthSync.status === "fulfilled") setHealthSyncStatus(healthSync.value.status);
@@ -622,19 +622,17 @@ export function ClientDashboard() {
         : "moderate",
     bodyComposition: athleteBodyComposition ?? undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
-  const hasCoachNutritionPlan = Boolean(coachNutritionPlan);
-  const calorieTarget = coachNutritionPlan?.calories ?? nutritionTargets.calorieTarget;
-  const proteinTarget = coachNutritionPlan?.protein_g ?? nutritionTargets.proteinTargetG;
-  const carbsTarget = coachNutritionPlan?.carbs_g ?? nutritionTargets.carbsTargetG;
-  const fatTarget = coachNutritionPlan?.fat_g ?? nutritionTargets.fatTargetG;
-  const nutritionSourceLabel = hasCoachNutritionPlan
-    ? "Coach Plan"
-    : athleteBodyComposition
-      ? "Nutrition powered by your latest Body Scan"
-      : user?.athlete_mode_enabled
-        ? "Using profile data until your first Body Scan"
-        : "Ascend Recommendation";
-  const nutritionSourceTone = hasCoachNutritionPlan ? "text-calm" : athleteBodyComposition ? "text-purple-300" : "text-lime";
+  const calorieTarget = resolvedNutritionTargets?.calories ?? nutritionTargets.calorieTarget;
+  const proteinTarget = resolvedNutritionTargets?.proteinG ?? nutritionTargets.proteinTargetG;
+  const carbsTarget = resolvedNutritionTargets?.carbsG ?? nutritionTargets.carbsTargetG;
+  const fatTarget = resolvedNutritionTargets?.fatG ?? nutritionTargets.fatTargetG;
+  const nutritionSourceLabel = resolvedNutritionTargets?.sourceLabel
+    ?? (athleteBodyComposition ? "Body Scan + Ascend" : "Ascend Recommendation");
+  const nutritionSourceTone = resolvedNutritionTargets?.source === "coach_plan"
+    ? "text-calm"
+    : resolvedNutritionTargets?.source === "body_scan"
+      ? "text-purple-300"
+      : "text-lime";
   const caloriesLeft = Math.max(calorieTarget - calories, 0);
   const calorieOver = Math.max(calories - calorieTarget, 0);
   const proteinLeft = Math.max(proteinTarget - protein, 0);

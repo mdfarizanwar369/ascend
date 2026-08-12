@@ -135,6 +135,7 @@ export function TrainerCoachingTimelineHistoryClient({ clientId }: { clientId: s
         : "moderate",
     bodyComposition: client?.athlete_mode_enabled ? client.body_composition_nutrition ?? undefined : undefined
   }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
+  const effectiveProteinTarget = client?.nutrition_targets?.proteinG ?? nutritionTargets.proteinTargetG;
 
   const timelineGroups = useMemo(() => buildCoachingTimelineGroups({
     foodLogs,
@@ -147,8 +148,8 @@ export function TrainerCoachingTimelineHistoryClient({ clientId }: { clientId: s
     previousWeight,
     weightDelta,
     goalType: client?.goal_type,
-    proteinTargetG: nutritionTargets.proteinTargetG
-  }), [burnLogs, client?.goal_type, coachPresence.history, foodLogs, latestWeight, missions, nutritionTargets.proteinTargetG, previousWeight, waterLogs, weeklyReport, weightDelta]);
+    proteinTargetG: effectiveProteinTarget
+  }), [burnLogs, client?.goal_type, coachPresence.history, effectiveProteinTarget, foodLogs, latestWeight, missions, previousWeight, waterLogs, weeklyReport, weightDelta]);
 
   async function loadMoreFoodLogs() {
     if (nextFoodOffset === null || isLoadingMore) return;

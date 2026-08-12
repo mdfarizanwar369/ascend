@@ -14,6 +14,7 @@ import { bodyCompositionForNutrition, bodyCompositionScanFromDb, buildBodyCompos
 import { getProgressComparison } from "../services/progressComparisonService";
 import { notifyHumanCoachEvent } from "../services/notificationService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
+import { resolveNutritionTargets } from "../services/nutritionTargetService";
 
 export const trainerRouter = Router();
 
@@ -543,6 +544,7 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
       );
       client.body_composition_nutrition = bodyCompositionForNutrition(scanResult.rows.map(bodyCompositionScanFromDb)) ?? null;
     }
+    client.nutrition_targets = await resolveNutritionTargets(req.params.clientId);
     res.json({ client });
   } catch (error) {
     next(error);

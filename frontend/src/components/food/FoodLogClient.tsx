@@ -11,6 +11,7 @@ import {
   getFoodAiAllowance,
   getFoodLogs,
   getMe,
+  getMyNutritionTargets,
   getWeightLogs,
   saveFoodLog,
   uploadFoodPhotoDataUrl
@@ -26,6 +27,7 @@ import { pickNativeImage } from "@/lib/nativeImagePicker";
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
 type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
+type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>>["targets"];
 type RangeFilter = "today" | "7d" | "30d" | "all";
 type OrderFilter = "newest" | "oldest";
 type FrontendFoodAiStage = {
@@ -384,6 +386,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [isLoadingHistoryMore, setIsLoadingHistoryMore] = useState(false);
   const [user, setUser] = useState<FoodUser | null>(null);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+  const [resolvedTargets, setResolvedTargets] = useState<ResolvedNutritionTargets | null>(null);
   const [status, setStatus] = useState("Upload a food photo to estimate calories and macros.");
   const [isEstimating, setIsEstimating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -414,9 +417,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   }, [historyOrder, historyRange]);
 
   async function loadUser() {
-    const [response, weights] = await Promise.all([getMe(), getWeightLogs()]);
+    const [response, weights, targets] = await Promise.all([getMe(), getWeightLogs(), getMyNutritionTargets()]);
     setUser(response.user);
     setWeightLogs(weights.weightLogs);
+    setResolvedTargets(targets.targets);
   }
 
   async function loadAllowance() {
@@ -461,7 +465,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     return Math.round(estimate.proteinG * 4 + estimate.carbsG * 4 + estimate.fatG * 9);
   }, [estimate]);
 
-  const nutritionTargets = calculateAdaptiveNutritionTargets({
+  const nutritionTargets = useMemo(() => calculateAdaptiveNutritionTargets({
     goalType: user?.goal_type,
     sex: user?.gender === "female" || user?.gender === "male" ? user.gender : "prefer_not_to_say",
     ageYears: user?.age_years,
@@ -473,14 +477,23 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         ? user.activity_level
         : "moderate",
     bodyComposition: user?.athlete_mode_enabled ? user.body_composition_nutrition ?? undefined : undefined
-  }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at })));
+  }, weightLogs.map((log) => ({ weightKg: log.weight_kg, loggedAt: log.logged_at }))), [user, weightLogs]);
+
+  const effectiveNutritionTargets = useMemo(() => ({
+    ...nutritionTargets,
+    calorieTarget: resolvedTargets?.calories ?? nutritionTargets.calorieTarget,
+    proteinTargetG: resolvedTargets?.proteinG ?? nutritionTargets.proteinTargetG,
+    carbsTargetG: resolvedTargets?.carbsG ?? nutritionTargets.carbsTargetG,
+    fatTargetG: resolvedTargets?.fatG ?? nutritionTargets.fatTargetG,
+    waterTargetMl: resolvedTargets?.waterMl ?? nutritionTargets.waterTargetMl
+  }), [nutritionTargets, resolvedTargets]);
 
   const canSaveEstimate = useMemo(() => {
     if (!estimate) return false;
     return estimate.foodName.trim().length > 0 && Number(estimate.calories) > 0;
   }, [estimate]);
 
-  const currentMealInsight = estimate ? mealInsight(estimate, nutritionTargets) : null;
+  const currentMealInsight = estimate ? mealInsight(estimate, effectiveNutritionTargets) : null;
   const groupedHistoryDays = useMemo(() => {
     const map = new Map<string, FoodLog[]>();
     for (const log of historyLogs) {
@@ -496,16 +509,16 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     return visibleKeys.map((dateKey) => {
       const logs = [...(map.get(dateKey) ?? [])].sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime());
       const totals = summarizeLogs(logs);
-      const status = complianceStatus(logs, totals, nutritionTargets);
+      const status = complianceStatus(logs, totals, effectiveNutritionTargets);
       return {
         dateKey,
         logs,
         totals,
         status,
-        observations: mealObservations(logs, totals, nutritionTargets)
+        observations: mealObservations(logs, totals, effectiveNutritionTargets)
       };
     });
-  }, [historyLogs, historyOrder, historyRange, nutritionTargets]);
+  }, [effectiveNutritionTargets, historyLogs, historyOrder, historyRange]);
 
   async function loadMoreHistory() {
     if (historyNextOffset === null) return;
@@ -835,27 +848,27 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             </div>
             <div className="text-right">
               <p className="text-2xl font-semibold">{todaysTotals.calories}</p>
-              <p className="text-xs text-zinc-400">of {nutritionTargets.calorieTarget.toLocaleString()} kcal</p>
+              <p className="text-xs text-zinc-400">of {effectiveNutritionTargets.calorieTarget.toLocaleString()} kcal</p>
             </div>
           </div>
           <div className="mt-3 h-3 overflow-hidden rounded-full bg-ink">
             <div
               className="h-full rounded-full bg-lime"
-              style={{ width: `${Math.min(100, Math.round((todaysTotals.calories / nutritionTargets.calorieTarget) * 100))}%` }}
+              style={{ width: `${Math.min(100, Math.round((todaysTotals.calories / effectiveNutritionTargets.calorieTarget) * 100))}%` }}
             />
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <div className="rounded-lg bg-ink p-2">
               <p className="text-[10px] uppercase text-zinc-500">Protein</p>
-              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.proteinG)} / {nutritionTargets.proteinTargetG}g</p>
+              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.proteinG)} / {effectiveNutritionTargets.proteinTargetG}g</p>
             </div>
             <div className="rounded-lg bg-ink p-2">
               <p className="text-[10px] uppercase text-zinc-500">Carbs</p>
-              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.carbsG)} / {nutritionTargets.carbsTargetG}g</p>
+              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.carbsG)} / {effectiveNutritionTargets.carbsTargetG}g</p>
             </div>
             <div className="rounded-lg bg-ink p-2">
               <p className="text-[10px] uppercase text-zinc-500">Fat</p>
-              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.fatG)} / {nutritionTargets.fatTargetG}g</p>
+              <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.fatG)} / {effectiveNutritionTargets.fatTargetG}g</p>
             </div>
           </div>
           <p className="mt-2 text-xs text-zinc-500">Daily guide, not a strict limit. Review portions with your trainer if unsure.</p>

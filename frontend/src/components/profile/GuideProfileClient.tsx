@@ -5,7 +5,7 @@ import { Save, Sparkles } from "lucide-react";
 import { calculateAdaptiveNutritionTargets, GoalType } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
-import { getMe, getWeightLogs, updateGuideProfile } from "@/lib/ascendApi";
+import { getMe, getMyNutritionTargets, getWeightLogs, ResolvedNutritionTargets, saveMyNutritionTargets, updateGuideProfile } from "@/lib/ascendApi";
 
 function toInputValue(value: string | number | null | undefined) {
   if (value === null || value === undefined) return "";
@@ -23,13 +23,21 @@ export function GuideProfileClient() {
   const [weightLogs, setWeightLogs] = useState<Array<{ weight_kg: string | number; logged_at: string }>>([]);
   const [status, setStatus] = useState("Loading your guide profile...");
   const [isSaving, setIsSaving] = useState(false);
+  const [resolvedTargets, setResolvedTargets] = useState<ResolvedNutritionTargets | null>(null);
+  const [targetMode, setTargetMode] = useState<"ascend" | "custom">("ascend");
+  const [customCalories, setCustomCalories] = useState("");
+  const [customProtein, setCustomProtein] = useState("");
+  const [customCarbs, setCustomCarbs] = useState("");
+  const [customFat, setCustomFat] = useState("");
+  const [targetStatus, setTargetStatus] = useState("");
+  const [isSavingTargets, setIsSavingTargets] = useState(false);
   const initialGoalRef = useRef<{ goalType: GoalType; targetWeightKg: number | null }>({ goalType: "maintenance", targetWeightKg: null });
 
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([getMe(), getWeightLogs()])
-      .then(([response, logs]) => {
+    Promise.all([getMe(), getWeightLogs(), getMyNutritionTargets()])
+      .then(([response, logs, targetResponse]) => {
         if (!isMounted) return;
         const user = response.user;
         setGender(user.gender === "female" || user.gender === "male" ? user.gender : "prefer_not_to_say");
@@ -49,6 +57,14 @@ export function GuideProfileClient() {
         const latestWeight = Number(logs.weightLogs[0]?.weight_kg ?? user.starting_weight_kg);
         setCurrentWeightKg(Number.isFinite(latestWeight) && latestWeight > 0 ? latestWeight : null);
         setWeightLogs(logs.weightLogs);
+        const targets = targetResponse.targets;
+        setResolvedTargets(targets);
+        setTargetMode(targets.memberPreferenceMode);
+        const editable = targets.savedMemberTargets ?? targets;
+        setCustomCalories(String(editable.calories));
+        setCustomProtein(String(editable.proteinG));
+        setCustomCarbs(String(editable.carbsG));
+        setCustomFat(String(editable.fatG));
         setStatus("");
       })
       .catch(() => {
@@ -121,6 +137,28 @@ export function GuideProfileClient() {
       setStatus(error instanceof Error ? error.message : "Could not update your guide. Please try again.");
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function saveTargets() {
+    if (!resolvedTargets?.editableByMember || isSavingTargets) return;
+    setIsSavingTargets(true);
+    setTargetStatus(targetMode === "custom" ? "Saving your targets..." : "Restoring Ascend's recommendation...");
+    try {
+      const response = await saveMyNutritionTargets(targetMode === "custom" ? {
+        mode: "custom",
+        calories: Number(customCalories),
+        proteinG: Number(customProtein),
+        carbsG: Number(customCarbs),
+        fatG: Number(customFat)
+      } : { mode: "ascend" });
+      setResolvedTargets(response.targets);
+      setTargetMode(response.targets.memberPreferenceMode);
+      setTargetStatus(targetMode === "custom" ? "Your nutrition targets are now active everywhere in Ascend." : "Ascend's recommendation is active again.");
+    } catch (error) {
+      setTargetStatus(error instanceof Error ? error.message : "Could not update your nutrition targets.");
+    } finally {
+      setIsSavingTargets(false);
     }
   }
 
@@ -209,6 +247,58 @@ export function GuideProfileClient() {
             {isSaving ? "Saving..." : "Update daily guide"}
           </button>
         </form>
+
+        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">Calories & macros</p>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">Choose Ascend's guide or set targets you already follow.</p>
+            </div>
+            <span className="shrink-0 rounded-lg border border-line bg-ink px-2 py-1 text-xs font-semibold text-zinc-300">
+              {resolvedTargets?.sourceLabel ?? "Loading"}
+            </span>
+          </div>
+
+          {resolvedTargets?.source === "coach_plan" ? (
+            <div className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+              <p className="font-semibold text-calm">Your coach set these targets</p>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">Your coach's current plan stays authoritative so you both work from the same numbers.</p>
+              <p className="mt-3 text-sm font-semibold">
+                {resolvedTargets.calories} kcal / P {resolvedTargets.proteinG}g / C {resolvedTargets.carbsG}g / F {resolvedTargets.fatG}g
+              </p>
+            </div>
+          ) : resolvedTargets ? (
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg border border-line bg-ink p-1">
+                <button type="button" onClick={() => setTargetMode("ascend")} className={`min-h-11 rounded-md px-3 text-sm font-semibold ${targetMode === "ascend" ? "bg-lime text-ink" : "text-zinc-300"}`}>
+                  Ascend guide
+                </button>
+                <button type="button" onClick={() => setTargetMode("custom")} className={`min-h-11 rounded-md px-3 text-sm font-semibold ${targetMode === "custom" ? "bg-lime text-ink" : "text-zinc-300"}`}>
+                  My targets
+                </button>
+              </div>
+
+              {targetMode === "custom" ? (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <Field label="Calories"><input className={inputClass} value={customCalories} onChange={(event) => setCustomCalories(event.target.value)} inputMode="numeric" /></Field>
+                  <Field label="Protein (g)"><input className={inputClass} value={customProtein} onChange={(event) => setCustomProtein(event.target.value)} inputMode="numeric" /></Field>
+                  <Field label="Carbs (g)"><input className={inputClass} value={customCarbs} onChange={(event) => setCustomCarbs(event.target.value)} inputMode="numeric" /></Field>
+                  <Field label="Fat (g)"><input className={inputClass} value={customFat} onChange={(event) => setCustomFat(event.target.value)} inputMode="numeric" /></Field>
+                </div>
+              ) : (
+                <div className="mt-4 rounded-lg bg-ink p-3">
+                  <p className="text-sm font-semibold">{targetPreview.calorieTarget} kcal / P {targetPreview.proteinTargetG}g / C {targetPreview.carbsTargetG}g / F {targetPreview.fatTargetG}g</p>
+                  <p className="mt-2 text-xs leading-5 text-zinc-400">Ascend recalculates this guide when your profile, weight trend, or eligible Body Scan data changes.</p>
+                </div>
+              )}
+
+              {targetStatus ? <p className="mt-3 rounded-lg border border-calm/40 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">{targetStatus}</p> : null}
+              <button type="button" onClick={saveTargets} disabled={isSavingTargets} className="mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60">
+                <Save className="mr-2" size={18} /> {isSavingTargets ? "Saving..." : targetMode === "custom" ? "Use my targets" : "Use Ascend guide"}
+              </button>
+            </>
+          ) : null}
+        </section>
       </div>
     </main>
   );
