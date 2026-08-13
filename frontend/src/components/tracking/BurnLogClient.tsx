@@ -199,7 +199,7 @@ export function BurnLogClient() {
         <TrackingHero icon={Flame} label="Activity logged today" value={<MetricPulse pulseKey={todayCalories}>{todayCalories} kcal</MetricPulse>} detail="Movement added to Today's Progress" tone="amber" />
 
         {homework ? (
-          <section className="mt-4 rounded-xl border border-calm/30 bg-[linear-gradient(145deg,rgba(61,230,209,0.09),rgba(18,23,33,0.98))] p-4">
+          <section className="ascend-branded-surface mt-4 rounded-xl border border-calm/30 bg-[linear-gradient(145deg,rgba(61,230,209,0.09),rgba(18,23,33,0.98))] p-4">
             <p className="ascend-eyebrow text-calm">Coach Homework</p>
             <h2 className="mt-2 text-xl font-semibold text-white">{homework.title}</h2>
             <p className="mt-2 text-sm text-zinc-300">Assigned by {homework.trainer_name ?? "your coach"}</p>

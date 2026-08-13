@@ -166,7 +166,11 @@ function SignalProgressRing({
   const visibleProgress = done ? 100 : clamp(progress);
 
   return (
-    <span className="ascend-signal-ring relative grid h-14 w-14 place-items-center" aria-hidden="true">
+    <span
+      className="ascend-signal-ring relative grid h-14 w-14 place-items-center"
+      data-state={done ? "done" : priority ? "priority" : "open"}
+      aria-hidden="true"
+    >
       <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 56 56">
         <circle cx="28" cy="28" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2.5" />
         <circle
@@ -310,7 +314,7 @@ function CollapsibleSection({
 }) {
   const accent = sectionAccent(tone);
   return (
-    <section className="ascend-today-support mt-1 border-b border-white/[0.07]">
+    <section className="ascend-today-support ascend-today-numbers mt-1 border-b border-white/[0.07]">
       <button
         type="button"
         aria-expanded={isOpen}
@@ -1393,7 +1397,7 @@ export function ClientDashboard() {
         </section>
 
         {shouldShowProfileReminder ? (
-          <a href="/onboarding?profile=1" className="ascend-pressable mt-2 flex min-h-16 items-center gap-3 rounded-2xl border border-calm/25 bg-calm/[0.06] px-4 py-3 shadow-soft">
+          <a href="/onboarding?profile=1" className="ascend-pressable ascend-today-profile-reminder mt-2 flex min-h-16 items-center gap-3 rounded-2xl border border-calm/25 bg-calm/[0.06] px-4 py-3 shadow-soft">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-calm/12 text-calm">
               <UserRound size={17} />
             </span>
@@ -1435,11 +1439,11 @@ export function ClientDashboard() {
                 </>
               );
               return item.href ? (
-                <a key={item.label} href={item.href} className="ascend-pressable group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                <a key={item.label} href={item.href} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
                   {content}
                 </a>
               ) : (
-                <button key={item.label} type="button" onClick={() => { setLogMenuContext("recovery"); setLogMenuOpen(true); }} className="ascend-pressable group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={() => { setLogMenuContext("recovery"); setLogMenuOpen(true); }} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );
@@ -1449,14 +1453,14 @@ export function ClientDashboard() {
             type="button"
             onClick={() => { setLogMenuContext("all"); setLogMenuOpen((current) => !current); }}
             aria-expanded={logMenuOpen}
-            className="ascend-pressable mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 text-sm font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm"
+            className="ascend-pressable ascend-today-secondary-action mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 text-sm font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm"
           >
             <Plus size={16} className={`transition-transform duration-200 ${logMenuOpen ? "rotate-45" : ""}`} />
             Log something else
           </button>
           <div aria-hidden={!logMenuOpen} className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-300 ${logMenuOpen ? "visible mt-3 grid-rows-[1fr] opacity-100" : "invisible mt-0 grid-rows-[0fr] opacity-0"}`}>
             <div className="min-h-0">
-              <div className="rounded-2xl border border-white/[0.07] bg-black/20 p-3">
+              <div className="ascend-today-log-menu rounded-2xl border border-white/[0.07] bg-black/20 p-3">
                 {logMenuContext === "recovery" ? (
                   <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
                     <div>
@@ -1472,7 +1476,7 @@ export function ClientDashboard() {
                   {optionalLogActions.map((action) => {
                     const Icon = action.icon;
                     return (
-                      <a key={action.label} href={action.href} className="ascend-pressable flex min-h-16 min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-white/[0.06] bg-white/[0.025] px-1 text-center text-[10px] font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm">
+                      <a key={action.label} href={action.href} className="ascend-pressable ascend-today-log-option flex min-h-16 min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-white/[0.06] bg-white/[0.025] px-1 text-center text-[10px] font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm">
                         <Icon size={16} />
                         <span className="w-full truncate">{action.label}</span>
                       </a>
@@ -1601,7 +1605,7 @@ export function ClientDashboard() {
               )}
             </CollapsibleSection>
 
-            <section className="ascend-stagger-enter ascend-today-coach my-5 overflow-hidden rounded-2xl border border-purple-400/25 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.92)_52%,rgba(53,242,208,0.05))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.22),0_0_30px_rgba(139,92,246,0.08)]" style={{ animationDelay: "90ms" }}>
+            <section className="ascend-stagger-enter ascend-branded-surface ascend-today-coach my-5 overflow-hidden rounded-2xl border border-purple-400/25 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.92)_52%,rgba(53,242,208,0.05))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.22),0_0_30px_rgba(139,92,246,0.08)]" style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
                 {user?.assigned_trainer_id ? (
                   <span className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
