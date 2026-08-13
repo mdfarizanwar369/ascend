@@ -102,8 +102,8 @@ const goalVisuals: Record<WorkoutPlannerGoal, string> = {
 };
 
 function workoutHeroImage(answers: WorkoutAnswers) {
-  if (answers.location) return locationVisuals[answers.location];
   if (answers.goal) return goalVisuals[answers.goal];
+  if (answers.location) return locationVisuals[answers.location];
   return locationVisuals.gym;
 }
 
@@ -255,9 +255,14 @@ function WorkoutPlannerCard({
           <Image src={workoutHeroImage(answers)} alt={`${answers.location ?? "Personalized"} workout setting`} fill sizes="(max-width: 480px) 100vw, 448px" className="object-cover" priority />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-4">
-            <div className="flex items-center gap-2 text-lime">
+            <div className="flex flex-wrap items-center gap-2 text-lime">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-lime text-ink"><Dumbbell size={17} /></span>
               <p className="text-xs font-bold uppercase tracking-[0.24em]">Today&apos;s workout</p>
+              {answers.location ? (
+                <span className="rounded-full border border-white/20 bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
+                  Built for {answers.location}
+                </span>
+              ) : null}
             </div>
             <h2 className="mt-2 text-2xl font-semibold leading-tight text-white">{workout.title}</h2>
           </div>

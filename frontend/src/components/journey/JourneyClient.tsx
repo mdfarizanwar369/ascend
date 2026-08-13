@@ -959,6 +959,10 @@ export function JourneyClient() {
       null
     );
   }, [timeline, ascendMemory, foodLogs, waterLogs, weightLogs, burnLogs, progressPhotos]);
+  const visibleProgressPhotos = useMemo(
+    () => progressPhotos.filter((photo) => Boolean(photo.image_url)).slice(0, 3),
+    [progressPhotos]
+  );
 
   const premiumLocked = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && ascendMemory?.access === "none";
   const showPremiumJourneyNote = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && ascendMemory?.access === "free";
@@ -1024,6 +1028,51 @@ export function JourneyClient() {
             </div>
           </div>
         </section>
+
+        {visibleProgressPhotos[0]?.image_url ? (
+          <Link
+            href="/progress"
+            className="ascend-pressable mt-4 block overflow-hidden rounded-2xl border border-calm/20 bg-surface shadow-soft"
+          >
+            <div className="relative aspect-[16/9] overflow-hidden bg-ink">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={visibleProgressPhotos[0].image_url}
+                alt={`Latest ${visibleProgressPhotos[0].photo_type} progress photo`}
+                className="h-full w-full object-cover"
+                loading="eager"
+                decoding="async"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-calm">Visual progress</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">Your latest chapter</h2>
+                  <p className="mt-1 text-xs text-white/70">{formatLongDate(visibleProgressPhotos[0].logged_at)}</p>
+                </div>
+                <span className="rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
+                  {progressPhotos.length} {progressPhotos.length === 1 ? "photo" : "photos"}
+                </span>
+              </div>
+            </div>
+            {visibleProgressPhotos.length > 1 ? (
+              <div className="grid grid-cols-2 gap-2 p-2">
+                {visibleProgressPhotos.slice(1).map((photo) => (
+                  <div key={photo.id} className="aspect-[4/3] overflow-hidden rounded-xl bg-ink">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photo.image_url ?? ""}
+                      alt={`${photo.photo_type} progress photo`}
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </Link>
+        ) : null}
 
         {isFirstJourneyDay ? (
           <section className="mt-4 rounded-2xl border border-calm/20 bg-[linear-gradient(180deg,rgba(61,230,209,0.08),rgba(18,23,33,0.98))] p-5 shadow-soft">

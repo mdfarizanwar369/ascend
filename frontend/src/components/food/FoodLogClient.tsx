@@ -918,26 +918,54 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
           {todaysFoodLogs.length ? (
             <div className="mt-4 space-y-2">
-              {todaysFoodLogs.map((log) => (
-                <article key={log.id} className="ascend-surface-subtle p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      {log.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
-                      ) : null}
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">{log.estimated_food_name}</p>
-                        <p className="mt-1 text-xs text-zinc-400">
-                          P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F{" "}
-                          {Math.round(Number(log.fat_g))}g
+              {todaysFoodLogs.map((log, index) =>
+                index === 0 && log.image_url ? (
+                  <article key={log.id} className="overflow-hidden rounded-xl border border-line bg-ink">
+                    <div className="relative aspect-[16/7] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={log.image_url}
+                        alt={log.estimated_food_name}
+                        className="h-full w-full object-cover"
+                        loading="eager"
+                        decoding="async"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent" />
+                      <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-lime">Latest meal</p>
+                          <p className="mt-1 truncate text-base font-semibold text-white">{log.estimated_food_name}</p>
+                          <p className="mt-1 text-xs text-white/70">
+                            P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F {Math.round(Number(log.fat_g))}g
+                          </p>
+                        </div>
+                        <p className="shrink-0 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-sm font-semibold text-white backdrop-blur-sm">
+                          {log.calories} kcal
                         </p>
                       </div>
                     </div>
-                    <p className="shrink-0 text-sm font-semibold">{log.calories} kcal</p>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ) : (
+                  <article key={log.id} className="ascend-surface-subtle p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {log.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={log.image_url} alt={log.estimated_food_name} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
+                        ) : null}
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{log.estimated_food_name}</p>
+                          <p className="mt-1 text-xs text-zinc-400">
+                            P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F{" "}
+                            {Math.round(Number(log.fat_g))}g
+                          </p>
+                        </div>
+                      </div>
+                      <p className="shrink-0 text-sm font-semibold">{log.calories} kcal</p>
+                    </div>
+                  </article>
+                )
+              )}
             </div>
           ) : null}
         </section>
