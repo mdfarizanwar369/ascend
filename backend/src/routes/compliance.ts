@@ -1,8 +1,11 @@
 import { Router } from "express";
+import { z } from "zod";
+import { env } from "../config/env";
 import { query } from "../db/pool";
 import { calculateComplianceScore } from "../domain/compliance";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { canManageClient } from "../services/clientAccessService";
+import { calculateAndStoreMomentumV2 } from "../services/momentumV2Service";
 
 export const complianceRouter = Router();
 
@@ -13,6 +16,18 @@ function dateKeyDaysAgo(todayKey: string, daysAgo: number) {
 }
 
 complianceRouter.get("/compliance/today", requireAuth, async (req, res) => {
+  if (env.MOMENTUM_V2) {
+    const momentum = await calculateAndStoreMomentumV2(req.user!.id);
+    return res.json({
+      compliance: {
+        ...momentum,
+        food_score: momentum.fuel_score,
+        weight_score: momentum.move_score,
+        water_score: momentum.recover_score,
+        habit_score: momentum.focus_score ?? 0
+      }
+    });
+  }
   const [food, weight, water, habits] = await Promise.all([
     query<{ count: string }>(
       "select count(*) from food_logs where user_id = $1 and logged_at::date = current_date",
@@ -73,11 +88,45 @@ complianceRouter.get("/compliance/today", requireAuth, async (req, res) => {
 });
 
 complianceRouter.get("/compliance/history", requireAuth, async (req, res) => {
+  if (env.MOMENTUM_V2) {
+    const result = await query(
+      "select * from momentum_scores_v2 where user_id = $1 order by calculated_for_date desc limit 30",
+      [req.user!.id]
+    );
+    return res.json({ compliance: result.rows });
+  }
   const result = await query(
     "select * from compliance_scores where user_id = $1 order by calculated_for_date desc limit 30",
     [req.user!.id]
   );
   res.json({ compliance: result.rows });
+});
+
+const recoveryCheckinSchema = z.object({
+  sleepQuality: z.enum(["poor", "okay", "good"])
+});
+
+complianceRouter.get("/recovery-checkins/today", requireAuth, async (req, res) => {
+  const result = await query(
+    "select * from recovery_checkins where user_id = $1 and checkin_date = current_date limit 1",
+    [req.user!.id]
+  );
+  res.json({ checkin: result.rows[0] ?? null });
+});
+
+complianceRouter.post("/recovery-checkins", requireAuth, async (req, res) => {
+  const input = recoveryCheckinSchema.parse(req.body);
+  const result = await query(
+    `
+    insert into recovery_checkins (user_id, checkin_date, sleep_quality)
+    values ($1, current_date, $2)
+    on conflict (user_id, checkin_date) do update set sleep_quality = excluded.sleep_quality, updated_at = now()
+    returning *
+    `,
+    [req.user!.id, input.sleepQuality]
+  );
+  if (env.MOMENTUM_V2) await calculateAndStoreMomentumV2(req.user!.id);
+  res.status(201).json({ checkin: result.rows[0] });
 });
 
 complianceRouter.get("/streaks/me", requireAuth, async (req, res) => {
@@ -144,7 +193,7 @@ complianceRouter.get(
     const result = await query(
       `
       select cs.*
-      from compliance_scores cs
+      from ${env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores"} cs
       join users u on u.id = cs.user_id
       where cs.user_id = $1 and (u.assigned_trainer_id = $2 or $3 = any($4::text[]) or $5 = any($4::text[]))
       order by cs.calculated_for_date desc

@@ -1,10 +1,16 @@
 import { calculateComplianceScore } from "../domain/compliance";
 import { query } from "../db/pool";
+import { env } from "../config/env";
+import { calculateAndStoreMomentumV2 } from "../services/momentumV2Service";
 
 export async function calculateDailyComplianceScores() {
   const users = await query<{ id: string }>("select id from users where primary_role = 'client' and status = 'active'");
 
   for (const user of users.rows) {
+    if (env.MOMENTUM_V2) {
+      await calculateAndStoreMomentumV2(user.id);
+      continue;
+    }
     const [food, weight, water, habits] = await Promise.all([
       query<{ count: string }>(
         "select count(*) from food_logs where user_id = $1 and logged_at::date = current_date",
@@ -52,4 +58,3 @@ export async function calculateDailyComplianceScores() {
     );
   }
 }
-

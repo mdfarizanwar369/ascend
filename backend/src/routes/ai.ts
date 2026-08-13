@@ -15,6 +15,10 @@ import { resolveNutritionTargets } from "../services/nutritionTargetService";
 import { buildTodayPriorityCandidates, deterministicTodayPriority, TodayPriorityFacts } from "../services/todayPriorityService";
 
 export const aiRouter = Router();
+const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
+const momentumContextSelect = env.MOMENTUM_V2
+  ? "score, fuel_score, move_score, recover_score, focus_score, fuel_status, move_status, recover_status, focus_status, focus_active, period_start, period_end"
+  : "score, null::integer as fuel_score, null::integer as move_score, null::integer as recover_score, null::integer as focus_score, null::text as fuel_status, null::text as move_status, null::text as recover_status, null::text as focus_status, false as focus_active, calculated_for_date as period_start, calculated_for_date as period_end";
 
 const coachChatSchema = z.object({
   message: z.string().trim().min(1).max(2_000),
@@ -373,8 +377,8 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
       getHealthSyncSummary(req.user!.id),
       query(
         `
-        select score
-        from compliance_scores
+        select ${momentumContextSelect}
+        from ${momentumScoreTable}
         where user_id = $1
         order by calculated_for_date desc
         limit 1
@@ -568,7 +572,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
         water: waterWindow,
         habits: habitsWindow,
         workouts: burnWindow,
-        momentumScore: Number(momentumResult.rows[0]?.score ?? 0) || null,
+        momentum: momentumResult.rows[0] ?? null,
         latestWeeklyReport,
         latestRecognition: recognitionResult.rows[0]
           ? {

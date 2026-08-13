@@ -4,8 +4,13 @@ import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { bodyCompositionScanFromDb, buildBodyCompositionSummary } from "../services/bodyCompositionService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
+import { env } from "../config/env";
 
 export const reportsRouter = Router();
+const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
+const momentumPillarSelect = env.MOMENTUM_V2
+  ? "cs.fuel_score, cs.move_score, cs.recover_score, cs.focus_score, cs.focus_active"
+  : "null::integer as fuel_score, null::integer as move_score, null::integer as recover_score, null::integer as focus_score, false as focus_active";
 
 function numberValue(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -72,6 +77,9 @@ function deterministicWeeklySummary(input: {
     `- Workout adherence: ${workouts} workout${workouts === 1 ? "" : "s"} logged.`,
     `- Habit completion: ${habits} completed habit check-in${habits === 1 ? "" : "s"}.`,
     compliance !== null ? `- Momentum score: ${Math.round(compliance)}/100.` : "- Momentum score: not enough data yet.",
+    stats.fuel_score !== null && stats.fuel_score !== undefined
+      ? `- Momentum pillars: Fuel ${stats.fuel_score}, Move ${stats.move_score}, Recover ${stats.recover_score}${stats.focus_active ? `, Focus ${stats.focus_score}` : ""}.`
+      : "- Momentum pillars: still building enough context.",
     "",
     "Coach summary",
     foodDays >= 5 || waterDays >= 5 || workouts >= 3
@@ -145,6 +153,7 @@ reportsRouter.post("/reports/weekly/generate", requireAuth, requireActivePlan("p
         u.assigned_trainer_id,
         coalesce(athlete_profile.enabled, false) as athlete_mode_enabled,
         cs.score as compliance_score,
+        ${momentumPillarSelect},
         coalesce(food.food_logs, 0) as food_logs,
         coalesce(food.food_days, 0) as food_days,
         coalesce(food.calories, 0) as calories,
@@ -161,7 +170,7 @@ reportsRouter.post("/reports/weekly/generate", requireAuth, requireActivePlan("p
         coalesce(burn.workout_sessions, 0) as workout_sessions
       from users u
       left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
-      left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+      left join ${momentumScoreTable} cs on cs.user_id = u.id and cs.calculated_for_date = current_date
       left join lateral (
         select count(*) as food_logs, count(distinct logged_at::date) as food_days, coalesce(sum(calories), 0) as calories, coalesce(sum(protein_g), 0) as protein_g
         from food_logs

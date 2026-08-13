@@ -520,6 +520,18 @@ export function getComplianceToday() {
       weight_score: number;
       water_score: number;
       habit_score: number;
+      fuel_score?: number;
+      move_score?: number;
+      recover_score?: number;
+      focus_score?: number | null;
+      fuel_status?: "strong" | "building" | "needs_attention" | "not_available";
+      move_status?: "strong" | "building" | "needs_attention" | "not_available";
+      recover_status?: "strong" | "building" | "needs_attention" | "not_available";
+      focus_status?: "strong" | "building" | "needs_attention" | "not_available";
+      focus_active?: boolean;
+      period_start?: string;
+      period_end?: string;
+      score_version?: "v2";
       calculated_for_date: string;
     } | null;
   }>("/compliance/today");
@@ -1011,6 +1023,18 @@ export function getRecentDetailedWorkouts(limit = 5) {
   }>(`/burn-logs/detailed/recent?limit=${Math.min(10, Math.max(1, Math.round(limit)))}`);
 }
 
+export function getTodayRecoveryCheckin() {
+  return authed<{
+    checkin: { id: string; checkin_date: string; sleep_quality: "poor" | "okay" | "good" } | null;
+  }>("/recovery-checkins/today");
+}
+
+export function saveRecoveryCheckin(sleepQuality: "poor" | "okay" | "good") {
+  return authed<{
+    checkin: { id: string; checkin_date: string; sleep_quality: "poor" | "okay" | "good" };
+  }>("/recovery-checkins", { method: "POST", body: JSON.stringify({ sleepQuality }) });
+}
+
 export function getWorkoutProgressionHistory(limit = 10) {
   return authed<{ enabled: boolean; history: WorkoutProgressionHistoryItem[] }>(
     `/burn-logs/progression?limit=${Math.min(25, Math.max(1, Math.round(limit)))}`
@@ -1442,6 +1466,11 @@ export function getCurrentWeeklyReport() {
       summary: string;
       ai_generated_checkin?: string | null;
       compliance_score?: number | null;
+      fuel_score?: number | null;
+      move_score?: number | null;
+      recover_score?: number | null;
+      focus_score?: number | null;
+      focus_active?: boolean;
       created_at: string;
     } | null;
   }>("reports:weekly:current", "/reports/weekly/current", 30_000);
@@ -1457,6 +1486,11 @@ export function generateWeeklyReport() {
       summary: string;
       ai_generated_checkin?: string | null;
       compliance_score?: number | null;
+      fuel_score?: number | null;
+      move_score?: number | null;
+      recover_score?: number | null;
+      focus_score?: number | null;
+      focus_active?: boolean;
       created_at: string;
     };
   }>("/reports/weekly/generate", {
@@ -1582,6 +1616,11 @@ export function getTrainerClients() {
       starting_weight_kg?: string | number | null;
       target_weight_kg?: string | number | null;
       compliance_score?: number | null;
+      fuel_score?: number | null;
+      move_score?: number | null;
+      recover_score?: number | null;
+      focus_score?: number | null;
+      focus_active?: boolean;
       risk_severity?: string | null;
       last_food_logged_at?: string | null;
       calories_today?: string | number | null;
@@ -1656,6 +1695,11 @@ export function getTrainerClient(clientId: string) {
       target_weight_kg?: string | number | null;
       gym_name?: string | null;
       compliance_score?: number | null;
+      fuel_score?: number | null;
+      move_score?: number | null;
+      recover_score?: number | null;
+      focus_score?: number | null;
+      focus_active?: boolean;
       last_trainer_message_at?: string | null;
       profile_photo_url?: string | null;
       athlete_mode_enabled?: boolean;

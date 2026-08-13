@@ -102,6 +102,24 @@ export interface ComplianceBreakdown {
   totalScore: number;
 }
 
+export type MomentumPillarStatus = "strong" | "building" | "needs_attention" | "not_available";
+
+export interface MomentumV2Breakdown {
+  score: number;
+  fuelScore: number;
+  moveScore: number;
+  recoverScore: number;
+  focusScore: number | null;
+  fuelStatus: MomentumPillarStatus;
+  moveStatus: MomentumPillarStatus;
+  recoverStatus: MomentumPillarStatus;
+  focusStatus: MomentumPillarStatus;
+  focusActive: boolean;
+  periodStart: string;
+  periodEnd: string;
+  scoreVersion: "v2";
+}
+
 export const PLANS: Record<SubscriptionPlan, { label: string; priceRm: number; audience: string }> = {
   free: { label: "Free", priceRm: 0, audience: "Client" },
   premium: { label: "Premium", priceRm: 19.99, audience: "Client" },
@@ -128,6 +146,11 @@ export const COMPLIANCE_WEIGHTS = {
   weight: 25,
   water: 20,
   habits: 20
+} as const;
+
+export const MOMENTUM_V2_WEIGHTS = {
+  withFocus: { fuel: 35, move: 35, recover: 20, focus: 10 },
+  withoutFocus: { fuel: 40, move: 40, recover: 20, focus: 0 }
 } as const;
 
 export interface NutritionTargetInput {

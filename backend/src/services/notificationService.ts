@@ -3,6 +3,9 @@ import { query } from "../db/pool";
 import { getFirebaseMessaging } from "../integrations/firebase";
 import { getHealthSyncSummary } from "./healthSyncService";
 import { resolveNutritionTargets } from "./nutritionTargetService";
+import { env } from "../config/env";
+
+const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
 
 type Platform = "android" | "ios" | "desktop" | "web";
 
@@ -317,7 +320,7 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
     query<{ score: string | number }>(
       `
       select score
-      from compliance_scores
+      from ${momentumScoreTable}
       where user_id = $1
       order by calculated_for_date desc
       limit 2

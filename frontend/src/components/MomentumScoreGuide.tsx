@@ -3,24 +3,24 @@ import { BrandMark } from "@/components/BrandMark";
 
 const items = [
   {
-    title: "Food logging",
-    points: "35 points",
-    detail: "Log 2 meals in a day to earn the full food score. One meal still counts."
+    title: "Fuel",
+    points: "35-40 points",
+    detail: "Meals, calories and protein build this pillar. Ascend looks at your recent week, not one perfect day."
   },
   {
-    title: "Weight logging",
-    points: "25 points",
-    detail: "Log weight up to 3 times per week. This helps you and your trainer see direction, not perfection."
+    title: "Move",
+    points: "35-40 points",
+    detail: "Workouts, movement logs and Health Connect activity count. A sensible recovery day does not erase your progress."
   },
   {
-    title: "Water tracking",
+    title: "Recover",
     points: "20 points",
-    detail: "Track water toward the daily 2.5L guide. Partial tracking still builds momentum."
+    detail: "Hydration, optional sleep check-ins and training balance help Ascend understand how well you are recovering."
   },
   {
-    title: "Habits",
-    points: "20 points",
-    detail: "Complete your active habits for the day. If no habits are set yet, this part does not punish you."
+    title: "Personal Focus",
+    points: "Up to 10 points",
+    detail: "A personal habit or coach mission can add focus. If none is active, its points move to Fuel and Move automatically."
   }
 ];
 
@@ -38,9 +38,9 @@ export function MomentumScoreGuide() {
         </header>
 
         <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
-          <p className="text-sm font-semibold text-lime">This is a daily momentum score, not a body score.</p>
+          <p className="text-sm font-semibold text-lime">This is a seven-day consistency signal, not a body score.</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            The score helps you see whether today is moving in the right direction. It rewards useful check-ins so your trainer has context to support you.
+            Recent actions count most. Weight remains useful progress context, but weighing yourself never earns or removes Momentum points.
           </p>
         </section>
 
@@ -72,7 +72,7 @@ export function MomentumScoreGuide() {
         <section className="mt-4 rounded-lg border border-line bg-surface p-4">
           <h2 className="text-base font-semibold">For trainers</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-400">
-            Use the score to decide who may need support first. A low score usually means the client has not logged enough context today, not that their progress is bad.
+            Read the Fuel, Move and Recover pillars before acting. A low score is a coaching signal, not a judgement of the client.
           </p>
         </section>
       </div>

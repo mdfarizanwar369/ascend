@@ -1,4 +1,4 @@
-export type TodayPriorityKey = "Meal" | "Water" | "Movement" | "Weight" | "Habit";
+export type TodayPriorityKey = "Meal" | "Water" | "Movement" | "Habit";
 
 export type TodayPriorityCandidate = {
   key: TodayPriorityKey;
@@ -57,10 +57,6 @@ export function buildTodayPriorityCandidates(facts: TodayPriorityFacts): TodayPr
       cta: "Log Water",
       rank: hydrationUrgency
     });
-  }
-
-  if (!facts.weightLoggedToday && facts.weightLogs7d < 2) {
-    candidates.push({ key: "Weight", title: "Add a progress check-in", reason: "A weigh-in would make this week's trend clearer.", href: "/weight-log", cta: "Log Weight", rank: facts.localHour < 12 ? 64 : 42 });
   }
 
   if (facts.activeHabits > 0 && facts.habitsCompletedToday === 0) {

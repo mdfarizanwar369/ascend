@@ -65,7 +65,8 @@ const schema = z.object({
   WORKOUT_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_PROGRESSION_INTELLIGENCE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_PROGRESSION_INTELLIGENCE_V3: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
-  TRAINER_SESSION_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true")
+  TRAINER_SESSION_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  MOMENTUM_V2: z.string().default("true").transform((value) => value.toLowerCase() !== "false")
 });
 
 export const env = schema.parse(process.env);
