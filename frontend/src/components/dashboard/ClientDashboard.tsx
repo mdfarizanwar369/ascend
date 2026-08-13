@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Plus, Scale, Sparkles, Target, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Plus, Scale, Sparkles, Target, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -1096,13 +1096,11 @@ export function ClientDashboard() {
   const coachCardMessage = user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message;
   const coachCardDetail = user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
   const coachCardSnippet = coachCardMessage.length > 88 ? `${coachCardMessage.slice(0, 85).trimEnd()}...` : coachCardMessage;
-  const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; tone: "positive" | "neutral" }> = [
+  const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; href: string | null }> = [
     {
       label: "Fuel",
       icon: Beef,
-      summary: todaysFood.length
-        ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"} today`
-        : "No meals logged today",
+      summary: todaysFood.length ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"}` : "No log yet",
       detail: todaysFood.length
         ? protein > 0
           ? `${protein}g protein logged`
@@ -1110,33 +1108,35 @@ export function ClientDashboard() {
         : weeklyFoodDays.size
           ? `Meals logged on ${weeklyFoodDays.size} of 7 days`
           : "Your first meal will start the picture",
-      tone: todaysFood.length ? "positive" : "neutral"
+      done: todaysFood.length > 0,
+      href: "/food-log"
     },
     {
       label: "Move",
       icon: Activity,
       summary: todaysBurnCalories > 0
-        ? `${todaysBurnCalories.toLocaleString()} kcal today`
+        ? `${todaysBurnCalories.toLocaleString()} kcal`
         : syncedSteps > 0
-          ? `${syncedSteps.toLocaleString()} steps today`
+          ? `${syncedSteps.toLocaleString()} steps`
           : syncedWorkoutCompleted
-            ? "Workout synced today"
-            : "No movement logged today",
+            ? "Workout synced"
+            : "No log yet",
       detail: todaysBurnCalories > 0 || syncedSteps > 0 || syncedWorkoutCompleted
         ? "Movement recorded"
         : weeklyBurnDays.size
           ? `${weeklyBurnDays.size} active ${weeklyBurnDays.size === 1 ? "day" : "days"} this week`
           : "Add movement when it happens",
-      tone: todaysBurnCalories > 0 || syncedSteps > 0 || syncedWorkoutCompleted ? "positive" : "neutral"
+      done: todaysBurnCalories > 0 || syncedSteps >= 2500 || syncedWorkoutCompleted,
+      href: "/burn-log"
     },
     {
       label: "Recover",
       icon: HeartPulse,
       summary: todaysWaterMl > 0
-        ? `${(todaysWaterMl / 1000).toFixed(1)}L water today`
+        ? `${(todaysWaterMl / 1000).toFixed(1)}L water`
         : sleepQuality
           ? `${sleepQuality.charAt(0).toUpperCase()}${sleepQuality.slice(1)} sleep`
-          : "No recovery check-in today",
+          : "No check-in",
       detail: todaysWaterMl > 0
         ? sleepQuality
           ? `Sleep felt ${sleepQuality}`
@@ -1146,23 +1146,36 @@ export function ClientDashboard() {
           : weeklyWaterDays.size
             ? `Water logged on ${weeklyWaterDays.size} of 7 days`
             : "Water or sleep can add context",
-      tone: todaysWaterMl > 0 || Boolean(sleepQuality) ? "positive" : "neutral"
+      done: todaysWaterMl >= nutritionTargets.waterTargetMl || sleepQuality !== null,
+      href: null
     },
     ...(momentumBreakdown?.focusActive ? [{
       label: "Focus",
       icon: Target,
       summary: dailyMission
         ? dailyMission.status === "completed"
-          ? "Coach focus completed"
-          : "Coach focus for today"
+          ? "Completed"
+          : "Set today"
         : habits.length
-          ? `${completedHabitIds.size}/${habits.length} habits today`
-          : "No focus set today",
+          ? `${completedHabitIds.size}/${habits.length} habits`
+          : "Optional",
       detail: dailyMission?.title
         ?? (habits.length ? "Your personal habits" : "A personal focus is optional"),
-      tone: dailyMission?.status === "completed" || completedHabitIds.size > 0 ? "positive" as const : "neutral" as const
+      done: dailyMission?.status === "completed" || completedHabitIds.size > 0,
+      href: "/habits"
     }] : [])
   ];
+  const completedMomentumSignals = momentumSignals.filter((item) => item.done).length;
+  const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(momentumSignals.length, 1)) * 100);
+  const priorityMomentumLabel = todayPriority.key === "Meal"
+    ? "Fuel"
+    : todayPriority.key === "Movement"
+      ? "Move"
+      : todayPriority.key === "Water"
+        ? "Recover"
+        : todayPriority.key === "Habit"
+          ? "Focus"
+          : null;
   const optionalLogActions = [
     { label: "Meal", href: "/food-log", icon: Beef },
     { label: "Water", href: "/water-log", icon: Droplets },
@@ -1331,39 +1344,43 @@ export function ClientDashboard() {
         </section>
 
         <section className="ascend-today-path ascend-card-rise py-5">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-end justify-between gap-3">
             <div>
-              <p className="ascend-eyebrow">Your rhythm</p>
-              <h2 className="mt-1 text-lg font-semibold text-white">What you&apos;ve logged</h2>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">Today first, with recent activity for context.</p>
+              <p className="ascend-eyebrow">Your day</p>
+              <h2 className="mt-1 text-lg font-semibold text-white">
+                {completedMomentumSignals ? "Your rhythm today" : "Start with one"}
+              </h2>
             </div>
-            <a href="/momentum-score" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-400" aria-label="Learn how Momentum works">
-              <CircleHelp size={17} />
-            </a>
+            <p className="text-sm font-semibold text-calm">{completedMomentumSignals} of {momentumSignals.length}</p>
           </div>
-          <div
-            className={`mt-4 grid overflow-hidden border-y border-white/[0.07] ${momentumSignals.length === 4 ? "grid-cols-2" : "grid-cols-3"}`}
-            role="list"
-            aria-label="Activity recorded by Ascend"
-          >
-            {momentumSignals.map((item, index) => {
+          <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
+            <div
+              className="h-full rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#a3ff46)] transition-[width] duration-700"
+              style={{ width: `${momentumSignalProgress}%` }}
+            />
+          </div>
+          <div className={`mt-5 grid gap-3 ${momentumSignals.length === 4 ? "grid-cols-4" : "grid-cols-3"}`} role="list" aria-label="Today activity shortcuts">
+            {momentumSignals.map((item) => {
               const Icon = item.icon;
-              const hasLeadingDivider = momentumSignals.length === 4 ? index % 2 === 1 : index > 0;
-              const isSecondRow = momentumSignals.length === 4 && index >= 2;
-              return (
-                <div
-                  key={item.label}
-                  role="listitem"
-                  className={`min-w-0 py-3.5 ${hasLeadingDivider ? "border-l border-white/[0.07] pl-3" : "pr-3"} ${isSecondRow ? "border-t border-white/[0.07]" : ""}`}
-                  aria-label={`${item.label}: ${item.summary}. ${item.detail}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Icon size={15} className="shrink-0 text-purple-200" aria-hidden="true" />
-                    <p className="truncate text-xs font-semibold text-zinc-300">{item.label}</p>
-                  </div>
-                  <p className={`mt-2 text-sm font-semibold leading-5 ${item.tone === "positive" ? "text-calm" : "text-white"}`}>{item.summary}</p>
-                  <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-zinc-500">{item.detail}</p>
-                </div>
+              const isPriority = priorityMomentumLabel === item.label;
+              const content = (
+                <>
+                  <span className={`relative grid h-12 w-12 place-items-center rounded-full border transition-colors ${item.done ? "border-lime/35 bg-lime text-ink shadow-[0_8px_24px_rgba(163,255,70,0.14)]" : isPriority ? "border-calm/50 bg-calm/12 text-calm shadow-[0_8px_24px_rgba(53,242,208,0.12)]" : "border-white/10 bg-white/[0.035] text-zinc-400"}`}>
+                    {item.done ? <Check size={18} strokeWidth={2.5} /> : <Icon size={18} />}
+                    {isPriority ? <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-ink bg-calm" /> : null}
+                  </span>
+                  <span className={`truncate text-[11px] font-semibold ${isPriority ? "text-calm" : item.done ? "text-zinc-300" : "text-zinc-500"}`}>{item.label}</span>
+                  <span className={`max-w-full text-[10px] font-medium leading-4 ${item.done ? "text-calm" : "text-zinc-500"}`}>{item.summary}</span>
+                </>
+              );
+              return item.href ? (
+                <a key={item.label} href={item.href} role="listitem" className="ascend-pressable group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                  {content}
+                </a>
+              ) : (
+                <button key={item.label} type="button" role="listitem" onClick={() => setLogMenuOpen(true)} className="ascend-pressable group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                  {content}
+                </button>
               );
             })}
           </div>
