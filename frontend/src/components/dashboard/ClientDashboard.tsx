@@ -150,14 +150,6 @@ function TodayMomentumVisual({
   );
 }
 
-function momentumStatusLabel(status: string | undefined) {
-  if (status === "strong") return "Strong";
-  if (status === "needs_attention") return "Needs care";
-  if (status === "not_available") return "Learning";
-  if (status === "building") return "Building";
-  return "Learning";
-}
-
 function progressCopy(goal?: string | null) {
   if (goal === "fat_loss") return "toward your weight-loss goal";
   if (goal === "muscle_gain") return "toward your muscle-gain goal";
@@ -1104,30 +1096,71 @@ export function ClientDashboard() {
   const coachCardMessage = user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message;
   const coachCardDetail = user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
   const coachCardSnippet = coachCardMessage.length > 88 ? `${coachCardMessage.slice(0, 85).trimEnd()}...` : coachCardMessage;
-  const momentumSignals: Array<{ label: string; icon: typeof Beef; status: string; detail: string }> = [
+  const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; tone: "positive" | "neutral" }> = [
     {
       label: "Fuel",
       icon: Beef,
-      status: momentumStatusLabel(momentumBreakdown?.fuelStatus),
-      detail: "Meals and protein"
+      summary: todaysFood.length
+        ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"} today`
+        : "No meals logged today",
+      detail: todaysFood.length
+        ? protein > 0
+          ? `${protein}g protein logged`
+          : "Meal activity recorded"
+        : weeklyFoodDays.size
+          ? `Meals logged on ${weeklyFoodDays.size} of 7 days`
+          : "Your first meal will start the picture",
+      tone: todaysFood.length ? "positive" : "neutral"
     },
     {
       label: "Move",
       icon: Activity,
-      status: momentumStatusLabel(momentumBreakdown?.moveStatus),
-      detail: "Training and activity"
+      summary: todaysBurnCalories > 0
+        ? `${todaysBurnCalories.toLocaleString()} kcal today`
+        : syncedSteps > 0
+          ? `${syncedSteps.toLocaleString()} steps today`
+          : syncedWorkoutCompleted
+            ? "Workout synced today"
+            : "No movement logged today",
+      detail: todaysBurnCalories > 0 || syncedSteps > 0 || syncedWorkoutCompleted
+        ? "Movement recorded"
+        : weeklyBurnDays.size
+          ? `${weeklyBurnDays.size} active ${weeklyBurnDays.size === 1 ? "day" : "days"} this week`
+          : "Add movement when it happens",
+      tone: todaysBurnCalories > 0 || syncedSteps > 0 || syncedWorkoutCompleted ? "positive" : "neutral"
     },
     {
       label: "Recover",
       icon: HeartPulse,
-      status: momentumStatusLabel(momentumBreakdown?.recoverStatus),
-      detail: "Water, sleep and rest"
+      summary: todaysWaterMl > 0
+        ? `${(todaysWaterMl / 1000).toFixed(1)}L water today`
+        : sleepQuality
+          ? `${sleepQuality.charAt(0).toUpperCase()}${sleepQuality.slice(1)} sleep`
+          : "No recovery check-in today",
+      detail: todaysWaterMl > 0
+        ? sleepQuality
+          ? `Sleep felt ${sleepQuality}`
+          : "Sleep check-in is optional"
+        : sleepQuality
+          ? "No water logged today"
+          : weeklyWaterDays.size
+            ? `Water logged on ${weeklyWaterDays.size} of 7 days`
+            : "Water or sleep can add context",
+      tone: todaysWaterMl > 0 || Boolean(sleepQuality) ? "positive" : "neutral"
     },
     ...(momentumBreakdown?.focusActive ? [{
       label: "Focus",
       icon: Target,
-      status: momentumStatusLabel(momentumBreakdown.focusStatus),
-      detail: "Your personal focus"
+      summary: dailyMission
+        ? dailyMission.status === "completed"
+          ? "Coach focus completed"
+          : "Coach focus for today"
+        : habits.length
+          ? `${completedHabitIds.size}/${habits.length} habits today`
+          : "No focus set today",
+      detail: dailyMission?.title
+        ?? (habits.length ? "Your personal habits" : "A personal focus is optional"),
+      tone: dailyMission?.status === "completed" || completedHabitIds.size > 0 ? "positive" as const : "neutral" as const
     }] : [])
   ];
   const optionalLogActions = [
@@ -1300,41 +1333,34 @@ export function ClientDashboard() {
         <section className="ascend-today-path ascend-card-rise py-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="ascend-eyebrow">Momentum at a glance</p>
-              <h2 className="mt-1 text-lg font-semibold text-white">Your last seven days</h2>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">These are signals, not another checklist.</p>
+              <p className="ascend-eyebrow">Your rhythm</p>
+              <h2 className="mt-1 text-lg font-semibold text-white">What you&apos;ve logged</h2>
+              <p className="mt-1 text-xs leading-5 text-zinc-500">Today first, with recent activity for context.</p>
             </div>
             <a href="/momentum-score" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-400" aria-label="Learn how Momentum works">
               <CircleHelp size={17} />
             </a>
           </div>
           <div
-            className={`mt-4 grid overflow-hidden border-y border-white/[0.07] ${momentumSignals.length === 4 ? "grid-cols-2" : "grid-cols-3"}`}
+            className="mt-4 divide-y divide-white/[0.07] border-y border-white/[0.07]"
             role="list"
-            aria-label="Momentum signals from the last seven days"
+            aria-label="Activity recorded by Ascend"
           >
-            {momentumSignals.map((item, index) => {
+            {momentumSignals.map((item) => {
               const Icon = item.icon;
-              const hasLeadingDivider = momentumSignals.length === 4 ? index % 2 === 1 : index > 0;
-              const isSecondRow = momentumSignals.length === 4 && index >= 2;
-              const statusTone = item.status === "Strong" ? "text-lime" : item.status === "Needs care" ? "text-amber" : "text-zinc-400";
-              const dotTone = item.status === "Strong" ? "bg-lime" : item.status === "Needs care" ? "bg-amber" : item.status === "Building" ? "bg-calm" : "bg-zinc-600";
               return (
                 <div
                   key={item.label}
                   role="listitem"
-                  className={`min-w-0 py-3 ${hasLeadingDivider ? "border-l border-white/[0.07] pl-3" : "pr-3"} ${isSecondRow ? "border-t border-white/[0.07]" : ""}`}
-                  aria-label={`${item.label}: ${item.status}. ${item.detail}`}
+                  className="flex min-w-0 items-center gap-3 py-3"
+                  aria-label={`${item.label}: ${item.summary}. ${item.detail}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon size={15} className="shrink-0 text-purple-200" aria-hidden="true" />
-                    <p className="truncate text-xs font-semibold text-white">{item.label}</p>
+                  <Icon size={17} className="shrink-0 text-purple-200" aria-hidden="true" />
+                  <p className="w-[4.25rem] shrink-0 text-xs font-semibold text-zinc-300">{item.label}</p>
+                  <div className="min-w-0 flex-1 text-right">
+                    <p className={`truncate text-sm font-semibold ${item.tone === "positive" ? "text-calm" : "text-white"}`}>{item.summary}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-zinc-500">{item.detail}</p>
                   </div>
-                  <div className="mt-1.5 flex items-center gap-1.5">
-                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotTone}`} aria-hidden="true" />
-                    <p className={`truncate text-[11px] font-semibold ${statusTone}`}>{item.status}</p>
-                  </div>
-                  <p className="mt-1 truncate text-[10px] text-zinc-500">{item.detail}</p>
                 </div>
               );
             })}
