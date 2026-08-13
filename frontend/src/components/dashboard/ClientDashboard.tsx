@@ -1342,25 +1342,27 @@ export function ClientDashboard() {
             </a>
           </div>
           <div
-            className="mt-4 divide-y divide-white/[0.07] border-y border-white/[0.07]"
+            className={`mt-4 grid overflow-hidden border-y border-white/[0.07] ${momentumSignals.length === 4 ? "grid-cols-2" : "grid-cols-3"}`}
             role="list"
             aria-label="Activity recorded by Ascend"
           >
-            {momentumSignals.map((item) => {
+            {momentumSignals.map((item, index) => {
               const Icon = item.icon;
+              const hasLeadingDivider = momentumSignals.length === 4 ? index % 2 === 1 : index > 0;
+              const isSecondRow = momentumSignals.length === 4 && index >= 2;
               return (
                 <div
                   key={item.label}
                   role="listitem"
-                  className="flex min-w-0 items-center gap-3 py-3"
+                  className={`min-w-0 py-3.5 ${hasLeadingDivider ? "border-l border-white/[0.07] pl-3" : "pr-3"} ${isSecondRow ? "border-t border-white/[0.07]" : ""}`}
                   aria-label={`${item.label}: ${item.summary}. ${item.detail}`}
                 >
-                  <Icon size={17} className="shrink-0 text-purple-200" aria-hidden="true" />
-                  <p className="w-[4.25rem] shrink-0 text-xs font-semibold text-zinc-300">{item.label}</p>
-                  <div className="min-w-0 flex-1 text-right">
-                    <p className={`truncate text-sm font-semibold ${item.tone === "positive" ? "text-calm" : "text-white"}`}>{item.summary}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-zinc-500">{item.detail}</p>
+                  <div className="flex items-center gap-2">
+                    <Icon size={15} className="shrink-0 text-purple-200" aria-hidden="true" />
+                    <p className="truncate text-xs font-semibold text-zinc-300">{item.label}</p>
                   </div>
+                  <p className={`mt-2 text-sm font-semibold leading-5 ${item.tone === "positive" ? "text-calm" : "text-white"}`}>{item.summary}</p>
+                  <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-zinc-500">{item.detail}</p>
                 </div>
               );
             })}
