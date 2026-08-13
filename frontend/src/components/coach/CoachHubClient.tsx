@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Check, CheckCircle2, Dumbbell, MessageCircle, RotateCcw, Send, Sparkles, UtensilsCrossed, Zap } from "lucide-react";
+import Image from "next/image";
+import { Check, CheckCircle2, ChevronDown, ChevronUp, Dumbbell, MessageCircle, RotateCcw, Send, Sparkles, UtensilsCrossed, Zap } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
   CoachChatMode,
@@ -83,6 +84,28 @@ const equipmentByLocation: Record<WorkoutPlannerLocation, string[]> = {
   outdoors: ["Bodyweight", "Walking or Running Route", "Park Bench or Bars"]
 };
 
+const locationVisuals: Record<WorkoutPlannerLocation, string> = {
+  gym: "/workouts/location-gym.jpg",
+  home: "/workouts/location-home.jpg",
+  hotel: "/workouts/location-hotel.jpg",
+  outdoors: "/workouts/location-outdoors.jpg"
+};
+
+const goalVisuals: Record<WorkoutPlannerGoal, string> = {
+  fat_loss: "/workouts/goal-fat-loss.jpg",
+  muscle_gain: "/workouts/goal-muscle-gain.jpg",
+  strength: "/workouts/goal-strength.jpg",
+  general_fitness: "/workouts/goal-general-fitness.jpg",
+  recovery: "/workouts/goal-recovery.jpg",
+  mobility: "/workouts/goal-mobility.jpg"
+};
+
+function workoutHeroImage(answers: WorkoutAnswers) {
+  if (answers.location) return locationVisuals[answers.location];
+  if (answers.goal) return goalVisuals[answers.goal];
+  return locationVisuals.gym;
+}
+
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
   const numeric = Number(value);
@@ -128,7 +151,21 @@ function buildTodaysInsight({
   return "One honest action is enough to keep today moving.";
 }
 
-function OptionButton({ label, onClick }: { label: string; onClick: () => void }) {
+function OptionButton({ imageUrl, label, onClick }: { imageUrl?: string; label: string; onClick: () => void }) {
+  if (imageUrl) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="ascend-pressable group relative aspect-[1.45/1] overflow-hidden rounded-xl border border-line bg-ink text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime"
+      >
+        <Image src={imageUrl} alt="" fill sizes="(max-width: 480px) 44vw, 210px" className="object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+        <span className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
+        <span className="absolute inset-x-0 bottom-0 px-3 pb-3 text-sm font-semibold text-white">{label}</span>
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -169,6 +206,8 @@ function WorkoutPlannerCard({
 }) {
   const nextStep = !answers.location ? "location" : !answers.timeAvailable ? "time" : !answers.goal ? "goal" : !answers.equipment ? "equipment" : "done";
   const equipmentOptions = answers.location ? equipmentByLocation[answers.location] : [];
+  const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(0);
+  const completionPercent = workout?.exercises.length ? Math.round((checkedExercises.size / workout.exercises.length) * 100) : 0;
 
   if (showExistingChoice && workout) {
     return (
@@ -210,17 +249,21 @@ function WorkoutPlannerCard({
 
   if (workout) {
     return (
-      <section className="rounded-2xl border border-lime/25 bg-[radial-gradient(circle_at_top_right,rgba(53,242,208,0.16),transparent_18rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(7,9,13,0.98))] p-4 shadow-soft">
-        <div className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-lime text-ink">
-            <Dumbbell size={20} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-lime">Today&apos;s workout</p>
-            <h2 className="mt-2 text-2xl font-semibold leading-tight">{workout.title}</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">{workout.intro}</p>
+      <section className="overflow-hidden rounded-2xl border border-lime/25 bg-surface shadow-soft">
+        <div className="relative aspect-[16/9] overflow-hidden bg-ink">
+          <Image src={workoutHeroImage(answers)} alt={`${answers.location ?? "Personalized"} workout setting`} fill sizes="(max-width: 480px) 100vw, 448px" className="object-cover" priority />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 p-4">
+            <div className="flex items-center gap-2 text-lime">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-lime text-ink"><Dumbbell size={17} /></span>
+              <p className="text-xs font-bold uppercase tracking-[0.24em]">Today&apos;s workout</p>
+            </div>
+            <h2 className="mt-2 text-2xl font-semibold leading-tight text-white">{workout.title}</h2>
           </div>
         </div>
+
+        <div className="p-4">
+        <p className="text-sm leading-6 text-zinc-300">{workout.intro}</p>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-xl border border-line bg-ink/70 p-3">
@@ -249,38 +292,62 @@ function WorkoutPlannerCard({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-zinc-100">Your session</p>
+                <p className="mt-1 text-xs text-zinc-500">Tap an exercise for coaching details.</p>
+              </div>
+              <p className="text-sm font-semibold text-lime">{checkedExercises.size}/{workout.exercises.length}</p>
+            </div>
+            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-ink">
+              <div className="h-full rounded-full bg-lime transition-[width] duration-500" style={{ width: `${completionPercent}%` }} />
+            </div>
+            <div className="space-y-2">
             {workout.exercises.map((exercise, index) => {
               const complete = checkedExercises.has(index);
+              const expanded = expandedExerciseIndex === index;
               return (
-                <button
+                <article
                   key={`${exercise.name}-${index}`}
-                  type="button"
-                  disabled={workoutSaved}
-                  onClick={() => onToggleExercise(index)}
-                  className={`flex w-full items-start gap-3 rounded-xl border p-3 text-left ${
+                  className={`rounded-xl border p-3 transition-colors ${
                     complete ? "border-lime/50 bg-lime/10" : "border-line bg-ink/75"
                   }`}
                 >
-                  <span
-                    className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full border ${
+                  <div className="flex items-start gap-3">
+                  <button
+                    type="button"
+                    disabled={workoutSaved}
+                    onClick={() => onToggleExercise(index)}
+                    aria-label={`${complete ? "Mark incomplete" : "Mark complete"}: ${exercise.name}`}
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border ${
                       complete ? "border-lime bg-lime text-ink" : "border-line text-zinc-500"
                     }`}
                   >
-                    {complete ? <Check size={15} /> : index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
+                    {complete ? <Check size={17} /> : index + 1}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedExerciseIndex(expanded ? null : index)}
+                    aria-expanded={expanded}
+                    className="flex min-w-0 flex-1 items-start justify-between gap-2 text-left"
+                  >
+                    <span className="min-w-0">
                     <span className="block text-sm font-semibold text-zinc-100">{exercise.name}</span>
-                    <span className="mt-1 block text-xs text-zinc-400">
+                    <span className="mt-1 block text-xs leading-5 text-zinc-400">
                       {[exercise.sets ? `${exercise.sets} sets` : null, exercise.reps, exercise.duration, exercise.rest ? `${exercise.rest} rest` : null]
                         .filter(Boolean)
                         .join(" / ")}
                     </span>
-                    {exercise.note ? <span className="mt-2 block text-xs leading-5 text-zinc-500">{exercise.note}</span> : null}
-                  </span>
-                </button>
+                    </span>
+                    {expanded ? <ChevronUp className="mt-1 shrink-0 text-zinc-500" size={18} /> : <ChevronDown className="mt-1 shrink-0 text-zinc-500" size={18} />}
+                  </button>
+                  </div>
+                  {expanded && exercise.note ? <p className="ascend-soft-enter ml-[52px] mt-2 text-xs leading-5 text-zinc-400">{exercise.note}</p> : null}
+                </article>
               );
             })}
+            </div>
           </div>
 
           <div className="rounded-xl border border-line bg-ink/70 p-3">
@@ -293,6 +360,7 @@ function WorkoutPlannerCard({
             <p className="mt-2 text-sm leading-6 text-zinc-300">{workout.coachTip}</p>
           </div>
           <p className="text-xs leading-5 text-zinc-500">{workout.disclaimer}</p>
+        </div>
         </div>
       </section>
     );
@@ -339,7 +407,9 @@ function WorkoutPlannerCard({
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {nextStep === "location"
-              ? locationOptions.map((option) => <OptionButton key={option.value} label={option.label} onClick={() => onAnswer({ location: option.value })} />)
+              ? locationOptions.map((option) => (
+                  <OptionButton key={option.value} imageUrl={locationVisuals[option.value]} label={option.label} onClick={() => onAnswer({ location: option.value })} />
+                ))
               : null}
             {nextStep === "time"
               ? timeOptions.map((option) => (
@@ -347,7 +417,9 @@ function WorkoutPlannerCard({
                 ))
               : null}
             {nextStep === "goal"
-              ? goalOptions.map((option) => <OptionButton key={option.value} label={option.label} onClick={() => onAnswer({ goal: option.value })} />)
+              ? goalOptions.map((option) => (
+                  <OptionButton key={option.value} imageUrl={goalVisuals[option.value]} label={option.label} onClick={() => onAnswer({ goal: option.value })} />
+                ))
               : null}
             {nextStep === "equipment"
               ? equipmentOptions.map((option) => <OptionButton key={option} label={option} onClick={() => onGenerate(option)} />)
@@ -696,14 +768,21 @@ export function CoachHubClient() {
               </div>
 
               {savedWorkoutSummary ? (
-                <div className="mt-4 rounded-2xl border border-lime/30 bg-[radial-gradient(circle_at_top_right,rgba(53,242,208,0.18),transparent_14rem),linear-gradient(180deg,rgba(20,44,39,0.9),rgba(8,16,15,0.96))] p-4">
-                  <div className="flex items-start gap-3">
-                    <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-lime text-ink shadow-[0_0_32px_rgba(61,230,209,0.28)]">
-                      <Check size={20} />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold uppercase tracking-[0.22em] text-lime">Workout Saved</p>
-                      <h3 className="mt-2 text-xl font-semibold text-white">{savedWorkoutSummary.workoutTitle}</h3>
+                <div className="mt-4 overflow-hidden rounded-2xl border border-lime/30 bg-ink">
+                  <div className="relative aspect-[16/8] overflow-hidden">
+                    <Image src={workoutHeroImage(answers)} alt="Completed workout" fill sizes="(max-width: 480px) 100vw, 416px" className="object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(61,230,209,0.28)]">
+                        <Check size={20} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-lime">Workout complete</p>
+                        <h3 className="mt-1 truncate text-xl font-semibold text-white">{savedWorkoutSummary.workoutTitle}</h3>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4">
                       <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-zinc-200">
                         <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
                           <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Duration</p>
@@ -723,7 +802,6 @@ export function CoachHubClient() {
                         </div>
                       </div>
                       <p className="mt-4 text-sm leading-6 text-zinc-200">{savedWorkoutSummary.coachMessage}</p>
-                    </div>
                   </div>
                 </div>
               ) : allExercisesCompleted ? (
