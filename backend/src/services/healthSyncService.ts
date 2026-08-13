@@ -30,6 +30,7 @@ export type HealthSyncSummary = {
   todayActiveCalories: number;
   workoutsThisWeek: number;
   workoutCompletedToday: boolean;
+  latestWorkoutAt: string | null;
   lastSyncedAt: string | null;
 };
 
@@ -135,6 +136,7 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
     today_active_calories: string | null;
     workouts_this_week: string | null;
     workout_completed_today: boolean | null;
+    latest_workout_at: string | null;
   }>(
     `
     with anchors as (
@@ -166,7 +168,8 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
     ),
     workouts as (
       select count(*) filter (where recorded_on between a.local_today - interval '6 days' and a.local_today) as workouts_this_week,
-        bool_or(recorded_on = a.local_today) as workout_completed_today
+        bool_or(recorded_on = a.local_today) as workout_completed_today,
+        max(coalesce(end_at, start_at)) as latest_workout_at
       from health_sync_records hsr, anchors a
       where hsr.user_id = $1
         and hsr.provider = 'health_connect'
@@ -177,7 +180,8 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
       (select average_steps_7d::text from steps_7d) as average_steps_7d,
       (select today_active_calories::text from calories) as today_active_calories,
       (select workouts_this_week::text from workouts) as workouts_this_week,
-      (select workout_completed_today from workouts) as workout_completed_today
+      (select workout_completed_today from workouts) as workout_completed_today,
+      (select latest_workout_at::text from workouts) as latest_workout_at
     `,
     [userId, localToday]
   );
@@ -190,6 +194,7 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
     todayActiveCalories: Math.round(Number(row?.today_active_calories ?? 0)),
     workoutsThisWeek: Number(row?.workouts_this_week ?? 0),
     workoutCompletedToday: row?.workout_completed_today === true,
+    latestWorkoutAt: row?.latest_workout_at ?? null,
     lastSyncedAt: connection.last_synced_at
   };
 }

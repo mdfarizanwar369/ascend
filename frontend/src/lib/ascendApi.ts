@@ -38,6 +38,7 @@ export type HealthSyncSummary = {
   todayActiveCalories: number;
   workoutsThisWeek: number;
   workoutCompletedToday: boolean;
+  latestWorkoutAt: string | null;
   lastSyncedAt: string | null;
 };
 
@@ -1223,7 +1224,7 @@ export function sendCoachMessage(message: string, mode: CoachChatMode = "general
 }
 
 export type TodayPriorityRecommendation = {
-  key: "Meal" | "Water" | "Movement" | "Weight" | "Habit";
+  key: "Meal" | "Water" | "Movement" | "Habit" | null;
   title: string;
   reason: string;
   href: string;
@@ -1231,7 +1232,7 @@ export type TodayPriorityRecommendation = {
 };
 
 export function getTodayPriorityRecommendation() {
-  return authed<{ priority: TodayPriorityRecommendation; source: "ai" | "cache" }>("/ai/today-priority", {
+  return authed<{ priority: TodayPriorityRecommendation; source: "rules" | "cache" | "ai" }>("/ai/today-priority", {
     method: "POST",
     body: JSON.stringify({ timezoneOffsetMinutes: new Date().getTimezoneOffset() })
   });
