@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { chooseTodayPriority, createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText } from "../integrations/openai";
+import { createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText } from "../integrations/openai";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
@@ -12,7 +12,7 @@ import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
-import { buildTodayPriorityCandidates, deterministicTodayPriority, TodayPriorityFacts } from "../services/todayPriorityService";
+import { deterministicTodayPriority, TodayPriorityFacts } from "../services/todayPriorityService";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -629,15 +629,13 @@ const todayPrioritySchema = z.object({
   timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
 
-const todayPriorityCache = new Map<string, { expiresAt: number; value: Awaited<ReturnType<typeof chooseTodayPriority>> }>();
-
-aiRouter.post("/ai/today-priority", requireAuth, aiRateLimit, async (req, res, next) => {
+aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
   try {
     const { timezoneOffsetMinutes } = todayPrioritySchema.parse(req.body ?? {});
     const localNow = new Date(Date.now() - timezoneOffsetMinutes * 60_000);
     const localDayStartUtc = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) + timezoneOffsetMinutes * 60_000);
     const localDayEndUtc = new Date(localDayStartUtc.getTime() + 86_400_000);
-    const [foodResult, waterResult, workoutResult, weightResult, habitResult, nutritionTargets] = await Promise.all([
+    const [foodResult, waterResult, workoutResult, habitResult, nutritionTargets, healthSyncSummary] = await Promise.all([
       query<{ meals: number; protein_g: number | string }>(`
         select count(*)::int as meals, coalesce(sum(protein_g), 0) as protein_g
         from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3
@@ -651,11 +649,6 @@ aiRouter.post("/ai/today-priority", requireAuth, aiRateLimit, async (req, res, n
           coalesce(bool_or(created_at >= $2 and created_at < $3), false) as completed_today
         from analytics_events where user_id = $1 and event_name = 'burn_log'
       `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
-      query<{ logs_7d: number; logged_today: boolean }>(`
-        select count(*) filter (where logged_at >= $2::timestamptz - interval '6 days')::int as logs_7d,
-          coalesce(bool_or(logged_at >= $2 and logged_at < $3), false) as logged_today
-        from weight_logs where user_id = $1
-      `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
       query<{ active_habits: number; completed_today: number }>(`
         select count(distinct h.id)::int as active_habits,
           count(distinct hl.habit_id) filter (where hl.completed = true)::int as completed_today
@@ -663,9 +656,12 @@ aiRouter.post("/ai/today-priority", requireAuth, aiRateLimit, async (req, res, n
         left join habit_logs hl on hl.habit_id = h.id and hl.user_id = h.user_id and hl.logged_at >= $2 and hl.logged_at < $3
         where h.user_id = $1 and h.active = true
       `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
-      resolveNutritionTargets(req.user!.id)
+      resolveNutritionTargets(req.user!.id),
+      getHealthSyncSummary(req.user!.id).catch(() => null)
     ]);
     const latestWorkoutAt = workoutResult.rows[0]?.latest_at ? new Date(workoutResult.rows[0].latest_at).getTime() : null;
+    const latestSyncedWorkoutAt = healthSyncSummary?.latestWorkoutAt ? new Date(healthSyncSummary.latestWorkoutAt).getTime() : null;
+    const latestMovementAt = Math.max(latestWorkoutAt ?? 0, latestSyncedWorkoutAt ?? 0) || null;
     const facts: TodayPriorityFacts = {
       localHour: localNow.getUTCHours(),
       mealsToday: Number(foodResult.rows[0]?.meals ?? 0),
@@ -673,39 +669,14 @@ aiRouter.post("/ai/today-priority", requireAuth, aiRateLimit, async (req, res, n
       proteinTargetG: nutritionTargets.proteinG,
       waterTodayMl: Number(waterResult.rows[0]?.water_ml ?? 0),
       waterTargetMl: nutritionTargets.waterMl,
-      workoutCompletedToday: Boolean(workoutResult.rows[0]?.completed_today),
-      daysSinceWorkout: latestWorkoutAt === null ? null : Math.max(0, Math.floor((Date.now() - latestWorkoutAt) / 86_400_000)),
-      weightLoggedToday: Boolean(weightResult.rows[0]?.logged_today),
-      weightLogs7d: Number(weightResult.rows[0]?.logs_7d ?? 0),
+      workoutCompletedToday: Boolean(workoutResult.rows[0]?.completed_today) || healthSyncSummary?.workoutCompletedToday === true,
+      daysSinceWorkout: latestMovementAt === null ? null : Math.max(0, Math.floor((Date.now() - latestMovementAt) / 86_400_000)),
+      stepsToday: healthSyncSummary?.todaySteps ?? 0,
+      activeCaloriesToday: healthSyncSummary?.todayActiveCalories ?? 0,
       activeHabits: Number(habitResult.rows[0]?.active_habits ?? 0),
       habitsCompletedToday: Number(habitResult.rows[0]?.completed_today ?? 0)
     };
-    const candidates = buildTodayPriorityCandidates(facts);
-    const fallback = deterministicTodayPriority(facts);
-    const dayPeriod = facts.localHour < 12 ? "morning" : facts.localHour < 17 ? "afternoon" : facts.localHour < 20 ? "evening" : "night";
-    const fingerprintFacts = { ...facts, localHour: dayPeriod };
-    const fingerprint = JSON.stringify({ date: localNow.toISOString().slice(0, 10), facts: fingerprintFacts, candidates: candidates.map(({ key, rank }) => ({ key, rank })) });
-    const cacheKey = `${req.user!.id}:${fingerprint}`;
-    const cached = todayPriorityCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return res.json({ priority: cached.value ?? fallback, source: "cache" });
-
-    const priority = candidates.length > 1 ? await chooseTodayPriority({ facts, candidates }) ?? fallback : fallback;
-    todayPriorityCache.set(cacheKey, { expiresAt: Date.now() + 6 * 60 * 60_000, value: priority });
-    if (todayPriorityCache.size > 2_000) {
-      for (const [key, entry] of todayPriorityCache) if (entry.expiresAt <= Date.now()) todayPriorityCache.delete(key);
-    }
-    void logAiUsage({
-      userId: req.user!.id,
-      gymId: req.user!.gymId,
-      eventType: "today_priority_analysis",
-      provider: env.AI_PROVIDER,
-      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-      status: "success",
-      inputUnits: fingerprint.length,
-      outputUnits: JSON.stringify(priority).length,
-      metadata: { feature: "today_priority", selectedKey: priority.key, candidateCount: candidates.length }
-    }).catch(() => undefined);
-    res.json({ priority, source: "ai" });
+    res.json({ priority: deterministicTodayPriority(facts), source: "rules" });
   } catch (error) {
     next(error);
   }
