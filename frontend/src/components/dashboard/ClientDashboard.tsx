@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Plus, Scale, Sparkles, Target, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -117,7 +117,7 @@ function TodayMomentumVisual({
   const progress = (clamp(score) / 100) * circumference;
 
   return (
-    <div className="ascend-today-momentum relative mx-auto h-[10.75rem] w-[10.75rem] sm:h-[12.5rem] sm:w-[12.5rem]" aria-label={`Momentum ${score} out of 100, based on your last seven days.`}>
+    <div className="ascend-today-momentum relative mx-auto h-[9.5rem] w-[9.5rem] sm:h-[10.75rem] sm:w-[10.75rem]" aria-label={`Momentum ${score} out of 100, based on your last seven days.`}>
       <svg className="h-full w-full -rotate-90" viewBox="0 0 200 200" role="img" aria-hidden="true">
         <defs>
           <linearGradient id="today-momentum-gradient" x1="20" y1="20" x2="180" y2="180" gradientUnits="userSpaceOnUse">
@@ -147,6 +147,44 @@ function TodayMomentumVisual({
         </div>
       </div>
     </div>
+  );
+}
+
+function SignalProgressRing({
+  progress,
+  done,
+  priority,
+  children
+}: {
+  progress: number;
+  done: boolean;
+  priority: boolean;
+  children: ReactNode;
+}) {
+  const radius = 21;
+  const circumference = 2 * Math.PI * radius;
+  const visibleProgress = done ? 100 : clamp(progress);
+
+  return (
+    <span className="ascend-signal-ring relative grid h-14 w-14 place-items-center" aria-hidden="true">
+      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 56 56">
+        <circle cx="28" cy="28" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2.5" />
+        <circle
+          cx="28"
+          cy="28"
+          r={radius}
+          fill="none"
+          stroke={done ? "#a3ff46" : priority ? "#35f2d0" : "#a484ff"}
+          strokeDasharray={`${(visibleProgress / 100) * circumference} ${circumference}`}
+          strokeLinecap="round"
+          strokeWidth="2.5"
+          className="transition-[stroke-dasharray] duration-700"
+        />
+      </svg>
+      <span className={`relative grid h-10 w-10 place-items-center rounded-full border ${done ? "border-lime/30 bg-lime/12 text-lime" : priority ? "border-calm/35 bg-calm/10 text-calm" : "border-white/[0.07] bg-white/[0.025] text-zinc-400"}`}>
+        {children}
+      </span>
+    </span>
   );
 }
 
@@ -342,6 +380,7 @@ export function ClientDashboard() {
   const [sleepQuality, setSleepQuality] = useState<"poor" | "okay" | "good" | null>(null);
   const [savingSleep, setSavingSleep] = useState(false);
   const [logMenuOpen, setLogMenuOpen] = useState(false);
+  const [logMenuContext, setLogMenuContext] = useState<"all" | "recovery">("all");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -781,11 +820,19 @@ export function ClientDashboard() {
 
   const remainingWeight = targetWeight && currentWeight ? Math.abs(currentWeight - targetWeight) : null;
 
-  const navItems = [
-    { href: "/dashboard", label: "Home", selected: true, show: true },
-    { href: "/trainer", label: "Trainer", selected: false, show: canTrain },
-    { href: "/admin", label: "Admin", selected: false, show: canAdmin }
-  ].filter((item) => item.show);
+  const navItems = canTrain || canAdmin
+    ? [
+        { href: "/dashboard", label: "Home", icon: Home, selected: true, show: true },
+        { href: "/trainer", label: "Trainer", icon: UserRound, selected: false, show: canTrain },
+        { href: "/admin", label: "Admin", icon: Target, selected: false, show: canAdmin }
+      ].filter((item) => item.show)
+    : [
+        { href: "/dashboard", label: "Today", icon: Home, selected: true, show: true },
+        { href: "/food-log", label: "Meals", icon: Beef, selected: false, show: true },
+        { href: "/coach", label: "Zoe", icon: Sparkles, selected: false, show: true },
+        { href: "/journey", label: "Journey", icon: Activity, selected: false, show: true },
+        { href: "/profile", label: "Profile", icon: UserRound, selected: false, show: true }
+      ];
   const dnaProfile = useMemo(
     () =>
       AscendDNAService.buildProfile({
@@ -965,7 +1012,6 @@ export function ClientDashboard() {
     protein > 0 ||
     todaysWaterMl > 0 ||
     Boolean(currentWeight) ||
-    momentumScore !== null ||
     syncedSteps > 0 ||
     todaysBurnCalories > 0;
   const dailyCoachingMessage = (() => {
@@ -1074,8 +1120,8 @@ export function ClientDashboard() {
       };
     }
     return {
-      title: "Today can be the start of your story.",
-      detail: "One honest check-in is enough to begin building momentum."
+      title: "Your journey starts here.",
+      detail: "Ascend will remember the small wins that follow."
     };
   })();
   const athleteTodaySummary = (() => {
@@ -1095,8 +1141,11 @@ export function ClientDashboard() {
     : "Coach Zoe";
   const coachCardMessage = user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message;
   const coachCardDetail = user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
-  const coachCardSnippet = coachCardMessage.length > 88 ? `${coachCardMessage.slice(0, 85).trimEnd()}...` : coachCardMessage;
-  const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; href: string | null }> = [
+  const completeCoachSentences = coachCardMessage.match(/[^.!?]+[.!?]+/g)?.slice(0, 2).join(" ").trim();
+  const coachCardSnippet = isFirstDayState
+    ? "I'll learn what helps you as you check in. For now, keep today simple."
+    : completeCoachSentences ?? coachCardMessage;
+  const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
     {
       label: "Fuel",
       icon: Beef,
@@ -1109,6 +1158,7 @@ export function ClientDashboard() {
           ? `Meals logged on ${weeklyFoodDays.size} of 7 days`
           : "Your first meal will start the picture",
       done: todaysFood.length > 0,
+      progress: calorieProgress,
       href: "/food-log"
     },
     {
@@ -1127,6 +1177,11 @@ export function ClientDashboard() {
           ? `${weeklyBurnDays.size} active ${weeklyBurnDays.size === 1 ? "day" : "days"} this week`
           : "Add movement when it happens",
       done: todaysBurnCalories > 0 || syncedSteps >= 2500 || syncedWorkoutCompleted,
+      progress: todaysBurnCalories > 0 || syncedWorkoutCompleted
+        ? 100
+        : syncedSteps > 0
+          ? clamp(Math.round((syncedSteps / 8000) * 100))
+          : 0,
       href: "/burn-log"
     },
     {
@@ -1147,9 +1202,10 @@ export function ClientDashboard() {
             ? `Water logged on ${weeklyWaterDays.size} of 7 days`
             : "Water or sleep can add context",
       done: todaysWaterMl >= nutritionTargets.waterTargetMl || sleepQuality !== null,
+      progress: Math.max(waterProgress, sleepQuality ? 100 : 0),
       href: null
     },
-    ...(momentumBreakdown?.focusActive ? [{
+    {
       label: "Focus",
       icon: Target,
       summary: dailyMission
@@ -1158,15 +1214,21 @@ export function ClientDashboard() {
           : "Set today"
         : habits.length
           ? `${completedHabitIds.size}/${habits.length} habits`
-          : "Optional",
+          : "Optional today",
       detail: dailyMission?.title
         ?? (habits.length ? "Your personal habits" : "A personal focus is optional"),
       done: dailyMission?.status === "completed" || completedHabitIds.size > 0,
+      progress: dailyMission?.status === "completed"
+        ? 100
+        : habits.length
+          ? clamp(Math.round((completedHabitIds.size / habits.length) * 100))
+          : 0,
       href: "/habits"
-    }] : [])
+    }
   ];
-  const completedMomentumSignals = momentumSignals.filter((item) => item.done).length;
-  const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(momentumSignals.length, 1)) * 100);
+  const activeMomentumSignals = momentumSignals.filter((item) => item.label !== "Focus" || momentumBreakdown?.focusActive || habits.length || dailyMission);
+  const completedMomentumSignals = activeMomentumSignals.filter((item) => item.done).length;
+  const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(activeMomentumSignals.length, 1)) * 100);
   const priorityMomentumLabel = todayPriority.key === "Meal"
     ? "Fuel"
     : todayPriority.key === "Movement"
@@ -1267,8 +1329,8 @@ export function ClientDashboard() {
           </a>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <a href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface" aria-label="Open coach">
-              AI
+            <a href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-purple-200" aria-label="Open Coach Zoe">
+              <Sparkles size={18} />
             </a>
           </div>
         </header>
@@ -1276,19 +1338,6 @@ export function ClientDashboard() {
         {status ? <p className="mt-3 overflow-hidden break-words rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
-
-        {shouldShowProfileReminder ? (
-          <a href="/onboarding?profile=1" className="mt-3 block rounded-2xl border border-calm/50 bg-calm/10 p-5 shadow-soft">
-            <p className="text-sm font-semibold text-calm">Complete your profile</p>
-            <h2 className="mt-2 text-xl font-semibold">Unlock smarter coaching.</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">
-              Add a few details when you&apos;re ready so Ascend can personalise calories, targets, and progress insights.
-            </p>
-            <span className="mt-4 inline-flex h-10 items-center rounded-lg bg-calm px-4 text-sm font-semibold text-ink">
-              Continue Setup
-            </span>
-          </a>
-        ) : null}
 
         {goalStatus?.milestone_id && !goalStatus.acknowledged_at ? (
           <section className={`relative mt-3 overflow-hidden rounded-2xl border border-lime bg-lime/15 p-4 text-center ${isCelebratingGoal ? "ascend-goal-celebrating" : ""}`}>
@@ -1328,11 +1377,11 @@ export function ClientDashboard() {
           </section>
         ) : null}
 
-        <section className="ascend-today-hero ascend-soft-enter relative mt-2 overflow-hidden pb-5 pt-4 text-center">
+        <section className="ascend-today-hero ascend-soft-enter relative mt-2 overflow-hidden pb-4 pt-3 text-center">
           <p className="ascend-eyebrow">Today</p>
-          <h1 className="mt-2 text-[1.75rem] font-semibold leading-tight text-white">{greeting}, {firstName}.</h1>
+          <h1 className="mt-2 text-[1.65rem] font-semibold leading-tight text-white">{greeting}, {firstName}.</h1>
           <TodayMomentumVisual score={score} label={scoreLabel} />
-          <a href="/momentum-score" className="mx-auto -mt-2 mb-3 inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold text-purple-200">
+          <a href="/momentum-score" className="mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
             <CircleHelp size={14} /> 7-day consistency score
           </a>
           <p className="mx-auto max-w-[20rem] text-[11px] font-bold uppercase tracking-[0.18em] text-calm">Today&apos;s focus</p>
@@ -1343,6 +1392,19 @@ export function ClientDashboard() {
           </a>
         </section>
 
+        {shouldShowProfileReminder ? (
+          <a href="/onboarding?profile=1" className="ascend-pressable mt-2 flex min-h-16 items-center gap-3 rounded-2xl border border-calm/25 bg-calm/[0.06] px-4 py-3 shadow-soft">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-calm/12 text-calm">
+              <UserRound size={17} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-white">Make coaching more personal</span>
+              <span className="mt-0.5 block text-xs leading-5 text-zinc-500">Finish your profile when you&apos;re ready.</span>
+            </span>
+            <ArrowRight className="shrink-0 text-calm" size={17} />
+          </a>
+        ) : null}
+
         <section className="ascend-today-path ascend-card-rise py-5">
           <div className="flex items-end justify-between gap-3">
             <div>
@@ -1351,7 +1413,7 @@ export function ClientDashboard() {
                 {completedMomentumSignals ? "Your rhythm today" : "Start with one"}
               </h2>
             </div>
-            <p className="text-sm font-semibold text-calm">{completedMomentumSignals} of {momentumSignals.length}</p>
+            <p className="text-sm font-semibold text-calm">{completedMomentumSignals} of {activeMomentumSignals.length} essentials</p>
           </div>
           <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
             <div
@@ -1359,34 +1421,33 @@ export function ClientDashboard() {
               style={{ width: `${momentumSignalProgress}%` }}
             />
           </div>
-          <div className={`mt-5 grid gap-3 ${momentumSignals.length === 4 ? "grid-cols-4" : "grid-cols-3"}`} role="list" aria-label="Today activity shortcuts">
+          <nav className="mt-4 grid grid-cols-4 gap-2" aria-label="Today activity shortcuts">
             {momentumSignals.map((item) => {
               const Icon = item.icon;
               const isPriority = priorityMomentumLabel === item.label;
               const content = (
                 <>
-                  <span className={`relative grid h-12 w-12 place-items-center rounded-full border transition-colors ${item.done ? "border-lime/35 bg-lime text-ink shadow-[0_8px_24px_rgba(163,255,70,0.14)]" : isPriority ? "border-calm/50 bg-calm/12 text-calm shadow-[0_8px_24px_rgba(53,242,208,0.12)]" : "border-white/10 bg-white/[0.035] text-zinc-400"}`}>
-                    {item.done ? <Check size={18} strokeWidth={2.5} /> : <Icon size={18} />}
-                    {isPriority ? <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-ink bg-calm" /> : null}
-                  </span>
-                  <span className={`truncate text-[11px] font-semibold ${isPriority ? "text-calm" : item.done ? "text-zinc-300" : "text-zinc-500"}`}>{item.label}</span>
-                  <span className={`max-w-full text-[10px] font-medium leading-4 ${item.done ? "text-calm" : "text-zinc-500"}`}>{item.summary}</span>
+                  <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority}>
+                    {item.done ? <Check size={17} strokeWidth={2.5} /> : <Icon size={17} />}
+                  </SignalProgressRing>
+                  <span className={`truncate text-xs font-semibold ${isPriority ? "text-calm" : item.done ? "text-zinc-200" : "text-zinc-400"}`}>{item.label}</span>
+                  <span className={`max-w-full text-[11px] font-medium leading-4 ${item.done ? "text-calm" : "text-zinc-500"}`}>{item.summary}</span>
                 </>
               );
               return item.href ? (
-                <a key={item.label} href={item.href} role="listitem" className="ascend-pressable group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                <a key={item.label} href={item.href} className="ascend-pressable group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
                   {content}
                 </a>
               ) : (
-                <button key={item.label} type="button" role="listitem" onClick={() => setLogMenuOpen(true)} className="ascend-pressable group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={() => { setLogMenuContext("recovery"); setLogMenuOpen(true); }} className="ascend-pressable group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );
             })}
-          </div>
+          </nav>
           <button
             type="button"
-            onClick={() => setLogMenuOpen((current) => !current)}
+            onClick={() => { setLogMenuContext("all"); setLogMenuOpen((current) => !current); }}
             aria-expanded={logMenuOpen}
             className="ascend-pressable mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 text-sm font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm"
           >
@@ -1396,7 +1457,18 @@ export function ClientDashboard() {
           <div aria-hidden={!logMenuOpen} className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-300 ${logMenuOpen ? "visible mt-3 grid-rows-[1fr] opacity-100" : "invisible mt-0 grid-rows-[0fr] opacity-0"}`}>
             <div className="min-h-0">
               <div className="rounded-2xl border border-white/[0.07] bg-black/20 p-3">
-                <div className="grid grid-cols-3 gap-1.5">
+                {logMenuContext === "recovery" ? (
+                  <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
+                    <div>
+                      <p className="text-xs font-semibold text-white">Recovery check-in</p>
+                      <p className="mt-0.5 text-[11px] text-zinc-500">Add water or note how you slept.</p>
+                    </div>
+                    <a href="/water-log" className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-calm/25 bg-calm/8 px-3 text-xs font-semibold text-calm">
+                      <Droplets size={14} /> Water
+                    </a>
+                  </div>
+                ) : null}
+                {logMenuContext === "all" ? <div className="grid grid-cols-3 gap-1.5">
                   {optionalLogActions.map((action) => {
                     const Icon = action.icon;
                     return (
@@ -1406,7 +1478,7 @@ export function ClientDashboard() {
                       </a>
                     );
                   })}
-                </div>
+                </div> : null}
                 {!sleepQuality ? (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
                     <div>
@@ -1433,17 +1505,21 @@ export function ClientDashboard() {
               title="Today's Numbers"
               icon={<Zap size={17} />}
               tone="teal"
-              preview={hasTodaysNumbers ? "Your day, at a glance" : "Quick health snapshot"}
+              preview={hasTodaysNumbers ? "Your day, at a glance" : "Numbers appear as you check in"}
               previewVisual={hasTodaysNumbers ? (
-                <div className="flex items-center gap-3" aria-hidden="true">
+                <div className="grid grid-cols-3 gap-2" aria-hidden="true">
                   {[
                     { label: "Fuel", value: calorieProgress, color: "bg-amber" },
                     { label: "Protein", value: proteinProgress, color: "bg-purple-400" },
                     { label: "Water", value: waterProgress, color: "bg-calm" }
                   ].map((signal) => (
-                    <span key={signal.label} className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-zinc-500">
-                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${signal.color}`} />
-                      <span>{signal.label} {signal.value}%</span>
+                    <span key={signal.label} className="min-w-0">
+                      <span className="flex items-center justify-between gap-1 text-[10px] font-semibold text-zinc-400">
+                        <span>{signal.label}</span><span>{signal.value}%</span>
+                      </span>
+                      <span className="mt-1 block h-1 overflow-hidden rounded-full bg-white/[0.06]">
+                        <span className={`block h-full rounded-full ${signal.color}`} style={{ width: `${signal.value}%` }} />
+                      </span>
                     </span>
                   ))}
                 </div>
@@ -1525,7 +1601,7 @@ export function ClientDashboard() {
               )}
             </CollapsibleSection>
 
-            <section className="ascend-stagger-enter ascend-today-coach py-6" style={{ animationDelay: "90ms" }}>
+            <section className="ascend-stagger-enter ascend-today-coach my-5 overflow-hidden rounded-2xl border border-purple-400/25 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.92)_52%,rgba(53,242,208,0.05))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.22),0_0_30px_rgba(139,92,246,0.08)]" style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
                 {user?.assigned_trainer_id ? (
                   <span className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
@@ -1536,7 +1612,7 @@ export function ClientDashboard() {
                     <span className="h-1 w-1 rounded-full bg-purple-300" />
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-purple-200">Noticed today</p>
                   </div>
-                  <p className="mt-3 text-xl font-semibold leading-8 text-white">{coachCardSnippet}</p>
+                  <p className="mt-3 text-lg font-semibold leading-7 text-white">{coachCardSnippet}</p>
                   <p className="mt-1 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {user?.assigned_trainer_id ? (
@@ -1573,19 +1649,24 @@ export function ClientDashboard() {
             </section>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ink/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur">
-        <div className={`mx-auto grid max-w-md gap-2 ${navItems.length === 1 ? "grid-cols-1" : navItems.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-          {navItems.map((item) => (
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ink/95 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur" aria-label="Primary navigation">
+        <div className={`mx-auto grid max-w-md gap-1 ${navItems.length === 5 ? "grid-cols-5" : navItems.length === 1 ? "grid-cols-1" : navItems.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
             <a
               key={item.href}
               href={item.href}
-              className={`flex h-14 flex-col items-center justify-center gap-1 rounded-lg text-xs ${
-                item.selected ? "bg-lime text-ink" : "text-zinc-400"
+              aria-current={item.selected ? "page" : undefined}
+              className={`flex h-14 flex-col items-center justify-center gap-1 rounded-xl text-[10px] font-semibold transition-colors ${
+                item.selected ? "bg-calm/12 text-calm" : "text-zinc-500 hover:text-zinc-200"
               }`}
             >
+              <Icon size={18} strokeWidth={item.selected ? 2.4 : 2} />
               {item.label}
             </a>
-          ))}
+            );
+          })}
         </div>
       </nav>
     </main>

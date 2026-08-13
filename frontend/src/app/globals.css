@@ -496,8 +496,7 @@ html[data-theme="light"] .ascend-theme-glow {
   transition: stroke-dasharray 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.ascend-today-path,
-.ascend-today-coach {
+.ascend-today-path {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
@@ -507,7 +506,7 @@ html[data-theme="light"] .ascend-theme-glow {
 
 .ascend-today-coach::before {
   position: absolute;
-  inset: 1rem auto 1rem -1rem;
+  inset: 1rem auto 1rem 0;
   width: 2px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(164, 132, 255, 0), rgba(164, 132, 255, 0.72), rgba(53, 242, 208, 0));
@@ -533,6 +532,19 @@ html[data-theme="light"] .ascend-today-hero::after {
 
 html[data-theme="light"] .ascend-today-momentum circle:first-of-type {
   stroke: rgba(15, 23, 42, 0.09);
+}
+
+html[data-theme="light"] .ascend-signal-ring circle:first-of-type {
+  stroke: rgba(15, 23, 42, 0.11);
+}
+
+html[data-theme="light"] .ascend-today-canvas .text-purple-200,
+html[data-theme="light"] .ascend-today-canvas .text-purple-300 {
+  color: #6d3fd1 !important;
+}
+
+html[data-theme="light"] .ascend-today-canvas .text-calm {
+  color: #087f73 !important;
 }
 
 .ascend-eyebrow {
