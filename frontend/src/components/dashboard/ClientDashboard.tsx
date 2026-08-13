@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
 import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, Zap } from "lucide-react";
 import {
@@ -410,7 +411,6 @@ export function ClientDashboard() {
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
     dashboardLoadInFlightRef.current = true;
-    if (hasLoadedDashboardRef.current) setStatus("Updating today's progress...");
     if (!hasLoadedDashboardRef.current) setSectionLoading({ core: true, secondary: true });
     const requestId = ++dashboardRequestRef.current;
     const comparisonRequest = getMyProgressComparison();
@@ -428,6 +428,29 @@ export function ClientDashboard() {
     if (pendingHabitLog) setHabitLogs((current) => [pendingHabitLog, ...current.filter((log) => log.id !== pendingHabitLog.id)]);
 
     try {
+      const subscriptionRequest = loadAccountPlan().catch(() => "free" as const);
+      const priorityRequest = getTodayPriorityRecommendation().catch(() => null);
+      const coreDataRequest = Promise.allSettled([
+        getFoodLogs(),
+        getWeightLogs(),
+        getWaterLogs(),
+        getHabits(),
+        getHabitLogs(),
+        getBurnLogs(),
+        getComplianceToday(),
+        getTodayMission(),
+        getLatestRecognition(),
+        getMyStreak(),
+        getGoalStatus()
+      ]);
+      const secondaryDataRequest = Promise.allSettled([
+        getProgressPhotos(),
+        getMyNutritionTargets(),
+        getCoachPresence(),
+        getAscendMemory(),
+        getHealthSyncStatus(),
+        getTodayRecoveryCheckin()
+      ]);
       const cachedProfile = getCachedAccountProfile();
       if (cachedProfile) {
         setUser((current) => current ?? ({
@@ -452,38 +475,15 @@ export function ClientDashboard() {
       });
       setStatus("");
 
-      const subscriptionRequest = loadAccountPlan().catch(() => "free" as const);
-      const coreDataRequest = Promise.allSettled([
-        getFoodLogs(),
-        getWeightLogs(),
-        getWaterLogs(),
-        getHabits(),
-        getHabitLogs(),
-        getBurnLogs(),
-        getComplianceToday(),
-        getTodayMission(),
-        getLatestRecognition(),
-        getMyStreak(),
-        getGoalStatus(),
-        getTodayPriorityRecommendation()
-      ]);
-      const secondaryDataRequest = Promise.allSettled([
-        getProgressPhotos(),
-        getMyNutritionTargets(),
-        getCoachPresence(),
-        getAscendMemory(),
-        getHealthSyncStatus(),
-        getTodayRecoveryCheckin()
-      ]);
       const athleteDashboardRequest = me.user.athlete_mode_enabled
         ? getAthleteDashboard().catch(() => null)
         : Promise.resolve(null);
 
-      const plan = await subscriptionRequest;
-      if (requestId !== dashboardRequestRef.current) return;
-      setPlan(plan);
+      void subscriptionRequest.then((nextPlan) => {
+        if (requestId === dashboardRequestRef.current) setPlan(nextPlan);
+      });
 
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus, nextPriority] = await coreDataRequest;
+      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus] = await coreDataRequest;
       if (requestId !== dashboardRequestRef.current) return;
 
       if (foods.status === "fulfilled") {
@@ -525,7 +525,6 @@ export function ClientDashboard() {
       if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
       if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
       if (nextGoalStatus.status === "fulfilled") setGoalStatus(nextGoalStatus.value.goalStatus);
-      if (nextPriority.status === "fulfilled") setTodayPriorityRecommendation(nextPriority.value.priority);
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
@@ -544,6 +543,12 @@ export function ClientDashboard() {
       hasLoadedDashboardRef.current = true;
       setSectionLoading((current) => ({ ...current, core: false }));
       setStatus("");
+
+      void priorityRequest.then((response) => {
+        if (requestId === dashboardRequestRef.current && response) {
+          setTodayPriorityRecommendation(response.priority);
+        }
+      });
 
       void secondaryDataRequest
         .then(([photos, nutritionTargets, presence, memory, healthSync, recovery]) => {
@@ -1152,18 +1157,35 @@ export function ClientDashboard() {
   const coachCardSnippet = isFirstDayState
     ? "I'll learn what helps you as you check in. For now, keep today simple."
     : completeCoachSentences ?? coachCardMessage;
+  const fuelDetail = todaysFood.length
+    ? proteinTarget > 0 && protein < proteinTarget
+      ? `${Math.max(proteinTarget - protein, 0)}g protein left today`
+      : proteinTarget > 0
+        ? "Protein guide reached"
+        : "Meal activity recorded"
+    : weeklyFoodDays.size
+      ? `Meals logged on ${weeklyFoodDays.size} of 7 days`
+      : "Your first meal starts the picture";
+  const moveDetail = todaysBurnCalories > 0 || syncedSteps > 0 || syncedWorkoutCompleted
+    ? "Movement recorded today"
+    : weeklyBurnDays.size
+      ? `${weeklyBurnDays.size} active ${weeklyBurnDays.size === 1 ? "day" : "days"} this week`
+      : "Nothing recorded today";
+  const recoverDetail = todaysWaterMl > 0
+    ? sleepQuality
+      ? `${(Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0) / 1000).toFixed(1)}L water left · ${sleepQuality} sleep`
+      : `${(Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0) / 1000).toFixed(1)}L water left · sleep optional`
+    : sleepQuality
+      ? `No water yet · ${sleepQuality} sleep`
+      : "No water or sleep check-in yet";
+  const focusDetail = dailyMission?.title
+    ?? (habits.length ? `${completedHabitIds.size} of ${habits.length} habits complete` : "No focus set today");
   const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
     {
       label: "Fuel",
       icon: Beef,
       summary: todaysFood.length ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"}` : "No log yet",
-      detail: todaysFood.length
-        ? protein > 0
-          ? `${protein}g protein logged`
-          : "Meal activity recorded"
-        : weeklyFoodDays.size
-          ? `Meals logged on ${weeklyFoodDays.size} of 7 days`
-          : "Your first meal will start the picture",
+      detail: fuelDetail,
       done: todaysFood.length > 0,
       progress: calorieProgress,
       href: "/food-log"
@@ -1178,11 +1200,7 @@ export function ClientDashboard() {
           : syncedWorkoutCompleted
             ? "Workout synced"
             : "No log yet",
-      detail: todaysBurnCalories > 0 || syncedSteps > 0 || syncedWorkoutCompleted
-        ? "Movement recorded"
-        : weeklyBurnDays.size
-          ? `${weeklyBurnDays.size} active ${weeklyBurnDays.size === 1 ? "day" : "days"} this week`
-          : "Add movement when it happens",
+      detail: moveDetail,
       done: todaysBurnCalories > 0 || syncedSteps >= 2500 || syncedWorkoutCompleted,
       progress: todaysBurnCalories > 0 || syncedWorkoutCompleted
         ? 100
@@ -1199,15 +1217,7 @@ export function ClientDashboard() {
         : sleepQuality
           ? `${sleepQuality.charAt(0).toUpperCase()}${sleepQuality.slice(1)} sleep`
           : "Water + sleep",
-      detail: todaysWaterMl > 0
-        ? sleepQuality
-          ? `Sleep felt ${sleepQuality}`
-          : "Sleep check-in is optional"
-        : sleepQuality
-          ? "No water logged today"
-          : weeklyWaterDays.size
-            ? `Water logged on ${weeklyWaterDays.size} of 7 days`
-            : "Water or sleep can add context",
+      detail: recoverDetail,
       done: todaysWaterMl >= nutritionTargets.waterTargetMl || sleepQuality !== null,
       progress: Math.max(waterProgress, sleepQuality ? 100 : 0),
       href: null
@@ -1222,8 +1232,7 @@ export function ClientDashboard() {
         : habits.length
           ? `${completedHabitIds.size}/${habits.length} habits`
           : "Optional today",
-      detail: dailyMission?.title
-        ?? (habits.length ? "Your personal habits" : "A personal focus is optional"),
+      detail: focusDetail,
       done: dailyMission?.status === "completed" || completedHabitIds.size > 0,
       progress: dailyMission?.status === "completed"
         ? 100
@@ -1285,13 +1294,13 @@ export function ClientDashboard() {
       <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
         <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
           <header className="flex items-center justify-between py-3">
-            <a href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2">
               <BrandMark size="sm" />
               <span>
                 <span className="block text-lg font-semibold leading-5">Ascend</span>
                 <span className="text-xs text-zinc-400">Loading your dashboard</span>
               </span>
-            </a>
+            </Link>
             <div className="flex items-center gap-2">
               <SkeletonBlock className="h-10 w-10 rounded-lg" />
               <SkeletonBlock className="h-10 w-10 rounded-lg" />
@@ -1327,18 +1336,18 @@ export function ClientDashboard() {
     <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
-          <a href="/dashboard" className="flex items-center gap-2">
+          <Link href="/dashboard" className="flex items-center gap-2">
             <BrandMark size="sm" />
             <span>
               <span className="block text-lg font-semibold leading-5">Ascend</span>
               <span className="text-xs text-zinc-400">{coachingLabel(coachingMode)}</span>
             </span>
-          </a>
+          </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <a href="/coach" className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-purple-200" aria-label="Open Coach Zoe">
+            <Link href="/coach" className="ascend-pressable grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-purple-200" aria-label="Open Coach Zoe">
               <Sparkles size={18} />
-            </a>
+            </Link>
           </div>
         </header>
 
@@ -1377,9 +1386,9 @@ export function ClientDashboard() {
               >
                 {hasCelebratedGoal ? "🎉 Celebrated" : "Celebrate"}
               </button>
-              <a href="/profile/guide" className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+              <Link href="/profile/guide" className="ascend-pressable flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
                 Choose next goal
-              </a>
+              </Link>
             </div>
           </section>
         ) : null}
@@ -1388,19 +1397,19 @@ export function ClientDashboard() {
           <p className="ascend-eyebrow">Today</p>
           <h1 className="mt-2 text-[1.65rem] font-semibold leading-tight text-white">{todayGreeting}, {firstName}.</h1>
           <TodayMomentumVisual score={score} label={isFirstDayState ? "Begins with your first check-in" : scoreLabel} isStarting={isFirstDayState} />
-          <a href="/momentum-score" className="mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
+          <Link href="/momentum-score" className="ascend-pressable mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
             <CircleHelp size={14} /> 7-day consistency score
-          </a>
+          </Link>
           <p className="mx-auto max-w-[20rem] text-[11px] font-bold uppercase tracking-[0.18em] text-calm">Today&apos;s focus</p>
           <h2 className="mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
           <p className="mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
-          <a href={primaryAction.href} className="ascend-cta-pulse mx-auto mt-5 flex h-14 max-w-[21rem] items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+          <Link href={primaryAction.href} className="ascend-pressable ascend-cta-pulse mx-auto mt-5 flex h-14 max-w-[21rem] items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
             {primaryAction.label} <ArrowRight size={18} />
-          </a>
+          </Link>
         </section>
 
         {shouldShowProfileReminder ? (
-          <a href="/onboarding?profile=1" className="ascend-pressable ascend-today-profile-reminder mt-2 flex min-h-16 items-center gap-3 rounded-2xl border border-calm/25 bg-calm/[0.06] px-4 py-3 shadow-soft">
+          <Link href="/onboarding?profile=1" className="ascend-pressable ascend-today-profile-reminder mt-2 flex min-h-16 items-center gap-3 rounded-2xl border border-calm/25 bg-calm/[0.06] px-4 py-3 shadow-soft">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-calm/12 text-calm">
               <UserRound size={17} />
             </span>
@@ -1409,7 +1418,7 @@ export function ClientDashboard() {
               <span className="mt-0.5 block text-xs leading-5 text-zinc-500">Finish your profile when you&apos;re ready.</span>
             </span>
             <ArrowRight className="shrink-0 text-calm" size={17} />
-          </a>
+          </Link>
         ) : null}
 
         <section className="ascend-today-path ascend-card-rise py-5">
@@ -1439,12 +1448,13 @@ export function ClientDashboard() {
                   </SignalProgressRing>
                   <span className={`truncate text-xs font-semibold ${isPriority ? "text-calm" : item.done ? "text-zinc-200" : "text-zinc-400"}`}>{item.label}</span>
                   <span className={`max-w-full text-[11px] font-medium leading-4 ${item.done ? "text-calm" : "text-zinc-500"}`}>{item.summary}</span>
+                  <span className="line-clamp-2 min-h-8 max-w-[5.25rem] text-[10px] leading-4 text-zinc-500">{item.detail}</span>
                 </>
               );
               return item.href ? (
-                <a key={item.label} href={item.href} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                <Link key={item.label} href={item.href} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
                   {content}
-                </a>
+                </Link>
               ) : (
                 <button key={item.label} type="button" onClick={() => { setLogMenuContext("recovery"); setLogMenuOpen(true); }} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
@@ -1470,19 +1480,19 @@ export function ClientDashboard() {
                       <p className="text-xs font-semibold text-white">Recovery check-in</p>
                       <p className="mt-0.5 text-[11px] text-zinc-500">Add water or note how you slept.</p>
                     </div>
-                    <a href="/water-log" className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-calm/25 bg-calm/8 px-3 text-xs font-semibold text-calm">
+                    <Link href="/water-log" className="ascend-pressable inline-flex min-h-10 items-center gap-1.5 rounded-full border border-calm/25 bg-calm/8 px-3 text-xs font-semibold text-calm">
                       <Droplets size={14} /> Water
-                    </a>
+                    </Link>
                   </div>
                 ) : null}
                 {logMenuContext === "all" ? <div className="grid grid-cols-3 gap-1.5">
                   {optionalLogActions.map((action) => {
                     const Icon = action.icon;
                     return (
-                      <a key={action.label} href={action.href} className="ascend-pressable ascend-today-log-option flex min-h-16 min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-white/[0.06] bg-white/[0.025] px-1 text-center text-[10px] font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm">
+                      <Link key={action.label} href={action.href} className="ascend-pressable ascend-today-log-option flex min-h-16 min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-white/[0.06] bg-white/[0.025] px-1 text-center text-[10px] font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm">
                         <Icon size={16} />
                         <span className="w-full truncate">{action.label}</span>
-                      </a>
+                      </Link>
                     );
                   })}
                 </div> : null}
@@ -1623,18 +1633,18 @@ export function ClientDashboard() {
                   <p className="mt-1 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {user?.assigned_trainer_id ? (
-                      <a href="/messages" className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
+                      <Link href="/messages" className="ascend-pressable inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
                         View Coach Note <ArrowRight size={15} />
-                      </a>
+                      </Link>
                     ) : (
-                      <a href="/coach" className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
+                      <Link href="/coach" className="ascend-pressable inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
                         Talk to Zoe <ArrowRight size={15} />
-                      </a>
+                      </Link>
                     )}
                     {user?.athlete_mode_enabled ? (
-                      <a href="/athlete" className="inline-flex h-10 items-center justify-center rounded-full border border-sky-400/20 bg-sky-400/5 px-4 text-sm font-semibold text-sky-100">
+                      <Link href="/athlete" className="ascend-pressable inline-flex h-10 items-center justify-center rounded-full border border-sky-400/20 bg-sky-400/5 px-4 text-sm font-semibold text-sky-100">
                         {athleteTodaySummary ?? "Athlete Mode"}
-                      </a>
+                      </Link>
                     ) : null}
                   </div>
                 </div>
@@ -1642,7 +1652,7 @@ export function ClientDashboard() {
             </section>
 
             <section className="ascend-stagger-enter ascend-today-story border-t border-white/[0.07] py-6" style={{ animationDelay: "145ms" }}>
-              <a href="/journey" className="ascend-pressable flex items-center gap-3">
+              <Link href="/journey" className="ascend-pressable flex items-center gap-3">
                 <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${goalCompletedToday || weightLostFromStart >= 0.1 ? "bg-amber/12 text-amber" : "bg-calm/10 text-calm"}`}>
                   <Sparkles size={18} />
                 </span>
@@ -1652,7 +1662,7 @@ export function ClientDashboard() {
                   <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{progressPreview.detail}</p>
                 </div>
                 <ArrowRight className="shrink-0 text-zinc-500" size={18} />
-              </a>
+              </Link>
             </section>
       </div>
 
@@ -1661,7 +1671,7 @@ export function ClientDashboard() {
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
-            <a
+            <Link
               key={item.href}
               href={item.href}
               aria-current={item.selected ? "page" : undefined}
@@ -1671,7 +1681,7 @@ export function ClientDashboard() {
             >
               <Icon size={18} strokeWidth={item.selected ? 2.4 : 2} />
               {item.label}
-            </a>
+            </Link>
             );
           })}
         </div>

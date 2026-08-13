@@ -182,7 +182,7 @@ export function BurnLogClient() {
       });
       rememberDashboardRecord("burn", saved.burnLog);
       setTodayCalories((current) => current + estimatedCalories);
-      setStatus("Activity burn saved to Ascend.");
+      setStatus(`${activityType} saved. About ${estimatedCalories} kcal added to today's movement.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save activity. Please make sure you are logged in.");
     } finally {
@@ -317,7 +317,7 @@ export function BurnLogClient() {
             {estimateNotes ? <p className="mt-2 text-sm leading-6 text-zinc-400">{estimateNotes}</p> : null}
           </div>
 
-          <TrackingStatus message={status} success={status.includes("saved")} />
+          <TrackingStatus message={status} success={status.includes("saved")} actionHref="/dashboard" />
 
           <button
             type="submit"

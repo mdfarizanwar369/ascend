@@ -17,6 +17,7 @@ export function WaterLogClient() {
   const [todayMl, setTodayMl] = useState(0);
   const [status, setStatus] = useState("Loading today's water...");
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSucceeded, setSaveSucceeded] = useState(false);
   const saveLockRef = useRef(false);
 
   useEffect(() => {
@@ -51,15 +52,20 @@ export function WaterLogClient() {
     if (saveLockRef.current) return;
     saveLockRef.current = true;
     setIsSaving(true);
+    setSaveSucceeded(false);
     setStatus(`Saving ${amountMl}ml...`);
 
     try {
       const saved = await saveWaterLog({ amountMl });
       rememberDashboardRecord("water", saved.waterLog);
-      setTodayMl((current) => current + amountMl);
-      setStatus(`${amountMl}ml saved to Ascend.`);
+      const nextTotal = todayMl + amountMl;
+      setTodayMl(nextTotal);
+      const remainingMl = Math.max(dailyTargetMl - nextTotal, 0);
+      setStatus(remainingMl ? `${(nextTotal / 1000).toFixed(1)}L today. ${(remainingMl / 1000).toFixed(1)}L to your guide.` : "Hydration goal complete for today.");
+      setSaveSucceeded(true);
       markInstallEligible("first_action");
     } catch {
+      setSaveSucceeded(false);
       setStatus("Could not save water. Please make sure you are logged in.");
     } finally {
       saveLockRef.current = false;
@@ -94,7 +100,7 @@ export function WaterLogClient() {
           </div>
         </section>
 
-        <TrackingStatus message={status} success={status.includes("saved")} />
+        <TrackingStatus message={status} success={saveSucceeded} actionHref="/dashboard" />
       </div>
     </main>
   );

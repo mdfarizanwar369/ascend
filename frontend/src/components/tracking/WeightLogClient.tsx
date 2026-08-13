@@ -138,7 +138,7 @@ export function WeightLogClient() {
             </div>
           </Field>
 
-          <TrackingStatus message={status} success={status.includes("saved") || status.includes("achieved")} />
+          <TrackingStatus message={status} success={status.includes("saved") || status.includes("achieved")} actionHref="/dashboard" />
 
           <button
             type="submit"

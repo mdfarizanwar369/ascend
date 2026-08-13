@@ -4,6 +4,7 @@ import { signOut } from "firebase/auth";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 import { clearCachedAccountProfile } from "@/lib/accountSession";
 import { disableCoachNotifications } from "@/lib/coachNotifications";
+import { clearAscendResponseCache } from "@/lib/ascendApi";
 
 function withTimeout<T>(promise: Promise<T>, ms: number) {
   return Promise.race([
@@ -15,6 +16,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number) {
 }
 
 export async function clearLocalAscendSession() {
+  clearAscendResponseCache();
   clearCachedAccountProfile();
   window.sessionStorage.clear();
 

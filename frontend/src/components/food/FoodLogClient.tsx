@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Pencil, Save, Sparkles, Trash2, Utensils } from "lucide-react";
 import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
@@ -1235,10 +1236,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             </div>
             <p className="mt-4 text-sm leading-6 text-zinc-300">Your daily progress has been updated.</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
+              <Link href="/dashboard" className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-lime/30 bg-ink font-semibold text-lime">
+                Back to Today
+              </Link>
               <button type="button" onClick={() => setView("history")} className="ascend-pressable h-12 rounded-xl border border-line bg-ink font-semibold text-white">
                 Meal history
               </button>
-              <button type="button" onClick={() => setSavedMeal(null)} className="ascend-pressable h-12 rounded-xl bg-lime font-semibold text-ink">
+              <button type="button" onClick={() => setSavedMeal(null)} className="ascend-pressable col-span-2 h-12 rounded-xl bg-lime font-semibold text-ink">
                 Log another
               </button>
             </div>

@@ -804,6 +804,13 @@ html[data-theme="light"] .ascend-workspace-action {
 
 .ascend-pressable {
   will-change: transform;
+  touch-action: manipulation;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.ascend-pressable:active {
+  filter: brightness(1.06);
+  transform: scale(0.975);
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -886,6 +893,10 @@ html[data-theme="light"] .ascend-skeleton::after {
   }
 
   .ascend-food-progress {
+    transition: none;
+  }
+
+  .ascend-pressable {
     transition: none;
   }
 

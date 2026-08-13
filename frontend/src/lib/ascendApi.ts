@@ -339,7 +339,7 @@ export function getFoodLogs(
   if (filters.offset) params.set("offset", String(filters.offset));
   const query = params.toString();
 
-  return authed<{
+  return authedCached<{
     foodLogs: Array<{
       id: string;
       image_url?: string | null;
@@ -356,10 +356,19 @@ export function getFoodLogs(
       logged_at: string;
     }>;
     nextOffset?: number | null;
-  }>(`/food-logs${query ? `?${query}` : ""}`);
+  }>(`dashboard:food-logs:${query || "all"}`, `/food-logs${query ? `?${query}` : ""}`, 15_000);
+}
+
+export function clearAscendResponseCache() {
+  invalidateCached();
+}
+
+function invalidateDashboardReadCaches() {
+  invalidateCached("dashboard:");
 }
 
 export function deleteFoodLog(foodLogId: string) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -368,26 +377,27 @@ export function deleteFoodLog(foodLogId: string) {
 }
 
 export function getWeightLogs() {
-  return authed<{
+  return authedCached<{
     weightLogs: Array<{
       id: string;
       weight_kg: string | number;
       logged_at: string;
     }>;
-  }>("/weight-logs");
+  }>("dashboard:weight-logs", "/weight-logs", 15_000);
 }
 
 export function getWaterLogs() {
-  return authed<{
+  return authedCached<{
     waterLogs: Array<{
       id: string;
       amount_ml: number;
       logged_at: string;
     }>;
-  }>("/water-logs");
+  }>("dashboard:water-logs", "/water-logs", 15_000);
 }
 
 export function saveWeightLog(input: { weightKg: number; loggedAt?: string }) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -413,7 +423,7 @@ export function saveWeightLog(input: { weightKg: number; loggedAt?: string }) {
 }
 
 export function getGoalStatus() {
-  return authed<{
+  return authedCached<{
     goalStatus: {
       goal_type?: GoalType | null;
       goal_updated_at?: string | null;
@@ -428,11 +438,11 @@ export function getGoalStatus() {
       achieved_at?: string | null;
       acknowledged_at?: string | null;
     };
-  }>("/me/goal-status");
+  }>("dashboard:goal-status", "/me/goal-status", 15_000);
 }
 
 export function getMyProgressComparison() {
-  return authed<{ comparison: ProgressComparison }>("/me/progress-comparison");
+  return authedCached<{ comparison: ProgressComparison }>("dashboard:progress-comparison", "/me/progress-comparison", 15_000);
 }
 
 export function acknowledgeGoalMilestone(milestoneId: string) {
@@ -441,6 +451,7 @@ export function acknowledgeGoalMilestone(milestoneId: string) {
 }
 
 export function saveWaterLog(input: { amountMl: number; loggedAt?: string }) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -458,7 +469,7 @@ export function saveWaterLog(input: { amountMl: number; loggedAt?: string }) {
 }
 
 export function getHabits() {
-  return authed<{
+  return authedCached<{
     habits: Array<{
       id: string;
       name: string;
@@ -466,10 +477,11 @@ export function getHabits() {
       active: boolean;
       created_at: string;
     }>;
-  }>("/habits");
+  }>("dashboard:habits", "/habits", 15_000);
 }
 
 export function createHabit(input: { name: string; frequency?: "daily" | "weekly" }) {
+  invalidateDashboardReadCaches();
   return authed<{
     habit: {
       id: string;
@@ -485,17 +497,18 @@ export function createHabit(input: { name: string; frequency?: "daily" | "weekly
 }
 
 export function getHabitLogs() {
-  return authed<{
+  return authedCached<{
     habitLogs: Array<{
       id: string;
       habit_id: string;
       completed: boolean;
       logged_at: string;
     }>;
-  }>("/habit-logs");
+  }>("dashboard:habit-logs", "/habit-logs", 15_000);
 }
 
 export function saveHabitLog(input: { habitId: string; completed?: boolean; loggedAt?: string }) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -513,7 +526,7 @@ export function saveHabitLog(input: { habitId: string; completed?: boolean; logg
 }
 
 export function getComplianceToday() {
-  return authed<{
+  return authedCached<{
     compliance: {
       id: string;
       score: number;
@@ -535,22 +548,22 @@ export function getComplianceToday() {
       score_version?: "v2";
       calculated_for_date: string;
     } | null;
-  }>("/compliance/today");
+  }>("dashboard:compliance-today", "/compliance/today", 15_000);
 }
 
 export function getMyStreak() {
-  return authed<{
+  return authedCached<{
     streak: {
       current: number;
       best: number;
       activeDaysThisWeek: number;
       checkedInToday: boolean;
     };
-  }>("/streaks/me");
+  }>("dashboard:streak", "/streaks/me", 15_000);
 }
 
 export function getBurnLogs() {
-  return authed<{
+  return authedCached<{
     burnLogs: Array<{
       id: string;
       metadata: {
@@ -575,11 +588,11 @@ export function getBurnLogs() {
       };
       created_at: string;
     }>;
-  }>("/burn-logs");
+  }>("dashboard:burn-logs", "/burn-logs", 15_000);
 }
 
 export function getTodayMission() {
-  return authed<{
+  return authedCached<{
     mission: {
       id: string;
       title: string;
@@ -589,11 +602,11 @@ export function getTodayMission() {
       trainer_name?: string | null;
       created_at: string;
     } | null;
-  }>("/missions/today");
+  }>("dashboard:mission", "/missions/today", 15_000);
 }
 
 export function getLatestRecognition() {
-  return authed<{
+  return authedCached<{
     recognition: {
       id: string;
       message: string;
@@ -601,7 +614,7 @@ export function getLatestRecognition() {
       trainer_name?: string | null;
       created_at: string;
     } | null;
-  }>("/recognitions/latest");
+  }>("dashboard:recognition", "/recognitions/latest", 20_000);
 }
 
 export type CoachPresenceMessage = {
@@ -696,6 +709,7 @@ export function dismissCoachPresence(messageId: string) {
 }
 
 export function completeMission(missionId: string) {
+  invalidateDashboardReadCaches();
   invalidateCached("coach:");
   return authed<{
     mission: {
@@ -716,6 +730,7 @@ export function saveBurnLog(input: {
   caloriesBurned: number;
   loggedAt?: string;
 }) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -746,6 +761,7 @@ export function saveCompletedWorkout(input: {
   exercises: GeneratedWorkout["exercises"];
   healthProviderCaloriesBurned?: number | null;
 }) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -939,6 +955,7 @@ export function saveFoodLog(input: {
   aiEstimateRaw?: FoodEstimate;
   wasEditedByUser: boolean;
 }) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -990,6 +1007,7 @@ export function saveCapturedWorkout(input: {
   exercises: WorkoutCaptureExercise[];
   healthProviderCaloriesBurned?: number | null;
 }) {
+  invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
   invalidateCached("memory:");
   invalidateCached("coach:");
@@ -1025,12 +1043,13 @@ export function getRecentDetailedWorkouts(limit = 5) {
 }
 
 export function getTodayRecoveryCheckin() {
-  return authed<{
+  return authedCached<{
     checkin: { id: string; checkin_date: string; sleep_quality: "poor" | "okay" | "good" } | null;
-  }>("/recovery-checkins/today");
+  }>("dashboard:recovery-checkin", "/recovery-checkins/today", 15_000);
 }
 
 export function saveRecoveryCheckin(sleepQuality: "poor" | "okay" | "good") {
+  invalidateDashboardReadCaches();
   return authed<{
     checkin: { id: string; checkin_date: string; sleep_quality: "poor" | "okay" | "good" };
   }>("/recovery-checkins", { method: "POST", body: JSON.stringify({ sleepQuality }) });
@@ -1148,6 +1167,7 @@ export function saveMyNutritionTargets(input: {
   carbsG?: number;
   fatG?: number;
 }) {
+  invalidateDashboardReadCaches();
   invalidateCached("nutrition:");
   return authed<{ targets: ResolvedNutritionTargets }>("/me/nutrition-targets", {
     method: "PUT",

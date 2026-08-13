@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import Link from "next/link";
 import { LucideIcon } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { DelightProgressBar } from "@/components/Delight";
@@ -81,16 +82,33 @@ export function TrackingHero({
   );
 }
 
-export function TrackingStatus({ message, success = false }: { message: string; success?: boolean }) {
+export function TrackingStatus({
+  message,
+  success = false,
+  actionHref,
+  actionLabel = "Back to Today"
+}: {
+  message: string;
+  success?: boolean;
+  actionHref?: string;
+  actionLabel?: string;
+}) {
   if (!message) return null;
   return (
-    <p
+    <div
       role="status"
       className={`mt-4 rounded-xl border px-4 py-3 text-sm leading-5 ${
         success ? "ascend-success-reveal border-lime/30 bg-lime/10 text-lime" : "border-line bg-surface text-zinc-300"
       }`}
     >
-      {message}
-    </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 flex-1">{message}</p>
+        {success && actionHref ? (
+          <Link href={actionHref} className="ascend-pressable inline-flex min-h-10 shrink-0 items-center rounded-lg border border-lime/30 bg-ink/70 px-3 text-xs font-semibold text-lime">
+            {actionLabel}
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }

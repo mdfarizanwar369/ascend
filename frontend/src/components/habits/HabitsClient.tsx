@@ -109,7 +109,7 @@ export function HabitsClient() {
       const saved = await saveHabitLog({ habitId, completed: true });
       rememberDashboardRecord("habit", saved.habitLog);
       setHabitLogs((current) => [saved.habitLog, ...current]);
-      setStatus("Habit saved for today.");
+      setStatus(`Habit complete. ${Math.min(completedToday.size + 1, habits.length)} of ${habits.length} done today.`);
       markInstallEligible("first_action");
     } catch {
       setStatus("Could not save habit. Please make sure you are logged in.");
@@ -210,7 +210,7 @@ export function HabitsClient() {
           })}
         </section>
 
-        <TrackingStatus message={status} success={status.includes("created") || status.includes("added") || status.includes("saved")} />
+        <TrackingStatus message={status} success={status.includes("created") || status.includes("added") || status.includes("complete")} actionHref={status.includes("complete") ? "/dashboard" : undefined} />
       </div>
     </main>
   );
