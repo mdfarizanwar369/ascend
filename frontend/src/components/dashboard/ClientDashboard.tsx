@@ -188,6 +188,14 @@ function snapshotIcon(label: string) {
   return Zap;
 }
 
+const snapshotTone = {
+  calories: { icon: "bg-amber/12 text-amber", bar: "bg-amber", glow: "shadow-[0_0_16px_rgba(245,180,72,0.18)]" },
+  protein: { icon: "bg-purple-400/12 text-purple-200", bar: "bg-purple-400", glow: "shadow-[0_0_16px_rgba(139,92,246,0.18)]" },
+  water: { icon: "bg-calm/12 text-calm", bar: "bg-calm", glow: "shadow-[0_0_16px_rgba(61,230,209,0.18)]" },
+  weight: { icon: "bg-sky-400/12 text-sky-200", bar: "bg-sky-300", glow: "shadow-[0_0_16px_rgba(125,211,252,0.16)]" },
+  momentum: { icon: "bg-lime/12 text-lime", bar: "bg-lime", glow: "shadow-[0_0_16px_rgba(163,255,70,0.16)]" }
+} as const;
+
 function sectionAccent(tone: "teal" | "purple" | "lime") {
   if (tone === "purple") {
     return {
@@ -218,6 +226,7 @@ function CollapsibleSection({
   icon,
   tone = "teal",
   preview,
+  previewVisual,
   children,
   isOpen,
   onToggle
@@ -226,6 +235,7 @@ function CollapsibleSection({
   icon?: ReactNode;
   tone?: "teal" | "purple" | "lime";
   preview: string;
+  previewVisual?: ReactNode;
   children: ReactNode;
   isOpen: boolean;
   onToggle: () => void;
@@ -249,6 +259,7 @@ function CollapsibleSection({
             <h2 className={`text-base font-semibold ${accent.title}`}>{title}</h2>
           </div>
           <p className={`mt-1 truncate text-sm ${accent.preview}`}>{preview}</p>
+          {previewVisual ? <div className="mt-2">{previewVisual}</div> : null}
         </div>
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-200">
           <ChevronDown className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} size={18} />
@@ -640,6 +651,7 @@ export function ClientDashboard() {
   const waterLeftMl = Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0);
   const calorieProgress = clamp(Math.round((calories / calorieTarget) * 100));
   const proteinProgress = clamp(Math.round((protein / proteinTarget) * 100));
+  const waterProgress = clamp(Math.round((todaysWaterMl / nutritionTargets.waterTargetMl) * 100));
   const needsGuideProfile = !user?.age_years || !user?.height_cm || !user?.activity_level || !user?.gender;
   const profileIncomplete = Boolean(user) && (!user?.goal_type || !user?.age_years || !user?.height_cm || !user?.starting_weight_kg || !user?.activity_level);
   const hasExperiencedAscend = foodLogs.length > 0 || weightLogs.length > 0 || waterLogs.length > 0 || dashboardSessionCount >= 3;
@@ -1057,7 +1069,7 @@ export function ClientDashboard() {
     protein > 0 ||
     todaysWaterMl > 0 ||
     Boolean(currentWeight) ||
-    score > 0 ||
+    momentumScore !== null ||
     syncedSteps > 0 ||
     todaysBurnCalories > 0;
   const dailyCoachingMessage = (() => {
@@ -1507,7 +1519,21 @@ export function ClientDashboard() {
               title="Today's Numbers"
               icon={<Zap size={17} />}
               tone="teal"
-              preview="Quick health snapshot"
+              preview={hasTodaysNumbers ? "Your day, at a glance" : "Quick health snapshot"}
+              previewVisual={hasTodaysNumbers ? (
+                <div className="flex items-center gap-3" aria-hidden="true">
+                  {[
+                    { label: "Fuel", value: calorieProgress, color: "bg-amber" },
+                    { label: "Protein", value: proteinProgress, color: "bg-purple-400" },
+                    { label: "Water", value: waterProgress, color: "bg-calm" }
+                  ].map((signal) => (
+                    <span key={signal.label} className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold text-zinc-500">
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${signal.color}`} />
+                      <span>{signal.label} {signal.value}%</span>
+                    </span>
+                  ))}
+                </div>
+              ) : undefined}
               isOpen={openSections.todaysNumbers}
               onToggle={() => setSectionOpen("todaysNumbers", !openSections.todaysNumbers)}
             >
@@ -1517,46 +1543,62 @@ export function ClientDashboard() {
                     {
                       key: "calories",
                       label: "Calories",
-                      value: `${calories.toLocaleString()} / ${calorieTarget.toLocaleString()}`,
-                      detail: "kcal"
+                      value: calories.toLocaleString(),
+                      target: `${calorieTarget.toLocaleString()} kcal guide`,
+                      progress: calorieProgress
                     },
                     {
                       key: "protein",
                       label: "Protein",
-                      value: `${protein}g / ${proteinTarget}g`,
-                      detail: "today"
+                      value: `${protein}g`,
+                      target: `${proteinTarget}g guide`,
+                      progress: proteinProgress
                     },
                     {
                       key: "water",
                       label: "Water",
-                      value: `${(todaysWaterMl / 1000).toFixed(1)}L / ${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L`,
-                      detail: "today"
+                      value: `${(todaysWaterMl / 1000).toFixed(1)}L`,
+                      target: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide`,
+                      progress: waterProgress
                     },
                     {
                       key: "weight",
                       label: "Weight",
                       value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "No check-in yet",
-                      detail: currentWeight ? weightTrend(latestWeight, previousWeight) : "optional today"
+                      target: currentWeight ? weightTrend(latestWeight, previousWeight) : "Optional today",
+                      progress: null
                     },
                     {
                       key: "momentum",
                       label: "Momentum",
                       value: scoreLabel,
-                      detail: `${score}/100`
+                      target: `${score}/100 today`,
+                      progress: score
                     }
                   ].map((item) => (
-                    <div key={item.key} className="rounded-xl border border-white/6 bg-ink px-3 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="grid h-7 w-7 place-items-center rounded-lg bg-surface text-calm">
+                    <div key={item.key} className={`relative overflow-hidden rounded-2xl border border-white/6 bg-ink px-3.5 py-3.5 ${item.key === "momentum" ? "col-span-2 sm:col-span-1" : ""}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className={`grid h-8 w-8 place-items-center rounded-xl ${snapshotTone[item.key as keyof typeof snapshotTone].icon}`}>
                           {(() => {
                             const Icon = snapshotIcon(item.label);
-                            return <Icon size={14} />;
+                            return <Icon size={15} />;
                           })()}
                         </span>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{item.label}</p>
+                        {item.progress !== null ? <span className="text-[11px] font-semibold text-zinc-500">{item.progress}%</span> : null}
                       </div>
-                      <p className="mt-3 text-sm font-semibold leading-5 text-white">{item.value}</p>
-                      <p className="mt-1 text-[11px] text-zinc-500">{item.detail}</p>
+                      <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{item.label}</p>
+                      <p className={`mt-1 font-semibold leading-6 text-white ${item.key === "momentum" || (item.key === "weight" && !currentWeight) ? "text-base" : "text-xl"}`}>{item.value}</p>
+                      <p className="mt-0.5 text-[11px] text-zinc-500">{item.target}</p>
+                      {item.progress !== null ? (
+                        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface">
+                          <div
+                            className={`h-full rounded-full transition-[width] duration-700 ${snapshotTone[item.key as keyof typeof snapshotTone].bar} ${snapshotTone[item.key as keyof typeof snapshotTone].glow}`}
+                            style={{ width: `${item.progress}%` }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="mt-3 flex h-1.5 gap-1" aria-hidden="true"><span className="w-2/5 rounded-full bg-sky-300/70" /><span className="w-1/5 rounded-full bg-sky-300/30" /><span className="flex-1 rounded-full bg-surface" /></div>
+                      )}
                     </div>
                   ))}
                 </div>
