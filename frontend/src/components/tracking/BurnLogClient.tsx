@@ -4,7 +4,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import Link from "next/link";
 import { Flame, ListChecks, Save, Zap } from "lucide-react";
 import { estimateBurnFromText, getBurnLogs, getCurrentCoachHomework, getMe, getMySubscription, saveBurnLog, TrainerHomeworkAssignment } from "@/lib/ascendApi";
-import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
@@ -15,6 +14,7 @@ import { WorkoutCapturePanel } from "@/components/tracking/WorkoutCapturePanel";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 import { CoachedSessionsCard } from "@/components/tracking/CoachedSessionsCard";
 import { MetricPulse } from "@/components/ExperienceVisuals";
+import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
 
 const burnRates: Record<string, number> = {
   Walking: 4,
@@ -192,31 +192,15 @@ export function BurnLogClient() {
   }
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-md">
-        <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" disabled={isSaving || detailedBusy} />
-          <div>
-            <p className="text-sm text-zinc-400">Daily tracking</p>
-            <h1 className="text-2xl font-semibold">Activity burn</h1>
-          </div>
-        </header>
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-member-frame">
+        <TrackingPageHeader eyebrow="Daily tracking" title="Movement" disabled={isSaving || detailedBusy} />
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink">
-              <Flame size={23} />
-            </span>
-            <div>
-              <p className="text-sm text-zinc-400">Burn logged today</p>
-              <p className="text-2xl font-semibold"><MetricPulse pulseKey={todayCalories}>{todayCalories} kcal</MetricPulse></p>
-            </div>
-          </div>
-        </section>
+        <TrackingHero icon={Flame} label="Activity logged today" value={<MetricPulse pulseKey={todayCalories}>{todayCalories} kcal</MetricPulse>} detail="Movement added to Today's Progress" tone="amber" />
 
         {homework ? (
-          <section className="mt-4 rounded-lg border border-calm/30 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.12),transparent_12rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">Coach Homework</p>
+          <section className="mt-4 rounded-xl border border-calm/30 bg-[linear-gradient(145deg,rgba(61,230,209,0.09),rgba(18,23,33,0.98))] p-4">
+            <p className="ascend-eyebrow text-calm">Coach Homework</p>
             <h2 className="mt-2 text-xl font-semibold text-white">{homework.title}</h2>
             <p className="mt-2 text-sm text-zinc-300">Assigned by {homework.trainer_name ?? "your coach"}</p>
             <div className="mt-3 space-y-1 text-sm text-zinc-400">
@@ -230,7 +214,7 @@ export function BurnLogClient() {
             ) : null}
             <Link
               href={`/coach-homework/${homework.id}`}
-              className="mt-4 flex h-12 items-center justify-center rounded-2xl bg-lime font-semibold text-ink"
+              className="ascend-pressable mt-4 flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink"
             >
               Start Homework
             </Link>
@@ -238,14 +222,14 @@ export function BurnLogClient() {
         ) : null}
 
         {canUseDetailedCapture ? (
-          <section className="mt-4 rounded-lg border border-line bg-surface p-1" aria-label="Movement logging depth">
+          <section className="ascend-surface mt-4 p-1" aria-label="Movement logging depth">
             <div className="grid grid-cols-2 gap-1">
               <button
                 type="button"
                 onClick={() => setLoggingMode("quick")}
                 disabled={detailedBusy}
                 aria-pressed={loggingMode === "quick"}
-                className={`flex min-h-14 items-center justify-center gap-2 rounded-md px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "quick" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}
+                className={`ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-[0.65rem] px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "quick" ? "bg-lime text-ink" : "text-zinc-300"}`}
               >
                 <Zap size={18} />
                 <span>Quick Activity</span>
@@ -255,7 +239,7 @@ export function BurnLogClient() {
                 onClick={() => setLoggingMode("detailed")}
                 disabled={isSaving}
                 aria-pressed={loggingMode === "detailed"}
-                className={`flex min-h-14 items-center justify-center gap-2 rounded-md px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "detailed" ? "bg-lime text-ink" : "bg-ink text-zinc-300"}`}
+                className={`ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-[0.65rem] px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "detailed" ? "bg-lime text-ink" : "text-zinc-300"}`}
               >
                 <ListChecks size={18} />
                 <span>Detailed Workout</span>
@@ -265,7 +249,7 @@ export function BurnLogClient() {
         ) : null}
 
         {!canUseDetailedCapture || loggingMode === "quick" ? (
-        <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+        <form onSubmit={onSubmit} className="ascend-surface mt-4 space-y-4 p-4">
           <Field label="Tell Ascend what you did">
             <div className="space-y-2">
             <input
@@ -282,7 +266,7 @@ export function BurnLogClient() {
                 type="button"
                 disabled={isEstimating || !activityText.trim()}
                 onClick={estimateFromText}
-                className="h-11 w-full rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+                className="ascend-pressable h-11 w-full rounded-xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
                 {isEstimating ? "Estimating..." : canUseAiEstimate ? "Estimate with AI" : "Premium AI estimate"}
               </button>
@@ -321,18 +305,18 @@ export function BurnLogClient() {
             />
           </Field>
 
-          <div className="rounded-lg bg-ink p-4">
+          <div className="ascend-inset p-4">
             <p className="text-sm text-zinc-400">Estimated burn</p>
             <p className="mt-1 text-3xl font-semibold">{estimatedCalories} kcal</p>
             {estimateNotes ? <p className="mt-2 text-sm leading-6 text-zinc-400">{estimateNotes}</p> : null}
           </div>
 
-          {status ? <p className={`rounded-lg border p-3 text-sm ${status.includes("saved") ? "ascend-success-reveal border-lime/35 bg-lime/10 text-lime" : "border-line bg-ink text-zinc-300"}`}>{status}</p> : null}
+          <TrackingStatus message={status} success={status.includes("saved")} />
 
           <button
             type="submit"
             disabled={isSaving || !Number(durationMinutes)}
-            className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            className="ascend-pressable flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save className="mr-2" size={18} />
             {isSaving ? "Saving..." : "Save activity"}

@@ -264,7 +264,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           </div>
         </div>
         <div className="p-5">
-        <p className="mt-4 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
+        <p className="ascend-inset mt-4 p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
         {workoutProgressionV3Enabled() && savedSummary.progressionV3 ? (
           <div className="mt-3 rounded-lg border border-purple-400/35 bg-purple-400/10 p-3">
             <div className="flex items-center gap-2 text-purple-200">
@@ -307,7 +307,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           <button
             type="button"
             onClick={resetCapture}
-            className="mt-4 flex h-12 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white active:scale-[0.99]"
+            className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-xl border border-line bg-ink font-semibold text-white"
           >
             Log another workout
           </button>
@@ -320,9 +320,9 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   if (!draft) {
     const freeLimitReached = allowance?.tier === "free" && allowance.remaining === 0;
     return (
-      <section className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-surface mt-4 space-y-4 p-4">
         <div className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-lime/15 text-lime">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lime/15 text-lime">
             <Dumbbell size={22} />
           </span>
           <div>
@@ -332,7 +332,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         </div>
 
         {allowance ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-ink px-3 py-2 text-sm">
+          <div className="ascend-inset flex items-center justify-between gap-3 px-3 py-2 text-sm">
             <span className="text-zinc-400">Your access</span>
             <span className="font-semibold text-white">
               {allowance.tier === "premium" ? "Unlimited Detailed Workouts" : `${allowance.remaining} of ${allowance.limit} available now`}
@@ -352,7 +352,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
             maxLength={2_000}
             rows={5}
             placeholder={"Bench 60kg 3x10\nLat pulldown 45kg 3x12\n45 minutes total"}
-            className="ascend-field mt-2 w-full resize-none rounded-lg border px-3 py-3 text-base leading-6 outline-none focus:border-lime"
+            className="ascend-field mt-2 w-full resize-none rounded-xl border px-3 py-3 text-base leading-6 outline-none focus:border-lime"
           />
           <p className="mt-2 text-xs leading-5 text-zinc-500">Ascend creates a review first. Nothing is saved automatically.</p>
         </div>
@@ -364,13 +364,13 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           </div>
         ) : null}
 
-        {status ? <p className="rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300" role="status">{status}</p> : null}
+        {status ? <p className="ascend-inset p-3 text-sm text-zinc-300" role="status">{status}</p> : null}
 
         <button
           type="button"
           onClick={analyze}
           disabled={isAnalyzing || workoutText.trim().length < 2 || freeLimitReached}
-          className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]"
+          className="ascend-pressable flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Sparkles className="mr-2" size={18} />
           {isAnalyzing ? "Reading workout..." : "Create Workout Receipt"}
@@ -386,7 +386,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
                   type="button"
                   onClick={() => chooseRecentWorkout(workout)}
                   disabled={freeLimitReached}
-                  className="flex min-h-12 w-full items-center justify-between rounded-lg border border-line bg-ink px-3 py-2 text-left active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="ascend-pressable ascend-inset flex min-h-12 w-full items-center justify-between px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>
                     <span className="block font-medium text-white">{metadataText(workout.metadata.workoutTitle) ?? "Saved workout"}</span>
@@ -404,7 +404,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
             <p className="text-sm font-semibold text-white">Recent progression</p>
             <div className="mt-2 space-y-2">
               {progressionHistory.slice(0, 3).map((item) => (
-                <div key={item.workoutEventId} className="rounded-lg border border-line bg-ink p-3">
+                <div key={item.workoutEventId} className="ascend-surface-subtle p-3">
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-medium text-white">{item.workoutTitle}</p>
                     <span className="text-xs text-zinc-500">{new Date(item.completedAt).toLocaleDateString([], { day: "numeric", month: "short" })}</span>
@@ -421,10 +421,10 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   }
 
   return (
-    <section className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+    <section className="ascend-surface mt-4 space-y-4 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-lime">Workout receipt</p>
+          <p className="ascend-eyebrow text-lime">Workout receipt</p>
           <h2 className="mt-1 text-xl font-semibold text-white">Review before saving</h2>
           <p className="mt-1 text-sm text-zinc-400">Only change what Ascend did not understand.</p>
         </div>
@@ -433,7 +433,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           onClick={resetCapture}
           disabled={busy}
           aria-label="Start workout capture again"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line bg-ink text-zinc-300 disabled:opacity-50"
+          className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-300 disabled:opacity-50"
         >
           <RefreshCcw size={18} />
         </button>
@@ -485,7 +485,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         {draft.exercises.map((exercise, index) => (
           <article
             key={`${index}-${exercise.originalText ?? "exercise"}`}
-            className={`rounded-lg border p-3 ${exercise.needsConfirmation ? "border-amber-400/40 bg-amber-400/5" : "border-line bg-ink"}`}
+            className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber-400/40 bg-amber-400/5" : "border-line bg-ink"}`}
           >
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-zinc-300">Exercise {index + 1}</p>
@@ -494,7 +494,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
                 onClick={() => removeExercise(index)}
                 disabled={busy}
                 aria-label={`Remove exercise ${index + 1}`}
-                className="grid h-11 w-11 place-items-center rounded-lg text-zinc-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl text-zinc-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
               >
                 <Trash2 size={18} />
               </button>
@@ -566,20 +566,20 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         type="button"
         onClick={() => updateDraft({ exercises: [...draft.exercises, blankExercise()] })}
         disabled={busy || draft.exercises.length >= 30}
-        className="flex h-11 w-full items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200 disabled:opacity-50"
+        className="ascend-pressable flex h-11 w-full items-center justify-center rounded-xl border border-line bg-ink font-semibold text-zinc-200 disabled:opacity-50"
       >
         <Plus className="mr-2" size={17} />
         Add exercise
       </button>
 
       {!canSave ? <p className="text-sm text-amber-200">Add the workout name, total time, and at least one exercise to save.</p> : null}
-      {status ? <p className="rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300" role="status">{status}</p> : null}
+      {status ? <p className="ascend-inset p-3 text-sm text-zinc-300" role="status">{status}</p> : null}
 
       <button
         type="button"
         onClick={save}
         disabled={!canSave || busy}
-        className="flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.99]"
+        className="ascend-pressable flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
       >
         <CheckCircle2 className="mr-2" size={19} />
         {isSaving ? "Saving workout..." : "Confirm & Save Workout"}

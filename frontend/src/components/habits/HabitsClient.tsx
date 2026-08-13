@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Plus } from "lucide-react";
+import { Check, ListChecks, Plus } from "lucide-react";
 import { createHabit, getHabitLogs, getHabits, saveHabitLog } from "@/lib/ascendApi";
-import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
+import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
 
 const starterHabits = ["8,000 steps", "No sugary drinks", "Protein at breakfast", "Sleep before midnight"];
 
@@ -39,6 +39,7 @@ export function HabitsClient() {
       habitLogs.filter((log) => log.completed && localDateKey(log.logged_at) === today).map((log) => log.habit_id)
     );
   }, [habitLogs]);
+  const completionProgress = habits.length ? Math.round((completedToday.size / habits.length) * 100) : 0;
 
   async function createStarterHabits() {
     if (saveLockRef.current) return;
@@ -105,19 +106,20 @@ export function HabitsClient() {
   }
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-md">
-        <header className="flex items-center justify-between gap-4 py-3">
-          <div className="flex items-center gap-3">
-            <BackButton fallbackHref="/dashboard" disabled={isSaving} />
-            <div>
-              <p className="text-sm text-zinc-400">Daily accountability</p>
-              <h1 className="text-2xl font-semibold">Habits</h1>
-            </div>
-          </div>
-        </header>
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-member-frame">
+        <TrackingPageHeader eyebrow="Daily accountability" title="Habits" disabled={isSaving} />
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <TrackingHero
+          icon={ListChecks}
+          label="Today"
+          value={habits.length ? `${completedToday.size} of ${habits.length}` : "One small start"}
+          detail={habits.length ? "daily habits complete" : "Create a habit you can repeat"}
+          progress={habits.length ? completionProgress : undefined}
+          tone="purple"
+        />
+
+        <section className="ascend-surface mt-4 p-4">
           <Field label="Add a daily habit">
             <div className="flex gap-2">
               <input
@@ -130,7 +132,7 @@ export function HabitsClient() {
                 type="button"
                 disabled={isSaving || !newHabit.trim()}
                 onClick={addHabit}
-                className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-lime text-ink disabled:opacity-60"
+                className="ascend-pressable grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-lime text-ink disabled:opacity-60"
                 aria-label="Add habit"
               >
                 <Plus size={20} />
@@ -140,13 +142,13 @@ export function HabitsClient() {
         </section>
 
         {!habits.length ? (
-          <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+          <section className="mt-4 rounded-xl border border-calm/40 bg-calm/10 p-4">
             <p className="text-sm leading-6 text-zinc-300">Create starter habits for beginner-friendly accountability.</p>
             <button
               type="button"
               disabled={isSaving}
               onClick={createStarterHabits}
-              className="mt-4 h-12 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+              className="ascend-pressable mt-4 h-12 w-full rounded-xl bg-lime font-semibold text-ink disabled:opacity-60"
             >
               Create starter habits
             </button>
@@ -157,7 +159,7 @@ export function HabitsClient() {
           {habits.map((habit) => {
             const completed = completedToday.has(habit.id);
             return (
-              <article key={habit.id} className="flex items-center justify-between rounded-lg border border-line bg-surface p-4">
+              <article key={habit.id} className={`ascend-pressable flex min-h-16 items-center justify-between rounded-xl border p-4 ${completed ? "border-lime/25 bg-lime/8" : "border-line bg-surface"}`}>
                 <div>
                   <p className="font-medium">{habit.name}</p>
                   <p className="mt-1 text-xs text-zinc-400">Daily</p>
@@ -166,7 +168,7 @@ export function HabitsClient() {
                   type="button"
                   disabled={isSaving || completed}
                   onClick={() => markComplete(habit.id)}
-                  className={`grid h-10 w-10 place-items-center rounded-lg ${
+                  className={`grid h-11 w-11 place-items-center rounded-xl ${
                     completed ? "bg-lime text-ink" : "border border-line text-zinc-300"
                   } disabled:cursor-not-allowed`}
                   aria-label={completed ? "Completed today" : "Mark complete"}
@@ -178,7 +180,7 @@ export function HabitsClient() {
           })}
         </section>
 
-        {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+        <TrackingStatus message={status} success={status.includes("created") || status.includes("added") || status.includes("saved")} />
       </div>
     </main>
   );

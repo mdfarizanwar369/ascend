@@ -3,12 +3,12 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Save, Scale } from "lucide-react";
 import { getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
-import { BackButton } from "@/components/BackButton";
 import { Field, inputClass } from "@/components/Field";
 import { DelightBadge } from "@/components/Delight";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { MetricPulse, ProgressAchievementVisual } from "@/components/ExperienceVisuals";
+import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
 
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -76,33 +76,13 @@ export function WeightLogClient() {
   }
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-md">
-        <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
-          <div>
-            <p className="text-sm text-zinc-400">Daily tracking</p>
-            <h1 className="text-2xl font-semibold">Weight log</h1>
-          </div>
-        </header>
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-member-frame">
+        <TrackingPageHeader eyebrow="Daily tracking" title="Weight" disabled={isSaving} />
 
-        <section className="ascend-soft-enter mt-4 rounded-2xl border border-lime/30 bg-gradient-to-br from-lime/10 via-surface to-calm/10 p-4">
-          <div className="flex items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink">
-              <Scale size={23} />
-            </span>
-            <div>
-              <p className="text-sm text-zinc-400">Latest weight</p>
-              <p className="text-2xl font-semibold"><MetricPulse pulseKey={latestWeightKg ?? "empty"}>{latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : "--"}</MetricPulse></p>
-            </div>
-          </div>
-          <p className="mt-3 text-sm text-zinc-400">
-            {targetWeightKg ? `Target: ${targetWeightKg.toFixed(1)}kg` : "Set a target during onboarding to track progress."}
-          </p>
-          <div className="mt-3">
-            <DelightBadge tone="lime">{latestWeightKg ? "Progress captured" : "Ready for your first check-in"}</DelightBadge>
-          </div>
-        </section>
+        <TrackingHero icon={Scale} label="Latest weight" value={<MetricPulse pulseKey={latestWeightKg ?? "empty"}>{latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : "--"}</MetricPulse>} detail={targetWeightKg ? `Target ${targetWeightKg.toFixed(1)}kg` : "Set a target to see your direction"} tone="lime">
+          <DelightBadge tone="lime">{latestWeightKg ? "Progress captured" : "Ready for your first check-in"}</DelightBadge>
+        </TrackingHero>
 
         {milestone ? (
           <ProgressAchievementVisual
@@ -113,7 +93,7 @@ export function WeightLogClient() {
           />
         ) : null}
 
-        <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
+        <form onSubmit={onSubmit} className="ascend-surface mt-4 space-y-4 p-4">
           <Field label="Today's weight">
             <input
               className={inputClass}
@@ -124,12 +104,12 @@ export function WeightLogClient() {
             />
           </Field>
 
-          {status ? <p className="rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300">{status}</p> : null}
+          <TrackingStatus message={status} success={status.includes("saved") || status.includes("achieved")} />
 
           <button
             type="submit"
             disabled={isSaving || !Number(weightKg)}
-            className="ascend-pressable flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            className="ascend-pressable flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save className="mr-2" size={18} />
             {isSaving ? "Saving..." : "Save weight"}

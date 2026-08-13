@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Droplets } from "lucide-react";
 import { getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
-import { BackButton } from "@/components/BackButton";
-import { DelightBadge, DelightProgressBar } from "@/components/Delight";
+import { DelightBadge } from "@/components/Delight";
 import { localDateKey } from "@/lib/date";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { MetricPulse } from "@/components/ExperienceVisuals";
+import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
 
 const quickAmounts = [250, 500, 750, 1000];
 const dailyTargetMl = 2500;
@@ -68,38 +68,17 @@ export function WaterLogClient() {
   }
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-md">
-        <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
-          <div>
-            <p className="text-sm text-zinc-400">Daily tracking</p>
-            <h1 className="text-2xl font-semibold">Water log</h1>
-          </div>
-        </header>
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-member-frame">
+        <TrackingPageHeader eyebrow="Daily tracking" title="Water" disabled={isSaving} />
 
-        <section className="ascend-soft-enter mt-4 rounded-2xl border border-calm/30 bg-gradient-to-br from-calm/10 via-surface to-purple-400/10 p-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-zinc-400">Today</p>
-              <p className="mt-1 text-4xl font-semibold"><MetricPulse pulseKey={todayMl}>{(todayMl / 1000).toFixed(1)}L</MetricPulse></p>
-              <p className="mt-2 text-sm text-zinc-400">Target: 2.5L</p>
-              <div className="mt-3">
-                <DelightBadge tone={progress >= 100 ? "lime" : "teal"}>{progress >= 100 ? "Hydration goal hit" : "Every sip counts"}</DelightBadge>
-              </div>
-            </div>
-            <div className="grid h-28 w-28 place-items-center rounded-full border-4 border-calm">
-              <div className="text-center">
-                <Droplets className="mx-auto text-calm" size={22} />
-                <p className="mt-1 text-xl font-semibold"><MetricPulse pulseKey={progress}>{progress}%</MetricPulse></p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-4"><DelightProgressBar value={progress} /></div>
-        </section>
+        <TrackingHero icon={Droplets} label="Hydration today" value={<MetricPulse pulseKey={todayMl}>{(todayMl / 1000).toFixed(1)}L</MetricPulse>} detail="2.5L daily guide" progress={progress} tone="teal">
+          <DelightBadge tone={progress >= 100 ? "lime" : "teal"}>{progress >= 100 ? "Hydration goal complete" : "Every glass moves you forward"}</DelightBadge>
+        </TrackingHero>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">Quick add</p>
+        <section className="ascend-surface mt-4 p-4">
+          <p className="text-base font-semibold">Add water</p>
+          <p className="mt-1 text-sm text-zinc-400">Choose the amount you just finished.</p>
           <div className="mt-4 grid grid-cols-2 gap-3">
             {quickAmounts.map((amount) => (
               <button
@@ -107,7 +86,7 @@ export function WaterLogClient() {
                 type="button"
                 disabled={isSaving}
                 onClick={() => addWater(amount)}
-                className="ascend-pressable h-16 rounded-lg border border-line bg-ink text-lg font-semibold text-white hover:border-calm/50 disabled:cursor-not-allowed disabled:opacity-60"
+                className="ascend-pressable ascend-inset h-16 text-lg font-semibold text-white hover:border-calm/50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 +{amount >= 1000 ? `${amount / 1000}L` : `${amount}ml`}
               </button>
@@ -115,7 +94,7 @@ export function WaterLogClient() {
           </div>
         </section>
 
-        {status ? <p className={`mt-4 rounded-lg border p-3 text-sm ${status.includes("saved") ? "ascend-success-reveal border-lime/35 bg-lime/10 text-lime" : "border-line bg-surface text-zinc-300"}`}>{status}</p> : null}
+        <TrackingStatus message={status} success={status.includes("saved")} />
       </div>
     </main>
   );

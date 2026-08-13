@@ -16,7 +16,7 @@ import {
   saveFoodLog,
   uploadFoodPhotoDataUrl
 } from "@/lib/ascendApi";
-import { BackButton } from "@/components/BackButton";
+import { TrackingPageHeader } from "@/components/tracking/TrackingVisuals";
 import { rememberSavedFoodLog } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { Field, inputClass } from "@/components/Field";
@@ -860,34 +860,28 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   }
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-md">
-        <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/dashboard" disabled={isSaving} />
-          <div>
-            <p className="text-sm text-zinc-400">Food photo AI</p>
-            <h1 className="text-2xl font-semibold">{view === "history" ? "All meals" : "Log a meal"}</h1>
-          </div>
-        </header>
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-member-frame">
+        <TrackingPageHeader eyebrow="Food & nutrition" title={view === "history" ? "Meal history" : "Log a meal"} disabled={isSaving} />
 
-        <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg border border-line bg-surface p-1">
+        <div className="ascend-surface mt-2 grid grid-cols-2 gap-1 p-1">
           <button
             type="button"
             onClick={() => setView("log")}
-            className={`h-10 rounded-md text-sm font-semibold ${view === "log" ? "bg-lime text-ink" : "text-zinc-300"}`}
+            className={`ascend-pressable h-11 rounded-[0.65rem] text-sm font-semibold ${view === "log" ? "bg-lime text-ink" : "text-zinc-300"}`}
           >
             Log Food
           </button>
           <button
             type="button"
             onClick={() => setView("history")}
-            className={`h-10 rounded-md text-sm font-semibold ${view === "history" ? "bg-lime text-ink" : "text-zinc-300"}`}
+            className={`ascend-pressable h-11 rounded-[0.65rem] text-sm font-semibold ${view === "history" ? "bg-lime text-ink" : "text-zinc-300"}`}
           >
             Meal History
           </button>
         </div>
 
-        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+        <section className="ascend-surface mt-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold">Today's meals</p>
@@ -907,15 +901,15 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             />
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
-            <div className="rounded-lg bg-ink p-2">
+            <div className="ascend-inset p-2.5">
               <p className="text-[10px] uppercase text-zinc-500">Protein</p>
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.proteinG)} / {effectiveNutritionTargets.proteinTargetG}g</p>
             </div>
-            <div className="rounded-lg bg-ink p-2">
+            <div className="ascend-inset p-2.5">
               <p className="text-[10px] uppercase text-zinc-500">Carbs</p>
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.carbsG)} / {effectiveNutritionTargets.carbsTargetG}g</p>
             </div>
-            <div className="rounded-lg bg-ink p-2">
+            <div className="ascend-inset p-2.5">
               <p className="text-[10px] uppercase text-zinc-500">Fat</p>
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.fatG)} / {effectiveNutritionTargets.fatTargetG}g</p>
             </div>
@@ -925,7 +919,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
           {todaysFoodLogs.length ? (
             <div className="mt-4 space-y-2">
               {todaysFoodLogs.map((log) => (
-                <article key={log.id} className="rounded-lg bg-ink p-3">
+                <article key={log.id} className="ascend-surface-subtle p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
                       {log.image_url ? (
@@ -950,7 +944,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
         {view === "history" ? (
           <>
-            <section className="mt-3 rounded-lg border border-line bg-surface p-4">
+            <section className="ascend-surface mt-3 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <CalendarDays className="text-lime" size={19} />
@@ -959,7 +953,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 <button
                   type="button"
                   onClick={() => setView("log")}
-                  className="rounded-lg bg-lime px-3 py-2 text-sm font-semibold text-ink"
+                  className="ascend-pressable rounded-xl bg-lime px-3 py-2.5 text-sm font-semibold text-ink"
                 >
                   Add meal
                 </button>
@@ -970,7 +964,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     key={option.value}
                     type="button"
                     onClick={() => setHistoryRange(option.value)}
-                    className={`h-11 rounded-lg border px-2 text-sm font-semibold ${
+                    className={`ascend-pressable h-11 rounded-xl border px-2 text-sm font-semibold ${
                       historyRange === option.value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-zinc-300"
                     }`}
                   >
@@ -981,17 +975,17 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               <button
                 type="button"
                 onClick={() => setHistoryOrder((current) => current === "newest" ? "oldest" : "newest")}
-                className="mt-3 h-11 w-full rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200"
+                className="ascend-pressable mt-3 h-11 w-full rounded-xl border border-line bg-ink text-sm font-semibold text-zinc-200"
               >
                 {historyOrder === "newest" ? "Newest First" : "Oldest First"}
               </button>
             </section>
 
-            {historyStatus ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{historyStatus}</p> : null}
+            {historyStatus ? <p className="ascend-surface-subtle mt-3 p-3 text-sm text-zinc-300">{historyStatus}</p> : null}
 
             <section className="mt-3 space-y-4">
               {groupedHistoryDays.map((day) => (
-                <article key={day.dateKey} className="rounded-lg border border-line bg-surface p-4">
+                <article key={day.dateKey} className="ascend-surface p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h2 className="text-lg font-semibold">{dateLabel(day.dateKey)}</h2>
@@ -1005,7 +999,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         {day.status.label}
                       </p>
                     </div>
-                    <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{day.logs.length} meals</span>
+                    <span className="ascend-inset px-3 py-2 text-sm font-semibold text-lime">{day.logs.length} meals</span>
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
@@ -1015,14 +1009,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                       ["Carbs", `${Math.round(day.totals.carbsG)}g`],
                       ["Fat", `${Math.round(day.totals.fatG)}g`]
                     ].map(([label, value]) => (
-                      <div key={label} className="rounded-lg bg-ink p-3">
+                      <div key={label} className="ascend-inset p-3">
                         <p className="text-xs uppercase text-zinc-500">{label}</p>
                         <p className="mt-1 text-lg font-semibold">{value}</p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="mt-4 rounded-lg bg-ink p-3">
+                  <div className="ascend-inset mt-4 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Daily notes</p>
                     <div className="mt-2 space-y-1">
                       {day.observations.map((observation) => (
@@ -1035,7 +1029,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     {day.logs.map((log) => {
                       const ai = parseAiEstimate(log.ai_estimate_raw);
                       return (
-                        <div key={log.id} className="rounded-lg bg-ink p-3">
+                        <div key={log.id} className="ascend-surface-subtle p-3">
                           <div className="flex items-start gap-3">
                             {log.image_url ? (
                               // eslint-disable-next-line @next/next/no-img-element
@@ -1067,7 +1061,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         </div>
                       );
                     })}
-                    {!day.logs.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No meals were recorded on this date.</p> : null}
+                    {!day.logs.length ? <p className="ascend-inset p-3 text-sm text-zinc-400">No meals were recorded on this date.</p> : null}
                   </div>
                 </article>
               ))}
@@ -1082,7 +1076,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                       <button
                         type="button"
                         onClick={() => setView("log")}
-                        className="ascend-pressable flex h-11 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink"
+                        className="ascend-pressable flex h-11 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink"
                       >
                         Log your first meal
                       </button>
@@ -1097,7 +1091,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 type="button"
                 disabled={isLoadingHistoryMore}
                 onClick={loadMoreHistory}
-                className="ascend-pressable mt-4 h-12 w-full rounded-lg border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+                className="ascend-pressable mt-4 h-12 w-full rounded-xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
                 {isLoadingHistoryMore ? "Loading..." : "Load more meals"}
               </button>
@@ -1149,17 +1143,17 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             </div>
             <p className="mt-4 text-sm leading-6 text-zinc-300">Your daily progress has been updated.</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setView("history")} className="ascend-pressable h-12 rounded-lg border border-line bg-ink font-semibold text-white">
+              <button type="button" onClick={() => setView("history")} className="ascend-pressable h-12 rounded-xl border border-line bg-ink font-semibold text-white">
                 Meal history
               </button>
-              <button type="button" onClick={() => setSavedMeal(null)} className="ascend-pressable h-12 rounded-lg bg-lime font-semibold text-ink">
+              <button type="button" onClick={() => setSavedMeal(null)} className="ascend-pressable h-12 rounded-xl bg-lime font-semibold text-ink">
                 Log another
               </button>
             </div>
             </div>
           </section>
         ) : !estimate ? (
-          <section className="mt-3 overflow-hidden rounded-lg border border-line bg-surface">
+          <section className="ascend-surface mt-3 overflow-hidden">
             <div className="relative aspect-[4/3] overflow-hidden bg-ink">
               {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -1203,24 +1197,24 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60">
+                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-60">
                   <Camera className="mr-2" size={18} />
                   {previewUrl ? "Retake" : "Take photo"}
                 </button>
-                <button type="button" onClick={openGalleryPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white disabled:opacity-60">
+                <button type="button" onClick={openGalleryPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-line bg-ink font-semibold text-white disabled:opacity-60">
                   <ImagePlus className="mr-2" size={18} />
                   Gallery
                 </button>
               </div>
 
-              <button type="button" onClick={() => setShowManualEntry((current) => !current)} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-zinc-300">
+              <button type="button" onClick={() => setShowManualEntry((current) => !current)} className="ascend-pressable mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-zinc-300">
                 <Utensils size={17} />
                 Type meal instead
                 {showManualEntry ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
 
               {showManualEntry ? (
-                <div className="ascend-soft-enter mt-2 rounded-lg border border-line bg-ink p-3">
+                <div className="ascend-inset ascend-soft-enter mt-2 p-3">
                   <label className="text-sm font-semibold text-zinc-100" htmlFor="manual-meal-text">What did you eat?</label>
                   <textarea
                     id="manual-meal-text"
@@ -1228,10 +1222,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     onChange={(event) => setManualMealText(event.target.value)}
                     disabled={isEstimating || isSaving}
                     rows={2}
-                    className="mt-3 w-full resize-none rounded-lg border border-line bg-surface px-4 py-3 text-base text-white outline-none transition focus:border-lime disabled:opacity-60"
+                    className="mt-3 w-full resize-none rounded-xl border border-line bg-surface px-4 py-3 text-base text-white outline-none transition focus:border-lime disabled:opacity-60"
                     placeholder="Chicken rice, protein shake..."
                   />
-                  <button type="button" disabled={isEstimating || manualMealText.trim().length < 2} onClick={handleTextEstimate} className="mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-50">
+                  <button type="button" disabled={isEstimating || manualMealText.trim().length < 2} onClick={handleTextEstimate} className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-50">
                     <Sparkles className="mr-2" size={18} />
                     {isEstimating ? "Analysing..." : "Analyse meal"}
                   </button>
@@ -1239,7 +1233,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               ) : null}
 
               {previewUrl && !isEstimating ? (
-                <button type="button" onClick={handleEstimate} className="mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+                <button type="button" onClick={handleEstimate} className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink">
                   <Sparkles className="mr-2" size={18} />
                   Analyse meal
                 </button>
@@ -1248,7 +1242,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             </div>
           </section>
         ) : (
-          <form className="ascend-food-result mt-3 overflow-hidden rounded-lg border border-line bg-surface">
+          <form className="ascend-food-result ascend-surface mt-3 overflow-hidden">
             {previewUrl ? (
               <div className="relative aspect-[16/9] overflow-hidden bg-ink">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1288,7 +1282,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 </div>
               </div>
 
-              <div className="mt-5 space-y-4 rounded-lg bg-ink p-4">
+              <div className="ascend-inset mt-5 space-y-4 p-4">
                 <MacroProgress label="Protein" value={estimate.proteinG} target={effectiveNutritionTargets.proteinTargetG} />
                 <MacroProgress label="Carbohydrates" value={estimate.carbsG} target={effectiveNutritionTargets.carbsTargetG} />
                 <MacroProgress label="Fat" value={estimate.fatG} target={effectiveNutritionTargets.fatTargetG} />
@@ -1304,7 +1298,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               {aiFailed ? (
                 <div className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-3">
                   <p className="text-sm leading-6 text-amber">{status}</p>
-                  <button className="mt-3 flex h-11 w-full items-center justify-center rounded-lg bg-amber font-semibold text-ink disabled:opacity-60" disabled={isEstimating} onClick={selectedFile ? handleEstimate : handleTextEstimate} type="button">
+                  <button className="ascend-pressable mt-3 flex h-11 w-full items-center justify-center rounded-xl bg-amber font-semibold text-ink disabled:opacity-60" disabled={isEstimating} onClick={selectedFile ? handleEstimate : handleTextEstimate} type="button">
                     <Sparkles className="mr-2" size={18} />
                     {isEstimating ? "Trying again..." : "Try AI again"}
                   </button>
@@ -1317,14 +1311,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   setShowEstimateEditor((current) => !current);
                   window.setTimeout(() => foodNameInputRef.current?.focus(), 0);
                 }}
-                className="mt-4 flex h-11 w-full items-center justify-between rounded-lg border border-line bg-ink px-4 text-sm font-semibold text-zinc-200"
+                className="ascend-pressable mt-4 flex h-11 w-full items-center justify-between rounded-xl border border-line bg-ink px-4 text-sm font-semibold text-zinc-200"
               >
                 <span className="flex items-center gap-2"><Pencil size={17} /> Edit estimate</span>
                 {showEstimateEditor ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
               </button>
 
               {showEstimateEditor ? (
-                <div className="ascend-soft-enter mt-3 space-y-4 rounded-lg border border-line bg-ink p-4">
+                <div className="ascend-inset ascend-soft-enter mt-3 space-y-4 p-4">
                   <Field label="Detected foods"><input ref={foodNameInputRef} className={inputClass} value={estimate.foodName} onChange={(event) => updateEstimate("foodName", event.target.value)} /></Field>
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Calories"><input className={inputClass} inputMode="numeric" value={estimate.calories} onChange={(event) => updateEstimate("calories", Number(event.target.value))} /></Field>
@@ -1336,11 +1330,11 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 </div>
               ) : null}
 
-              <button type="button" disabled={isSaving || !canSaveEstimate} onClick={handleSave} className="ascend-pressable mt-4 flex h-14 w-full items-center justify-center rounded-lg bg-lime text-base font-semibold text-ink shadow-[0_12px_30px_rgba(53,242,208,0.16)] disabled:cursor-not-allowed disabled:opacity-60">
+              <button type="button" disabled={isSaving || !canSaveEstimate} onClick={handleSave} className="ascend-pressable mt-4 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_12px_30px_rgba(53,242,208,0.16)] disabled:cursor-not-allowed disabled:opacity-60">
                 {wasEdited ? <Save className="mr-2" size={19} /> : <Check className="mr-2" size={19} />}
                 {isSaving ? "Saving meal..." : "Save meal"}
               </button>
-              <button type="button" onClick={previewUrl ? openCameraPicker : () => { setEstimate(null); setShowManualEntry(true); }} disabled={isSaving} className="mt-2 h-11 w-full rounded-lg text-sm font-semibold text-zinc-400 disabled:opacity-60">
+              <button type="button" onClick={previewUrl ? openCameraPicker : () => { setEstimate(null); setShowManualEntry(true); }} disabled={isSaving} className="ascend-pressable mt-2 h-11 w-full rounded-xl text-sm font-semibold text-zinc-400 disabled:opacity-60">
                 {previewUrl ? "Retake photo" : "Change description"}
               </button>
               {!aiFailed && status.startsWith("Could not") ? <p className="mt-3 text-center text-sm text-red-300">{status}</p> : null}
