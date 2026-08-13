@@ -1248,7 +1248,7 @@ export async function createCoachZoeReply(message: string, context: string, mode
 
 export async function chooseTodayPriority(input: {
   facts: Record<string, unknown>;
-  candidates: Array<{ key: string; title: string; reason: string; href: string; cta: string }>;
+  candidates: Array<{ key: string; title: string; reason: string; href: string; cta: string; rank?: number }>;
 }) {
   const fallback = input.candidates[0];
   if (!fallback) return null;
@@ -1272,6 +1272,9 @@ export async function chooseTodayPriority(input: {
     const key = typeof parsed.key === "string" ? parsed.key : "";
     const selected = input.candidates.find((candidate) => candidate.key === key);
     if (!selected || !allowedKeys.has(key)) return fallback;
+    const fallbackRank = fallback.rank ?? 0;
+    const selectedRank = selected.rank ?? fallbackRank;
+    if (fallbackRank - selectedRank > 20) return fallback;
     return {
       ...selected,
       title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim().slice(0, 80) : selected.title,
