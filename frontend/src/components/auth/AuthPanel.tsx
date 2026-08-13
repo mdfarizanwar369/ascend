@@ -16,7 +16,7 @@ import {
   type UserCredential,
   updateProfile
 } from "firebase/auth";
-import { ArrowRight, Chrome, LogIn } from "lucide-react";
+import { ArrowRight, Chrome, Eye, EyeOff, LogIn } from "lucide-react";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { Field, inputClass } from "@/components/Field";
@@ -228,6 +228,7 @@ export function AuthPanel() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [referralCode, setReferralCode] = useState("");
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -660,7 +661,7 @@ export function AuthPanel() {
             </h1>
           </div>
 
-          <form className="mt-6 space-y-4 rounded-lg border border-line bg-surface p-4" noValidate onSubmit={handleAuthSubmit}>
+          <form className="mt-6 space-y-4 border-t border-line pt-6" noValidate onSubmit={handleAuthSubmit}>
             {!firebaseConfigured ? (
               <div className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">
                 Firebase is not configured locally yet. Use local preview mode to review the MVP screens, or add Firebase web app values to
@@ -756,7 +757,8 @@ export function AuthPanel() {
                 placeholder="you@example.com"
               />
             </Field>
-            <Field label="Password" hint="Use at least 6 characters for Firebase email sign-up.">
+            <Field label="Password" hint={mode === "signup" ? "Use at least 6 characters." : undefined}>
+              <div className="relative">
               <input
                 id="ascend-password"
                 autoComplete={mode === "signup" ? "new-password" : "current-password"}
@@ -764,9 +766,18 @@ export function AuthPanel() {
                 minLength={6}
                 required
                 value={password}
-                type="password"
+                type={showPassword ? "text" : "password"}
                 onChange={(event) => setPassword(event.target.value)}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute inset-y-0 right-0 grid w-12 place-items-center text-zinc-400 hover:text-white"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+              </div>
             </Field>
             {mode === "signup" ? (
               <div id="ascend-referral-field">

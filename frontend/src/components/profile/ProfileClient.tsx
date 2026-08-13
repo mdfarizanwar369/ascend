@@ -221,13 +221,13 @@ export function ProfileClient() {
 
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto w-full max-w-md">
+      <div className="mx-auto w-full max-w-xl">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref={backHref} />
           <div><p className="text-sm text-zinc-400">Account</p><h1 className="text-2xl font-semibold">Profile & settings</h1></div>
         </header>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-5 text-center">
+        <section className="mt-4 rounded-xl border border-line bg-surface p-5 text-center shadow-soft">
           <div className="flex justify-center"><ProfileAvatar src={shownPhoto} name={user?.full_name} size="lg" /></div>
           <h2 className="mt-4 text-lg font-semibold">{user?.full_name || "Ascend member"}</h2>
           <p className="mt-1 text-sm text-zinc-400">{user?.email}</p>
@@ -261,7 +261,8 @@ export function ProfileClient() {
           )}
         </section>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Subscription</p>
+        <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold">Subscription</p>
@@ -355,7 +356,8 @@ export function ProfileClient() {
               : "Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions."}
           </p>
         </section>
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Connected services</p>
+        <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <p className="text-sm font-semibold">App settings</p>
           <p className="mt-2 text-sm leading-6 text-zinc-400">Install Ascend on this device for faster access and a full-screen app experience.</p>
           <div className="mt-4 space-y-3">
@@ -367,7 +369,8 @@ export function ProfileClient() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Account security</p>
+        <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <p className="text-sm font-semibold">Account</p>
           <p className="mt-2 text-sm leading-6 text-zinc-400">Manage sensitive account actions, including account deletion.</p>
           <Link href="/profile/account" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200">

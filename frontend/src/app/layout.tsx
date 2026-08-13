@@ -6,6 +6,7 @@ import { PwaRegistrar } from "@/components/PwaRegistrar";
 import { PwaInstallCoordinator } from "@/components/PwaInstallCoordinator";
 import { CoachNotificationCoordinator } from "@/components/CoachNotificationCoordinator";
 import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PwaInstallCoordinator />
         <CoachNotificationCoordinator />
         <HealthSyncCoordinator />
+        <OfflineIndicator />
         {children}
       </body>
     </html>

@@ -288,7 +288,7 @@ export function SubscriptionClient() {
 
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-md">
+      <div className="mx-auto max-w-2xl">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref={backHref} />
           <div>
@@ -317,7 +317,8 @@ export function SubscriptionClient() {
             const paidPlan = plan !== "free";
             const checkoutPlan = plan as Exclude<SubscriptionPlan, "free">;
             return (
-              <article key={plan} className={`rounded-lg border p-4 ${isActive ? "border-lime bg-lime/10" : "border-line bg-surface"}`}>
+              <article key={plan} className={`relative rounded-xl border p-5 ${isActive ? "border-lime bg-lime/10" : plan === "premium" ? "border-calm/60 bg-surface shadow-soft" : "border-line bg-surface"}`}>
+                {plan === "premium" && !isActive ? <span className="absolute right-4 top-0 -translate-y-1/2 rounded-full bg-calm px-3 py-1 text-xs font-semibold text-ink">Recommended</span> : null}
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-semibold">{PLANS[plan].label}</h2>
