@@ -23,12 +23,14 @@ import {
   getMyStreak,
   getProgressPhotos,
   getTodayMission,
+  getTodayPriorityRecommendation,
   getWaterLogs,
   getWeightLogs,
   AthleteDashboard,
   AscendMemoryResponse,
   CoachPresenceSettings,
-  CoachPresenceMessage
+  CoachPresenceMessage,
+  TodayPriorityRecommendation
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
@@ -53,6 +55,7 @@ type GoalStatus = Awaited<ReturnType<typeof getGoalStatus>>["goalStatus"];
 type ProgressComparison = Awaited<ReturnType<typeof getMyProgressComparison>>["comparison"];
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>>["targets"];
+type TodayPriority = TodayPriorityRecommendation;
 type HealthSyncStatus = Awaited<ReturnType<typeof getHealthSyncStatus>>["status"];
 type CollapsibleKey =
   | "todaysNumbers";
@@ -342,6 +345,7 @@ export function ClientDashboard() {
   }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
   const [ascendMemory, setAscendMemory] = useState<AscendMemoryResponse | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
+  const [aiTodayPriority, setAiTodayPriority] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
@@ -503,6 +507,11 @@ export function ClientDashboard() {
         if (requestId !== dashboardRequestRef.current) return;
         setAthleteDashboard(response?.athlete ?? null);
       });
+      void getTodayPriorityRecommendation()
+        .then((response) => {
+          if (requestId === dashboardRequestRef.current) setAiTodayPriority(response.priority);
+        })
+        .catch(() => undefined);
 
       comparisonRequest
         .then((response) => {
@@ -887,7 +896,7 @@ export function ClientDashboard() {
     }
     return nextAction;
   })();
-  const todayPriority = (() => {
+  const deterministicTodayPriority = (() => {
     if (isFirstDayState) {
       return {
         key: "Meal" as const,
@@ -928,7 +937,7 @@ export function ClientDashboard() {
         cardDetail: "Let food do the heavy lifting. The other check-ins can follow naturally."
       };
     }
-    if (todaysWaterMl < nutritionTargets.waterTargetMl && (weeklyWaterDays.size <= 2 || waterLeftMl >= 750)) {
+    if (todaysWaterMl < nutritionTargets.waterTargetMl && (weeklyWaterDays.size <= 2 || waterLeftMl >= 750) && (latestWorkoutCompletedToday || daysSinceLastWorkout === 1 || new Date().getHours() >= 19)) {
       return {
         key: "Water" as const,
         hero: `Drink another ${Math.max(0.3, Number((waterLeftMl / 1000).toFixed(1)))}L`,
@@ -980,6 +989,15 @@ export function ClientDashboard() {
       cardDetail: "Nothing needs urgent attention. Stay steady and let the day stay light."
     };
   })();
+  const todayPriority = !isFirstDayState && aiTodayPriority
+    ? {
+        key: aiTodayPriority.key,
+        hero: aiTodayPriority.title,
+        reason: aiTodayPriority.reason,
+        cardTitle: "Today's priority",
+        cardDetail: "Chosen from today's activity and recent routine."
+      }
+    : deterministicTodayPriority;
   const taskItems = [
     { label: "Food logged", done: todaysFood.length > 0, href: "/food-log" },
     { label: "Water completed", done: todaysWaterMl >= nutritionTargets.waterTargetMl, href: "/water-log" },

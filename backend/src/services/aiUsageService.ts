@@ -4,7 +4,7 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { Role, SubscriptionPlan } from "@ascend/shared";
 
-export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection" | "workout_capture_analysis";
+export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection" | "workout_capture_analysis" | "today_priority_analysis";
 export type AiStatus = "success" | "error" | "cache_hit" | "fallback";
 export type FoodAiAllowance = {
   period: "week" | "day" | "unlimited";
@@ -47,7 +47,8 @@ const eventCostCents: Record<AiEventType, number> = {
   ai_chat_message: env.AI_CHAT_ESTIMATED_COST_CENTS,
   weekly_report_generation: env.AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS,
   memory_reflection: env.AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS,
-  workout_capture_analysis: env.AI_CHAT_ESTIMATED_COST_CENTS
+  workout_capture_analysis: env.AI_CHAT_ESTIMATED_COST_CENTS,
+  today_priority_analysis: env.AI_CHAT_ESTIMATED_COST_CENTS
 };
 
 export function imageHashFromDataUrl(imageUrl: string) {

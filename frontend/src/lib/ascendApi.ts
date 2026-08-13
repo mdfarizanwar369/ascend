@@ -1190,6 +1190,21 @@ export function sendCoachMessage(message: string, mode: CoachChatMode = "general
   });
 }
 
+export type TodayPriorityRecommendation = {
+  key: "Meal" | "Water" | "Movement" | "Weight" | "Habit";
+  title: string;
+  reason: string;
+  href: string;
+  cta: string;
+};
+
+export function getTodayPriorityRecommendation() {
+  return authed<{ priority: TodayPriorityRecommendation; source: "ai" | "cache" }>("/ai/today-priority", {
+    method: "POST",
+    body: JSON.stringify({ timezoneOffsetMinutes: new Date().getTimezoneOffset() })
+  });
+}
+
 export type WorkoutPlannerLocation = "gym" | "home" | "hotel" | "outdoors";
 export type WorkoutPlannerGoal = "fat_loss" | "muscle_gain" | "strength" | "general_fitness" | "recovery" | "mobility";
 export type GeneratedWorkout = {

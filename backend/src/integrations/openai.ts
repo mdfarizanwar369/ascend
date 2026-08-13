@@ -1246,6 +1246,42 @@ export async function createCoachZoeReply(message: string, context: string, mode
   return cleaned;
 }
 
+export async function chooseTodayPriority(input: {
+  facts: Record<string, unknown>;
+  candidates: Array<{ key: string; title: string; reason: string; href: string; cta: string }>;
+}) {
+  const fallback = input.candidates[0];
+  if (!fallback) return null;
+  const allowedKeys = new Set(input.candidates.map((candidate) => candidate.key));
+  const prompt = [
+    "Choose exactly one approved candidate as the member's most useful next action right now.",
+    "Consider local time, what is already completed, recent workout recency, and whether a remaining target can be completed gradually.",
+    "Do not invent data or a new action. Do not choose hydration merely because water remains when another action has higher coaching value.",
+    "Return strict JSON with key, title, reason. Title maximum 8 words. Reason maximum 28 words. Use calm coaching language.",
+    `Facts: ${JSON.stringify(input.facts)}`,
+    `Approved candidates: ${JSON.stringify(input.candidates)}`
+  ].join("\n");
+  const reply = await createTextReply(
+    "You are Coach Zoe's daily decision analyst. Select from approved actions only. Return JSON only.",
+    prompt,
+    JSON.stringify({ key: fallback.key, title: fallback.title, reason: fallback.reason })
+  );
+
+  try {
+    const parsed = JSON.parse(cleanJsonText(reply)) as { key?: unknown; title?: unknown; reason?: unknown };
+    const key = typeof parsed.key === "string" ? parsed.key : "";
+    const selected = input.candidates.find((candidate) => candidate.key === key);
+    if (!selected || !allowedKeys.has(key)) return fallback;
+    return {
+      ...selected,
+      title: typeof parsed.title === "string" && parsed.title.trim() ? parsed.title.trim().slice(0, 80) : selected.title,
+      reason: typeof parsed.reason === "string" && parsed.reason.trim() ? parsed.reason.trim().slice(0, 180) : selected.reason
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export type CoachWorkoutExercise = {
   name: string;
   sets?: number | null;
