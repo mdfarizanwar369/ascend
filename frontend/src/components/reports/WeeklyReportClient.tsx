@@ -107,7 +107,7 @@ export function WeeklyReportClient() {
 
         {report ? (
           <section className="ascend-surface mt-4 overflow-hidden">
-            <div className="bg-[linear-gradient(145deg,rgba(139,92,246,0.18),rgba(18,23,33,0.96)_55%,rgba(61,230,209,0.10))] p-5">
+            <div className="ascend-branded-surface bg-[linear-gradient(145deg,rgba(139,92,246,0.18),rgba(18,23,33,0.96)_55%,rgba(61,230,209,0.10))] p-5">
               <p className="text-sm text-zinc-400">{formatDate(report.week_start)} - {formatDate(report.week_end)}</p>
               <h2 className="mt-2 max-w-sm text-3xl font-semibold leading-tight">This week, made visible.</h2>
               <div className="mt-6 flex items-end justify-between gap-4">

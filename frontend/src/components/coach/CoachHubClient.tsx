@@ -659,7 +659,7 @@ export function CoachHubClient() {
 
         {status ? <p className="mt-3 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm text-amber">{status}</p> : null}
 
-        <section className="ascend-stagger-enter mt-4 rounded-2xl border border-purple-400/20 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.98)_52%,rgba(61,230,209,0.06))] p-5 shadow-soft">
+        <section className="ascend-stagger-enter ascend-branded-surface mt-4 rounded-2xl border border-purple-400/20 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.98)_52%,rgba(61,230,209,0.06))] p-5 shadow-soft">
           <div className="flex items-center gap-3"><ZoeAvatar size="lg" /><div><p className="ascend-eyebrow text-purple-200">Today&apos;s Insight</p><p className="mt-1 text-sm font-semibold text-white">Zoe noticed something useful</p></div></div>
           <h2 className="mt-4 text-2xl font-semibold leading-tight text-white">{todaysInsight}</h2>
           <p className="mt-3 text-sm leading-6 text-zinc-400">One useful observation, based on what you&apos;ve logged.</p>

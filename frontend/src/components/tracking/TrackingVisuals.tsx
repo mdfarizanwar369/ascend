@@ -59,7 +59,7 @@ export function TrackingHero({
   children?: ReactNode;
 }) {
   return (
-    <section className={`ascend-tracking-hero ascend-soft-enter mt-4 rounded-2xl border p-5 shadow-soft ${toneClasses[tone]}`}>
+    <section data-tone={tone} className={`ascend-tracking-hero ascend-soft-enter mt-4 rounded-2xl border p-5 shadow-soft ${toneClasses[tone]}`}>
       <div className="flex items-center gap-4">
         <span className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl ${iconClasses[tone]}`}>
           <Icon size={23} />

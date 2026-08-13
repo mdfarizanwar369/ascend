@@ -1007,7 +1007,7 @@ export function JourneyClient() {
 
         {status ? <p className="mt-3 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm text-amber">{status}</p> : null}
 
-        <section className="mt-4 rounded-2xl border border-calm/25 bg-[linear-gradient(145deg,rgba(61,230,209,0.10),rgba(18,23,33,0.98)_54%,rgba(139,92,246,0.08))] p-5 shadow-soft">
+        <section className="ascend-branded-surface mt-4 rounded-2xl border border-calm/25 bg-[linear-gradient(145deg,rgba(61,230,209,0.10),rgba(18,23,33,0.98)_54%,rgba(139,92,246,0.08))] p-5 shadow-soft">
           <p className="ascend-eyebrow text-calm">Your Journey</p>
           <h2 className="mt-3 text-3xl font-semibold leading-tight">Every small decision has brought you here.</h2>
           <div className="mt-5 grid grid-cols-3 gap-2">
@@ -1075,7 +1075,7 @@ export function JourneyClient() {
         ) : null}
 
         {isFirstJourneyDay ? (
-          <section className="mt-4 rounded-2xl border border-calm/20 bg-[linear-gradient(180deg,rgba(61,230,209,0.08),rgba(18,23,33,0.98))] p-5 shadow-soft">
+          <section className="ascend-branded-surface mt-4 rounded-2xl border border-calm/20 bg-[linear-gradient(180deg,rgba(61,230,209,0.08),rgba(18,23,33,0.98))] p-5 shadow-soft">
             <p className="text-sm font-semibold text-calm">Welcome to your Journey</p>
             <h2 className="mt-2 text-2xl font-semibold text-white">Your story begins with one honest check-in.</h2>
             <p className="mt-3 text-sm leading-6 text-zinc-300">
