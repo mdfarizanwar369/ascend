@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Save, Scale } from "lucide-react";
 import { getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
 import { Field, inputClass } from "@/components/Field";
@@ -19,6 +19,7 @@ export function WeightLogClient() {
   const [weightKg, setWeightKg] = useState("");
   const [targetWeightKg, setTargetWeightKg] = useState<number | null>(null);
   const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null);
+  const [weightHistory, setWeightHistory] = useState<Array<{ weight_kg: string | number; logged_at: string }>>([]);
   const [status, setStatus] = useState("Loading your latest weight...");
   const [isSaving, setIsSaving] = useState(false);
   const [milestone, setMilestone] = useState<Awaited<ReturnType<typeof saveWeightLog>>["milestone"]>(null);
@@ -37,6 +38,7 @@ export function WeightLogClient() {
         const targetNumber = asNumber(me.user.target_weight_kg);
 
         setLatestWeightKg(latestNumber || null);
+        setWeightHistory(logs.weightLogs);
         setTargetWeightKg(targetNumber || null);
         setWeightKg(latestNumber ? latestNumber.toFixed(1) : "");
         setStatus("");
@@ -63,6 +65,7 @@ export function WeightLogClient() {
       rememberDashboardRecord("weight", saved.weightLog);
       const nextWeight = asNumber(saved.weightLog.weight_kg);
       setLatestWeightKg(nextWeight);
+      setWeightHistory((current) => [{ ...saved.weightLog, weight_kg: nextWeight }, ...current.filter((entry) => entry.logged_at !== saved.weightLog.logged_at)]);
       setWeightKg(nextWeight.toFixed(1));
       setMilestone(saved.milestone ?? null);
       setStatus(saved.milestone ? "Goal achieved. This weigh-in marks a new milestone!" : "Weight saved to Ascend.");
@@ -75,6 +78,22 @@ export function WeightLogClient() {
     }
   }
 
+  const trend = useMemo(() => {
+    const points = weightHistory.slice(0, 12).reverse().map((entry) => asNumber(entry.weight_kg)).filter(Boolean);
+    if (points.length < 2) return null;
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const span = Math.max(0.5, max - min);
+    const coordinates = points.map((value, index) => ({
+      x: points.length === 1 ? 50 : (index / (points.length - 1)) * 100,
+      y: 34 - ((value - min) / span) * 28
+    }));
+    return {
+      path: coordinates.map((point, index) => `${index ? "L" : "M"}${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(" "),
+      change: points.at(-1)! - points[0]
+    };
+  }, [weightHistory]);
+
   return (
     <main className="ascend-page px-4 py-3 text-white sm:py-5">
       <div className="ascend-member-frame">
@@ -82,6 +101,17 @@ export function WeightLogClient() {
 
         <TrackingHero icon={Scale} label="Latest weight" value={<MetricPulse pulseKey={latestWeightKg ?? "empty"}>{latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : "--"}</MetricPulse>} detail={targetWeightKg ? `Target ${targetWeightKg.toFixed(1)}kg` : "Set a target to see your direction"} tone="lime">
           <DelightBadge tone="lime">{latestWeightKg ? "Progress captured" : "Ready for your first check-in"}</DelightBadge>
+          {trend ? (
+            <div className="mt-4 border-t border-white/10 pt-4" aria-label={`Recent weight trend, ${Math.abs(trend.change).toFixed(1)} kilograms ${trend.change <= 0 ? "down" : "up"}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">Recent direction</p>
+                <p className={`text-sm font-semibold ${trend.change <= 0 ? "text-lime" : "text-amber"}`}>{trend.change > 0 ? "+" : ""}{trend.change.toFixed(1)}kg</p>
+              </div>
+              <svg className="mt-2 h-10 w-full" viewBox="0 0 100 38" preserveAspectRatio="none" role="img" aria-hidden="true">
+                <path d={trend.path} fill="none" stroke="rgb(163 255 70)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+              </svg>
+            </div>
+          ) : null}
         </TrackingHero>
 
         {milestone ? (

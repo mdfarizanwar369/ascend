@@ -106,21 +106,24 @@ function buildSections(summary: string, audience: WeeklyReportAudience): Section
 }
 
 function toneClasses(tone: Section["tone"]) {
-  if (tone === "lime") return "border-lime/30 bg-lime/10 text-lime";
-  if (tone === "amber") return "border-amber/30 bg-amber/10 text-amber";
-  if (tone === "calm") return "border-calm/30 bg-calm/10 text-calm";
-  return "border-line bg-ink text-zinc-300";
+  if (tone === "lime") return "text-lime";
+  if (tone === "amber") return "text-amber";
+  if (tone === "calm") return "text-calm";
+  return "text-zinc-300";
 }
 
 export function WeeklyReportSummary({ summary, audience = "client" }: { summary: string; audience?: WeeklyReportAudience }) {
   const sections = buildSections(summary, audience);
 
   return (
-    <div className="space-y-3">
-      {sections.map((section) => (
-        <article key={section.title} className={`rounded-lg border p-3 ${toneClasses(section.tone)}`}>
-          <p className="text-sm font-semibold">{section.title}</p>
-          <p className="mt-2 whitespace-pre-line text-sm leading-6 text-zinc-200">{section.body}</p>
+    <div className="divide-y divide-line">
+      {sections.slice(0, 3).map((section, index) => (
+        <article key={section.title} className="py-5 first:pt-0 last:pb-0">
+          <div className="flex items-center gap-3">
+            <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full border border-current/25 bg-current/10 text-sm font-semibold ${toneClasses(section.tone)}`} aria-hidden="true">{index + 1}</span>
+            <p className={`text-sm font-semibold ${toneClasses(section.tone)}`}>{section.title}</p>
+          </div>
+          <p className="mt-3 whitespace-pre-line text-base leading-7 text-zinc-200">{section.body}</p>
         </article>
       ))}
     </div>

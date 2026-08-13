@@ -82,7 +82,7 @@ export function WeeklyReportClient() {
           </div>
         </header>
 
-        <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+        {!report ? <section className="ascend-surface mt-4 p-5">
           <div className="flex items-start gap-3">
             <Sparkles className="mt-0.5 text-calm" size={20} />
             <div>
@@ -92,34 +92,37 @@ export function WeeklyReportClient() {
               </p>
             </div>
           </div>
-        </section>
+        </section> : null}
 
         <button
           type="button"
           disabled={isGenerating}
           onClick={handleGenerate}
-          className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+          className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-60"
         >
           {isGenerating ? "Building..." : report ? "Refresh reflection" : "Build weekly reflection"}
         </button>
 
-        {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+        {status ? <p className="ascend-surface-subtle mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
         {report ? (
-          <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm text-zinc-400">
-                  {formatDate(report.week_start)} - {formatDate(report.week_end)}
-                </p>
-                <h2 className="mt-1 text-xl font-semibold">Your week in review</h2>
+          <section className="ascend-surface mt-4 overflow-hidden">
+            <div className="bg-[linear-gradient(145deg,rgba(139,92,246,0.18),rgba(18,23,33,0.96)_55%,rgba(61,230,209,0.10))] p-5">
+              <p className="text-sm text-zinc-400">{formatDate(report.week_start)} - {formatDate(report.week_end)}</p>
+              <h2 className="mt-2 max-w-sm text-3xl font-semibold leading-tight">This week, made visible.</h2>
+              <div className="mt-6 flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-5xl font-semibold text-white">{report.compliance_score ?? "--"}</p>
+                  <p className="mt-1 text-sm text-zinc-400">Weekly momentum</p>
+                </div>
+                <div className="grid flex-1 grid-cols-10 gap-1.5" aria-label={`Weekly momentum score ${report.compliance_score ?? "not available"} out of 100`}>
+                  {Array.from({ length: 10 }, (_, index) => (
+                    <span key={index} className={`h-12 rounded-full ${report.compliance_score !== null && report.compliance_score !== undefined && report.compliance_score >= (index + 1) * 10 ? "bg-lime" : "bg-white/10"}`} aria-hidden="true" />
+                  ))}
+                </div>
               </div>
-              <span className="rounded-lg bg-ink px-3 py-2 text-right text-sm font-semibold text-lime">
-                <span className="block">{report.compliance_score ?? "--"}/100</span>
-                <span className="block text-[11px] font-normal text-zinc-400">Momentum</span>
-              </span>
             </div>
-            <div className="mt-4">
+            <div className="p-5">
               <WeeklyReportSummary summary={report.summary} audience="client" />
             </div>
           </section>
