@@ -519,6 +519,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     waterTargetMl: resolvedTargets?.waterMl ?? nutritionTargets.waterTargetMl
   }), [nutritionTargets, resolvedTargets]);
 
+  const isStarterNutritionGuide = resolvedTargets?.source === "ascend_recommendation" && !(
+    user?.goal_type &&
+    user?.age_years &&
+    user?.height_cm &&
+    (weightLogs[0]?.weight_kg ?? user?.starting_weight_kg)
+  );
+
   const canSaveEstimate = useMemo(() => {
     if (!estimate) return false;
     return estimate.foodName.trim().length > 0 && Number(estimate.calories) > 0;
@@ -533,9 +540,9 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       map.set(key, [...(map.get(key) ?? []), log]);
     }
 
-    const visibleKeys = historyRange === "all"
-      ? Array.from(map.keys()).sort((a, b) => historyOrder === "newest" ? b.localeCompare(a) : a.localeCompare(b))
-      : dateKeysForRange(historyRange);
+    const visibleKeys = Array.from(map.keys())
+      .filter((dateKey) => historyRange === "all" || dateKeysForRange(historyRange).includes(dateKey))
+      .sort((a, b) => historyOrder === "newest" ? b.localeCompare(a) : a.localeCompare(b));
 
     return visibleKeys.map((dateKey) => {
       const logs = [...(map.get(dateKey) ?? [])].sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime());
@@ -937,7 +944,11 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.fatG)} / {effectiveNutritionTargets.fatTargetG}g</p>
             </div>
           </div>
-          <p className="mt-2 text-xs text-zinc-500">Daily guide, not a strict limit. Review portions with your trainer if unsure.</p>
+          <p className="mt-2 text-xs text-zinc-500">
+            {isStarterNutritionGuide
+              ? "Starting guide based on the details available. Complete your profile to personalise it."
+              : "Daily guide, not a strict limit. Review portions with your trainer if unsure."}
+          </p>
 
           {todaysFoodLogs.length ? (
             <div className="mt-4 space-y-2">
@@ -1143,7 +1154,6 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         </div>
                       );
                     })}
-                    {!day.logs.length ? <p className="ascend-inset p-3 text-sm text-zinc-400">No meals were recorded on this date.</p> : null}
                   </div>
                 </article>
               ))}

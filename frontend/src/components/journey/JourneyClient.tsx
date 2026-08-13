@@ -29,6 +29,7 @@ import {
   getGoalStatus,
   getLatestRecognition,
   getMe,
+  getMySubscription,
   getMessages,
   getMyProgressComparison,
   getMyStreak,
@@ -45,6 +46,7 @@ import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { SectionShell, SkeletonBlock, SkeletonCardList, SkeletonText } from "@/components/PerceivedLoading";
 import { localDateKey } from "@/lib/date";
+import { usablePlan } from "@/lib/subscriptionPlan";
 
 type JourneyUser = Awaited<ReturnType<typeof getMe>>["user"];
 type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
@@ -747,6 +749,7 @@ export function JourneyClient() {
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Loading your journey...");
   const [user, setUser] = useState<JourneyUser | null>(null);
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
   const [streakCurrent, setStreakCurrent] = useState(0);
   const [streakBest, setStreakBest] = useState(0);
   const [overallConsistency, setOverallConsistency] = useState(0);
@@ -794,7 +797,8 @@ export function JourneyClient() {
           goalResult,
           comparisonResult,
           coachPresenceResult,
-          recognitionResult
+          recognitionResult,
+          subscriptionResult
         ] = await Promise.allSettled([
           getMyStreak(),
           getComplianceToday(),
@@ -807,7 +811,8 @@ export function JourneyClient() {
           getGoalStatus(),
           getMyProgressComparison(),
           getCoachPresence(),
-          getLatestRecognition()
+          getLatestRecognition(),
+          getMySubscription()
         ]);
 
         const [reportResult, trainerMessageResult, bodyCompositionResult] = await Promise.allSettled([
@@ -847,6 +852,7 @@ export function JourneyClient() {
           settings: { style: "balanced" as const, paused: false, pauseUntil: null }
         });
         const recognitionResponse = fulfilledValue(recognitionResult, { recognition: null });
+        const subscriptionResponse = fulfilledValue(subscriptionResult, { subscription: { plan: "free" as const, status: "active", current_period_end: null } });
 
         setStreakCurrent(streakResponse.streak.current);
         setStreakBest(streakResponse.streak.best);
@@ -861,6 +867,13 @@ export function JourneyClient() {
         setWeeklyReport(reportResponse.report);
         setCoachPresenceHistory(coachPresenceResponse.history);
         setLatestRecognition(recognitionResponse.recognition);
+        setHasPremiumAccess(
+          usablePlan(
+            subscriptionResponse.subscription.plan,
+            subscriptionResponse.subscription.status,
+            subscriptionResponse.subscription.current_period_end
+          ) !== "free"
+        );
         setTrainerMessages(trainerMessageResponse?.messages ?? []);
         setBodyComposition(bodyCompositionResponse?.summary ?? null);
         setOverallConsistency(
@@ -918,7 +931,7 @@ export function JourneyClient() {
     !weightLogs.length &&
     !burnLogs.length &&
     !progressPhotos.length &&
-    !(ascendMemory?.timeline.length);
+    !ascendMemory?.timeline.some((item) => item.type !== "started_journey");
   const fullTimelineGroups = useMemo(() => groupTimelineByDate(filteredTimeline.slice(3)), [filteredTimeline]);
   const coachMoments = useMemo(
     () =>
@@ -964,8 +977,8 @@ export function JourneyClient() {
     [progressPhotos]
   );
 
-  const premiumLocked = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && ascendMemory?.access === "none";
-  const showPremiumJourneyNote = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && ascendMemory?.access === "free";
+  const premiumLocked = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && !hasPremiumAccess && ascendMemory?.access === "none";
+  const showPremiumJourneyNote = user && !user.assigned_trainer_id && !user.athlete_mode_enabled && !hasPremiumAccess && ascendMemory?.access === "free";
 
   if (loading) {
     return (
@@ -1009,24 +1022,39 @@ export function JourneyClient() {
 
         <section className="ascend-branded-surface mt-4 rounded-2xl border border-calm/25 bg-[linear-gradient(145deg,rgba(61,230,209,0.10),rgba(18,23,33,0.98)_54%,rgba(139,92,246,0.08))] p-5 shadow-soft">
           <p className="ascend-eyebrow text-calm">Your Journey</p>
-          <h2 className="mt-3 text-3xl font-semibold leading-tight">Every small decision has brought you here.</h2>
-          <div className="mt-5 grid grid-cols-3 gap-2">
-            <div className="ascend-inset p-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Streak</p>
-              <p className="mt-2 text-2xl font-semibold">{streakCurrent}</p>
-              <p className="mt-1 text-xs text-zinc-400">Current days</p>
+          <h2 className="mt-3 text-3xl font-semibold leading-tight">
+            {isFirstJourneyDay ? "Your story starts with one check-in." : "Every small decision has brought you here."}
+          </h2>
+          {isFirstJourneyDay ? (
+            <>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">
+                Record something real today and Ascend will begin building your progress story automatically.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/food-log" className="rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">Log first meal</Link>
+                <Link href="/burn-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Log movement</Link>
+                <Link href="/weight-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Record weight</Link>
+              </div>
+            </>
+          ) : (
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              <div className="ascend-inset p-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Streak</p>
+                <p className="mt-2 text-2xl font-semibold">{streakCurrent}</p>
+                <p className="mt-1 text-xs text-zinc-400">Current days</p>
+              </div>
+              <div className="ascend-inset p-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Since start</p>
+                <p className="mt-2 text-2xl font-semibold">{firstJourneyDate ? daysBetween(firstJourneyDate) : "--"}</p>
+                <p className="mt-1 text-xs text-zinc-400">Days building</p>
+              </div>
+              <div className="ascend-inset p-3">
+                <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Consistency</p>
+                <p className="mt-2 text-2xl font-semibold">{overallConsistency}%</p>
+                <p className="mt-1 text-xs text-zinc-400">Recent rhythm</p>
+              </div>
             </div>
-            <div className="ascend-inset p-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Since start</p>
-              <p className="mt-2 text-2xl font-semibold">{firstJourneyDate ? daysBetween(firstJourneyDate) : "--"}</p>
-              <p className="mt-1 text-xs text-zinc-400">Days building</p>
-            </div>
-            <div className="ascend-inset p-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Consistency</p>
-              <p className="mt-2 text-2xl font-semibold">{overallConsistency}%</p>
-              <p className="mt-1 text-xs text-zinc-400">Recent rhythm</p>
-            </div>
-          </div>
+          )}
         </section>
 
         {visibleProgressPhotos[0]?.image_url ? (
@@ -1075,19 +1103,18 @@ export function JourneyClient() {
         ) : null}
 
         {isFirstJourneyDay ? (
-          <section className="ascend-branded-surface mt-4 rounded-2xl border border-calm/20 bg-[linear-gradient(180deg,rgba(61,230,209,0.08),rgba(18,23,33,0.98))] p-5 shadow-soft">
-            <p className="text-sm font-semibold text-calm">Welcome to your Journey</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Your story begins with one honest check-in.</h2>
-            <p className="mt-3 text-sm leading-6 text-zinc-300">
-              Record your first meal, workout, weight, water, or habit today and Ascend will start building your progress story automatically.
+          <section className="mt-6 border-t border-calm/20 pt-5">
+            <p className="text-sm font-semibold text-calm">What happens next</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">Ascend will remember the moments that matter.</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              Your timeline, milestones, reflections, and progress comparisons will appear here as you check in.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Link href="/food-log" className="rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">Log first meal</Link>
-              <Link href="/burn-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Log movement</Link>
-              <Link href="/weight-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Record weight</Link>
-            </div>
+            <Link href="/dashboard" className="mt-4 flex h-11 items-center justify-center rounded-xl border border-calm/30 bg-ink text-sm font-semibold text-calm">
+              Return to Today
+            </Link>
           </section>
-        ) : null}
+        ) : (
+          <>
 
         <section className="mt-6 border-t border-line pt-5">
           <div className="flex items-center gap-2">
@@ -1435,6 +1462,8 @@ export function JourneyClient() {
             </div>
           </div>
         </section>
+          </>
+        )}
       </div>
     </main>
   );

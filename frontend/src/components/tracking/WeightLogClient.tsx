@@ -125,13 +125,17 @@ export function WeightLogClient() {
 
         <form onSubmit={onSubmit} className="ascend-surface mt-4 space-y-4 p-4">
           <Field label="Today's weight">
-            <input
-              className={inputClass}
-              value={weightKg}
-              onChange={(event) => setWeightKg(event.target.value)}
-              inputMode="decimal"
-              placeholder="81.2"
-            />
+            <div className="relative">
+              <input
+                className={`${inputClass} pr-12`}
+                value={weightKg}
+                onChange={(event) => setWeightKg(event.target.value)}
+                inputMode="decimal"
+                aria-describedby="weight-unit"
+                placeholder="81.2"
+              />
+              <span id="weight-unit" className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm font-semibold text-zinc-400">kg</span>
+            </div>
           </Field>
 
           <TrackingStatus message={status} success={status.includes("saved") || status.includes("achieved")} />

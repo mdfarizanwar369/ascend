@@ -107,17 +107,19 @@ function clamp(value: number, min = 0, max = 100) {
 
 function TodayMomentumVisual({
   score,
-  label
+  label,
+  isStarting = false
 }: {
   score: number;
   label: string;
+  isStarting?: boolean;
 }) {
   const radius = 76;
   const circumference = 2 * Math.PI * radius;
   const progress = (clamp(score) / 100) * circumference;
 
   return (
-    <div className="ascend-today-momentum relative mx-auto h-[9.5rem] w-[9.5rem] sm:h-[10.75rem] sm:w-[10.75rem]" aria-label={`Momentum ${score} out of 100, based on your last seven days.`}>
+    <div className="ascend-today-momentum relative mx-auto h-[9.5rem] w-[9.5rem] sm:h-[10.75rem] sm:w-[10.75rem]" aria-label={isStarting ? "Momentum starts building after your first check-in." : `Momentum ${score} out of 100, based on your last seven days.`}>
       <svg className="h-full w-full -rotate-90" viewBox="0 0 200 200" role="img" aria-hidden="true">
         <defs>
           <linearGradient id="today-momentum-gradient" x1="20" y1="20" x2="180" y2="180" gradientUnits="userSpaceOnUse">
@@ -141,7 +143,7 @@ function TodayMomentumVisual({
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <p className="text-4xl font-semibold leading-none text-white sm:text-5xl">{score}</p>
+          <p className="text-4xl font-semibold leading-none text-white sm:text-5xl">{isStarting ? "--" : score}</p>
           <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-purple-200">Momentum</p>
           <p className="mt-1 text-xs font-medium text-calm">{label}</p>
         </div>
@@ -870,6 +872,7 @@ export function ClientDashboard() {
     !habitLogs.length &&
     !progressPhotos.length &&
     currentStreak === 0;
+  const todayGreeting = isFirstDayState ? "Welcome" : greeting;
   const todayPriority = todayPriorityRecommendation
     ? {
         key: todayPriorityRecommendation.key,
@@ -1195,7 +1198,7 @@ export function ClientDashboard() {
         ? `${(todaysWaterMl / 1000).toFixed(1)}L water`
         : sleepQuality
           ? `${sleepQuality.charAt(0).toUpperCase()}${sleepQuality.slice(1)} sleep`
-          : "No check-in",
+          : "Water + sleep",
       detail: todaysWaterMl > 0
         ? sleepQuality
           ? `Sleep felt ${sleepQuality}`
@@ -1383,8 +1386,8 @@ export function ClientDashboard() {
 
         <section className="ascend-today-hero ascend-soft-enter relative mt-2 overflow-hidden pb-4 pt-3 text-center">
           <p className="ascend-eyebrow">Today</p>
-          <h1 className="mt-2 text-[1.65rem] font-semibold leading-tight text-white">{greeting}, {firstName}.</h1>
-          <TodayMomentumVisual score={score} label={scoreLabel} />
+          <h1 className="mt-2 text-[1.65rem] font-semibold leading-tight text-white">{todayGreeting}, {firstName}.</h1>
+          <TodayMomentumVisual score={score} label={isFirstDayState ? "Begins with your first check-in" : scoreLabel} isStarting={isFirstDayState} />
           <a href="/momentum-score" className="mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
             <CircleHelp size={14} /> 7-day consistency score
           </a>

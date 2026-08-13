@@ -83,15 +83,17 @@ async function activeClientContext(userId: string) {
     from users u
     left join athlete_profiles ap on ap.user_id = u.id
     left join lateral (
-      select plan, status
+      select plan, status, current_period_end
       from subscriptions
       where user_id = u.id
-        and status in ('active','trialing','past_due')
+        and (
+          status in ('active','trialing','past_due')
+          or (status = 'canceled' and current_period_end > now())
+        )
       order by case plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, created_at desc
       limit 1
     ) active_subscription on true
     where u.id = $1
-      and u.primary_role = 'client'
       and u.status = 'active'
     `,
     [userId]
@@ -646,7 +648,7 @@ export async function getAscendMemoryTimeline(userId: string) {
   const events = await buildMemoryEvents(userId, context);
   const premiumAccess =
     (context.current_plan === "premium" || context.current_plan === "trainer_pro") &&
-    (context.subscription_status === null || ["active", "trialing", "past_due"].includes(context.subscription_status));
+    (context.subscription_status === null || ["active", "trialing", "past_due", "canceled"].includes(context.subscription_status));
 
   if (premiumAccess) {
     await maybeCreateReflection(userId, context, events);

@@ -273,6 +273,12 @@ export function BurnLogClient() {
             </div>
           </Field>
 
+          <div className="flex items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1 bg-line" />
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">or enter it yourself</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+
           <Field label="Activity">
             <select
               className={selectClass}
