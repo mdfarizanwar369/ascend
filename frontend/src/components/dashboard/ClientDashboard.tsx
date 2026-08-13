@@ -1308,16 +1308,33 @@ export function ClientDashboard() {
               <CircleHelp size={17} />
             </a>
           </div>
-          <div className={`mt-4 grid gap-2 ${momentumSignals.length === 4 ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"}`}>
-            {momentumSignals.map((item) => {
+          <div
+            className={`mt-4 grid overflow-hidden border-y border-white/[0.07] ${momentumSignals.length === 4 ? "grid-cols-2" : "grid-cols-3"}`}
+            role="list"
+            aria-label="Momentum signals from the last seven days"
+          >
+            {momentumSignals.map((item, index) => {
               const Icon = item.icon;
+              const hasLeadingDivider = momentumSignals.length === 4 ? index % 2 === 1 : index > 0;
+              const isSecondRow = momentumSignals.length === 4 && index >= 2;
+              const statusTone = item.status === "Strong" ? "text-lime" : item.status === "Needs care" ? "text-amber" : "text-zinc-400";
+              const dotTone = item.status === "Strong" ? "bg-lime" : item.status === "Needs care" ? "bg-amber" : item.status === "Building" ? "bg-calm" : "bg-zinc-600";
               return (
-                <div key={item.label} className="min-w-0 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-2 py-3 text-center" aria-label={`${item.label}: ${item.status}. ${item.detail}`}>
-                  <span className="mx-auto grid h-9 w-9 place-items-center rounded-full bg-white/[0.045] text-purple-200">
-                    <Icon size={16} />
-                  </span>
-                  <p className="mt-2 truncate text-xs font-semibold text-white">{item.label}</p>
-                  <p className={`mt-0.5 truncate text-[10px] font-semibold ${item.status === "Strong" ? "text-lime" : item.status === "Needs care" ? "text-amber" : "text-zinc-400"}`}>{item.status}</p>
+                <div
+                  key={item.label}
+                  role="listitem"
+                  className={`min-w-0 py-3 ${hasLeadingDivider ? "border-l border-white/[0.07] pl-3" : "pr-3"} ${isSecondRow ? "border-t border-white/[0.07]" : ""}`}
+                  aria-label={`${item.label}: ${item.status}. ${item.detail}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon size={15} className="shrink-0 text-purple-200" aria-hidden="true" />
+                    <p className="truncate text-xs font-semibold text-white">{item.label}</p>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1.5">
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotTone}`} aria-hidden="true" />
+                    <p className={`truncate text-[11px] font-semibold ${statusTone}`}>{item.status}</p>
+                  </div>
+                  <p className="mt-1 truncate text-[10px] text-zinc-500">{item.detail}</p>
                 </div>
               );
             })}
