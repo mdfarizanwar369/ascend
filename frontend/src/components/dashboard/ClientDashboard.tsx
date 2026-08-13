@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, ChevronDown, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -35,8 +35,6 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
 import { clearDashboardRecord, DASHBOARD_RECORD_EVENT, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
-import { DelightBadge, DelightProgressBar } from "@/components/Delight";
-import { AscendHeroPanel } from "@/components/AscendVisualIdentity";
 import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
 import { AccountBarSkeleton, DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
@@ -110,12 +108,58 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
 
-function HeroMomentumStat({ score, label }: { score: number; label: string }) {
+function TodayMomentumVisual({
+  score,
+  label,
+  completed,
+  total
+}: {
+  score: number;
+  label: string;
+  completed: number;
+  total: number;
+}) {
+  const radius = 76;
+  const circumference = 2 * Math.PI * radius;
+  const progress = (clamp(score) / 100) * circumference;
+
   return (
-    <div className="min-w-[5.5rem] rounded-2xl border border-white/10 bg-ink/75 px-3 py-3 text-left shadow-[0_14px_36px_rgba(8,12,20,0.28)]">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Momentum</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{score}</p>
-      <p className="mt-1 text-xs text-calm">{label}</p>
+    <div className="ascend-today-momentum relative mx-auto h-[12.5rem] w-[12.5rem]" aria-label={`Momentum ${score} out of 100. ${completed} of ${total} daily actions complete.`}>
+      <svg className="h-full w-full -rotate-90" viewBox="0 0 200 200" role="img" aria-hidden="true">
+        <defs>
+          <linearGradient id="today-momentum-gradient" x1="20" y1="20" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#a484ff" />
+            <stop offset="0.52" stopColor="#35f2d0" />
+            <stop offset="1" stopColor="#a3ff46" />
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r={radius} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="9" />
+        <circle
+          cx="100"
+          cy="100"
+          r={radius}
+          fill="none"
+          stroke="url(#today-momentum-gradient)"
+          strokeLinecap="round"
+          strokeWidth="9"
+          strokeDasharray={`${progress} ${circumference}`}
+          className="ascend-today-ring"
+        />
+        {Array.from({ length: total }, (_, index) => {
+          const angle = ((index / total) * Math.PI * 2) - (Math.PI / 2);
+          const x = 100 + Math.cos(angle) * 76;
+          const y = 100 + Math.sin(angle) * 76;
+          const isDone = index < completed;
+          return <circle key={index} cx={x} cy={y} r="3.5" fill={isDone ? "#f7fff2" : "#252b36"} stroke={isDone ? "#35f2d0" : "#4b5563"} strokeWidth="2" />;
+        })}
+      </svg>
+      <div className="absolute inset-0 grid place-items-center text-center">
+        <div>
+          <p className="text-5xl font-semibold leading-none text-white">{score}</p>
+          <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-purple-200">Momentum</p>
+          <p className="mt-1 text-xs font-medium text-calm">{label}</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -242,17 +286,17 @@ function CollapsibleSection({
 }) {
   const accent = sectionAccent(tone);
   return (
-    <section className={`mt-4 rounded-2xl border shadow-soft ${accent.shell}`}>
+    <section className="ascend-today-support mt-1 border-b border-white/[0.07]">
       <button
         type="button"
         aria-expanded={isOpen}
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-3 p-4 text-left"
+        className="flex w-full items-center justify-between gap-3 py-4 text-left"
       >
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             {icon ? (
-              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border ${accent.icon}`}>
+              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border ${accent.icon}`}>
                 {icon}
               </span>
             ) : null}
@@ -261,13 +305,13 @@ function CollapsibleSection({
           <p className={`mt-1 truncate text-sm ${accent.preview}`}>{preview}</p>
           {previewVisual ? <div className="mt-2">{previewVisual}</div> : null}
         </div>
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-200">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-zinc-200">
           <ChevronDown className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} size={18} />
         </span>
       </button>
       <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${isOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
         <div className="overflow-hidden">
-          <div className="border-t border-line p-4 pt-3">{children}</div>
+          <div className="pb-5 pt-2">{children}</div>
         </div>
       </div>
     </section>
@@ -317,7 +361,6 @@ export function ClientDashboard() {
   const hasLoadedDashboardRef = useRef(false);
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
-  const progressDetailsRef = useRef<HTMLDivElement | null>(null);
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
     dashboardLoadInFlightRef.current = true;
@@ -1240,13 +1283,6 @@ export function ClientDashboard() {
   const coachCardMessage = user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message;
   const coachCardDetail = user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
   const coachCardSnippet = coachCardMessage.length > 88 ? `${coachCardMessage.slice(0, 85).trimEnd()}...` : coachCardMessage;
-  const storyToneClass =
-    goalCompletedToday || weightLostFromStart >= 0.1
-      ? "border-amber/25 bg-[linear-gradient(180deg,rgba(248,184,78,0.09),rgba(18,23,33,0.96))]"
-      : "border-line bg-surface";
-  const coachToneClass = user?.assigned_trainer_id
-    ? "border-calm/25 bg-[linear-gradient(180deg,rgba(72,187,255,0.07),rgba(18,23,33,0.96))]"
-    : "border-purple-400/20 bg-[linear-gradient(180deg,rgba(139,92,246,0.08),rgba(18,23,33,0.96))]";
   const todayTiles = [
     {
       label: "Meal",
@@ -1302,16 +1338,6 @@ export function ClientDashboard() {
     return left.priority ? -1 : 1;
   });
 
-  function revealTodayProgress() {
-    window.setTimeout(() => {
-      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-      progressDetailsRef.current?.scrollIntoView({
-        behavior: reduceMotion ? "auto" : "smooth",
-        block: "start"
-      });
-    }, 80);
-  }
-
   function setSectionOpen(key: CollapsibleKey, isOpen: boolean) {
     setOpenSections((current) => ({ ...current, [key]: isOpen }));
   }
@@ -1327,7 +1353,7 @@ export function ClientDashboard() {
 
   if (showDashboardSkeleton) {
     return (
-      <main className="min-h-screen bg-ink pb-24 text-white">
+      <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
         <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
           <header className="flex items-center justify-between py-3">
             <a href="/" className="flex items-center gap-2">
@@ -1369,7 +1395,7 @@ export function ClientDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-ink pb-24 text-white">
+    <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <a href="/dashboard" className="flex items-center gap-2">
@@ -1442,78 +1468,44 @@ export function ClientDashboard() {
           </section>
         ) : null}
 
-        <AscendHeroPanel
-          eyebrow="Today's focus"
-          title={`${greeting}, ${firstName}.`}
-          body={todayPriority.hero}
-          tone="momentum"
-          visual={<HeroMomentumStat score={score} label={scoreLabel} />}
-          className="border-calm/35 from-calm/14 via-surface to-purple-500/16 shadow-[0_24px_80px_rgba(8,12,20,0.55)]"
-        >
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <DelightBadge tone="teal">{momentumHeadline}</DelightBadge>
-            </div>
-            <p className="max-w-[23rem] text-sm leading-6 text-zinc-300">{heroSupportingCopy}</p>
-          </div>
-          <a href={primaryAction.href} className="ascend-cta-pulse mt-6 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+        <section className="ascend-today-hero ascend-soft-enter relative mt-2 overflow-hidden pb-6 pt-5 text-center">
+          <p className="ascend-eyebrow">Today</p>
+          <h1 className="mt-2 text-[1.75rem] font-semibold leading-tight text-white">{greeting}, {firstName}.</h1>
+          <TodayMomentumVisual score={score} label={scoreLabel} completed={completedTaskCount} total={taskItems.length} />
+          <p className="mx-auto max-w-[20rem] text-[11px] font-bold uppercase tracking-[0.18em] text-calm">{momentumHeadline}</p>
+          <h2 className="mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
+          <p className="mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
+          <a href={primaryAction.href} className="ascend-cta-pulse mx-auto mt-5 flex h-14 max-w-[21rem] items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
             {primaryAction.label} <ArrowRight size={18} />
           </a>
-        </AscendHeroPanel>
-            <section className="ascend-card-rise ascend-surface mt-4 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-calm">{todayPriority.key ? "Today's priority" : "Today"}</p>
-                  <h2 className="mt-2 text-lg font-semibold text-white">{dailyStatus.title}</h2>
-                  <p className="mt-2 text-sm leading-6 text-zinc-400">{dailyStatus.detail}</p>
-                </div>
-                <span className="rounded-full bg-ink px-3 py-2 text-sm font-semibold text-lime">{dailyCompletion}%</span>
-              </div>
-              <div className="mt-4"><DelightProgressBar value={dailyCompletion} /></div>
-              <div className="mt-4 space-y-2">
-                {todayTiles.map((item) => {
-                  const Icon = item.icon;
-                  const toneClass =
-                    item.tone === "lime"
-                      ? "border-lime/25 bg-lime/8"
-                      : item.tone === "amber"
-                        ? "border-amber/25 bg-amber/8"
-                        : item.tone === "purple"
-                          ? "border-purple-400/25 bg-purple-400/8"
-                          : item.tone === "blue"
-                            ? "border-sky-400/25 bg-sky-400/8"
-                            : "border-line bg-ink";
-                  const priorityClass = item.priority ? "border-calm/40 bg-[linear-gradient(180deg,rgba(61,230,209,0.10),rgba(18,23,33,0.96))] shadow-[0_12px_35px_rgba(61,230,209,0.08)]" : "";
-                  const subduedClass = item.subdued ? "opacity-65" : "";
-                  const iconTone =
-                    item.done
-                      ? "bg-lime text-ink"
-                      : item.tone === "amber"
-                        ? "bg-amber/12 text-amber"
-                        : item.tone === "purple"
-                          ? "bg-purple-400/12 text-purple-200"
-                          : item.tone === "blue"
-                            ? "bg-sky-400/12 text-sky-200"
-                            : "bg-surface text-calm";
-                  return (
-                    <a key={item.label} href={item.href} className={`ascend-pressable flex min-h-16 items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors ${toneClass} ${priorityClass} ${subduedClass}`}>
-                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${iconTone}`}>
-                        <Icon size={17} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-white">{item.label}</p>
-                          {item.priority ? <span className="rounded-full bg-calm/14 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-calm">Now</span> : null}
-                          <span className="text-xs font-medium text-zinc-500">{item.value}</span>
-                        </div>
-                        <p className="mt-1 text-sm text-zinc-400">{item.detail}</p>
-                      </div>
-                      <ArrowRight className="shrink-0 text-zinc-500" size={16} aria-hidden="true" />
-                    </a>
-                  );
-                })}
-              </div>
-            </section>
+        </section>
+
+        <section className="ascend-today-path ascend-card-rise py-5">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="ascend-eyebrow">Your day</p>
+              <h2 className="mt-1 text-lg font-semibold text-white">{dailyStatus.title}</h2>
+            </div>
+            <p className="text-sm font-semibold text-calm">{completedTaskCount} of {taskItems.length}</p>
+          </div>
+          <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
+            <div className="h-full rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#a3ff46)] transition-[width] duration-700" style={{ width: `${dailyCompletion}%` }} />
+          </div>
+          <div className="mt-5 grid grid-cols-5 gap-1">
+            {todayTiles.map((item) => {
+              const Icon = item.icon;
+              return (
+                <a key={item.label} href={item.href} className="ascend-pressable group flex min-w-0 flex-col items-center gap-2 text-center" aria-label={`${item.label}: ${item.detail}`}>
+                  <span className={`relative grid h-12 w-12 place-items-center rounded-full border transition-colors ${item.done ? "border-lime/35 bg-lime text-ink shadow-[0_8px_24px_rgba(163,255,70,0.14)]" : item.priority ? "border-calm/50 bg-calm/12 text-calm shadow-[0_8px_24px_rgba(53,242,208,0.12)]" : "border-white/10 bg-white/[0.035] text-zinc-400"}`}>
+                    {item.done ? <Check size={18} strokeWidth={2.5} /> : <Icon size={18} />}
+                    {item.priority ? <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-ink bg-calm" /> : null}
+                  </span>
+                  <span className={`truncate text-[11px] font-semibold ${item.priority ? "text-calm" : item.done ? "text-zinc-300" : "text-zinc-500"}`}>{item.label}</span>
+                </a>
+              );
+            })}
+          </div>
+        </section>
 
             <CollapsibleSection
               title="Today's Numbers"
@@ -1611,28 +1603,31 @@ export function ClientDashboard() {
               )}
             </CollapsibleSection>
 
-            <section className={`ascend-stagger-enter mt-4 rounded-2xl border p-5 shadow-soft ${coachToneClass}`} style={{ animationDelay: "90ms" }}>
+            <section className="ascend-stagger-enter ascend-today-coach py-6" style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
                 {user?.assigned_trainer_id ? (
-                  <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
+                  <span className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
                 ) : <ZoeAvatar className="mt-0.5" />}
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">Today's Insight</p>
-                  <p className="mt-1 text-sm font-semibold text-white">{coachCardTitle}</p>
-                  <p className="mt-3 text-lg font-semibold leading-8 text-white">{coachCardSnippet}</p>
-                  <p className="mt-2 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-white">{coachCardTitle}</p>
+                    <span className="h-1 w-1 rounded-full bg-purple-300" />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-purple-200">Noticed today</p>
+                  </div>
+                  <p className="mt-3 text-xl font-semibold leading-8 text-white">{coachCardSnippet}</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {user?.assigned_trainer_id ? (
-                      <a href="/messages" className="inline-flex h-10 items-center justify-center rounded-full border border-purple-300/30 bg-ink px-4 text-sm font-semibold text-purple-100">
-                        View Coach Note
+                      <a href="/messages" className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
+                        View Coach Note <ArrowRight size={15} />
                       </a>
                     ) : (
-                      <a href="/coach" className="inline-flex h-10 items-center justify-center rounded-full border border-purple-300/30 bg-ink px-4 text-sm font-semibold text-purple-100">
-                        Open Coach Zoe
+                      <a href="/coach" className="inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
+                        Talk to Zoe <ArrowRight size={15} />
                       </a>
                     )}
                     {user?.athlete_mode_enabled ? (
-                      <a href="/athlete" className="inline-flex h-10 items-center justify-center rounded-full border border-sky-400/20 bg-ink px-4 text-sm font-semibold text-sky-100">
+                      <a href="/athlete" className="inline-flex h-10 items-center justify-center rounded-full border border-sky-400/20 bg-sky-400/5 px-4 text-sm font-semibold text-sky-100">
                         {athleteTodaySummary ?? "Athlete Mode"}
                       </a>
                     ) : null}
@@ -1641,20 +1636,18 @@ export function ClientDashboard() {
               </div>
             </section>
 
-            <section ref={progressDetailsRef} className={`ascend-stagger-enter mt-4 rounded-2xl border p-5 shadow-soft ${storyToneClass}`} style={{ animationDelay: "145ms" }}>
-              <div className="flex items-start gap-3">
-                <span className={`mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${goalCompletedToday || weightLostFromStart >= 0.1 ? "bg-amber/12 text-amber" : "bg-calm/10 text-calm"}`}>
+            <section className="ascend-stagger-enter ascend-today-story border-t border-white/[0.07] py-6" style={{ animationDelay: "145ms" }}>
+              <a href="/journey" className="ascend-pressable flex items-center gap-3">
+                <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${goalCompletedToday || weightLostFromStart >= 0.1 ? "bg-amber/12 text-amber" : "bg-calm/10 text-calm"}`}>
                   <Sparkles size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className={`text-sm font-semibold ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>Your story</p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">{progressPreview.title}</h2>
-                  <p className="mt-2 text-sm leading-6 text-zinc-400">{progressPreview.detail}</p>
-                  <a href="/journey" className="mt-4 inline-flex items-center gap-2 rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">
-                    View Journey <ArrowRight size={15} />
-                  </a>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>Your story</p>
+                  <h2 className="mt-1 text-lg font-semibold leading-7 text-white">{progressPreview.title}</h2>
+                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{progressPreview.detail}</p>
                 </div>
-              </div>
+                <ArrowRight className="shrink-0 text-zinc-500" size={18} />
+              </a>
             </section>
       </div>
 
