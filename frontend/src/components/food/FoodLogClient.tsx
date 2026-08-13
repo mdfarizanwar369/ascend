@@ -34,6 +34,7 @@ type SavedMealSummary = {
   foodName: string;
   calories: number;
   proteinG: number;
+  imagePreviewUrl: string | null;
 };
 type FrontendFoodAiStage = {
   name: string;
@@ -838,7 +839,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setSavedMeal({
         foodName: savedLog.estimatedFoodName,
         calories: savedLog.calories,
-        proteinG: savedLog.proteinG
+        proteinG: savedLog.proteinG,
+        imagePreviewUrl: previewUrl
       });
       setPreviewUrl(null);
       setEstimate(null);
@@ -1122,13 +1124,29 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         />
 
         {savedMeal ? (
-          <section className="ascend-food-result mt-3 overflow-hidden rounded-lg border border-lime/35 bg-surface p-5 text-center" aria-live="polite">
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(53,242,208,0.28)]">
-              <Check size={28} strokeWidth={2.5} />
+          <section className="ascend-food-result mt-3 overflow-hidden rounded-2xl border border-lime/35 bg-surface" aria-live="polite">
+            {savedMeal.imagePreviewUrl ? (
+              <div className="relative aspect-[16/8] overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={savedMeal.imagePreviewUrl} alt={savedMeal.foodName} className="h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 text-left">
+                  <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(53,242,208,0.28)]"><Check size={24} strokeWidth={2.5} /></span>
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-lime">Meal saved</p><h2 className="mt-1 text-xl font-semibold text-white">{savedMeal.foodName}</h2></div>
+                </div>
+              </div>
+            ) : (
+              <div className="px-5 pt-5 text-center">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(53,242,208,0.28)]"><Check size={28} strokeWidth={2.5} /></div>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-lime">Meal saved</p>
+                <h2 className="mt-2 text-xl font-semibold">{savedMeal.foodName}</h2>
+              </div>
+            )}
+            <div className="p-5 text-center">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-ink p-3"><p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Calories</p><p className="mt-1 font-semibold text-white">{Math.round(savedMeal.calories)} kcal</p></div>
+              <div className="rounded-xl bg-ink p-3"><p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Protein</p><p className="mt-1 font-semibold text-white">{Math.round(savedMeal.proteinG)}g</p></div>
             </div>
-            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-lime">Meal saved</p>
-            <h2 className="mt-2 text-xl font-semibold">{savedMeal.foodName}</h2>
-            <p className="mt-2 text-sm text-zinc-400">{Math.round(savedMeal.calories)} kcal / {Math.round(savedMeal.proteinG)}g protein</p>
             <p className="mt-4 text-sm leading-6 text-zinc-300">Your daily progress has been updated.</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button type="button" onClick={() => setView("history")} className="ascend-pressable h-12 rounded-lg border border-line bg-ink font-semibold text-white">
@@ -1137,6 +1155,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               <button type="button" onClick={() => setSavedMeal(null)} className="ascend-pressable h-12 rounded-lg bg-lime font-semibold text-ink">
                 Log another
               </button>
+            </div>
             </div>
           </section>
         ) : !estimate ? (

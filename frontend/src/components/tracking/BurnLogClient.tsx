@@ -14,6 +14,7 @@ import { workoutCaptureEnabled } from "@/lib/workoutCaptureFlag";
 import { WorkoutCapturePanel } from "@/components/tracking/WorkoutCapturePanel";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 import { CoachedSessionsCard } from "@/components/tracking/CoachedSessionsCard";
+import { MetricPulse } from "@/components/ExperienceVisuals";
 
 const burnRates: Record<string, number> = {
   Walking: 4,
@@ -208,7 +209,7 @@ export function BurnLogClient() {
             </span>
             <div>
               <p className="text-sm text-zinc-400">Burn logged today</p>
-              <p className="text-2xl font-semibold">{todayCalories} kcal</p>
+              <p className="text-2xl font-semibold"><MetricPulse pulseKey={todayCalories}>{todayCalories} kcal</MetricPulse></p>
             </div>
           </div>
         </section>
@@ -326,7 +327,7 @@ export function BurnLogClient() {
             {estimateNotes ? <p className="mt-2 text-sm leading-6 text-zinc-400">{estimateNotes}</p> : null}
           </div>
 
-          {status ? <p className="rounded-lg border border-line bg-ink p-3 text-sm text-zinc-300">{status}</p> : null}
+          {status ? <p className={`rounded-lg border p-3 text-sm ${status.includes("saved") ? "ascend-success-reveal border-lime/35 bg-lime/10 text-lime" : "border-line bg-ink text-zinc-300"}`}>{status}</p> : null}
 
           <button
             type="submit"

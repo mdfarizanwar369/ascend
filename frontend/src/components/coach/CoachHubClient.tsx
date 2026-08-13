@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { Check, CheckCircle2, ChevronDown, ChevronUp, Dumbbell, MessageCircle, RotateCcw, Send, Sparkles, UtensilsCrossed, Zap } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
+import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
 import {
   CoachChatMode,
   GeneratedWorkout,
@@ -310,9 +311,10 @@ function WorkoutPlannerCard({
               return (
                 <article
                   key={`${exercise.name}-${index}`}
-                  className={`rounded-xl border p-3 transition-colors ${
+                  className={`ascend-stagger-enter rounded-xl border p-3 transition-colors ${
                     complete ? "border-lime/50 bg-lime/10" : "border-line bg-ink/75"
                   }`}
+                  style={{ animationDelay: `${Math.min(index, 7) * 45}ms` }}
                 >
                   <div className="flex items-start gap-3">
                   <button
@@ -643,9 +645,7 @@ export function CoachHubClient() {
       <div className="mx-auto flex min-h-screen max-w-md flex-col">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref="/dashboard" />
-          <span className="grid h-10 w-10 place-items-center rounded-lg bg-calm text-white">
-            <Sparkles size={20} />
-          </span>
+          <ZoeAvatar />
           <div>
             <h1 className="text-xl font-semibold">Coach Zoe</h1>
             <p className="text-xs text-zinc-400">A steady voice between sessions</p>
@@ -654,13 +654,13 @@ export function CoachHubClient() {
 
         {status ? <p className="mt-3 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm text-amber">{status}</p> : null}
 
-        <section className="mt-4 rounded-[1.7rem] border border-purple-400/20 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_15rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-5 shadow-soft">
-          <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">Today&apos;s Insight</p>
-          <h2 className="mt-3 text-2xl font-semibold leading-tight text-white">{todaysInsight}</h2>
-          <p className="mt-3 text-sm leading-6 text-zinc-400">Coach Zoe is watching the small signals so today feels easier to act on.</p>
+        <section className="ascend-stagger-enter mt-4 rounded-[1.7rem] border border-purple-400/20 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_15rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-5 shadow-soft">
+          <div className="flex items-center gap-3"><ZoeAvatar size="lg" /><div><p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">Today&apos;s Insight</p><p className="mt-1 text-sm font-semibold text-white">Coach Zoe noticed this</p></div></div>
+          <h2 className="mt-4 text-2xl font-semibold leading-tight text-white">{todaysInsight}</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">One useful observation, based on what you&apos;ve logged.</p>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <section className="ascend-stagger-enter mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft" style={{ animationDelay: "70ms" }}>
           <div className="flex items-center gap-2">
             <Sparkles className="text-calm" size={18} />
             <div>
@@ -768,7 +768,7 @@ export function CoachHubClient() {
               </div>
 
               {savedWorkoutSummary ? (
-                <div className="mt-4 overflow-hidden rounded-2xl border border-lime/30 bg-ink">
+                <div className="ascend-success-reveal mt-4 overflow-hidden rounded-2xl border border-lime/30 bg-ink">
                   <div className="relative aspect-[16/8] overflow-hidden">
                     <Image src={workoutHeroImage(answers)} alt="Completed workout" fill sizes="(max-width: 480px) 100vw, 416px" className="object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
@@ -801,7 +801,7 @@ export function CoachHubClient() {
                           <p className="mt-1 font-semibold">{savedWorkoutSummary.workoutType}</p>
                         </div>
                       </div>
-                      <p className="mt-4 text-sm leading-6 text-zinc-200">{savedWorkoutSummary.coachMessage}</p>
+                      <div className="mt-4 flex items-start gap-2 rounded-xl border border-purple-300/15 bg-purple-400/8 p-3"><ZoeAvatar size="sm" /><p className="text-sm leading-6 text-zinc-200">{savedWorkoutSummary.coachMessage}</p></div>
                   </div>
                 </div>
               ) : allExercisesCompleted ? (
@@ -824,14 +824,12 @@ export function CoachHubClient() {
 
         <section className="flex-1 space-y-3 py-4">
           {messages.map((item, index) => (
-            <div
-              key={`${item.role}-${index}`}
-              className={`max-w-[86%] rounded-lg p-3 text-sm leading-6 ${
-                item.role === "user" ? "ml-auto bg-lime text-ink" : "bg-surface text-zinc-200"
-              }`}
-            >
-              {item.text}
-            </div>
+            <StaggerItem key={`${item.role}-${index}`} index={Math.min(index, 5)} className={item.role === "user" ? "ml-auto max-w-[86%]" : "max-w-[92%]"}>
+              <div className={`flex items-start gap-2 ${item.role === "user" ? "justify-end" : ""}`}>
+                {item.role === "assistant" ? <ZoeAvatar size="sm" className="mt-0.5" /> : null}
+                <div className={`rounded-lg p-3 text-sm leading-6 ${item.role === "user" ? "bg-lime text-ink" : "bg-surface text-zinc-200"}`}>{item.text}</div>
+              </div>
+            </StaggerItem>
           ))}
           {isSending ? <p className="rounded-lg bg-surface p-3 text-sm text-zinc-400">Coach is thinking...</p> : null}
         </section>

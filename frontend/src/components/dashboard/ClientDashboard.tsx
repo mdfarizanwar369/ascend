@@ -39,6 +39,7 @@ import { DelightBadge, DelightProgressBar } from "@/components/Delight";
 import { AscendHeroPanel } from "@/components/AscendVisualIdentity";
 import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
 import { AccountBarSkeleton, DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
+import { ZoeAvatar } from "@/components/ExperienceVisuals";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -1568,11 +1569,11 @@ export function ClientDashboard() {
               )}
             </CollapsibleSection>
 
-            <section className={`ascend-card-rise mt-4 rounded-[1.6rem] border p-5 shadow-soft ${coachToneClass}`}>
+            <section className={`ascend-stagger-enter mt-4 rounded-[1.6rem] border p-5 shadow-soft ${coachToneClass}`} style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-purple-400/12 text-purple-200">
-                  <Sparkles size={18} />
-                </span>
+                {user?.assigned_trainer_id ? (
+                  <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
+                ) : <ZoeAvatar className="mt-0.5" />}
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">Today's Insight</p>
                   <p className="mt-1 text-sm font-semibold text-white">{coachCardTitle}</p>
@@ -1598,7 +1599,7 @@ export function ClientDashboard() {
               </div>
             </section>
 
-            <section ref={progressDetailsRef} className={`ascend-card-rise mt-4 rounded-[1.6rem] border p-5 shadow-soft ${storyToneClass}`}>
+            <section ref={progressDetailsRef} className={`ascend-stagger-enter mt-4 rounded-[1.6rem] border p-5 shadow-soft ${storyToneClass}`} style={{ animationDelay: "145ms" }}>
               <div className="flex items-start gap-3">
                 <span className={`mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${goalCompletedToday || weightLostFromStart >= 0.1 ? "bg-amber/12 text-amber" : "bg-calm/10 text-calm"}`}>
                   <Sparkles size={18} />

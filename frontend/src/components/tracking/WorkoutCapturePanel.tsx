@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   CheckCircle2,
   ChevronRight,
@@ -249,19 +250,20 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   if (savedSummary) {
     const freeLimitReached = allowance?.tier === "free" && allowance.remaining === 0;
     return (
-      <section className="mt-4 rounded-lg border border-lime/40 bg-surface p-5" aria-live="polite">
-        <div className="flex items-start gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-lime text-ink">
-            <CheckCircle2 size={25} />
-          </span>
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-lime">Workout saved</p>
-            <h2 className="mt-1 text-xl font-semibold text-white">{savedSummary.workoutTitle}</h2>
-            <p className="mt-1 text-sm text-zinc-300">
-              {savedSummary.durationMinutes} min / ~{savedSummary.estimatedCaloriesBurned} kcal
-            </p>
+      <section className="ascend-success-reveal mt-4 overflow-hidden rounded-2xl border border-lime/40 bg-surface" aria-live="polite">
+        <div className="relative aspect-[16/8] overflow-hidden">
+          <Image src="/workouts/goal-general-fitness.jpg" alt="Workout equipment ready for a session" fill sizes="(max-width: 480px) 100vw, 448px" className="object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-5">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-lime text-ink"><CheckCircle2 size={25} /></span>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-lime">Workout saved</p>
+              <h2 className="mt-1 text-xl font-semibold text-white">{savedSummary.workoutTitle}</h2>
+              <p className="mt-1 text-sm text-zinc-200">{savedSummary.durationMinutes} min / ~{savedSummary.estimatedCaloriesBurned} kcal</p>
+            </div>
           </div>
         </div>
+        <div className="p-5">
         <p className="mt-4 rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
         {workoutProgressionV3Enabled() && savedSummary.progressionV3 ? (
           <div className="mt-3 rounded-lg border border-purple-400/35 bg-purple-400/10 p-3">
@@ -310,6 +312,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
             Log another workout
           </button>
         )}
+        </div>
       </section>
     );
   }

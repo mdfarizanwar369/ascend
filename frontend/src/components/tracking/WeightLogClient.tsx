@@ -8,6 +8,7 @@ import { Field, inputClass } from "@/components/Field";
 import { DelightBadge } from "@/components/Delight";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
+import { MetricPulse, ProgressAchievementVisual } from "@/components/ExperienceVisuals";
 
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
@@ -92,7 +93,7 @@ export function WeightLogClient() {
             </span>
             <div>
               <p className="text-sm text-zinc-400">Latest weight</p>
-              <p className="text-2xl font-semibold">{latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : "--"}</p>
+              <p className="text-2xl font-semibold"><MetricPulse pulseKey={latestWeightKg ?? "empty"}>{latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : "--"}</MetricPulse></p>
             </div>
           </div>
           <p className="mt-3 text-sm text-zinc-400">
@@ -104,14 +105,12 @@ export function WeightLogClient() {
         </section>
 
         {milestone ? (
-          <section className="mt-4 rounded-lg border border-lime bg-lime/15 p-4 text-center">
-            <p className="text-sm font-semibold uppercase text-lime">Goal achieved</p>
-            <h2 className="mt-2 text-2xl font-semibold">You reached {Number(milestone.target_weight_kg).toFixed(1)}kg!</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-300">Take the win. Your consistency made this happen.</p>
-            <a href="/profile/guide" className="ascend-pressable mt-4 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-              Choose what comes next
-            </a>
-          </section>
+          <ProgressAchievementVisual
+            eyebrow="Goal achieved"
+            title={`You reached ${Number(milestone.target_weight_kg).toFixed(1)}kg!`}
+            detail="Take the win. Your consistency made this happen."
+            action={<a href="/profile/guide" className="ascend-pressable flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink">Choose what comes next</a>}
+          />
         ) : null}
 
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
