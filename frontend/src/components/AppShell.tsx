@@ -26,7 +26,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
     { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: canTrain },
     { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: canAdmin },
-    { href: "/founder", label: "Founder Dashboard", icon: Crown, key: "founder", show: canFounder }
+    { href: "/founder", label: "Founder", icon: Crown, key: "founder", show: canFounder }
   ].filter((item) => item.show);
   const backHref = active === "founder" ? "/founder" : active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";
   const isOperational = active !== "client";
@@ -104,7 +104,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
               </nav>
             </aside>
           ) : null}
-          <div className="min-w-0">
+          <div className="ascend-workspace-content">
             <div className={isOperational ? "md:hidden" : undefined}>
               <AccountBar email={account.email} fullName={account.fullName} roles={account.roles} plan={account.plan} profilePhotoUrl={account.profilePhotoUrl} />
             </div>

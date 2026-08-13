@@ -157,8 +157,8 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   }
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-5xl">
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-workspace-frame">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref={`/trainer/clients/${clientId}`} disabled={busy} />
           <div><p className="text-sm text-zinc-400">Coached workout</p><h1 className="text-2xl font-semibold">{title}</h1></div>
@@ -169,7 +169,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
         {phase === "loading" ? <div className="mt-5 h-56 animate-pulse rounded-2xl bg-surface" /> : null}
 
         {phase === "start" ? (
-          <section className="mt-5 rounded-2xl border border-line bg-surface p-5">
+          <section className="ascend-workspace-section mt-5 p-5">
             <span className="grid h-12 w-12 place-items-center rounded-2xl bg-lime text-ink"><Dumbbell /></span>
             <h2 className="mt-5 text-2xl font-semibold">Capture the session without slowing it down.</h2>
             <p className="mt-2 max-w-xl leading-7 text-zinc-400">Use quick shorthand during training. Ascend will organize it before anything reaches the client.</p>
@@ -183,7 +183,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
 
         {phase === "capture" && session ? (
           <div className="mt-5 grid gap-4 lg:grid-cols-[0.7fr_1.3fr]">
-            <aside className="rounded-2xl border border-line bg-surface p-4">
+            <aside className="ascend-workspace-section p-4 sm:p-5">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">Last session</p>
               <h2 className="mt-2 text-lg font-semibold">{previousWorkout?.title ?? "A clean starting point"}</h2>
               <p className="mt-2 text-sm text-zinc-400">{previousSummary}</p>
@@ -204,7 +204,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
 
         {phase === "review" && draft && narratives ? (
           <div className="mt-5 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-            <section className="rounded-2xl border border-line bg-surface p-4 sm:p-5">
+            <section className="ascend-workspace-section p-4 sm:p-5">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">Review receipt</p>
               <input aria-label="Workout title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="mt-3 w-full bg-transparent text-2xl font-semibold outline-none" />
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -225,7 +225,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
             </section>
             <aside className="space-y-4">
               {intelligence ? <section className="rounded-2xl border border-calm/30 bg-calm/10 p-4"><div className="flex items-center gap-2 text-calm"><Sparkles size={18} /><p className="text-xs font-bold uppercase tracking-[0.16em]">Session Copilot</p></div><h3 className="mt-2 text-lg font-semibold">{intelligence.headline}</h3>{intelligence.highlights.length ? <div className="mt-3 space-y-2">{intelligence.highlights.map((highlight) => <p key={highlight} className="rounded-xl bg-ink/70 p-3 text-sm text-zinc-200"><Check className="mr-2 inline text-lime" size={16} />{highlight}</p>)}</div> : null}{intelligence.watchouts.length ? <div className="mt-3 rounded-xl border border-amber/30 bg-amber/10 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber">Check next time</p>{intelligence.watchouts.map((watchout) => <p key={watchout} className="mt-2 text-sm leading-6 text-zinc-200">{watchout}</p>)}</div> : null}<div className="mt-3 rounded-xl bg-ink/70 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Next-session starting point</p><p className="mt-2 text-sm leading-6 text-zinc-200">{intelligence.nextSessionStartingPoint}</p></div></section> : null}
-              <section className="rounded-2xl border border-line bg-surface p-4"><p className="text-sm text-zinc-400">Estimated Calories Burned</p><p className="mt-1 text-3xl font-semibold">~{estimatedCalories ?? "--"} kcal</p><p className="mt-2 text-xs text-zinc-500">Estimated from session type, effort, duration and client weight when available.</p></section>
+              <section className="ascend-workspace-section p-4"><p className="text-sm text-zinc-400">Estimated Calories Burned</p><p className="mt-1 text-3xl font-semibold">~{estimatedCalories ?? "--"} kcal</p><p className="mt-2 text-xs text-zinc-500">Estimated from session type, effort, duration and client weight when available.</p></section>
               <section className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-200">Client recap</p><textarea value={narratives.clientRecap} onChange={(e) => setNarratives({ ...narratives, clientRecap: e.target.value })} rows={4} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /><p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-calm">Between-session focus</p><textarea value={narratives.betweenSessionFocus} onChange={(e) => setNarratives({ ...narratives, betweenSessionFocus: e.target.value })} rows={3} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /></section>
               <button disabled={busy || !draft.title.trim()} onClick={complete} className="min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink disabled:opacity-40"><Save className="mr-2 inline" size={19} />{busy ? "Saving..." : "Confirm & Share"}</button>
               <button disabled={busy} onClick={() => setPhase("capture")} className="min-h-12 w-full rounded-xl border border-line bg-ink font-semibold">Back to notes</button>

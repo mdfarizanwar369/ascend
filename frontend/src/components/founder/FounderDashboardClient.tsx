@@ -111,7 +111,7 @@ function draftSubject(lead: FounderLead | null, key: string) {
 
 function StatCard({ title, value, detail, icon: Icon }: { title: string; value: string; detail: string; icon: typeof Target }) {
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+    <article className="ascend-workspace-stat p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-zinc-400">{title}</p>
         <span className="grid h-10 w-10 place-items-center rounded-2xl bg-lime/10 text-lime">
@@ -386,7 +386,7 @@ export function FounderDashboardClient() {
   }
 
   return (
-    <main className="space-y-6 pb-24">
+    <main className="space-y-5 pb-24">
       <section className="ascend-identity-hero rounded-[2rem] border border-purple-400/25 bg-[radial-gradient(circle_at_top_right,rgba(53,242,208,0.18),transparent_18rem),linear-gradient(135deg,rgba(139,92,246,0.22),rgba(18,23,33,0.96))] p-6 shadow-soft">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -406,7 +406,7 @@ export function FounderDashboardClient() {
         </div>
       </section>
 
-      {status ? <p className="rounded-2xl border border-line bg-surface p-4 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset p-4 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="grid gap-3 md:grid-cols-4">
         <StatCard title="Leads" value={String(summary?.leads ?? 0)} detail="Total gyms tracked" icon={Building2} />
@@ -416,7 +416,7 @@ export function FounderDashboardClient() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-3xl border border-line bg-surface p-4 shadow-soft">
+        <div className="ascend-workspace-section p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm uppercase tracking-[0.24em] text-purple-300">Lead Database</p>
@@ -473,7 +473,7 @@ export function FounderDashboardClient() {
         </div>
 
         <aside className="space-y-4">
-          <section className="rounded-3xl border border-line bg-surface p-4 shadow-soft">
+          <section className="ascend-workspace-section p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <Search className="text-lime" />
               <div>
@@ -488,7 +488,7 @@ export function FounderDashboardClient() {
             </button>
           </section>
 
-          <section className="rounded-3xl border border-line bg-surface p-4 shadow-soft">
+          <section className="ascend-workspace-section p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <Mail className="text-lime" />
               <div>
@@ -534,7 +534,7 @@ export function FounderDashboardClient() {
 
       {selectedLead ? (
         <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-3xl border border-line bg-surface p-4 shadow-soft">
+          <div className="ascend-workspace-section p-4 sm:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-purple-300">Selected Lead</p>
@@ -610,7 +610,7 @@ export function FounderDashboardClient() {
           </div>
 
           <div className="space-y-4">
-            <section className="rounded-3xl border border-line bg-surface p-4 shadow-soft">
+            <section className="ascend-workspace-section p-4 sm:p-5">
               <p className="text-sm uppercase tracking-[0.24em] text-purple-300">AI Research</p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {Object.entries((Object.keys(selectedLead.research ?? {}).length ? selectedLead.research : researchResult) ?? {}).map(([key, value]) => (
@@ -622,7 +622,7 @@ export function FounderDashboardClient() {
               </div>
             </section>
 
-            <section className="rounded-3xl border border-line bg-surface p-4 shadow-soft">
+            <section className="ascend-workspace-section p-4 sm:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm uppercase tracking-[0.24em] text-purple-300">AI Email Writer</p>
@@ -716,7 +716,7 @@ export function FounderDashboardClient() {
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-line bg-surface p-4 shadow-soft">
+      <section className="ascend-workspace-section p-4 sm:p-5">
         <p className="text-sm uppercase tracking-[0.24em] text-purple-300">Pipeline</p>
         <div className="mt-4 grid gap-2 md:grid-cols-8">
           {statuses.map((pipelineStatus) => (

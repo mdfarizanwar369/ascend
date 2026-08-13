@@ -219,7 +219,7 @@ function PriorityClientCard({ item, type }: { item: PriorityCard; type: "attenti
   const border = type === "attention" ? "border-amber/40 bg-amber/10" : "border-teal-400/40 bg-teal-400/10";
   const badgeClass = item.badge === "Athlete" ? "border-purple-400/50 bg-purple-400/10 text-purple-100" : "border-teal-400/50 bg-teal-400/10 text-teal-100";
   return (
-    <article className={`rounded-lg border p-3 ${border}`}>
+    <article className={`rounded-xl border p-4 ${border}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
           <ProfileAvatar src={item.client.profile_photo_url} name={item.client.full_name} size="sm" />
@@ -235,10 +235,10 @@ function PriorityClientCard({ item, type }: { item: PriorityCard; type: "attenti
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Link href={`/trainer/clients/${item.client.id}`} className="flex h-10 items-center justify-center rounded-lg border border-line bg-surface text-sm font-semibold">
+        <Link href={`/trainer/clients/${item.client.id}`} className="ascend-pressable flex h-11 items-center justify-center rounded-xl border border-line bg-surface text-sm font-semibold">
           View Client
         </Link>
-        <Link href={`/messages?userId=${item.client.id}`} className="flex h-10 items-center justify-center rounded-lg bg-lime text-sm font-semibold text-ink">
+        <Link href={`/messages?userId=${item.client.id}`} className="ascend-pressable flex h-11 items-center justify-center rounded-xl bg-lime text-sm font-semibold text-ink">
           Message Client
         </Link>
       </div>
@@ -345,12 +345,12 @@ export function TrainerDashboardClient() {
 
   if (isPendingApproval) {
     return (
-      <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
+      <section className="ascend-workspace-section mt-4 border-amber/40 bg-amber/10 p-4">
         <p className="text-sm font-semibold text-amber">Trainer approval pending</p>
         <p className="mt-2 text-sm leading-6 text-zinc-300">
           Your trainer account is created. An owner needs to approve it before clients are assigned.
         </p>
-        <Link href="/subscription" className="mt-4 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+        <Link href="/subscription" className="ascend-pressable mt-4 flex h-11 items-center justify-center rounded-xl bg-lime font-semibold text-ink">
           View plan
         </Link>
       </section>
@@ -361,7 +361,7 @@ export function TrainerDashboardClient() {
     return (
       <>
         <DashboardHeroSkeleton bodyLines={2} />
-        <section className="mt-4 rounded-lg border border-teal-400/40 bg-gradient-to-br from-teal-400/15 via-surface to-purple-400/10 p-4">
+        <section className="ascend-workspace-section mt-4 p-4">
           <SkeletonStatGrid count={4} />
           <div className="mt-4">
             <SkeletonText lines={1} />
@@ -373,7 +373,7 @@ export function TrainerDashboardClient() {
         <SectionShell title="Client work queue">
           <SkeletonCardList count={3} compact />
         </SectionShell>
-        <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+        <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p>
       </>
     );
   }
@@ -388,9 +388,9 @@ export function TrainerDashboardClient() {
         visual={<PrioritySigil count={priorities.needsAttention.length} />}
       />
 
-      {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
-      <section className="mt-4 rounded-lg border border-teal-400/40 bg-gradient-to-br from-teal-400/15 via-surface to-purple-400/10 p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="grid grid-cols-2 gap-3">
           <MetricCard label="Premium attention" value={String(premiumAttention)} detail="Need check-in" tone={premiumAttention ? "warning" : "success"} />
           <MetricCard label="Athlete attention" value={String(athleteAttention)} detail="Coach intelligence" tone={athleteAttention ? "warning" : "success"} />
@@ -406,7 +406,7 @@ export function TrainerDashboardClient() {
           <div className="mt-3 space-y-3">
             {priorities.needsAttention.slice(0, 5).map((item) => <PriorityClientCard key={item.client.id} item={item} type="attention" />)}
             {!priorities.needsAttention.length ? (
-              <p className="rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm leading-6 text-zinc-200">No urgent Premium or Athlete client priorities right now.</p>
+              <p className="rounded-xl border border-lime/40 bg-lime/10 p-3 text-sm leading-6 text-zinc-200">No urgent Premium or Athlete client priorities right now.</p>
             ) : null}
           </div>
         </div>
@@ -428,7 +428,7 @@ export function TrainerDashboardClient() {
           </div>
         </div>
 
-        <div className="mt-4 rounded-lg border border-line bg-ink p-3">
+        <div className="ascend-workspace-inset mt-4 p-4">
           <div className="flex items-center gap-2">
             <Target className="text-purple-300" size={18} />
             <h2 className="text-sm font-semibold">Today's Summary</h2>
@@ -440,15 +440,15 @@ export function TrainerDashboardClient() {
           </p>
         </div>
 
-        <div className="mt-4 rounded-lg border border-line bg-ink p-3">
+        <div className="ascend-workspace-inset mt-4 p-4">
           <h2 className="text-sm font-semibold">Weekly Client Summary</h2>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-teal-200">{weeklySummary.improving}</span>Clients improving</p>
-            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.plateaued}</span>Clients plateaued</p>
-            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.atRisk}</span>Clients at risk</p>
-            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.checkInsDue}</span>Check-ins due</p>
-            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-purple-200">{weeklySummary.bodyScansDue}</span>Body Scans due</p>
-            <p className="rounded-lg bg-surface p-3"><span className="block text-lg font-semibold text-lime">{weeklySummary.goalAchievements}</span>Goal achievements</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-teal-200">{weeklySummary.improving}</span>Clients improving</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.plateaued}</span>Clients plateaued</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.atRisk}</span>Clients at risk</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.checkInsDue}</span>Check-ins due</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-purple-200">{weeklySummary.bodyScansDue}</span>Body Scans due</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-lime">{weeklySummary.goalAchievements}</span>Goal achievements</p>
           </div>
         </div>
       </section>
@@ -461,7 +461,7 @@ export function TrainerDashboardClient() {
       </section>
 
       {alerts[0] ? (
-        <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
+        <section className="ascend-workspace-section mt-4 border-amber/40 bg-amber/10 p-4">
           <div className="flex items-start gap-3">
             <ProfileAvatar src={alerts[0].profile_photo_url} name={alerts[0].full_name} size="sm" />
             <div>
@@ -473,10 +473,10 @@ export function TrainerDashboardClient() {
         </section>
       ) : null}
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold">Client work queue</h2>
-          <span className="rounded bg-ink px-3 py-1 text-xs text-zinc-300">Risk first</span>
+          <span className="rounded-full border border-line bg-ink px-3 py-1 text-xs text-zinc-300">Risk first</span>
         </div>
         <div className="mt-3 space-y-3">
           {sortedClients.length ? (
@@ -484,7 +484,7 @@ export function TrainerDashboardClient() {
               const score = client.compliance_score;
               const label = riskLabel(client);
               return (
-                <article key={client.id} className="rounded-lg bg-ink p-3">
+                <article key={client.id} className="ascend-workspace-inset p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 gap-3">
                       <ProfileAvatar src={client.profile_photo_url} name={client.full_name} size="sm" />
@@ -515,17 +515,17 @@ export function TrainerDashboardClient() {
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2">
-                    <Link href={`/trainer/clients/${client.id}`} className="flex h-10 items-center justify-center rounded-lg border border-line bg-surface text-sm font-semibold">
+                    <Link href={`/trainer/clients/${client.id}`} className="ascend-pressable flex h-11 items-center justify-center rounded-xl border border-line bg-surface text-sm font-semibold">
                       View
                     </Link>
-                    <Link href={`/messages?userId=${client.id}`} className="flex h-10 items-center justify-center rounded-lg bg-lime text-sm font-semibold text-ink">
+                    <Link href={`/messages?userId=${client.id}`} className="ascend-pressable flex h-11 items-center justify-center rounded-xl bg-lime text-sm font-semibold text-ink">
                       Message
                     </Link>
                     <button
                       type="button"
                       disabled={praisingClientId === client.id}
                       onClick={() => sendPraise(client.id, client.full_name)}
-                      className="h-10 rounded-lg border border-lime/40 bg-lime/10 text-sm font-semibold text-lime disabled:opacity-60"
+                      className="ascend-pressable h-11 rounded-xl border border-lime/40 bg-lime/10 text-sm font-semibold text-lime disabled:opacity-60"
                     >
                       Praise
                     </button>
@@ -546,12 +546,12 @@ export function TrainerDashboardClient() {
       <section className="mt-4 grid grid-cols-2 gap-3">
         <Link
           href={clients[0] ? `/trainer/clients/${clients[0].id}` : "/trainer"}
-          className="rounded-lg border border-line bg-surface p-4 text-left"
+          className="ascend-pressable ascend-workspace-action p-4 text-left"
         >
           <Sparkles className="text-calm" size={20} />
           <span className="mt-3 block text-sm font-medium">AI check-ins</span>
         </Link>
-        <Link href={clients[0] ? `/messages?userId=${clients[0].id}` : "/messages"} className="rounded-lg border border-line bg-surface p-4 text-left">
+        <Link href={clients[0] ? `/messages?userId=${clients[0].id}` : "/messages"} className="ascend-pressable ascend-workspace-action p-4 text-left">
           <MessageSquare className="text-lime" size={20} />
           <span className="mt-3 block text-sm font-medium">Messages</span>
         </Link>

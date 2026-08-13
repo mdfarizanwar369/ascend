@@ -231,7 +231,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
         <SectionShell title="Meal history">
           <SkeletonCardList count={3} compact />
         </SectionShell>
-        <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+        <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p>
       </>
     );
   }
@@ -254,7 +254,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <CalendarDays className="text-lime" size={19} />
           <h2 className="text-base font-semibold">Filters</h2>
@@ -282,11 +282,11 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
         </button>
       </section>
 
-      {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="mt-4 space-y-4">
         {groupedDays.map((day) => (
-          <article key={day.dateKey} className="rounded-lg border border-line bg-surface p-4">
+          <article key={day.dateKey} className="ascend-workspace-section p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">{dateLabel(day.dateKey)}</h2>
@@ -368,7 +368,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
         ))}
 
         {!groupedDays.length && !status ? (
-          <article className="rounded-lg border border-line bg-surface p-4">
+          <article className="ascend-workspace-section p-4 sm:p-5">
             <p className="text-sm leading-6 text-zinc-400">This client has not built a meal history yet. Once they start logging, their meals will appear here by date.</p>
           </article>
         ) : null}
@@ -385,7 +385,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
             {isLoadingMore ? "Loading..." : "Load more meals"}
           </button>
         ) : null}
-        <Link href={`/trainer/clients/${clientId}`} className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-lg border border-line bg-surface font-semibold text-zinc-200 hover:border-calm/40">
+        <Link href={`/trainer/clients/${clientId}`} className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-xl border border-line bg-surface font-semibold text-zinc-200 hover:border-calm/40">
           <ChevronLeft size={18} />
           Back to client profile
         </Link>

@@ -108,7 +108,7 @@ function ExecutiveCard({
   detail: string;
 }) {
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4 shadow-soft">
+    <article className="ascend-workspace-stat p-4">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm text-zinc-400">{title}</p>
         <StatusPill status={status} />
@@ -121,7 +121,7 @@ function ExecutiveCard({
 
 function OpportunityCard({ title, value, detail }: { title: string; value: string; detail: string }) {
   return (
-    <article className="rounded-2xl border border-line bg-surface p-4">
+    <article className="ascend-workspace-inset p-4">
       <p className="text-sm text-zinc-400">{title}</p>
       <p className="mt-2 text-2xl font-semibold text-lime">{value}</p>
       <p className="mt-2 text-sm leading-6 text-zinc-300">{detail}</p>
@@ -434,7 +434,7 @@ export function AdminDashboardClient() {
         <SectionShell title="Business Opportunities">
           <SkeletonStatGrid count={4} />
         </SectionShell>
-        <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+        <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p>
       </>
     );
   }
@@ -455,7 +455,7 @@ export function AdminDashboardClient() {
         </div>
       </AscendHeroPanel>
 
-      {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="mt-4">
         <div className="flex items-center gap-2">
@@ -471,7 +471,7 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Bell className="text-calm" size={20} />
@@ -510,7 +510,7 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Building2 className="text-lime" size={20} />
           <h2 className="text-xl font-semibold">Club Performance</h2>
@@ -549,7 +549,7 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Users className="text-calm" size={20} />
           <h2 className="text-xl font-semibold">Trainer Performance</h2>
@@ -576,7 +576,7 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <TrendingUp className="text-lime" size={20} />
           <h2 className="text-xl font-semibold">Member Engagement</h2>
@@ -625,7 +625,7 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Lightbulb className="text-amber" size={20} />
           <h2 className="text-xl font-semibold">Executive Insights</h2>
@@ -638,15 +638,15 @@ export function AdminDashboardClient() {
       </section>
 
       <section className="mt-4 grid grid-cols-2 gap-3">
-        <Link href="/admin/users" className="rounded-2xl border border-line bg-surface p-4 text-left">
+        <Link href="/admin/users" className="ascend-pressable ascend-workspace-action p-4 text-left">
           <Users className="text-lime" size={20} />
           <span className="mt-3 block text-sm font-medium">Users</span>
         </Link>
-        <Link href="/admin/subscriptions" className="rounded-2xl border border-line bg-surface p-4 text-left">
+        <Link href="/admin/subscriptions" className="ascend-pressable ascend-workspace-action p-4 text-left">
           <BadgeDollarSign className="text-calm" size={20} />
           <span className="mt-3 block text-sm font-medium">Subscriptions</span>
         </Link>
-        <Link href="/admin/referrals" className="rounded-2xl border border-line bg-surface p-4 text-left">
+        <Link href="/admin/referrals" className="ascend-pressable ascend-workspace-action p-4 text-left">
           <QrCode className="text-lime" size={20} />
           <span className="mt-3 block text-sm font-medium">Referral codes</span>
         </Link>

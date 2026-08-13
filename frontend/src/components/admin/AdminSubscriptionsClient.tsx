@@ -52,11 +52,11 @@ export function AdminSubscriptionsClient() {
         </div>
       </section>
 
-      {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="mt-4 space-y-3">
         {subscriptions.map((item) => (
-          <article key={item.id} className="rounded-lg border border-line bg-surface p-4">
+          <article key={item.id} className="ascend-workspace-section p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-semibold">{item.full_name}</p>
@@ -81,7 +81,7 @@ export function AdminSubscriptionsClient() {
           </article>
         ))}
         {!subscriptions.length && !status ? (
-          <p className="rounded-lg border border-line bg-surface p-4 text-sm leading-6 text-zinc-400">Subscriptions will appear here once members activate Premium, Athlete Mode, or Trainer Pro plans.</p>
+          <p className="ascend-workspace-section p-4 text-sm leading-6 text-zinc-400">Subscriptions will appear here once members activate Premium, Athlete Mode, or Trainer Pro plans.</p>
         ) : null}
       </section>
     </>

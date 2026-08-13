@@ -590,7 +590,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ) : null}
       </section>
 
-      {status ? <p className="mt-4 rounded-2xl border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="mt-4 rounded-[1.75rem] border border-purple-400/30 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.18),transparent_16rem),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.2),transparent_16rem),linear-gradient(180deg,rgba(18,22,35,0.98),rgba(8,13,24,0.98))] p-5 shadow-soft">
         <div className="flex items-start gap-3">
@@ -988,7 +988,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         </SectionCard>
       </div>
 
-      <section className="mt-4 rounded-2xl border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-3">
           {weightDelta < 0 ? <TrendingDown className="text-lime" size={20} /> : <TrendingUp className="text-calm" size={20} />}
           <p className="text-sm text-zinc-300">Food, water, workouts, messages, memory, reports, and progress come from existing Ascend records.</p>

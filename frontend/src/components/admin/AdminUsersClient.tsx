@@ -271,23 +271,23 @@ export function AdminUsersClient() {
         </div>
       </section>
 
-      {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
       {referralStatus ? <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm text-lime">{referralStatus}</p> : null}
 
       <section className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-line bg-surface p-4">
+        <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Users</p>
           <p className="mt-2 text-2xl font-semibold">{activeUsers.length}</p>
         </div>
-        <div className="rounded-lg border border-line bg-surface p-4">
+        <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Unassigned</p>
           <p className="mt-2 text-2xl font-semibold">{unassignedClients.length}</p>
         </div>
-        <div className="rounded-lg border border-line bg-surface p-4">
+        <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Pending trainers</p>
           <p className="mt-2 text-2xl font-semibold">{pendingTrainers.length}</p>
         </div>
-        <div className="rounded-lg border border-line bg-surface p-4">
+        <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Active trainers</p>
           <p className="mt-2 text-2xl font-semibold">{activeTrainers.length}</p>
         </div>
@@ -303,7 +303,7 @@ export function AdminUsersClient() {
         </p>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold">Pending trainers</h2>
@@ -381,7 +381,7 @@ export function AdminUsersClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <h2 className="text-base font-semibold">Trainer workload</h2>
         <div className="mt-3 space-y-2">
           {activeTrainers.map((trainer) => (
@@ -397,7 +397,7 @@ export function AdminUsersClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-base font-semibold">{userView === "active" ? "Active users" : "Deactivated users"}</h2>
@@ -502,7 +502,7 @@ export function AdminUsersClient() {
                 </Field>
               </div>
 
-              <div className="mt-3 rounded-lg border border-line bg-surface p-3">
+              <div className="ascend-workspace-inset mt-3 p-3">
                 <p className="text-xs font-semibold uppercase text-zinc-400">Plan access</p>
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {(["free", "premium", "trainer_pro"] as SubscriptionPlan[]).map((plan) => {
@@ -546,7 +546,7 @@ export function AdminUsersClient() {
               ) : null}
 
               {user.primary_role === "owner" && canManageOwnerGyms ? (
-                <div className="mt-3 rounded-lg border border-line bg-surface p-3">
+                <div className="ascend-workspace-inset mt-3 p-3">
                   <p className="text-xs font-semibold uppercase text-zinc-400">Owner gym access</p>
                   <div className="mt-2 grid gap-2">
                     {gyms.map((gym) => {
@@ -567,7 +567,7 @@ export function AdminUsersClient() {
                 </div>
               ) : null}
 
-              <div className="mt-3 rounded-lg border border-line bg-surface p-3">
+              <div className="ascend-workspace-inset mt-3 p-3">
                 <p className="text-xs font-semibold uppercase text-zinc-400">Account access</p>
                 {user.primary_role === "owner" ? (
                   <p className="mt-2 rounded-lg bg-ink p-3 text-sm text-zinc-400">Owner accounts are protected from this screen.</p>
@@ -596,7 +596,7 @@ export function AdminUsersClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <h2 className="text-base font-semibold">Trainer referral codes</h2>
         <div className="mt-3 space-y-3">
           {activeTrainers.map((trainer) => (

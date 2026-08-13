@@ -19,7 +19,7 @@ function trainerCode(name: string) {
 
 function ReferralCard({ item, onCopy }: { item: Referral; onCopy: (code: string) => void }) {
   return (
-    <article className="rounded-lg border border-line bg-surface p-4">
+    <article className="ascend-workspace-stat p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-semibold text-lime">{item.code}</p>
@@ -131,15 +131,15 @@ export function AdminReferralsClient() {
         </div>
       </section>
 
-      {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-line bg-surface p-4">
+        <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Gym revenue</p>
           <p className="mt-2 text-2xl font-semibold text-lime">{money(gymRevenue)}</p>
           <p className="mt-1 text-xs text-zinc-400">{gymReferrals.length} codes</p>
         </div>
-        <div className="rounded-lg border border-line bg-surface p-4">
+        <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Trainer revenue</p>
           <p className="mt-2 text-2xl font-semibold text-lime">{money(trainerRevenue)}</p>
           <p className="mt-1 text-xs text-zinc-400">{trainerReferrals.length} codes</p>
@@ -187,7 +187,7 @@ export function AdminReferralsClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div>
           <h2 className="text-base font-semibold">Gym referral codes</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">
@@ -202,7 +202,7 @@ export function AdminReferralsClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-line bg-surface p-4">
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div>
           <h2 className="text-base font-semibold">Trainer referral codes</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">
