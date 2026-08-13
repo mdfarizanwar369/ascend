@@ -641,8 +641,8 @@ export function CoachHubClient() {
   ] as const;
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto flex min-h-screen max-w-md flex-col">
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-member-frame flex min-h-screen flex-col">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref="/dashboard" />
           <ZoeAvatar />
@@ -654,13 +654,13 @@ export function CoachHubClient() {
 
         {status ? <p className="mt-3 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm text-amber">{status}</p> : null}
 
-        <section className="ascend-stagger-enter mt-4 rounded-[1.7rem] border border-purple-400/20 bg-[radial-gradient(circle_at_top_right,rgba(139,92,246,0.16),transparent_15rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-5 shadow-soft">
-          <div className="flex items-center gap-3"><ZoeAvatar size="lg" /><div><p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">Today&apos;s Insight</p><p className="mt-1 text-sm font-semibold text-white">Coach Zoe noticed this</p></div></div>
+        <section className="ascend-stagger-enter mt-4 rounded-2xl border border-purple-400/20 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.98)_52%,rgba(61,230,209,0.06))] p-5 shadow-soft">
+          <div className="flex items-center gap-3"><ZoeAvatar size="lg" /><div><p className="ascend-eyebrow text-purple-200">Today&apos;s Insight</p><p className="mt-1 text-sm font-semibold text-white">Zoe noticed something useful</p></div></div>
           <h2 className="mt-4 text-2xl font-semibold leading-tight text-white">{todaysInsight}</h2>
           <p className="mt-3 text-sm leading-6 text-zinc-400">One useful observation, based on what you&apos;ve logged.</p>
         </section>
 
-        <section className="ascend-stagger-enter mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft" style={{ animationDelay: "70ms" }}>
+        <section className="ascend-stagger-enter mt-5 border-t border-line pt-5" style={{ animationDelay: "70ms" }}>
           <div className="flex items-center gap-2">
             <Sparkles className="text-calm" size={18} />
             <div>
@@ -706,9 +706,9 @@ export function CoachHubClient() {
                       mode: "consistency"
                     });
                   }}
-                  className="flex min-h-16 items-center gap-3 rounded-2xl border border-line bg-ink/80 px-3 py-3 text-left"
+                  className="ascend-pressable ascend-surface-subtle flex min-h-16 items-center gap-3 px-3 py-3 text-left"
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-surface text-calm">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface text-calm">
                     <Icon size={17} />
                   </span>
                   <span className="text-sm font-semibold text-zinc-100">{action.label}</span>
@@ -822,22 +822,22 @@ export function CoachHubClient() {
           ) : null}
         </div>
 
-        <section className="flex-1 space-y-3 py-4">
+        <section aria-label="Conversation" className="mt-2 flex-1 space-y-3 border-t border-line py-5">
           {messages.map((item, index) => (
             <StaggerItem key={`${item.role}-${index}`} index={Math.min(index, 5)} className={item.role === "user" ? "ml-auto max-w-[86%]" : "max-w-[92%]"}>
               <div className={`flex items-start gap-2 ${item.role === "user" ? "justify-end" : ""}`}>
                 {item.role === "assistant" ? <ZoeAvatar size="sm" className="mt-0.5" /> : null}
-                <div className={`rounded-lg p-3 text-sm leading-6 ${item.role === "user" ? "bg-lime text-ink" : "bg-surface text-zinc-200"}`}>{item.text}</div>
+                <div className={`rounded-xl p-3 text-sm leading-6 ${item.role === "user" ? "bg-lime text-ink" : "ascend-surface-subtle text-zinc-200"}`}>{item.text}</div>
               </div>
             </StaggerItem>
           ))}
           {isSending ? <p className="rounded-lg bg-surface p-3 text-sm text-zinc-400">Coach is thinking...</p> : null}
         </section>
 
-        <form className="sticky bottom-0 flex gap-2 bg-ink pb-4 pt-2" onSubmit={handleSubmit}>
+        <form className="sticky bottom-0 flex gap-2 border-t border-line bg-ink/95 pb-4 pt-3 backdrop-blur" onSubmit={handleSubmit}>
           <input
             ref={inputRef}
-            className="h-12 flex-1 rounded-lg border border-line bg-surface px-3 outline-none focus:border-lime"
+            className="h-12 flex-1 rounded-xl border border-line bg-surface px-3 outline-none focus:border-lime"
             placeholder="Ask Coach Zoe"
             value={message}
             onChange={(event) => setMessage(event.target.value)}
@@ -845,7 +845,7 @@ export function CoachHubClient() {
           <button
             type="submit"
             disabled={isSending || !message.trim()}
-            className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink disabled:opacity-60"
+            className="ascend-pressable grid h-12 w-12 place-items-center rounded-xl bg-lime text-ink disabled:opacity-60"
             aria-label="Send message"
           >
             <Send size={19} />

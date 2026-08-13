@@ -75,21 +75,21 @@ export function AccountBar({
   const accessLabel = accountAccessLabel({ email, fullName, roles, plan });
 
   return (
-    <div className="ascend-card ascend-soft-enter mt-3 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface/95 p-3">
+    <div className="ascend-account-strip ascend-soft-enter mt-2 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 backdrop-blur">
       <div className="flex min-w-0 items-center gap-3">
         <Link href="/profile" aria-label="Open profile">
           <ProfileAvatar src={profilePhotoUrl} name={displayName(fullName, email)} size="sm" />
         </Link>
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{displayName(fullName, email)}</p>
-          <p className="mt-1 text-xs text-zinc-400">{accessLabel}</p>
+          <p className="truncate text-sm font-semibold">{displayName(fullName, email)}</p>
+          <p className="mt-0.5 text-xs text-zinc-400">{accessLabel}</p>
         </div>
       </div>
       <button
         type="button"
         onClick={handleLogout}
         disabled={isLoggingOut}
-        className="ascend-pressable grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-ink text-zinc-100 hover:border-calm/50"
+        className="ascend-pressable grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-100 hover:border-calm/50"
         aria-label="Log out"
       >
         <LogOut size={18} />

@@ -991,8 +991,8 @@ export function JourneyClient() {
   }
 
   return (
-    <main className="min-h-screen bg-ink px-4 py-5 text-white">
-      <div className="mx-auto max-w-md">
+    <main className="ascend-page px-4 py-3 text-white sm:py-5">
+      <div className="ascend-member-frame">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref="/dashboard" />
           <div>
@@ -1003,21 +1003,21 @@ export function JourneyClient() {
 
         {status ? <p className="mt-3 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm text-amber">{status}</p> : null}
 
-        <section className="mt-4 rounded-[1.8rem] border border-calm/25 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.16),transparent_16rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-5 shadow-soft">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-calm">Your Journey</p>
+        <section className="mt-4 rounded-2xl border border-calm/25 bg-[linear-gradient(145deg,rgba(61,230,209,0.10),rgba(18,23,33,0.98)_54%,rgba(139,92,246,0.08))] p-5 shadow-soft">
+          <p className="ascend-eyebrow text-calm">Your Journey</p>
           <h2 className="mt-3 text-3xl font-semibold leading-tight">Every small decision has brought you here.</h2>
           <div className="mt-5 grid grid-cols-3 gap-2">
-            <div className="rounded-2xl border border-white/10 bg-ink/70 p-3">
+            <div className="ascend-inset p-3">
               <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Streak</p>
               <p className="mt-2 text-2xl font-semibold">{streakCurrent}</p>
               <p className="mt-1 text-xs text-zinc-400">Current days</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-ink/70 p-3">
+            <div className="ascend-inset p-3">
               <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Since start</p>
               <p className="mt-2 text-2xl font-semibold">{firstJourneyDate ? daysBetween(firstJourneyDate) : "--"}</p>
               <p className="mt-1 text-xs text-zinc-400">Days building</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-ink/70 p-3">
+            <div className="ascend-inset p-3">
               <p className="text-xs uppercase tracking-[0.16em] text-zinc-500">Consistency</p>
               <p className="mt-2 text-2xl font-semibold">{overallConsistency}%</p>
               <p className="mt-1 text-xs text-zinc-400">Recent rhythm</p>
@@ -1040,7 +1040,7 @@ export function JourneyClient() {
           </section>
         ) : null}
 
-        <section className="mt-4 rounded-2xl border border-amber/20 bg-[linear-gradient(180deg,rgba(248,184,78,0.08),rgba(18,23,33,0.98))] p-4 shadow-soft">
+        <section className="mt-6 border-t border-line pt-5">
           <div className="flex items-center gap-2">
             <Award className="text-amber" size={18} />
             <div>
@@ -1052,7 +1052,7 @@ export function JourneyClient() {
             {timelineHighlights.map((item, index) => (
               <article
                 key={item.key}
-                className={`rounded-2xl border p-4 shadow-soft ${
+                className={`rounded-xl border p-4 ${
                   index === 0
                     ? "border-amber/20 bg-[linear-gradient(180deg,rgba(248,184,78,0.1),rgba(18,23,33,0.98))]"
                     : item.tone === "purple"
@@ -1063,7 +1063,7 @@ export function JourneyClient() {
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${index === 0 ? "bg-amber/15 text-amber" : "bg-ink text-zinc-200"}`}>
+                  <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${index === 0 ? "bg-amber/15 text-amber" : "bg-ink text-zinc-200"}`}>
                     {index === 0 ? <Award size={20} /> : <Trophy size={18} />}
                   </span>
                   <div className="min-w-0">
@@ -1079,7 +1079,7 @@ export function JourneyClient() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <section className="mt-6 border-t border-line pt-5">
           <div className="flex items-center gap-2">
             <CalendarDays className="text-calm" size={18} />
             <div>
@@ -1105,7 +1105,7 @@ export function JourneyClient() {
                   key={filter}
                   type="button"
                   onClick={() => setTimelineFilter(filter)}
-                  className={`shrink-0 rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                className={`ascend-pressable shrink-0 rounded-full border px-3 py-2 text-sm font-semibold transition ${
                     active ? "border-calm/40 bg-calm/12 text-calm" : "border-line bg-ink/70 text-zinc-300"
                   }`}
                 >
@@ -1147,7 +1147,7 @@ export function JourneyClient() {
               <button
                 type="button"
                 onClick={() => setTimelineExpanded((value) => !value)}
-                className="flex w-full items-center justify-between rounded-2xl border border-line bg-ink/70 px-4 py-3 text-left transition hover:border-calm/25"
+                className="ascend-pressable flex w-full items-center justify-between rounded-xl border border-line bg-ink/70 px-4 py-3 text-left transition hover:border-calm/25"
               >
                 <span className="text-sm font-semibold text-white">
                   {timelineExpanded ? "Hide full timeline" : `Show full timeline (${filteredTimeline.length} moments)`}
@@ -1204,7 +1204,7 @@ export function JourneyClient() {
           ) : null}
         </section>
 
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <section className="mt-7 border-t border-line pt-5">
           <div className="flex items-center gap-2">
             <TrendingUp className="text-calm" size={18} />
             <div>
@@ -1214,7 +1214,7 @@ export function JourneyClient() {
           </div>
 
           {weightBars.length ? (
-            <div className="mt-4 rounded-2xl border border-line bg-ink/70 p-4">
+            <div className="ascend-surface-subtle mt-4 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-white">Weight trend</p>
@@ -1237,7 +1237,7 @@ export function JourneyClient() {
           ) : null}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href="/progress" className="rounded-2xl border border-line bg-ink/70 p-4">
+            <Link href="/progress" className="ascend-pressable ascend-surface-subtle p-4">
               <div className="flex items-center gap-2">
                 <Camera className="text-calm" size={17} />
                 <p className="text-sm font-semibold text-white">Progress Photos</p>
@@ -1246,7 +1246,7 @@ export function JourneyClient() {
                 {progressPhotos.length ? `${progressPhotos.length} photos saved. See the visual proof.` : "Capture your first photo when you are ready."}
               </p>
             </Link>
-            <Link href="/reports" className="rounded-2xl border border-line bg-ink/70 p-4">
+            <Link href="/reports" className="ascend-pressable ascend-surface-subtle p-4">
               <div className="flex items-center gap-2">
                 <Sparkles className="text-purple-200" size={17} />
                 <p className="text-sm font-semibold text-white">Weekly Reflection</p>
@@ -1323,7 +1323,7 @@ export function JourneyClient() {
           ) : null}
         </section>
 
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <section className="mt-7 border-t border-line pt-5">
           <div className="flex items-center gap-2">
             <MessageCircle className="text-calm" size={18} />
             <div>
@@ -1336,7 +1336,7 @@ export function JourneyClient() {
           <div className="mt-4 space-y-3">
             {coachMoments.length ? (
               coachMoments.map((item) => (
-                <article key={item.key} className="rounded-2xl border border-line bg-ink/80 p-4">
+                <article key={item.key} className="ascend-surface-subtle p-4">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-white">{item.title}</p>
                     <p className="text-xs text-zinc-500">{formatShortDate(item.date)}</p>
@@ -1352,7 +1352,7 @@ export function JourneyClient() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+        <section className="mt-7 border-t border-line pt-5">
           <div className="flex items-center gap-2">
             <Sparkles className="text-purple-200" size={18} />
             <div>
@@ -1362,7 +1362,7 @@ export function JourneyClient() {
           </div>
           <div className="mt-4 space-y-3">
             {memoryMoments.map((item) => (
-              <article key={item.key} className="rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
+              <article key={item.key} className="rounded-xl border border-purple-400/20 bg-purple-400/8 p-4">
                 <p className="text-sm font-semibold text-white">{item.title}</p>
                 <p className="mt-2 text-sm leading-6 text-zinc-300">{item.body}</p>
               </article>
@@ -1370,7 +1370,7 @@ export function JourneyClient() {
           </div>
         </section>
 
-        <section className="mt-4 rounded-2xl border border-calm/20 bg-[linear-gradient(180deg,rgba(61,230,209,0.07),rgba(18,23,33,0.98))] p-4 shadow-soft">
+        <section className="mt-7 border-t border-calm/20 pt-5">
           <div className="flex items-start gap-3">
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-calm/12 text-calm">
               <Target size={19} />

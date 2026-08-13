@@ -1460,7 +1460,7 @@ export function ClientDashboard() {
             {primaryAction.label} <ArrowRight size={18} />
           </a>
         </AscendHeroPanel>
-            <section className="ascend-card-rise mt-4 rounded-[1.6rem] border border-line bg-surface p-5 shadow-soft">
+            <section className="ascend-card-rise ascend-surface mt-4 p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-calm">{todayPriority.key ? "Today's priority" : "Today"}</p>
@@ -1496,8 +1496,8 @@ export function ClientDashboard() {
                             ? "bg-sky-400/12 text-sky-200"
                             : "bg-surface text-calm";
                   return (
-                    <a key={item.label} href={item.href} className={`flex items-center gap-3 rounded-2xl border px-3.5 py-3 transition-colors ${toneClass} ${priorityClass} ${subduedClass}`}>
-                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${iconTone}`}>
+                    <a key={item.label} href={item.href} className={`ascend-pressable flex min-h-16 items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors ${toneClass} ${priorityClass} ${subduedClass}`}>
+                      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${iconTone}`}>
                         <Icon size={17} />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -1508,7 +1508,7 @@ export function ClientDashboard() {
                         </div>
                         <p className="mt-1 text-sm text-zinc-400">{item.detail}</p>
                       </div>
-                      <span className="text-xs font-semibold text-zinc-500">{item.done ? "Edit" : "Open"}</span>
+                      <ArrowRight className="shrink-0 text-zinc-500" size={16} aria-hidden="true" />
                     </a>
                   );
                 })}
@@ -1576,7 +1576,7 @@ export function ClientDashboard() {
                       progress: score
                     }
                   ].map((item) => (
-                    <div key={item.key} className={`relative overflow-hidden rounded-2xl border border-white/6 bg-ink px-3.5 py-3.5 ${item.key === "momentum" ? "col-span-2 sm:col-span-1" : ""}`}>
+                    <div key={item.key} className={`ascend-inset relative overflow-hidden px-3.5 py-3.5 ${item.key === "momentum" ? "col-span-2 sm:col-span-1" : ""}`}>
                       <div className="flex items-start justify-between gap-2">
                         <span className={`grid h-8 w-8 place-items-center rounded-xl ${snapshotTone[item.key as keyof typeof snapshotTone].icon}`}>
                           {(() => {
@@ -1611,7 +1611,7 @@ export function ClientDashboard() {
               )}
             </CollapsibleSection>
 
-            <section className={`ascend-stagger-enter mt-4 rounded-[1.6rem] border p-5 shadow-soft ${coachToneClass}`} style={{ animationDelay: "90ms" }}>
+            <section className={`ascend-stagger-enter mt-4 rounded-2xl border p-5 shadow-soft ${coachToneClass}`} style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
                 {user?.assigned_trainer_id ? (
                   <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
@@ -1641,7 +1641,7 @@ export function ClientDashboard() {
               </div>
             </section>
 
-            <section ref={progressDetailsRef} className={`ascend-stagger-enter mt-4 rounded-[1.6rem] border p-5 shadow-soft ${storyToneClass}`} style={{ animationDelay: "145ms" }}>
+            <section ref={progressDetailsRef} className={`ascend-stagger-enter mt-4 rounded-2xl border p-5 shadow-soft ${storyToneClass}`} style={{ animationDelay: "145ms" }}>
               <div className="flex items-start gap-3">
                 <span className={`mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${goalCompletedToday || weightLostFromStart >= 0.1 ? "bg-amber/12 text-amber" : "bg-calm/10 text-calm"}`}>
                   <Sparkles size={18} />
