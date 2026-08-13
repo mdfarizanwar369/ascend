@@ -326,6 +326,44 @@ html[data-theme="light"] .ascend-theme-glow {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes ascend-food-scan {
+  0% {
+    top: 12%;
+    opacity: 0;
+  }
+  15%, 85% {
+    opacity: 1;
+  }
+  100% {
+    top: 88%;
+    opacity: 0;
+  }
+}
+
+@keyframes ascend-food-result {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.ascend-food-scan-line {
+  top: 12%;
+  animation: ascend-food-scan 1.7s ease-in-out infinite;
+}
+
+.ascend-food-result {
+  animation: ascend-food-result 320ms ease-out both;
+}
+
+.ascend-food-progress {
+  transition: width 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .ascend-demo-enter { animation: ascend-demo-enter 280ms ease-out both; }
 .ascend-demo-scan { animation: ascend-demo-scan 1.4s ease-in-out infinite; }
 .ascend-demo-pop { animation: ascend-demo-pop 280ms ease-out both; }
@@ -423,9 +461,15 @@ html[data-theme="light"] .ascend-theme-glow {
   .ascend-cta-pulse,
   .ascend-task-complete,
   .ascend-card-rise,
+  .ascend-food-scan-line,
+  .ascend-food-result,
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none;
+  }
+
+  .ascend-food-progress {
+    transition: none;
   }
 
   html {

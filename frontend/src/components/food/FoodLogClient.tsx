@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Camera, Check, ImagePlus, Pencil, Save, Sparkles, Utensils } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Pencil, Save, Sparkles, Utensils } from "lucide-react";
 import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
@@ -30,6 +30,11 @@ type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number]
 type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>>["targets"];
 type RangeFilter = "today" | "7d" | "30d" | "all";
 type OrderFilter = "newest" | "oldest";
+type SavedMealSummary = {
+  foodName: string;
+  calories: number;
+  proteinG: number;
+};
 type FrontendFoodAiStage = {
   name: string;
   startOffsetMs: number;
@@ -371,6 +376,26 @@ function mealObservations(logs: FoodLog[], totals: ReturnType<typeof summarizeLo
   return observations;
 }
 
+function progressPercent(value: number, target: number) {
+  if (!Number.isFinite(value) || !Number.isFinite(target) || target <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((value / target) * 100)));
+}
+
+function MacroProgress({ label, value, target, unit = "g" }: { label: string; value: number; target: number; unit?: string }) {
+  const percentage = progressPercent(value, target);
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium text-zinc-200">{label}</span>
+        <span className="text-zinc-400">{Math.round(value)}{unit} <span className="text-zinc-600">/</span> {Math.round(target)}{unit}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink">
+        <div className="ascend-food-progress h-full rounded-full bg-lime" style={{ width: `${percentage}%` }} />
+      </div>
+    </div>
+  );
+}
+
 export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "history" }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -392,6 +417,9 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [isSaving, setIsSaving] = useState(false);
   const [wasEdited, setWasEdited] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [showEstimateEditor, setShowEstimateEditor] = useState(false);
+  const [savedMeal, setSavedMeal] = useState<SavedMealSummary | null>(null);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
   const [view, setView] = useState<"log" | "history">(initialView);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -569,6 +597,9 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setManualMealText("");
     setWasEdited(false);
     setAiFailed(false);
+    setSavedMeal(null);
+    setShowEstimateEditor(false);
+    setShowManualEntry(false);
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
 
@@ -584,6 +615,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       .then((response) => {
         setEstimate(response.estimate);
         setAiFailed(false);
+        setShowEstimateEditor(false);
         setStatus("AI estimate ready. Review, edit if needed, then save.");
         window.setTimeout(() => {
           markFrontendStage(trace, "Result rendered to user");
@@ -594,6 +626,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         setEstimate(manualEstimate());
         setWasEdited(true);
         setAiFailed(true);
+        setShowEstimateEditor(true);
         setStatus(estimateFailureMessage(error));
         loadAllowance().catch(() => {});
         window.setTimeout(() => {
@@ -648,6 +681,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setAiFailed(false);
     setEstimate(null);
     setStatus("Estimating food, calories, protein, carbs, and fat...");
+    setSavedMeal(null);
+    setShowEstimateEditor(false);
 
     try {
       markFrontendStage(trace, "Image compression starts");
@@ -659,6 +694,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       const response = await estimateFoodWithRetry(imageDataUrl, trace);
       setEstimate(response.estimate);
       setAiFailed(false);
+      setShowEstimateEditor(false);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
       window.setTimeout(() => {
         markFrontendStage(trace, "Result rendered to user");
@@ -669,6 +705,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         setEstimate(manualEstimate());
         setWasEdited(true);
         setAiFailed(true);
+        setShowEstimateEditor(true);
         setStatus(estimateFailureMessage(error));
         loadAllowance().catch(() => {});
         window.setTimeout(() => {
@@ -694,12 +731,15 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setSelectedFile(null);
     setSelectedImageDataUrl(null);
     setWasEdited(false);
+    setSavedMeal(null);
+    setShowEstimateEditor(false);
     setStatus("Analysing your meal description...");
 
     try {
       const response = await estimateFoodFromText(description);
       setEstimate(response.estimate);
       if (response.allowance) setAllowance(response.allowance);
+      setShowEstimateEditor(false);
       setStatus("Meal estimate ready. Review, edit if needed, then save.");
     } catch (error) {
       setEstimate({
@@ -713,6 +753,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       });
       setWasEdited(true);
       setAiFailed(true);
+      setShowEstimateEditor(true);
       setStatus(estimateFailureMessage(error));
       loadAllowance().catch(() => {});
     } finally {
@@ -794,12 +835,18 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         ...current.filter((log) => log.id !== response.foodLog.id)
       ]);
       loadFoodLogs().catch(() => {});
+      setSavedMeal({
+        foodName: savedLog.estimatedFoodName,
+        calories: savedLog.calories,
+        proteinG: savedLog.proteinG
+      });
       setPreviewUrl(null);
       setEstimate(null);
       setSelectedFile(null);
       setSelectedImageDataUrl(null);
       setWasEdited(false);
       setAiFailed(false);
+      setShowManualEntry(false);
       setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
       markInstallEligible("first_action");
     } catch (error) {
@@ -817,7 +864,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
           <BackButton fallbackHref="/dashboard" disabled={isSaving} />
           <div>
             <p className="text-sm text-zinc-400">Food photo AI</p>
-            <h1 className="text-2xl font-semibold">{view === "history" ? "All meals" : "Snap, review, save"}</h1>
+            <h1 className="text-2xl font-semibold">{view === "history" ? "All meals" : "Log a meal"}</h1>
           </div>
         </header>
 
@@ -1056,57 +1103,6 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
           </>
         ) : (
           <>
-        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">AI scans</p>
-              <p className="mt-1 text-xs text-zinc-400">{allowance?.label ?? "Food photo estimate allowance"}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-lime">{allowanceText(allowance)}</p>
-              <p className="mt-1 text-xs text-zinc-500">{allowanceHint(allowance)}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="mt-3 grid aspect-[4/3] place-items-center overflow-hidden rounded-lg border border-line bg-surface">
-          {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={previewUrl} alt="Selected food" className="h-full w-full object-cover" />
-          ) : (
-            <div className="grid h-full w-full place-items-center p-5 text-center">
-              <div className="w-full">
-                <Camera className="mx-auto text-lime" size={36} />
-                <span className="mt-3 block text-sm font-semibold text-zinc-200">Tap to add a meal photo</span>
-                <span className="mt-1 block text-xs text-zinc-500">Ascend estimates calories and macros automatically.</span>
-                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={openCameraPicker}
-                    disabled={isEstimating || isSaving}
-                    className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
-                  >
-                    <Camera className="mr-2" size={18} />
-                    Take photo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openGalleryPicker}
-                    disabled={isEstimating || isSaving}
-                    className="flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white disabled:opacity-60"
-                  >
-                    <ImagePlus className="mr-2" size={18} />
-                    Choose from gallery
-                  </button>
-                </div>
-                <p className="mt-3 text-[11px] leading-5 text-zinc-500">
-                  If camera capture is not supported on this browser, Ascend will open your photo library instead.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-
         <input
           ref={cameraInputRef}
           accept="image/*"
@@ -1125,154 +1121,210 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
           disabled={isEstimating || isSaving}
         />
 
-        {previewUrl ? (
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={openCameraPicker}
-              disabled={isEstimating || isSaving}
-              className="flex h-11 items-center justify-center rounded-lg border border-line bg-surface text-sm font-medium disabled:opacity-60"
-            >
-              <Camera className="mr-2" size={18} />
-              Retake
-            </button>
-            <button
-              type="button"
-              onClick={openGalleryPicker}
-              disabled={isEstimating || isSaving}
-              className="flex h-11 items-center justify-center rounded-lg border border-line bg-surface text-sm font-medium disabled:opacity-60"
-            >
-              <ImagePlus className="mr-2" size={18} />
-              Gallery
-            </button>
-          </div>
-        ) : null}
-
-        <section className="mt-3 rounded-lg border border-line bg-surface p-4">
-          <label className="text-sm font-semibold text-zinc-100" htmlFor="manual-meal-text">
-            Quick manual entry
-          </label>
-          <textarea
-            id="manual-meal-text"
-            value={manualMealText}
-            onChange={(event) => setManualMealText(event.target.value)}
-            disabled={isEstimating || isSaving}
-            rows={2}
-            className="mt-3 w-full resize-none rounded-lg border border-line bg-ink px-4 py-3 text-base text-white outline-none transition focus:border-lime disabled:opacity-60"
-            placeholder="Forgot to take a photo? Type what you ate..."
-          />
-          <p className="mt-3 text-xs leading-5 text-zinc-500">
-            Examples: Chicken rice, Nasi lemak, 2 eggs and toast, Protein shake, McChicken meal, Sushi 8 pieces.
-          </p>
-        </section>
-
-        <section className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 text-calm" size={20} />
-            <div>
-              <p className="text-sm font-semibold text-calm">Next step</p>
-              <p className="mt-1 text-sm leading-6 text-zinc-300">{status}</p>
+        {savedMeal ? (
+          <section className="ascend-food-result mt-3 overflow-hidden rounded-lg border border-lime/35 bg-surface p-5 text-center" aria-live="polite">
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(53,242,208,0.28)]">
+              <Check size={28} strokeWidth={2.5} />
             </div>
-          </div>
-        </section>
-
-        {!estimate ? (
-          <button
-            className="mt-4 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-50"
-            disabled={isEstimating || (!previewUrl && manualMealText.trim().length < 2)}
-            onClick={manualMealText.trim().length >= 2 ? handleTextEstimate : handleEstimate}
-          >
-            <Sparkles className="mr-2" size={18} />
-            {isEstimating ? "Analysing..." : "Analyse Meal"}
-          </button>
-        ) : (
-          <form className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
-            <div>
-              <p className="text-sm font-semibold text-lime">Detected Foods</p>
-              <p className="mt-1 text-xs text-zinc-500">Review the estimate before saving. Portions are editable.</p>
-            </div>
-            {aiFailed ? (
-              <button
-                className="flex h-12 w-full items-center justify-center rounded-lg bg-calm font-semibold text-ink disabled:opacity-60"
-                disabled={isEstimating}
-                onClick={selectedFile ? handleEstimate : handleTextEstimate}
-                type="button"
-              >
-                <Sparkles className="mr-2" size={18} />
-                {isEstimating ? "Trying again..." : "Try AI again"}
+            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-lime">Meal saved</p>
+            <h2 className="mt-2 text-xl font-semibold">{savedMeal.foodName}</h2>
+            <p className="mt-2 text-sm text-zinc-400">{Math.round(savedMeal.calories)} kcal / {Math.round(savedMeal.proteinG)}g protein</p>
+            <p className="mt-4 text-sm leading-6 text-zinc-300">Your daily progress has been updated.</p>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setView("history")} className="ascend-pressable h-12 rounded-lg border border-line bg-ink font-semibold text-white">
+                Meal history
               </button>
-            ) : null}
-            <Field label="Detected foods">
-              <input
-                ref={foodNameInputRef}
-                className={inputClass}
-                value={estimate.foodName}
-                onChange={(event) => updateEstimate("foodName", event.target.value)}
-              />
-            </Field>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Calories">
-                <input
-                  className={inputClass}
-                  inputMode="numeric"
-                  value={estimate.calories}
-                  onChange={(event) => updateEstimate("calories", Number(event.target.value))}
-                />
-              </Field>
-              <Field label="Protein">
-                <input
-                  className={inputClass}
-                  inputMode="decimal"
-                  value={estimate.proteinG}
-                  onChange={(event) => updateEstimate("proteinG", Number(event.target.value))}
-                />
-              </Field>
-              <Field label="Carbs">
-                <input
-                  className={inputClass}
-                  inputMode="decimal"
-                  value={estimate.carbsG}
-                  onChange={(event) => updateEstimate("carbsG", Number(event.target.value))}
-                />
-              </Field>
-              <Field label="Fat">
-                <input
-                  className={inputClass}
-                  inputMode="decimal"
-                  value={estimate.fatG}
-                  onChange={(event) => updateEstimate("fatG", Number(event.target.value))}
-                />
-              </Field>
+              <button type="button" onClick={() => setSavedMeal(null)} className="ascend-pressable h-12 rounded-lg bg-lime font-semibold text-ink">
+                Log another
+              </button>
             </div>
-            <div className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-300">
-              Macro calories: {macroTotal} kcal / Confidence: {Math.round(estimate.confidence * 100)}%
-              <br />
-              {estimate.notes}
+          </section>
+        ) : !estimate ? (
+          <section className="mt-3 overflow-hidden rounded-lg border border-line bg-surface">
+            <div className="relative aspect-[4/3] overflow-hidden bg-ink">
+              {previewUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={previewUrl} alt="Selected meal" className="h-full w-full object-cover" />
+              ) : (
+                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving} className="grid h-full w-full place-items-center p-6 text-center disabled:opacity-60">
+                  <span>
+                    <span className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-lime/30 bg-lime/10 text-lime shadow-[0_0_32px_rgba(53,242,208,0.12)]">
+                      <Camera size={30} />
+                    </span>
+                    <span className="mt-4 block text-lg font-semibold text-white">Photograph your meal</span>
+                    <span className="mt-2 block text-sm text-zinc-400">Ascend reads the food and prepares an estimate.</span>
+                  </span>
+                </button>
+              )}
+
+              <span className="pointer-events-none absolute left-4 top-4 h-7 w-7 border-l-2 border-t-2 border-lime" />
+              <span className="pointer-events-none absolute right-4 top-4 h-7 w-7 border-r-2 border-t-2 border-lime" />
+              <span className="pointer-events-none absolute bottom-4 left-4 h-7 w-7 border-b-2 border-l-2 border-lime" />
+              <span className="pointer-events-none absolute bottom-4 right-4 h-7 w-7 border-b-2 border-r-2 border-lime" />
+
+              {isEstimating ? (
+                <div className="absolute inset-0 grid place-items-center bg-black/65 px-6 text-center" aria-live="polite">
+                  <div>
+                    <Sparkles className="mx-auto text-lime" size={30} />
+                    <p className="mt-3 text-lg font-semibold text-white">Reading your meal</p>
+                    <p className="mt-2 text-sm text-zinc-300">Identifying foods and estimating portions...</p>
+                  </div>
+                  <div className="ascend-food-scan-line absolute left-4 right-4 h-px bg-lime shadow-[0_0_14px_rgba(53,242,208,0.95)]" />
+                </div>
+              ) : null}
             </div>
-            {currentMealInsight ? (
-              <div className="rounded-lg border border-lime/30 bg-lime/10 p-3">
-                <p className="text-sm font-semibold text-lime">{currentMealInsight.title}</p>
-                <p className="mt-1 text-sm leading-6 text-zinc-200">{currentMealInsight.detail}</p>
+
+            <div className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">AI meal estimate</p>
+                  <p className="mt-1 text-xs text-zinc-500">{allowance?.label ?? "Food photo analysis"}</p>
+                </div>
+                <span className="rounded-full border border-lime/30 bg-lime/10 px-3 py-1 text-xs font-semibold text-lime">{allowanceText(allowance)}</span>
               </div>
-            ) : null}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                className="flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white"
-                onClick={() => foodNameInputRef.current?.focus()}
-                type="button"
-              >
-                <Pencil className="mr-2" size={18} />
-                Edit
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60">
+                  <Camera className="mr-2" size={18} />
+                  {previewUrl ? "Retake" : "Take photo"}
+                </button>
+                <button type="button" onClick={openGalleryPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-white disabled:opacity-60">
+                  <ImagePlus className="mr-2" size={18} />
+                  Gallery
+                </button>
+              </div>
+
+              <button type="button" onClick={() => setShowManualEntry((current) => !current)} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-zinc-300">
+                <Utensils size={17} />
+                Type meal instead
+                {showManualEntry ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </button>
+
+              {showManualEntry ? (
+                <div className="ascend-soft-enter mt-2 rounded-lg border border-line bg-ink p-3">
+                  <label className="text-sm font-semibold text-zinc-100" htmlFor="manual-meal-text">What did you eat?</label>
+                  <textarea
+                    id="manual-meal-text"
+                    value={manualMealText}
+                    onChange={(event) => setManualMealText(event.target.value)}
+                    disabled={isEstimating || isSaving}
+                    rows={2}
+                    className="mt-3 w-full resize-none rounded-lg border border-line bg-surface px-4 py-3 text-base text-white outline-none transition focus:border-lime disabled:opacity-60"
+                    placeholder="Chicken rice, protein shake..."
+                  />
+                  <button type="button" disabled={isEstimating || manualMealText.trim().length < 2} onClick={handleTextEstimate} className="mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-50">
+                    <Sparkles className="mr-2" size={18} />
+                    {isEstimating ? "Analysing..." : "Analyse meal"}
+                  </button>
+                </div>
+              ) : null}
+
+              {previewUrl && !isEstimating ? (
+                <button type="button" onClick={handleEstimate} className="mt-3 flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink">
+                  <Sparkles className="mr-2" size={18} />
+                  Analyse meal
+                </button>
+              ) : null}
+              <p className="mt-3 text-center text-[11px] leading-5 text-zinc-500">Estimates can be reviewed before anything is saved.</p>
+            </div>
+          </section>
+        ) : (
+          <form className="ascend-food-result mt-3 overflow-hidden rounded-lg border border-line bg-surface">
+            {previewUrl ? (
+              <div className="relative aspect-[16/9] overflow-hidden bg-ink">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previewUrl} alt={estimate.foodName || "Analysed meal"} className="h-full w-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-4 pb-4 pt-12">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Meal identified</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">{estimate.foodName || "Review this meal"}</h2>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 border-b border-line p-4">
+                <div className="grid h-11 w-11 place-items-center rounded-lg bg-lime/10 text-lime"><Utensils size={21} /></div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Meal identified</p>
+                  <h2 className="mt-1 text-lg font-semibold">{estimate.foodName || "Review this meal"}</h2>
+                </div>
+              </div>
+            )}
+
+            <div className="p-4">
+              <div className="flex items-center gap-5">
+                <div
+                  className="grid h-28 w-28 shrink-0 place-items-center rounded-full p-[7px] shadow-[0_0_34px_rgba(53,242,208,0.13)]"
+                  style={{ background: `conic-gradient(rgb(53 242 208) ${progressPercent(estimate.calories, effectiveNutritionTargets.calorieTarget) * 3.6}deg, rgba(113,113,122,0.2) 0deg)` }}
+                >
+                  <div className="grid h-full w-full place-items-center rounded-full bg-ink text-center">
+                    <span>
+                      <strong className="block text-2xl font-semibold text-white">{Math.round(estimate.calories)}</strong>
+                      <span className="text-xs text-zinc-400">kcal</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Estimated nutrition</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">Review the estimate, then save it to today.</p>
+                  <p className="mt-2 text-xs text-zinc-500">{Math.round(estimate.confidence * 100)}% AI confidence</p>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-4 rounded-lg bg-ink p-4">
+                <MacroProgress label="Protein" value={estimate.proteinG} target={effectiveNutritionTargets.proteinTargetG} />
+                <MacroProgress label="Carbohydrates" value={estimate.carbsG} target={effectiveNutritionTargets.carbsTargetG} />
+                <MacroProgress label="Fat" value={estimate.fatG} target={effectiveNutritionTargets.fatTargetG} />
+              </div>
+
+              {currentMealInsight ? (
+                <div className="mt-4 rounded-lg border border-lime/25 bg-lime/10 p-3">
+                  <p className="text-sm font-semibold text-lime">{currentMealInsight.title}</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-200">{currentMealInsight.detail}</p>
+                </div>
+              ) : null}
+
+              {aiFailed ? (
+                <div className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-3">
+                  <p className="text-sm leading-6 text-amber">{status}</p>
+                  <button className="mt-3 flex h-11 w-full items-center justify-center rounded-lg bg-amber font-semibold text-ink disabled:opacity-60" disabled={isEstimating} onClick={selectedFile ? handleEstimate : handleTextEstimate} type="button">
+                    <Sparkles className="mr-2" size={18} />
+                    {isEstimating ? "Trying again..." : "Try AI again"}
+                  </button>
+                </div>
+              ) : null}
+
               <button
-                className="flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSaving || !canSaveEstimate}
-                onClick={handleSave}
                 type="button"
+                onClick={() => {
+                  setShowEstimateEditor((current) => !current);
+                  window.setTimeout(() => foodNameInputRef.current?.focus(), 0);
+                }}
+                className="mt-4 flex h-11 w-full items-center justify-between rounded-lg border border-line bg-ink px-4 text-sm font-semibold text-zinc-200"
               >
-                {wasEdited ? <Save className="mr-2" size={18} /> : <Check className="mr-2" size={18} />}
-                {isSaving ? "Saving..." : "Save Meal"}
+                <span className="flex items-center gap-2"><Pencil size={17} /> Edit estimate</span>
+                {showEstimateEditor ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
               </button>
+
+              {showEstimateEditor ? (
+                <div className="ascend-soft-enter mt-3 space-y-4 rounded-lg border border-line bg-ink p-4">
+                  <Field label="Detected foods"><input ref={foodNameInputRef} className={inputClass} value={estimate.foodName} onChange={(event) => updateEstimate("foodName", event.target.value)} /></Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Calories"><input className={inputClass} inputMode="numeric" value={estimate.calories} onChange={(event) => updateEstimate("calories", Number(event.target.value))} /></Field>
+                    <Field label="Protein"><input className={inputClass} inputMode="decimal" value={estimate.proteinG} onChange={(event) => updateEstimate("proteinG", Number(event.target.value))} /></Field>
+                    <Field label="Carbs"><input className={inputClass} inputMode="decimal" value={estimate.carbsG} onChange={(event) => updateEstimate("carbsG", Number(event.target.value))} /></Field>
+                    <Field label="Fat"><input className={inputClass} inputMode="decimal" value={estimate.fatG} onChange={(event) => updateEstimate("fatG", Number(event.target.value))} /></Field>
+                  </div>
+                  <p className="text-xs leading-5 text-zinc-500">Macro calories: {macroTotal} kcal. {estimate.notes}</p>
+                </div>
+              ) : null}
+
+              <button type="button" disabled={isSaving || !canSaveEstimate} onClick={handleSave} className="ascend-pressable mt-4 flex h-14 w-full items-center justify-center rounded-lg bg-lime text-base font-semibold text-ink shadow-[0_12px_30px_rgba(53,242,208,0.16)] disabled:cursor-not-allowed disabled:opacity-60">
+                {wasEdited ? <Save className="mr-2" size={19} /> : <Check className="mr-2" size={19} />}
+                {isSaving ? "Saving meal..." : "Save meal"}
+              </button>
+              <button type="button" onClick={previewUrl ? openCameraPicker : () => { setEstimate(null); setShowManualEntry(true); }} disabled={isSaving} className="mt-2 h-11 w-full rounded-lg text-sm font-semibold text-zinc-400 disabled:opacity-60">
+                {previewUrl ? "Retake photo" : "Change description"}
+              </button>
+              {!aiFailed && status.startsWith("Could not") ? <p className="mt-3 text-center text-sm text-red-300">{status}</p> : null}
             </div>
           </form>
         )}
