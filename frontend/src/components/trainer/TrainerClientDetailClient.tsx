@@ -540,7 +540,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
   return (
     <>
-      <section className="mt-3">
+      <section className="sticky top-0 z-30 -mx-1 rounded-b-2xl border-b border-line bg-ink/95 px-1 pb-3 pt-3 backdrop-blur md:top-4 md:mx-0 md:rounded-2xl md:border md:px-4">
         <div className="mb-3">
           <BackButton fallbackHref="/trainer" />
         </div>

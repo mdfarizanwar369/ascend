@@ -216,7 +216,7 @@ function weeklyClientSummary(clients: TrainerClient[]) {
 }
 
 function PriorityClientCard({ item, type }: { item: PriorityCard; type: "attention" | "progress" }) {
-  const border = type === "attention" ? "border-amber/40 bg-amber/10" : "border-teal-400/40 bg-teal-400/10";
+  const border = type === "attention" ? "border-line border-l-4 border-l-amber bg-ink/55" : "border-line border-l-4 border-l-lime bg-ink/55";
   const badgeClass = item.badge === "Athlete" ? "border-purple-400/50 bg-purple-400/10 text-purple-100" : "border-teal-400/50 bg-teal-400/10 text-teal-100";
   return (
     <article className={`rounded-xl border p-4 ${border}`}>
@@ -398,7 +398,8 @@ export function TrainerDashboardClient() {
           <MetricCard label="Tracked clients" value={String(priorities.eligible.length)} detail="Premium + Athlete" />
         </div>
 
-        <div className="mt-4">
+        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,.75fr)]">
+        <div>
           <div className="flex items-center gap-2">
             <AlertTriangle className="text-amber" size={19} />
             <h2 className="text-lg font-semibold">Needs Attention</h2>
@@ -411,7 +412,8 @@ export function TrainerDashboardClient() {
           </div>
         </div>
 
-        <div className="mt-4">
+        <div className="space-y-4">
+        <div>
           <div className="flex items-center gap-2">
             <TrendingUp className="text-teal-300" size={19} />
             <h2 className="text-lg font-semibold">Great Progress</h2>
@@ -428,7 +430,7 @@ export function TrainerDashboardClient() {
           </div>
         </div>
 
-        <div className="ascend-workspace-inset mt-4 p-4">
+        <div className="ascend-workspace-inset p-4">
           <div className="flex items-center gap-2">
             <Target className="text-purple-300" size={18} />
             <h2 className="text-sm font-semibold">Today's Summary</h2>
@@ -440,7 +442,7 @@ export function TrainerDashboardClient() {
           </p>
         </div>
 
-        <div className="ascend-workspace-inset mt-4 p-4">
+        <div className="ascend-workspace-inset p-4">
           <h2 className="text-sm font-semibold">Weekly Client Summary</h2>
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
             <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-teal-200">{weeklySummary.improving}</span>Clients improving</p>
@@ -450,6 +452,8 @@ export function TrainerDashboardClient() {
             <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-purple-200">{weeklySummary.bodyScansDue}</span>Body Scans due</p>
             <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-lime">{weeklySummary.goalAchievements}</span>Goal achievements</p>
           </div>
+        </div>
+        </div>
         </div>
       </section>
 
@@ -478,7 +482,7 @@ export function TrainerDashboardClient() {
           <h2 className="text-base font-semibold">Client work queue</h2>
           <span className="rounded-full border border-line bg-ink px-3 py-1 text-xs text-zinc-300">Risk first</span>
         </div>
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
           {sortedClients.length ? (
             sortedClients.map((client) => {
               const score = client.compliance_score;

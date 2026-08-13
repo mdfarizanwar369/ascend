@@ -166,6 +166,15 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
 
         {status ? <p role="status" className="mt-3 rounded-xl border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
 
+        <ol className="mt-4 grid grid-cols-3 gap-2" aria-label="Session capture progress">
+          {["Capture", "Review", "Save"].map((label, index) => {
+            const activeIndex = phase === "review" ? 1 : phase === "success" ? 2 : 0;
+            const complete = index < activeIndex;
+            const active = index === activeIndex;
+            return <li key={label} className={`rounded-xl border px-3 py-2 text-center text-xs font-semibold ${complete ? "border-lime/30 bg-lime/10 text-lime" : active ? "border-calm/40 bg-calm/10 text-calm" : "border-line bg-surface text-zinc-500"}`}>{complete ? "Done" : label}</li>;
+          })}
+        </ol>
+
         {phase === "loading" ? <div className="mt-5 h-56 animate-pulse rounded-2xl bg-surface" /> : null}
 
         {phase === "start" ? (
@@ -227,7 +236,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               {intelligence ? <section className="rounded-2xl border border-calm/30 bg-calm/10 p-4"><div className="flex items-center gap-2 text-calm"><Sparkles size={18} /><p className="text-xs font-bold uppercase tracking-[0.16em]">Session Copilot</p></div><h3 className="mt-2 text-lg font-semibold">{intelligence.headline}</h3>{intelligence.highlights.length ? <div className="mt-3 space-y-2">{intelligence.highlights.map((highlight) => <p key={highlight} className="rounded-xl bg-ink/70 p-3 text-sm text-zinc-200"><Check className="mr-2 inline text-lime" size={16} />{highlight}</p>)}</div> : null}{intelligence.watchouts.length ? <div className="mt-3 rounded-xl border border-amber/30 bg-amber/10 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber">Check next time</p>{intelligence.watchouts.map((watchout) => <p key={watchout} className="mt-2 text-sm leading-6 text-zinc-200">{watchout}</p>)}</div> : null}<div className="mt-3 rounded-xl bg-ink/70 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Next-session starting point</p><p className="mt-2 text-sm leading-6 text-zinc-200">{intelligence.nextSessionStartingPoint}</p></div></section> : null}
               <section className="ascend-workspace-section p-4"><p className="text-sm text-zinc-400">Estimated Calories Burned</p><p className="mt-1 text-3xl font-semibold">~{estimatedCalories ?? "--"} kcal</p><p className="mt-2 text-xs text-zinc-500">Estimated from session type, effort, duration and client weight when available.</p></section>
               <section className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-200">Client recap</p><textarea value={narratives.clientRecap} onChange={(e) => setNarratives({ ...narratives, clientRecap: e.target.value })} rows={4} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /><p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-calm">Between-session focus</p><textarea value={narratives.betweenSessionFocus} onChange={(e) => setNarratives({ ...narratives, betweenSessionFocus: e.target.value })} rows={3} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /></section>
-              <button disabled={busy || !draft.title.trim()} onClick={complete} className="min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink disabled:opacity-40"><Save className="mr-2 inline" size={19} />{busy ? "Saving..." : "Confirm & Share"}</button>
+              <button disabled={busy || !draft.title.trim()} onClick={complete} className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink shadow-[0_16px_40px_rgba(0,0,0,0.45)] disabled:opacity-40"><Save className="mr-2 inline" size={19} />{busy ? "Saving..." : "Confirm & Share"}</button>
               <button disabled={busy} onClick={() => setPhase("capture")} className="min-h-12 w-full rounded-xl border border-line bg-ink font-semibold">Back to notes</button>
             </aside>
           </div>

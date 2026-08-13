@@ -355,9 +355,9 @@ function CoachingTimelineCard({
   onToggle: () => void;
 }) {
   return (
-    <article className="rounded-2xl bg-ink/70 p-3">
+    <article className="relative border-l border-line py-3 pl-6">
       <div className="flex gap-3">
-        <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface text-calm">{item.icon}</span>
+        <span className="absolute -left-5 top-3 grid h-10 w-10 shrink-0 place-items-center rounded-full border border-line bg-surface text-calm shadow-soft">{item.icon}</span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold text-white">{item.title}</p>
@@ -389,11 +389,11 @@ export function CoachingTimelineGroups({ groups }: { groups: CoachingTimelineGro
   const [expandedTimelineWorkoutId, setExpandedTimelineWorkoutId] = useState<string | null>(null);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {groups.map((group) => (
         <div key={group.date}>
           <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{group.label}</p>
-          <div className="space-y-2">
+          <div className="ml-5">
             {group.items.map((item) => (
               <CoachingTimelineCard
                 key={item.id}

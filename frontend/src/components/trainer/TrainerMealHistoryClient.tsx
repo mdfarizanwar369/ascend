@@ -254,12 +254,12 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
         </div>
       </section>
 
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
+      <section className="ascend-workspace-section sticky top-2 z-20 mt-4 p-3 backdrop-blur sm:p-4">
         <div className="flex items-center gap-2">
           <CalendarDays className="text-lime" size={19} />
           <h2 className="text-base font-semibold">Filters</h2>
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {rangeOptions.map((option) => (
             <button
               key={option.value}
@@ -303,14 +303,14 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
               <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{day.logs.length} meals</span>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
                 ["Calories", `${Math.round(day.totals.calories).toLocaleString()} kcal`],
                 ["Protein", `${Math.round(day.totals.proteinG)}g`],
                 ["Carbs", `${Math.round(day.totals.carbsG)}g`],
                 ["Fat", `${Math.round(day.totals.fatG)}g`]
               ].map(([label, value]) => (
-                <div key={label} className="rounded-lg bg-ink p-3">
+                <div key={label} className="border-l border-line pl-3 first:border-l-0 first:pl-0">
                   <p className="text-xs uppercase text-zinc-500">{label}</p>
                   <p className="mt-1 text-lg font-semibold">{value}</p>
                 </div>
@@ -330,13 +330,13 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
               {day.logs.map((log) => {
                 const ai = parseAiEstimate(log.ai_estimate_raw);
                 return (
-                  <div key={log.id} className="rounded-lg bg-ink p-3">
+                  <div key={log.id} className="rounded-xl bg-ink p-3">
                     <div className="flex items-start gap-3">
                       {log.image_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={log.image_url} alt={log.estimated_food_name} className="h-16 w-16 shrink-0 rounded-lg object-cover" loading="lazy" decoding="async" />
+                        <img src={log.image_url} alt={log.estimated_food_name} className="h-20 w-20 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" />
                       ) : (
-                        <div className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-surface text-zinc-500">
+                        <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-surface text-zinc-500">
                           <Utensils size={18} />
                         </div>
                       )}

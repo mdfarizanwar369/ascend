@@ -188,7 +188,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
   }
 
   return (
-    <section className="mt-4 rounded-2xl border border-line bg-surface p-4 shadow-soft">
+    <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">Coach Homework</p>
@@ -202,22 +202,28 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
         </span>
       </div>
 
+      <div className="mt-4 grid grid-cols-3 gap-2" aria-label="Homework workflow">
+        {["Set the brief", "Review workout", "Assign"].map((label, index) => (
+          <div key={label} className={`rounded-xl border px-2 py-2 text-center text-xs font-semibold ${preview ? index <= 1 ? "border-calm/35 bg-calm/10 text-calm" : "border-line bg-ink text-zinc-500" : index === 0 ? "border-calm/35 bg-calm/10 text-calm" : "border-line bg-ink text-zinc-500"}`}>{label}</div>
+        ))}
+      </div>
+
       <div className="mt-4 grid grid-cols-3 gap-2">
-        <div className="rounded-2xl border border-white/5 bg-ink/80 p-3">
+        <div className="ascend-workspace-stat min-h-0 p-3">
           <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Assigned</p>
           <p className="mt-2 text-xl font-semibold text-white">{summary.assigned}</p>
         </div>
-        <div className="rounded-2xl border border-white/5 bg-ink/80 p-3">
+        <div className="ascend-workspace-stat min-h-0 p-3">
           <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Completed</p>
           <p className="mt-2 text-xl font-semibold text-lime">{summary.completed}</p>
         </div>
-        <div className="rounded-2xl border border-white/5 bg-ink/80 p-3">
+        <div className="ascend-workspace-stat min-h-0 p-3">
           <p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Missed</p>
           <p className="mt-2 text-xl font-semibold text-amber">{summary.missed}</p>
         </div>
       </div>
 
-      <div className="mt-4 space-y-3 rounded-2xl border border-white/5 bg-ink/70 p-4">
+      <div className="ascend-workspace-inset mt-4 space-y-3 p-4">
         <div className="grid grid-cols-2 gap-2">
           <label className="grid gap-1 text-sm text-zinc-300">
             Where will your client train?
@@ -274,7 +280,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
                   key={option}
                   type="button"
                   onClick={() => toggleEquipment(option)}
-                  className={`rounded-full border px-3 py-2 text-sm font-medium ${
+                  className={`ascend-pressable min-h-11 rounded-full border px-3 py-2 text-sm font-medium ${
                     selected ? "border-lime/50 bg-lime/10 text-lime" : "border-line bg-surface text-zinc-300"
                   }`}
                 >
@@ -322,14 +328,14 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
           type="button"
           onClick={generatePreview}
           disabled={isGenerating}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
+          className="ascend-pressable flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-lime font-semibold text-ink disabled:opacity-60"
         >
           <Target size={18} />
           {isGenerating ? "Generating..." : "Generate Homework"}
         </button>
       </div>
 
-      {status ? <p className="mt-3 rounded-2xl border border-line bg-ink/70 p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-3 p-3 text-sm text-zinc-300">{status}</p> : null}
 
       {preview ? (
         <div className="mt-4 rounded-2xl border border-calm/20 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.12),transparent_14rem),linear-gradient(180deg,rgba(18,23,33,0.98),rgba(9,12,18,0.98))] p-4">
@@ -411,7 +417,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
               type="button"
               onClick={assignPreview}
               disabled={isAssigning}
-              className="h-12 rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
+              className="ascend-pressable h-12 rounded-xl bg-lime font-semibold text-ink disabled:opacity-60"
             >
               {isAssigning ? "Assigning..." : "Assign"}
             </button>
@@ -419,7 +425,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
               type="button"
               onClick={generatePreview}
               disabled={isGenerating}
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-calm/40 bg-calm/10 font-semibold text-calm disabled:opacity-60"
+              className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-xl border border-calm/40 bg-calm/10 font-semibold text-calm disabled:opacity-60"
             >
               <RefreshCcw size={16} />
               Regenerate
@@ -427,7 +433,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
             <button
               type="button"
               onClick={() => setPreview(null)}
-              className="h-12 rounded-2xl border border-line bg-ink font-semibold text-zinc-200"
+              className="ascend-pressable h-12 rounded-xl border border-line bg-ink font-semibold text-zinc-200"
             >
               Cancel
             </button>
@@ -441,7 +447,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
           <p className="rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">Loading homework history...</p>
         ) : assignments.length ? (
           assignments.slice(0, 5).map((assignment) => (
-            <article key={assignment.id} className="rounded-2xl border border-white/5 bg-ink/70 p-3">
+            <article key={assignment.id} className={`rounded-xl border-l-4 bg-ink/70 p-3 ${assignment.status === "completed" ? "border-l-lime" : assignment.status === "missed" ? "border-l-amber" : "border-l-calm"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold text-white">{assignment.title}</p>
