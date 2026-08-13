@@ -358,6 +358,14 @@ export function getFoodLogs(
   }>(`/food-logs${query ? `?${query}` : ""}`);
 }
 
+export function deleteFoodLog(foodLogId: string) {
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
+  return authed<{ deleted: true; foodLogId: string }>(`/food-logs/${foodLogId}`, { method: "DELETE" });
+}
+
 export function getWeightLogs() {
   return authed<{
     weightLogs: Array<{

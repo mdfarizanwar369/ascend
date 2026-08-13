@@ -1,11 +1,12 @@
 "use client";
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Pencil, Save, Sparkles, Utensils } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Pencil, Save, Sparkles, Trash2, Utensils } from "lucide-react";
 import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
   estimateFoodFromText,
+  deleteFoodLog,
   FoodAiAllowance,
   FoodAiPerformanceReport,
   getFoodAiAllowance,
@@ -17,7 +18,7 @@ import {
   uploadFoodPhotoDataUrl
 } from "@/lib/ascendApi";
 import { TrackingPageHeader } from "@/components/tracking/TrackingVisuals";
-import { rememberSavedFoodLog } from "@/lib/dataSync";
+import { clearPendingFoodLog, rememberSavedFoodLog } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
@@ -410,6 +411,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [historyNextOffset, setHistoryNextOffset] = useState<number | null>(null);
   const [historyStatus, setHistoryStatus] = useState("");
   const [isLoadingHistoryMore, setIsLoadingHistoryMore] = useState(false);
+  const [deletingFoodLogId, setDeletingFoodLogId] = useState<string | null>(null);
   const [user, setUser] = useState<FoodUser | null>(null);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [resolvedTargets, setResolvedTargets] = useState<ResolvedNutritionTargets | null>(null);
@@ -558,6 +560,27 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setHistoryStatus(error instanceof Error ? error.message : "Could not load more meals.");
     } finally {
       setIsLoadingHistoryMore(false);
+    }
+  }
+
+  async function handleDeleteFoodLog(log: FoodLog) {
+    if (deletingFoodLogId) return;
+    const confirmed = window.confirm(`Remove “${log.estimated_food_name}” from your meal history? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingFoodLogId(log.id);
+    setStatus("Removing meal...");
+    try {
+      await deleteFoodLog(log.id);
+      foodLogsRequestRef.current += 1;
+      setFoodLogs((current) => current.filter((item) => item.id !== log.id));
+      setHistoryLogs((current) => current.filter((item) => item.id !== log.id));
+      clearPendingFoodLog(log.id);
+      setStatus("Meal removed. Your daily totals have been updated.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove this meal. Please try again.");
+    } finally {
+      setDeletingFoodLogId(null);
     }
   }
 
@@ -931,6 +954,16 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         decoding="async"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black via-black/15 to-transparent" />
+                      <button
+                        type="button"
+                        disabled={deletingFoodLogId === log.id}
+                        onClick={() => handleDeleteFoodLog(log)}
+                        className="ascend-pressable absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-black/65 text-white backdrop-blur-sm disabled:opacity-60"
+                        aria-label={`Remove ${log.estimated_food_name}`}
+                        title="Remove meal"
+                      >
+                        <Trash2 size={17} />
+                      </button>
                       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
                         <div className="min-w-0">
                           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-lime">Latest meal</p>
@@ -961,7 +994,19 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                           </p>
                         </div>
                       </div>
-                      <p className="shrink-0 text-sm font-semibold">{log.calories} kcal</p>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <p className="text-sm font-semibold">{log.calories} kcal</p>
+                        <button
+                          type="button"
+                          disabled={deletingFoodLogId === log.id}
+                          onClick={() => handleDeleteFoodLog(log)}
+                          className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-red-400/30 bg-red-500/10 text-red-300 disabled:opacity-60"
+                          aria-label={`Remove ${log.estimated_food_name}`}
+                          title="Remove meal"
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
                     </div>
                   </article>
                 )
@@ -1084,6 +1129,15 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                               {ai.notes || log.description ? (
                                 <p className="mt-2 text-xs leading-5 text-zinc-400">{ai.notes ?? log.description}</p>
                               ) : null}
+                              <button
+                                type="button"
+                                disabled={deletingFoodLogId === log.id}
+                                onClick={() => handleDeleteFoodLog(log)}
+                                className="ascend-pressable mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-3 text-sm font-semibold text-red-300 disabled:opacity-60"
+                              >
+                                <Trash2 size={16} />
+                                {deletingFoodLogId === log.id ? "Removing..." : "Remove meal"}
+                              </button>
                             </div>
                           </div>
                         </div>

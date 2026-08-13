@@ -4,7 +4,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { createReadUrl, createUploadUrl, uploadDataUrl } from "../integrations/s3";
+import { createReadUrl, createUploadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
 import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
@@ -288,6 +288,30 @@ logsRouter.get("/food-logs", requireAuth, async (req, res, next) => {
       [req.user!.id, filters.limit, filters.offset]
     );
     res.json({ foodLogs: await withFoodImageUrls(result.rows), nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.delete("/food-logs/:foodLogId", requireAuth, async (req, res, next) => {
+  try {
+    const foodLogId = z.string().uuid().parse(req.params.foodLogId);
+    const result = await query<{ id: string; image_s3_key: string | null }>(
+      `
+      delete from food_logs
+      where id = $1 and user_id = $2
+      returning id, image_s3_key
+      `,
+      [foodLogId, req.user!.id]
+    );
+    const deleted = result.rows[0];
+    if (!deleted) {
+      res.status(404).json({ error: "Meal not found." });
+      return;
+    }
+
+    await deleteStoredObjects([deleted.image_s3_key]).catch(() => undefined);
+    res.json({ deleted: true, foodLogId: deleted.id });
   } catch (error) {
     next(error);
   }
