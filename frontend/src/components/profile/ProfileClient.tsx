@@ -74,7 +74,18 @@ export function ProfileClient() {
   const nativeBillingMessage = getNativeBillingMessage();
   const hasPaidPlan = plan !== "free" || rawPlan !== "free";
   const isCancelled = subscriptionStatus === "canceled";
-  const renewalLabel = isCancelled ? "Access ends" : "Renewal date";
+  const renewalTimestamp = renewalDate ? new Date(renewalDate).getTime() : Number.NaN;
+  const hasUpcomingBillingDate = Number.isFinite(renewalTimestamp) && renewalTimestamp > Date.now();
+  const renewalLabel = isCancelled
+    ? (hasUpcomingBillingDate ? "Access ends" : "Access")
+    : (hasUpcomingBillingDate ? "Renewal date" : "Billing status");
+  const renewalValue = !hasPaidPlan
+    ? "No paid renewal"
+    : hasUpcomingBillingDate
+      ? formatBillingDate(renewalDate)
+      : isCancelled
+        ? "Ended"
+        : "Active";
   const isInitialLoading = !user && status.startsWith("Loading");
 
   async function selectPhoto(event: ChangeEvent<HTMLInputElement>) {
@@ -278,7 +289,7 @@ export function ProfileClient() {
             </div>
             <div className="rounded-lg bg-ink p-3">
               <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">{renewalLabel}</p>
-              <p className="mt-1 text-lg font-semibold">{hasPaidPlan ? formatBillingDate(renewalDate) : "No paid renewal"}</p>
+              <p className="mt-1 text-lg font-semibold">{renewalValue}</p>
             </div>
           </div>
           <div className="mt-4 grid gap-3">
