@@ -17,6 +17,10 @@ import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
 
 export const trainerRouter = Router();
+const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
+const momentumPillarSelect = env.MOMENTUM_V2
+  ? "cs.fuel_score, cs.move_score, cs.recover_score, cs.focus_score, cs.focus_active"
+  : "null::integer as fuel_score, null::integer as move_score, null::integer as recover_score, null::integer as focus_score, false as focus_active";
 
 const nutritionPlanSchema = z.object({
   calories: z.coerce.number().int().min(800).max(8000),
@@ -349,7 +353,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
       `
       select u.id, u.full_name, u.email, u.profile_photo_s3_key, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
-        cs.score as compliance_score,
+        cs.score as compliance_score, ${momentumPillarSelect},
         risk.risk_severity, risk.open_alerts,
         food.last_food_logged_at,
         coalesce(food_today.calories, 0) as calories_today,
@@ -374,7 +378,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
         limit 1
       ) active_subscription on true
-      left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+      left join ${momentumScoreTable} cs on cs.user_id = u.id and cs.calculated_for_date = current_date
       left join lateral (
         select max(severity) as risk_severity, count(*) as open_alerts
         from risk_alerts
@@ -501,12 +505,13 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
       select u.id, u.full_name, u.email, u.profile_photo_s3_key, u.goal_type, u.goal_updated_at, u.gender, u.age_years, u.activity_level,
         u.height_cm, u.starting_weight_kg, u.target_weight_kg,
         g.name as gym_name, cs.score as compliance_score,
+        ${momentumPillarSelect},
         trainer_message.last_trainer_message_at,
         goal_milestone.achieved_at as goal_achieved_at,
         coalesce(athlete_profile.enabled, false) as athlete_mode_enabled
       from users u
       left join gyms g on g.id = u.gym_id
-      left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+      left join ${momentumScoreTable} cs on cs.user_id = u.id and cs.calculated_for_date = current_date
       left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
       left join lateral (
         select max(created_at) as last_trainer_message_at

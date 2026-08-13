@@ -354,6 +354,12 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const previousWeight = weightLogs[1];
   const weightDelta = latestWeight && previousWeight ? asNumber(latestWeight.weight_kg) - asNumber(previousWeight.weight_kg) : 0;
   const score = client?.compliance_score;
+  const momentumPillars = [
+    { label: "Fuel", value: client?.fuel_score, max: client?.focus_active ? 35 : 40 },
+    { label: "Move", value: client?.move_score, max: client?.focus_active ? 35 : 40 },
+    { label: "Recover", value: client?.recover_score, max: 20 },
+    ...(client?.focus_active ? [{ label: "Focus", value: client?.focus_score, max: 10 }] : [])
+  ];
   const latestFood = foodLogs[0];
   const latestMessage = messages[messages.length - 1] ?? null;
   const unreadMessages = messages.filter((message) => message.sender_user_id === clientId && !message.read_at).length;
@@ -714,11 +720,21 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
         <SectionCard eyebrow="Progress Snapshot" title="Direction of travel" action={<BarChart3 className="text-calm" size={22} />}>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <MetricTile label="Momentum" value={score === null || score === undefined ? "--" : `${score}/100`} detail={score === null || score === undefined ? "No score yet" : score < 50 ? "Needs support" : score < 70 ? "Watch closely" : "On track"} />
+            <MetricTile label="Momentum" value={score === null || score === undefined ? "--" : `${score}/100`} detail={score === null || score === undefined ? "No score yet" : score < 50 ? "Needs support" : score < 70 ? "Building" : "On track"} />
             <MetricTile label="Current weight" value={latestWeight ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg` : "--"} detail={weightDelta ? `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg vs previous` : "No trend yet"} />
             <MetricTile label="Check-ins" value={`${progressComparison?.current.checkinDays ?? "--"}/7`} detail="active days this week" />
             <MetricTile label="Workouts" value={String(workoutsThisWeek.length)} detail="logged in the last 7 days" />
           </div>
+          {momentumPillars.some((pillar) => pillar.value !== null && pillar.value !== undefined) ? (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {momentumPillars.map((pillar) => (
+                <div key={pillar.label} className="rounded-xl border border-white/5 bg-ink p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500">{pillar.label}</p>
+                  <p className="mt-1 text-base font-semibold text-white">{pillar.value ?? 0}/{pillar.max}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </SectionCard>
       </div>
 

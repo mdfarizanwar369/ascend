@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Scale, Sparkles, Target, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -10,6 +10,7 @@ import {
   getBurnLogs,
   getCoachPresence,
   getComplianceToday,
+  getTodayRecoveryCheckin,
   getHabitLogs,
   getHabits,
   getAthleteDashboard,
@@ -26,6 +27,7 @@ import {
   getTodayPriorityRecommendation,
   getWaterLogs,
   getWeightLogs,
+  saveRecoveryCheckin,
   AthleteDashboard,
   AscendMemoryResponse,
   CoachPresenceSettings,
@@ -345,6 +347,19 @@ export function ClientDashboard() {
   }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
   const [ascendMemory, setAscendMemory] = useState<AscendMemoryResponse | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
+  const [momentumBreakdown, setMomentumBreakdown] = useState<{
+    fuelScore: number;
+    moveScore: number;
+    recoverScore: number;
+    focusScore: number | null;
+    fuelStatus: string;
+    moveStatus: string;
+    recoverStatus: string;
+    focusStatus: string;
+    focusActive: boolean;
+  } | null>(null);
+  const [sleepQuality, setSleepQuality] = useState<"poor" | "okay" | "good" | null>(null);
+  const [savingSleep, setSavingSleep] = useState(false);
   const [aiTodayPriority, setAiTodayPriority] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -429,7 +444,8 @@ export function ClientDashboard() {
         getMyNutritionTargets(),
         getCoachPresence(),
         getAscendMemory(),
-        getHealthSyncStatus()
+        getHealthSyncStatus(),
+        getTodayRecoveryCheckin()
       ]);
       const athleteDashboardRequest = me.user.athlete_mode_enabled
         ? getAthleteDashboard().catch(() => null)
@@ -484,19 +500,31 @@ export function ClientDashboard() {
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
+        setMomentumBreakdown(nextCompliance ? {
+          fuelScore: nextCompliance.fuel_score ?? nextCompliance.food_score,
+          moveScore: nextCompliance.move_score ?? nextCompliance.weight_score,
+          recoverScore: nextCompliance.recover_score ?? nextCompliance.water_score,
+          focusScore: nextCompliance.focus_score ?? nextCompliance.habit_score,
+          fuelStatus: nextCompliance.fuel_status ?? "building",
+          moveStatus: nextCompliance.move_status ?? "building",
+          recoverStatus: nextCompliance.recover_status ?? "building",
+          focusStatus: nextCompliance.focus_status ?? "building",
+          focusActive: nextCompliance.focus_active ?? false
+        } : null);
       }
       hasLoadedDashboardRef.current = true;
       setSectionLoading((current) => ({ ...current, core: false }));
       setStatus("");
 
       void secondaryDataRequest
-        .then(([photos, nutritionTargets, presence, memory, healthSync]) => {
+        .then(([photos, nutritionTargets, presence, memory, healthSync, recovery]) => {
           if (requestId !== dashboardRequestRef.current) return;
           if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
           if (nutritionTargets.status === "fulfilled") setResolvedNutritionTargets(nutritionTargets.value.targets);
           if (presence.status === "fulfilled") setCoachPresence(presence.value);
           if (memory.status === "fulfilled") setAscendMemory(memory.value);
           if (healthSync.status === "fulfilled") setHealthSyncStatus(healthSync.value.status);
+          if (recovery.status === "fulfilled") setSleepQuality(recovery.value.checkin?.sleep_quality ?? null);
           setSectionLoading({ core: false, secondary: false });
         })
         .catch(() => {
@@ -708,7 +736,14 @@ export function ClientDashboard() {
   const profileIncomplete = Boolean(user) && (!user?.goal_type || !user?.age_years || !user?.height_cm || !user?.starting_weight_kg || !user?.activity_level);
   const hasExperiencedAscend = foodLogs.length > 0 || weightLogs.length > 0 || waterLogs.length > 0 || dashboardSessionCount >= 3;
   const shouldShowProfileReminder = profileIncomplete && hasExperiencedAscend;
-  const fallbackScore = Math.min(100, 35 + (todaysFood.length ? 25 : 0) + (latestWeight ? 20 : 0) + (todaysWaterMl >= 1500 ? 20 : 0));
+  const fallbackHealthSummary = healthSyncStatus?.summary ?? null;
+  const fallbackSyncedSteps = fallbackHealthSummary?.todaySteps ?? 0;
+  const fallbackSyncedWorkoutCompleted = fallbackHealthSummary?.workoutCompletedToday === true;
+  const fallbackScore = Math.round(
+    Math.min(todaysFood.length / 3, 1) * 40 +
+    (todaysBurnCalories > 0 || fallbackSyncedWorkoutCompleted ? 40 : fallbackSyncedSteps >= 5000 ? 28 : fallbackSyncedSteps >= 2500 ? 16 : 0) +
+    Math.min(todaysWaterMl / Math.max(nutritionTargets.waterTargetMl, 1), 1) * 20
+  );
   const score = momentumScore ?? fallbackScore;
   const currentStreak = Number(streak?.current ?? 0);
   const scoreLabel =
@@ -721,7 +756,7 @@ export function ClientDashboard() {
           : score >= 60
             ? "Building momentum"
             : "Start today";
-  const momentumHeadline = score >= 70 ? "You're on track" : "Let's get back on track";
+  const momentumHeadline = score >= 75 ? "Your week is on track" : score >= 45 ? "Your week is building" : "One action can shift your week";
   const streakTitle = currentStreak >= 2 ? `${currentStreak}-day consistency streak` : currentStreak === 1 ? "You checked in today" : "Start a streak today";
   const streakCopy =
     currentStreak >= 5
@@ -999,11 +1034,10 @@ export function ClientDashboard() {
       }
     : deterministicTodayPriority;
   const taskItems = [
-    { label: "Food logged", done: todaysFood.length > 0, href: "/food-log" },
-    { label: "Water completed", done: todaysWaterMl >= nutritionTargets.waterTargetMl, href: "/water-log" },
-    { label: "Weight recorded", done: latestWeightLoggedToday, href: "/weight-log" },
-    { label: "Workout completed", done: todaysBurnCalories > 0, href: "/burn-log" },
-    { label: "Habit completed", done: completedHabitIds.size > 0, href: "/habits" }
+    { label: "Fuel", done: todaysFood.length > 0, href: "/food-log" },
+    { label: "Move", done: todaysBurnCalories > 0 || syncedWorkoutCompleted || syncedSteps >= 2500, href: "/burn-log" },
+    { label: "Recover", done: todaysWaterMl >= nutritionTargets.waterTargetMl || sleepQuality !== null, href: "/water-log" },
+    ...(momentumBreakdown?.focusActive ? [{ label: "Focus", done: completedHabitIds.size > 0, href: "/habits" }] : [])
   ];
   const completedTaskCount = taskItems.filter((item) => item.done).length;
   const dailyCompletion = Math.round((completedTaskCount / taskItems.length) * 100);
@@ -1217,7 +1251,7 @@ export function ClientDashboard() {
     if (isFirstDayState) {
       return {
         title: "A calm first day",
-        detail: "You do not need five tasks. You just need one honest start.",
+        detail: "You do not need to do everything. You just need one honest start.",
         tone: "teal" as const
       };
     }
@@ -1303,50 +1337,41 @@ export function ClientDashboard() {
   const coachCardSnippet = coachCardMessage.length > 88 ? `${coachCardMessage.slice(0, 85).trimEnd()}...` : coachCardMessage;
   const todayTiles = [
     {
-      label: "Meal",
+      label: "Fuel",
       href: "/food-log",
       icon: Beef,
-      value: todaysFood.length > 0 ? "Logged" : "Not yet",
-      detail: todaysFood.length > 0 ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"} today` : "Tap to log what you ate",
+      value: momentumBreakdown ? `${momentumBreakdown.fuelScore}/${momentumBreakdown.focusActive ? 35 : 40}` : todaysFood.length > 0 ? "Logged" : "Start",
+      detail: todaysFood.length > 0 ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"} today` : "Meals and protein",
       done: todaysFood.length > 0,
       tone: todaysFood.length > 0 ? "lime" : proteinLeft > 25 ? "amber" : "teal"
     },
     {
-      label: "Water",
-      href: "/water-log",
-      icon: Droplets,
-      value: todaysWaterMl >= nutritionTargets.waterTargetMl ? "Done" : `${(todaysWaterMl / 1000).toFixed(1)}L`,
-      detail: todaysWaterMl >= nutritionTargets.waterTargetMl ? "Hydration goal reached" : `${Math.max(0, Number(((nutritionTargets.waterTargetMl - todaysWaterMl) / 1000).toFixed(1)))}L to go`,
-      done: todaysWaterMl >= nutritionTargets.waterTargetMl,
-      tone: todaysWaterMl >= nutritionTargets.waterTargetMl ? "lime" : "teal"
-    },
-    {
-      label: "Movement",
+      label: "Move",
       href: "/burn-log",
       icon: Activity,
-      value: latestWorkoutCompletedToday || syncedWorkoutCompleted ? "Done" : syncedSteps > 0 ? `${Math.round(syncedSteps / 1000)}k steps` : "Open",
+      value: momentumBreakdown ? `${momentumBreakdown.moveScore}/${momentumBreakdown.focusActive ? 35 : 40}` : latestWorkoutCompletedToday || syncedWorkoutCompleted ? "Done" : syncedSteps > 0 ? `${Math.round(syncedSteps / 1000)}k` : "Start",
       detail: latestWorkoutCompletedToday || syncedWorkoutCompleted ? (latestWorkoutTitle ?? "Workout completed today") : syncedSteps > 0 ? "Detected automatically" : "Tap to start or log a workout",
       done: latestWorkoutCompletedToday || syncedWorkoutCompleted || todaysBurnCalories > 0,
       tone: latestWorkoutCompletedToday || syncedWorkoutCompleted || todaysBurnCalories > 0 ? "lime" : latestWorkoutCompletedYesterday ? "blue" : "teal"
     },
     {
-      label: "Weight",
-      href: "/weight-log",
-      icon: Scale,
-      value: latestWeightLoggedToday && currentWeight ? `${currentWeight.toFixed(1)}kg` : "Not yet",
-      detail: latestWeightLoggedToday ? "Today's check-in saved" : "Tap to record your weight",
-      done: latestWeightLoggedToday,
-      tone: latestWeightLoggedToday ? "lime" : "teal"
+      label: "Recover",
+      href: "/water-log",
+      icon: HeartPulse,
+      value: momentumBreakdown ? `${momentumBreakdown.recoverScore}/20` : `${(todaysWaterMl / 1000).toFixed(1)}L`,
+      detail: sleepQuality ? `Sleep felt ${sleepQuality}` : todaysWaterMl >= nutritionTargets.waterTargetMl ? "Hydration goal reached" : "Water, sleep and rest",
+      done: todaysWaterMl >= nutritionTargets.waterTargetMl || sleepQuality !== null,
+      tone: todaysWaterMl >= nutritionTargets.waterTargetMl || sleepQuality === "good" ? "lime" : "teal"
     },
-    {
-      label: "Habit",
+    ...(momentumBreakdown?.focusActive ? [{
+      label: "Focus",
       href: "/habits",
       icon: Target,
-      value: completedHabitIds.size > 0 ? `${completedHabitIds.size} done` : habits.length ? "Open" : "Create",
-      detail: habits.length ? (completedHabitIds.size > 0 ? "Small promises kept today" : "Tap to complete one habit") : "Start with one repeatable habit",
+      value: `${momentumBreakdown.focusScore ?? 0}/10`,
+      detail: completedHabitIds.size > 0 ? "Personal focus completed" : "Your habit or coach mission",
       done: completedHabitIds.size > 0,
       tone: completedHabitIds.size > 0 ? "lime" : "purple"
-    }
+    }] : [])
   ].map((item) => ({
     ...item,
     priority: todayPriority.key === item.label,
@@ -1493,8 +1518,8 @@ export function ClientDashboard() {
           <div className="mx-auto -mt-2 mb-4 max-w-[20rem]">
             <p className="text-xs leading-5 text-zinc-500">
               {isFirstDayState
-                ? "Momentum is your daily consistency score. It grows when you log the basics below."
-                : "Momentum reflects the healthy actions you have checked in today."}
+                ? "Momentum begins with Fuel, Move and Recover. Start with one."
+                : "Momentum reflects your last seven days, with recent actions counting most."}
             </p>
             <a href="/momentum-score" className="mt-1 inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold text-purple-200">
               <CircleHelp size={14} /> How Momentum works
@@ -1519,7 +1544,7 @@ export function ClientDashboard() {
           <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
             <div className="h-full rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#a3ff46)] transition-[width] duration-700" style={{ width: `${dailyCompletion}%` }} />
           </div>
-          <div className="mt-5 grid grid-cols-5 gap-1">
+          <div className={`mt-5 grid gap-3 ${todayTiles.length === 4 ? "grid-cols-4" : "grid-cols-3"}`}>
             {todayTiles.map((item) => {
               const Icon = item.icon;
               return (
@@ -1533,6 +1558,34 @@ export function ClientDashboard() {
               );
             })}
           </div>
+          {!sleepQuality ? (
+            <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">How did you sleep?</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">Optional. It helps Ascend understand recovery.</p>
+                </div>
+                <div className="flex gap-1.5">
+                  {(["poor", "okay", "good"] as const).map((quality) => (
+                    <button key={quality} type="button" disabled={savingSleep} onClick={async () => {
+                      setSavingSleep(true);
+                      try {
+                        await saveRecoveryCheckin(quality);
+                        setSleepQuality(quality);
+                        await loadDashboard();
+                      } catch (error) {
+                        setStatus(error instanceof Error ? error.message : "Sleep check-in could not be saved.");
+                      } finally {
+                        setSavingSleep(false);
+                      }
+                    }} className="min-h-10 rounded-full border border-white/10 px-3 text-xs font-semibold capitalize text-zinc-200 hover:border-calm/50 hover:text-calm disabled:opacity-50">
+                      {quality}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </section>
 
             <CollapsibleSection
