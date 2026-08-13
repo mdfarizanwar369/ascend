@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, Scale, Sparkles, Target, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -1472,6 +1472,16 @@ export function ClientDashboard() {
           <p className="ascend-eyebrow">Today</p>
           <h1 className="mt-2 text-[1.75rem] font-semibold leading-tight text-white">{greeting}, {firstName}.</h1>
           <TodayMomentumVisual score={score} label={scoreLabel} completed={completedTaskCount} total={taskItems.length} />
+          <div className="mx-auto -mt-2 mb-4 max-w-[20rem]">
+            <p className="text-xs leading-5 text-zinc-500">
+              {isFirstDayState
+                ? "Momentum is your daily consistency score. It grows when you log the basics below."
+                : "Momentum reflects the healthy actions you have checked in today."}
+            </p>
+            <a href="/momentum-score" className="mt-1 inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold text-purple-200">
+              <CircleHelp size={14} /> How Momentum works
+            </a>
+          </div>
           <p className="mx-auto max-w-[20rem] text-[11px] font-bold uppercase tracking-[0.18em] text-calm">{momentumHeadline}</p>
           <h2 className="mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
           <p className="mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
