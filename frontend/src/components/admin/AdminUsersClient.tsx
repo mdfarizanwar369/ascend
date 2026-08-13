@@ -274,7 +274,7 @@ export function AdminUsersClient() {
       {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
       {referralStatus ? <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm text-lime">{referralStatus}</p> : null}
 
-      <section className="mt-4 grid grid-cols-2 gap-3">
+      <section className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Users</p>
           <p className="mt-2 text-2xl font-semibold">{activeUsers.length}</p>
@@ -311,7 +311,7 @@ export function AdminUsersClient() {
           </div>
           <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{pendingTrainers.length}</span>
         </div>
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 divide-y divide-line overflow-hidden rounded-lg border border-line md:rounded-xl">
           {pendingTrainers.map((trainer) => (
             <article key={trainer.id} className="rounded-lg bg-ink p-3">
               <div className="flex items-center justify-between gap-3">
@@ -426,7 +426,7 @@ export function AdminUsersClient() {
         </div>
         <div className="mt-3 space-y-3">
           {visibleUsers.map((user) => (
-            <article key={user.id} className="rounded-lg bg-ink p-3">
+            <article key={user.id} className="bg-ink p-3 md:p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{user.full_name}</p>

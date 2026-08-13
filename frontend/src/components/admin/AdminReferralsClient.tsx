@@ -19,8 +19,8 @@ function trainerCode(name: string) {
 
 function ReferralCard({ item, onCopy }: { item: Referral; onCopy: (code: string) => void }) {
   return (
-    <article className="ascend-workspace-stat p-4">
-      <div className="flex items-start justify-between gap-3">
+    <article className="ascend-workspace-stat p-4 md:grid md:grid-cols-[minmax(0,1fr)_9rem_9rem_2.75rem] md:items-center md:gap-4">
+      <div className="flex items-start justify-between gap-3 md:contents">
         <div>
           <p className="font-semibold text-lime">{item.code}</p>
           <p className="mt-1 text-sm text-zinc-400">
@@ -30,19 +30,19 @@ function ReferralCard({ item, onCopy }: { item: Referral; onCopy: (code: string)
         <button
           type="button"
           onClick={() => onCopy(item.code)}
-          className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-ink"
+          className="grid h-11 w-11 place-items-center rounded-lg border border-line bg-ink md:order-last"
           aria-label={`Copy ${item.code}`}
         >
           <Copy size={17} />
         </button>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-lg bg-ink p-3">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:contents">
+        <div className="rounded-lg bg-ink p-3 md:bg-transparent md:p-0">
           <QrCode className="text-calm" size={18} />
           <p className="mt-2 text-lg font-semibold">{item.referred_users}</p>
           <p className="text-xs text-zinc-400">Referred users</p>
         </div>
-        <div className="rounded-lg bg-ink p-3">
+        <div className="rounded-lg bg-ink p-3 md:bg-transparent md:p-0">
           <TrendingUp className="text-amber" size={18} />
           <p className="mt-2 text-lg font-semibold">{money(item.active_revenue_cents)}</p>
           <p className="text-xs text-zinc-400">Active revenue</p>
@@ -133,7 +133,7 @@ export function AdminReferralsClient() {
 
       {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
-      <section className="mt-4 grid grid-cols-2 gap-3">
+      <section className="mt-4 grid grid-cols-2 gap-3 lg:max-w-xl">
         <div className="ascend-workspace-stat p-4">
           <p className="text-xs uppercase text-zinc-400">Gym revenue</p>
           <p className="mt-2 text-2xl font-semibold text-lime">{money(gymRevenue)}</p>
@@ -146,7 +146,7 @@ export function AdminReferralsClient() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
+      <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4 lg:max-w-3xl">
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-lime text-ink">
             <Plus size={18} />

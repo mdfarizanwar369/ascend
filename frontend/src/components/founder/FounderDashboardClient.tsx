@@ -408,14 +408,14 @@ export function FounderDashboardClient() {
 
       {status ? <p className="ascend-workspace-inset p-4 text-sm text-zinc-300">{status}</p> : null}
 
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Leads" value={String(summary?.leads ?? 0)} detail="Total gyms tracked" icon={Building2} />
         <StatCard title="Reply rate" value={`${summary?.replyRate ?? 0}%`} detail="Based on pipeline status" icon={Mail} />
         <StatCard title="Meetings" value={String(summary?.meetingsBooked ?? 0)} detail="Booked or later stage" icon={Users} />
         <StatCard title="Expected MRR" value={money(summary?.expectedMrrCents ?? 0)} detail="Weighted manually by you" icon={DollarSign} />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.45fr)]">
         <div className="ascend-workspace-section p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -439,23 +439,24 @@ export function FounderDashboardClient() {
             </button>
           </div>
 
-          <div className="mt-5 max-h-[34rem] space-y-3 overflow-auto pr-1">
+          <div className="mt-5 max-h-[40rem] divide-y divide-line overflow-auto rounded-2xl border border-line">
             {filteredLeads.length ? filteredLeads.map((lead) => (
               <button
                 key={lead.id}
                 onClick={() => setSelectedId(lead.id)}
-                className={`w-full rounded-2xl border p-4 text-left transition ${selectedId === lead.id ? "border-lime bg-lime/10" : "border-line bg-ink"}`}
+                className={`w-full p-4 text-left transition md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(9rem,0.65fr)_auto] md:items-center md:gap-4 ${selectedId === lead.id ? "bg-lime/10" : "bg-ink hover:bg-surface"}`}
               >
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
+                <div className="contents">
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="font-semibold">{lead.gymName}</h3>
                       <span className="rounded-full border border-line px-2 py-1 text-xs text-zinc-400">{lead.status}</span>
                       <span className={`text-sm font-semibold ${metricTone(lead.aiFitScore)}`}>Fit {lead.aiFitScore}/10</span>
                     </div>
                     <p className="mt-2 text-sm text-zinc-400">{[lead.city, lead.country].filter(Boolean).join(", ") || "Location unknown"} • {lead.ptFocus || "PT focus unknown"}</p>
-                    <p className="mt-2 text-sm text-zinc-300">{lead.publicEmail || "No public email saved"}</p>
+                    <p className="mt-2 text-sm text-zinc-300 md:hidden">{lead.publicEmail || "No public email saved"}</p>
                   </div>
+                  <p className="hidden truncate text-sm text-zinc-300 md:block">{lead.publicEmail || "No public email saved"}</p>
                   <select
                     value={lead.status}
                     onClick={(event) => event.stopPropagation()}
@@ -472,7 +473,7 @@ export function FounderDashboardClient() {
           </div>
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4 xl:sticky xl:top-24">
           <section className="ascend-workspace-section p-4 sm:p-5">
             <div className="flex items-center gap-3">
               <Search className="text-lime" />
@@ -533,8 +534,8 @@ export function FounderDashboardClient() {
       </section>
 
       {selectedLead ? (
-        <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="ascend-workspace-section p-4 sm:p-5">
+        <section className="grid items-start gap-4 xl:grid-cols-[minmax(20rem,0.7fr)_minmax(0,1.3fr)]">
+          <div className="ascend-workspace-section p-4 sm:p-5 xl:sticky xl:top-24">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-sm uppercase tracking-[0.24em] text-purple-300">Selected Lead</p>

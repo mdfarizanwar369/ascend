@@ -462,7 +462,7 @@ export function AdminDashboardClient() {
           <ShieldCheck className="text-lime" size={20} />
           <h2 className="text-xl font-semibold">Business Health</h2>
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <ExecutiveCard title="Overall Club Health" status={overallHealth} value={`${overallHealthScore}/100`} detail="Combined view of member activity, trainer follow-up, revenue, and AI cost." />
           <ExecutiveCard title="Revenue Health" status={revenueHealth} value={money(totalRevenueCents)} detail={`${activeSubscriptions} active paid subscriptions across your clubs.`} />
           <ExecutiveCard title="Member Health" status={memberHealth} value={String(pilotMetrics?.clients.weeklyActiveUsers ?? 0)} detail="Members staying active this week." />
@@ -471,7 +471,8 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
+      <div className="mt-4 grid items-start gap-4 xl:grid-cols-2">
+      <section className="ascend-workspace-section p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Bell className="text-calm" size={20} />
@@ -498,7 +499,7 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="mt-4">
+      <section className="ascend-workspace-section p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Target className="text-lime" size={20} />
           <h2 className="text-xl font-semibold">Business Opportunities</h2>
@@ -509,8 +510,10 @@ export function AdminDashboardClient() {
           ))}
         </div>
       </section>
+      </div>
 
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
+      <div className="mt-4 grid items-start gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+      <section className="ascend-workspace-section p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Building2 className="text-lime" size={20} />
           <h2 className="text-xl font-semibold">Club Performance</h2>
@@ -549,14 +552,14 @@ export function AdminDashboardClient() {
         </div>
       </section>
 
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
+      <section className="ascend-workspace-section p-4 sm:p-5">
         <div className="flex items-center gap-2">
           <Users className="text-calm" size={20} />
           <h2 className="text-xl font-semibold">Trainer Performance</h2>
         </div>
         <div className="mt-4 space-y-3">
           {trainerRows.length ? trainerRows.slice(0, 6).map((trainer, index) => (
-            <article key={trainer.name} className="rounded-xl bg-ink p-4">
+            <article key={trainer.name} className="rounded-xl bg-ink p-4 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="font-semibold">{index + 1}. {trainer.name}</p>
@@ -564,7 +567,7 @@ export function AdminDashboardClient() {
                 </div>
                 <StatusPill status={trainer.status} />
               </div>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">Suggested coaching action: {trainer.action}</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-300 md:col-span-2">Suggested coaching action: {trainer.action}</p>
             </article>
           )) : (
             <DelightEmptyState
@@ -575,6 +578,7 @@ export function AdminDashboardClient() {
           )}
         </div>
       </section>
+      </div>
 
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-2">
