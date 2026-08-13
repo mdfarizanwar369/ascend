@@ -115,7 +115,7 @@ export function WeeklyReportClient() {
                   <p className="text-5xl font-semibold text-white">{report.compliance_score ?? "--"}</p>
                   <p className="mt-1 text-sm text-zinc-400">Weekly momentum</p>
                 </div>
-                <div className="grid flex-1 grid-cols-10 gap-1.5" aria-label={`Weekly momentum score ${report.compliance_score ?? "not available"} out of 100`}>
+                <div className="grid flex-1 grid-cols-10 gap-1.5" role="img" aria-label={`Weekly momentum score ${report.compliance_score ?? "not available"} out of 100 for ${formatDate(report.week_start)} through ${formatDate(report.week_end)}.`}>
                   {Array.from({ length: 10 }, (_, index) => (
                     <span key={index} className={`h-12 rounded-full ${report.compliance_score !== null && report.compliance_score !== undefined && report.compliance_score >= (index + 1) * 10 ? "bg-lime" : "bg-white/10"}`} aria-hidden="true" />
                   ))}

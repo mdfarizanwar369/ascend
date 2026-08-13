@@ -134,11 +134,11 @@ export function HabitsClient() {
         >
           {habits.length ? (
             <div className="mt-4 border-t border-white/10 pt-4">
-              <div className="flex items-end justify-between gap-2" aria-label="Habit completion over the last seven days">
+              <div className="flex items-end justify-between gap-2" role="img" aria-label={`Habit completion over the last seven days. Today is ${completedToday.size} of ${habits.length} complete.`}>
                 {weeklyRhythm.map((day) => (
                   <div key={day.dateKey} className="flex min-w-0 flex-1 flex-col items-center gap-2">
                     <span className="flex h-16 w-full items-end justify-center rounded-full bg-black/20 p-1">
-                      <span className="w-full rounded-full bg-purple-300 transition-[height] duration-500" style={{ height: `${Math.max(8, day.progress)}%` }} />
+                      <span className="w-full rounded-full bg-purple-300 transition-[height] duration-500" style={{ height: `${Math.max(8, day.progress)}%` }} aria-hidden="true" />
                     </span>
                     <span className={`text-xs ${day.dateKey === localDateKey() ? "font-semibold text-white" : "text-zinc-500"}`}>{day.day}</span>
                   </div>

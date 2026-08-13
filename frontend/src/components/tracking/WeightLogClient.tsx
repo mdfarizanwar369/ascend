@@ -102,7 +102,7 @@ export function WeightLogClient() {
         <TrackingHero icon={Scale} label="Latest weight" value={<MetricPulse pulseKey={latestWeightKg ?? "empty"}>{latestWeightKg ? `${latestWeightKg.toFixed(1)}kg` : "--"}</MetricPulse>} detail={targetWeightKg ? `Target ${targetWeightKg.toFixed(1)}kg` : "Set a target to see your direction"} tone="lime">
           <DelightBadge tone="lime">{latestWeightKg ? "Progress captured" : "Ready for your first check-in"}</DelightBadge>
           {trend ? (
-            <div className="mt-4 border-t border-white/10 pt-4" aria-label={`Recent weight trend, ${Math.abs(trend.change).toFixed(1)} kilograms ${trend.change <= 0 ? "down" : "up"}`}>
+            <div className="mt-4 border-t border-white/10 pt-4" role="img" aria-label={`Recent weight trend across ${Math.min(weightHistory.length, 12)} entries: ${Math.abs(trend.change).toFixed(1)} kilograms ${trend.change <= 0 ? "down" : "up"}.`}>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">Recent direction</p>
                 <p className={`text-sm font-semibold ${trend.change <= 0 ? "text-lime" : "text-amber"}`}>{trend.change > 0 ? "+" : ""}{trend.change.toFixed(1)}kg</p>

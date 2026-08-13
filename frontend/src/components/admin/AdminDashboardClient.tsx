@@ -129,10 +129,11 @@ function OpportunityCard({ title, value, detail }: { title: string; value: strin
   );
 }
 
-function MiniBar({ value }: { value: number }) {
+function MiniBar({ value, label }: { value: number; label: string }) {
+  const safeValue = Math.min(100, Math.max(0, value));
   return (
-    <div className="h-2 overflow-hidden rounded-full bg-ink">
-      <div className="h-full rounded-full bg-lime" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    <div className="h-2 overflow-hidden rounded-full bg-ink" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(safeValue)}>
+      <div className="h-full rounded-full bg-lime" style={{ width: `${safeValue}%` }} />
     </div>
   );
 }
@@ -532,12 +533,12 @@ export function AdminDashboardClient() {
                 <div>
                   <p className="text-zinc-400">Member engagement</p>
                   <p className="mt-1 font-semibold">{club.memberEngagement}/100</p>
-                  <MiniBar value={club.memberEngagement} />
+                  <MiniBar value={club.memberEngagement} label={`${club.name} member engagement`} />
                 </div>
                 <div>
                   <p className="text-zinc-400">Trainer engagement</p>
                   <p className="mt-1 font-semibold">{club.trainerEngagement}/100</p>
-                  <MiniBar value={club.trainerEngagement} />
+                  <MiniBar value={club.trainerEngagement} label={`${club.name} trainer engagement`} />
                 </div>
               </div>
               <p className="mt-3 text-sm leading-6 text-zinc-300">Risk level: {club.risk ? `${club.risk} low-momentum clients` : "Low"}. Recommendation: {club.recommendation}</p>
@@ -600,7 +601,7 @@ export function AdminDashboardClient() {
                 <span className="text-zinc-300">{label}</span>
                 <span className="font-semibold text-white">{value}</span>
               </div>
-              <div className="mt-2"><MiniBar value={Number(bar)} /></div>
+              <div className="mt-2"><MiniBar value={Number(bar)} label={String(label)} /></div>
             </div>
           ))}
         </div>

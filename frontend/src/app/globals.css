@@ -673,6 +673,75 @@ textarea {
   font: inherit;
 }
 
+button,
+select,
+input:not([type="checkbox"]):not([type="radio"]),
+[role="button"] {
+  min-height: 2.75rem;
+}
+
+main,
+section,
+article,
+aside,
+div {
+  min-width: 0;
+}
+
+h1,
+h2,
+h3,
+p,
+button,
+a {
+  overflow-wrap: anywhere;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+html[data-theme="dark"] .text-zinc-500,
+html[data-theme="dark"] .text-zinc-600 {
+  color: #9ca3af;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --color-line: 91 103 123;
+    --color-text-muted: 209 213 219;
+    --color-text-subtle: 180 188 201;
+  }
+
+  button:focus-visible,
+  a[href]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+@media (forced-colors: active) {
+  button,
+  a[href],
+  input,
+  select,
+  textarea {
+    forced-color-adjust: auto;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 32rem) {
+  .ascend-shell-header {
+    position: relative;
+    top: auto;
+  }
+}
+
 .ascend-field {
   background-color: rgb(var(--color-field-bg));
   border-color: rgb(var(--color-field-border));

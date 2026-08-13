@@ -24,11 +24,11 @@ export function LegalPage({
     <main className="min-h-screen bg-ink px-5 text-white sm:px-8">
       <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col">
         <header className="flex items-center justify-between py-5">
-          <Link href="/" className="flex items-center gap-3" aria-label="Ascend homepage">
+          <Link href="/" className="flex min-h-11 items-center gap-3" aria-label="Ascend homepage">
             <BrandMark size="sm" />
             <span className="text-xl font-semibold">Ascend</span>
           </Link>
-          <Link href="/launch" className="flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-zinc-200">
+          <Link href="/launch" className="flex h-11 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-zinc-200">
             <ArrowLeft size={17} />
             Back to Ascend
           </Link>
