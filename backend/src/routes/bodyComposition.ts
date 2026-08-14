@@ -1,10 +1,9 @@
-import { randomUUID } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { NutritionTargetInput } from "@ascend/shared";
 import { env } from "../config/env";
 import { query } from "../db/pool";
-import { uploadDataUrl, createReadUrl } from "../integrations/s3";
+import { createReadUrl } from "../integrations/s3";
 import { extractBodyCompositionFromImages } from "../integrations/openai";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { canManageClient } from "../services/clientAccessService";
@@ -18,7 +17,8 @@ import {
   normalizeBodyCompositionScan,
   validateBodyCompositionScan
 } from "../services/bodyCompositionService";
-import { imageDataUrlSchema } from "../utils/images";
+import { imageDataUrlSchema, validateImageDataUrl } from "../utils/images";
+import { assertOwnedMediaObject, markMediaAttached, secureUploadDataUrl } from "../services/mediaUploadService";
 
 export const bodyCompositionRouter = Router();
 
@@ -153,6 +153,8 @@ async function summaryFor(userId: string) {
 async function saveScan(userId: string, actorId: string, body: unknown) {
   bodyCompositionSaveLog("save_parse_started", { userId, actorId });
   const input = normalizeBodyCompositionScan(scanSchema.parse(body));
+  const sourceImageKeys = (input.sourceImages ?? []).map((image) => image.key).filter((key): key is string => Boolean(key));
+  for (const key of sourceImageKeys) await assertOwnedMediaObject(userId, key, "body_composition");
   bodyCompositionSaveLog("save_parse_complete", {
     userId,
     scanDate: input.scanDate,
@@ -192,6 +194,7 @@ async function saveScan(userId: string, actorId: string, body: unknown) {
     `,
     dbValues
   );
+  await markMediaAttached(userId, sourceImageKeys, "body_composition");
   bodyCompositionSaveLog("save_db_insert_complete", {
     userId,
     scanId: result.rows[0]?.id ?? null
@@ -214,6 +217,7 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
       bodyBytes: Buffer.byteLength(JSON.stringify(req.body ?? {}), "utf8")
     });
     const input = extractSchema.parse(req.body);
+    await Promise.all(input.images.map((image) => validateImageDataUrl(image)));
     bodyCompositionRouteLog("schema_valid", {
       imageCount: input.images.length,
       imageBytes: input.images.map((image) => Buffer.byteLength(image, "utf8"))
@@ -224,9 +228,14 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
       confidenceScore: draft.confidenceScore,
       missingFields: draft.missingFields
     });
-    const uploaded = await Promise.allSettled(input.images.map((imageDataUrl) => uploadDataUrl(`body-composition/${req.user!.id}/${randomUUID()}.jpg`, imageDataUrl)));
+    const uploaded = await Promise.allSettled(input.images.map((imageDataUrl) => secureUploadDataUrl({
+      userId: req.user!.id,
+      purpose: "body_composition",
+      imageDataUrl
+    })));
     const sourceImages = uploaded
-      .filter((result): result is PromiseFulfilledResult<{ key: string; storageConfigured: boolean }> => result.status === "fulfilled")
+      .filter((result): result is PromiseFulfilledResult<{ key: string; storageConfigured: true }> =>
+        result.status === "fulfilled")
       .map((result) => ({ key: result.value.key }));
     const storageFailed = uploaded.some((result) => result.status === "rejected");
     if (storageFailed) {

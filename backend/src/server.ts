@@ -8,7 +8,7 @@ import { aiRouter } from "./routes/ai";
 import { authRouter } from "./routes/auth";
 import { gymsRouter } from "./routes/gyms";
 import { habitsRouter } from "./routes/habits";
-import { healthRouter } from "./routes/health";
+import { healthRouter, requireApplicationReady } from "./routes/health";
 import { jobsRouter } from "./routes/jobs";
 import { logsRouter } from "./routes/logs";
 import { meRouter } from "./routes/me";
@@ -39,12 +39,15 @@ import { ensureWaitlistSchema } from "./services/waitlistService";
 import { ensureSubscriptionSchema } from "./services/subscriptionSchemaService";
 import { ensureNotificationSchema } from "./services/notificationService";
 import { ensureHealthSyncSchema } from "./services/healthSyncService";
+import { installProcessErrorHandlers, requestObservability, structuredLog } from "./observability/logger";
+import { getReadiness, markApplicationNotReady, markApplicationReady } from "./services/readinessService";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
 
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
+app.use(requestObservability);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
@@ -71,6 +74,7 @@ app.use("/api/v1", (_req, res, next) => {
 });
 
 app.use("/api/v1", healthRouter);
+app.use("/api/v1", requireApplicationReady);
 app.use("/api/v1", jobsRouter);
 app.use("/api/v1", authRouter);
 app.use("/api/v1", meRouter);
@@ -99,21 +103,40 @@ app.use("/api/v1", athleteRouter);
 app.use("/api/v1", bodyCompositionRouter);
 app.use(errorHandler);
 
-Promise.all([
-  ensureAiUsageSchema(),
-  ensureUserProfileSchema(),
-  ensureWaitlistSchema(),
-  ensureSubscriptionSchema(),
-  ensureNotificationSchema(),
-  ensureCoachPresenceSchema(),
-  ensureAscendMemorySchema(),
-  ensureHealthSyncSchema()
-])
-  .catch((error) => {
-    console.error("Schema setup failed", error);
-  })
-  .finally(() => {
-    app.listen(env.PORT, () => {
-      console.log(`Ascend API listening on ${env.PORT}`);
+export async function initializeRequiredSchemas() {
+  await Promise.all([
+    ensureAiUsageSchema(),
+    ensureUserProfileSchema(),
+    ensureWaitlistSchema(),
+    ensureSubscriptionSchema(),
+    ensureNotificationSchema(),
+    ensureCoachPresenceSchema(),
+    ensureAscendMemorySchema(),
+    ensureHealthSyncSchema()
+  ]);
+}
+
+export async function startServer() {
+  markApplicationNotReady();
+  structuredLog("info", "server_initialization_started", { port: env.PORT, environment: env.NODE_ENV });
+  try {
+    await initializeRequiredSchemas();
+    markApplicationReady();
+    const readiness = await getReadiness({ fresh: true });
+    if (!readiness.ready) throw new Error(`Required database schema is not ready: ${readiness.reason}`);
+    return app.listen(env.PORT, () => {
+      structuredLog("info", "server_listening", { port: env.PORT, environment: env.NODE_ENV });
     });
+  } catch (error) {
+    markApplicationNotReady();
+    structuredLog("error", "server_initialization_failed", { error });
+    throw error;
+  }
+}
+
+if (require.main === module) {
+  installProcessErrorHandlers();
+  startServer().catch(() => {
+    process.exit(1);
   });
+}

@@ -6,6 +6,7 @@ import { calculateComplianceScore } from "../domain/compliance";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { canManageClient } from "../services/clientAccessService";
 import { calculateAndStoreMomentumV2 } from "../services/momentumV2Service";
+import { userDayUtcBounds, userLocalDateKey } from "../utils/userTime";
 
 export const complianceRouter = Router();
 
@@ -28,18 +29,20 @@ complianceRouter.get("/compliance/today", requireAuth, async (req, res) => {
       }
     });
   }
+  const day = userDayUtcBounds(new Date(), req.user!.timezone);
+  const weekStart = dateKeyDaysAgo(day.dateKey, 6);
   const [food, weight, water, habits] = await Promise.all([
     query<{ count: string }>(
-      "select count(*) from food_logs where user_id = $1 and logged_at::date = current_date",
-      [req.user!.id]
+      "select count(*) from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3",
+      [req.user!.id, day.start, day.end]
     ),
     query<{ count: string }>(
-      "select count(*) from weight_logs where user_id = $1 and logged_at::date >= current_date - interval '6 days'",
-      [req.user!.id]
+      "select count(*) from weight_logs where user_id = $1 and (logged_at at time zone $2)::date >= $3::date",
+      [req.user!.id, req.user!.timezone, weekStart]
     ),
     query<{ total_ml: string | null }>(
-      "select coalesce(sum(amount_ml), 0) as total_ml from water_logs where user_id = $1 and logged_at::date = current_date",
-      [req.user!.id]
+      "select coalesce(sum(amount_ml), 0) as total_ml from water_logs where user_id = $1 and logged_at >= $2 and logged_at < $3",
+      [req.user!.id, day.start, day.end]
     ),
     query<{ assigned: string; completed: string }>(
       `
@@ -49,10 +52,10 @@ complianceRouter.get("/compliance/today", requireAuth, async (req, res) => {
       from habits h
       left join habit_logs hl on hl.habit_id = h.id
         and hl.user_id = h.user_id
-        and hl.logged_at::date = current_date
+        and hl.logged_at >= $2 and hl.logged_at < $3
       where h.user_id = $1 and h.active = true
       `,
-      [req.user!.id]
+      [req.user!.id, day.start, day.end]
     )
   ]);
 
@@ -70,7 +73,7 @@ complianceRouter.get("/compliance/today", requireAuth, async (req, res) => {
     insert into compliance_scores (
       user_id, score, food_score, weight_score, water_score, habit_score, calculated_for_date
     )
-    values ($1, $2, $3, $4, $5, $6, current_date)
+    values ($1, $2, $3, $4, $5, $6, $7::date)
     on conflict (user_id, calculated_for_date)
     do update set
       score = excluded.score,
@@ -81,7 +84,7 @@ complianceRouter.get("/compliance/today", requireAuth, async (req, res) => {
       created_at = now()
     returning *
     `,
-    [req.user!.id, score.totalScore, score.foodScore, score.weightScore, score.waterScore, score.habitScore]
+    [req.user!.id, score.totalScore, score.foodScore, score.weightScore, score.waterScore, score.habitScore, day.dateKey]
   );
 
   res.json({ compliance: result.rows[0] });
@@ -107,49 +110,49 @@ const recoveryCheckinSchema = z.object({
 });
 
 complianceRouter.get("/recovery-checkins/today", requireAuth, async (req, res) => {
+  const today = userLocalDateKey(new Date(), req.user!.timezone);
   const result = await query(
-    "select * from recovery_checkins where user_id = $1 and checkin_date = current_date limit 1",
-    [req.user!.id]
+    "select * from recovery_checkins where user_id = $1 and checkin_date = $2::date limit 1",
+    [req.user!.id, today]
   );
   res.json({ checkin: result.rows[0] ?? null });
 });
 
 complianceRouter.post("/recovery-checkins", requireAuth, async (req, res) => {
   const input = recoveryCheckinSchema.parse(req.body);
+  const today = userLocalDateKey(new Date(), req.user!.timezone);
   const result = await query(
     `
     insert into recovery_checkins (user_id, checkin_date, sleep_quality)
-    values ($1, current_date, $2)
+    values ($1, $2::date, $3)
     on conflict (user_id, checkin_date) do update set sleep_quality = excluded.sleep_quality, updated_at = now()
     returning *
     `,
-    [req.user!.id, input.sleepQuality]
+    [req.user!.id, today, input.sleepQuality]
   );
   if (env.MOMENTUM_V2) await calculateAndStoreMomentumV2(req.user!.id);
   res.status(201).json({ checkin: result.rows[0] });
 });
 
 complianceRouter.get("/streaks/me", requireAuth, async (req, res) => {
+  const todayKey = userLocalDateKey(new Date(), req.user!.timezone);
   const result = await query<{ activity_date: string }>(
     `
     select distinct to_char(activity_date::date, 'YYYY-MM-DD') as activity_date
     from (
-      select logged_at::date as activity_date from food_logs where user_id = $1
-      union all select logged_at::date from weight_logs where user_id = $1
-      union all select logged_at::date from water_logs where user_id = $1
-      union all select logged_at::date from habit_logs where user_id = $1 and completed = true
-      union all select created_at::date from analytics_events where user_id = $1 and event_name = 'burn_log'
-      union all select completed_at::date from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at is not null
+      select (logged_at at time zone $2)::date as activity_date from food_logs where user_id = $1
+      union all select (logged_at at time zone $2)::date from weight_logs where user_id = $1
+      union all select (logged_at at time zone $2)::date from water_logs where user_id = $1
+      union all select (logged_at at time zone $2)::date from habit_logs where user_id = $1 and completed = true
+      union all select (created_at at time zone $2)::date from analytics_events where user_id = $1 and event_name = 'burn_log'
+      union all select (completed_at at time zone $2)::date from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at is not null
     ) activity
-    where activity_date >= current_date - interval '120 days'
+    where activity_date >= $3::date - interval '120 days'
     order by activity_date desc
     `,
-    [req.user!.id]
+    [req.user!.id, req.user!.timezone, todayKey]
   );
-
-  const todayResult = await query<{ today: string }>("select to_char(current_date, 'YYYY-MM-DD') as today");
   const activeDays = new Set(result.rows.map((row) => row.activity_date));
-  const todayKey = todayResult.rows[0]?.today ?? new Date().toISOString().slice(0, 10);
   let currentStreak = 0;
 
   for (let index = 0; index < 120; index += 1) {

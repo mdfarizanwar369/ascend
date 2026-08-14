@@ -4,6 +4,7 @@ import { getFirebaseMessaging } from "../integrations/firebase";
 import { getHealthSyncSummary } from "./healthSyncService";
 import { resolveNutritionTargets } from "./nutritionTargetService";
 import { env } from "../config/env";
+import { normalizeTimeZone, userDayUtcBounds, userLocalDateKey } from "../utils/userTime";
 
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
 
@@ -222,27 +223,25 @@ function dateKeyDaysAgo(todayKey: string, daysAgo: number) {
   return date.toISOString().slice(0, 10);
 }
 
-async function getCurrentStreak(userId: string) {
+async function getCurrentStreak(userId: string, timeZone: string, todayKey: string) {
   const result = await query<{ activity_date: string }>(
     `
     select distinct to_char(activity_date::date, 'YYYY-MM-DD') as activity_date
     from (
-      select logged_at::date as activity_date from food_logs where user_id = $1
-      union all select logged_at::date from weight_logs where user_id = $1
-      union all select logged_at::date from water_logs where user_id = $1
-      union all select logged_at::date from habit_logs where user_id = $1 and completed = true
-      union all select created_at::date from analytics_events where user_id = $1 and event_name = 'burn_log'
-      union all select completed_at::date from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at is not null
+      select (logged_at at time zone $2)::date as activity_date from food_logs where user_id = $1
+      union all select (logged_at at time zone $2)::date from weight_logs where user_id = $1
+      union all select (logged_at at time zone $2)::date from water_logs where user_id = $1
+      union all select (logged_at at time zone $2)::date from habit_logs where user_id = $1 and completed = true
+      union all select (created_at at time zone $2)::date from analytics_events where user_id = $1 and event_name = 'burn_log'
+      union all select (completed_at at time zone $2)::date from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at is not null
     ) activity
-    where activity_date >= current_date - interval '120 days'
+    where activity_date >= $3::date - 120
     order by activity_date desc
     `,
-    [userId]
+    [userId, timeZone, todayKey]
   );
 
-  const todayResult = await query<{ today: string }>("select to_char(current_date, 'YYYY-MM-DD') as today");
   const activeDays = new Set(result.rows.map((row) => row.activity_date));
-  const todayKey = todayResult.rows[0]?.today ?? new Date().toISOString().slice(0, 10);
   let currentStreak = 0;
 
   for (let index = 0; index < 120; index += 1) {
@@ -254,7 +253,7 @@ async function getCurrentStreak(userId: string) {
   return currentStreak;
 }
 
-async function buildProactiveInsightForUser(userId: string, todayKey: string) {
+async function buildProactiveInsightForUser(userId: string, todayKey: string, timeZone: string) {
   const [profileResult, recentFood, recentWater, recentBurns, recentWeights, momentumResult, healthSyncSummary, currentStreakResult, memoryResult, nutritionTargets] = await Promise.all([
     query<{
       goal_type: "fat_loss" | "muscle_gain" | "maintenance" | null;
@@ -275,26 +274,26 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
     query<{ logged_date: string; calories: string | number; protein_g: string | number; meal_count: string | number }>(
       `
       select
-        to_char(logged_at::date, 'YYYY-MM-DD') as logged_date,
+        to_char((logged_at at time zone $2)::date, 'YYYY-MM-DD') as logged_date,
         coalesce(sum(calories), 0) as calories,
         coalesce(sum(protein_g), 0) as protein_g,
         count(*) as meal_count
       from food_logs
       where user_id = $1
-        and logged_at >= current_date - interval '2 days'
-      group by logged_at::date
-      order by logged_at::date desc
+        and (logged_at at time zone $2)::date >= $3::date - 2
+      group by (logged_at at time zone $2)::date
+      order by (logged_at at time zone $2)::date desc
       `,
-      [userId]
+      [userId, timeZone, todayKey]
     ),
     query<{ water_today_ml: string | number }>(
       `
       select coalesce(sum(amount_ml), 0) as water_today_ml
       from water_logs
       where user_id = $1
-        and logged_at::date = current_date
+        and (logged_at at time zone $2)::date = $3::date
       `,
-      [userId]
+      [userId, timeZone, todayKey]
     ),
     query<{ metadata: Record<string, unknown> | null; created_at: string }>(
       `
@@ -328,7 +327,7 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
       [userId]
     ),
     getHealthSyncSummary(userId),
-    getCurrentStreak(userId),
+    getCurrentStreak(userId, timeZone, todayKey),
     query<{ title: string }>(
       `
       select title
@@ -349,8 +348,10 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
   const lowCaloriesDays3 = recent3Keys.filter((key) => Number(foodByDate.get(key)?.meal_count ?? 0) > 0 && Number(foodByDate.get(key)?.calories ?? 0) < nutritionTargets.calories * 0.65).length;
   const todayFood = foodByDate.get(todayKey);
   const latestBurn = recentBurns.rows[0] ?? null;
-  const latestBurnAt = latestBurn ? new Date(latestBurn.created_at).getTime() : null;
-  const daysSinceWorkout = latestBurnAt ? Math.max(0, Math.floor((Date.now() - latestBurnAt) / 86_400_000)) : null;
+  const latestBurnDateKey = latestBurn ? userLocalDateKey(new Date(latestBurn.created_at), timeZone) : null;
+  const daysSinceWorkout = latestBurnDateKey
+    ? Math.max(0, Math.round((Date.parse(`${todayKey}T00:00:00Z`) - Date.parse(`${latestBurnDateKey}T00:00:00Z`)) / 86_400_000))
+    : null;
   const latestWeight = recentWeights.rows[0] ? Number(recentWeights.rows[0].weight_kg) : null;
   const previousWeight = recentWeights.rows[1] ? Number(recentWeights.rows[1].weight_kg) : null;
   const currentMomentum = momentumResult.rows[0] ? Number(momentumResult.rows[0].score) : null;
@@ -384,8 +385,8 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
               : typeof latestBurn.metadata?.activityType === "string"
                 ? latestBurn.metadata.activityType
                 : null,
-          completedToday: latestBurn.created_at.slice(0, 10) === todayKey,
-          completedYesterday: latestBurn.created_at.slice(0, 10) === dateKeyDaysAgo(todayKey, 1)
+          completedToday: latestBurnDateKey === todayKey,
+          completedYesterday: latestBurnDateKey === dateKeyDaysAgo(todayKey, 1)
         }
       : null,
     healthSync: healthSyncSummary
@@ -410,9 +411,9 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
 }
 
 export async function runCoachNotificationJob(limit = 500) {
-  const users = await query<{ id: string }>(
+  const users = await query<{ id: string; timezone: string | null }>(
     `
-    select distinct u.id
+    select distinct u.id, u.timezone
     from users u
     join notification_devices nd on nd.user_id = u.id and nd.enabled = true
     where u.status = 'active'
@@ -424,7 +425,9 @@ export async function runCoachNotificationJob(limit = 500) {
 
   let sent = 0;
   for (const user of users.rows) {
-    const todayKey = new Date().toISOString().slice(0, 10);
+    const timeZone = normalizeTimeZone(user.timezone);
+    const day = userDayUtcBounds(new Date(), timeZone);
+    const todayKey = day.dateKey;
     const [events, sentTodayResult, openedTodayResult, foodTodayResult, weeklyReflectionResult, proactiveInsight, nutritionTargets] = await Promise.all([
       buildDnaEvents(user.id),
       query<{
@@ -438,28 +441,28 @@ export async function runCoachNotificationJob(limit = 500) {
           count(*) filter (where notification_type = 'celebration') as celebration,
           count(*) filter (where notification_type in ('trainer_message', 'trainer_praise', 'trainer_mission', 'trainer_nutrition_plan')) as trainer_message
         from notification_events
-        where user_id = $1 and created_at >= current_date
+        where user_id = $1 and created_at >= $2::timestamptz and created_at < $3::timestamptz
         `,
-        [user.id]
+        [user.id, day.start.toISOString(), day.end.toISOString()]
       ),
       query<{ opened: string }>(
-        "select count(*) as opened from analytics_events where user_id = $1 and event_name = 'screen_open' and created_at >= current_date",
-        [user.id]
+        "select count(*) as opened from analytics_events where user_id = $1 and event_name = 'screen_open' and created_at >= $2::timestamptz and created_at < $3::timestamptz",
+        [user.id, day.start.toISOString(), day.end.toISOString()]
       ),
       query<{ food_count: string; protein_g: string; water_ml: string }>(
         `
         select
-          (select count(*) from food_logs where user_id = $1 and logged_at >= current_date) as food_count,
-          (select coalesce(sum(protein_g), 0) from food_logs where user_id = $1 and logged_at >= current_date) as protein_g,
-          (select coalesce(sum(amount_ml), 0) from water_logs where user_id = $1 and logged_at >= current_date) as water_ml
+          (select count(*) from food_logs where user_id = $1 and logged_at >= $2::timestamptz and logged_at < $3::timestamptz) as food_count,
+          (select coalesce(sum(protein_g), 0) from food_logs where user_id = $1 and logged_at >= $2::timestamptz and logged_at < $3::timestamptz) as protein_g,
+          (select coalesce(sum(amount_ml), 0) from water_logs where user_id = $1 and logged_at >= $2::timestamptz and logged_at < $3::timestamptz) as water_ml
         `,
-        [user.id]
+        [user.id, day.start.toISOString(), day.end.toISOString()]
       ),
       query<{ report_count: string }>(
         "select count(*) as report_count from weekly_reports where user_id = $1 and created_at >= now() - interval '7 days'",
         [user.id]
       ),
-      buildProactiveInsightForUser(user.id, todayKey).catch(() => null),
+      buildProactiveInsightForUser(user.id, todayKey, timeZone).catch(() => null),
       resolveNutritionTargets(user.id)
     ]);
     const now = new Date();

@@ -4,13 +4,15 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { requireFirebaseToken } from "../middleware/auth";
 import { authRateLimit } from "../middleware/rateLimits";
+import { isValidTimeZone, normalizeTimeZone } from "../utils/userTime";
 
 export const authRouter = Router();
 
 const provisionSchema = z.object({
   fullName: z.string().min(2).optional(),
   referralCode: z.string().optional(),
-  primaryRole: z.enum(["client", "trainer"]).default("client")
+  primaryRole: z.enum(["client", "trainer"]).default("client"),
+  timezone: z.string().trim().min(1).max(80).refine(isValidTimeZone, "Invalid IANA timezone").optional()
 });
 
 type ProvisionUserRow = {
@@ -29,6 +31,7 @@ export async function upsertProvisionedUser(options: {
   primaryRole: "client" | "trainer" | "owner";
   referredByGymId: string | null;
   referredByTrainerId: string | null;
+  timezone?: string | null;
 }) {
   const existingByFirebaseUid = await query<ProvisionUserRow>(
     "select id, firebase_uid, email from users where firebase_uid = $1 limit 1",
@@ -61,6 +64,7 @@ export async function upsertProvisionedUser(options: {
             when coalesce($7, assigned_trainer_id) is not null then 'human_coach'
             else coaching_mode
           end,
+          timezone = coalesce($10, timezone),
           updated_at = now()
       where id = $1
       returning *
@@ -74,7 +78,8 @@ export async function upsertProvisionedUser(options: {
         options.gymId,
         options.assignedTrainerId,
         options.referredByGymId,
-        options.referredByTrainerId
+        options.referredByTrainerId,
+        options.timezone ? normalizeTimeZone(options.timezone) : null
       ]
     );
 
@@ -85,9 +90,9 @@ export async function upsertProvisionedUser(options: {
     `
     insert into users (
       firebase_uid, email, full_name, primary_role, gym_id, assigned_trainer_id,
-      referred_by_gym_id, referred_by_trainer_id, coaching_mode
+      referred_by_gym_id, referred_by_trainer_id, coaching_mode, timezone
     )
-    values ($1, $2, $3, $4, $5, $6, $7, $8, case when $6::uuid is not null then 'human_coach' else 'self_coached' end)
+    values ($1, $2, $3, $4, $5, $6, $7, $8, case when $6::uuid is not null then 'human_coach' else 'self_coached' end, $9)
     returning *
     `,
     [
@@ -98,7 +103,8 @@ export async function upsertProvisionedUser(options: {
       options.gymId,
       options.assignedTrainerId,
       options.referredByGymId,
-      options.referredByTrainerId
+      options.referredByTrainerId,
+      options.timezone ? normalizeTimeZone(options.timezone) : null
     ]
   );
 
@@ -140,7 +146,8 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
       isBootstrapOwner,
       primaryRole,
       referredByGymId: referralRow?.gym_id ?? null,
-      referredByTrainerId: referralRow?.trainer_id ?? null
+      referredByTrainerId: referralRow?.trainer_id ?? null,
+      timezone: input.timezone ?? null
     });
 
     if (isBootstrapOwner) {

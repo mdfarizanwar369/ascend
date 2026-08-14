@@ -12,6 +12,8 @@ import {
   timeFoodAiSyncStage
 } from "../services/foodAiPerformance";
 import { buildWorkoutCapturePrompt, createFallbackWorkoutCapture, normalizeWorkoutCaptureResponse } from "../services/workoutCaptureService";
+import { loadSafeRemoteImage } from "../security/safeRemoteImage";
+import { validateImageBuffer, validateImageDataUrl } from "../utils/images";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -644,20 +646,17 @@ function dataUrlToGeminiPart(imageUrl: string): GeminiPart | null {
 async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
   const dataUrlPart = dataUrlToGeminiPart(imageUrl);
   if (dataUrlPart) return dataUrlPart;
+  throw new Error("Food image must be validated before Gemini analysis.");
+}
 
-  const response = await fetch(imageUrl);
-  if (!response.ok) {
-    throw new Error("Could not fetch image for Gemini analysis.");
+async function normalizeFoodImageInput(imageUrl: string) {
+  if (imageUrl.startsWith("data:image/")) {
+    await validateImageDataUrl(imageUrl);
+    return imageUrl;
   }
-
-  const contentType = response.headers.get("content-type") ?? "image/jpeg";
-  const buffer = Buffer.from(await response.arrayBuffer());
-  return {
-    inlineData: {
-      mimeType: contentType,
-      data: buffer.toString("base64")
-    }
-  };
+  const remote = await loadSafeRemoteImage(imageUrl);
+  const validated = await validateImageBuffer(remote.buffer, remote.contentType);
+  return `data:${validated.contentType};base64,${validated.buffer.toString("base64")}`;
 }
 
 async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodAiPerformanceTrace | null) {
@@ -892,8 +891,9 @@ export async function estimateFoodFromImage(
   imageUrl: string,
   context: { userId?: string | null; gymId?: string | null; performanceTrace?: FoodAiPerformanceTrace | null } = {}
 ): Promise<FoodEstimate> {
+  const validatedImageUrl = await timeFoodAiStage(context.performanceTrace, "Image security validation", () => normalizeFoodImageInput(imageUrl));
   const imageHash = timeFoodAiSyncStage(context.performanceTrace, "Image hash calculation", () =>
-    imageUrl.startsWith("data:image/") ? imageHashFromDataUrl(imageUrl) : null
+    imageHashFromDataUrl(validatedImageUrl)
   );
   if (imageHash) {
     const cached = await timeFoodAiStage(context.performanceTrace, "Cache lookup", () => getCachedFoodEstimate(imageHash));
@@ -930,9 +930,9 @@ export async function estimateFoodFromImage(
   try {
     const rawEstimate =
       env.AI_PROVIDER === "gemini"
-        ? await estimateFoodWithGemini(imageUrl, context.performanceTrace)
+        ? await estimateFoodWithGemini(validatedImageUrl, context.performanceTrace)
         : env.AI_PROVIDER === "openai"
-          ? await estimateFoodWithOpenAI(imageUrl)
+          ? await estimateFoodWithOpenAI(validatedImageUrl)
           : {
               ...demoFoodEstimate(),
               notes: "Starter estimate. Live AI image analysis is temporarily unavailable."

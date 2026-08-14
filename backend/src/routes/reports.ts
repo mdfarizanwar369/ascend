@@ -5,6 +5,7 @@ import { requireActivePlan } from "../middleware/subscription";
 import { bodyCompositionScanFromDb, buildBodyCompositionSummary } from "../services/bodyCompositionService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { env } from "../config/env";
+import { userLocalDateKey } from "../utils/userTime";
 
 export const reportsRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -29,6 +30,17 @@ function goalLabel(goal?: string | null) {
   if (goal === "muscle_gain") return "muscle gain";
   if (goal === "maintenance") return "maintenance";
   return "your goal";
+}
+
+function currentLocalWeek(timeZone: string) {
+  const todayKey = userLocalDateKey(new Date(), timeZone);
+  const today = new Date(`${todayKey}T00:00:00Z`);
+  const daysSinceMonday = (today.getUTCDay() + 6) % 7;
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() - daysSinceMonday);
+  const sunday = new Date(monday);
+  sunday.setUTCDate(monday.getUTCDate() + 6);
+  return { weekStart: monday.toISOString().slice(0, 10), weekEnd: sunday.toISOString().slice(0, 10), todayKey };
 }
 
 function weeklyFocus(stats: Record<string, unknown>, athleteLine?: string | null) {
@@ -120,15 +132,16 @@ function deterministicWeeklySummary(input: {
 
 reportsRouter.get("/reports/weekly/current", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
+    const { weekStart } = currentLocalWeek(req.user!.timezone);
     const result = await query(
       `
       select *
       from weekly_reports
-      where user_id = $1 and week_start = date_trunc('week', now())::date
+      where user_id = $1 and week_start = $2::date
       order by created_at desc
       limit 1
       `,
-      [req.user!.id]
+      [req.user!.id, weekStart]
     );
 
     res.json({ report: result.rows[0] ?? null });
@@ -139,11 +152,7 @@ reportsRouter.get("/reports/weekly/current", requireAuth, requireActivePlan("pre
 
 reportsRouter.post("/reports/weekly/generate", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
-    const week = await query<{ week_start: string; week_end: string }>(
-      "select date_trunc('week', now())::date as week_start, (date_trunc('week', now()) + interval '6 days')::date as week_end"
-    );
-    const weekStart = week.rows[0].week_start;
-    const weekEnd = week.rows[0].week_end;
+    const { weekStart, weekEnd, todayKey } = currentLocalWeek(req.user!.timezone);
 
     const context = await query(
       `
@@ -170,11 +179,11 @@ reportsRouter.post("/reports/weekly/generate", requireAuth, requireActivePlan("p
         coalesce(burn.workout_sessions, 0) as workout_sessions
       from users u
       left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
-      left join ${momentumScoreTable} cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+      left join ${momentumScoreTable} cs on cs.user_id = u.id and cs.calculated_for_date = $4::date
       left join lateral (
-        select count(*) as food_logs, count(distinct logged_at::date) as food_days, coalesce(sum(calories), 0) as calories, coalesce(sum(protein_g), 0) as protein_g
+        select count(*) as food_logs, count(distinct (logged_at at time zone $5)::date) as food_days, coalesce(sum(calories), 0) as calories, coalesce(sum(protein_g), 0) as protein_g
         from food_logs
-        where user_id = u.id and logged_at::date between $2::date and $3::date
+        where user_id = u.id and (logged_at at time zone $5)::date between $2::date and $3::date
       ) food on true
       left join lateral (
         select count(*) as weight_logs,
@@ -183,26 +192,26 @@ reportsRouter.post("/reports/weekly/generate", requireAuth, requireActivePlan("p
           min(weight_kg) as lowest_weight_kg,
           max(weight_kg) as highest_weight_kg
         from weight_logs
-        where user_id = u.id and logged_at::date between $2::date and $3::date
+        where user_id = u.id and (logged_at at time zone $5)::date between $2::date and $3::date
       ) weight on true
       left join lateral (
-        select coalesce(sum(amount_ml), 0) as water_ml, count(distinct logged_at::date) as water_days
+        select coalesce(sum(amount_ml), 0) as water_ml, count(distinct (logged_at at time zone $5)::date) as water_days
         from water_logs
-        where user_id = u.id and logged_at::date between $2::date and $3::date
+        where user_id = u.id and (logged_at at time zone $5)::date between $2::date and $3::date
       ) water on true
       left join lateral (
         select count(*) filter (where completed = true) as completed_habits
         from habit_logs
-        where user_id = u.id and logged_at::date between $2::date and $3::date
+        where user_id = u.id and (logged_at at time zone $5)::date between $2::date and $3::date
       ) habits on true
       left join lateral (
         select coalesce(sum((metadata->>'caloriesBurned')::int), 0) as burn_calories, count(*) as workout_sessions
         from analytics_events
-        where user_id = u.id and event_name = 'burn_log' and created_at::date between $2::date and $3::date
+        where user_id = u.id and event_name = 'burn_log' and (created_at at time zone $5)::date between $2::date and $3::date
       ) burn on true
       where u.id = $1
       `,
-      [req.user!.id, weekStart, weekEnd]
+      [req.user!.id, weekStart, weekEnd, todayKey, req.user!.timezone]
     );
 
     const stats = context.rows[0] ?? {};

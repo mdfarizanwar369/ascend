@@ -151,9 +151,22 @@ async function authed<T>(path: string, options: RequestInit = {}) {
     }
     if (!shouldRefreshToken(error)) throw error;
     if (shouldLogBodyCompositionSave) console.info("[body-composition-save] Retrying with refreshed token", { path });
-    const response = await api<T>(path, options, await getFirebaseToken(true));
-    traceApi(`${path} retry`, startedAt, { method: options.method ?? "GET" });
-    return response;
+    try {
+      const response = await api<T>(path, options, await getFirebaseToken(true));
+      traceApi(`${path} retry`, startedAt, { method: options.method ?? "GET" });
+      return response;
+    } catch (retryError) {
+      if (shouldRefreshToken(retryError) && typeof window !== "undefined") {
+        const [{ clearLocalAscendSession }, { loginUrlFor }] = await Promise.all([
+          import("./authSession"),
+          import("./authReturn")
+        ]);
+        const destination = loginUrlFor(window.location.pathname, window.location.search);
+        await clearLocalAscendSession();
+        window.location.replace(destination);
+      }
+      throw retryError;
+    }
   }
 }
 
@@ -803,24 +816,10 @@ export function saveCompletedWorkout(input: {
   });
 }
 
-export function requestFoodUploadUrl(contentType: string) {
-  return authed<{ uploadUrl: string; key: string; storageConfigured?: boolean }>("/food-logs/photo-upload-url", {
-    method: "POST",
-    body: JSON.stringify({ contentType })
-  });
-}
-
 export function uploadFoodPhotoDataUrl(imageDataUrl: string) {
   return authed<{ key: string; storageConfigured?: boolean }>("/food-logs/photo-upload-data-url", {
     method: "POST",
     body: JSON.stringify({ imageDataUrl })
-  });
-}
-
-export function requestProgressUploadUrl(contentType: string) {
-  return authed<{ uploadUrl: string; key: string; storageConfigured?: boolean }>("/progress-photos/upload-url", {
-    method: "POST",
-    body: JSON.stringify({ contentType })
   });
 }
 

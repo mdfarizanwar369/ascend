@@ -1,5 +1,6 @@
 import { query } from "../db/pool";
 import { env } from "../config/env";
+import { normalizeTimeZone, userLocalDateKey } from "../utils/userTime";
 
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
 
@@ -26,6 +27,7 @@ type UserCoachPresenceContext = {
   last_trainer_praise_at: string | null;
   pause_until: string | null;
   style: CoachPresenceStyle | null;
+  timezone: string | null;
 };
 
 type UserCoachPresenceStats = {
@@ -108,14 +110,10 @@ function localHour(timeZone = "Asia/Kuala_Lumpur") {
   return Number(value);
 }
 
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 async function getContext(userId: string): Promise<UserCoachPresenceContext | null> {
   const result = await query<UserCoachPresenceContext>(
     `
-    select u.id as user_id, u.full_name,
+    select u.id as user_id, u.full_name, coalesce(u.timezone, g.timezone, 'Asia/Kuala_Lumpur') as timezone,
       coalesce(active_subscription.plan::text, 'free') as current_plan,
       active_subscription.status as subscription_status,
       coalesce(athlete_profile.enabled, false) as athlete_mode_enabled,
@@ -124,6 +122,7 @@ async function getContext(userId: string): Promise<UserCoachPresenceContext | nu
       settings.pause_until,
       settings.style
     from users u
+    left join gyms g on g.id = u.gym_id
     left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
     left join coach_presence_settings settings on settings.user_id = u.id
     left join lateral (
@@ -156,44 +155,44 @@ async function getContext(userId: string): Promise<UserCoachPresenceContext | nu
   return result.rows[0] ?? null;
 }
 
-async function getStats(userId: string): Promise<UserCoachPresenceStats> {
+async function getStats(userId: string, timeZone: string): Promise<UserCoachPresenceStats> {
   const result = await query<UserCoachPresenceStats>(
     `
     select
-      (select count(*) from food_logs where user_id = $1 and logged_at::date = current_date) as food_today,
-      (select count(distinct logged_at::date) from food_logs where user_id = $1 and logged_at >= current_date - interval '6 days') as food_days_7,
-      (select coalesce(sum(amount_ml), 0) from water_logs where user_id = $1 and logged_at::date = current_date) as water_today_ml,
-      (select count(*) from analytics_events where user_id = $1 and event_name = 'burn_log' and created_at >= current_date - interval '6 days') as workouts_7,
-      (select count(*) from habit_logs where user_id = $1 and logged_at::date = current_date and completed = true) as habits_today,
+      (select count(*) from food_logs where user_id = $1 and (logged_at at time zone $2)::date = (now() at time zone $2)::date) as food_today,
+      (select count(distinct (logged_at at time zone $2)::date) from food_logs where user_id = $1 and (logged_at at time zone $2)::date >= (now() at time zone $2)::date - 6) as food_days_7,
+      (select coalesce(sum(amount_ml), 0) from water_logs where user_id = $1 and (logged_at at time zone $2)::date = (now() at time zone $2)::date) as water_today_ml,
+      (select count(*) from analytics_events where user_id = $1 and event_name = 'burn_log' and (created_at at time zone $2)::date >= (now() at time zone $2)::date - 6) as workouts_7,
+      (select count(*) from habit_logs where user_id = $1 and (logged_at at time zone $2)::date = (now() at time zone $2)::date and completed = true) as habits_today,
       (
-        select count(distinct activity_at::date)
+        select count(distinct (activity_at at time zone $2)::date)
         from (
-          select logged_at as activity_at from food_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
-          union all select logged_at from weight_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
-          union all select logged_at from water_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
-          union all select logged_at from habit_logs where user_id = $1 and logged_at >= current_date - interval '6 days'
-          union all select created_at from analytics_events where user_id = $1 and event_name = 'burn_log' and created_at >= current_date - interval '6 days'
+          select logged_at as activity_at from food_logs where user_id = $1 and (logged_at at time zone $2)::date >= (now() at time zone $2)::date - 6
+          union all select logged_at from weight_logs where user_id = $1 and (logged_at at time zone $2)::date >= (now() at time zone $2)::date - 6
+          union all select logged_at from water_logs where user_id = $1 and (logged_at at time zone $2)::date >= (now() at time zone $2)::date - 6
+          union all select logged_at from habit_logs where user_id = $1 and (logged_at at time zone $2)::date >= (now() at time zone $2)::date - 6
+          union all select created_at from analytics_events where user_id = $1 and event_name = 'burn_log' and (created_at at time zone $2)::date >= (now() at time zone $2)::date - 6
         ) activity
       ) as activity_days_7,
       (select score from ${momentumScoreTable} where user_id = $1 order by calculated_for_date desc limit 1) as latest_score,
       (select score from ${momentumScoreTable} where user_id = $1 order by calculated_for_date desc offset 1 limit 1) as previous_score,
       (select created_at from body_composition_scans where user_id = $1 and user_confirmed = true order by scan_date desc, created_at desc limit 1) as latest_scan_at
     `,
-    [userId]
+    [userId, timeZone]
   );
   return result.rows[0];
 }
 
-async function withinFrequencyLimit(userId: string) {
+async function withinFrequencyLimit(userId: string, timeZone: string) {
   const result = await query<{ today_count: string | number; latest_at: string | null }>(
     `
     select
-      count(*) filter (where created_at::date = current_date) as today_count,
+      count(*) filter (where (created_at at time zone $2)::date = (now() at time zone $2)::date) as today_count,
       max(created_at) as latest_at
     from coach_presence_messages
     where user_id = $1
     `,
-    [userId]
+    [userId, timeZone]
   );
   const row = result.rows[0];
   if (Number(row?.today_count ?? 0) >= 3) return false;
@@ -211,7 +210,7 @@ function pickMessage(input: {
   stats: UserCoachPresenceStats;
 }): { message: string; tone: string; dedupeKey: string } | null {
   const { trigger, context, stats } = input;
-  const key = todayKey();
+  const key = userLocalDateKey(new Date(), normalizeTimeZone(context.timezone));
   const foodToday = Number(stats.food_today ?? 0);
   const foodDays7 = Number(stats.food_days_7 ?? 0);
   const waterTodayMl = Number(stats.water_today_ml ?? 0);
@@ -297,11 +296,12 @@ export async function createCoachPresenceForEvent(userId: string, trigger: Coach
   const context = await getContext(userId);
   if (!context || !activePaidPlan(context)) return null;
   if (context.pause_until && new Date(context.pause_until).getTime() > Date.now()) return null;
-  if (localHour() >= 22 || localHour() < 8) return null;
+  const timeZone = normalizeTimeZone(context.timezone);
+  if (localHour(timeZone) >= 22 || localHour(timeZone) < 8) return null;
   if (trigger !== "trainer_praise" && trainerRecentlyPresent(context)) return null;
-  if (!await withinFrequencyLimit(userId)) return null;
+  if (!await withinFrequencyLimit(userId, timeZone)) return null;
 
-  const stats = await getStats(userId);
+  const stats = await getStats(userId, timeZone);
   const candidate = pickMessage({ trigger, context, stats });
   if (!candidate) return null;
   if ((context.style ?? "balanced") === "minimal" && !["celebration", "athlete"].includes(candidate.tone) && trigger !== "trainer_praise") return null;
@@ -340,7 +340,7 @@ export async function getCoachPresenceFeed(userId: string) {
     [userId]
   );
   const momentumMessages = result.rows.some((message) => String(message.dedupe_key ?? "").startsWith("momentum-improved:"));
-  const stats = momentumMessages ? await getStats(userId) : null;
+  const stats = momentumMessages ? await getStats(userId, normalizeTimeZone(context.timezone)) : null;
   const latestScore = stats?.latest_score === null || stats?.latest_score === undefined ? null : Number(stats.latest_score);
   const previousScore = stats?.previous_score === null || stats?.previous_score === undefined ? null : Number(stats.previous_score);
   const currentMomentumIsImproving =

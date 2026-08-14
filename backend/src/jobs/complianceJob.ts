@@ -2,37 +2,42 @@ import { calculateComplianceScore } from "../domain/compliance";
 import { query } from "../db/pool";
 import { env } from "../config/env";
 import { calculateAndStoreMomentumV2 } from "../services/momentumV2Service";
+import { normalizeTimeZone, userDayUtcBounds } from "../utils/userTime";
 
 export async function calculateDailyComplianceScores() {
-  const users = await query<{ id: string }>("select id from users where primary_role = 'client' and status = 'active'");
+  const users = await query<{ id: string; timezone: string | null }>(
+    "select u.id, coalesce(u.timezone, g.timezone, 'Asia/Kuala_Lumpur') as timezone from users u left join gyms g on g.id = u.gym_id where u.primary_role = 'client' and u.status = 'active'"
+  );
 
   for (const user of users.rows) {
     if (env.MOMENTUM_V2) {
       await calculateAndStoreMomentumV2(user.id);
       continue;
     }
+    const timezone = normalizeTimeZone(user.timezone);
+    const day = userDayUtcBounds(new Date(), timezone);
     const [food, weight, water, habits] = await Promise.all([
       query<{ count: string }>(
-        "select count(*) from food_logs where user_id = $1 and logged_at::date = current_date",
-        [user.id]
+        "select count(*) from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3",
+        [user.id, day.start, day.end]
       ),
       query<{ count: string }>(
         "select count(*) from weight_logs where user_id = $1 and logged_at > now() - interval '7 days'",
         [user.id]
       ),
       query<{ total: string }>(
-        "select coalesce(sum(amount_ml), 0) as total from water_logs where user_id = $1 and logged_at::date = current_date",
-        [user.id]
+        "select coalesce(sum(amount_ml), 0) as total from water_logs where user_id = $1 and logged_at >= $2 and logged_at < $3",
+        [user.id, day.start, day.end]
       ),
       query<{ assigned: string; completed: string }>(
         `
         select count(h.id) as assigned,
           count(hl.id) filter (where hl.completed = true) as completed
         from habits h
-        left join habit_logs hl on hl.habit_id = h.id and hl.logged_at::date = current_date
+        left join habit_logs hl on hl.habit_id = h.id and hl.logged_at >= $2 and hl.logged_at < $3
         where h.user_id = $1 and h.active = true
         `,
-        [user.id]
+        [user.id, day.start, day.end]
       )
     ]);
 
@@ -48,13 +53,13 @@ export async function calculateDailyComplianceScores() {
     await query(
       `
       insert into compliance_scores (user_id, score, food_score, weight_score, water_score, habit_score, calculated_for_date)
-      values ($1, $2, $3, $4, $5, $6, current_date)
+      values ($1, $2, $3, $4, $5, $6, $7::date)
       on conflict (user_id, calculated_for_date)
       do update set score = excluded.score, food_score = excluded.food_score,
         weight_score = excluded.weight_score, water_score = excluded.water_score,
         habit_score = excluded.habit_score
       `,
-      [user.id, score.totalScore, score.foodScore, score.weightScore, score.waterScore, score.habitScore]
+      [user.id, score.totalScore, score.foodScore, score.weightScore, score.waterScore, score.habitScore, day.dateKey]
     );
   }
 }

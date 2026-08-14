@@ -1,5 +1,6 @@
 import { GoalType } from "@ascend/shared";
 import { query } from "../db/pool";
+import { normalizeTimeZone, userLocalDateKey } from "../utils/userTime";
 
 export interface ProgressComparisonRow {
   goal_type?: GoalType | null;
@@ -78,32 +79,35 @@ export function buildProgressComparison(row: ProgressComparisonRow) {
 }
 
 export async function getProgressComparison(userId: string) {
+  const userResult = await query<{ timezone: string | null }>("select timezone from users where id = $1", [userId]);
+  const timeZone = normalizeTimeZone(userResult.rows[0]?.timezone);
+  const todayKey = userLocalDateKey(new Date(), timeZone);
   const result = await query<ProgressComparisonRow>(
     `
     with activity_dates as (
-      select logged_at::date as activity_date from food_logs where user_id = $1 and logged_at >= current_date - interval '37 days'
-      union select logged_at::date from weight_logs where user_id = $1 and logged_at >= current_date - interval '37 days'
-      union select logged_at::date from water_logs where user_id = $1 and logged_at >= current_date - interval '37 days'
-      union select logged_at::date from habit_logs where user_id = $1 and completed = true and logged_at >= current_date - interval '37 days'
-      union select created_at::date from analytics_events where user_id = $1 and event_name = 'burn_log' and created_at >= current_date - interval '37 days'
-      union select completed_at::date from trainer_missions where client_user_id = $1 and status = 'completed' and completed_at >= current_date - interval '37 days'
+      select (logged_at at time zone $2)::date as activity_date from food_logs where user_id = $1 and (logged_at at time zone $2)::date >= $3::date - 37
+      union select (logged_at at time zone $2)::date from weight_logs where user_id = $1 and (logged_at at time zone $2)::date >= $3::date - 37
+      union select (logged_at at time zone $2)::date from water_logs where user_id = $1 and (logged_at at time zone $2)::date >= $3::date - 37
+      union select (logged_at at time zone $2)::date from habit_logs where user_id = $1 and completed = true and (logged_at at time zone $2)::date >= $3::date - 37
+      union select (created_at at time zone $2)::date from analytics_events where user_id = $1 and event_name = 'burn_log' and (created_at at time zone $2)::date >= $3::date - 37
+      union select (completed_at at time zone $2)::date from trainer_missions where client_user_id = $1 and status = 'completed' and (completed_at at time zone $2)::date >= $3::date - 37
     )
     select u.goal_type,
-      greatest(0, current_date - u.created_at::date) as days_tracked,
+      greatest(0, $3::date - (u.created_at at time zone $2)::date) as days_tracked,
       (select weight_kg from weight_logs where user_id = u.id order by logged_at desc limit 1) as current_weight_kg,
       (select weight_kg from weight_logs
-        where user_id = u.id and logged_at::date between current_date - 45 and current_date - 15
-        order by abs(extract(epoch from (logged_at - (current_date - interval '30 days')))) limit 1) as baseline_weight_kg,
+        where user_id = u.id and (logged_at at time zone $2)::date between $3::date - 45 and $3::date - 15
+        order by abs((logged_at at time zone $2)::date - ($3::date - 30)) limit 1) as baseline_weight_kg,
       (select score from compliance_scores where user_id = u.id order by calculated_for_date desc limit 1) as current_momentum,
       (select score from compliance_scores
-        where user_id = u.id and calculated_for_date between current_date - 37 and current_date - 23
-        order by abs(calculated_for_date - (current_date - 30)) limit 1) as baseline_momentum,
-      (select count(*) from activity_dates where activity_date between current_date - 6 and current_date) as current_checkin_days,
-      (select count(*) from activity_dates where activity_date between current_date - 36 and current_date - 30) as baseline_checkin_days
+        where user_id = u.id and calculated_for_date between $3::date - 37 and $3::date - 23
+        order by abs(calculated_for_date - ($3::date - 30)) limit 1) as baseline_momentum,
+      (select count(*) from activity_dates where activity_date between $3::date - 6 and $3::date) as current_checkin_days,
+      (select count(*) from activity_dates where activity_date between $3::date - 36 and $3::date - 30) as baseline_checkin_days
     from users u
     where u.id = $1
     `,
-    [userId]
+    [userId, timeZone, todayKey]
   );
 
   return buildProgressComparison(result.rows[0] ?? { days_tracked: 0 });

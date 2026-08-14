@@ -22,7 +22,9 @@ export async function generateRiskAlerts() {
     select u.id, u.assigned_trainer_id, u.gym_id, 'low_compliance', 'high',
       u.full_name || ' has low momentum today.'
     from users u
-    join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+    left join gyms g on g.id = u.gym_id
+    join compliance_scores cs on cs.user_id = u.id
+      and cs.calculated_for_date = (now() at time zone coalesce(u.timezone, g.timezone, 'Asia/Kuala_Lumpur'))::date
     where cs.score < 50
       and not exists (
         select 1 from risk_alerts ra where ra.user_id = u.id and ra.type = 'low_compliance' and ra.status = 'open'

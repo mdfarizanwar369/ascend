@@ -27,6 +27,7 @@ import { PublicFooter } from "@/components/legal/PublicFooter";
 import { markInstallEligible } from "@/lib/installAscend";
 import { isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
 import { isNativeAndroidCapacitor } from "@/lib/nativePlatform";
+import { safeReturnPath } from "@/lib/authReturn";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
@@ -235,6 +236,9 @@ export function AuthPanel() {
   const [showTrainerSignup, setShowTrainerSignup] = useState(false);
   const progressiveClientSignup = isProgressiveOnboardingEnabled() && !showTrainerSignup;
   const googleSignInEnabled = process.env.NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED === "true";
+  const requestedReturnPath = typeof window === "undefined"
+    ? null
+    : safeReturnPath(new URLSearchParams(window.location.search).get("returnTo"));
   const firebaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
       process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN &&
@@ -284,7 +288,8 @@ export function AuthPanel() {
     const provisionBody = {
       fullName: user.displayName || undefined,
       referralCode: referralCode.trim() || undefined,
-      primaryRole: "client"
+      primaryRole: "client",
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
     };
     authTrace("/auth/provision request", { body: provisionBody });
 
@@ -332,13 +337,14 @@ export function AuthPanel() {
       return;
     }
     if (profile.user.goal_type && profile.user.starting_weight_kg) {
-      authTrace("Final navigation decision", { destination: "/dashboard", reason: "profile_complete" });
-      router.replace("/dashboard");
+      const destination = requestedReturnPath ?? "/dashboard";
+      authTrace("Final navigation decision", { destination, reason: requestedReturnPath ? "safe_return" : "profile_complete" });
+      router.replace(destination);
       return;
     }
     authTrace("Final navigation decision", { destination: "/onboarding", reason: "profile_incomplete" });
     router.replace("/onboarding");
-  }, [referralCode, router]);
+  }, [referralCode, requestedReturnPath, router]);
 
   useEffect(() => {
     if (!progressiveClientSignup || !googleSignInEnabled || !firebaseConfigured) return;
@@ -496,6 +502,7 @@ export function AuthPanel() {
           method: "POST",
           body: JSON.stringify({
             fullName: mode === "signup" ? normalizedFullName : undefined,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             referralCode: mode === "signup" ? normalizedReferralCode || undefined : undefined,
             primaryRole: mode === "signup" ? effectiveSignupRole : "client"
           })
@@ -515,7 +522,7 @@ export function AuthPanel() {
       }
 
       const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please open Ascend again.");
-      router.replace(roleHome(profile.roles));
+      router.replace(profile.roles.includes("client") && requestedReturnPath ? requestedReturnPath : roleHome(profile.roles));
     } catch (error) {
       setStatus(getFriendlyAuthError(error));
     } finally {

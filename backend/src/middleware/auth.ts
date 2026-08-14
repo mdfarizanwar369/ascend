@@ -4,6 +4,7 @@ import { query } from "../db/pool";
 import { getFirebaseAuth } from "../integrations/firebase";
 import { env } from "../config/env";
 import { createFoodAiTrace, timeFoodAiStage } from "../services/foodAiPerformance";
+import { normalizeTimeZone } from "../utils/userTime";
 
 export interface AuthUser {
   id: string;
@@ -13,6 +14,7 @@ export interface AuthUser {
   primaryRole: Role;
   gymId?: string;
   trainerId?: string;
+  timezone: string;
   isPlatformOwner: boolean;
 }
 
@@ -107,13 +109,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       gym_id?: string;
       trainer_id?: string;
       roles: Role[];
+      timezone?: string | null;
     }>(
       `
       select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id, t.id as trainer_id,
+        coalesce(u.timezone, g.timezone, 'Asia/Kuala_Lumpur') as timezone,
         coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles
       from users u
       left join user_roles ur on ur.user_id = u.id
       left join trainers t on t.user_id = u.id
+      left join gyms g on g.id = u.gym_id
       where u.firebase_uid = $1
       group by u.id, t.id
       `,
@@ -150,6 +155,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       roles,
       gymId: dbUser.gym_id,
       trainerId: dbUser.trainer_id,
+      timezone: normalizeTimeZone(dbUser.timezone),
       isPlatformOwner
     };
 

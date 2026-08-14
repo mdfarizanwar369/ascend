@@ -1,10 +1,38 @@
 import { Router } from "express";
 import { env } from "../config/env";
+import { getReadiness } from "../services/readinessService";
+import { metricsSnapshot } from "../observability/logger";
+import { NextFunction, Request, Response } from "express";
 
 export const healthRouter = Router();
 
+export async function requireApplicationReady(_req: Request, res: Response, next: NextFunction) {
+  const readiness = await getReadiness();
+  if (!readiness.ready) {
+    res.status(503).json({ error: "Service is starting. Please try again shortly.", code: "SERVICE_NOT_READY" });
+    return;
+  }
+  next();
+}
+
 healthRouter.get("/health", (_req, res) => {
+  void getReadiness().then((readiness) => {
+    res.status(readiness.ready ? 200 : 503).json({ status: readiness.ready ? "ok" : "unavailable", service: "ascend-api", ...readiness });
+  });
+});
+
+healthRouter.get("/health/live", (_req, res) => {
   res.json({ status: "ok", service: "ascend-api" });
+});
+
+healthRouter.get("/health/ready", async (_req, res) => {
+  const readiness = await getReadiness();
+  res.status(readiness.ready ? 200 : 503).json({ status: readiness.ready ? "ok" : "unavailable", service: "ascend-api", ...readiness });
+});
+
+healthRouter.get("/health/metrics", (req, res) => {
+  if (!env.CRON_SECRET || req.header("x-observability-secret") !== env.CRON_SECRET) return res.status(404).json({ error: "Not found" });
+  res.json(metricsSnapshot());
 });
 
 function storageHealth() {

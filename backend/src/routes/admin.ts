@@ -4,10 +4,9 @@ import { pool, query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { getRevenueByGym, getRevenueByTrainer } from "../services/analyticsService";
 import { aiLimitConfig } from "../services/aiUsageService";
-import { getFirebaseAuth } from "../integrations/firebase";
-import { deleteStoredObjects } from "../integrations/s3";
 import { permanentDeletionBlock } from "../services/userDeletionService";
 import { getAdminGymScope, getTrainerGymId, getUserGymId, scopeAllowsGym } from "../services/adminScopeService";
+import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 
 export const adminRouter = Router();
 
@@ -655,28 +654,23 @@ adminRouter.delete("/admin/owners/:userId/gyms/:gymId", requireAuth, requireRole
 });
 
 adminRouter.delete("/admin/users/:userId", requireAuth, requireRole(["owner"]), async (req, res, next) => {
-  const db = await pool.connect();
   try {
     const scope = await getAdminGymScope(req.user!);
     if (!scopeAllowsGym(scope, await getUserGymId(req.params.userId))) {
       return res.status(403).json({ error: "This account cannot manage that gym" });
     }
-    await db.query("begin");
-    const targetResult = await db.query<{
+    const targetResult = await query<{
       id: string;
-      firebase_uid: string;
       full_name: string;
       email: string;
       status: string;
       primary_role: "client" | "trainer" | "admin" | "owner";
       roles: Array<"client" | "trainer" | "admin" | "owner">;
-      trainer_id: string | null;
       has_live_paid_subscription: boolean;
     }>(
       `
-      select u.id, u.firebase_uid, u.full_name, u.email, u.status, u.primary_role,
+      select u.id, u.full_name, u.email, u.status, u.primary_role,
         coalesce((select array_agg(ur.role) from user_roles ur where ur.user_id = u.id), '{}') as roles,
-        t.id as trainer_id,
         exists (
           select 1 from subscriptions s
           where s.user_id = u.id
@@ -684,15 +678,12 @@ adminRouter.delete("/admin/users/:userId", requireAuth, requireRole(["owner"]), 
             and s.status in ('active', 'trialing', 'past_due')
         ) as has_live_paid_subscription
       from users u
-      left join trainers t on t.user_id = u.id
       where u.id = $1
-      for update of u
       `,
       [req.params.userId]
     );
     const target = targetResult.rows[0];
     if (!target) {
-      await db.query("rollback");
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -704,52 +695,16 @@ adminRouter.delete("/admin/users/:userId", requireAuth, requireRole(["owner"]), 
       hasLivePaidSubscription: target.has_live_paid_subscription
     }, req.user!.id);
     if (blocked) {
-      await db.query("rollback");
       return res.status(400).json({ error: blocked });
     }
 
-    const mediaResult = await db.query<{ image_s3_key: string | null }>(
-      `
-      select image_s3_key from food_logs where user_id = $1 and image_s3_key is not null
-      union
-      select image_s3_key from progress_photos where user_id = $1 and image_s3_key is not null
-      union
-      select profile_photo_s3_key as image_s3_key from users where id = $1 and profile_photo_s3_key is not null
-      `,
-      [target.id]
-    );
-
-    if (target.trainer_id) {
-      await db.query("update users set assigned_trainer_id = null, updated_at = now() where assigned_trainer_id = $1", [target.trainer_id]);
-      await db.query("update users set referred_by_trainer_id = null, updated_at = now() where referred_by_trainer_id = $1", [target.trainer_id]);
-      await db.query("update subscriptions set referred_by_trainer_id = null, updated_at = now() where referred_by_trainer_id = $1", [target.trainer_id]);
-      await db.query("update risk_alerts set trainer_id = null where trainer_id = $1", [target.trainer_id]);
-      await db.query("update weekly_reports set trainer_id = null where trainer_id = $1", [target.trainer_id]);
-      await db.query(
-        "update subscriptions set referral_code_id = null where referral_code_id in (select id from referral_codes where trainer_id = $1)",
-        [target.trainer_id]
-      );
-      await db.query("delete from referral_codes where trainer_id = $1", [target.trainer_id]);
-    }
-    await db.query("update referral_codes set created_by_user_id = null where created_by_user_id = $1", [target.id]);
-
-    try {
-      await getFirebaseAuth().deleteUser(target.firebase_uid);
-    } catch (error) {
-      const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
-      if (code !== "auth/user-not-found") throw error;
-    }
-
-    await deleteStoredObjects(mediaResult.rows.map((row) => row.image_s3_key));
-    await db.query("delete from users where id = $1", [target.id]);
-    await db.query("commit");
-
-    res.json({ deleted: { id: target.id, full_name: target.full_name, email: target.email } });
+    const result = await submitSelfAccountDeletion(target.id, { isPlatformOwner: false });
+    res.status(result.outcome === "deleted" ? 200 : 202).json({
+      ...result,
+      account: { id: target.id, fullName: target.full_name }
+    });
   } catch (error) {
-    await db.query("rollback").catch(() => undefined);
     next(error);
-  } finally {
-    db.release();
   }
 });
 

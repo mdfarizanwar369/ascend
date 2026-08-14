@@ -1,14 +1,14 @@
 import { Router } from "express";
-import { randomUUID } from "crypto";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { createReadUrl, createUploadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
+import { createReadUrl, deleteStoredObjects } from "../integrations/s3";
 import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
 import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
 import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
+import { assertOwnedMediaObject, markMediaAttached, secureUploadDataUrl } from "../services/mediaUploadService";
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
@@ -126,16 +126,17 @@ logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) =>
 });
 
 logsRouter.post("/food-logs/photo-upload-url", requireAuth, uploadRateLimit, async (req, res) => {
-  const contentType = imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
-  const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
-  res.json(await createUploadUrl(key, contentType));
+  imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
+  res.status(410).json({
+    error: "Direct uploads are no longer supported.",
+    code: "CONTROLLED_UPLOAD_REQUIRED"
+  });
 });
 
 logsRouter.post("/food-logs/photo-upload-data-url", requireAuth, uploadRateLimit, async (req, res, next) => {
   try {
     const input = photoUploadDataSchema.parse(req.body);
-    const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
-    res.json(await uploadDataUrl(key, input.imageDataUrl));
+    res.json(await secureUploadDataUrl({ userId: req.user!.id, purpose: "food", imageDataUrl: input.imageDataUrl }));
   } catch (error) {
     next(error);
   }
@@ -174,7 +175,11 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
       return;
     }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message, ...(performance ? { performance } : {}) });
+      res.status((error as Error & { status?: number }).status ?? 503).json({
+        error: (error as Error & { status?: number }).status === 400 ? error.message : "Food AI estimate is temporarily unavailable.",
+        code: "FOOD_AI_UNAVAILABLE",
+        ...(performance ? { performance } : {})
+      });
       return;
     }
     next(error);
@@ -205,7 +210,11 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
       return;
     }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message, ...(performance ? { performance } : {}) });
+      res.status((error as Error & { status?: number }).status ?? 503).json({
+        error: (error as Error & { status?: number }).status === 400 ? error.message : "Food AI estimate is temporarily unavailable.",
+        code: "FOOD_AI_UNAVAILABLE",
+        ...(performance ? { performance } : {})
+      });
       return;
     }
     next(error);
@@ -224,7 +233,7 @@ logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req
       return;
     }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", code: "FOOD_AI_UNAVAILABLE" });
       return;
     }
     next(error);
@@ -234,6 +243,7 @@ logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req
 logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
   try {
     const input = foodLogSchema.parse(req.body);
+    if (input.imageS3Key) await assertOwnedMediaObject(req.user!.id, input.imageS3Key, "food");
     const result = await query(
       `
       insert into food_logs (
@@ -258,6 +268,7 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
         input.loggedAt ?? null
       ]
     );
+    await markMediaAttached(req.user!.id, [input.imageS3Key], "food");
     void createCoachPresenceForEvent(req.user!.id, "food_logged").catch(() => undefined);
     res.status(201).json({ foodLog: result.rows[0] });
   } catch (error) {
@@ -268,24 +279,20 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
 logsRouter.get("/food-logs", requireAuth, async (req, res, next) => {
   try {
     const filters = foodLogQuerySchema.parse(req.query);
-    const rangeCondition =
-      filters.range === "today"
-        ? "and logged_at >= current_date"
-        : filters.range === "7d"
-          ? "and logged_at >= current_date - interval '6 days'"
-          : filters.range === "30d"
-            ? "and logged_at >= current_date - interval '29 days'"
-            : "";
     const result = await query(
       `
       select *
       from food_logs
       where user_id = $1
-        ${rangeCondition}
+        and (
+          $4 = 'all'
+          or (logged_at at time zone $5)::date >= (now() at time zone $5)::date
+            - case $4 when 'today' then 0 when '7d' then 6 when '30d' then 29 else 0 end
+        )
       order by logged_at ${filters.order === "oldest" ? "asc" : "desc"}
       limit $2 offset $3
       `,
-      [req.user!.id, filters.limit, filters.offset]
+      [req.user!.id, filters.limit, filters.offset, filters.range, req.user!.timezone]
     );
     res.json({ foodLogs: await withFoodImageUrls(result.rows), nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null });
   } catch (error) {
@@ -569,16 +576,17 @@ logsRouter.get("/burn-logs", requireAuth, async (req, res) => {
 });
 
 logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res) => {
-  const contentType = imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
-  const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;
-  res.json(await createUploadUrl(key, contentType));
+  imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
+  res.status(410).json({
+    error: "Direct uploads are no longer supported.",
+    code: "CONTROLLED_UPLOAD_REQUIRED"
+  });
 });
 
 logsRouter.post("/progress-photos/upload-data-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res, next) => {
   try {
     const input = photoUploadDataSchema.parse(req.body);
-    const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;
-    res.json(await uploadDataUrl(key, input.imageDataUrl));
+    res.json(await secureUploadDataUrl({ userId: req.user!.id, purpose: "progress", imageDataUrl: input.imageDataUrl }));
   } catch (error) {
     next(error);
   }

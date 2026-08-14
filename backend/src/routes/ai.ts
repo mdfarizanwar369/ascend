@@ -8,6 +8,7 @@ import { env } from "../config/env";
 import { aiRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
+import { userDayUtcBounds } from "../utils/userTime";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
@@ -631,11 +632,16 @@ const todayPrioritySchema = z.object({
 
 aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
   try {
-    const { timezoneOffsetMinutes } = todayPrioritySchema.parse(req.body ?? {});
-    const localNow = new Date(Date.now() - timezoneOffsetMinutes * 60_000);
-    const localDayStartUtc = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) + timezoneOffsetMinutes * 60_000);
-    const localDayEndUtc = new Date(localDayStartUtc.getTime() + 86_400_000);
-    const localDay = localNow.toISOString().slice(0, 10);
+    todayPrioritySchema.parse(req.body ?? {});
+    const localDayBounds = userDayUtcBounds(new Date(), req.user!.timezone);
+    const localDayStartUtc = localDayBounds.start;
+    const localDayEndUtc = localDayBounds.end;
+    const localDay = localDayBounds.dateKey;
+    const localHour = Number(new Intl.DateTimeFormat("en-US", {
+      timeZone: req.user!.timezone,
+      hour: "2-digit",
+      hourCycle: "h23"
+    }).format(new Date()));
     const [foodResult, waterResult, workoutResult, recoveryResult, nutritionTargets, healthSyncSummary] = await Promise.all([
       query<{ meals: number; protein_g: number | string }>(`
         select count(*)::int as meals, coalesce(sum(protein_g), 0) as protein_g
@@ -662,7 +668,7 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
     const latestSyncedWorkoutAt = healthSyncSummary?.latestWorkoutAt ? new Date(healthSyncSummary.latestWorkoutAt).getTime() : null;
     const latestMovementAt = Math.max(latestWorkoutAt ?? 0, latestSyncedWorkoutAt ?? 0) || null;
     const facts: TodayPriorityFacts = {
-      localHour: localNow.getUTCHours(),
+      localHour,
       mealsToday: Number(foodResult.rows[0]?.meals ?? 0),
       proteinTodayG: Number(foodResult.rows[0]?.protein_g ?? 0),
       proteinTargetG: nutritionTargets.proteinG,

@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
+import { requestContext, structuredLog } from "../observability/logger";
 
-export function errorHandler(error: Error, _req: Request, res: Response, _next: NextFunction) {
+export function errorHandler(error: Error, req: Request, res: Response, _next: NextFunction) {
   const databaseCode = (error as Error & { code?: string }).code;
 
   if ((error as Error & { type?: string }).type === "entity.too.large") {
@@ -46,8 +47,15 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
     return res.status(status).json({ error: error.message });
   }
 
+  structuredLog("error", "unhandled_api_error", {
+    ...requestContext(req),
+    error,
+    databaseCode: databaseCode ?? null
+  });
+
   res.status(500).json({
     error: "Internal server error",
-    detail: process.env.NODE_ENV === "production" ? undefined : error.message
+    detail: process.env.NODE_ENV === "production" ? undefined : error.message,
+    requestId: req.requestId
   });
 }

@@ -63,6 +63,7 @@ describe("Google auth provisioning", () => {
       null,
       null,
       null,
+      null,
       null
     ]);
   });

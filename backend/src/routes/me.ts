@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { randomUUID } from "crypto";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
@@ -7,12 +6,13 @@ import { requireActivePlan } from "../middleware/subscription";
 import { uploadRateLimit } from "../middleware/rateLimits";
 import { acknowledgeGoalMilestone, completeOnboarding, getGoalStatus, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
 import { getProgressComparison } from "../services/progressComparisonService";
-import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
+import { createReadUrl, deleteStoredObjects } from "../integrations/s3";
 import { imageDataUrlSchema, parseImageDataUrl } from "../utils/images";
 import { withProfilePhotoUrl } from "../services/profilePhotoService";
 import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "../services/bodyCompositionService";
 import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNutritionPreference } from "../services/nutritionTargetService";
+import { markMediaAttached, secureUploadDataUrl } from "../services/mediaUploadService";
 
 export const meRouter = Router();
 
@@ -65,11 +65,13 @@ meRouter.post("/me/profile-photo", requireAuth, requireActivePlan("premium"), up
   let profileUpdated = false;
   try {
     const input = profilePhotoSchema.parse(req.body);
-    const { contentType } = parseImageDataUrl(input.imageDataUrl);
-    const extension = contentType === "image/webp" ? "webp" : contentType === "image/png" ? "png" : "jpg";
-    newKey = `profiles/${req.user!.id}/${randomUUID()}.${extension}`;
-    const upload = await uploadDataUrl(newKey, input.imageDataUrl);
-    if (upload.storageConfigured === false) return res.status(503).json({ error: "Profile photo storage is unavailable." });
+    const upload = await secureUploadDataUrl({
+      userId: req.user!.id,
+      purpose: "profile",
+      imageDataUrl: input.imageDataUrl,
+      maxBytes: MAX_PROFILE_PHOTO_BYTES
+    });
+    newKey = upload.key;
 
     const previous = await query<{ profile_photo_s3_key: string | null }>(
       "select profile_photo_s3_key from users where id = $1",
@@ -87,6 +89,7 @@ meRouter.post("/me/profile-photo", requireAuth, requireActivePlan("premium"), up
     );
     if (!result.rows[0]) throw new Error("Profile could not be updated.");
     profileUpdated = true;
+    await markMediaAttached(req.user!.id, [newKey], "profile");
     if (oldKey && oldKey !== newKey) deleteStoredObjects([oldKey]).catch(() => undefined);
 
     res.json({ profilePhotoUrl: await createReadUrl(newKey) });
@@ -192,7 +195,7 @@ meRouter.post("/me/account-deletion", requireAuth, async (req, res, next) => {
       isPlatformOwner: req.user!.isPlatformOwner
     });
 
-    res.json(result);
+    res.status(result.outcome === "deleted" ? 200 : 202).json(result);
   } catch (error) {
     next(error);
   }
