@@ -4,21 +4,21 @@
 
 :root {
   --ascend-safe-area-top: env(safe-area-inset-top, 0px);
-  --color-ink: 12 17 24;
-  --color-surface: 21 29 41;
+  --color-ink: 15 22 31;
+  --color-surface: 27 37 51;
   --color-line: 38 48 66;
   --color-text-strong: 246 247 248;
   --color-text-muted: 163 172 187;
   --color-text-subtle: 123 135 151;
-  --color-field-bg: 15 22 31;
+  --color-field-bg: 18 27 38;
   --color-field-border: 38 48 66;
   --color-field-text: 246 247 248;
   --color-field-placeholder: 123 135 151;
-  --color-field-disabled-bg: 24 33 45;
+  --color-field-disabled-bg: 30 41 55;
   --color-field-disabled-text: 123 135 151;
-  --surface-raised: 21 29 41;
-  --surface-inset: 15 22 31;
-  --surface-soft: 18 26 36;
+  --surface-raised: 27 37 51;
+  --surface-inset: 18 27 38;
+  --surface-soft: 23 33 46;
   --shadow-raised: 0 18px 48px rgba(0, 0, 0, 0.22);
   color-scheme: dark;
 }
@@ -55,7 +55,7 @@ body {
   background:
     radial-gradient(circle at 50% -10%, rgba(53, 242, 208, 0.14), transparent 34rem),
     radial-gradient(circle at 0% 20%, rgba(139, 92, 246, 0.13), transparent 26rem),
-    #0c1118;
+    #0f161f;
   color: #f6f7f8;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   transition: background-color 160ms ease, color 160ms ease;
@@ -548,7 +548,7 @@ main.min-h-screen {
 .ascend-today-canvas {
   background:
     linear-gradient(180deg, rgba(139, 92, 246, 0.045) 0, transparent 18rem),
-    linear-gradient(180deg, #0d131c 0%, #111923 52%, #0c1118 100%);
+    linear-gradient(180deg, #111923 0%, #172231 52%, #0f161f 100%);
 }
 
 .ascend-today-hero {
