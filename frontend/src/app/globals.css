@@ -3,6 +3,7 @@
 @tailwind utilities;
 
 :root {
+  --ascend-safe-area-top: env(safe-area-inset-top, 0px);
   --color-ink: 7 9 13;
   --color-surface: 18 23 33;
   --color-line: 38 48 66;
@@ -20,6 +21,10 @@
   --surface-soft: 14 19 27;
   --shadow-raised: 0 18px 48px rgba(0, 0, 0, 0.22);
   color-scheme: dark;
+}
+
+html[data-native-platform="android"] {
+  --ascend-safe-area-top: max(env(safe-area-inset-top, 0px), 1.5rem);
 }
 
 html[data-theme="light"] {
@@ -44,6 +49,9 @@ html[data-theme="light"] {
 
 body {
   margin: 0;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  padding-top: var(--ascend-safe-area-top);
   background:
     radial-gradient(circle at 50% -10%, rgba(53, 242, 208, 0.14), transparent 34rem),
     radial-gradient(circle at 0% 20%, rgba(139, 92, 246, 0.13), transparent 26rem),
@@ -453,9 +461,13 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 .ascend-page {
-  min-height: 100vh;
+  min-height: calc(100dvh - var(--ascend-safe-area-top));
   background: rgb(var(--color-ink));
   color: rgb(var(--color-text-strong));
+}
+
+main.min-h-screen {
+  min-height: calc(100dvh - var(--ascend-safe-area-top));
 }
 
 .ascend-member-frame {
@@ -669,7 +681,7 @@ html[data-theme="light"] .ascend-today-canvas .text-calm {
 
 .ascend-shell-header {
   position: sticky;
-  top: 0;
+  top: var(--ascend-safe-area-top);
   z-index: 30;
   margin-inline: -0.25rem;
   padding: 0.75rem 0.25rem 0.65rem;

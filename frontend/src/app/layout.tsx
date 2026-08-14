@@ -33,6 +33,10 @@ export const viewport: Viewport = {
 
 const themeBootScript = `
   (function () {
+    if (navigator.userAgent.indexOf("AscendAndroid/1") !== -1) {
+      document.documentElement.dataset.nativePlatform = "android";
+    }
+
     try {
       var saved = localStorage.getItem("ascend-theme");
       document.documentElement.dataset.theme = saved === "light" ? "light" : "dark";
