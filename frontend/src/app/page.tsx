@@ -133,9 +133,15 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="relative hidden h-[560px] items-end justify-center lg:flex" aria-label="Ascend Today screen preview">
-            <div className="absolute h-[500px] w-[252px] rotate-[-2deg] overflow-hidden rounded-[2rem] border border-white/20 bg-[#0b1018] shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
-              <Image src="/marketing/today.png" alt="Ascend Today screen showing a clear daily focus" fill sizes="252px" className="object-cover object-top" />
+          <div className="relative hidden h-[560px] items-end justify-center lg:flex" aria-label="Coach Zoe coaching preview">
+            <div className="absolute h-[530px] w-[298px] overflow-hidden rounded-[2.25rem] border border-white/25 bg-[#0b1018] shadow-[0_34px_90px_rgba(0,0,0,0.62)] ring-1 ring-black/30">
+              <Image
+                src="/marketing/coach.png"
+                alt="Coach Zoe giving a focused daily insight and practical coaching actions"
+                fill
+                sizes="298px"
+                className="object-cover object-top"
+              />
             </div>
           </div>
         </div>
