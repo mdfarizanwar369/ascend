@@ -109,8 +109,7 @@ function TodayMomentumVisual({
   isStarting?: boolean;
 }) {
   const radius = 76;
-  const circumference = 2 * Math.PI * radius;
-  const progress = (clamp(score) / 100) * circumference;
+  const progress = clamp(score);
 
   return (
     <div className="ascend-today-momentum relative mx-auto h-[9.5rem] w-[9.5rem] sm:h-[10.75rem] sm:w-[10.75rem]" aria-label={isStarting ? "Momentum starts building after your first check-in." : `Momentum ${score} out of 100, based on your last seven days.`}>
@@ -127,16 +126,18 @@ function TodayMomentumVisual({
           cx="100"
           cy="100"
           r={radius}
+          pathLength="100"
           fill="none"
           stroke="url(#today-momentum-gradient)"
           strokeLinecap="round"
           strokeWidth="9"
-          strokeDasharray={`${progress} ${circumference}`}
+          strokeDasharray="100"
+          style={{ strokeDashoffset: 100 - progress }}
           className="ascend-today-ring"
         />
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
-        <div>
+        <div className="ascend-opening-score">
           <p className="text-4xl font-semibold leading-none text-white sm:text-5xl">{isStarting ? "--" : score}</p>
           <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-purple-200">Momentum</p>
           <p className="mt-1 text-xs font-medium text-calm">{label}</p>
@@ -382,6 +383,7 @@ export function ClientDashboard() {
   const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
+  const [playOpeningMotion, setPlayOpeningMotion] = useState(false);
   const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
     todaysNumbers: false
   });
@@ -390,6 +392,19 @@ export function ClientDashboard() {
   const hasLoadedDashboardRef = useRef(false);
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      const storageKey = "ascend:opening-motion-played";
+      if (window.sessionStorage.getItem(storageKey)) return;
+      window.sessionStorage.setItem(storageKey, "true");
+      const frame = window.requestAnimationFrame(() => setPlayOpeningMotion(true));
+      return () => window.cancelAnimationFrame(frame);
+    } catch {
+      setPlayOpeningMotion(true);
+    }
+  }, []);
+
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
     dashboardLoadInFlightRef.current = true;
@@ -1291,10 +1306,10 @@ export function ClientDashboard() {
   }
 
   return (
-    <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
+    <main className={`ascend-today-canvas min-h-screen bg-ink pb-24 text-white ${playOpeningMotion ? "ascend-opening-sequence" : ""}`}>
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
-          <Link href="/dashboard" className="flex items-center gap-2">
+          <Link href="/dashboard" className="ascend-opening-brand flex items-center gap-2">
             <BrandMark size="sm" />
             <span>
               <span className="block text-lg font-semibold leading-5">Ascend</span>
@@ -1352,18 +1367,23 @@ export function ClientDashboard() {
         ) : null}
 
         <section className="ascend-today-hero ascend-soft-enter relative mt-2 overflow-hidden pb-4 pt-3 text-center">
-          <p className="ascend-eyebrow">Today</p>
-          <h1 className="mt-2 text-[1.65rem] font-semibold leading-tight text-white">{todayGreeting}, {firstName}.</h1>
-          <TodayMomentumVisual score={score} label={isFirstDayState ? "Begins with your first check-in" : scoreLabel} isStarting={isFirstDayState} />
-          <Link href="/momentum-score" className="ascend-pressable mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
+          <span className="ascend-opening-energy" aria-hidden="true" />
+          <p className="ascend-eyebrow ascend-opening-eyebrow">Today</p>
+          <h1 className="ascend-opening-greeting mt-2 text-[1.65rem] font-semibold leading-tight text-white">{todayGreeting}, {firstName}.</h1>
+          <div className="ascend-opening-momentum">
+            <TodayMomentumVisual score={score} label={isFirstDayState ? "Begins with your first check-in" : scoreLabel} isStarting={isFirstDayState} />
+          </div>
+          <Link href="/momentum-score" className="ascend-pressable ascend-opening-explainer mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
             <CircleHelp size={14} /> 7-day consistency score
           </Link>
-          <p className="mx-auto max-w-[20rem] text-[11px] font-bold uppercase tracking-[0.18em] text-calm">Today&apos;s focus</p>
-          <h2 className="mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
-          <p className="mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
-          <Link href={primaryAction.href} className="ascend-pressable ascend-cta-pulse mx-auto mt-5 flex h-14 max-w-[21rem] items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
-            {primaryAction.label} <ArrowRight size={18} />
-          </Link>
+          <p className="ascend-opening-focus-label mx-auto max-w-[20rem] text-[11px] font-bold uppercase tracking-[0.18em] text-calm">Today&apos;s focus</p>
+          <h2 className="ascend-opening-focus mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
+          <p className="ascend-opening-support mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
+          <div className="ascend-opening-cta">
+            <Link href={primaryAction.href} className="ascend-pressable ascend-cta-pulse mx-auto mt-5 flex h-14 max-w-[21rem] items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
+              {primaryAction.label} <ArrowRight size={18} />
+            </Link>
+          </div>
         </section>
 
         {shouldShowProfileReminder ? (
@@ -1380,7 +1400,7 @@ export function ClientDashboard() {
         ) : null}
 
         <section className="ascend-today-path ascend-card-rise py-5">
-          <div className="flex items-end justify-between gap-3">
+          <div className="ascend-opening-rhythm-header flex items-end justify-between gap-3">
             <div>
               <p className="ascend-eyebrow">Your day</p>
               <h2 className="mt-1 text-lg font-semibold text-white">
@@ -1391,12 +1411,12 @@ export function ClientDashboard() {
           </div>
           <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
             <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#a3ff46)] transition-[width] duration-700"
+              className="ascend-opening-path-progress h-full origin-left rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#a3ff46)] transition-[width] duration-700"
               style={{ width: `${momentumSignalProgress}%` }}
             />
           </div>
           <nav className="mx-auto mt-4 grid max-w-sm grid-cols-3 gap-3" aria-label="Today activity shortcuts">
-            {activeMomentumSignals.map((item) => {
+            {activeMomentumSignals.map((item, index) => {
               const Icon = item.icon;
               const isPriority = priorityMomentumLabel === item.label;
               const content = (
@@ -1410,11 +1430,11 @@ export function ClientDashboard() {
                 </>
               );
               return item.href ? (
-                <Link key={item.label} href={item.href} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                <Link key={item.label} href={item.href} style={{ animationDelay: `${720 + index * 90}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
                   {content}
                 </Link>
               ) : (
-                <button key={item.label} type="button" onClick={() => { setLogMenuContext("recovery"); setLogMenuOpen(true); }} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={() => { setLogMenuContext("recovery"); setLogMenuOpen(true); }} style={{ animationDelay: `${720 + index * 90}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );
