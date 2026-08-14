@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText } from "../integrations/openai";
+import { createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText, refineTodayPriority } from "../integrations/openai";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
@@ -12,7 +12,7 @@ import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
-import { deterministicTodayPriority, TodayPriorityFacts } from "../services/todayPriorityService";
+import { buildTodayPriorityCandidates, deterministicTodayPriority, shouldUseAiPriorityRefinement, TodayPriorityFacts } from "../services/todayPriorityService";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -635,7 +635,8 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
     const localNow = new Date(Date.now() - timezoneOffsetMinutes * 60_000);
     const localDayStartUtc = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) + timezoneOffsetMinutes * 60_000);
     const localDayEndUtc = new Date(localDayStartUtc.getTime() + 86_400_000);
-    const [foodResult, waterResult, workoutResult, habitResult, nutritionTargets, healthSyncSummary] = await Promise.all([
+    const localDay = localNow.toISOString().slice(0, 10);
+    const [foodResult, waterResult, workoutResult, recoveryResult, nutritionTargets, healthSyncSummary] = await Promise.all([
       query<{ meals: number; protein_g: number | string }>(`
         select count(*)::int as meals, coalesce(sum(protein_g), 0) as protein_g
         from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3
@@ -649,13 +650,11 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
           coalesce(bool_or(created_at >= $2 and created_at < $3), false) as completed_today
         from analytics_events where user_id = $1 and event_name = 'burn_log'
       `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
-      query<{ active_habits: number; completed_today: number }>(`
-        select count(distinct h.id)::int as active_habits,
-          count(distinct hl.habit_id) filter (where hl.completed = true)::int as completed_today
-        from habits h
-        left join habit_logs hl on hl.habit_id = h.id and hl.user_id = h.user_id and hl.logged_at >= $2 and hl.logged_at < $3
-        where h.user_id = $1 and h.active = true
-      `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
+      query<{ sleep_quality: "poor" | "okay" | "good" | null }>(`
+        select sleep_quality from recovery_checkins
+        where user_id = $1 and checkin_date = $2::date
+        limit 1
+      `, [req.user!.id, localDay]),
       resolveNutritionTargets(req.user!.id),
       getHealthSyncSummary(req.user!.id).catch(() => null)
     ]);
@@ -673,10 +672,39 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
       daysSinceWorkout: latestMovementAt === null ? null : Math.max(0, Math.floor((Date.now() - latestMovementAt) / 86_400_000)),
       stepsToday: healthSyncSummary?.todaySteps ?? 0,
       activeCaloriesToday: healthSyncSummary?.todayActiveCalories ?? 0,
-      activeHabits: Number(habitResult.rows[0]?.active_habits ?? 0),
-      habitsCompletedToday: Number(habitResult.rows[0]?.completed_today ?? 0)
+      sleepQuality: recoveryResult.rows[0]?.sleep_quality ?? null
     };
-    res.json({ priority: deterministicTodayPriority(facts), source: "rules" });
+    const candidates = buildTodayPriorityCandidates(facts);
+    const deterministicPriority = deterministicTodayPriority(facts);
+    const isFirstCheckIn = facts.mealsToday === 0
+      && facts.waterTodayMl === 0
+      && facts.daysSinceWorkout === null
+      && facts.stepsToday === 0
+      && facts.activeCaloriesToday === 0
+      && facts.sleepQuality === null;
+    const leadingRank = candidates[0]?.rank ?? 0;
+    const contenders = candidates.filter((candidate) => leadingRank - candidate.rank <= 10);
+    if (isFirstCheckIn || !shouldUseAiPriorityRefinement(candidates)) {
+      return res.json({ priority: deterministicPriority, source: "rules" });
+    }
+
+    const refinedPriority = await refineTodayPriority({ candidates: contenders, facts }).catch(() => null);
+    if (!refinedPriority) {
+      return res.json({ priority: deterministicPriority, source: "rules" });
+    }
+
+    void logAiUsage({
+      userId: req.user!.id,
+      gymId: req.user!.gymId,
+      eventType: "today_priority_analysis",
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      status: "success",
+      inputUnits: JSON.stringify(facts).length,
+      outputUnits: refinedPriority.title.length + refinedPriority.reason.length,
+      metadata: { eligibleKeys: contenders.map((candidate) => candidate.key), selectedKey: refinedPriority.key }
+    }).catch(() => undefined);
+    return res.json({ priority: refinedPriority, source: "ai" });
   } catch (error) {
     next(error);
   }

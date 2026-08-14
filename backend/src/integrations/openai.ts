@@ -1196,6 +1196,66 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   return fallback;
 }
 
+export async function refineTodayPriority(input: {
+  candidates: Array<{
+    key: "Meal" | "Water" | "Movement";
+    title: string;
+    reason: string;
+    href: string;
+    cta: string;
+    rank: number;
+  }>;
+  facts: unknown;
+}) {
+  if (!providerConfigured() || input.candidates.length < 2) return null;
+
+  const prompt =
+    "You are the judgement layer for Ascend's Today screen. Deterministic safety rules have already removed inappropriate actions. " +
+    "Choose exactly one supplied candidate based on the member's current facts. Never introduce another category. Habits are not a core Today priority. " +
+    "A workout yesterday or poor sleep should favor gentle movement rather than hard training. Keep the wording human and specific. " +
+    "Return strict JSON only with selectedKey, title, and reason. Title must be under 55 characters. Reason must be one sentence under 120 characters.\n\n" +
+    `Current facts: ${JSON.stringify(input.facts)}\nEligible candidates: ${JSON.stringify(input.candidates.map(({ key, title, reason, rank }) => ({ key, title, reason, rank })))}`;
+
+  let reply: string;
+  try {
+    if (env.AI_PROVIDER === "gemini") {
+      const response = await callGeminiWithOptions([{ text: prompt }], 180, {
+        attemptsPerModel: 1,
+        timeoutMs: 2_500,
+        responseMimeType: "application/json"
+      });
+      reply = response.text;
+    } else if (env.AI_PROVIDER === "openai" && openaiClient) {
+      const response = await openaiClient.responses.create({
+        model: env.OPENAI_MODEL,
+        input: [{ role: "user", content: prompt }]
+      }, { timeout: 2_500 });
+      reply = response.output_text;
+    } else {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  try {
+    const parsed = parseJsonObject(reply);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const result = parsed as Record<string, unknown>;
+    const selected = input.candidates.find((candidate) => candidate.key === result.selectedKey);
+    if (!selected) return null;
+    const title = typeof result.title === "string" ? result.title.trim().slice(0, 55) : selected.title;
+    const reason = typeof result.reason === "string" ? result.reason.trim().slice(0, 120) : selected.reason;
+    return {
+      ...selected,
+      title: title || selected.title,
+      reason: reason || selected.reason
+    };
+  } catch {
+    return null;
+  }
+}
+
 type CoachZoeMode = "general" | "progress" | "consistency" | "meal_advice" | "workout";
 
 function coachZoeSystemPrompt(mode: CoachZoeMode) {

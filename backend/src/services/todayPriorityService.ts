@@ -1,4 +1,4 @@
-export type TodayPriorityKey = "Meal" | "Water" | "Movement" | "Habit";
+export type TodayPriorityKey = "Meal" | "Water" | "Movement";
 
 export type TodayPriorityCandidate = {
   key: TodayPriorityKey;
@@ -20,8 +20,7 @@ export type TodayPriorityFacts = {
   daysSinceWorkout: number | null;
   stepsToday: number;
   activeCaloriesToday: number;
-  activeHabits: number;
-  habitsCompletedToday: number;
+  sleepQuality: "poor" | "okay" | "good" | null;
 };
 
 export function buildTodayPriorityCandidates(facts: TodayPriorityFacts): TodayPriorityCandidate[] {
@@ -51,19 +50,38 @@ export function buildTodayPriorityCandidates(facts: TodayPriorityFacts): TodayPr
     });
   }
 
-  if (!movementUnderway && (facts.daysSinceWorkout === null || facts.daysSinceWorkout >= 2)) {
+  if (!movementUnderway) {
     const partialSteps = facts.stepsToday >= 2_500;
+    const trainedYesterday = facts.daysSinceWorkout === 1;
     candidates.push({
       key: "Movement",
-      title: partialSteps ? "A short walk would finish well" : facts.daysSinceWorkout === null ? "Add a little movement today" : "Movement is today's best next step",
+      title: partialSteps
+        ? "A short walk would finish well"
+        : trainedYesterday || facts.sleepQuality === "poor"
+          ? "Choose gentle movement today"
+          : facts.daysSinceWorkout === null
+            ? "Add a little movement today"
+            : "Movement is today's best next step",
       reason: partialSteps
         ? `${facts.stepsToday.toLocaleString()} steps are already recorded. A little more movement would build on that.`
+        : trainedYesterday
+          ? "No movement is recorded today. Since you trained yesterday, an easy walk or mobility is enough."
+          : facts.sleepQuality === "poor"
+            ? "No movement is recorded today. Keep it light after a poor night's sleep."
         : facts.daysSinceWorkout === null
           ? "No recent movement is recorded, and the basics are already underway."
           : `It has been ${facts.daysSinceWorkout} days since your last recorded workout.`,
       href: "/burn-log",
       cta: "Log Movement",
-      rank: facts.localHour >= 12 ? (partialSteps ? 76 : 90) : 64
+      rank: facts.localHour >= 12
+        ? partialSteps
+          ? 76
+          : trainedYesterday || facts.sleepQuality === "poor"
+            ? 82
+            : 90
+        : trainedYesterday || facts.sleepQuality === "poor"
+          ? 64
+          : 68
     });
   }
 
@@ -87,11 +105,11 @@ export function buildTodayPriorityCandidates(facts: TodayPriorityFacts): TodayPr
     });
   }
 
-  if (facts.activeHabits > 0 && facts.habitsCompletedToday === 0) {
-    candidates.push({ key: "Habit", title: "Keep one promise to yourself", reason: "No habit is checked off yet today.", href: "/habits", cta: "Open Habits", rank: 58 });
-  }
-
   return candidates.sort((left, right) => right.rank - left.rank).slice(0, 3);
+}
+
+export function shouldUseAiPriorityRefinement(candidates: TodayPriorityCandidate[]) {
+  return candidates.length > 1 && candidates[0].rank - candidates[1].rank <= 10;
 }
 
 export function deterministicTodayPriority(facts: TodayPriorityFacts): TodayPriorityCandidate | {

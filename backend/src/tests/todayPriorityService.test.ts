@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildTodayPriorityCandidates, deterministicTodayPriority, TodayPriorityFacts } from "../services/todayPriorityService";
+import { buildTodayPriorityCandidates, deterministicTodayPriority, shouldUseAiPriorityRefinement, TodayPriorityFacts } from "../services/todayPriorityService";
 
 function facts(overrides: Partial<TodayPriorityFacts> = {}): TodayPriorityFacts {
   return {
@@ -13,8 +13,7 @@ function facts(overrides: Partial<TodayPriorityFacts> = {}): TodayPriorityFacts 
     daysSinceWorkout: 1,
     stepsToday: 0,
     activeCaloriesToday: 0,
-    activeHabits: 0,
-    habitsCompletedToday: 0,
+    sleepQuality: null,
     ...overrides
   };
 }
@@ -78,8 +77,7 @@ describe("Today priority candidates", () => {
       proteinTodayG: 120,
       waterTodayMl: 500,
       daysSinceWorkout: 3,
-      activeHabits: 2,
-      habitsCompletedToday: 1
+      sleepQuality: null
     }));
 
     expect(priority.key).toBe("Water");
@@ -106,9 +104,7 @@ describe("Today priority candidates", () => {
       proteinTodayG: 125,
       waterTodayMl: 2_500,
       workoutCompletedToday: true,
-      daysSinceWorkout: 0,
-      activeHabits: 1,
-      habitsCompletedToday: 1
+      daysSinceWorkout: 0
     }));
 
     expect(priority.key).toBeNull();
@@ -126,5 +122,49 @@ describe("Today priority candidates", () => {
 
     expect(priority.key).toBe("Meal");
     expect(priority.reason).toContain("One honest check-in");
+  });
+
+  it("chooses gentle movement after yesterday's workout instead of promoting habits", () => {
+    const priority = deterministicTodayPriority(facts({
+      localHour: 8,
+      mealsToday: 1,
+      proteinTodayG: 30,
+      waterTodayMl: 800,
+      daysSinceWorkout: 1,
+      sleepQuality: "poor"
+    }));
+
+    expect(priority.key).toBe("Movement");
+    expect(priority.title).toContain("gentle movement");
+    expect(priority.reason).toContain("trained yesterday");
+  });
+
+  it("never includes habits as a core Today priority", () => {
+    const candidates = buildTodayPriorityCandidates(facts({
+      localHour: 9,
+      mealsToday: 2,
+      proteinTodayG: 70,
+      waterTodayMl: 1_000,
+      workoutCompletedToday: true,
+      daysSinceWorkout: 0
+    }));
+
+    expect(candidates.every((candidate) => candidate.key !== ("Habit" as never))).toBe(true);
+  });
+
+  it("uses AI refinement only when the top choices are genuinely close", () => {
+    const candidates = buildTodayPriorityCandidates(facts({
+      localHour: 16,
+      mealsToday: 2,
+      proteinTodayG: 70,
+      waterTodayMl: 800,
+      daysSinceWorkout: 3
+    }));
+
+    expect(shouldUseAiPriorityRefinement(candidates)).toBe(true);
+    expect(shouldUseAiPriorityRefinement([
+      { key: "Movement", title: "Move", reason: "Move", href: "/burn-log", cta: "Log Movement", rank: 90 },
+      { key: "Water", title: "Water", reason: "Water", href: "/water-log", cta: "Log Water", rank: 50 }
+    ])).toBe(false);
   });
 });

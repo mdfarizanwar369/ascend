@@ -2,7 +2,7 @@
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, CoachingMode } from "@ascend/shared";
+import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, calculateTodayRecoverySignal, CoachingMode, combineTodayActivityCalories } from "@ascend/shared";
 import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
@@ -93,13 +93,6 @@ function coachingLabel(mode: CoachingMode) {
 function asNumber(value: string | number | null | undefined) {
   if (value === null || value === undefined) return 0;
   return Number(value);
-}
-
-function weightTrend(current?: WeightLog, previous?: WeightLog) {
-  if (!current || !previous) return "Add 2 weigh-ins";
-  const diff = asNumber(current.weight_kg) - asNumber(previous.weight_kg);
-  if (Math.abs(diff) < 0.1) return "Stable";
-  return `${diff > 0 ? "+" : ""}${diff.toFixed(1)}kg`;
 }
 
 function clamp(value: number, min = 0, max = 100) {
@@ -259,7 +252,7 @@ function snapshotIcon(label: string) {
   if (label === "Calories") return Flame;
   if (label === "Protein") return Beef;
   if (label === "Water") return Droplets;
-  if (label === "Weight") return Scale;
+  if (label === "Calories Burned") return Activity;
   return Zap;
 }
 
@@ -267,7 +260,7 @@ const snapshotTone = {
   calories: { icon: "bg-amber/12 text-amber", bar: "bg-amber", glow: "shadow-[0_0_16px_rgba(245,180,72,0.18)]" },
   protein: { icon: "bg-purple-400/12 text-purple-200", bar: "bg-purple-400", glow: "shadow-[0_0_16px_rgba(139,92,246,0.18)]" },
   water: { icon: "bg-calm/12 text-calm", bar: "bg-calm", glow: "shadow-[0_0_16px_rgba(61,230,209,0.18)]" },
-  weight: { icon: "bg-sky-400/12 text-sky-200", bar: "bg-sky-300", glow: "shadow-[0_0_16px_rgba(125,211,252,0.16)]" },
+  activity: { icon: "bg-sky-400/12 text-sky-200", bar: "bg-sky-300", glow: "shadow-[0_0_16px_rgba(125,211,252,0.16)]" },
   momentum: { icon: "bg-lime/12 text-lime", bar: "bg-lime", glow: "shadow-[0_0_16px_rgba(163,255,70,0.16)]" }
 } as const;
 
@@ -373,17 +366,6 @@ export function ClientDashboard() {
   }>({ latest: null, history: [], settings: { style: "balanced", paused: false, pauseUntil: null } });
   const [ascendMemory, setAscendMemory] = useState<AscendMemoryResponse | null>(null);
   const [momentumScore, setMomentumScore] = useState<number | null>(null);
-  const [momentumBreakdown, setMomentumBreakdown] = useState<{
-    fuelScore: number;
-    moveScore: number;
-    recoverScore: number;
-    focusScore: number | null;
-    fuelStatus: string;
-    moveStatus: string;
-    recoverStatus: string;
-    focusStatus: string;
-    focusActive: boolean;
-  } | null>(null);
   const [sleepQuality, setSleepQuality] = useState<"poor" | "okay" | "good" | null>(null);
   const [savingSleep, setSavingSleep] = useState(false);
   const [logMenuOpen, setLogMenuOpen] = useState(false);
@@ -528,17 +510,6 @@ export function ClientDashboard() {
       if (compliance.status === "fulfilled") {
         const nextCompliance = compliance.value.compliance;
         setMomentumScore(nextCompliance?.score ?? null);
-        setMomentumBreakdown(nextCompliance ? {
-          fuelScore: nextCompliance.fuel_score ?? nextCompliance.food_score,
-          moveScore: nextCompliance.move_score ?? nextCompliance.weight_score,
-          recoverScore: nextCompliance.recover_score ?? nextCompliance.water_score,
-          focusScore: nextCompliance.focus_score ?? nextCompliance.habit_score,
-          fuelStatus: nextCompliance.fuel_status ?? "building",
-          moveStatus: nextCompliance.move_status ?? "building",
-          recoverStatus: nextCompliance.recover_status ?? "building",
-          focusStatus: nextCompliance.focus_status ?? "building",
-          focusActive: nextCompliance.focus_active ?? false
-        } : null);
       }
       hasLoadedDashboardRef.current = true;
       setSectionLoading((current) => ({ ...current, core: false }));
@@ -814,8 +785,13 @@ export function ClientDashboard() {
   const healthSyncSummary = healthSyncStatus?.summary ?? null;
   const hasSyncedActivity = Boolean(healthSyncSummary?.connected);
   const syncedSteps = healthSyncSummary?.todaySteps ?? 0;
+  const syncedActiveCalories = healthSyncSummary?.todayActiveCalories ?? 0;
   const syncedWorkoutCompleted = healthSyncSummary?.workoutCompletedToday === true;
   const syncedWorkoutCount = healthSyncSummary?.workoutsThisWeek ?? 0;
+  const todayActivityCalories = combineTodayActivityCalories(todaysBurnCalories, syncedActiveCalories);
+  const hasActivityCalories = todayActivityCalories > 0;
+  const manualMovementLogged = todaysBurnCalories > 0;
+  const syncedMovementUnderway = syncedActiveCalories >= 80 || syncedSteps >= 2500 || syncedWorkoutCompleted;
 
   const goalProgress = (() => {
     if (!startWeight || !targetWeight || !currentWeight || startWeight === targetWeight) return null;
@@ -1023,9 +999,8 @@ export function ClientDashboard() {
     calories > 0 ||
     protein > 0 ||
     todaysWaterMl > 0 ||
-    Boolean(currentWeight) ||
     syncedSteps > 0 ||
-    todaysBurnCalories > 0;
+    todayActivityCalories > 0;
   const dailyCoachingMessage = (() => {
     if (coachPresence.latest?.message && proactiveCoachInsight.key === "steady") {
       return {
@@ -1178,8 +1153,11 @@ export function ClientDashboard() {
     : sleepQuality
       ? `No water yet · ${sleepQuality} sleep`
       : "No water or sleep check-in yet";
-  const focusDetail = dailyMission?.title
-    ?? (habits.length ? `${completedHabitIds.size} of ${habits.length} habits complete` : "No focus set today");
+  const recoverySignal = calculateTodayRecoverySignal({
+    waterMl: todaysWaterMl,
+    waterTargetMl: nutritionTargets.waterTargetMl,
+    sleepQuality
+  });
   const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
     {
       label: "Fuel",
@@ -1193,20 +1171,21 @@ export function ClientDashboard() {
     {
       label: "Move",
       icon: Activity,
-      summary: todaysBurnCalories > 0
-        ? `${todaysBurnCalories.toLocaleString()} kcal`
+      summary: todayActivityCalories > 0
+        ? `${todayActivityCalories.toLocaleString()} kcal`
         : syncedSteps > 0
           ? `${syncedSteps.toLocaleString()} steps`
           : syncedWorkoutCompleted
             ? "Workout synced"
             : "No log yet",
       detail: moveDetail,
-      done: todaysBurnCalories > 0 || syncedSteps >= 2500 || syncedWorkoutCompleted,
-      progress: todaysBurnCalories > 0 || syncedWorkoutCompleted
+      done: manualMovementLogged || syncedMovementUnderway,
+      progress: manualMovementLogged || syncedWorkoutCompleted
         ? 100
-        : syncedSteps > 0
-          ? clamp(Math.round((syncedSteps / 8000) * 100))
-          : 0,
+        : Math.max(
+            syncedSteps > 0 ? clamp(Math.round((syncedSteps / 8000) * 100)) : 0,
+            syncedActiveCalories > 0 ? clamp(Math.round((syncedActiveCalories / 300) * 100)) : 0
+          ),
       href: "/burn-log"
     },
     {
@@ -1218,31 +1197,12 @@ export function ClientDashboard() {
           ? `${sleepQuality.charAt(0).toUpperCase()}${sleepQuality.slice(1)} sleep`
           : "Water + sleep",
       detail: recoverDetail,
-      done: todaysWaterMl >= nutritionTargets.waterTargetMl || sleepQuality !== null,
-      progress: Math.max(waterProgress, sleepQuality ? 100 : 0),
+      done: recoverySignal.done,
+      progress: recoverySignal.progress,
       href: null
-    },
-    {
-      label: "Focus",
-      icon: Target,
-      summary: dailyMission
-        ? dailyMission.status === "completed"
-          ? "Completed"
-          : "Set today"
-        : habits.length
-          ? `${completedHabitIds.size}/${habits.length} habits`
-          : "Optional today",
-      detail: focusDetail,
-      done: dailyMission?.status === "completed" || completedHabitIds.size > 0,
-      progress: dailyMission?.status === "completed"
-        ? 100
-        : habits.length
-          ? clamp(Math.round((completedHabitIds.size / habits.length) * 100))
-          : 0,
-      href: "/habits"
     }
   ];
-  const activeMomentumSignals = momentumSignals.filter((item) => item.label !== "Focus" || momentumBreakdown?.focusActive || habits.length || dailyMission);
+  const activeMomentumSignals = momentumSignals;
   const completedMomentumSignals = activeMomentumSignals.filter((item) => item.done).length;
   const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(activeMomentumSignals.length, 1)) * 100);
   const priorityMomentumLabel = todayPriority.key === "Meal"
@@ -1251,9 +1211,7 @@ export function ClientDashboard() {
       ? "Move"
       : todayPriority.key === "Water"
         ? "Recover"
-        : todayPriority.key === "Habit"
-          ? "Focus"
-          : null;
+        : null;
   const optionalLogActions = [
     { label: "Meal", href: "/food-log", icon: Beef },
     { label: "Water", href: "/water-log", icon: Droplets },
@@ -1437,8 +1395,8 @@ export function ClientDashboard() {
               style={{ width: `${momentumSignalProgress}%` }}
             />
           </div>
-          <nav className="mt-4 grid grid-cols-4 gap-2" aria-label="Today activity shortcuts">
-            {momentumSignals.map((item) => {
+          <nav className="mx-auto mt-4 grid max-w-sm grid-cols-3 gap-3" aria-label="Today activity shortcuts">
+            {activeMomentumSignals.map((item) => {
               const Icon = item.icon;
               const isPriority = priorityMomentumLabel === item.label;
               const content = (
@@ -1569,10 +1527,14 @@ export function ClientDashboard() {
                       progress: waterProgress
                     },
                     {
-                      key: "weight",
-                      label: "Weight",
-                      value: currentWeight ? `${currentWeight.toFixed(1)}kg` : "No check-in yet",
-                      target: currentWeight ? weightTrend(latestWeight, previousWeight) : "Optional today",
+                      key: "activity",
+                      label: "Calories Burned",
+                      value: hasActivityCalories ? `${todayActivityCalories.toLocaleString()} kcal` : "No activity yet",
+                      target: hasActivityCalories
+                        ? hasSyncedActivity && syncedActiveCalories >= todaysBurnCalories
+                          ? "Synced active calories"
+                          : "Estimated calories burned"
+                        : "Movement will appear here",
                       progress: null
                     },
                     {
@@ -1594,7 +1556,7 @@ export function ClientDashboard() {
                         {item.progress !== null ? <span className="text-[11px] font-semibold text-zinc-500">{item.progress}%</span> : null}
                       </div>
                       <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">{item.label}</p>
-                      <p className={`mt-1 font-semibold leading-6 text-white ${item.key === "momentum" || (item.key === "weight" && !currentWeight) ? "text-base" : "text-xl"}`}>{item.value}</p>
+                      <p className={`mt-1 font-semibold leading-6 text-white ${item.key === "momentum" || (item.key === "activity" && !hasActivityCalories) ? "text-base" : "text-xl"}`}>{item.value}</p>
                       <p className="mt-0.5 text-[11px] text-zinc-500">{item.target}</p>
                       {item.progress !== null ? (
                         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface">

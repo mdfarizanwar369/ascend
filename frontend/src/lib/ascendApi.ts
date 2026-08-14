@@ -1244,7 +1244,7 @@ export function sendCoachMessage(message: string, mode: CoachChatMode = "general
 }
 
 export type TodayPriorityRecommendation = {
-  key: "Meal" | "Water" | "Movement" | "Habit" | null;
+  key: "Meal" | "Water" | "Movement" | null;
   title: string;
   reason: string;
   href: string;
