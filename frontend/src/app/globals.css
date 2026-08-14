@@ -218,6 +218,7 @@ html[data-theme="light"] .ascend-public-hero .text-zinc-400 {
 
 html[data-theme="light"] .ascend-public-dark-band {
   background-color: #101822 !important;
+  color: #f8fafc !important;
 }
 
 html[data-theme="light"] .ascend-public-dark-band .text-white,
