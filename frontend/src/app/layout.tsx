@@ -10,9 +10,30 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Ascend",
-  description: "Trainer-first fitness accountability",
+  metadataBase: new URL("https://www.getascend.fit"),
+  title: "Ascend | Fitness accountability between sessions",
+  description: "Know what to do today with practical coaching for meals, movement, recovery, and progress.",
+  applicationName: "Ascend",
+  authors: [{ name: "Ascend" }],
+  creator: "Ascend",
+  publisher: "Ascend",
   manifest: "/manifest.json",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: "Ascend",
+    title: "Ascend | Know what to do today",
+    description: "Practical fitness accountability for the hours between sessions.",
+    images: [{ url: "/marketing/ascend-social-share.png", width: 1024, height: 500, alt: "Ascend coaches the other 166 hours" }]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Ascend | Know what to do today",
+    description: "Practical fitness accountability for the hours between sessions.",
+    images: ["/marketing/ascend-social-share.png"]
+  },
+  robots: { index: true, follow: true },
   icons: {
     icon: "/brand/ascend-logo.png",
     apple: "/brand/ascend-logo.png"

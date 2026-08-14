@@ -22,11 +22,11 @@ export default function ContactPage() {
             <span className="text-xl font-semibold">Ascend</span>
           </Link>
           <Link
-            href="/dashboard"
-            className="flex h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-zinc-200"
+            href="/"
+            className="flex h-11 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-sm font-semibold text-zinc-200"
           >
             <ArrowLeft size={17} />
-            Back to app
+            Back to Ascend
           </Link>
         </header>
 

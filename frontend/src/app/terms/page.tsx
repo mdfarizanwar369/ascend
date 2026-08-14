@@ -41,10 +41,10 @@ export default function TermsPage() {
         {
           title: "Subscriptions and billing",
           bullets: [
-            "Paid plans renew monthly until cancelled through the billing portal.",
-            "Ascend uses Stripe to process card payments, recurring billing, and payment receipts. Ascend remains responsible for its subscriptions, applicable taxes, cancellations, and refunds.",
-            "Prices, taxes, and currency details are displayed before purchase. Plan access begins after successful payment confirmation.",
-            "If payment fails, paid features may be restricted until billing is resolved. Cancellation and refund details are explained in the Refund and Cancellation Policy."
+            "Paid plans renew for the billing period shown at purchase until cancelled through the provider used for that subscription.",
+            "Web subscriptions are processed by Stripe. Eligible Android in-app subscriptions are processed by Google Play. Ascend remains responsible for providing the subscribed service.",
+            "The price, currency, taxes, renewal period, and billing provider are displayed before purchase. Plan access begins after successful payment confirmation.",
+            "If a subscription expires or payment fails, paid features may be restricted until billing is resolved. Cancellation and refund details are explained in the Refund and Cancellation Policy."
           ]
         },
         {

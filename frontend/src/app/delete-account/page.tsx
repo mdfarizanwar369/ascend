@@ -23,7 +23,7 @@ export default async function DeleteAccountPage({
       <LegalPage
         eyebrow="Account control"
         title="Delete your Ascend account"
-        introduction="Ascend gives you a public path to request account deletion even if you no longer have the app installed. The fastest path is inside Ascend under Profile → Account → Delete Account."
+        introduction="Ascend gives you a public path to request account deletion even if you no longer have the app installed. The fastest path is inside Ascend under Profile > Account > Delete Account."
         sections={[
           {
             title: "What data Ascend deletes",
@@ -52,7 +52,7 @@ export default async function DeleteAccountPage({
             title: "How to request deletion without the app",
             paragraphs: [
               "Email support@getascend.fit from the email address linked to your Ascend account and use the subject line Account Deletion Request. Include any detail that helps us identify the account if you cannot access the app.",
-              "You can also use the in-app self-service path after signing in: Profile → Account → Delete Account."
+              "You can also use the in-app self-service path after signing in: Profile > Account > Delete Account."
             ]
           },
           {

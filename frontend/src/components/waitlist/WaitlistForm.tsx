@@ -4,10 +4,9 @@ import { FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
 
-type WaitlistRole = "member" | "trainer" | "gym_owner";
+type WaitlistRole = "trainer" | "gym_owner";
 
 const roleOptions: Array<{ value: WaitlistRole; label: string }> = [
-  { value: "member", label: "Member" },
   { value: "trainer", label: "Trainer" },
   { value: "gym_owner", label: "Gym owner" }
 ];
@@ -15,7 +14,7 @@ const roleOptions: Array<{ value: WaitlistRole; label: string }> = [
 export function WaitlistForm() {
   const [fullName, setFullName] = useState("");
   const [contact, setContact] = useState("");
-  const [role, setRole] = useState<WaitlistRole>("member");
+  const [role, setRole] = useState<WaitlistRole>("gym_owner");
   const [gymOrCompany, setGymOrCompany] = useState("");
   const [country, setCountry] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -51,20 +50,20 @@ export function WaitlistForm() {
         })
       });
       setStatus("saved");
-      setMessage("You're on the Ascend pilot waitlist. We will contact you when access opens for your gym or region.");
+      setMessage("Thanks. The Ascend team will contact you about the best next step for your gym or clients.");
     } catch (error) {
       setStatus("error");
-      setMessage(error instanceof Error ? error.message : "Could not join the waitlist. Please try again.");
+      setMessage(error instanceof Error ? error.message : "Could not send your request. Please try again.");
     }
   }
 
   return (
     <form onSubmit={onSubmit} className="rounded-lg border border-calm/30 bg-surface/85 p-5 shadow-2xl shadow-black/25">
       <div>
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">Pilot waitlist</p>
-        <h2 className="mt-2 text-2xl font-semibold text-white">Get early access to Ascend.</h2>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">For fitness businesses</p>
+        <h2 className="mt-2 text-2xl font-semibold text-white">Request an Ascend walkthrough.</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-300">
-          Join as a member, trainer, or gym owner. We are opening access carefully so the pilot stays clean.
+          Tell us where you coach. We will keep the conversation focused on your members, trainers, and goals.
         </p>
       </div>
 
@@ -93,7 +92,7 @@ export function WaitlistForm() {
 
         <div>
           <span className="text-sm font-semibold text-zinc-200">I am a</span>
-          <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-2">
             {roleOptions.map((option) => {
               const selected = role === option.value;
               return (
@@ -102,7 +101,7 @@ export function WaitlistForm() {
                   type="button"
                   onClick={() => setRole(option.value)}
                   className={`h-11 rounded-lg border px-2 text-sm font-bold transition ${
-                    selected ? "border-calm bg-calm text-ink" : "border-line bg-ink text-zinc-200"
+                    selected ? "border-lime bg-lime text-ink" : "border-line bg-ink text-zinc-200"
                   }`}
                 >
                   {option.label}
@@ -152,7 +151,7 @@ export function WaitlistForm() {
         disabled={status === "saving"}
         className="mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-lg bg-calm px-5 font-bold text-ink shadow-xl shadow-calm/20 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {status === "saving" ? "Joining..." : "Join the pilot waitlist"}
+        {status === "saving" ? "Sending..." : "Request a walkthrough"}
         {status !== "saving" ? <ArrowRight size={19} /> : null}
       </button>
     </form>

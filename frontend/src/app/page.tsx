@@ -1,120 +1,274 @@
-import { AlertTriangle, ArrowRight, CheckCircle2, Play, TrendingUp } from "lucide-react";
+import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
+import {
+  ArrowRight,
+  Brain,
+  Camera,
+  Check,
+  Dumbbell,
+  Play,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Users
+} from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
-import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { WaitlistForm } from "@/components/waitlist/WaitlistForm";
 
-const appLoginUrl = "https://www.getascend.fit/login";
+export const metadata: Metadata = {
+  title: "Ascend | Fitness accountability between sessions",
+  description:
+    "Ascend turns meals, movement, recovery, and progress into one clear next action, with Coach Zoe and optional trainer support.",
+  alternates: { canonical: "/" }
+};
+
+const dailySteps = [
+  {
+    icon: Camera,
+    title: "Check in quickly",
+    detail: "Photograph a meal, log movement, or record recovery in seconds."
+  },
+  {
+    icon: Brain,
+    title: "Understand what matters",
+    detail: "Ascend reads the pattern and turns it into one useful next step."
+  },
+  {
+    icon: TrendingUp,
+    title: "See progress become a story",
+    detail: "Small actions build Momentum, milestones, and a journey you can actually see."
+  }
+];
+
+const memberOutcomes = [
+  "A calm Today screen instead of another data-heavy dashboard",
+  "Fast meal estimates from a photo or a short description",
+  "Workouts adapted to your time, goal, equipment, and recent activity",
+  "Progress that connects daily actions to the bigger picture"
+];
+
+const businessOutcomes = [
+  {
+    icon: Users,
+    title: "Trainers start with context",
+    detail: "See who needs attention and what happened between sessions before the next conversation begins."
+  },
+  {
+    icon: Target,
+    title: "Members stay connected",
+    detail: "Clear daily actions help coaching continue after the gym session ends."
+  },
+  {
+    icon: TrendingUp,
+    title: "Owners see where to act",
+    detail: "Member engagement, trainer follow-up, and growth opportunities surface in plain language."
+  }
+];
 
 export default function HomePage() {
-  const previewSignals = [
-    { label: "Member", value: "Next: log lunch and drink 500ml water.", icon: CheckCircle2, color: "text-lime" },
-    { label: "Trainer", value: "Sally needs attention: no food logs for 3 days.", icon: AlertTriangle, color: "text-amber" },
-    { label: "Gym", value: "Engagement is up this week across active members.", icon: TrendingUp, color: "text-calm" }
-  ];
-
   return (
-    <main className="min-h-screen overflow-hidden bg-ink text-white">
-      <div className="ascend-theme-glow pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-8%,rgba(53,242,208,0.16),transparent_34rem),radial-gradient(circle_at_10%_22%,rgba(139,92,246,0.14),transparent_28rem)]" />
-
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-5 sm:px-8 lg:py-7">
-        <header className="flex items-center justify-between">
-          <Link href="https://www.getascend.fit" className="flex items-center gap-3" aria-label="Ascend homepage">
+    <main className="min-h-screen overflow-x-clip bg-ink text-white">
+      <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-ink/90 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex min-h-11 items-center gap-3" aria-label="Ascend homepage">
             <BrandMark size="sm" />
-            <span className="text-xl font-semibold tracking-tight">Ascend</span>
+            <span className="text-lg font-semibold">Ascend</span>
           </Link>
+
+          <nav className="hidden items-center gap-6 text-sm font-medium text-zinc-300 lg:flex" aria-label="Website navigation">
+            <a href="#how-it-works" className="transition-colors hover:text-white">How it works</a>
+            <a href="#for-members" className="transition-colors hover:text-white">For members</a>
+            <a href="#for-gyms" className="transition-colors hover:text-white">For gyms</a>
+            <Link href="/demo" className="transition-colors hover:text-white">Product tour</Link>
+          </nav>
+
           <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Link href={appLoginUrl} className="rounded-lg border border-line bg-surface/80 px-4 py-2 text-sm font-semibold text-zinc-100 shadow-lg shadow-black/20">
-              Pilot login
+            <ThemeToggle className="!h-11 !w-11" />
+            <Link href="/login" className="ascend-pressable flex min-h-11 items-center rounded-xl border border-line bg-surface px-3 text-sm font-semibold text-zinc-100 sm:px-4">
+              Open Ascend
             </Link>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[1.03fr_0.97fr] lg:py-14">
+      <section className="ascend-public-hero relative isolate min-h-[calc(100svh-9rem)] overflow-hidden border-b border-white/[0.07]">
+        <Image
+          src="/workouts/location-gym.jpg"
+          alt="A member strength training in a modern gym"
+          fill
+          priority
+          sizes="100vw"
+          className="-z-30 object-cover object-[62%_center]"
+        />
+        <div className="absolute inset-0 -z-20 bg-[linear-gradient(90deg,rgba(7,10,15,0.98)_0%,rgba(7,10,15,0.9)_47%,rgba(7,10,15,0.38)_100%)]" />
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(7,10,15,0.08),rgba(7,10,15,0.2)_65%,#0f161f_100%)]" />
+
+        <div className="mx-auto grid min-h-[calc(100svh-9rem)] w-full max-w-7xl items-center px-5 py-12 sm:px-8 lg:grid-cols-[1fr_0.72fr] lg:gap-10 lg:py-16">
+          <div className="max-w-3xl">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-calm sm:text-sm">Fitness accountability that follows through</p>
+            <h1 className="mt-4 text-5xl font-semibold leading-none text-white sm:text-7xl">Ascend</h1>
+            <p className="mt-5 max-w-2xl text-3xl font-semibold leading-[1.08] text-white sm:text-5xl">
+              Know what to do today. Keep going tomorrow.
+            </p>
+            <p className="mt-5 max-w-xl text-base leading-7 text-zinc-300 sm:text-lg sm:leading-8">
+              Ascend turns meals, movement, recovery, and progress into one clear next action. Coach Zoe supports you between sessions, and your trainer stays connected when you have one.
+            </p>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Link href="/login" className="ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-xl bg-lime px-6 font-bold text-ink shadow-[0_18px_40px_rgba(53,242,208,0.2)]">
+                Start free <ArrowRight size={19} />
+              </Link>
+              <Link href="/demo" className="ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-xl border border-white/20 bg-black/35 px-6 font-semibold text-white backdrop-blur">
+                <Play size={18} /> See the real product
+              </Link>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-zinc-300 sm:text-sm">
+              <span className="inline-flex items-center gap-1.5"><Check className="text-lime" size={15} /> Free to start</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="text-lime" size={15} /> No credit card required</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="text-lime" size={15} /> Web and Android</span>
+            </div>
+          </div>
+
+          <div className="relative hidden h-[560px] items-end justify-center lg:flex" aria-label="Ascend Today screen preview">
+            <div className="absolute h-[500px] w-[252px] rotate-[-2deg] overflow-hidden rounded-[2rem] border border-white/20 bg-[#0b1018] shadow-[0_30px_80px_rgba(0,0,0,0.55)]">
+              <Image src="/marketing/today.png" alt="Ascend Today screen showing a clear daily focus" fill sizes="252px" className="object-cover object-top" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="ascend-public-dark-band border-b border-line bg-[#101822] px-5 py-14 sm:px-8 sm:py-20" aria-labelledby="hours-heading">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 lg:grid-cols-[0.7fr_1.3fr]">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.24em] text-calm">The accountability layer for fitness results</p>
-            <h1 className="mt-5 max-w-4xl text-4xl font-semibold uppercase leading-[1.02] tracking-normal text-white sm:text-6xl lg:text-7xl">
-              The missing link between training and results.
-            </h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-zinc-300 sm:text-xl">
-              Most people do not need another tracker. They need support when the workout ends. Ascend keeps members, trainers, and gyms aligned between sessions.
+            <p className="text-7xl font-semibold leading-none text-calm sm:text-8xl">166</p>
+            <p className="mt-2 text-sm font-bold uppercase tracking-[0.18em] text-zinc-400">hours outside a weekly PT session</p>
+          </div>
+          <div>
+            <h2 id="hours-heading" className="text-3xl font-semibold leading-tight sm:text-5xl">The session starts the plan. Daily life decides the result.</h2>
+            <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-400 sm:text-lg">
+              Ascend keeps the next useful action visible between workouts, without replacing the trainer or demanding perfect tracking.
             </p>
+          </div>
+        </div>
+      </section>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <a href="#waitlist" className="flex h-14 items-center justify-center gap-2 rounded-lg bg-calm px-6 font-bold text-ink shadow-xl shadow-calm/20">
-                Join the pilot waitlist
-                <ArrowRight size={20} />
-              </a>
-              <Link href={appLoginUrl} className="flex min-h-14 items-center justify-center rounded-lg border border-line bg-surface/85 px-5 text-center text-sm font-semibold text-zinc-200">
-                Pilot login
-              </Link>
-              <Link href="/demo" className="flex min-h-14 items-center justify-center gap-2 rounded-lg border border-calm/40 bg-calm/10 px-5 text-center text-sm font-semibold text-zinc-100">
-                <Play size={17} /> Watch 30-sec demo
-              </Link>
+      <section id="how-it-works" className="px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">How it works</p>
+          <h2 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">One clear next step, built from your real day.</h2>
+          <div className="mt-12 grid gap-8 md:grid-cols-3">
+            {dailySteps.map((step, index) => {
+              const Icon = step.icon;
+              return (
+                <article key={step.title} className="border-t border-line pt-5">
+                  <div className="flex items-center justify-between">
+                    <span className="grid h-11 w-11 place-items-center rounded-xl bg-calm/12 text-calm"><Icon size={21} /></span>
+                    <span className="text-sm font-semibold text-zinc-600">0{index + 1}</span>
+                  </div>
+                  <h3 className="mt-5 text-xl font-semibold">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{step.detail}</p>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="for-members" className="border-y border-line bg-surface/35 px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2">
+          <div className="relative mx-auto h-[520px] w-full max-w-[360px] overflow-hidden rounded-[2rem] border border-line bg-ink shadow-[0_30px_70px_rgba(0,0,0,0.35)] sm:h-[620px]">
+            <Image src="/marketing/meal.png" alt="Ascend meal logging screen with camera-based food estimation" fill sizes="(max-width: 640px) 90vw, 360px" className="object-cover object-top" />
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">For everyday members</p>
+            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-5xl">Fitness tracking that gives something useful back.</h2>
+            <p className="mt-5 text-base leading-7 text-zinc-400 sm:text-lg">
+              Log what actually happened. Ascend handles the interpretation and keeps the next action practical.
+            </p>
+            <ul className="mt-7 space-y-4">
+              {memberOutcomes.map((outcome) => (
+                <li key={outcome} className="flex gap-3 text-sm leading-6 text-zinc-300 sm:text-base">
+                  <Check className="mt-1 shrink-0 text-lime" size={17} /> {outcome}
+                </li>
+              ))}
+            </ul>
+            <Link href="/login" className="ascend-pressable mt-8 inline-flex min-h-12 items-center gap-2 rounded-xl bg-lime px-5 font-semibold text-ink">
+              Create your account <ArrowRight size={18} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="px-5 py-16 sm:px-8 sm:py-24" aria-labelledby="zoe-heading">
+        <div className="mx-auto max-w-6xl">
+          <div className="max-w-3xl">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">Coach Zoe</p>
+            <h2 id="zoe-heading" className="mt-3 text-3xl font-semibold leading-tight sm:text-5xl">Useful coaching, shaped by what you have actually done.</h2>
+            <p className="mt-5 text-base leading-7 text-zinc-400 sm:text-lg">
+              Ask a question, understand your progress, or generate a workout that fits your available time and equipment.
+            </p>
+          </div>
+          <div className="-mx-5 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-3 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0">
+            <figure className="w-[82vw] shrink-0 snap-center overflow-hidden rounded-2xl border border-line bg-surface shadow-soft sm:w-auto">
+              <div className="relative aspect-[4/5]"><Image src="/marketing/coach.png" alt="Coach Zoe quick coaching actions" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover object-top" /></div>
+              <figcaption className="border-t border-line px-5 py-4 text-sm text-zinc-400"><Sparkles className="mr-2 inline text-calm" size={16} /> One coaching insight at a time.</figcaption>
+            </figure>
+            <figure className="w-[82vw] shrink-0 snap-center overflow-hidden rounded-2xl border border-line bg-surface shadow-soft sm:w-auto">
+              <div className="relative aspect-[4/5]"><Image src="/marketing/workout.png" alt="A personalized workout generated by Coach Zoe" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover object-top" /></div>
+              <figcaption className="border-t border-line px-5 py-4 text-sm text-zinc-400"><Dumbbell className="mr-2 inline text-lime" size={16} /> A workout for today, not a generic library.</figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="for-gyms" className="ascend-public-dark-band border-y border-line bg-[#101822] px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-6xl">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">For trainers and gyms</p>
+          <h2 className="mt-3 max-w-4xl text-3xl font-semibold leading-tight sm:text-5xl">Every coaching session can begin with evidence instead of guesswork.</h2>
+          <div className="-mx-5 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-3 lg:mx-0 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:overflow-visible lg:px-0 lg:pb-0">
+            <div className="relative h-[420px] w-[82vw] shrink-0 snap-center overflow-hidden rounded-2xl border border-line bg-ink lg:h-auto lg:min-h-[480px] lg:w-auto">
+              <Image src="/marketing/trainer.png" alt="Ascend trainer dashboard highlighting clients who need attention" fill sizes="(max-width: 1024px) 100vw, 56vw" className="object-cover object-top" />
+            </div>
+            <div className="relative h-[420px] w-[82vw] shrink-0 snap-center overflow-hidden rounded-2xl border border-line bg-ink lg:h-auto lg:min-h-[480px] lg:w-auto">
+              <Image src="/marketing/owner.png" alt="Ascend owner command center showing business priorities" fill sizes="(max-width: 1024px) 100vw, 44vw" className="object-cover object-top" />
             </div>
           </div>
-
-          <div className="relative mx-auto w-full max-w-sm lg:max-w-md">
-            <div className="absolute inset-8 rounded-full bg-calm/10 blur-3xl" />
-            <div className="relative rounded-lg border border-line bg-surface/80 p-5 shadow-2xl shadow-black/30">
-              <BrandMark size="lg" showWordmark />
-              <div className="mt-5 rounded-lg border border-calm/30 bg-calm/10 p-4">
-                <p className="text-sm font-semibold uppercase tracking-[0.18em] text-calm">What Ascend makes visible</p>
-                <p className="mt-2 text-2xl font-semibold leading-tight text-white">
-                  The next action, the client at risk, and the signal that progress is happening.
-                </p>
-              </div>
-              <div className="mt-3 space-y-2">
-                {previewSignals.map((signal) => {
-                  const Icon = signal.icon;
-                  return (
-                    <div key={signal.label} className="flex items-start gap-3 rounded-lg bg-ink p-3 text-sm font-medium text-zinc-200">
-                      <Icon className={`mt-0.5 shrink-0 ${signal.color}`} size={17} />
-                      <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">{signal.label}</p>
-                        <p className="mt-1 leading-5">{signal.value}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          <div className="mt-10 grid gap-8 md:grid-cols-3">
+            {businessOutcomes.map((outcome) => {
+              const Icon = outcome.icon;
+              return (
+                <article key={outcome.title} className="border-t border-white/10 pt-5">
+                  <Icon className="text-calm" size={22} />
+                  <h3 className="mt-4 text-lg font-semibold">{outcome.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{outcome.detail}</p>
+                </article>
+              );
+            })}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section id="waitlist" className="mb-8 grid gap-5 rounded-lg border border-line bg-ink/60 p-4 sm:p-5 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-lg border border-line bg-surface/70 p-5 sm:p-6">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">Controlled pilot access</p>
-            <h2 className="mt-3 text-3xl font-semibold leading-tight text-white">Ascend is opening gym by gym.</h2>
-            <p className="mt-3 text-base leading-7 text-zinc-300">
-              The waitlist helps us keep the pilot clean, protect AI usage, and onboard the right members, trainers, and gym owners first.
+      <section id="contact" className="border-t border-line bg-surface/35 px-5 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">Choose your next step</p>
+            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-5xl">Start for yourself or bring Ascend to your gym.</h2>
+            <p className="mt-5 text-base leading-7 text-zinc-400">
+              Members can begin immediately. Trainers and gym owners can request a focused product conversation for their team.
             </p>
-            <div className="mt-5 space-y-3 text-sm text-zinc-300">
-              <p className="rounded-lg bg-ink p-3">Members get early access when their gym or coaching mode opens.</p>
-              <p className="rounded-lg bg-ink p-3">Trainers and owners can request pilot access for their clients or locations.</p>
-            </div>
+            <Link href="/login" className="ascend-pressable mt-7 inline-flex min-h-14 items-center gap-2 rounded-xl bg-lime px-6 font-bold text-ink">
+              Start free <ArrowRight size={19} />
+            </Link>
           </div>
           <WaitlistForm />
-        </section>
+        </div>
+      </section>
 
-        <section className="mb-8 rounded-lg border border-line bg-surface/80 p-5 sm:p-6">
-          <div className="grid gap-5 md:grid-cols-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-lime">For members</p>
-              <p className="mt-2 text-xl font-semibold">Know what to do today.</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">For trainers</p>
-              <p className="mt-2 text-xl font-semibold">Know who needs attention.</p>
-            </div>
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">For gyms</p>
-              <p className="mt-2 text-xl font-semibold">Know if accountability is working.</p>
-            </div>
-          </div>
-        </section>
+      <div className="mx-auto w-full max-w-7xl px-5 sm:px-8">
         <PublicFooter />
       </div>
     </main>

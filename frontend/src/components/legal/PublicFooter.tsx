@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const links = [
   { href: "/privacy", label: "Privacy" },
-  { href: "/delete-account", label: "Delete Account" },
+  { href: "/delete-account", label: "Account deletion" },
   { href: "/terms", label: "Terms" },
   { href: "/refund-policy", label: "Refunds" },
   { href: "/contact", label: "Support" }

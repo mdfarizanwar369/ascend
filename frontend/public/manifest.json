@@ -1,12 +1,12 @@
 {
   "name": "Ascend",
   "short_name": "Ascend",
-  "description": "Fitness accountability for gym members and trainers",
+  "description": "Practical fitness accountability for meals, movement, recovery, and progress",
   "id": "https://www.getascend.fit/launch",
   "start_url": "https://www.getascend.fit/launch",
   "scope": "https://www.getascend.fit/",
   "display": "standalone",
-  "background_color": "#07090d",
+  "background_color": "#0f161f",
   "theme_color": "#35f2d0",
   "icons": [
     {

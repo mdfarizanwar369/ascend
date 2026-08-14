@@ -205,6 +205,32 @@ html[data-theme="light"] .ascend-pressable {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
 }
 
+html[data-theme="light"] .ascend-public-hero .text-white,
+html[data-theme="light"] .ascend-public-hero .text-zinc-100,
+html[data-theme="light"] .ascend-public-hero .text-zinc-200 {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .ascend-public-hero .text-zinc-300,
+html[data-theme="light"] .ascend-public-hero .text-zinc-400 {
+  color: #d9e1e8 !important;
+}
+
+html[data-theme="light"] .ascend-public-dark-band {
+  background-color: #101822 !important;
+}
+
+html[data-theme="light"] .ascend-public-dark-band .text-white,
+html[data-theme="light"] .ascend-public-dark-band .text-zinc-100,
+html[data-theme="light"] .ascend-public-dark-band .text-zinc-200 {
+  color: #f8fafc !important;
+}
+
+html[data-theme="light"] .ascend-public-dark-band .text-zinc-300,
+html[data-theme="light"] .ascend-public-dark-band .text-zinc-400 {
+  color: #b9c4cf !important;
+}
+
 html[data-theme="light"] button:disabled {
   opacity: 1;
 }
