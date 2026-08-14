@@ -392,6 +392,7 @@ export function ClientDashboard() {
   const hasLoadedDashboardRef = useRef(false);
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
+  const logMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -1239,6 +1240,20 @@ export function ClientDashboard() {
     setOpenSections((current) => ({ ...current, [key]: isOpen }));
   }
 
+  function openRecoveryMenu() {
+    setLogMenuContext("recovery");
+    setLogMenuOpen(true);
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        logMenuRef.current?.scrollIntoView({
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+          block: "nearest"
+        });
+      });
+    });
+  }
+
   async function recordSleepQuality(quality: "poor" | "okay" | "good") {
     setSavingSleep(true);
     try {
@@ -1434,7 +1449,7 @@ export function ClientDashboard() {
                   {content}
                 </Link>
               ) : (
-                <button key={item.label} type="button" onClick={() => { setLogMenuContext("recovery"); setLogMenuOpen(true); }} style={{ animationDelay: `${720 + index * 90}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={openRecoveryMenu} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" style={{ animationDelay: `${720 + index * 90}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );
@@ -1451,7 +1466,7 @@ export function ClientDashboard() {
           </button>
           <div aria-hidden={!logMenuOpen} className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-300 ${logMenuOpen ? "visible mt-3 grid-rows-[1fr] opacity-100" : "invisible mt-0 grid-rows-[0fr] opacity-0"}`}>
             <div className="min-h-0">
-              <div className="ascend-today-log-menu rounded-2xl border border-white/[0.07] bg-black/20 p-3">
+              <div ref={logMenuRef} id="today-log-menu" className="ascend-today-log-menu scroll-mt-4 rounded-2xl border border-white/[0.07] bg-black/20 p-3">
                 {logMenuContext === "recovery" ? (
                   <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
                     <div>
