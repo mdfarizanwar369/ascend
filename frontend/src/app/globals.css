@@ -50,7 +50,9 @@ html[data-theme="light"] {
 body {
   margin: 0;
   min-height: 100dvh;
+  max-width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
   padding-top: var(--ascend-safe-area-top);
   background:
     radial-gradient(circle at 50% -10%, rgba(53, 242, 208, 0.14), transparent 34rem),
@@ -65,7 +67,21 @@ body {
 }
 
 html {
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
   scroll-behavior: smooth;
+}
+
+@supports (overflow: clip) {
+  html,
+  body {
+    overflow-x: clip;
+  }
+}
+
+body {
+  touch-action: pan-y pinch-zoom;
 }
 
 ::selection {
