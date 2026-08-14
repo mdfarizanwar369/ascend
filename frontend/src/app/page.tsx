@@ -103,8 +103,8 @@ export default function HomePage() {
           sizes="100vw"
           className="-z-30 object-cover object-[62%_center]"
         />
-        <div className="absolute inset-0 -z-20 bg-[linear-gradient(90deg,rgba(7,10,15,0.98)_0%,rgba(7,10,15,0.9)_47%,rgba(7,10,15,0.38)_100%)]" />
-        <div className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(7,10,15,0.08),rgba(7,10,15,0.2)_65%,#0f161f_100%)]" />
+        <div className="ascend-public-hero-overlay-x absolute inset-0 -z-20 bg-[linear-gradient(90deg,rgba(7,10,15,0.98)_0%,rgba(7,10,15,0.9)_47%,rgba(7,10,15,0.38)_100%)]" />
+        <div className="ascend-public-hero-overlay-y absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(7,10,15,0.08),rgba(7,10,15,0.2)_65%,#0f161f_100%)]" />
 
         <div className="mx-auto grid min-h-[calc(100svh-9rem)] w-full max-w-7xl items-center px-5 py-12 sm:px-8 lg:grid-cols-[1fr_0.72fr] lg:gap-10 lg:py-16">
           <div className="max-w-3xl">

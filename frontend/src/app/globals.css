@@ -269,6 +269,16 @@ html[data-theme="light"] [class*="bg-[linear-gradient(180deg"]:not(.ascend-ident
   border-color: rgba(15, 23, 42, 0.08) !important;
 }
 
+html[data-theme="light"] .ascend-public-hero .ascend-public-hero-overlay-x {
+  background-color: transparent !important;
+  background-image: linear-gradient(90deg, rgba(7, 10, 15, 0.98) 0%, rgba(7, 10, 15, 0.9) 47%, rgba(7, 10, 15, 0.38) 100%) !important;
+}
+
+html[data-theme="light"] .ascend-public-hero .ascend-public-hero-overlay-y {
+  background-color: transparent !important;
+  background-image: linear-gradient(180deg, rgba(7, 10, 15, 0.08), rgba(7, 10, 15, 0.2) 65%, #0f161f 100%) !important;
+}
+
 .ascend-branded-surface {
   position: relative;
 }
