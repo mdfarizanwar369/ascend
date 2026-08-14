@@ -1387,6 +1387,24 @@ function toCleanString(value: unknown, fallback: string, maxLength = 160) {
   return cleaned ? cleaned.slice(0, maxLength) : fallback;
 }
 
+export function normalizeCoachProse(value: unknown, fallback: string, maxLength = 220) {
+  if (typeof value !== "string") return fallback;
+  const cleaned = value.replace(/\*\*/g, "").replace(/\*/g, "").trim();
+  if (!cleaned) return fallback;
+  if (cleaned.length <= maxLength) return cleaned;
+
+  const clipped = cleaned.slice(0, maxLength + 1);
+  const sentenceEnds = [...clipped.matchAll(/[.!?](?=\s|$)/g)];
+  const lastSentenceEnd = sentenceEnds.at(-1)?.index;
+  if (lastSentenceEnd !== undefined && lastSentenceEnd >= maxLength * 0.55) {
+    return clipped.slice(0, lastSentenceEnd + 1).trim();
+  }
+
+  const lastWordBoundary = clipped.lastIndexOf(" ");
+  const wordSafe = clipped.slice(0, lastWordBoundary > 0 ? lastWordBoundary : maxLength).replace(/[,;:\-]+$/, "").trim();
+  return wordSafe ? `${wordSafe}.` : fallback;
+}
+
 function toStringArray(value: unknown, fallback: string[], maxItems = 5) {
   if (!Array.isArray(value)) return fallback;
   const items = value
@@ -1420,7 +1438,7 @@ function normalizeWorkoutPlan(raw: unknown, input: WorkoutPlannerInput): CoachWo
 
   return {
     title: toCleanString(source.title, fallback.title, 80),
-    intro: toCleanString(source.intro, fallback.intro, 180),
+    intro: normalizeCoachProse(source.intro, fallback.intro),
     estimatedDurationMinutes: Math.max(10, Math.min(Math.round(duration), 90)),
     focus: toCleanString(source.focus, fallback.focus, 80),
     intensity,
