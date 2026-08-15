@@ -31,3 +31,9 @@ Limit backup management and restore rights to two named platform operators using
 8. Destroy the rehearsal environment and confirm destruction.
 
 Run quarterly and after backup-provider or schema changes. Public release remains conditional until the first rehearsal succeeds and provider retention/PITR settings are captured as evidence.
+
+## Sprint 2 isolated rehearsal evidence
+
+On 15 August 2026, the procedure was rehearsed with disposable local PostgreSQL and S3-compatible storage. A PostgreSQL custom-format dump was restored into a separate database in 1.58 seconds. The restored database contained all 25 migrations and preserved the known user, food-log, media-upload, and progress-photo relationships. A known object was copied into a separate restore bucket in 436 ms and verified byte-for-byte. An authenticated backend pointed only at the restored services returned the restored profile, food log, and signed progress-photo reference.
+
+This proves the repository restore procedure and relational/object references in an isolated environment. It does **not** prove that production provider backups, PITR, retention, encryption, object versioning, or backup alerting are enabled. Capture those provider-console settings and run a provider-managed staging restore before public release.

@@ -19,6 +19,7 @@ import {
   getWorkoutProgressionHistory,
   saveExerciseAlias
 } from "../services/workoutProgressionV3Service";
+import { recordProductEventSafely } from "../services/productAnalyticsService";
 
 export const logsRouter = Router();
 
@@ -153,6 +154,7 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
 
 logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
+    await recordProductEventSafely({ name: "product.meal_photo_submitted.v1", eventId: `${req.requestId}:meal-photo-submitted`, userId: req.user!.id, gymId: req.user!.gymId, properties: {} });
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
     const imageUrl = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => z.string().url().parse(req.body.imageUrl));
     const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
@@ -166,8 +168,10 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
     const payload = { ...payloadBase, ...(performance ? { performance } : {}) };
+    await recordProductEventSafely({ name: "product.meal_ai_succeeded.v1", eventId: `${req.requestId}:meal-ai-succeeded`, userId: req.user!.id, gymId: req.user!.gymId, properties: { mode: "photo" } });
     res.json(payload);
   } catch (error) {
+    await recordProductEventSafely({ name: "product.meal_ai_failed.v1", eventId: `${req.requestId}:meal-ai-failed`, userId: req.user!.id, gymId: req.user!.gymId, properties: { mode: "photo", failureCode: error instanceof FoodAiLimitError ? "LIMIT_REACHED" : "FOOD_AI_UNAVAILABLE" } });
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
     if (error instanceof FoodAiLimitError) {
@@ -188,6 +192,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
 
 logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
+    await recordProductEventSafely({ name: "product.meal_photo_submitted.v1", eventId: `${req.requestId}:meal-photo-submitted`, userId: req.user!.id, gymId: req.user!.gymId, properties: {} });
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
     const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodImageDataSchema.parse(req.body));
     const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
@@ -201,8 +206,10 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
     const payload = { ...payloadBase, ...(performance ? { performance } : {}) };
+    await recordProductEventSafely({ name: "product.meal_ai_succeeded.v1", eventId: `${req.requestId}:meal-ai-succeeded`, userId: req.user!.id, gymId: req.user!.gymId, properties: { mode: "photo" } });
     res.json(payload);
   } catch (error) {
+    await recordProductEventSafely({ name: "product.meal_ai_failed.v1", eventId: `${req.requestId}:meal-ai-failed`, userId: req.user!.id, gymId: req.user!.gymId, properties: { mode: "photo", failureCode: error instanceof FoodAiLimitError ? "LIMIT_REACHED" : "FOOD_AI_UNAVAILABLE" } });
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
     if (error instanceof FoodAiLimitError) {
@@ -226,8 +233,10 @@ logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req
     const input = foodTextEstimateSchema.parse(req.body);
     const estimate = await estimateFoodFromText(input.description, { userId: req.user!.id, gymId: req.user!.gymId });
     const allowance = await getFoodAiAllowance(req.user!.id);
+    await recordProductEventSafely({ name: "product.meal_ai_succeeded.v1", eventId: `${req.requestId}:meal-ai-succeeded`, userId: req.user!.id, gymId: req.user!.gymId, properties: { mode: "text" } });
     res.json({ estimate, allowance });
   } catch (error) {
+    await recordProductEventSafely({ name: "product.meal_ai_failed.v1", eventId: `${req.requestId}:meal-ai-failed`, userId: req.user!.id, gymId: req.user!.gymId, properties: { mode: "text", failureCode: error instanceof FoodAiLimitError ? "LIMIT_REACHED" : "FOOD_AI_UNAVAILABLE" } });
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance });
       return;
@@ -269,6 +278,14 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
       ]
     );
     await markMediaAttached(req.user!.id, [input.imageS3Key], "food");
+    const mealCount = await query<{ count: string }>("select count(*) from food_logs where user_id = $1", [req.user!.id]);
+    const method = input.imageS3Key ? "photo" : "manual";
+    if (Number(mealCount.rows[0]?.count ?? 0) === 1) {
+      await recordProductEventSafely({ name: "product.first_meal_logged.v1", eventId: `${req.requestId}:first-meal-logged`, userId: req.user!.id, gymId: req.user!.gymId, properties: { method } });
+    }
+    if (!input.imageS3Key) {
+      await recordProductEventSafely({ name: "product.meal_logged_manually.v1", eventId: `${req.requestId}:meal-logged-manually`, userId: req.user!.id, gymId: req.user!.gymId, properties: { method: input.aiEstimateRaw ? "text" : "manual_form" } });
+    }
     void createCoachPresenceForEvent(req.user!.id, "food_logged").catch(() => undefined);
     res.status(201).json({ foodLog: result.rows[0] });
   } catch (error) {
@@ -354,6 +371,13 @@ logsRouter.post("/weight-logs", requireAuth, async (req, res, next) => {
       `,
       [req.user!.id, input.weightKg, input.loggedAt ?? null]
     );
+    await recordProductEventSafely({
+      name: "product.progress_entry_created.v1",
+      eventId: `${req.requestId}:weight-entry-created`,
+      userId: req.user!.id,
+      gymId: req.user!.gymId,
+      properties: { type: "weight" }
+    });
     res.status(201).json({ weightLog: result.rows[0].weight_log, milestone: result.rows[0].milestone ?? null });
   } catch (error) {
     next(error);

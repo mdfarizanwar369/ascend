@@ -7,6 +7,7 @@ import { createReadUrl } from "../integrations/s3";
 import { canManageClient } from "../services/clientAccessService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { assertOwnedMediaObject, markMediaAttached } from "../services/mediaUploadService";
+import { recordProductEventSafely } from "../services/productAnalyticsService";
 
 export const progressRouter = Router();
 
@@ -34,6 +35,13 @@ progressRouter.post("/progress-photos", requireAuth, requireActivePlan("premium"
       [req.user!.id, input.imageS3Key, input.photoType, input.loggedAt ?? null]
     );
     await markMediaAttached(req.user!.id, [input.imageS3Key], "progress");
+    await recordProductEventSafely({
+      name: "product.progress_entry_created.v1",
+      eventId: `${req.requestId}:progress-photo-created`,
+      userId: req.user!.id,
+      gymId: req.user!.gymId,
+      properties: { type: "photo" }
+    });
     void createCoachPresenceForEvent(req.user!.id, "progress_photo").catch(() => undefined);
     res.status(201).json({ progressPhoto: result.rows[0] });
   } catch (error) {

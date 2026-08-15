@@ -5,6 +5,7 @@ import { query } from "../db/pool";
 import { requireFirebaseToken } from "../middleware/auth";
 import { authRateLimit } from "../middleware/rateLimits";
 import { isValidTimeZone, normalizeTimeZone } from "../utils/userTime";
+import { recordProductEventSafely } from "../services/productAnalyticsService";
 
 export const authRouter = Router();
 
@@ -115,6 +116,12 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
   try {
     const input = provisionSchema.parse(req.body);
     const firebaseUser = req.firebaseUser!;
+    await recordProductEventSafely({
+      name: "product.registration_started.v1",
+      eventId: `${req.requestId}:registration-started`,
+      properties: {},
+      isTestAccount: firebaseUser.email?.endsWith(".invalid") === true
+    });
     const allowedOwnerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
     const currentEmail = firebaseUser.email?.trim().toLowerCase();
     const isBootstrapOwner = Boolean(allowedOwnerEmail && currentEmail && allowedOwnerEmail === currentEmail);
@@ -169,6 +176,14 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
       );
     }
 
+    await recordProductEventSafely({
+      name: "product.registration_completed.v1",
+      eventId: `${req.requestId}:registration-completed`,
+      userId: user.id,
+      gymId: user.gym_id ?? null,
+      properties: { role: primaryRole, referralApplied: Boolean(referralRow) },
+      isTestAccount: firebaseUser.email?.endsWith(".invalid") === true
+    });
     res.status(201).json({ user, referralApplied: Boolean(referralRow) });
   } catch (error) {
     next(error);

@@ -13,6 +13,7 @@ import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "../servi
 import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNutritionPreference } from "../services/nutritionTargetService";
 import { markMediaAttached, secureUploadDataUrl } from "../services/mediaUploadService";
+import { recordProductEventSafely } from "../services/productAnalyticsService";
 
 export const meRouter = Router();
 
@@ -124,7 +125,21 @@ meRouter.delete("/me/profile-photo", requireAuth, async (req, res, next) => {
 meRouter.post("/me/onboarding", requireAuth, async (req, res, next) => {
   try {
     const input = onboardingSchema.parse(req.body);
+    await recordProductEventSafely({
+      name: "product.onboarding_started.v1",
+      eventId: `${req.requestId}:onboarding-started`,
+      userId: req.user!.id,
+      gymId: req.user!.gymId,
+      properties: {}
+    });
     const user = await completeOnboarding(req.user!.id, input);
+    await recordProductEventSafely({
+      name: "product.onboarding_completed.v1",
+      eventId: `${req.requestId}:onboarding-completed`,
+      userId: req.user!.id,
+      gymId: req.user!.gymId,
+      properties: { goalType: input.goalType }
+    });
     res.json({ user });
   } catch (error) {
     next(error);
@@ -193,6 +208,12 @@ meRouter.post("/me/account-deletion", requireAuth, async (req, res, next) => {
 
     const result = await submitSelfAccountDeletion(req.user!.id, {
       isPlatformOwner: req.user!.isPlatformOwner
+    });
+
+    await recordProductEventSafely({
+      name: "product.account_deletion_requested.v1",
+      eventId: `${req.requestId}:account-deletion-requested`,
+      properties: { mode: result.request.mode }
     });
 
     res.status(result.outcome === "deleted" ? 200 : 202).json(result);

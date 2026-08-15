@@ -120,7 +120,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       left join trainers t on t.user_id = u.id
       left join gyms g on g.id = u.gym_id
       where u.firebase_uid = $1
-      group by u.id, t.id
+      group by u.id, t.id, g.timezone
       `,
       [decoded.uid]
     ));

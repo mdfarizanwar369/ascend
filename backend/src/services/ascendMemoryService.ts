@@ -170,9 +170,9 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
       `,
       [userId]
     ),
-    query<{ logged_at: string; image_url: string | null }>(
+    query<{ logged_at: string }>(
       `
-      select logged_at, image_url
+      select logged_at
       from progress_photos
       where user_id = $1
       order by logged_at asc

@@ -51,6 +51,7 @@ export interface DeletionStageDependencies {
 }
 
 function asText(value: unknown) {
+  if (value instanceof Date) return value.toISOString();
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 

@@ -278,13 +278,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
     async function load() {
       try {
-        const profile = await getTrainerClient(clientId);
-
-        if (!isMounted) return;
-        setClient(profile.client);
-        setStatus("");
-
-        const [foods, nextMessages, progress, weights, waters, burns, nextMissions, comparison, nutritionPlan, presence, memory, report] = await Promise.allSettled([
+        const profileRequest = getTrainerClient(clientId);
+        const secondaryDataRequest = Promise.allSettled([
           getTrainerClientFoodLogs(clientId, { range: "7d", order: "newest", limit: 50 }),
           getTrainerClientMessages(clientId),
           getTrainerClientProgressPhotos(clientId),
@@ -298,6 +293,13 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           getTrainerClientMemory(clientId),
           getTrainerClientWeeklyReport(clientId)
         ]);
+        const profile = await profileRequest;
+
+        if (!isMounted) return;
+        setClient(profile.client);
+        setStatus("");
+
+        const [foods, nextMessages, progress, weights, waters, burns, nextMissions, comparison, nutritionPlan, presence, memory, report] = await secondaryDataRequest;
 
         if (!isMounted) return;
         if (foods.status === "fulfilled") setFoodLogs(foods.value.foodLogs);
