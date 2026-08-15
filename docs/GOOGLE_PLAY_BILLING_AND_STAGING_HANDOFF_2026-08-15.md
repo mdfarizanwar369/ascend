@@ -51,18 +51,34 @@ Recommended first closed-test product:
 
 The monthly plan has no trial, a seven-day grace period, automatic account hold, and resubscribe enabled. Google Play displays MYR 19.99 after Malaysia tax handling. The yearly plan remains deferred.
 
-## Remaining provider work
+## Provider readiness
 
-1. Grant least-privilege Android Publisher access to a staging service account.
-2. Configure Pub/Sub RTDN to the staging backend and verify OIDC audience/service account checks.
-3. Add Closed Alpha accounts as Google Play licence testers.
-4. Optionally connect an approved monitoring provider; no account has been created automatically.
+- The staging Play service account is active, app-scoped, and least privilege.
+- Android Publisher API access is enabled and a live subscription-product read
+  returned HTTP 200.
+- Pub/Sub RTDN is configured with a dedicated topic, authenticated push
+  subscription, keyless OIDC service account, and exact webhook audience.
+- A Play Console test notification reached the staging webhook with HTTP 204 in
+  116 ms.
+- The `Ascend Internal Testers` licence-testing list is enabled with 10 users and
+  normal licence responses.
+- Required Railway billing and RTDN variables are set. The local downloaded Google
+  JSON key was deleted after its secret value was securely stored and verified.
+- External monitoring remains optional and is not connected.
 
 ## AAB and upload gate
 
-Do not build or upload the release AAB until the product, tester, Developer API, and RTDN gates above are ready. Before upload, inspect the bundle for production URLs, production Firebase/R2/Gemini identifiers, Stripe live configuration, secrets, debug flags, and unsafe fallback values.
+The product, tester, Developer API, and RTDN prerequisites are ready. Before any
+upload, build and inspect a staging-connected signed AAB for production URLs,
+production Firebase/R2/Gemini identifiers, Stripe live configuration, secrets,
+debug flags, and unsafe fallback values.
 
-After all checks pass, report the AAB path, checksum, version, package, signing evidence, environment scan, staging health, product readiness, RTDN readiness, and rollback plan. Upload requires one explicit owner approval and must target only the existing Closed Alpha track.
+After all checks pass, report the AAB path, checksum, version, package, signing
+evidence, environment scan, staging health, product readiness, RTDN readiness, and
+rollback plan. Upload requires one explicit owner approval and must target only the
+existing Closed Alpha track. The first uploaded build must then complete the full
+sandbox purchase, renewal, cancellation, grace, hold, expiry, refund/revocation,
+restore, and duplicate-event test matrix before any production recommendation.
 
 ## Rollback
 

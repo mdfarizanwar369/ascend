@@ -133,7 +133,11 @@ Migration `027_unified_entitlements_google_play.sql` adds auditable unified enti
 
 Android uses Google Play Billing Library 9.1.0. The backend verifies purchase state through Android Publisher before granting access and acknowledges only after the entitlement is stored. Pending purchases do not grant access. Purchase tokens are AES-256-GCM encrypted at rest and SHA-256 hashed for uniqueness.
 
-RTDN code is implemented but provider resources and lifecycle tests remain gated.
+RTDN is configured end to end for staging. Google Play publishes to the dedicated
+`ascend-play-rtdn-staging` Pub/Sub topic, which pushes authenticated OIDC requests to
+the staging backend. A Play Console test notification reached the webhook with HTTP
+204 in 116 ms. Real purchase lifecycle tests remain gated on installing a
+staging-connected build through Google Play.
 
 ## Validation
 
@@ -164,6 +168,28 @@ The owner approved and the Play Console now contains:
 
 The product was activated only to support Google Play closed-test purchase validation. No app release was uploaded or promoted.
 
+## Google Play provider validation
+
+- Android Publisher API: enabled in the isolated staging Google Cloud project
+- Play service account: active and restricted to the Ascend app with purchase,
+  subscription, order-management, and required app-read permissions
+- Live API probe: HTTP 200 for `ascend_premium_monthly` / `monthly`, state `ACTIVE`
+- RTDN topic: `projects/gen-lang-client-0096825107/topics/ascend-play-rtdn-staging`
+- RTDN push subscription: `ascend-play-rtdn-push-staging`
+- Push authentication: OIDC using the dedicated keyless
+  `ascend-play-rtdn-staging@gen-lang-client-0096825107.iam.gserviceaccount.com`
+- Push audience: exact staging webhook URL
+- Play test notification: HTTP 204 from the staging webhook in 116 ms
+- Licence testing: the existing `Ascend Internal Testers` list is enabled with 10
+  users and the licence response is `RESPOND_NORMALLY`
+- Staging backend deployment: `0f3ca4ea-7a95-47c9-bba4-4044a1d86df4`, successful
+- Staging health: live, ready, and aggregate health endpoints returned HTTP 200
+- Latest staging migration: `027_unified_entitlements_google_play.sql`
+
+The downloaded service-account JSON key was placed into Railway's secret variable,
+verified by variable name only, and then deleted from the local machine. No secret
+value was written to this report or committed to Git.
+
 ## Monitoring checkpoint
 
 No approved Better Stack or equivalent monitoring account is connected. Application logging and Railway health checks are available, but external alert delivery has not been configured. Creating an account or accepting provider terms remains an owner action.
@@ -174,18 +200,19 @@ No approved Better Stack or equivalent monitoring account is connected. Applicat
 - Firebase: Spark plan, USD 0.
 - Gemini: no billing account linked; USD 0 direct billed cost, with application call caps active.
 - R2: minimal staging usage, subject to Cloudflare's account plan and free allowances.
-- Google Play: no products or transactions.
+- Google Play: one active Malaysia-only subscription product; no transactions.
 - Monitoring: no account or charge created.
 
 ## Remaining gates
 
-1. Configure least-privilege Play Developer API access.
-2. Configure staging Pub/Sub RTDN and verify OIDC push authentication.
-3. Confirm Closed Alpha testers are also Play licence testers.
-4. Decide whether to connect an approved monitoring provider.
-5. Build and inspect a staging-connected signed AAB with a new version code.
-6. Obtain explicit approval before uploading that AAB.
-7. Run the full physical-device purchase lifecycle matrix after installation from Play.
+1. Decide whether to connect an approved monitoring provider.
+2. Build and inspect a staging-connected signed AAB with a new version code.
+3. Obtain explicit approval before uploading that AAB.
+4. Run the physical-device sandbox lifecycle matrix after installation from Play:
+   purchase, acknowledgement, renewal, cancellation, grace period, account hold,
+   expiry, refund/revocation, restore, and duplicate-notification handling.
+5. Plan a future Railway runtime upgrade from Node 20 before the AWS SDK drops Node
+   20 support after January 2027. This is not a current billing blocker.
 
 ## GO/NO-GO decisions
 
@@ -197,8 +224,10 @@ No approved Better Stack or equivalent monitoring account is connected. Applicat
 | R2 staging storage | GO | Private storage and ownership controls passed |
 | Source billing implementation | GO for continued testing | Compiles and is covered by tests |
 | Play product creation | GO | Approved monthly product is active, Malaysia only, at MYR 19.99 |
-| RTDN lifecycle | NO-GO | Provider resources not configured |
-| Staging AAB generation | NO-GO | Product/tester/RTDN gates remain |
+| Play Developer API | GO | Least-privilege service account returned the active product with HTTP 200 |
+| RTDN delivery | GO | Authenticated Play test notification reached staging with HTTP 204 |
+| Licence tester configuration | GO | Ten-user internal tester list is enabled |
+| Staging AAB generation | GO with inspection | Provider, product, tester, and RTDN prerequisites are ready; no AAB has been generated in this programme step |
 | Closed Alpha upload | NO-GO | Explicit upload approval absent |
 | Production release | NO-GO | Physical purchase lifecycle is unverified |
 
