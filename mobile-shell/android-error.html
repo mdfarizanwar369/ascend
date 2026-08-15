@@ -47,15 +47,17 @@
       }
       h1 { margin: 18px 0 10px; font-size: 28px; line-height: 1.1; }
       p { margin: 0; color: var(--muted); line-height: 1.7; }
-      a {
+      button {
         display: inline-block;
         margin-top: 18px;
         padding: 12px 18px;
+        border: 0;
         border-radius: 14px;
-        text-decoration: none;
         background: var(--teal);
         color: #071018;
+        font: inherit;
         font-weight: 700;
+        cursor: pointer;
       }
     </style>
   </head>
@@ -64,7 +66,7 @@
       <div class="mark">A</div>
       <h1>Ascend needs a connection</h1>
       <p>The Android app shell is ready, but the live Ascend service could not be reached right now.</p>
-      <a href="https://www.getascend.fit/launch">Try again</a>
+      <button type="button" onclick="window.history.length > 1 ? window.history.back() : window.location.reload()">Try again</button>
     </main>
   </body>
 </html>
