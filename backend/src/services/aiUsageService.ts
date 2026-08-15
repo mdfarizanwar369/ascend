@@ -7,7 +7,7 @@ import { Role, SubscriptionPlan } from "@ascend/shared";
 export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection" | "workout_capture_analysis" | "today_priority_analysis";
 export type AiStatus = "success" | "error" | "cache_hit" | "fallback";
 export type FoodAiAllowance = {
-  period: "week" | "day" | "unlimited";
+  period: "week" | "day" | "month" | "unlimited";
   label: string;
   limit: number | null;
   used: number;
@@ -27,7 +27,9 @@ export class FoodAiLimitError extends Error {
     super(
       allowance.period === "week"
         ? "Weekly AI food scan limit reached. You can still log food manually."
-        : "Daily AI food scan limit reached. You can still log food manually."
+        : allowance.period === "month"
+          ? "Monthly AI food scan capacity reached. You can still log food manually."
+          : "Daily AI food scan limit reached. You can still log food manually."
     );
     this.name = "FoodAiLimitError";
   }
@@ -315,6 +317,58 @@ export async function assertCoachZoeConversationAccess(userId: string) {
 }
 
 export async function assertFoodAiAllowance(userId: string) {
+  if (env.ASCEND_APP_ENV === "staging") {
+    const capacityResult = await query<{
+      daily_total: string;
+      daily_user: string;
+      monthly_total: string;
+    }>(
+      `
+      select
+        count(*) filter (where created_at >= current_date) as daily_total,
+        count(*) filter (where created_at >= current_date and user_id = $1) as daily_user,
+        count(*) filter (where created_at >= date_trunc('month', now())) as monthly_total
+      from ai_usage_events
+      where event_type = 'food_image_analysis'
+        and cache_hit = false
+        and status in ('success', 'error', 'fallback')
+      `,
+      [userId]
+    );
+    const capacity = capacityResult.rows[0];
+    const dailyTotal = Number(capacity?.daily_total ?? 0);
+    const dailyUser = Number(capacity?.daily_user ?? 0);
+    const monthlyTotal = Number(capacity?.monthly_total ?? 0);
+
+    if (monthlyTotal >= env.AI_STAGING_MONTHLY_FOOD_ANALYSIS_LIMIT) {
+      throw new FoodAiLimitError({
+        period: "month",
+        label: "Staging Food AI monthly capacity",
+        limit: env.AI_STAGING_MONTHLY_FOOD_ANALYSIS_LIMIT,
+        used: monthlyTotal,
+        remaining: 0
+      });
+    }
+    if (dailyTotal >= env.AI_STAGING_DAILY_FOOD_ANALYSIS_LIMIT) {
+      throw new FoodAiLimitError({
+        period: "day",
+        label: "Staging Food AI daily capacity",
+        limit: env.AI_STAGING_DAILY_FOOD_ANALYSIS_LIMIT,
+        used: dailyTotal,
+        remaining: 0
+      });
+    }
+    if (dailyUser >= env.AI_STAGING_DAILY_FOOD_ANALYSIS_PER_USER_LIMIT) {
+      throw new FoodAiLimitError({
+        period: "day",
+        label: "Staging Food AI scans today",
+        limit: env.AI_STAGING_DAILY_FOOD_ANALYSIS_PER_USER_LIMIT,
+        used: dailyUser,
+        remaining: 0
+      });
+    }
+  }
+
   const allowance = await getFoodAiAllowance(userId);
   if (allowance.limit !== null && (allowance.remaining ?? 0) <= 0) {
     throw new FoodAiLimitError(allowance);

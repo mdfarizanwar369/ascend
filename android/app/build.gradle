@@ -2,6 +2,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 import java.util.Properties
+import groovy.json.JsonSlurper
 
 def firebaseApiKey = System.getenv("CAPACITOR_ANDROID_FIREBASE_API_KEY") ?: "AIzaSyAPt_jd-q2d5on4Bv9VS6XqE-ffzGpjgmg"
 def firebaseAppId = System.getenv("CAPACITOR_ANDROID_FIREBASE_APP_ID") ?: "1:790770085471:web:416d3fae44ab1ddf2b75ea"
@@ -127,6 +128,24 @@ tasks.configureEach { task ->
             if (missing) throw new GradleException("Staging release is missing isolated Firebase values: ${missing.join(', ')}")
             if (firebaseProjectId == "ascend-b2850") throw new GradleException("Staging release cannot use the production Firebase project.")
             if (!(ascendBillingChannel in ["google_play", "disabled"])) throw new GradleException("Invalid staging billing channel.")
+            if (!hasGoogleServices) throw new GradleException("Staging release requires an isolated google-services.json for Firebase and FCM.")
+
+            def googleServices = new JsonSlurper().parse(googleServicesFile)
+            def configuredProjectId = googleServices?.project_info?.project_id
+            def configuredSenderId = googleServices?.project_info?.project_number?.toString()
+            def configuredPackages = (googleServices?.client ?: []).collect {
+                it?.client_info?.android_client_info?.package_name
+            }.findAll { it }
+
+            if (configuredProjectId != firebaseProjectId) {
+                throw new GradleException("google-services.json project does not match CAPACITOR_ANDROID_FIREBASE_PROJECT_ID.")
+            }
+            if (configuredSenderId != firebaseSenderId) {
+                throw new GradleException("google-services.json sender ID does not match the staging environment.")
+            }
+            if (!configuredPackages.contains(android.defaultConfig.applicationId)) {
+                throw new GradleException("google-services.json does not contain the Ascend Android package.")
+            }
         }
     }
 }

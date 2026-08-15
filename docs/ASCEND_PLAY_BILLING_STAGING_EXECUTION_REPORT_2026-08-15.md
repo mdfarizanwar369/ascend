@@ -1,5 +1,20 @@
 # Ascend Play Billing and Isolated Staging Execution Report
 
+## Continuation update - 2026-08-15
+
+- Checkpoint reconfirmed on `codex/ascend-staging-play-billing-v1` at source commit `a32c47491dec3cf21c0b587e4d8a96a908bbe0f2`.
+- The existing Railway staging PostgreSQL service remains isolated and running. Migration `027` remains staging-only. Production was inspected through metadata only and was not changed.
+- Existing empty Google Cloud project `gen-lang-client-0096825107` was confirmed safe and converted into the consolidated **Ascend Staging** Firebase project on the no-cost Spark plan.
+- Registered isolated staging web and Android Firebase apps. Email/password and Google authentication are enabled. All upload, Play App Signing, and debug SHA-1/SHA-256 fingerprints are registered.
+- Google prevents duplicate Android package/fingerprint OAuth clients across projects. Ascend therefore safelists the three existing public Android OAuth client IDs in staging Firebase Auth while keeping staging users, web OAuth, Firebase configuration, and backend credentials isolated. No production secret or Firebase user was copied.
+- A refreshed staging `google-services.json` is kept only in the ignored local Android path. Release Gradle checks now reject a missing or mismatched staging Firebase file, project ID, sender ID, or package.
+- Created a dedicated `Ascend Staging Gemini` service account and a Gemini-API-only bound key. The key is not stored in the repository or client. A real Gemini 3.6 Flash request returned HTTP 200. Gemini 2.5 Flash returned HTTP 404 for this new project and must not be selected in staging.
+- Staging Food AI safeguards are enforced at 50 provider calls per day, 10 per user per day, and 500 per month. These environment caps run only when `ASCEND_APP_ENV=staging` and sit above existing plan allowances.
+- The staging Google project has no billing account. Current Google/Firebase spend is therefore USD 0. Google budget alerts at USD 5 and USD 8 cannot be created until an owner approves linking a billing account. No billing account was linked and no provider terms were accepted.
+- Cloudflare requires interactive owner authentication. R2 provisioning is paused at the Cloudflare sign-in page as required.
+- Pricing approval is documented in `docs/PLAY_PRICING_APPROVAL_CHECKPOINT_2026-08-15.md`. No Play product or base plan was created.
+- Validation after this continuation: lint passed with three pre-existing warnings and zero errors; 238 tests passed with 9 skipped; full build passed; Android sync passed; Android debug APK passed.
+
 ## Executive status
 
 The reversible implementation is complete at source-code and local-build level. A clean isolated Railway Postgres service has been provisioned and all 27 migrations have been replayed successfully, including idempotent and concurrent-migrator verification.

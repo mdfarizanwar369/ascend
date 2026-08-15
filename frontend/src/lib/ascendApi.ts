@@ -859,7 +859,7 @@ export function saveProgressPhoto(input: { imageS3Key: string; photoType: "front
 }
 
 export type FoodAiAllowance = {
-  period: "week" | "day" | "unlimited";
+  period: "week" | "day" | "month" | "unlimited";
   label: string;
   limit: number | null;
   used: number;

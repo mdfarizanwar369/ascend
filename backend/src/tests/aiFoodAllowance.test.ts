@@ -87,4 +87,29 @@ describe("AI food scan allowance", () => {
     });
     expect(queryMock).toHaveBeenCalledTimes(1);
   });
+
+  it("enforces the staging per-user Food AI safety cap", async () => {
+    vi.stubEnv("ASCEND_APP_ENV", "staging");
+    vi.resetModules();
+    queryMock.mockResolvedValueOnce({
+      rows: [{ daily_total: "12", daily_user: "10", monthly_total: "120" }]
+    });
+
+    try {
+      const { assertFoodAiAllowance, FoodAiLimitError } = await import("../services/aiUsageService");
+      await expect(assertFoodAiAllowance("00000000-0000-0000-0000-000000000007")).rejects.toMatchObject({
+        name: FoodAiLimitError.name,
+        allowance: {
+          period: "day",
+          limit: 10,
+          used: 10,
+          remaining: 0
+        }
+      });
+      expect(queryMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
 });

@@ -228,7 +228,8 @@ function allowanceText(allowance: FoodAiAllowance | null) {
   if (!allowance) return "Checking AI scan allowance...";
   if (allowance.limit === null) return "Unlimited owner/admin AI scans";
   const used = Math.min(allowance.used, allowance.limit);
-  return `${used} / ${allowance.limit} used ${allowance.period === "week" ? "this week" : "today"}`;
+  const periodLabel = allowance.period === "week" ? "this week" : allowance.period === "month" ? "this month" : "today";
+  return `${used} / ${allowance.limit} used ${periodLabel}`;
 }
 
 function allowanceHint(allowance: FoodAiAllowance | null) {
