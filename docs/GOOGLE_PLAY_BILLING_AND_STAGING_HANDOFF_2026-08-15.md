@@ -6,9 +6,9 @@ Full evidence is in `docs/ASCEND_PLAY_BILLING_STAGING_EXECUTION_REPORT_2026-08-1
 
 - Branch: `codex/ascend-staging-play-billing-v1`
 - Original checkpoint: `a32c47491dec3cf21c0b587e4d8a96a908bbe0f2`
-- Current verified source: `1ad0eb4c0ef1d7c078cb4e41a3d13f22219a5ff4`
+- Current verified source before this documentation update: `f2bd39ef55daefd3a69c219f60a37a909a05f937`
 - Production: unchanged
-- Play products: not created
+- Play product: `ascend_premium_monthly` / `monthly`, active for Malaysia only
 - AAB: not generated or uploaded
 
 ## Working staging services
@@ -46,19 +46,17 @@ Recommended first closed-test product:
 
 | Product | Base plan | Period | Proposed price | Status |
 | --- | --- | --- | --- | --- |
-| `ascend_premium_monthly` | `monthly` | P1M | RM19.99 | Awaiting owner approval |
+| `ascend_premium_monthly` | `monthly` | P1M | RM19.99 | Active, Malaysia only |
 | `ascend_premium_yearly` | `yearly` | P1Y | Not approved | Do not create |
 
-No trial is recommended for the first licence test. Proposed grace period is seven days. See `docs/PLAY_PRICING_APPROVAL_CHECKPOINT_2026-08-15.md`.
+The monthly plan has no trial, a seven-day grace period, automatic account hold, and resubscribe enabled. Google Play displays MYR 19.99 after Malaysia tax handling. The yearly plan remains deferred.
 
 ## Remaining provider work
 
-1. Approve Play pricing and plan settings.
-2. Create the approved subscription and base plan without public rollout.
-3. Grant least-privilege Android Publisher access to a staging service account.
-4. Configure Pub/Sub RTDN to the staging backend and verify OIDC audience/service account checks.
-5. Add Closed Alpha accounts as Google Play licence testers.
-6. Optionally connect an approved monitoring provider; no account has been created automatically.
+1. Grant least-privilege Android Publisher access to a staging service account.
+2. Configure Pub/Sub RTDN to the staging backend and verify OIDC audience/service account checks.
+3. Add Closed Alpha accounts as Google Play licence testers.
+4. Optionally connect an approved monitoring provider; no account has been created automatically.
 
 ## AAB and upload gate
 

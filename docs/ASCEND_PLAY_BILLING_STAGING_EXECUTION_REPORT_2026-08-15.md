@@ -6,13 +6,13 @@ Date: 2026-08-15
 
 Ascend now has a working, isolated staging environment for Google Play Billing preparation. The staging frontend, backend, PostgreSQL database, Firebase project, Gemini key, and Cloudflare R2 bucket are separate from production. Synthetic-user authentication, Food AI, private media storage, signed reads, ownership denial, and malformed upload rejection have all been exercised successfully.
 
-No production service was changed. No Google Play product was created or activated. No release AAB was generated or uploaded.
+No production service was changed. The approved Google Play monthly subscription was created and activated for Malaysia only. No release AAB was generated or uploaded.
 
 ## Source and Git safety
 
 - Original implementation checkpoint: `a32c47491dec3cf21c0b587e4d8a96a908bbe0f2`
 - Current branch: `codex/ascend-staging-play-billing-v1`
-- Current verified source: `1ad0eb4c0ef1d7c078cb4e41a3d13f22219a5ff4`
+- Current verified source before this documentation update: `f2bd39ef55daefd3a69c219f60a37a909a05f937`
 - Worktree: `C:\Users\Admin\Documents\Codex\ascend-staging-play-billing-v1`
 - Remote: `origin/codex/ascend-staging-play-billing-v1`
 - Production branch: not merged and not deployed
@@ -144,20 +144,25 @@ RTDN code is implemented but provider resources and lifecycle tests remain gated
 - Android debug APK before the focused backend-only fix: passed
 - Billing dependency: `com.android.billingclient:billing:9.1.0`
 
-## Pricing approval gate
+## Google Play product checkpoint
 
-No Play product exists yet. The recommendation remains:
+The owner approved and the Play Console now contains:
 
 - Product: `ascend_premium_monthly`
+- Product name: `Ascend Premium Monthly`
 - Base plan: `monthly`
-- Price: RM19.99/month parity with web
-- Initial region: Malaysia
+- Type: monthly auto-renewing
+- Customer-facing price: MYR 19.99/month, including Malaysia tax handling
+- Availability: Malaysia only
+- Status: Active
 - Trial: none
 - Grace period: 7 days
+- Account hold: automatic, currently calculated by Play as 53 days
 - Resubscribe: enabled
-- Yearly: do not create until a yearly commercial price is approved
+- Yearly: not created
+- Benefits: unlimited Coach Zoe conversations; long-term coaching insights; weekly and monthly progress reviews
 
-See `docs/PLAY_PRICING_APPROVAL_CHECKPOINT_2026-08-15.md`. Owner approval is required before any Play Console product action.
+The product was activated only to support Google Play closed-test purchase validation. No app release was uploaded or promoted.
 
 ## Monitoring checkpoint
 
@@ -174,15 +179,13 @@ No approved Better Stack or equivalent monitoring account is connected. Applicat
 
 ## Remaining gates
 
-1. Approve monthly Play price and commercial settings.
-2. Create and configure the Play subscription only after approval.
-3. Configure least-privilege Play Developer API access.
-4. Configure staging Pub/Sub RTDN and verify OIDC push authentication.
-5. Confirm Closed Alpha testers are also Play licence testers.
-6. Decide whether to connect an approved monitoring provider.
-7. Build and inspect a staging-connected signed AAB with a new version code.
-8. Obtain explicit approval before uploading that AAB.
-9. Run the full physical-device purchase lifecycle matrix after installation from Play.
+1. Configure least-privilege Play Developer API access.
+2. Configure staging Pub/Sub RTDN and verify OIDC push authentication.
+3. Confirm Closed Alpha testers are also Play licence testers.
+4. Decide whether to connect an approved monitoring provider.
+5. Build and inspect a staging-connected signed AAB with a new version code.
+6. Obtain explicit approval before uploading that AAB.
+7. Run the full physical-device purchase lifecycle matrix after installation from Play.
 
 ## GO/NO-GO decisions
 
@@ -193,7 +196,7 @@ No approved Better Stack or equivalent monitoring account is connected. Applicat
 | Gemini Food AI staging | GO | Real authenticated estimate passed |
 | R2 staging storage | GO | Private storage and ownership controls passed |
 | Source billing implementation | GO for continued testing | Compiles and is covered by tests |
-| Play product creation | NO-GO | Price approval absent |
+| Play product creation | GO | Approved monthly product is active, Malaysia only, at MYR 19.99 |
 | RTDN lifecycle | NO-GO | Provider resources not configured |
 | Staging AAB generation | NO-GO | Product/tester/RTDN gates remain |
 | Closed Alpha upload | NO-GO | Explicit upload approval absent |
