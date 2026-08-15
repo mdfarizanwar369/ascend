@@ -10,7 +10,7 @@ npm run start --workspace backend
 
 It runs migrations before starting Node. Migrations use a PostgreSQL advisory lock, checksums, and one transaction per file. Concurrent deploys wait on the same database lock. A changed checksum for an already applied migration fails deployment.
 
-After service schema initializers run, the server performs a fresh readiness check. It does not listen unless `users`, `schema_migrations`, `media_uploads`, and migration `025_production_remediation_sprint_1.sql` are present.
+After service schema initializers run, the server performs a fresh readiness check. It does not listen unless `users`, `schema_migrations`, `media_uploads`, and migration `026_product_analytics_idempotency.sql` are present.
 
 ## Health endpoints
 

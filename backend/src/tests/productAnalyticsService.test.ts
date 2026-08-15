@@ -9,7 +9,12 @@ vi.mock("../db/pool", () => ({ pool }));
 vi.mock("../observability/logger", () => ({ structuredLog }));
 vi.mock("../config/env", () => ({ env: { NODE_ENV: "test" } }));
 
-import { recordProductEvent, recordProductEventSafely } from "../services/productAnalyticsService";
+import {
+  isProductAnalyticsTestAccount,
+  recordProductEvent,
+  recordProductEventSafely,
+  stableProductEventId
+} from "../services/productAnalyticsService";
 
 describe("product analytics", () => {
   beforeEach(() => {
@@ -87,5 +92,23 @@ describe("product analytics", () => {
     expect(structuredLog).toHaveBeenCalledWith("warn", "product_analytics_event_failed", expect.objectContaining({
       eventName: "product.account_deletion_requested.v1"
     }));
+  });
+
+  it("builds stable opaque event IDs from authoritative business objects", () => {
+    const first = stableProductEventId("first-meal-logged", "user-1");
+    const repeated = stableProductEventId("first-meal-logged", "user-1");
+    const different = stableProductEventId("first-meal-logged", "user-2");
+
+    expect(first).toBe(repeated);
+    expect(first).not.toBe(different);
+    expect(first).toMatch(/^first-meal-logged:[a-f0-9]{64}$/);
+    expect(first).not.toContain("user-1");
+  });
+
+  it("marks reserved invalid-domain identities as test accounts", () => {
+    expect(isProductAnalyticsTestAccount("person@example.invalid")).toBe(true);
+    expect(isProductAnalyticsTestAccount(" Person@Example.Invalid ")).toBe(true);
+    expect(isProductAnalyticsTestAccount("member@example.com")).toBe(false);
+    expect(isProductAnalyticsTestAccount(undefined)).toBe(false);
   });
 });

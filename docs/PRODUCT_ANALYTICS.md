@@ -4,7 +4,7 @@
 
 Ascend records validated business events in the existing `analytics_events` table. The application does not send these events to an external analytics provider. Event payloads are strict and versioned; raw images, meal descriptions, health notes, prompts, credentials, tokens, and unnecessary personal information are rejected by schema rather than filtered after collection.
 
-Events use a caller-supplied idempotency key. A PostgreSQL transaction advisory lock and an event-name/event-ID lookup prevent concurrent duplicates. Every stored event includes its schema version, runtime environment, and test-account marker. An explicit analytics opt-out stops recording before a database connection is opened.
+Events use a caller-supplied idempotency key. One-time and persisted-object events derive stable opaque IDs from their authoritative user or record ID. A PostgreSQL transaction advisory lock, database unique index, and event-name/event-ID lookup prevent concurrent duplicates. Every stored event includes its schema version, runtime environment, and test-account marker. An explicit analytics opt-out stops recording before a database connection is opened.
 
 ## Event catalogue
 

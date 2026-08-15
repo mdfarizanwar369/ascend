@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { env } from "../config/env";
 import { pool } from "../db/pool";
@@ -36,6 +37,16 @@ export interface ProductEventInput<Name extends ProductEventName> {
   properties: ProductEventProperties<Name>;
   analyticsAllowed?: boolean;
   isTestAccount?: boolean;
+}
+
+export function stableProductEventId(namespace: string, ...parts: Array<string | number>) {
+  if (!/^[a-z0-9-]{3,60}$/.test(namespace)) throw new Error("Analytics event namespace is invalid.");
+  const digest = createHash("sha256").update(parts.map(String).join("\u0000")).digest("hex");
+  return `${namespace}:${digest}`;
+}
+
+export function isProductAnalyticsTestAccount(email: string | null | undefined) {
+  return email?.trim().toLowerCase().endsWith(".invalid") === true;
 }
 
 export async function recordProductEvent<Name extends ProductEventName>(input: ProductEventInput<Name>) {

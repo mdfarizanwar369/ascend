@@ -16,7 +16,10 @@ function ensureFirebaseApp() {
         })
       });
     } else {
-      initializeApp({ credential: applicationDefault() });
+      initializeApp({
+        credential: applicationDefault(),
+        projectId: env.FIREBASE_PROJECT_ID
+      });
     }
   }
 }

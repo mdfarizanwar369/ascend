@@ -13,7 +13,7 @@ import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "../servi
 import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNutritionPreference } from "../services/nutritionTargetService";
 import { markMediaAttached, secureUploadDataUrl } from "../services/mediaUploadService";
-import { recordProductEventSafely } from "../services/productAnalyticsService";
+import { isProductAnalyticsTestAccount, recordProductEventSafely, stableProductEventId } from "../services/productAnalyticsService";
 
 export const meRouter = Router();
 
@@ -127,18 +127,20 @@ meRouter.post("/me/onboarding", requireAuth, async (req, res, next) => {
     const input = onboardingSchema.parse(req.body);
     await recordProductEventSafely({
       name: "product.onboarding_started.v1",
-      eventId: `${req.requestId}:onboarding-started`,
+      eventId: stableProductEventId("onboarding-started", req.user!.id),
       userId: req.user!.id,
       gymId: req.user!.gymId,
-      properties: {}
+      properties: {},
+      isTestAccount: isProductAnalyticsTestAccount(req.user!.email)
     });
     const user = await completeOnboarding(req.user!.id, input);
     await recordProductEventSafely({
       name: "product.onboarding_completed.v1",
-      eventId: `${req.requestId}:onboarding-completed`,
+      eventId: stableProductEventId("onboarding-completed", req.user!.id),
       userId: req.user!.id,
       gymId: req.user!.gymId,
-      properties: { goalType: input.goalType }
+      properties: { goalType: input.goalType },
+      isTestAccount: isProductAnalyticsTestAccount(req.user!.email)
     });
     res.json({ user });
   } catch (error) {
@@ -212,8 +214,11 @@ meRouter.post("/me/account-deletion", requireAuth, async (req, res, next) => {
 
     await recordProductEventSafely({
       name: "product.account_deletion_requested.v1",
-      eventId: `${req.requestId}:account-deletion-requested`,
-      properties: { mode: result.request.mode }
+      eventId: stableProductEventId("account-deletion-requested", result.request.id),
+      userId: result.request.userId,
+      gymId: req.user!.gymId,
+      properties: { mode: result.request.mode },
+      isTestAccount: isProductAnalyticsTestAccount(req.user!.email)
     });
 
     res.status(result.outcome === "deleted" ? 200 : 202).json(result);

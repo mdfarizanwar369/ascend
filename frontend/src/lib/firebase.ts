@@ -1,8 +1,9 @@
 import { getApps, initializeApp } from "firebase/app";
 import type { FirebaseApp } from "firebase/app";
-import { browserLocalPersistence, getAuth, indexedDBLocalPersistence, setPersistence } from "firebase/auth";
+import { browserLocalPersistence, connectAuthEmulator, getAuth, indexedDBLocalPersistence, setPersistence } from "firebase/auth";
 
 let persistenceReady: Promise<void> | null = null;
+let authEmulatorConnected = false;
 
 function getFirebaseAuthDomain() {
   const configuredDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
@@ -38,6 +39,12 @@ export function getFirebaseClientApp(): FirebaseApp {
 export function getFirebaseClientAuth() {
   const firebaseApp = getFirebaseClientApp();
   const auth = getAuth(firebaseApp);
+  const authEmulatorUrl = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL?.trim();
+
+  if (authEmulatorUrl && !authEmulatorConnected) {
+    connectAuthEmulator(auth, authEmulatorUrl, { disableWarnings: true });
+    authEmulatorConnected = true;
+  }
 
   persistenceReady ??= setPersistence(auth, browserLocalPersistence)
     .catch(() => setPersistence(auth, indexedDBLocalPersistence))

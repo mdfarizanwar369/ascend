@@ -12,6 +12,7 @@ work
 *service-account*.json
 *credentials*.json
 npm-debug.log*
+firebase-debug.log*
 Dockerfile.local
 *.tsbuildinfo
 .DS_Store
