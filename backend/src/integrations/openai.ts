@@ -47,6 +47,12 @@ type GeminiCallOptions = {
   performanceTrace?: FoodAiPerformanceTrace | null;
 };
 
+export function geminiThinkingBudgetForModel(model: string): number | null {
+  if (model.includes("2.5")) return 0;
+  if (/^gemini-3(?:\.|-)/i.test(model)) return 128;
+  return null;
+}
+
 class GeminiError extends Error {
   constructor(
     message: string,
@@ -500,8 +506,9 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
     maxOutputTokens
   };
 
-  if (model.includes("2.5")) {
-    generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  const thinkingBudget = geminiThinkingBudgetForModel(model);
+  if (thinkingBudget !== null) {
+    generationConfig.thinkingConfig = { thinkingBudget };
   }
 
   if (options.responseMimeType) {
