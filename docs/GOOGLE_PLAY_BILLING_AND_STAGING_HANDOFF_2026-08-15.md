@@ -6,10 +6,10 @@ Full evidence is in `docs/ASCEND_PLAY_BILLING_STAGING_EXECUTION_REPORT_2026-08-1
 
 - Branch: `codex/ascend-staging-play-billing-v1`
 - Original checkpoint: `a32c47491dec3cf21c0b587e4d8a96a908bbe0f2`
-- Current verified source before this documentation update: `f2bd39ef55daefd3a69c219f60a37a909a05f937`
+- Current verified source before this documentation update: `9641473`
 - Production: unchanged
 - Play product: `ascend_premium_monthly` / `monthly`, active for Malaysia only
-- AAB: not generated or uploaded
+- AAB: signed version `13 (0.1.4-staging)` uploaded to Closed testing - Alpha and submitted for review
 
 ## Working staging services
 
@@ -66,19 +66,30 @@ The monthly plan has no trial, a seven-day grace period, automatic account hold,
   JSON key was deleted after its secret value was securely stored and verified.
 - External monitoring remains optional and is not connected.
 
-## AAB and upload gate
+## AAB and closed-test checkpoint
 
-The product, tester, Developer API, and RTDN prerequisites are ready. Before any
-upload, build and inspect a staging-connected signed AAB for production URLs,
-production Firebase/R2/Gemini identifiers, Stripe live configuration, secrets,
-debug flags, and unsafe fallback values.
+- File: `android/app/build/outputs/bundle/release/app-release.aab`
+- Package: `fit.getascend.app`
+- Version: `13 (0.1.4-staging)`
+- Size: 13,424,754 bytes
+- SHA-256: `585703D695877594D878ED47AC3FB3D96B8C949B9632944193EB3BCF7179D399`
+- Signature: verified
+- Track: Closed testing - Alpha only
+- Play status: `Changes in review`; `1 change sent for review`
+- Production release: not created or changed
 
-After all checks pass, report the AAB path, checksum, version, package, signing
-evidence, environment scan, staging health, product readiness, RTDN readiness, and
-rollback plan. Upload requires one explicit owner approval and must target only the
-existing Closed Alpha track. The first uploaded build must then complete the full
+Play rejected version code 12 as previously used, so the final accepted bundle uses
+version code 13. Before upload, artifact inspection found and fixed a native offline
+retry link that pointed to production. Commit `9641473` keeps retry behavior inside
+the active environment. The rebuilt artifact contains no production Firebase
+project, production API redirect, private key, Stripe secret, or fixed production
+retry URL.
+
+Play reports one non-blocking warning for third-party native libraries without native
+debug symbols. The ReTrace mapping file is attached. Once Play finishes review and
+processing, install through the Alpha tester opt-in flow and complete the full
 sandbox purchase, renewal, cancellation, grace, hold, expiry, refund/revocation,
-restore, and duplicate-event test matrix before any production recommendation.
+restore, and duplicate-event matrix before any production recommendation.
 
 ## Rollback
 

@@ -4,15 +4,15 @@ Date: 2026-08-15
 
 ## Executive summary
 
-Ascend now has a working, isolated staging environment for Google Play Billing preparation. The staging frontend, backend, PostgreSQL database, Firebase project, Gemini key, and Cloudflare R2 bucket are separate from production. Synthetic-user authentication, Food AI, private media storage, signed reads, ownership denial, and malformed upload rejection have all been exercised successfully.
+Ascend now has a working, isolated staging environment for Google Play Billing validation. The staging frontend, backend, PostgreSQL database, Firebase project, Gemini key, and Cloudflare R2 bucket are separate from production. Synthetic-user authentication, Food AI, private media storage, signed reads, ownership denial, and malformed upload rejection have all been exercised successfully.
 
-No production service was changed. The approved Google Play monthly subscription was created and activated for Malaysia only. No release AAB was generated or uploaded.
+No production service was changed. The approved Google Play monthly subscription is active for Malaysia only. A signed, staging-connected Android App Bundle was generated, inspected, uploaded to the existing Closed testing - Alpha track, and submitted to Google for review. Play Console reports `Changes in review` for version `13 (0.1.4-staging)`.
 
 ## Source and Git safety
 
 - Original implementation checkpoint: `a32c47491dec3cf21c0b587e4d8a96a908bbe0f2`
 - Current branch: `codex/ascend-staging-play-billing-v1`
-- Current verified source before this documentation update: `f2bd39ef55daefd3a69c219f60a37a909a05f937`
+- Current verified source before this documentation update: `9641473`
 - Worktree: `C:\Users\Admin\Documents\Codex\ascend-staging-play-billing-v1`
 - Remote: `origin/codex/ascend-staging-play-billing-v1`
 - Production branch: not merged and not deployed
@@ -148,6 +148,31 @@ staging-connected build through Google Play.
 - Android debug APK before the focused backend-only fix: passed
 - Billing dependency: `com.android.billingclient:billing:9.1.0`
 
+## Signed staging release
+
+- Package: `fit.getascend.app`
+- Version name: `0.1.4-staging`
+- Version code: `13`
+- Minimum API: 26
+- Target SDK: 36
+- App environment: `staging`
+- Billing channel: `google_play`
+- Native logging: `none`
+- Remote application URL: staging frontend `/launch`
+- AAB: `C:\Users\Admin\Documents\Codex\ascend-staging-play-billing-v1\android\app\build\outputs\bundle\release\app-release.aab`
+- Size: 13,424,754 bytes
+- SHA-256: `585703D695877594D878ED47AC3FB3D96B8C949B9632944193EB3BCF7179D399`
+- Signature verification: passed with `jarsigner`
+- Release signer validity: through 2051-06-23
+- Code shrinking: R8/minification and resource shrinking passed
+- Play artifact attachment: ReTrace mapping file attached automatically
+
+Version code 12 was rejected by Play Console because it had already been used, even though it was not visible in the active release list. The bundle was rebuilt with version code 13 and accepted.
+
+Artifact inspection found one release-blocking staging-isolation defect before upload: `mobile-shell/android-error.html` retried against the production `/launch` URL. Commit `9641473` replaced the fixed URL with an environment-neutral history-back or page-reload action. The rebuilt bundle contains no production Firebase project, private key, Stripe secret, production API redirect, or fixed remote retry URL. The remaining production-domain string is the public privacy-policy URL.
+
+Play Console emitted one non-blocking warning because the bundle contains third-party native libraries without uploaded native debug symbols. The affected libraries are `libdatastore_shared_counter.so`, `libimage_processing_util_jni.so`, and `libsurface_util_jni.so`. This does not block closed testing; Java/Kotlin obfuscation symbols are present through the attached ReTrace mapping file.
+
 ## Google Play product checkpoint
 
 The owner approved and the Play Console now contains:
@@ -203,14 +228,27 @@ No approved Better Stack or equivalent monitoring account is connected. Applicat
 - Google Play: one active Malaysia-only subscription product; no transactions.
 - Monitoring: no account or charge created.
 
+## Google Play closed-test submission
+
+- Track: Closed testing - Alpha
+- Release: `13 (0.1.4-staging)`
+- Rollout: 100% of the configured closed-test audience
+- Submitted: 2026-08-15
+- Play status: `Changes in review`
+- Console confirmation: `1 change sent for review`
+- Production, open testing, and internal testing tracks: unchanged
+- Public rollout: not performed
+
+Testers can install this version after Google completes automated checks/review and the release becomes available to the configured Alpha tester audience.
+
 ## Remaining gates
 
-1. Decide whether to connect an approved monitoring provider.
-2. Build and inspect a staging-connected signed AAB with a new version code.
-3. Obtain explicit approval before uploading that AAB.
-4. Run the physical-device sandbox lifecycle matrix after installation from Play:
+1. Wait for Google Play review and processing to complete.
+2. Install version 13 from the Alpha tester opt-in flow on a physical Android device.
+3. Run the physical-device sandbox lifecycle matrix:
    purchase, acknowledgement, renewal, cancellation, grace period, account hold,
    expiry, refund/revocation, restore, and duplicate-notification handling.
+4. Decide whether to connect an approved monitoring provider.
 5. Plan a future Railway runtime upgrade from Node 20 before the AWS SDK drops Node
    20 support after January 2027. This is not a current billing blocker.
 
@@ -227,8 +265,8 @@ No approved Better Stack or equivalent monitoring account is connected. Applicat
 | Play Developer API | GO | Least-privilege service account returned the active product with HTTP 200 |
 | RTDN delivery | GO | Authenticated Play test notification reached staging with HTTP 204 |
 | Licence tester configuration | GO | Ten-user internal tester list is enabled |
-| Staging AAB generation | GO with inspection | Provider, product, tester, and RTDN prerequisites are ready; no AAB has been generated in this programme step |
-| Closed Alpha upload | NO-GO | Explicit upload approval absent |
+| Staging AAB generation | GO | Signed version 13 built, verified, and environment-scanned |
+| Closed Alpha upload | GO / IN REVIEW | Uploaded only to Closed testing - Alpha and submitted to Google review |
 | Production release | NO-GO | Physical purchase lifecycle is unverified |
 
 ## Rollback
