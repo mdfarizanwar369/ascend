@@ -5,31 +5,44 @@ import { requireAuth, requireRole } from "../middleware/auth";
 import { createCheckout } from "../services/subscriptionService";
 import { getPaymentProvider, LemonSqueezyProvider, StripeProvider, ToyyibPayProvider } from "../integrations/payments";
 import { env } from "../config/env";
-import { applyVerifiedGooglePlaySubscription, syncGooglePlaySubscriptionForUser, verifyGooglePlaySubscriptionPurchase } from "../services/googlePlayBillingService";
+import { applyVerifiedGooglePlaySubscription, getGooglePlayAccountId, verifyGooglePlaySubscriptionPurchase } from "../services/googlePlayBillingService";
+import { getEffectiveEntitlement } from "../services/entitlementService";
+import { processGooglePlayRtdn, verifyGooglePlayRtdnAuthorization } from "../services/googlePlayRtdnService";
 
 export const subscriptionsRouter = Router();
 
-subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
+subscriptionsRouter.post("/webhooks/google-play/rtdn", async (req, res, next) => {
   try {
-    await syncGooglePlaySubscriptionForUser(req.user!.id);
-  } catch {
-    // Keep subscription reads resilient even if Google Play cannot be reached.
+    if (!(await verifyGooglePlayRtdnAuthorization(req.header("authorization")))) return res.status(401).json({ error: "Unauthorized" });
+    await processGooglePlayRtdn(req.body);
+    res.status(204).send();
+  } catch (error) {
+    next(error);
   }
+});
 
-  const result = await query(
-    `
-    select *
-    from subscriptions
-    where user_id = $1
-    order by
-      case when status in ('active', 'trialing') or (status = 'canceled' and current_period_end > now()) then 0 else 1 end,
-      case plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc,
-      created_at desc
-    limit 1
-    `,
-    [req.user!.id]
-  );
-  res.json({ subscription: result.rows[0] ?? { plan: "free", status: "active" } });
+subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
+  const entitlement = await getEffectiveEntitlement(req.user!.id);
+  res.json({ subscription: {
+    plan: entitlement.plan,
+    provider: entitlement.provider,
+    status: entitlement.status === "trial" ? "trialing" : entitlement.status,
+    current_period_start: entitlement.startTime,
+    current_period_end: entitlement.expiryTime,
+    auto_renew_enabled: entitlement.autoRenewEnabled,
+    stale: entitlement.stale,
+    management_type: entitlement.managementType,
+    management_url: entitlement.managementUrl,
+  } });
+});
+
+subscriptionsRouter.get("/subscriptions/google-play/account", requireAuth, async (req, res) => {
+  const enabled = env.GOOGLE_PLAY_BILLING_ENABLED && env.ASCEND_BILLING_CHANNEL === "google_play";
+  res.json({
+    enabled,
+    packageName: env.GOOGLE_PLAY_PACKAGE_NAME ?? "fit.getascend.app",
+    obfuscatedAccountId: enabled ? getGooglePlayAccountId(req.user!.id) : null,
+  });
 });
 
 subscriptionsRouter.post("/subscriptions/google-play/verify", requireAuth, async (req, res, next) => {
@@ -40,7 +53,7 @@ subscriptionsRouter.post("/subscriptions/google-play/verify", requireAuth, async
       packageName: z.string().min(1).optional(),
     }).parse(req.body);
 
-    const purchase = await verifyGooglePlaySubscriptionPurchase(input);
+    const purchase = await verifyGooglePlaySubscriptionPurchase({ ...input, userId: req.user!.id });
     const subscription = await applyVerifiedGooglePlaySubscription(req.user!.id, purchase);
 
     res.status(201).json({
@@ -48,12 +61,11 @@ subscriptionsRouter.post("/subscriptions/google-play/verify", requireAuth, async
       purchase: {
         plan: purchase.plan,
         productId: purchase.productId,
-        purchaseToken: purchase.purchaseToken,
         status: purchase.status,
-        currentPeriodEnd: purchase.currentPeriodEnd,
-        acknowledgementState: purchase.acknowledgementState,
+        currentPeriodEnd: purchase.expiresAt,
+        acknowledgementState: subscription.acknowledged ? "acknowledged" : "pending",
         autoRenewEnabled: purchase.autoRenewEnabled,
-        latestOrderId: purchase.latestOrderId,
+        latestOrderId: purchase.orderId,
       },
     });
   } catch (error) {
@@ -63,7 +75,14 @@ subscriptionsRouter.post("/subscriptions/google-play/verify", requireAuth, async
 
 subscriptionsRouter.post("/subscriptions/checkout", requireAuth, async (req, res, next) => {
   try {
-    const plan = z.enum(["premium", "trainer_pro"]).parse(req.body.plan);
+    const input = z.object({
+      plan: z.enum(["premium", "trainer_pro"]),
+      channel: z.enum(["web", "google_play"]).default("web"),
+    }).parse(req.body);
+    if (input.channel !== "web" || req.header("x-ascend-billing-channel") === "google_play") {
+      return res.status(409).json({ error: "Android subscriptions must be purchased through Google Play." });
+    }
+    const plan = input.plan;
     res.json(await createCheckout(req.user!.id, plan));
   } catch (error) {
     next(error);

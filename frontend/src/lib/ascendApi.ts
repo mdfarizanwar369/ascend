@@ -980,8 +980,13 @@ export function createCheckout(plan: Exclude<SubscriptionPlan, "free">) {
   invalidateCached("subscription:");
   return authed<{ checkoutUrl: string; providerReference: string }>("/subscriptions/checkout", {
     method: "POST",
-    body: JSON.stringify({ plan })
+    headers: { "x-ascend-billing-channel": "web" },
+    body: JSON.stringify({ plan, channel: "web" })
   });
+}
+
+export function getGooglePlayAccount() {
+  return authed<{ enabled: boolean; packageName: string; obfuscatedAccountId: string | null }>("/subscriptions/google-play/account");
 }
 
 export function analyzeWorkoutCapture(input: { text: string; sourceMode?: "text" | "dictation" }) {
@@ -1090,7 +1095,6 @@ export function verifyGooglePlaySubscription(input: {
     purchase: {
       plan: Exclude<SubscriptionPlan, "free">;
       productId: string;
-      purchaseToken: string;
       status: string;
       currentPeriodEnd?: string | null;
       acknowledgementState: "pending" | "acknowledged";

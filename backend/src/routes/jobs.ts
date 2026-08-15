@@ -10,6 +10,9 @@ function hasValidJobSecret(value: string | undefined) {
 
 jobsRouter.post("/jobs/daily", async (req, res, next) => {
   try {
+    if (env.ASCEND_APP_ENV === "staging" && !env.SCHEDULED_JOBS_ENABLED) {
+      return res.status(409).json({ error: "Scheduled jobs are disabled in staging." });
+    }
     const token = req.header("x-cron-secret");
 
     if (!hasValidJobSecret(token)) {

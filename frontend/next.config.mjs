@@ -6,11 +6,11 @@ const nextConfig = {
     return [
       {
         source: "/__/auth/:path*",
-        destination: "https://ascend-b2850.firebaseapp.com/__/auth/:path*"
+        destination: `${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "https://ascend-b2850.firebaseapp.com"}/__/auth/:path*`
       },
       {
         source: "/__/firebase/:path*",
-        destination: "https://ascend-b2850.firebaseapp.com/__/firebase/:path*"
+        destination: `${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "https://ascend-b2850.firebaseapp.com"}/__/firebase/:path*`
       }
     ];
   },

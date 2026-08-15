@@ -5,6 +5,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const remoteUrl = process.env.CAPACITOR_ANDROID_SERVER_URL?.trim() || "https://www.getascend.fit/launch";
 const androidLoggingBehavior = process.env.CAPACITOR_ANDROID_LOGGING_BEHAVIOR?.trim() || "production";
+const firebaseAuthDomain = process.env.CAPACITOR_ANDROID_FIREBASE_AUTH_DOMAIN?.trim() || "www.getascend.fit";
 
 const config: CapacitorConfig = {
   appId: "fit.getascend.app",
@@ -26,7 +27,7 @@ const config: CapacitorConfig = {
   },
   plugins: {
     FirebaseAuthentication: {
-      authDomain: "www.getascend.fit",
+      authDomain: firebaseAuthDomain,
       skipNativeAuth: true,
       providers: ["google.com"]
     },

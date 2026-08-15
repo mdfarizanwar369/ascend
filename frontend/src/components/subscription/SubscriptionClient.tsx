@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, CreditCard, ExternalLink, ShieldCheck, XCircle } from "lucide-react";
 import { PLANS, SubscriptionPlan } from "@ascend/shared";
-import { cancelSubscription, createCheckout, getBillingPortal, getMe, getMySubscription, verifyGooglePlaySubscription } from "@/lib/ascendApi";
+import { cancelSubscription, createCheckout, getBillingPortal, getGooglePlayAccount, getMe, getMySubscription, verifyGooglePlaySubscription } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { PublicFooter } from "@/components/legal/PublicFooter";
-import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayBilling } from "@/lib/billingPlatform";
+import { getNativeBillingMessage, shouldHideHostedBilling } from "@/lib/billingPlatform";
 import {
-  acknowledgeNativeGooglePlayPurchase,
+  getNativeGooglePlayStatus,
   getNativeGooglePlayProducts,
   getNativeGooglePlayPurchases,
   NativeGooglePlayProduct,
@@ -43,7 +43,8 @@ export function SubscriptionClient() {
   const hasHostedBilling = provider === "stripe" || provider === "lemonsqueezy";
   const isGooglePlaySubscription = provider === "google_play";
   const hideHostedBilling = shouldHideHostedBilling();
-  const nativePlayBilling = shouldUseAndroidPlayBilling();
+  const [nativePlayBilling, setNativePlayBilling] = useState(false);
+  const [obfuscatedAccountId, setObfuscatedAccountId] = useState<string | null>(null);
   const nativeBillingMessage = getNativeBillingMessage();
   const didAttemptNativeRestore = useRef(false);
   const nativeProductIds = useMemo(() => ["ascend_premium_monthly", "ascend_premium_yearly"], []);
@@ -91,6 +92,20 @@ export function SubscriptionClient() {
       setStatus("Current plan: Free Plan");
     }
   }, []);
+
+  useEffect(() => {
+    if (!hideHostedBilling) return;
+    let mounted = true;
+    Promise.all([getNativeGooglePlayStatus(), getGooglePlayAccount()])
+      .then(([native, account]) => {
+        if (!mounted) return;
+        const enabled = native.available && native.billingChannel === "google_play" && account.enabled && Boolean(account.obfuscatedAccountId);
+        setNativePlayBilling(enabled);
+        setObfuscatedAccountId(enabled ? account.obfuscatedAccountId : null);
+      })
+      .catch(() => mounted && setNativePlayBilling(false));
+    return () => { mounted = false; };
+  }, [hideHostedBilling]);
 
   useEffect(() => {
     let isMounted = true;
@@ -169,15 +184,11 @@ export function SubscriptionClient() {
       const purchase = response.purchases.find((entry) => entry.productId);
       if (!purchase) return false;
 
-      const verification = await verifyGooglePlaySubscription({
+      await verifyGooglePlaySubscription({
         purchaseToken: purchase.purchaseToken,
         productId: purchase.productId,
         packageName: purchase.packageName ?? undefined,
       });
-
-      if (verification.purchase.acknowledgementState === "pending") {
-        await acknowledgeNativeGooglePlayPurchase(purchase.purchaseToken);
-      }
 
       await loadSubscription();
       if (!options.silent) {
@@ -206,16 +217,13 @@ export function SubscriptionClient() {
     setStatus("Opening Google Play...");
 
     try {
-      const purchase = await startNativeGooglePlayPurchase(product.productId);
-      const verification = await verifyGooglePlaySubscription({
+      if (!obfuscatedAccountId) throw new Error("Google Play account binding is not ready. Please try again.");
+      const purchase = await startNativeGooglePlayPurchase(product.productId, obfuscatedAccountId, product.offerToken);
+      await verifyGooglePlaySubscription({
         purchaseToken: purchase.purchase.purchaseToken,
         productId: purchase.purchase.productId || product.productId,
         packageName: purchase.purchase.packageName ?? undefined,
       });
-
-      if (verification.purchase.acknowledgementState === "pending") {
-        await acknowledgeNativeGooglePlayPurchase(purchase.purchase.purchaseToken);
-      }
 
       await loadSubscription();
       setStatus("Premium is now active through Google Play.");

@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { SubscriptionPlan } from "@ascend/shared";
-import { query } from "../db/pool";
+import { getEffectiveEntitlement } from "../services/entitlementService";
 
 const planRank: Record<SubscriptionPlan, number> = {
   free: 0,
@@ -21,22 +21,7 @@ export function requireActivePlan(requiredPlan: Exclude<SubscriptionPlan, "free"
         return next();
       }
 
-      const result = await query<{ plan: SubscriptionPlan; status: string }>(
-        `
-        select plan, status
-        from subscriptions
-        where user_id = $1
-          and (
-            status in ('active', 'trialing')
-            or (status = 'canceled' and current_period_end > now())
-          )
-        order by case plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, created_at desc
-        limit 1
-        `,
-        [req.user.id]
-      );
-
-      const activePlan = result.rows[0]?.plan ?? "free";
+      const activePlan = (await getEffectiveEntitlement(req.user.id)).plan;
       if (planRank[activePlan] < planRank[requiredPlan]) {
         return res.status(402).json({
           error: `${requiredPlan === "trainer_pro" ? "Trainer Pro" : "Premium"} plan required`,

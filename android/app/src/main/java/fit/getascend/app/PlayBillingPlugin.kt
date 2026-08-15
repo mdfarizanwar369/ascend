@@ -1,12 +1,12 @@
 package fit.getascend.app
 
-import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingClientStateListener
 import com.android.billingclient.api.BillingFlowParams
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
+import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.PurchasesResponseListener
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
@@ -34,7 +34,8 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
     override fun load() {
         billingClient = BillingClient.newBuilder(context)
             .setListener(this)
-            .enablePendingPurchases()
+            .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+            .enableAutoServiceReconnection()
             .build()
     }
 
@@ -82,6 +83,8 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
     @PluginMethod
     fun purchase(call: PluginCall) {
         val productId = call.getString("productId")?.trim()
+        val requestedOfferToken = call.getString("offerToken")?.trim()
+        val obfuscatedAccountId = call.getString("obfuscatedAccountId")?.trim()
         if (productId.isNullOrBlank()) {
             call.reject("Google Play productId is required.")
             return
@@ -95,7 +98,7 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
                 }
                 val detail = products.firstOrNull()
                     ?: throw IllegalStateException("Google Play product $productId was not found.")
-                val offer = detail.subscriptionOfferDetails?.firstOrNull()
+                val offer = detail.subscriptionOfferDetails?.firstOrNull { requestedOfferToken.isNullOrBlank() || it.offerToken == requestedOfferToken }
                     ?: throw IllegalStateException("Google Play product $productId does not have an active subscription offer.")
 
                 pendingPurchaseCall = call
@@ -109,6 +112,7 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
                                     .build()
                             )
                         )
+                        .apply { if (!obfuscatedAccountId.isNullOrBlank()) setObfuscatedAccountId(obfuscatedAccountId) }
                         .build()
                     val result = billingClient.launchBillingFlow(activity, params)
                     if (result.responseCode != BillingClient.BillingResponseCode.OK) {
@@ -137,49 +141,6 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
                 })
             } catch (error: Exception) {
                 call.reject("Google Play purchases could not be loaded.", error)
-            }
-        }
-    }
-
-    @PluginMethod
-    fun acknowledgePurchase(call: PluginCall) {
-        val purchaseToken = call.getString("purchaseToken")?.trim()
-        if (purchaseToken.isNullOrBlank()) {
-            call.reject("Google Play purchaseToken is required.")
-            return
-        }
-
-        pluginScope.launch {
-            try {
-                ensureReady()
-                val purchases = withContext(Dispatchers.IO) { queryActiveSubscriptionPurchases() }
-                val purchase = purchases.firstOrNull { it.purchaseToken == purchaseToken }
-                    ?: throw IllegalStateException("Google Play purchase token is no longer available on this device.")
-
-                if (purchase.isAcknowledged) {
-                    call.resolve(JSObject().apply { put("acknowledged", true) })
-                    return@launch
-                }
-
-                val result = withContext(Dispatchers.IO) {
-                    suspendCancellableCoroutine<BillingResult> { continuation ->
-                        val params = AcknowledgePurchaseParams.newBuilder()
-                            .setPurchaseToken(purchaseToken)
-                            .build()
-                        billingClient.acknowledgePurchase(params) { billingResult ->
-                            continuation.resume(billingResult)
-                        }
-                    }
-                }
-
-                if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-                    call.reject(result.debugMessage.ifBlank { "Google Play purchase could not be acknowledged." })
-                    return@launch
-                }
-
-                call.resolve(JSObject().apply { put("acknowledged", true) })
-            } catch (error: Exception) {
-                call.reject("Google Play purchase could not be acknowledged.", error)
             }
         }
     }
@@ -262,14 +223,14 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
                 )
                 .build()
 
-            billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
+            billingClient.queryProductDetailsAsync(params) { billingResult, queryResult ->
                 if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                     continuation.resumeWith(Result.failure(IllegalStateException(billingResult.debugMessage.ifBlank {
                         "Google Play products could not be queried."
                     })))
                     return@queryProductDetailsAsync
                 }
-                continuation.resume(productDetailsList ?: emptyList())
+                continuation.resume(queryResult.productDetailsList)
             }
         }
     }
@@ -295,6 +256,8 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
         return JSObject().apply {
             put("available", available)
             put("ready", ready)
+            put("appEnvironment", BuildConfig.ASCEND_APP_ENV)
+            put("billingChannel", BuildConfig.ASCEND_BILLING_CHANNEL)
         }
     }
 

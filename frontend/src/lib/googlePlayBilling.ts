@@ -28,11 +28,10 @@ export type NativeGooglePlayPurchase = {
 };
 
 type PlayBillingPlugin = {
-  getStatus(): Promise<{ available: boolean; ready: boolean }>;
+  getStatus(): Promise<{ available: boolean; ready: boolean; appEnvironment: string; billingChannel: string }>;
   getProducts(options?: { productIds?: string[] }): Promise<{ available: boolean; ready: boolean; products: NativeGooglePlayProduct[] }>;
-  purchase(options: { productId: string }): Promise<{ purchase: NativeGooglePlayPurchase }>;
+  purchase(options: { productId: string; offerToken?: string; obfuscatedAccountId: string }): Promise<{ purchase: NativeGooglePlayPurchase }>;
   getActivePurchases(): Promise<{ available: boolean; ready: boolean; purchases: NativeGooglePlayPurchase[] }>;
-  acknowledgePurchase(options: { purchaseToken: string }): Promise<{ acknowledged: boolean }>;
   openSubscriptions(): Promise<{ opened: boolean }>;
 };
 
@@ -44,7 +43,7 @@ export function canUseNativeGooglePlayBilling() {
 
 export async function getNativeGooglePlayStatus() {
   if (!canUseNativeGooglePlayBilling()) {
-    return { available: false, ready: false };
+    return { available: false, ready: false, appEnvironment: "web", billingChannel: "web" };
   }
   return PlayBilling.getStatus();
 }
@@ -56,9 +55,9 @@ export async function getNativeGooglePlayProducts(productIds?: string[]) {
   return PlayBilling.getProducts(productIds?.length ? { productIds } : undefined);
 }
 
-export async function startNativeGooglePlayPurchase(productId: string) {
+export async function startNativeGooglePlayPurchase(productId: string, obfuscatedAccountId: string, offerToken?: string) {
   if (!canUseNativeGooglePlayBilling()) throw new Error("Google Play Billing is available only in the Android app.");
-  return PlayBilling.purchase({ productId });
+  return PlayBilling.purchase({ productId, offerToken, obfuscatedAccountId });
 }
 
 export async function getNativeGooglePlayPurchases() {
@@ -66,11 +65,6 @@ export async function getNativeGooglePlayPurchases() {
     return { available: false, ready: false, purchases: [] as NativeGooglePlayPurchase[] };
   }
   return PlayBilling.getActivePurchases();
-}
-
-export async function acknowledgeNativeGooglePlayPurchase(purchaseToken: string) {
-  if (!canUseNativeGooglePlayBilling()) throw new Error("Google Play Billing is available only in the Android app.");
-  return PlayBilling.acknowledgePurchase({ purchaseToken });
 }
 
 export async function openNativeGooglePlaySubscriptions() {

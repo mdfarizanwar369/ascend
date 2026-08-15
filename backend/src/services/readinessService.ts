@@ -33,7 +33,7 @@ async function checkReadiness() {
       `
     );
     const state = result.rows[0];
-    const ready = Boolean(state?.users_table && state?.migrations_table && state?.media_uploads_table && state.latest_migration === "026_product_analytics_idempotency.sql");
+    const ready = Boolean(state?.users_table && state?.migrations_table && state?.media_uploads_table && state.latest_migration === "027_unified_entitlements_google_play.sql");
     return { ready, reason: ready ? null : "schema_not_ready" as const, latestMigration: state?.latest_migration ?? null };
   } catch {
     return { ready: false, reason: "database_unavailable" as const };

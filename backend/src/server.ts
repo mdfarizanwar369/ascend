@@ -41,6 +41,7 @@ import { ensureNotificationSchema } from "./services/notificationService";
 import { ensureHealthSyncSchema } from "./services/healthSyncService";
 import { installProcessErrorHandlers, requestObservability, structuredLog } from "./observability/logger";
 import { getReadiness, markApplicationNotReady, markApplicationReady } from "./services/readinessService";
+import { assertEnvironmentIsolation } from "./config/isolation";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -118,6 +119,7 @@ export async function initializeRequiredSchemas() {
 
 export async function startServer() {
   markApplicationNotReady();
+  assertEnvironmentIsolation();
   structuredLog("info", "server_initialization_started", { port: env.PORT, environment: env.NODE_ENV });
   try {
     await initializeRequiredSchemas();

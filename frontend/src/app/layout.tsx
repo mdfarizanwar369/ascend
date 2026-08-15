@@ -7,6 +7,7 @@ import { PwaInstallCoordinator } from "@/components/PwaInstallCoordinator";
 import { CoachNotificationCoordinator } from "@/components/CoachNotificationCoordinator";
 import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { StagingBanner } from "@/components/StagingBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     description: "Practical fitness accountability for the hours between sessions.",
     images: ["/marketing/ascend-social-share.png"]
   },
-  robots: { index: true, follow: true },
+  robots: process.env.NEXT_PUBLIC_APP_ENV === "staging" ? { index: false, follow: false } : { index: true, follow: true },
   icons: {
     icon: "/brand/ascend-logo.png",
     apple: "/brand/ascend-logo.png"
@@ -74,6 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
+        <StagingBanner />
         <CanonicalDomainGuard />
         <AuthStateGuard />
         <CapacitorAppUrlRouter />

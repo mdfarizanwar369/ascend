@@ -23,7 +23,7 @@ describe("application readiness", () => {
   });
 
   it("reports ready only when database and required migration are present", async () => {
-    dbQuery.mockResolvedValueOnce({ rows: [{ users_table: "users", migrations_table: "schema_migrations", media_uploads_table: "media_uploads", latest_migration: "026_product_analytics_idempotency.sql" }] });
+    dbQuery.mockResolvedValueOnce({ rows: [{ users_table: "users", migrations_table: "schema_migrations", media_uploads_table: "media_uploads", latest_migration: "027_unified_entitlements_google_play.sql" }] });
     markApplicationReady();
     await expect(getReadiness({ fresh: true })).resolves.toMatchObject({ ready: true, reason: null });
   });
