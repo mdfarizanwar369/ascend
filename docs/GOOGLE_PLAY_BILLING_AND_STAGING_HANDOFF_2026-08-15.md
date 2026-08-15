@@ -1,77 +1,71 @@
 # Ascend Google Play Billing and Isolated Staging Handoff
 
-Full execution evidence and release decisions are recorded in `docs/ASCEND_PLAY_BILLING_STAGING_EXECUTION_REPORT_2026-08-15.md`.
+Full evidence is in `docs/ASCEND_PLAY_BILLING_STAGING_EXECUTION_REPORT_2026-08-15.md`.
 
-## Safety boundary
+## Current checkpoint
 
-- Source RC: `d92d02b213fd7e8aa353a563b664b533cbae3da1`
 - Branch: `codex/ascend-staging-play-billing-v1`
-- Worktree: `C:\Users\Admin\Documents\Codex\ascend-staging-play-billing-v1`
-- Existing Play app/package/closed track are unchanged.
-- Production Railway services, database, R2, Firebase, Stripe and Google Play releases were not modified.
-- No Play product was created or activated, no AAB was uploaded, and no charge was attempted.
+- Original checkpoint: `a32c47491dec3cf21c0b587e4d8a96a908bbe0f2`
+- Current verified source: `1ad0eb4c0ef1d7c078cb4e41a3d13f22219a5ff4`
+- Production: unchanged
+- Play products: not created
+- AAB: not generated or uploaded
 
-## Provider flow
+## Working staging services
+
+- Frontend: `https://ascend-frontend-staging-ascend-play-billing-staging.up.railway.app`
+- Backend: `https://ascend-backend-staging-ascend-play-billing-staging.up.railway.app`
+- Firebase project: `gen-lang-client-0096825107`
+- R2 bucket: `ascend-staging-media`
+- Gemini model: `gemini-3.6-flash`
+- PostgreSQL: isolated Railway service with migrations 001-027
+
+The frontend has a persistent staging banner and search-engine exclusion. Authenticated synthetic-user tests cover Firebase provisioning, `/me`, Food AI, R2 upload, food-log attachment, signed download, cross-user denial, and malformed input rejection.
+
+## Billing flow
 
 ```mermaid
 flowchart LR
-  Web[Web or PWA] --> Stripe[Stripe Checkout]
-  Stripe --> StripeWebhook[Verified Stripe webhook]
-  Android[Play Android app] --> Play[Google Play Billing 9.1]
-  Play --> Verify[Backend Android Publisher verification]
-  Verify --> Ack[Server acknowledgement]
-  Play --> RTDN[Authenticated Pub/Sub RTDN]
+  Web["Web or PWA"] --> Stripe["Stripe Checkout"]
+  Stripe --> StripeWebhook["Verified Stripe webhook"]
+  Android["Android Play app"] --> Play["Google Play Billing 9.1"]
+  Play --> Verify["Backend Android Publisher verification"]
+  Verify --> Ack["Server acknowledgement"]
+  Play --> RTDN["Authenticated Pub/Sub RTDN"]
   RTDN --> Verify
-  StripeWebhook --> Entitlements[Unified entitlement store]
+  StripeWebhook --> Entitlements["Unified entitlement store"]
   Ack --> Entitlements
-  Entitlements --> Access[Ascend access]
+  Entitlements --> Access["Ascend Premium access"]
 ```
 
-Any verified active entitlement grants access. A Play purchase does not cancel Stripe, and a Stripe purchase does not cancel Play. Purchase tokens are SHA-256 referenced and AES-256-GCM encrypted at rest. Raw tokens are not returned to clients, persisted in audit payloads, or logged.
+Web Stripe remains intact. Android hosted Stripe actions are hidden. Google Play purchase state is never trusted from the client. Pending purchases do not grant access.
 
-## Product configuration checkpoint
+## Pricing checkpoint
 
-Ascend's current web catalogue has Premium at RM19.99 monthly and Trainer Pro at RM99.99 monthly. No approved yearly Premium price exists in the catalogue. Configuration support is present, but Play products remain intentionally uncreated pending owner approval.
+Recommended first closed-test product:
 
-| Proposed product | Base plan | Period | Existing web reference | Proposed Play price |
+| Product | Base plan | Period | Proposed price | Status |
 | --- | --- | --- | --- | --- |
-| `ascend_premium_monthly` | `monthly` | P1M | RM19.99/month | Approval required (parity recommendation: RM19.99) |
-| `ascend_premium_yearly` | `yearly` | P1Y | None | Approval required; do not infer from env defaults |
+| `ascend_premium_monthly` | `monthly` | P1M | RM19.99 | Awaiting owner approval |
+| `ascend_premium_yearly` | `yearly` | P1Y | Not approved | Do not create |
 
-Recommendation: begin closed testing with monthly price parity and no trial. Add yearly only after a deliberate commercial decision. Google service fees reduce net proceeds; do not silently raise Android prices without approval.
+No trial is recommended for the first licence test. Proposed grace period is seven days. See `docs/PLAY_PRICING_APPROVAL_CHECKPOINT_2026-08-15.md`.
 
-## Staging isolation
+## Remaining provider work
 
-Created Railway environment `ascend-play-billing-staging` inside the existing Ascend Railway project, with a new isolated PostgreSQL service. It contains no copied production services, variables or data. Backend staging startup fails when production markers are detected, live email/push is enabled, analytics/monitoring environment labels are wrong, or scheduled jobs are enabled.
+1. Approve Play pricing and plan settings.
+2. Create the approved subscription and base plan without public rollout.
+3. Grant least-privilege Android Publisher access to a staging service account.
+4. Configure Pub/Sub RTDN to the staging backend and verify OIDC audience/service account checks.
+5. Add Closed Alpha accounts as Google Play licence testers.
+6. Optionally connect an approved monitoring provider; no account has been created automatically.
 
-Android staging release tasks fail when staging Firebase variables are missing or point at `ascend-b2850`. Frontend staging is `noindex`, displays a persistent staging banner, and supports an isolated Firebase auth proxy.
+## AAB and upload gate
 
-## Blocked external provisioning
+Do not build or upload the release AAB until the product, tester, Developer API, and RTDN gates above are ready. Before upload, inspect the bundle for production URLs, production Firebase/R2/Gemini identifiers, Stripe live configuration, secrets, debug flags, and unsafe fallback values.
 
-Firebase creation stopped safely because the Google account has reached its project quota. A quota increase or an owner-approved new Google Cloud project is required before a separate Ascend staging Firebase project can be created. Because Firebase staging credentials do not exist, the staging frontend/backend services and staging AAB must not be deployed or produced yet.
-
-Cloudflare R2 and Gemini staging provisioning were not attempted after this blocking dependency; neither should be shared with production. Monitoring remains application logging only; no paid monitoring service was purchased.
-
-## Required staging environment
-
-Backend must set `ASCEND_APP_ENV=staging`, `ASCEND_BILLING_CHANNEL=google_play`, staging-only database/Firebase/R2/Gemini values, `ANALYTICS_ENVIRONMENT=staging`, `MONITORING_ENVIRONMENT=staging`, delivery modes `disabled` or `capture`, and scheduled jobs disabled. Generate token encryption and account-obfuscation secrets independently; never copy production secrets.
-
-Frontend must set `NEXT_PUBLIC_APP_ENV=staging`, staging API and Firebase values, and `NEXT_PUBLIC_ANDROID_PLAY_BILLING_ENABLED=true` only when Play products are active for license testers.
-
-Android must set `ASCEND_ANDROID_APP_ENV=staging`, `ASCEND_ANDROID_BILLING_CHANNEL=google_play` (or `disabled` before product setup), staging server URL and all staging Firebase values.
-
-## Test gates before upload
-
-1. Provision isolated Firebase, R2 and Gemini resources.
-2. Deploy branch-only staging frontend/backend and run migration 027 only on staging Postgres.
-3. Verify staging signup, Google sign-in, logout, deletion, upload, AI and no outbound email/push.
-4. Approve Play prices, create inactive products/base plans, then activate only for license testing.
-5. Configure Play Developer API service account and Pub/Sub authenticated push to staging RTDN.
-6. Build a signed staging AAB with a fresh version code and verify its embedded server URL/environment/channel.
-7. Run purchase, pending, restore, renewal, cancel, grace, hold, recovery, expiry, refund/revoke, reinstall and cross-provider tests.
-8. Verify Stripe web checkout/webhooks remain unchanged.
-9. Obtain explicit upload approval before uploading to Closed testing - Alpha.
+After all checks pass, report the AAB path, checksum, version, package, signing evidence, environment scan, staging health, product readiness, RTDN readiness, and rollback plan. Upload requires one explicit owner approval and must target only the existing Closed Alpha track.
 
 ## Rollback
 
-Delete the isolated Railway environment and its Postgres service, revoke staging-only Google/R2 credentials, disable Play products/RTDN, and delete the feature branch. No production rollback is required because production was not modified.
+Delete the isolated Railway environment, revoke staging Google/R2 credentials, remove staging provider resources, and delete the branch. Production needs no rollback because it was not changed.
