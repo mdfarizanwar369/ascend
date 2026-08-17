@@ -44,6 +44,7 @@ import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@
 import { AccountBarSkeleton, DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
+import { AscendTopographyOpening, type AscendTopographySignal } from "@/components/dashboard/AscendTopographyOpening";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -1127,8 +1128,9 @@ export function ClientDashboard() {
     waterTargetMl: nutritionTargets.waterTargetMl,
     sleepQuality
   });
-  const momentumSignals: Array<{ label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
+  const momentumSignals: Array<{ key: AscendTopographySignal["key"]; label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
     {
+      key: "fuel",
       label: "Fuel",
       icon: Beef,
       summary: todaysFood.length ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"}` : "No log yet",
@@ -1138,6 +1140,7 @@ export function ClientDashboard() {
       href: "/food-log"
     },
     {
+      key: "move",
       label: "Move",
       icon: Activity,
       summary: todayActivityCalories > 0
@@ -1158,6 +1161,7 @@ export function ClientDashboard() {
       href: "/burn-log"
     },
     {
+      key: "recover",
       label: "Recover",
       icon: HeartPulse,
       summary: todaysWaterMl > 0
@@ -1172,6 +1176,12 @@ export function ClientDashboard() {
     }
   ];
   const activeMomentumSignals = momentumSignals;
+  const topographySignals: AscendTopographySignal[] = activeMomentumSignals.map((item) => ({
+    key: item.key,
+    label: item.label,
+    value: item.summary,
+    progress: item.progress
+  }));
   const completedMomentumSignals = activeMomentumSignals.filter((item) => item.done).length;
   const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(activeMomentumSignals.length, 1)) * 100);
   const priorityMomentumLabel = todayPriority.key === "Meal"
@@ -1274,7 +1284,14 @@ export function ClientDashboard() {
   }
 
   return (
-    <main className={`ascend-today-canvas min-h-screen bg-ink pb-24 text-white ${playOpeningMotion ? "ascend-opening-sequence" : ""}`}>
+    <main className={`ascend-today-canvas min-h-screen bg-ink pb-24 text-white ${playOpeningMotion ? "ascend-topography-running" : ""}`}>
+      <AscendTopographyOpening
+        active={playOpeningMotion}
+        score={score}
+        isStarting={isFirstDayState}
+        signals={topographySignals}
+        onFinish={() => setPlayOpeningMotion(false)}
+      />
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -1337,8 +1354,8 @@ export function ClientDashboard() {
         <section className="ascend-today-hero relative mt-2 overflow-hidden pb-4 pt-3 text-center">
           <p className="ascend-eyebrow">Today</p>
           <h1 className="mt-2 text-[1.65rem] font-semibold leading-tight text-white">{todayGreeting}, {firstName}.</h1>
-          <div>
-            <AscendRiseMomentum score={score} label={isFirstDayState ? "Begins with your first check-in" : scoreLabel} isStarting={isFirstDayState} animate={playOpeningMotion} />
+          <div data-ascend-opening-target="momentum">
+            <AscendRiseMomentum score={score} label={isFirstDayState ? "Begins with your first check-in" : scoreLabel} isStarting={isFirstDayState} />
           </div>
           <Link href="/momentum-score" className="ascend-pressable mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
             <CircleHelp size={14} /> 7-day consistency score
@@ -1383,7 +1400,7 @@ export function ClientDashboard() {
             />
           </div>
           <nav className="mx-auto mt-4 grid max-w-sm grid-cols-3 gap-3" aria-label="Today activity shortcuts">
-            {activeMomentumSignals.map((item, index) => {
+            {activeMomentumSignals.map((item) => {
               const Icon = item.icon;
               const isPriority = priorityMomentumLabel === item.label;
               const content = (
@@ -1397,11 +1414,11 @@ export function ClientDashboard() {
                 </>
               );
               return item.href ? (
-                <Link key={item.label} href={item.href} style={{ animationDelay: `${1050 + index * 70}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                <Link key={item.label} href={item.href} data-ascend-opening-target={item.key} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
                   {content}
                 </Link>
               ) : (
-                <button key={item.label} type="button" onClick={openRecoveryMenu} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" style={{ animationDelay: `${1050 + index * 70}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={openRecoveryMenu} data-ascend-opening-target={item.key} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );

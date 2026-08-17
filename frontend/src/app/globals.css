@@ -489,14 +489,156 @@ html[data-theme="light"] .ascend-theme-glow {
   to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes ascend-opening-signal {
-  from { opacity: 0.62; transform: translateY(4px) scale(0.97); }
+@keyframes ascend-topography-veil {
+  0% { opacity: 0; }
+  18%, 66% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes ascend-topography-layer-release {
+  0% {
+    opacity: 0;
+    transform: rotateX(66deg) rotateZ(0deg) translate3d(0, 22px, -86px) scale(0.76);
+  }
+  24% {
+    opacity: 0.72;
+    transform: rotateX(61deg) rotateZ(0deg) translate3d(0, 5px, -28px) scale(0.94);
+  }
+  43% {
+    opacity: 0.86;
+    transform: rotateX(55deg) rotateZ(0deg) translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: rotateX(47deg) rotateZ(var(--topography-release-rotate)) translate3d(var(--topography-release-x), var(--topography-release-y), var(--topography-release-z)) scale(1.04);
+  }
+  61% {
+    opacity: 0.72;
+    transform: rotateX(38deg) rotateZ(var(--topography-return-rotate)) translate3d(var(--topography-return-x), var(--topography-return-y), 18px) scale(1.08);
+  }
+  80% {
+    opacity: 0.28;
+    transform: rotateX(18deg) rotateZ(0deg) translate3d(0, 0, 0) scale(0.77);
+  }
+  100% {
+    opacity: 0;
+    transform: rotateX(0deg) rotateZ(0deg) translate3d(0, 0, 0) scale(0.48);
+  }
+}
+
+@keyframes ascend-topography-contour-draw {
+  0% { opacity: 0; stroke-dashoffset: 1; }
+  32% { opacity: 0.92; }
+  68% { opacity: 0.8; stroke-dashoffset: 0; }
+  100% { opacity: 0; stroke-dashoffset: 0; }
+}
+
+@keyframes ascend-topography-mountain-draw {
+  0%, 10% { opacity: 0; stroke-dashoffset: 1; }
+  34% { opacity: 1; }
+  72% { opacity: 1; stroke-dashoffset: 0; }
+  100% { opacity: 0; stroke-dashoffset: 0; }
+}
+
+@keyframes ascend-topography-ascent-draw {
+  0%, 20% { opacity: 0; stroke-dashoffset: 1; }
+  28% { opacity: 1; }
+  55% { opacity: 1; stroke-dashoffset: 0; }
+  75% { opacity: 0.92; }
+  100% { opacity: 0; stroke-dashoffset: 0; }
+}
+
+@keyframes ascend-topography-arrow-climb {
+  0%, 20% { opacity: 0; offset-distance: 0%; transform: scale(0.72); }
+  26% { opacity: 1; }
+  52% { opacity: 1; offset-distance: 100%; transform: scale(1); }
+  61% { opacity: 1; offset-distance: 100%; transform: scale(1.08); }
+  74%, 100% { opacity: 0; offset-distance: 100%; transform: scale(0.92); }
+}
+
+@keyframes ascend-topography-summit-arrow {
+  0%, 42% { opacity: 0; transform: translateY(6px) scale(0.7); }
+  46%, 60% { opacity: 1; transform: translateY(0) scale(1); }
+  78%, 100% { opacity: 0; transform: translateY(2px) scale(0.9); }
+}
+
+@keyframes ascend-topography-summit-cut {
+  0%, 44% { opacity: 0; stroke-dashoffset: 1; }
+  48% { opacity: 0.95; }
+  61% { opacity: 0.6; stroke-dashoffset: 0; }
+  72%, 100% { opacity: 0; stroke-dashoffset: -1; }
+}
+
+@keyframes ascend-topography-ring-form {
+  0%, 47% { opacity: 0; transform: rotate(-7deg) scaleX(1.46) scaleY(0.48); }
+  57% { opacity: 0.88; transform: rotate(-3deg) scaleX(1.17) scaleY(0.74); }
+  76% { opacity: 1; transform: rotate(0deg) scale(1); }
+  88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.94); }
+}
+
+@keyframes ascend-topography-ring-progress {
+  0%, 53% { opacity: 0; stroke-dashoffset: 100; }
+  58% { opacity: 1; }
+  84% { opacity: 1; stroke-dashoffset: var(--topography-ring-offset); }
+  92% { opacity: 1; stroke-dashoffset: var(--topography-ring-offset); }
+  100% { opacity: 0; stroke-dashoffset: var(--topography-ring-offset); }
+}
+
+@keyframes ascend-topography-ring-arrow {
+  0%, 48% { opacity: 0; transform: translate(229px, 78px) rotate(-42deg) scale(0.72); }
+  53% { opacity: 1; }
+  82%, 92% { opacity: 1; transform: translate(var(--topography-arrow-x), var(--topography-arrow-y)) rotate(var(--topography-arrow-rotate)) scale(1); }
+  100% { opacity: 0; transform: translate(var(--topography-arrow-x), var(--topography-arrow-y)) rotate(var(--topography-arrow-rotate)) scale(0.92); }
+}
+
+@keyframes ascend-topography-seed {
+  0%, 55% { opacity: 0; transform: scale(0.25); }
+  66%, 90% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.8); }
+}
+
+@keyframes ascend-topography-value {
+  0%, 52% { opacity: 0; transform: translateY(7px) scale(0.9); }
+  63%, 76% { opacity: 1; transform: translateY(0) scale(1); }
+  82%, 100% { opacity: 0; transform: translateY(-2px) scale(0.96); }
+}
+
+@keyframes ascend-topography-marker-settle {
+  0%, 22% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate3d(0, 12px, -24px) scale(0.82);
+  }
+  35% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate3d(0, 0, 0) scale(1);
+  }
+  51% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate3d(0, -3px, 30px) scale(1.06);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate3d(0, 0, 0) scale(1);
+  }
+  91% {
+    opacity: 0.7;
+    transform: translate(-50%, -50%) translate(var(--topography-target-x), var(--topography-target-y)) scale(0.66);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--topography-target-x), var(--topography-target-y)) scale(0.58);
+  }
+}
+
+@keyframes ascend-topography-target-arrive {
+  from { opacity: 0; transform: translateY(5px) scale(0.94); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes ascend-opening-path {
-  from { transform: scaleX(0); opacity: 0.45; }
-  to { transform: scaleX(1); opacity: 1; }
+@keyframes ascend-topography-path-settle {
+  from { opacity: 0.35; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
 }
 
 .ascend-metric-change { animation: ascend-metric-change 440ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -670,12 +812,278 @@ main.min-h-screen {
   animation: ascend-rise-endpoint 180ms ease-out 1060ms both;
 }
 
-.ascend-opening-sequence .ascend-opening-path-progress {
-  animation: ascend-opening-path 360ms cubic-bezier(0.22, 1, 0.36, 1) 960ms both;
+.ascend-topography-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout style paint;
+  perspective: 900px;
 }
 
-.ascend-opening-sequence .ascend-opening-signal {
-  animation: ascend-opening-signal 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.ascend-topography-overlay::before {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 12, 18, 0.38);
+  content: "";
+  animation: ascend-topography-veil 1780ms ease-out both;
+}
+
+.ascend-topography-stage {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  transform-style: preserve-3d;
+  isolation: isolate;
+  will-change: transform;
+}
+
+.ascend-topography-depth-stack,
+.ascend-topography-identity,
+.ascend-topography-depth-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.ascend-topography-depth-stack {
+  transform-style: preserve-3d;
+}
+
+.ascend-topography-depth-layer {
+  transform-origin: 50% 55%;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  animation: ascend-topography-layer-release 1540ms cubic-bezier(0.2, 0.75, 0.22, 1) var(--topography-layer-delay) both;
+}
+
+.ascend-topography-contour {
+  fill: none;
+  stroke: rgba(103, 240, 215, 0.46);
+  stroke-width: 1.25;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  vector-effect: non-scaling-stroke;
+  animation: ascend-topography-contour-draw 1360ms cubic-bezier(0.3, 0.72, 0.28, 1) var(--topography-layer-delay) both;
+}
+
+.ascend-topography-depth-layer:nth-child(2) .ascend-topography-contour,
+.ascend-topography-depth-layer:nth-child(4) .ascend-topography-contour {
+  stroke: rgba(164, 132, 255, 0.5);
+}
+
+.ascend-topography-identity {
+  z-index: 2;
+  overflow: visible;
+}
+
+.ascend-topography-mountain > path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: ascend-topography-mountain-draw 1450ms cubic-bezier(0.22, 0.82, 0.26, 1) both;
+}
+
+.ascend-topography-mountain .ascend-topography-ascent {
+  animation-name: ascend-topography-ascent-draw;
+  animation-timing-function: cubic-bezier(0.58, 0.04, 0.82, 0.42);
+}
+
+.ascend-topography-climber {
+  offset-path: path("M111 214 C145 193 178 151 229 78");
+  offset-distance: 0%;
+  offset-rotate: auto 42deg;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: offset-distance, transform, opacity;
+  animation: ascend-topography-arrow-climb 1460ms cubic-bezier(0.25, 0.1, 0.65, 1) both;
+}
+
+.ascend-topography-summit {
+  transform-box: view-box;
+  transform-origin: 229px 78px;
+  animation: ascend-topography-summit-arrow 1550ms cubic-bezier(0.2, 0.8, 0.22, 1) both;
+}
+
+.ascend-topography-summit-cut {
+  stroke-width: 1.4;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  vector-effect: non-scaling-stroke;
+  animation: ascend-topography-summit-cut 1460ms cubic-bezier(0.18, 0.78, 0.22, 1) both;
+}
+
+.ascend-topography-summit-cut-two { animation-delay: 24ms; }
+.ascend-topography-summit-cut-three { animation-delay: 48ms; }
+
+.ascend-topography-ring-track,
+.ascend-topography-ring-progress {
+  fill: none;
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.ascend-topography-ring-track {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 9;
+  animation: ascend-topography-ring-form 1710ms cubic-bezier(0.2, 0.78, 0.22, 1) both;
+}
+
+.ascend-topography-ring-progress {
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dashoffset: 100;
+  animation: ascend-topography-ring-progress 1710ms cubic-bezier(0.18, 0.82, 0.24, 1) both;
+}
+
+.ascend-topography-ring-arrow {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  animation: ascend-topography-ring-arrow 1710ms cubic-bezier(0.18, 0.82, 0.24, 1) both;
+}
+
+circle.ascend-topography-ring-arrow {
+  transform-origin: center;
+  animation-name: ascend-topography-seed;
+}
+
+.ascend-topography-momentum-value {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  will-change: transform, opacity;
+  animation: ascend-topography-value 1710ms cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+
+.ascend-topography-momentum-value strong {
+  font-size: clamp(2.4rem, 12vw, 3.2rem);
+  font-weight: 650;
+  line-height: 1;
+  color: rgb(var(--color-text-strong));
+}
+
+.ascend-topography-momentum-value span {
+  margin-top: 0.55rem;
+  color: #c9b8ff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.ascend-topography-data-marker {
+  position: fixed;
+  z-index: 52;
+  display: grid;
+  width: 6.4rem;
+  grid-template-columns: 1fr;
+  padding: 0.35rem 0.45rem 0.45rem 0.65rem;
+  border-left: 1px solid rgba(53, 242, 208, 0.72);
+  background: linear-gradient(90deg, rgba(14, 23, 33, 0.9), rgba(14, 23, 33, 0.18));
+  color: rgb(var(--color-text-strong));
+  text-align: left;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+  animation: ascend-topography-marker-settle 1680ms cubic-bezier(0.2, 0.76, 0.24, 1) var(--topography-marker-delay) both;
+}
+
+.ascend-topography-data-marker::before {
+  position: absolute;
+  top: -2px;
+  left: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #35f2d0;
+  content: "";
+}
+
+.ascend-topography-data-marker[data-signal="move"] {
+  border-left-color: rgba(164, 132, 255, 0.8);
+}
+
+.ascend-topography-data-marker[data-signal="move"]::before {
+  background: #a484ff;
+}
+
+.ascend-topography-data-marker span {
+  color: rgb(var(--color-text-muted));
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.ascend-topography-data-marker strong {
+  margin-top: 0.2rem;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ascend-topography-data-marker i {
+  display: block;
+  height: 2px;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ascend-topography-data-marker b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #a484ff, #35f2d0, #a3ff46);
+}
+
+.ascend-topography-running [data-ascend-opening-target] {
+  opacity: 0;
+  animation: ascend-topography-target-arrive 340ms cubic-bezier(0.22, 1, 0.36, 1) 1540ms both;
+}
+
+.ascend-topography-running [data-ascend-opening-target="momentum"] { animation-duration: 240ms; animation-delay: 1535ms; }
+.ascend-topography-running [data-ascend-opening-target="fuel"] { animation-delay: 1430ms; }
+.ascend-topography-running [data-ascend-opening-target="move"] { animation-delay: 1475ms; }
+.ascend-topography-running [data-ascend-opening-target="recover"] { animation-delay: 1520ms; }
+
+.ascend-topography-running .ascend-opening-path-progress {
+  animation: ascend-topography-path-settle 380ms cubic-bezier(0.22, 1, 0.36, 1) 1380ms both;
+}
+
+html[data-theme="light"] .ascend-topography-overlay::before {
+  background: rgba(238, 243, 248, 0.22);
+}
+
+html[data-theme="light"] .ascend-topography-contour {
+  stroke: rgba(17, 139, 124, 0.48);
+}
+
+html[data-theme="light"] .ascend-topography-depth-layer:nth-child(2) .ascend-topography-contour,
+html[data-theme="light"] .ascend-topography-depth-layer:nth-child(4) .ascend-topography-contour {
+  stroke: rgba(109, 63, 209, 0.46);
+}
+
+html[data-theme="light"] .ascend-topography-ring-track {
+  stroke: rgba(16, 29, 42, 0.11);
+}
+
+html[data-theme="light"] .ascend-topography-data-marker {
+  border-left-color: rgba(17, 139, 124, 0.72);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.94), rgba(245, 247, 250, 0.28));
+  box-shadow: 0 10px 24px rgba(30, 54, 76, 0.08);
+}
+
+html[data-theme="light"] .ascend-topography-data-marker i {
+  background: rgba(16, 29, 42, 0.09);
 }
 
 .ascend-today-path {
@@ -1045,10 +1453,30 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-rise-endpoint,
   .ascend-rise-seed,
   .ascend-opening-path-progress,
-  .ascend-opening-signal,
+  .ascend-topography-depth-layer,
+  .ascend-topography-contour,
+  .ascend-topography-mountain > path,
+  .ascend-topography-climber,
+  .ascend-topography-summit,
+  .ascend-topography-summit-cut,
+  .ascend-topography-ring-track,
+  .ascend-topography-ring-progress,
+  .ascend-topography-ring-arrow,
+  .ascend-topography-momentum-value,
+  .ascend-topography-data-marker,
+  .ascend-topography-running [data-ascend-opening-target],
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none !important;
+  }
+
+  .ascend-topography-overlay {
+    display: none !important;
+  }
+
+  .ascend-topography-running [data-ascend-opening-target] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 
   .ascend-food-progress {
