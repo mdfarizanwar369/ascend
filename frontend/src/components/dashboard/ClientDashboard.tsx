@@ -350,7 +350,7 @@ export function ClientDashboard() {
 
   useEffect(() => {
     try {
-      const storageKey = "ascend:rise:session";
+      const storageKey = "ascend:topography:v1:session";
       if (window.sessionStorage.getItem(storageKey)) return;
       window.sessionStorage.setItem(storageKey, "true");
       const frame = window.requestAnimationFrame(() => setPlayOpeningMotion(true));
