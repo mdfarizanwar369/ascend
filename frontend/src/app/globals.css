@@ -641,6 +641,16 @@ html[data-theme="light"] .ascend-theme-glow {
   to { opacity: 1; transform: scaleX(1); }
 }
 
+@keyframes ascend-living-target-arrive {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ascend-living-path-arrive {
+  from { opacity: 0.22; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
 .ascend-metric-change { animation: ascend-metric-change 440ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .ascend-success-reveal { animation: ascend-success-reveal 420ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .ascend-stagger-enter { animation: ascend-stagger-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -820,6 +830,69 @@ main.min-h-screen {
   pointer-events: none;
   contain: layout style paint;
   perspective: 900px;
+}
+
+.ascend-living-ascent-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  isolation: isolate;
+}
+
+.ascend-living-ascent-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ascend-living-running [data-ascend-opening-target] {
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+.ascend-living-first [data-ascend-opening-target="momentum"] {
+  animation: ascend-living-target-arrive 250ms cubic-bezier(0.22, 1, 0.36, 1) 2220ms both;
+}
+
+.ascend-living-first [data-ascend-opening-target="fuel"] {
+  animation: ascend-living-target-arrive 260ms cubic-bezier(0.22, 1, 0.36, 1) 2170ms both;
+}
+
+.ascend-living-first [data-ascend-opening-target="move"] {
+  animation: ascend-living-target-arrive 260ms cubic-bezier(0.22, 1, 0.36, 1) 2240ms both;
+}
+
+.ascend-living-first [data-ascend-opening-target="recover"] {
+  animation: ascend-living-target-arrive 260ms cubic-bezier(0.22, 1, 0.36, 1) 2310ms both;
+}
+
+.ascend-living-first .ascend-opening-path-progress {
+  animation: ascend-living-path-arrive 300ms cubic-bezier(0.22, 1, 0.36, 1) 2180ms both;
+}
+
+.ascend-living-daily [data-ascend-opening-target="momentum"] {
+  animation: ascend-living-target-arrive 180ms cubic-bezier(0.22, 1, 0.36, 1) 790ms both;
+}
+
+.ascend-living-daily [data-ascend-opening-target="fuel"] {
+  animation: ascend-living-target-arrive 190ms cubic-bezier(0.22, 1, 0.36, 1) 750ms both;
+}
+
+.ascend-living-daily [data-ascend-opening-target="move"] {
+  animation: ascend-living-target-arrive 190ms cubic-bezier(0.22, 1, 0.36, 1) 800ms both;
+}
+
+.ascend-living-daily [data-ascend-opening-target="recover"] {
+  animation: ascend-living-target-arrive 190ms cubic-bezier(0.22, 1, 0.36, 1) 850ms both;
+}
+
+.ascend-living-daily .ascend-opening-path-progress {
+  animation: ascend-living-path-arrive 220ms cubic-bezier(0.22, 1, 0.36, 1) 760ms both;
 }
 
 .ascend-topography-overlay::before {
@@ -1465,16 +1538,19 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-topography-momentum-value,
   .ascend-topography-data-marker,
   .ascend-topography-running [data-ascend-opening-target],
+  .ascend-living-running [data-ascend-opening-target],
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none !important;
   }
 
-  .ascend-topography-overlay {
+  .ascend-topography-overlay,
+  .ascend-living-ascent-overlay {
     display: none !important;
   }
 
-  .ascend-topography-running [data-ascend-opening-target] {
+  .ascend-topography-running [data-ascend-opening-target],
+  .ascend-living-running [data-ascend-opening-target] {
     opacity: 1 !important;
     transform: none !important;
   }
