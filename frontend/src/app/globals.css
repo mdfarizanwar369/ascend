@@ -462,50 +462,41 @@ html[data-theme="light"] .ascend-theme-glow {
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes ascend-opening-brand {
-  0% { opacity: 0; transform: translateY(-5px) scale(0.96); filter: brightness(0.8); }
-  65% { opacity: 1; transform: translateY(0) scale(1.025); filter: brightness(1.22); }
-  100% { opacity: 1; transform: translateY(0) scale(1); filter: brightness(1); }
+@keyframes ascend-rise-mark {
+  0% { opacity: 1; transform: translateY(2px) scale(0.9); }
+  46% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-2px) scale(1.22) rotate(-7deg); }
 }
 
-@keyframes ascend-opening-reveal {
-  from { opacity: 0; transform: translateY(9px); filter: blur(3px); }
-  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+@keyframes ascend-rise-track {
+  from { opacity: 0; transform: scale(0.82); }
+  to { opacity: 1; transform: scale(1); }
 }
 
-@keyframes ascend-opening-momentum {
-  0% { opacity: 0; transform: scale(0.88); filter: saturate(0.7); }
-  68% { opacity: 1; transform: scale(1.025); filter: saturate(1.12); }
-  100% { opacity: 1; transform: scale(1); filter: saturate(1); }
+@keyframes ascend-rise-progress {
+  from { opacity: 0.4; stroke-dashoffset: 100; }
+  35% { opacity: 1; }
+  to { opacity: 1; stroke-dashoffset: var(--ascend-ring-offset); }
 }
 
-@keyframes ascend-opening-ring-draw {
-  from { stroke-dashoffset: 100; opacity: 0.35; }
-  70% { opacity: 1; }
+@keyframes ascend-rise-score {
+  0%, 28% { opacity: 0; transform: translateY(4px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes ascend-opening-score {
-  0%, 30% { opacity: 0; transform: scale(0.82); }
-  72% { opacity: 1; transform: scale(1.06); }
-  100% { opacity: 1; transform: scale(1); }
-}
-
-@keyframes ascend-opening-energy {
-  0% { opacity: 0; transform: translate3d(-135%, 0, 0) rotate(-12deg); }
-  18% { opacity: 0.55; }
-  62% { opacity: 0.26; }
-  100% { opacity: 0; transform: translate3d(155%, 0, 0) rotate(-12deg); }
+@keyframes ascend-rise-endpoint {
+  from { opacity: 0; transform: scale(0.25); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes ascend-opening-signal {
-  from { opacity: 0; transform: translateY(9px) scale(0.94); }
-  72% { opacity: 1; transform: translateY(-1px) scale(1.015); }
+  from { opacity: 0.62; transform: translateY(4px) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes ascend-opening-path {
-  from { transform: scaleX(0); filter: brightness(1.45); }
-  to { transform: scaleX(1); filter: brightness(1); }
+  from { transform: scaleX(0); opacity: 0.45; }
+  to { transform: scaleX(1); opacity: 1; }
 }
 
 .ascend-metric-change { animation: ascend-metric-change 440ms cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -628,57 +619,64 @@ main.min-h-screen {
   background: linear-gradient(90deg, transparent, rgba(53, 242, 208, 0.32), rgba(164, 132, 255, 0.35), transparent);
 }
 
-.ascend-today-momentum {
+.ascend-rise-momentum {
   filter: drop-shadow(0 18px 34px rgba(53, 242, 208, 0.09));
 }
 
-.ascend-today-ring {
-  stroke-dashoffset: 0;
-  transition: stroke-dashoffset 900ms cubic-bezier(0.22, 1, 0.36, 1);
+.ascend-rise-track,
+.ascend-rise-progress {
+  transform-box: view-box;
+  transform-origin: center;
 }
 
-.ascend-opening-energy {
-  position: absolute;
-  inset: -30% auto -30% -30%;
-  z-index: -1;
-  width: 36%;
-  background: linear-gradient(90deg, transparent, rgba(164, 132, 255, 0.2), rgba(53, 242, 208, 0.34), transparent);
-  filter: blur(8px);
-  pointer-events: none;
+.ascend-rise-progress {
+  transition: stroke-dashoffset 700ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.ascend-opening-sequence .ascend-opening-brand {
-  animation: ascend-opening-brand 480ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both;
+.ascend-rise-mark {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-.ascend-opening-sequence .ascend-opening-energy {
-  animation: ascend-opening-energy 1050ms cubic-bezier(0.22, 1, 0.36, 1) 90ms both;
+.ascend-rise-score {
+  opacity: 1;
 }
 
-.ascend-opening-sequence .ascend-opening-eyebrow,
-.ascend-opening-sequence .ascend-opening-greeting,
-.ascend-opening-sequence .ascend-opening-explainer,
-.ascend-opening-sequence .ascend-opening-focus-label,
-.ascend-opening-sequence .ascend-opening-focus,
-.ascend-opening-sequence .ascend-opening-support,
-.ascend-opening-sequence .ascend-opening-cta,
-.ascend-opening-sequence .ascend-opening-rhythm-header {
-  animation: ascend-opening-reveal 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+.ascend-rise-endpoint,
+.ascend-rise-seed {
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
-.ascend-opening-sequence .ascend-opening-eyebrow { animation-delay: 90ms; }
-.ascend-opening-sequence .ascend-opening-greeting { animation-delay: 150ms; }
-.ascend-opening-sequence .ascend-opening-momentum { animation: ascend-opening-momentum 680ms cubic-bezier(0.22, 1, 0.36, 1) 190ms both; }
-.ascend-opening-sequence .ascend-today-ring { animation: ascend-opening-ring-draw 900ms cubic-bezier(0.16, 1, 0.3, 1) 230ms both; }
-.ascend-opening-sequence .ascend-opening-score { animation: ascend-opening-score 650ms cubic-bezier(0.22, 1, 0.36, 1) 260ms both; }
-.ascend-opening-sequence .ascend-opening-explainer { animation-delay: 390ms; }
-.ascend-opening-sequence .ascend-opening-focus-label { animation-delay: 450ms; }
-.ascend-opening-sequence .ascend-opening-focus { animation-delay: 510ms; }
-.ascend-opening-sequence .ascend-opening-support { animation-delay: 570ms; }
-.ascend-opening-sequence .ascend-opening-cta { animation-delay: 630ms; }
-.ascend-opening-sequence .ascend-opening-rhythm-header { animation-delay: 690ms; }
-.ascend-opening-sequence .ascend-opening-path-progress { animation: ascend-opening-path 760ms cubic-bezier(0.22, 1, 0.36, 1) 690ms both; }
-.ascend-opening-sequence .ascend-opening-signal { animation: ascend-opening-signal 500ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ascend-rise-momentum[data-animate="true"] .ascend-rise-mark {
+  animation: ascend-rise-mark 430ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ascend-rise-momentum[data-animate="true"] .ascend-rise-track {
+  animation: ascend-rise-track 260ms cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
+}
+
+.ascend-rise-momentum[data-animate="true"] .ascend-rise-progress {
+  animation: ascend-rise-progress 570ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+}
+
+.ascend-rise-momentum[data-animate="true"] .ascend-rise-score {
+  animation: ascend-rise-score 300ms cubic-bezier(0.22, 1, 0.36, 1) 330ms both;
+}
+
+.ascend-rise-momentum[data-animate="true"] .ascend-rise-endpoint,
+.ascend-rise-momentum[data-animate="true"] .ascend-rise-seed {
+  animation: ascend-rise-endpoint 140ms ease-out 670ms both;
+}
+
+.ascend-opening-sequence .ascend-opening-path-progress {
+  animation: ascend-opening-path 260ms cubic-bezier(0.22, 1, 0.36, 1) 560ms both;
+}
+
+.ascend-opening-sequence .ascend-opening-signal {
+  animation: ascend-opening-signal 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 .ascend-today-path {
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
@@ -732,7 +730,7 @@ html[data-theme="light"] .ascend-today-hero::after {
   background: linear-gradient(90deg, transparent, rgba(21, 145, 128, 0.3), rgba(109, 63, 209, 0.28), transparent);
 }
 
-html[data-theme="light"] .ascend-today-momentum circle:first-of-type {
+html[data-theme="light"] .ascend-rise-track {
   stroke: rgba(15, 23, 42, 0.09);
 }
 
@@ -1040,21 +1038,14 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-metric-change,
   .ascend-success-reveal,
   .ascend-stagger-enter,
-  .ascend-opening-brand,
-  .ascend-opening-energy,
-  .ascend-opening-eyebrow,
-  .ascend-opening-greeting,
-  .ascend-opening-momentum,
-  .ascend-opening-score,
-  .ascend-opening-explainer,
-  .ascend-opening-focus-label,
-  .ascend-opening-focus,
-  .ascend-opening-support,
-  .ascend-opening-cta,
-  .ascend-opening-rhythm-header,
+  .ascend-rise-mark,
+  .ascend-rise-track,
+  .ascend-rise-progress,
+  .ascend-rise-score,
+  .ascend-rise-endpoint,
+  .ascend-rise-seed,
   .ascend-opening-path-progress,
   .ascend-opening-signal,
-  .ascend-today-ring,
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none !important;
@@ -1064,7 +1055,7 @@ html[data-theme="light"] .ascend-skeleton::after {
     transition: none;
   }
 
-  .ascend-today-ring {
+  .ascend-rise-progress {
     transition: none !important;
   }
 
