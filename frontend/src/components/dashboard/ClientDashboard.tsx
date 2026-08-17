@@ -349,9 +349,9 @@ export function ClientDashboard() {
 
   useEffect(() => {
     try {
-      const storageKey = `ascend:rise:${localDateKey()}`;
-      if (window.localStorage.getItem(storageKey)) return;
-      window.localStorage.setItem(storageKey, "true");
+      const storageKey = "ascend:rise:session";
+      if (window.sessionStorage.getItem(storageKey)) return;
+      window.sessionStorage.setItem(storageKey, "true");
       const frame = window.requestAnimationFrame(() => setPlayOpeningMotion(true));
       return () => window.cancelAnimationFrame(frame);
     } catch {
@@ -1397,11 +1397,11 @@ export function ClientDashboard() {
                 </>
               );
               return item.href ? (
-                <Link key={item.label} href={item.href} style={{ animationDelay: `${590 + index * 40}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                <Link key={item.label} href={item.href} style={{ animationDelay: `${1050 + index * 70}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
                   {content}
                 </Link>
               ) : (
-                <button key={item.label} type="button" onClick={openRecoveryMenu} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" style={{ animationDelay: `${590 + index * 40}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={openRecoveryMenu} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" style={{ animationDelay: `${1050 + index * 70}ms` }} className="ascend-pressable ascend-opening-signal ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );

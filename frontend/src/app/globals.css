@@ -464,7 +464,7 @@ html[data-theme="light"] .ascend-theme-glow {
 
 @keyframes ascend-rise-mark {
   0% { opacity: 1; transform: translateY(2px) scale(0.9); }
-  46% { opacity: 1; transform: translateY(0) scale(1); }
+  55% { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(-2px) scale(1.22) rotate(-7deg); }
 }
 
@@ -650,32 +650,32 @@ main.min-h-screen {
 }
 
 .ascend-rise-momentum[data-animate="true"] .ascend-rise-mark {
-  animation: ascend-rise-mark 430ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ascend-rise-mark 580ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .ascend-rise-momentum[data-animate="true"] .ascend-rise-track {
-  animation: ascend-rise-track 260ms cubic-bezier(0.22, 1, 0.36, 1) 100ms both;
+  animation: ascend-rise-track 360ms cubic-bezier(0.22, 1, 0.36, 1) 150ms both;
 }
 
 .ascend-rise-momentum[data-animate="true"] .ascend-rise-progress {
-  animation: ascend-rise-progress 570ms cubic-bezier(0.16, 1, 0.3, 1) 150ms both;
+  animation: ascend-rise-progress 900ms cubic-bezier(0.16, 1, 0.3, 1) 220ms both;
 }
 
 .ascend-rise-momentum[data-animate="true"] .ascend-rise-score {
-  animation: ascend-rise-score 300ms cubic-bezier(0.22, 1, 0.36, 1) 330ms both;
+  animation: ascend-rise-score 400ms cubic-bezier(0.22, 1, 0.36, 1) 650ms both;
 }
 
 .ascend-rise-momentum[data-animate="true"] .ascend-rise-endpoint,
 .ascend-rise-momentum[data-animate="true"] .ascend-rise-seed {
-  animation: ascend-rise-endpoint 140ms ease-out 670ms both;
+  animation: ascend-rise-endpoint 180ms ease-out 1060ms both;
 }
 
 .ascend-opening-sequence .ascend-opening-path-progress {
-  animation: ascend-opening-path 260ms cubic-bezier(0.22, 1, 0.36, 1) 560ms both;
+  animation: ascend-opening-path 360ms cubic-bezier(0.22, 1, 0.36, 1) 960ms both;
 }
 
 .ascend-opening-sequence .ascend-opening-signal {
-  animation: ascend-opening-signal 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ascend-opening-signal 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .ascend-today-path {
