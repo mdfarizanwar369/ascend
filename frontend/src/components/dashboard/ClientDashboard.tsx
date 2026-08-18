@@ -45,7 +45,7 @@ import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, Skel
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
-import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
+import { getAscendMorphV2Timing, useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -1671,10 +1671,12 @@ export function ClientDashboard() {
               const Icon = item.icon;
               const isPriority = index === 0 && !item.done;
               const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
+              const morphV2Timing = getAscendMorphV2Timing(index);
               const cardStyle = {
                 "--ascend-essential-entry-delay": `${index * 80}ms`,
-                "--ascend-v2-card-delay": `${680 + index * 65}ms`,
-                "--ascend-v2-ring-delay": `${760 + index * 45}ms`
+                "--ascend-v2-card-delay": `${morphV2Timing.cardDelayMs}ms`,
+                "--ascend-v2-content-delay": `${morphV2Timing.contentDelayMs}ms`,
+                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`
               } as CSSProperties;
               const content = (
                 <>

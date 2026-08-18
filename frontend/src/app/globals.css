@@ -529,15 +529,23 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 @keyframes ascend-morph-v2-flight {
-  0% {
+  0%, 24% {
     opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
   }
-  20% {
+  36% {
     opacity: 1;
-    transform: translate3d(var(--ascend-v2-separate-x), var(--ascend-v2-separate-y), 0) scale(0.98);
+    transform: translate3d(var(--ascend-v2-separate-x), var(--ascend-v2-separate-y), 0) scale(1);
   }
-  76% { opacity: 1; }
+  72% {
+    opacity: 1;
+    transform: translate3d(var(--ascend-v2-mid-x), var(--ascend-v2-mid-y), 0) scale(0.97);
+  }
+  92% {
+    opacity: 1;
+    transform: translate3d(var(--ascend-v2-near-x), var(--ascend-v2-near-y), 0) scale(0.88);
+  }
+  96% { opacity: 1; }
   100% {
     opacity: 0;
     transform: translate3d(var(--ascend-v2-dx), var(--ascend-v2-dy), 0) scale(var(--ascend-v2-target-scale));
@@ -554,6 +562,11 @@ html[data-theme="light"] .ascend-theme-glow {
 @keyframes ascend-morph-v2-card-resolve {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@keyframes ascend-morph-v2-content-resolve {
+  from { opacity: 0; transform: translate3d(0, 3px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
 @keyframes ascend-morph-v2-ring-draw {
@@ -1043,11 +1056,11 @@ main.min-h-screen {
   stroke: rgba(225, 255, 250, 0.78);
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: ascend-morph-v2-activation 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ascend-morph-v2-activation 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .ascend-morph-v2-activation path:nth-of-type(2) {
-  animation-delay: 70ms;
+  animation-delay: 40ms;
 }
 
 .ascend-today-essentials[data-opening="undecided"] .ascend-essentials-heading,
@@ -1084,20 +1097,27 @@ main.min-h-screen {
 }
 
 .ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essentials-heading {
-  animation: ascend-morph-v2-card-resolve 260ms cubic-bezier(0.22, 1, 0.36, 1) 820ms both;
+  animation: ascend-morph-v2-card-resolve 260ms cubic-bezier(0.22, 1, 0.36, 1) 760ms both;
 }
 
 .ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essentials-completion {
-  animation: ascend-morph-v2-card-resolve 250ms cubic-bezier(0.22, 1, 0.36, 1) 855ms both;
+  animation: ascend-morph-v2-card-resolve 240ms cubic-bezier(0.22, 1, 0.36, 1) 800ms both;
 }
 
 .ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-enter {
-  animation: ascend-morph-v2-card-resolve 300ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-card-delay) both;
+  animation: ascend-morph-v2-card-resolve 190ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-card-delay) both;
+}
+
+.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-copy,
+.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-chevron,
+.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-action,
+.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-signal-ring-core {
+  animation: ascend-morph-v2-content-resolve 185ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-content-delay) both;
 }
 
 .ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-signal-ring-progress {
   transition: none;
-  animation: ascend-morph-v2-ring-draw 280ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-ring-delay) both;
+  animation: ascend-morph-v2-ring-draw 250ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-ring-delay) both;
 }
 
 /* Development comparison lab: pin both implementations to an exact global frame. */
@@ -1116,7 +1136,7 @@ html[data-ascend-morph-audit-frame] .ascend-morph-v2-fragment {
 }
 
 html[data-ascend-morph-audit-frame] .ascend-morph-v2-activation path:nth-of-type(2) {
-  animation-delay: calc(70ms - var(--ascend-morph-audit-frame)) !important;
+  animation-delay: calc(40ms - var(--ascend-morph-audit-frame)) !important;
 }
 
 html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph"] .ascend-essentials-heading {
@@ -1143,17 +1163,25 @@ html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph
 }
 
 html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essentials-heading {
-  animation-delay: calc(820ms - var(--ascend-morph-audit-frame)) !important;
+  animation-delay: calc(760ms - var(--ascend-morph-audit-frame)) !important;
   animation-play-state: paused !important;
 }
 
 html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essentials-completion {
-  animation-delay: calc(855ms - var(--ascend-morph-audit-frame)) !important;
+  animation-delay: calc(800ms - var(--ascend-morph-audit-frame)) !important;
   animation-play-state: paused !important;
 }
 
 html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-enter {
   animation-delay: calc(var(--ascend-v2-card-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-copy,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-chevron,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-action,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-signal-ring-core {
+  animation-delay: calc(var(--ascend-v2-content-delay) - var(--ascend-morph-audit-frame)) !important;
   animation-play-state: paused !important;
 }
 

@@ -19,6 +19,22 @@ type Point = { x: number; y: number };
 type SourceGeometry = { left: number; top: number; size: number };
 type TargetGeometry = Point & { size: number };
 
+export function getAscendMorphV2Timing(rank: number) {
+  const normalizedRank = Math.min(2, Math.max(0, rank));
+  const flightDelayMs = 60 + normalizedRank * 60;
+  const flightDurationMs = 680;
+  const contactMs = flightDelayMs + flightDurationMs;
+
+  return {
+    flightDelayMs,
+    flightDurationMs,
+    contactMs,
+    cardDelayMs: contactMs,
+    contentDelayMs: contactMs + 105,
+    ringDelayMs: contactMs
+  };
+}
+
 export type MorphV2Signal = {
   key: AscendLogoFragmentKey;
   progress: number;
@@ -71,7 +87,13 @@ function targetGeometry(section: HTMLElement) {
     const ring = section.querySelector(`[data-ascend-opening-target="${key}"] .ascend-signal-ring`);
     if (!ring) return [key, null] as const;
     const rect = ring.getBoundingClientRect();
-    return [key, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, size: rect.width }] as const;
+    // The production ring starts at 12 o'clock: cx 48, cy 48, r 36 in a 96px viewBox.
+    // Land the travelling fragment on that exact point so the real stroke can take over.
+    return [key, {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height * (12 / 96),
+      size: rect.width
+    }] as const;
   });
   return Object.fromEntries(entries) as Record<AscendLogoFragmentKey, TargetGeometry | null>;
 }
@@ -202,7 +224,7 @@ export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode 
         completionRef.current?.();
         completionRef.current = null;
         abortRef.current = null;
-      }, 1150);
+      }, 1180);
     }
 
     const abortOnResize = () => {
@@ -220,7 +242,7 @@ export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode 
       window.removeEventListener("resize", abortOnResize);
       if (resizeAbortRef.current === abortOnResize) resizeAbortRef.current = null;
       abortTimerRef.current = null;
-    }, auditFrame ? 10_000 : 1160);
+    }, auditFrame ? 10_000 : 1190);
     return true;
   }, [clearTimers, dismiss, enabled, phase, source]);
 
@@ -261,23 +283,32 @@ export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode 
             <>
               {(["fuel", "move", "recover"] as const).map((key) => {
                 const rank = Math.max(0, run.order.indexOf(key));
+                const timing = getAscendMorphV2Timing(rank);
                 const anchor = fragmentAnchors[key];
                 const anchorX = run.source.left + (anchor.x / 128) * run.source.size;
                 const anchorY = run.source.top + (anchor.y / 128) * run.source.size;
                 const target = run.targets[key];
+                const dx = target.x - anchorX;
+                const dy = target.y - anchorY;
+                const separateX = separation[key].x;
+                const separateY = separation[key].y;
                 const style = {
                   left: `${run.source.left}px`,
                   top: `${run.source.top}px`,
                   width: `${run.source.size}px`,
                   height: `${run.source.size}px`,
                   transformOrigin: `${(anchor.x / 128) * 100}% ${(anchor.y / 128) * 100}%`,
-                  "--ascend-v2-dx": `${target.x - anchorX}px`,
-                  "--ascend-v2-dy": `${target.y - anchorY}px`,
-                  "--ascend-v2-separate-x": `${separation[key].x}px`,
-                  "--ascend-v2-separate-y": `${separation[key].y}px`,
-                  "--ascend-v2-target-scale": `${Math.max(0.42, Math.min(0.68, target.size / run.source.size * 0.78))}`,
-                  "--ascend-v2-flight-delay": `${250 + rank * 65}ms`,
-                  "--ascend-v2-flight-duration": `${510 - Math.min(rank, 2) * 20}ms`
+                  "--ascend-v2-dx": `${dx}px`,
+                  "--ascend-v2-dy": `${dy}px`,
+                  "--ascend-v2-mid-x": `${separateX + (dx - separateX) * 0.54}px`,
+                  "--ascend-v2-mid-y": `${separateY + (dy - separateY) * 0.54}px`,
+                  "--ascend-v2-near-x": `${separateX + (dx - separateX) * 0.9}px`,
+                  "--ascend-v2-near-y": `${separateY + (dy - separateY) * 0.9}px`,
+                  "--ascend-v2-separate-x": `${separateX}px`,
+                  "--ascend-v2-separate-y": `${separateY}px`,
+                  "--ascend-v2-target-scale": `${Math.max(0.58, Math.min(0.74, target.size / run.source.size * 0.84))}`,
+                  "--ascend-v2-flight-delay": `${timing.flightDelayMs}ms`,
+                  "--ascend-v2-flight-duration": `${timing.flightDurationMs}ms`
                 } as CSSProperties;
                 return (
                   <AscendLogoGlyph

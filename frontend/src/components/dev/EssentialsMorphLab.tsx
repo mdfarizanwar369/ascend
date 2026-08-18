@@ -3,7 +3,7 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowRight, Beef, HeartPulse } from "lucide-react";
 import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
-import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
+import { getAscendMorphV2Timing, useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { SignalProgressRing } from "@/components/dashboard/ClientDashboard";
 
 type SignalKey = "fuel" | "move" | "recover";
@@ -175,10 +175,12 @@ export function EssentialsMorphLab() {
             {signals.map((item, index) => {
               const Icon = item.icon;
               const isPriority = index === 0 && !item.done;
+              const morphV2Timing = getAscendMorphV2Timing(index);
               const style = {
                 "--ascend-essential-entry-delay": `${index * 80}ms`,
-                "--ascend-v2-card-delay": `${680 + index * 65}ms`,
-                "--ascend-v2-ring-delay": `${760 + index * 45}ms`
+                "--ascend-v2-card-delay": `${morphV2Timing.cardDelayMs}ms`,
+                "--ascend-v2-content-delay": `${morphV2Timing.contentDelayMs}ms`,
+                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`
               } as CSSProperties;
               return (
                 <div
