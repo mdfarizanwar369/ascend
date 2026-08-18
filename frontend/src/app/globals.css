@@ -490,7 +490,7 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 @keyframes ascend-essential-enter {
-  from { opacity: 0; transform: translate3d(0, 12px, 0); }
+  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.985); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
@@ -937,7 +937,17 @@ main.min-h-screen {
 }
 
 .ascend-essential-enter {
-  animation: ascend-essential-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-essential-entry-delay, 0ms) backwards;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.ascend-today-essentials[data-entrance="waiting"] .ascend-essential-enter {
+  opacity: 0;
+  transform: translate3d(0, 14px, 0) scale(0.985);
+}
+
+.ascend-today-essentials[data-entrance="running"] .ascend-essential-enter {
+  animation: ascend-essential-enter 460ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-essential-entry-delay, 0ms) both;
 }
 
 .ascend-essential-card[data-active="true"]::after {
@@ -1817,6 +1827,11 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-goal-celebrating,
   .ascend-confetti-piece {
     animation: none !important;
+  }
+
+  .ascend-today-essentials[data-entrance] .ascend-essential-enter {
+    opacity: 1 !important;
+    transform: none !important;
   }
 
   .ascend-topography-overlay {

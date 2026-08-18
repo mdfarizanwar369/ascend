@@ -371,6 +371,7 @@ export function ClientDashboard() {
   const [settlingMomentumSignal, setSettlingMomentumSignal] = useState<MomentumSignalKey | null>(null);
   const [momentumRewardActive, setMomentumRewardActive] = useState(false);
   const [essentialsInView, setEssentialsInView] = useState(true);
+  const [essentialsEntrancePhase, setEssentialsEntrancePhase] = useState<"waiting" | "running" | "settled">("waiting");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -393,6 +394,11 @@ export function ClientDashboard() {
   const goalCelebrateLockRef = useRef(false);
   const recoveryCloseRef = useRef<HTMLButtonElement>(null);
   const essentialsObserverRef = useRef<IntersectionObserver | null>(null);
+  const essentialsVisibleRef = useRef(false);
+  const essentialsEntranceStartedRef = useRef(false);
+  const essentialsEntranceFrameOneRef = useRef<number | null>(null);
+  const essentialsEntranceFrameTwoRef = useRef<number | null>(null);
+  const essentialsEntranceTimerRef = useRef<number | null>(null);
   const momentumSignalOrderRef = useRef<MomentumSignalKey[] | null>(null);
   const momentumSignalCardRefs = useRef<Partial<Record<MomentumSignalKey, HTMLElement | null>>>({});
   const momentumSignalBeforeRectsRef = useRef<Partial<Record<MomentumSignalKey, DOMRect>>>({});
@@ -407,19 +413,64 @@ export function ClientDashboard() {
   const momentumRewardTimerRef = useRef<number | null>(null);
   const momentumRewardResetTimerRef = useRef<number | null>(null);
 
+  const startEssentialsEntrance = useCallback(() => {
+    if (essentialsEntranceStartedRef.current || document.visibilityState === "hidden") return;
+    essentialsEntranceStartedRef.current = true;
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (reduceMotion) {
+      setEssentialsEntrancePhase("settled");
+      return;
+    }
+
+    essentialsEntranceFrameOneRef.current = window.requestAnimationFrame(() => {
+      essentialsEntranceFrameOneRef.current = null;
+      essentialsEntranceFrameTwoRef.current = window.requestAnimationFrame(() => {
+        essentialsEntranceFrameTwoRef.current = null;
+        setEssentialsEntrancePhase("running");
+        essentialsEntranceTimerRef.current = window.setTimeout(() => {
+          essentialsEntranceTimerRef.current = null;
+          setEssentialsEntrancePhase("settled");
+        }, 660);
+      });
+    });
+  }, []);
+
   const observeEssentialsSection = useCallback((section: HTMLElement | null) => {
     essentialsObserverRef.current?.disconnect();
     essentialsObserverRef.current = null;
-    if (!section || typeof IntersectionObserver === "undefined") return;
+    if (!section) return;
+
+    if (typeof IntersectionObserver === "undefined") {
+      essentialsVisibleRef.current = true;
+      setEssentialsInView(true);
+      startEssentialsEntrance();
+      return;
+    }
 
     essentialsObserverRef.current = new IntersectionObserver(([entry]) => {
+      essentialsVisibleRef.current = entry.isIntersecting;
       setEssentialsInView(entry.isIntersecting);
+      if (entry.isIntersecting) startEssentialsEntrance();
     }, { threshold: 0.08 });
     essentialsObserverRef.current.observe(section);
-  }, []);
+  }, [startEssentialsEntrance]);
+
+  useEffect(() => {
+    const startWhenDocumentBecomesVisible = () => {
+      if (document.visibilityState === "visible" && essentialsVisibleRef.current) {
+        startEssentialsEntrance();
+      }
+    };
+    document.addEventListener("visibilitychange", startWhenDocumentBecomesVisible);
+    return () => document.removeEventListener("visibilitychange", startWhenDocumentBecomesVisible);
+  }, [startEssentialsEntrance]);
 
   useEffect(() => () => {
     essentialsObserverRef.current?.disconnect();
+    if (essentialsEntranceFrameOneRef.current !== null) window.cancelAnimationFrame(essentialsEntranceFrameOneRef.current);
+    if (essentialsEntranceFrameTwoRef.current !== null) window.cancelAnimationFrame(essentialsEntranceFrameTwoRef.current);
+    if (essentialsEntranceTimerRef.current !== null) window.clearTimeout(essentialsEntranceTimerRef.current);
     if (momentumHandoffTimerRef.current !== null) window.clearTimeout(momentumHandoffTimerRef.current);
     if (momentumRewardTimerRef.current !== null) window.clearTimeout(momentumRewardTimerRef.current);
     if (momentumRewardResetTimerRef.current !== null) window.clearTimeout(momentumRewardResetTimerRef.current);
@@ -1533,7 +1584,12 @@ export function ClientDashboard() {
           </section>
         ) : null}
 
-        <section ref={observeEssentialsSection} className="ascend-today-essentials mt-3" aria-labelledby="today-essentials-title">
+        <section
+          ref={observeEssentialsSection}
+          data-entrance={essentialsEntrancePhase}
+          className="ascend-today-essentials mt-3"
+          aria-labelledby="today-essentials-title"
+        >
           <div>
             <p className="ascend-eyebrow">Today&apos;s essentials</p>
             <h1 id="today-essentials-title" className="mt-1.5 text-[1.65rem] font-semibold leading-tight text-white">
@@ -1580,7 +1636,7 @@ export function ClientDashboard() {
                   href={item.href}
                   data-ascend-opening-target={item.key}
                   data-state={item.done ? "done" : isPriority ? "priority" : "open"}
-                  data-active={isPriority && essentialsInView ? "true" : "false"}
+                  data-active={isPriority && essentialsInView && essentialsEntrancePhase === "settled" ? "true" : "false"}
                   data-handoff={settlingMomentumSignal === item.key ? "settling" : "idle"}
                   data-tone={item.key}
                   style={cardStyle}
@@ -1597,7 +1653,7 @@ export function ClientDashboard() {
                   onClick={openRecoverySheet}
                   data-ascend-opening-target={item.key}
                   data-state={item.done ? "done" : isPriority ? "priority" : "open"}
-                  data-active={isPriority && essentialsInView ? "true" : "false"}
+                  data-active={isPriority && essentialsInView && essentialsEntrancePhase === "settled" ? "true" : "false"}
                   data-handoff={settlingMomentumSignal === item.key ? "settling" : "idle"}
                   data-tone={item.key}
                   style={cardStyle}
