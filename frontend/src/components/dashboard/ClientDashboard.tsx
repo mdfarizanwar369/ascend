@@ -45,6 +45,7 @@ import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, Skel
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
+import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -138,7 +139,7 @@ function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
 }
 
-function SignalProgressRing({
+export function SignalProgressRing({
   progress,
   done,
   priority,
@@ -173,6 +174,10 @@ function SignalProgressRing({
           fill="none"
           stroke={toneColor}
           strokeDasharray={`${(visibleProgress / 100) * circumference} ${circumference}`}
+          style={{
+            "--ascend-v2-ring-length": `${(visibleProgress / 100) * circumference}`,
+            "--ascend-v2-ring-circumference": `${circumference}`
+          } as CSSProperties}
           strokeLinecap="round"
           strokeWidth="5"
         />
@@ -342,6 +347,7 @@ function CollapsibleSection({
 }
 
 export function ClientDashboard() {
+  const launchMorphV2 = useAscendLaunchMorphV2();
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
@@ -374,7 +380,7 @@ export function ClientDashboard() {
   const [momentumRewardActive, setMomentumRewardActive] = useState(false);
   const [essentialsInView, setEssentialsInView] = useState(true);
   const [essentialsEntrancePhase, setEssentialsEntrancePhase] = useState<"waiting" | "running" | "settled">("waiting");
-  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph">("undecided");
+  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph" | "morphV2">("undecided");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -397,8 +403,10 @@ export function ClientDashboard() {
   const goalCelebrateLockRef = useRef(false);
   const recoveryCloseRef = useRef<HTMLButtonElement>(null);
   const essentialsObserverRef = useRef<IntersectionObserver | null>(null);
+  const essentialsSectionRef = useRef<HTMLElement | null>(null);
   const essentialsVisibleRef = useRef(false);
   const essentialsEntranceStartedRef = useRef(false);
+  const essentialsV2StartedRef = useRef(false);
   const essentialsEntranceFrameOneRef = useRef<number | null>(null);
   const essentialsEntranceFrameTwoRef = useRef<number | null>(null);
   const essentialsEntranceTimerRef = useRef<number | null>(null);
@@ -421,12 +429,18 @@ export function ClientDashboard() {
     essentialsEntranceStartedRef.current = true;
 
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-    const shouldMorph = claimTodayEssentialsColdLaunch();
     if (reduceMotion) {
       setEssentialsOpeningMode("stagger");
       setEssentialsEntrancePhase("settled");
       return;
     }
+
+    if (launchMorphV2.enabled && launchMorphV2.holdingLaunchGlyph) {
+      setEssentialsOpeningMode("morphV2");
+      return;
+    }
+
+    const shouldMorph = claimTodayEssentialsColdLaunch();
 
     setEssentialsOpeningMode(shouldMorph ? "morph" : "stagger");
 
@@ -441,7 +455,7 @@ export function ClientDashboard() {
         }, shouldMorph ? 1120 : 660);
       });
     });
-  }, []);
+  }, [launchMorphV2.enabled, launchMorphV2.holdingLaunchGlyph]);
 
   const finishEssentialsOpening = useCallback(() => {
     if (essentialsEntranceTimerRef.current !== null) {
@@ -454,6 +468,7 @@ export function ClientDashboard() {
   const observeEssentialsSection = useCallback((section: HTMLElement | null) => {
     essentialsObserverRef.current?.disconnect();
     essentialsObserverRef.current = null;
+    essentialsSectionRef.current = section;
     if (!section) return;
 
     if (typeof IntersectionObserver === "undefined") {
@@ -1342,6 +1357,31 @@ export function ClientDashboard() {
   const completedMomentumSignals = momentumSignals.filter((item) => item.done).length;
   const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(momentumSignals.length, 1)) * 100);
 
+  useLayoutEffect(() => {
+    if (essentialsOpeningMode !== "morphV2" || essentialsEntrancePhase !== "waiting" || essentialsV2StartedRef.current) return;
+    const section = essentialsSectionRef.current;
+    if (!section) return;
+
+    essentialsV2StartedRef.current = true;
+    setEssentialsEntrancePhase("running");
+    essentialsEntranceFrameOneRef.current = window.requestAnimationFrame(() => {
+      essentialsEntranceFrameOneRef.current = null;
+      const started = launchMorphV2.startDashboardMorph({
+        section,
+        signals: activeMomentumSignals.map((signal) => ({ key: signal.key, progress: signal.progress, done: signal.done })),
+        onComplete: finishEssentialsOpening,
+        onAbort: () => {
+          setEssentialsOpeningMode("stagger");
+          finishEssentialsOpening();
+        }
+      });
+
+      if (started) return;
+      setEssentialsOpeningMode("stagger");
+      finishEssentialsOpening();
+    });
+  }, [activeMomentumSignals, essentialsEntrancePhase, essentialsOpeningMode, finishEssentialsOpening, launchMorphV2]);
+
   useEffect(() => {
     const nextDone = {
       fuel: fuelMomentumDone,
@@ -1631,7 +1671,11 @@ export function ClientDashboard() {
               const Icon = item.icon;
               const isPriority = index === 0 && !item.done;
               const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
-              const cardStyle = { "--ascend-essential-entry-delay": `${index * 80}ms` } as CSSProperties;
+              const cardStyle = {
+                "--ascend-essential-entry-delay": `${index * 80}ms`,
+                "--ascend-v2-card-delay": `${680 + index * 65}ms`,
+                "--ascend-v2-ring-delay": `${760 + index * 45}ms`
+              } as CSSProperties;
               const content = (
                 <>
                   <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority} tone={item.key}>

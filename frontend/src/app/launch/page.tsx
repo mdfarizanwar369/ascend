@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { BrandMark } from "@/components/BrandMark";
 import { getMe } from "@/lib/ascendApi";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { markTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
+import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 
 function roleHome(roles: string[]) {
   if (roles.includes("owner") || roles.includes("admin")) return "/admin";
@@ -23,13 +25,21 @@ function withTimeout<T>(promise: Promise<T>, ms = 10_000) {
 }
 
 export default function LaunchPage() {
+  const router = useRouter();
+  const {
+    enabled: launchMorphV2Enabled,
+    registerLaunchAnchor: registerLaunchMorphV2Anchor
+  } = useAscendLaunchMorphV2();
   const [message, setMessage] = useState("Opening Ascend...");
+  const registerLaunchAnchor = useCallback((element: HTMLSpanElement | null) => {
+    registerLaunchMorphV2Anchor(element);
+  }, [registerLaunchMorphV2Anchor]);
 
   useEffect(() => {
     let isMounted = true;
     let unsubscribe = () => {};
 
-    markTodayEssentialsColdLaunch();
+    if (!launchMorphV2Enabled) markTodayEssentialsColdLaunch();
 
     async function launch() {
       try {
@@ -54,9 +64,12 @@ export default function LaunchPage() {
           try {
             setMessage("Checking your account...");
             const profile = await withTimeout(getMe());
-            window.location.replace(roleHome(Array.isArray(profile.roles) ? profile.roles : []));
+            const destination = roleHome(Array.isArray(profile.roles) ? profile.roles : []);
+            if (launchMorphV2Enabled) router.replace(destination);
+            else window.location.replace(destination);
           } catch {
-            window.location.replace("/dashboard");
+            if (launchMorphV2Enabled) router.replace("/dashboard");
+            else window.location.replace("/dashboard");
           }
         });
       } catch {
@@ -70,14 +83,20 @@ export default function LaunchPage() {
       isMounted = false;
       unsubscribe();
     };
-  }, []);
+  }, [launchMorphV2Enabled, router]);
 
   return (
     <main className="grid min-h-screen place-items-center bg-ink px-4 text-white">
       <div className="text-center">
-        <div className="mx-auto w-20">
-          <BrandMark size="lg" />
-        </div>
+        {launchMorphV2Enabled ? (
+          <div className="mx-auto grid h-56 w-full max-w-72 place-items-center">
+            <span ref={registerLaunchAnchor} className="block h-28 w-28" aria-hidden="true" />
+          </div>
+        ) : (
+          <div className="mx-auto w-20">
+            <BrandMark size="lg" />
+          </div>
+        )}
         <h1 className="mt-5 text-2xl font-semibold">Ascend</h1>
         <p className="mt-2 text-sm text-zinc-400">{message}</p>
       </div>
