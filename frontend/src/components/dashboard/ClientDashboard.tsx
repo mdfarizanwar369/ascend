@@ -44,13 +44,7 @@ import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@
 import { AccountBarSkeleton, DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
-import { AscendLivingAscentOpening } from "@/components/dashboard/AscendLivingAscentOpening";
-import type { AscendTopographySignal } from "@/components/dashboard/AscendTopographyOpening";
-import {
-  localDateKey as livingAscentDateKey,
-  selectLivingAscentMode,
-  type LivingAscentMode
-} from "@/components/dashboard/livingAscentPolicy";
+import { AscendTopographyOpening, type AscendTopographySignal } from "@/components/dashboard/AscendTopographyOpening";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -343,7 +337,7 @@ export function ClientDashboard() {
   const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
-  const [openingMode, setOpeningMode] = useState<LivingAscentMode | null>(null);
+  const [playOpeningMotion, setPlayOpeningMotion] = useState(false);
   const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
     todaysNumbers: false
   });
@@ -356,15 +350,13 @@ export function ClientDashboard() {
 
   useEffect(() => {
     try {
-      const mode = selectLivingAscentMode(window.localStorage, livingAscentDateKey());
-      if (!mode || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const frame = window.requestAnimationFrame(() => setOpeningMode(mode));
+      const storageKey = "ascend:topography:v1:session";
+      if (window.sessionStorage.getItem(storageKey)) return;
+      window.sessionStorage.setItem(storageKey, "true");
+      const frame = window.requestAnimationFrame(() => setPlayOpeningMotion(true));
       return () => window.cancelAnimationFrame(frame);
     } catch {
-      const fallbackKey = "ascend:living-ascent:v1:session-fallback";
-      if (window.sessionStorage.getItem(fallbackKey)) return;
-      window.sessionStorage.setItem(fallbackKey, "true");
-      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setOpeningMode("first");
+      setPlayOpeningMotion(true);
     }
   }, []);
 
@@ -1292,15 +1284,14 @@ export function ClientDashboard() {
   }
 
   return (
-    <main className={`ascend-today-canvas min-h-screen bg-ink pb-24 text-white ${openingMode ? `ascend-living-running ascend-living-${openingMode}` : ""}`}>
-      {openingMode ? <AscendLivingAscentOpening
-        active
-        mode={openingMode}
+    <main className={`ascend-today-canvas min-h-screen bg-ink pb-24 text-white ${playOpeningMotion ? "ascend-topography-running" : ""}`}>
+      <AscendTopographyOpening
+        active={playOpeningMotion}
         score={score}
         isStarting={isFirstDayState}
         signals={topographySignals}
-        onFinish={() => setOpeningMode(null)}
-      /> : null}
+        onFinish={() => setPlayOpeningMotion(false)}
+      />
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <Link href="/dashboard" className="flex items-center gap-2">
