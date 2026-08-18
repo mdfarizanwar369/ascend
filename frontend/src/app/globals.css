@@ -581,9 +581,9 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 @keyframes ascend-morph-v22-whole-release {
-  0%, 56% { opacity: 1; transform: scale(1); }
-  76% { opacity: 0.82; transform: scale(0.985); }
-  100% { opacity: 0; transform: scale(0.96); }
+  0%, 64% { opacity: 1; transform: scale(1); }
+  78% { opacity: 0.72; transform: scale(0.99); }
+  100% { opacity: 0; transform: scale(0.97); }
 }
 
 @keyframes ascend-morph-v22-charge {
@@ -600,24 +600,23 @@ html[data-theme="light"] .ascend-theme-glow {
 
 @keyframes ascend-morph-v22-flight {
   0% {
-    opacity: 0;
+    opacity: 1;
     transform: translate3d(0, 0, 0) scale(1);
     animation-timing-function: cubic-bezier(0.34, 0, 0.65, 1);
   }
-  5% { opacity: 1; }
-  22% {
+  20% {
     opacity: 1;
-    transform: translate3d(var(--ascend-v22-separate-x), var(--ascend-v22-separate-y), 0) scale(1);
+    transform: translate3d(var(--ascend-v22-separate-x), var(--ascend-v22-separate-y), 0) scale(0.98);
     animation-timing-function: cubic-bezier(0.2, 0.78, 0.26, 1);
   }
-  58% {
+  48% {
     opacity: 1;
-    transform: translate3d(var(--ascend-v22-mid-x), var(--ascend-v22-mid-y), 0) scale(0.94);
+    transform: translate3d(var(--ascend-v22-mid-x), var(--ascend-v22-mid-y), 0) scale(0.74);
     animation-timing-function: cubic-bezier(0.12, 0.72, 0.22, 1);
   }
-  86% {
+  82% {
     opacity: 1;
-    transform: translate3d(var(--ascend-v22-near-x), var(--ascend-v22-near-y), 0) scale(calc(var(--ascend-v22-target-scale) + 0.08));
+    transform: translate3d(var(--ascend-v22-near-x), var(--ascend-v22-near-y), 0) scale(calc(var(--ascend-v22-target-scale) + 0.05));
     animation-timing-function: cubic-bezier(0.16, 0.88, 0.3, 1);
   }
   98% {
@@ -631,19 +630,19 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 @keyframes ascend-morph-v22-wake {
-  0%, 12% {
+  0%, 14% {
     opacity: 0;
     transform: translate3d(0, 0, 0) scale(1);
   }
-  24% {
+  28% {
     opacity: var(--ascend-v22-wake-opacity);
     transform: translate3d(var(--ascend-v22-separate-x), var(--ascend-v22-separate-y), 0) scale(0.99);
   }
-  60% {
+  52% {
     opacity: var(--ascend-v22-wake-mid-opacity);
     transform: translate3d(var(--ascend-v22-mid-x), var(--ascend-v22-mid-y), 0) scale(0.9);
   }
-  88% {
+  84% {
     opacity: var(--ascend-v22-wake-tail-opacity);
     transform: translate3d(var(--ascend-v22-wake-dx), var(--ascend-v22-wake-dy), 0) scale(var(--ascend-v22-target-scale));
   }
@@ -654,13 +653,13 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 @keyframes ascend-morph-v22-contact {
-  0% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(0.45); }
-  28% { opacity: 0.92; transform: translate3d(-50%, -50%, 0) scale(1); }
-  100% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(2.15); }
+  0% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(0.7); }
+  28% { opacity: var(--ascend-v22-impact-opacity); transform: translate3d(-50%, -50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(var(--ascend-v22-impact-scale)); }
 }
 
 @keyframes ascend-morph-v22-card-activate {
-  from { opacity: 0.58; transform: none; }
+  from { opacity: 0.72; transform: none; }
   to { opacity: 1; transform: none; }
 }
 
@@ -1182,7 +1181,7 @@ main.min-h-screen {
 }
 
 .ascend-morph-v22-overlay[data-phase="running"] .ascend-morph-v22-whole {
-  animation: ascend-morph-v22-whole-release 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ascend-morph-v22-whole-release 230ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .ascend-morph-v22-charge {
@@ -1193,13 +1192,13 @@ main.min-h-screen {
   stroke: rgba(238, 255, 252, 0.94);
   stroke-dasharray: 22 220;
   stroke-dashoffset: 0;
-  animation: ascend-morph-v22-charge 170ms cubic-bezier(0.3, 0, 0.18, 1) 28ms both;
+  animation: ascend-morph-v22-charge 145ms cubic-bezier(0.3, 0, 0.18, 1) 20ms both;
 }
 
 .ascend-morph-v22-charge circle {
   transform-box: fill-box;
   transform-origin: center;
-  animation: ascend-morph-v22-charge-dot 150ms cubic-bezier(0.22, 1, 0.36, 1) 44ms both;
+  animation: ascend-morph-v22-charge-dot 135ms cubic-bezier(0.22, 1, 0.36, 1) 28ms both;
 }
 
 .ascend-morph-v22-fragment,
@@ -1280,7 +1279,7 @@ main.min-h-screen {
 
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essential-enter,
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-enter {
-  opacity: 0.58;
+  opacity: 0.72;
   transform: none;
 }
 
@@ -1291,7 +1290,7 @@ main.min-h-screen {
 }
 
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-enter {
-  animation: ascend-morph-v22-card-activate 180ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v22-card-delay) both;
+  animation: ascend-morph-v22-card-activate 150ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v22-card-delay) both;
 }
 
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring-progress {
@@ -1314,6 +1313,21 @@ main.min-h-screen {
   pointer-events: none;
   will-change: transform, opacity;
   animation: ascend-morph-v22-contact 160ms cubic-bezier(0.18, 0.84, 0.3, 1) var(--ascend-v22-contact-delay) both;
+}
+
+.ascend-today-essentials[data-opening="morphV22"] nav > .ascend-essential-card:nth-child(1) .ascend-signal-ring {
+  --ascend-v22-impact-opacity: 0.92;
+  --ascend-v22-impact-scale: 2;
+}
+
+.ascend-today-essentials[data-opening="morphV22"] nav > .ascend-essential-card:nth-child(2) .ascend-signal-ring {
+  --ascend-v22-impact-opacity: 0.58;
+  --ascend-v22-impact-scale: 1.65;
+}
+
+.ascend-today-essentials[data-opening="morphV22"] nav > .ascend-essential-card:nth-child(3) .ascend-signal-ring {
+  --ascend-v22-impact-opacity: 0.42;
+  --ascend-v22-impact-scale: 1.45;
 }
 
 .ascend-today-essentials[data-opening="morphV22"] [data-tone="fuel"] .ascend-signal-ring {

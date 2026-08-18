@@ -20,12 +20,12 @@ type SourceGeometry = { left: number; top: number; size: number };
 type TargetGeometry = Point & { size: number };
 
 const GLYPH_SCALE = 1.2;
-const COMPLETE_MS = 1050;
+const COMPLETE_MS = 1000;
 
 export function getAscendMorphV22Timing(rank: number) {
   const normalizedRank = Math.min(2, Math.max(0, rank));
-  const flightDelayMs = [180, 250, 320][normalizedRank];
-  const flightDurationMs = [410, 430, 430][normalizedRank];
+  const flightDelayMs = [160, 250, 320][normalizedRank];
+  const flightDurationMs = [340, 380, 400][normalizedRank];
   const contactMs = flightDelayMs + flightDurationMs;
 
   return {
@@ -86,9 +86,9 @@ const separation: Record<AscendLogoFragmentKey, Point> = {
 };
 
 const travelLane: Record<AscendLogoFragmentKey, number> = {
-  fuel: -24,
+  fuel: -6,
   move: 0,
-  recover: 24
+  recover: 6
 };
 
 function targetGeometry(section: HTMLElement) {
@@ -319,7 +319,7 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
                 const dx = target.x - anchorX;
                 const dy = target.y - anchorY;
                 const length = Math.max(1, Math.hypot(dx, dy));
-                const wakeDistance = rank === 0 ? 13 : 10;
+                const wakeDistance = rank === 0 ? 6 : 4;
                 const wakeDx = dx - (dx / length) * wakeDistance;
                 const wakeDy = dy - (dy / length) * wakeDistance;
                 const separateX = separation[key].x;
@@ -334,10 +334,10 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
                   transformOrigin: `${(anchor.x / 128) * 100}% ${(anchor.y / 128) * 100}%`,
                   "--ascend-v22-dx": `${dx}px`,
                   "--ascend-v22-dy": `${dy}px`,
-                  "--ascend-v22-mid-x": `${separateX + (dx - separateX) * 0.43 + laneX}px`,
-                  "--ascend-v22-mid-y": `${separateY + (dy - separateY) * 0.43}px`,
-                  "--ascend-v22-near-x": `${separateX + (dx - separateX) * 0.88 + laneX * 0.55}px`,
-                  "--ascend-v22-near-y": `${separateY + (dy - separateY) * 0.88}px`,
+                  "--ascend-v22-mid-x": `${dx * 0.88 + laneX}px`,
+                  "--ascend-v22-mid-y": `${separateY + (dy - separateY) * 0.52}px`,
+                  "--ascend-v22-near-x": `${dx * 0.98 + laneX * 0.2}px`,
+                  "--ascend-v22-near-y": `${separateY + (dy - separateY) * 0.9}px`,
                   "--ascend-v22-wake-dx": `${wakeDx}px`,
                   "--ascend-v22-wake-dy": `${wakeDy}px`,
                   "--ascend-v22-separate-x": `${separateX}px`,
@@ -345,9 +345,9 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
                   "--ascend-v22-target-scale": `${targetScale}`,
                   "--ascend-v22-flight-delay": `${timing.flightDelayMs}ms`,
                   "--ascend-v22-flight-duration": `${timing.flightDurationMs}ms`,
-                  "--ascend-v22-wake-opacity": rank === 0 ? "0.22" : "0.14",
-                  "--ascend-v22-wake-mid-opacity": rank === 0 ? "0.17" : "0.11",
-                  "--ascend-v22-wake-tail-opacity": rank === 0 ? "0.07" : "0.045"
+                  "--ascend-v22-wake-opacity": rank === 0 ? "0.10" : "0.07",
+                  "--ascend-v22-wake-mid-opacity": rank === 0 ? "0.065" : "0.045",
+                  "--ascend-v22-wake-tail-opacity": rank === 0 ? "0.018" : "0.012"
                 } as CSSProperties;
                 return (
                   <span key={key} className="contents">
