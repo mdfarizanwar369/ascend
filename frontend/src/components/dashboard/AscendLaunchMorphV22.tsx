@@ -75,9 +75,9 @@ const MorphContext = createContext<MorphContextValue>({
 });
 
 const fragmentAnchors: Record<AscendLogoFragmentKey, Point> = {
-  fuel: { x: 63.5, y: 56 },
-  move: { x: 76, y: 59.5 },
-  recover: { x: 80, y: 48 }
+  fuel: { x: 66, y: 58 },
+  move: { x: 76, y: 72 },
+  recover: { x: 92, y: 44 }
 };
 
 const separation: Record<AscendLogoFragmentKey, Point> = {
@@ -297,11 +297,13 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
           {source ? (
             <>
               <AscendLogoGlyph
+                geometry="production"
                 className="ascend-morph-v22-whole"
                 style={{ left: source.left, top: source.top, width: source.size, height: source.size }}
               />
               {phase === "running" ? (
                 <AscendLogoGlyph
+                  geometry="production"
                   className="ascend-morph-v22-charge"
                   style={{ left: source.left, top: source.top, width: source.size, height: source.size }}
                 />
@@ -352,8 +354,8 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
                 } as CSSProperties;
                 return (
                   <span key={key} className="contents">
-                    <AscendLogoGlyph fragment={key} destinationTone={key} className="ascend-morph-v22-wake" style={style} />
-                    <AscendLogoGlyph fragment={key} destinationTone={key} className="ascend-morph-v22-fragment" style={style} />
+                    <AscendLogoGlyph geometry="production" fragment={key} className="ascend-morph-v22-wake" style={style} />
+                    <AscendLogoGlyph geometry="production" fragment={key} className="ascend-morph-v22-fragment" style={style} />
                   </span>
                 );
               })}
