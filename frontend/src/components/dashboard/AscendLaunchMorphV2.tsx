@@ -71,9 +71,9 @@ const MorphContext = createContext<MorphContextValue>({
 });
 
 const fragmentAnchors: Record<AscendLogoFragmentKey, Point> = {
-  fuel: { x: 63.5, y: 56 },
-  move: { x: 76, y: 59.5 },
-  recover: { x: 80, y: 48 }
+  fuel: { x: 56, y: 60 },
+  move: { x: 76, y: 78 },
+  recover: { x: 92, y: 41 }
 };
 
 const separation: Record<AscendLogoFragmentKey, Point> = {
@@ -275,6 +275,7 @@ export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode 
         <div className="ascend-morph-v2-overlay" data-phase={phase} aria-hidden="true">
           {phase === "holding" && source ? (
             <AscendLogoGlyph
+              geometry="production"
               className="ascend-morph-v2-whole"
               style={{ left: source.left, top: source.top, width: source.size, height: source.size }}
             />
@@ -313,6 +314,7 @@ export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode 
                 return (
                   <AscendLogoGlyph
                     key={key}
+                    geometry="production"
                     fragment={key}
                     className="ascend-morph-v2-fragment"
                     style={style}
@@ -320,6 +322,7 @@ export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode 
                 );
               })}
               <AscendLogoGlyph
+                geometry="production"
                 fragment="move"
                 className="ascend-morph-v2-activation"
                 style={{

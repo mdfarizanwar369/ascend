@@ -1,7 +1,9 @@
 const prototypeSessionKey = "ascend:today-essentials-morph-v2-2:prototype";
 
 export function isTodayEssentialsMorphV22Requested() {
-  if (process.env.NEXT_PUBLIC_ASCEND_ESSENTIALS_MORPH_V22 === "true") return true;
+  const v22Setting = process.env.NEXT_PUBLIC_ASCEND_ESSENTIALS_MORPH_V22;
+  const legacyProductionSetting = process.env.NEXT_PUBLIC_ASCEND_ESSENTIALS_MORPH_V2;
+  if (v22Setting === "true" || (v22Setting !== "false" && legacyProductionSetting === "true")) return true;
   if (typeof window === "undefined") return false;
 
   try {

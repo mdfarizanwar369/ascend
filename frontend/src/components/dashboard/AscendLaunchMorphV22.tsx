@@ -128,7 +128,7 @@ function fallbackSource(): SourceGeometry {
 
 export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [enabled, setEnabled] = useState(process.env.NEXT_PUBLIC_ASCEND_ESSENTIALS_MORPH_V22 === "true");
+  const [enabled, setEnabled] = useState(isTodayEssentialsMorphV22Requested);
   const [source, setSource] = useState<SourceGeometry | null>(null);
   const [run, setRun] = useState<MorphRun | null>(null);
   const [phase, setPhase] = useState<"idle" | "holding" | "running">("idle");
