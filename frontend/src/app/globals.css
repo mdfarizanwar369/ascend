@@ -580,6 +580,81 @@ html[data-theme="light"] .ascend-theme-glow {
   }
 }
 
+@keyframes ascend-cinematic-v3-glyph-awaken {
+  0% { opacity: 1; transform: scale(1); }
+  28% { opacity: 1; transform: scale(1.022); }
+  48% { opacity: 1; transform: scale(1.014); }
+  68% { opacity: 0.7; transform: scale(1.005); }
+  100% { opacity: 0; transform: scale(0.985); }
+}
+
+@keyframes ascend-cinematic-v3-charge-sweep {
+  0% { opacity: 0; stroke-dashoffset: 118; }
+  18% { opacity: 0.96; }
+  72% { opacity: 0.9; }
+  100% { opacity: 0; stroke-dashoffset: -30; }
+}
+
+@keyframes ascend-cinematic-v3-charge-pulse {
+  0% { opacity: 0; transform: scale(0.72); }
+  45% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 0; transform: scale(1.28); }
+}
+
+@keyframes ascend-cinematic-v3-energy-travel {
+  0% {
+    opacity: 0;
+    stroke-dasharray: 0 100;
+    stroke-dashoffset: 0;
+  }
+  8% { opacity: 1; }
+  46% {
+    opacity: 1;
+    stroke-dasharray: 58 42;
+    stroke-dashoffset: 0;
+  }
+  82% { opacity: 1; }
+  100% {
+    opacity: 0;
+    stroke-dasharray: 0 100;
+    stroke-dashoffset: -100;
+  }
+}
+
+@keyframes ascend-cinematic-v3-impact {
+  0% { opacity: 0; transform: scale(0.35); }
+  24% { opacity: 0.92; transform: scale(0.74); }
+  58% { opacity: 0.46; transform: scale(1.22); }
+  100% { opacity: 0; transform: scale(1.7); }
+}
+
+@keyframes ascend-cinematic-v3-card-wake {
+  from { opacity: 0.38; transform: translate3d(0, 3px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ascend-cinematic-v3-content-wake {
+  from { opacity: 0.34; transform: translate3d(0, 2px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes ascend-cinematic-v3-ring-draw {
+  from {
+    opacity: 0;
+    stroke-dasharray: 0 var(--ascend-v2-ring-circumference);
+  }
+  14% { opacity: 1; }
+  to {
+    opacity: 1;
+    stroke-dasharray: var(--ascend-v2-ring-length) var(--ascend-v2-ring-circumference);
+  }
+}
+
+@keyframes ascend-cinematic-v3-interface-resolve {
+  from { opacity: 0.42; }
+  to { opacity: 1; }
+}
+
 @keyframes ascend-essential-ready {
   0%, 100% { opacity: 0.16; }
   50% { opacity: 0.36; }
@@ -1063,6 +1138,99 @@ main.min-h-screen {
   animation-delay: 40ms;
 }
 
+.ascend-cinematic-v3-overlay {
+  position: fixed;
+  z-index: 82;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout style paint;
+}
+
+.ascend-cinematic-v3-glyph-base,
+.ascend-cinematic-v3-glyph-charge {
+  position: absolute;
+  display: block;
+  transform-origin: center;
+}
+
+.ascend-cinematic-v3-overlay[data-phase="running"] .ascend-cinematic-v3-glyph-base {
+  will-change: transform, opacity;
+  animation: ascend-cinematic-v3-glyph-awaken 470ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ascend-cinematic-v3-glyph-charge path {
+  opacity: 0;
+  stroke-dasharray: 24 118;
+  stroke-dashoffset: 118;
+  animation: ascend-cinematic-v3-charge-sweep 330ms cubic-bezier(0.2, 0.76, 0.22, 1) both;
+}
+
+.ascend-cinematic-v3-glyph-charge path:nth-of-type(1) {
+  stroke: #a484ff;
+}
+
+.ascend-cinematic-v3-glyph-charge path:nth-of-type(2) {
+  stroke: #35f2d0;
+  animation-delay: 24ms;
+}
+
+.ascend-cinematic-v3-glyph-charge path:nth-of-type(3) {
+  stroke: #63a2ff;
+  animation-delay: 46ms;
+}
+
+.ascend-cinematic-v3-glyph-charge circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ascend-cinematic-v3-charge-pulse 280ms cubic-bezier(0.22, 1, 0.36, 1) 45ms both;
+}
+
+.ascend-cinematic-v3-stage {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.ascend-cinematic-v3-trail-soft,
+.ascend-cinematic-v3-trail-core {
+  fill: none;
+  stroke-linecap: round;
+  stroke-dasharray: 0 100;
+  stroke-dashoffset: 0;
+  vector-effect: non-scaling-stroke;
+  will-change: stroke-dashoffset, opacity;
+  animation: ascend-cinematic-v3-energy-travel var(--ascend-v3-flight-duration) cubic-bezier(0.32, 0, 0.12, 1) var(--ascend-v3-launch-delay) both;
+}
+
+.ascend-cinematic-v3-trail-soft {
+  stroke-width: 5;
+}
+
+.ascend-cinematic-v3-trail-core {
+  stroke-width: 2.4;
+}
+
+.ascend-cinematic-v3-stage [data-rank="0"] .ascend-cinematic-v3-trail-soft {
+  stroke-width: 7;
+}
+
+.ascend-cinematic-v3-stage [data-rank="0"] .ascend-cinematic-v3-trail-core {
+  stroke-width: 3.4;
+}
+
+.ascend-cinematic-v3-impact {
+  opacity: 0;
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  will-change: transform, opacity;
+  animation: ascend-cinematic-v3-impact 180ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v3-contact-delay) both;
+}
+
 .ascend-today-essentials[data-opening="undecided"] .ascend-essentials-heading,
 .ascend-today-essentials[data-opening="undecided"] .ascend-essentials-completion,
 .ascend-today-essentials[data-opening="morph"][data-entrance="waiting"] .ascend-essentials-heading,
@@ -1120,6 +1288,55 @@ main.min-h-screen {
   animation: ascend-morph-v2-ring-draw 250ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-ring-delay) both;
 }
 
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-essentials-heading,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-essentials-completion,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-essential-enter,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essentials-heading,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essentials-completion,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-enter {
+  opacity: 0.38;
+}
+
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essentials-heading {
+  animation: ascend-cinematic-v3-interface-resolve 230ms cubic-bezier(0.22, 1, 0.36, 1) 680ms both;
+}
+
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essentials-completion {
+  animation: ascend-cinematic-v3-interface-resolve 220ms cubic-bezier(0.22, 1, 0.36, 1) 720ms both;
+}
+
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-enter {
+  animation: ascend-cinematic-v3-card-wake 230ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v3-card-wake) both;
+}
+
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-essential-copy,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-essential-chevron,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-essential-action,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-signal-ring-core,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-copy,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-chevron,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-action,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-signal-ring-core {
+  opacity: 0.34;
+}
+
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-copy,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-chevron,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-essential-action,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-signal-ring-core {
+  animation: ascend-cinematic-v3-content-wake 190ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v3-content-wake) both;
+}
+
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="waiting"] .ascend-signal-ring-progress,
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-signal-ring-progress {
+  opacity: 0;
+}
+
+.ascend-today-essentials[data-opening="cinematicV3"][data-entrance="running"] .ascend-signal-ring-progress {
+  transition: none;
+  animation: ascend-cinematic-v3-ring-draw 270ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v3-ring-draw) both;
+}
+
 /* Development comparison lab: pin both implementations to an exact global frame. */
 html[data-ascend-morph-audit-frame] .ascend-essentials-morph-halo,
 html[data-ascend-morph-audit-frame] .ascend-essentials-morph-fragment,
@@ -1137,6 +1354,64 @@ html[data-ascend-morph-audit-frame] .ascend-morph-v2-fragment {
 
 html[data-ascend-morph-audit-frame] .ascend-morph-v2-activation path:nth-of-type(2) {
   animation-delay: calc(40ms - var(--ascend-morph-audit-frame)) !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-overlay[data-phase="running"] .ascend-cinematic-v3-glyph-base,
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-glyph-charge path,
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-glyph-charge circle {
+  animation-delay: calc(0ms - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-glyph-charge path:nth-of-type(2) {
+  animation-delay: calc(24ms - var(--ascend-morph-audit-frame)) !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-glyph-charge path:nth-of-type(3) {
+  animation-delay: calc(46ms - var(--ascend-morph-audit-frame)) !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-glyph-charge circle {
+  animation-delay: calc(45ms - var(--ascend-morph-audit-frame)) !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-trail-soft,
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-trail-core {
+  animation-delay: calc(var(--ascend-v3-launch-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-cinematic-v3-impact {
+  animation-delay: calc(var(--ascend-v3-contact-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-essentials-heading {
+  animation-delay: calc(680ms - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-essentials-completion {
+  animation-delay: calc(720ms - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-essential-enter {
+  animation-delay: calc(var(--ascend-v3-card-wake) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-essential-copy,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-essential-chevron,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-essential-action,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-signal-ring-core {
+  animation-delay: calc(var(--ascend-v3-content-wake) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="cinematicV3"] .ascend-signal-ring-progress {
+  animation-delay: calc(var(--ascend-v3-ring-draw) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
 }
 
 html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph"] .ascend-essentials-heading {
@@ -2126,6 +2401,11 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-essentials-morph-ring,
   .ascend-morph-v2-fragment,
   .ascend-morph-v2-activation,
+  .ascend-cinematic-v3-glyph-base,
+  .ascend-cinematic-v3-glyph-charge,
+  .ascend-cinematic-v3-trail-soft,
+  .ascend-cinematic-v3-trail-core,
+  .ascend-cinematic-v3-impact,
   .ascend-essentials-heading,
   .ascend-essentials-completion,
   .ascend-essential-card[data-active="true"]::after,
@@ -2166,6 +2446,10 @@ html[data-theme="light"] .ascend-skeleton::after {
   }
 
   .ascend-morph-v2-overlay {
+    display: none !important;
+  }
+
+  .ascend-cinematic-v3-overlay {
     display: none !important;
   }
 

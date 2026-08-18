@@ -3,6 +3,7 @@
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, ArrowRight, Beef, HeartPulse } from "lucide-react";
 import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
+import { getAscendCinematicV3Timing, useAscendCinematicLaunchV3 } from "@/components/dashboard/AscendCinematicLaunchV3";
 import { getAscendMorphV2Timing, useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { SignalProgressRing } from "@/components/dashboard/ClientDashboard";
 
@@ -16,6 +17,12 @@ const baseSignals = {
 
 export function EssentialsMorphLab() {
   const {
+    enabled: cinematicV3Enabled,
+    holdingLaunchGlyph: holdingCinematicV3Glyph,
+    registerLaunchAnchor: registerCinematicV3Anchor,
+    startDashboardCinematic
+  } = useAscendCinematicLaunchV3();
+  const {
     enabled: morphV2Enabled,
     holdingLaunchGlyph,
     registerLaunchAnchor,
@@ -26,7 +33,7 @@ export function EssentialsMorphLab() {
   const morphStartFrameRef = useRef<number | null>(null);
   const [running, setRunning] = useState(false);
   const [settled, setSettled] = useState(false);
-  const [variant, setVariant] = useState<"v1" | "v2">("v1");
+  const [variant, setVariant] = useState<"v1" | "v2" | "v3">("v1");
   const [priority, setPriority] = useState<SignalKey>("move");
   const [auditFrame, setAuditFrame] = useState<number | null>(null);
   const [paramsReady, setParamsReady] = useState(false);
@@ -34,7 +41,8 @@ export function EssentialsMorphLab() {
 
   useEffect(() => {
     const params = new URL(window.location.href).searchParams;
-    setVariant(params.get("variant") === "v2" ? "v2" : "v1");
+    const requestedVariant = params.get("variant");
+    setVariant(requestedVariant === "v3" ? "v3" : requestedVariant === "v2" ? "v2" : "v1");
     const requestedPriority = params.get("priority");
     if (requestedPriority === "fuel" || requestedPriority === "move" || requestedPriority === "recover") {
       setPriority(requestedPriority);
@@ -64,7 +72,8 @@ export function EssentialsMorphLab() {
 
   useEffect(() => {
     if (variant === "v2" && morphV2Enabled && anchorRef.current) registerLaunchAnchor(anchorRef.current);
-  }, [morphV2Enabled, registerLaunchAnchor, variant]);
+    if (variant === "v3" && cinematicV3Enabled && anchorRef.current) registerCinematicV3Anchor(anchorRef.current);
+  }, [cinematicV3Enabled, morphV2Enabled, registerCinematicV3Anchor, registerLaunchAnchor, variant]);
 
   const abortV1 = useCallback(() => {
     setRunning(false);
@@ -75,12 +84,12 @@ export function EssentialsMorphLab() {
     setSettled(false);
     setRunning(true);
     document.documentElement.dataset.ascendMorphLabStarted = String(performance.now());
-    if (variant !== "v2") return;
+    if (variant === "v1") return;
     const section = sectionRef.current;
     if (!section) return;
     morphStartFrameRef.current = window.requestAnimationFrame(() => {
       morphStartFrameRef.current = null;
-      const started = startDashboardMorph({
+      const options = {
         section,
         signals: signals.map(({ key, progress, done }) => ({ key, progress, done })),
         onComplete: () => {
@@ -91,12 +100,15 @@ export function EssentialsMorphLab() {
           setRunning(false);
           setSettled(true);
         }
-      });
+      };
+      const started = variant === "v3"
+        ? startDashboardCinematic(options)
+        : startDashboardMorph(options);
       if (started) return;
       setRunning(false);
       setSettled(true);
     });
-  }, [signals, startDashboardMorph, variant]);
+  }, [signals, startDashboardCinematic, startDashboardMorph, variant]);
 
   useEffect(() => () => {
     if (morphStartFrameRef.current !== null) window.cancelAnimationFrame(morphStartFrameRef.current);
@@ -105,6 +117,7 @@ export function EssentialsMorphLab() {
   useEffect(() => {
     if (!paramsReady || auditFrame === null || auditStartedRef.current) return;
     if (variant === "v2" && (!morphV2Enabled || !holdingLaunchGlyph)) return;
+    if (variant === "v3" && (!cinematicV3Enabled || !holdingCinematicV3Glyph)) return;
     auditStartedRef.current = true;
     let cancelled = false;
     const frame = window.requestAnimationFrame(() => {
@@ -116,7 +129,7 @@ export function EssentialsMorphLab() {
       cancelled = true;
       window.cancelAnimationFrame(frame);
     };
-  }, [auditFrame, holdingLaunchGlyph, morphV2Enabled, paramsReady, start, variant]);
+  }, [auditFrame, cinematicV3Enabled, holdingCinematicV3Glyph, holdingLaunchGlyph, morphV2Enabled, paramsReady, start, variant]);
 
   useEffect(() => {
     if (!running || variant !== "v1") return;
@@ -128,7 +141,7 @@ export function EssentialsMorphLab() {
   }, [running, variant]);
 
   const entrance = settled ? "settled" : running ? "running" : "waiting";
-  const opening = variant === "v2" ? "morphV2" : "morph";
+  const opening = variant === "v3" ? "cinematicV3" : variant === "v2" ? "morphV2" : "morph";
 
   return (
     <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
@@ -176,11 +189,15 @@ export function EssentialsMorphLab() {
               const Icon = item.icon;
               const isPriority = index === 0 && !item.done;
               const morphV2Timing = getAscendMorphV2Timing(index);
+              const cinematicV3Timing = getAscendCinematicV3Timing(index);
               const style = {
                 "--ascend-essential-entry-delay": `${index * 80}ms`,
                 "--ascend-v2-card-delay": `${morphV2Timing.cardDelayMs}ms`,
                 "--ascend-v2-content-delay": `${morphV2Timing.contentDelayMs}ms`,
-                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`
+                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`,
+                "--ascend-v3-card-wake": `${cinematicV3Timing.cardWakeMs}ms`,
+                "--ascend-v3-ring-draw": `${cinematicV3Timing.ringDrawMs}ms`,
+                "--ascend-v3-content-wake": `${cinematicV3Timing.contentWakeMs}ms`
               } as CSSProperties;
               return (
                 <div

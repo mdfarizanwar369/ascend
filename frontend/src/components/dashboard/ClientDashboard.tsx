@@ -45,6 +45,7 @@ import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, Skel
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
+import { getAscendCinematicV3Timing, useAscendCinematicLaunchV3 } from "@/components/dashboard/AscendCinematicLaunchV3";
 import { getAscendMorphV2Timing, useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 
@@ -347,6 +348,7 @@ function CollapsibleSection({
 }
 
 export function ClientDashboard() {
+  const launchCinematicV3 = useAscendCinematicLaunchV3();
   const launchMorphV2 = useAscendLaunchMorphV2();
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -380,7 +382,7 @@ export function ClientDashboard() {
   const [momentumRewardActive, setMomentumRewardActive] = useState(false);
   const [essentialsInView, setEssentialsInView] = useState(true);
   const [essentialsEntrancePhase, setEssentialsEntrancePhase] = useState<"waiting" | "running" | "settled">("waiting");
-  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph" | "morphV2">("undecided");
+  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph" | "morphV2" | "cinematicV3">("undecided");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -410,6 +412,7 @@ export function ClientDashboard() {
   const essentialsEntranceFrameOneRef = useRef<number | null>(null);
   const essentialsEntranceFrameTwoRef = useRef<number | null>(null);
   const essentialsEntranceTimerRef = useRef<number | null>(null);
+  const essentialsV3StartedRef = useRef(false);
   const momentumSignalOrderRef = useRef<MomentumSignalKey[] | null>(null);
   const momentumSignalCardRefs = useRef<Partial<Record<MomentumSignalKey, HTMLElement | null>>>({});
   const momentumSignalBeforeRectsRef = useRef<Partial<Record<MomentumSignalKey, DOMRect>>>({});
@@ -435,6 +438,11 @@ export function ClientDashboard() {
       return;
     }
 
+    if (launchCinematicV3.enabled && launchCinematicV3.holdingLaunchGlyph) {
+      setEssentialsOpeningMode("cinematicV3");
+      return;
+    }
+
     if (launchMorphV2.enabled && launchMorphV2.holdingLaunchGlyph) {
       setEssentialsOpeningMode("morphV2");
       return;
@@ -455,7 +463,7 @@ export function ClientDashboard() {
         }, shouldMorph ? 1120 : 660);
       });
     });
-  }, [launchMorphV2.enabled, launchMorphV2.holdingLaunchGlyph]);
+  }, [launchCinematicV3.enabled, launchCinematicV3.holdingLaunchGlyph, launchMorphV2.enabled, launchMorphV2.holdingLaunchGlyph]);
 
   const finishEssentialsOpening = useCallback(() => {
     if (essentialsEntranceTimerRef.current !== null) {
@@ -1358,6 +1366,31 @@ export function ClientDashboard() {
   const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(momentumSignals.length, 1)) * 100);
 
   useLayoutEffect(() => {
+    if (essentialsOpeningMode !== "cinematicV3" || essentialsEntrancePhase !== "waiting" || essentialsV3StartedRef.current) return;
+    const section = essentialsSectionRef.current;
+    if (!section) return;
+
+    essentialsV3StartedRef.current = true;
+    setEssentialsEntrancePhase("running");
+    essentialsEntranceFrameOneRef.current = window.requestAnimationFrame(() => {
+      essentialsEntranceFrameOneRef.current = null;
+      const started = launchCinematicV3.startDashboardCinematic({
+        section,
+        signals: activeMomentumSignals.map((signal) => ({ key: signal.key, progress: signal.progress, done: signal.done })),
+        onComplete: finishEssentialsOpening,
+        onAbort: () => {
+          setEssentialsOpeningMode("stagger");
+          finishEssentialsOpening();
+        }
+      });
+
+      if (started) return;
+      setEssentialsOpeningMode("stagger");
+      finishEssentialsOpening();
+    });
+  }, [activeMomentumSignals, essentialsEntrancePhase, essentialsOpeningMode, finishEssentialsOpening, launchCinematicV3]);
+
+  useLayoutEffect(() => {
     if (essentialsOpeningMode !== "morphV2" || essentialsEntrancePhase !== "waiting" || essentialsV2StartedRef.current) return;
     const section = essentialsSectionRef.current;
     if (!section) return;
@@ -1672,11 +1705,15 @@ export function ClientDashboard() {
               const isPriority = index === 0 && !item.done;
               const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
               const morphV2Timing = getAscendMorphV2Timing(index);
+              const cinematicV3Timing = getAscendCinematicV3Timing(index);
               const cardStyle = {
                 "--ascend-essential-entry-delay": `${index * 80}ms`,
                 "--ascend-v2-card-delay": `${morphV2Timing.cardDelayMs}ms`,
                 "--ascend-v2-content-delay": `${morphV2Timing.contentDelayMs}ms`,
-                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`
+                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`,
+                "--ascend-v3-card-wake": `${cinematicV3Timing.cardWakeMs}ms`,
+                "--ascend-v3-ring-draw": `${cinematicV3Timing.ringDrawMs}ms`,
+                "--ascend-v3-content-wake": `${cinematicV3Timing.contentWakeMs}ms`
               } as CSSProperties;
               const content = (
                 <>

@@ -7,6 +7,7 @@ import { PwaInstallCoordinator } from "@/components/PwaInstallCoordinator";
 import { CoachNotificationCoordinator } from "@/components/CoachNotificationCoordinator";
 import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
+import { AscendCinematicLaunchV3Provider } from "@/components/dashboard/AscendCinematicLaunchV3";
 import { AscendLaunchMorphV2Provider } from "@/components/dashboard/AscendLaunchMorphV2";
 import "./globals.css";
 
@@ -75,17 +76,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
-        <AscendLaunchMorphV2Provider>
-          <CanonicalDomainGuard />
-          <AuthStateGuard />
-          <CapacitorAppUrlRouter />
-          <PwaRegistrar />
-          <PwaInstallCoordinator />
-          <CoachNotificationCoordinator />
-          <HealthSyncCoordinator />
-          <OfflineIndicator />
-          {children}
-        </AscendLaunchMorphV2Provider>
+        <AscendCinematicLaunchV3Provider>
+          <AscendLaunchMorphV2Provider>
+            <CanonicalDomainGuard />
+            <AuthStateGuard />
+            <CapacitorAppUrlRouter />
+            <PwaRegistrar />
+            <PwaInstallCoordinator />
+            <CoachNotificationCoordinator />
+            <HealthSyncCoordinator />
+            <OfflineIndicator />
+            {children}
+          </AscendLaunchMorphV2Provider>
+        </AscendCinematicLaunchV3Provider>
       </body>
     </html>
   );

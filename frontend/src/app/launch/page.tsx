@@ -7,6 +7,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { getMe } from "@/lib/ascendApi";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { markTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
+import { useAscendCinematicLaunchV3 } from "@/components/dashboard/AscendCinematicLaunchV3";
 import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 
 function roleHome(roles: string[]) {
@@ -27,19 +28,26 @@ function withTimeout<T>(promise: Promise<T>, ms = 10_000) {
 export default function LaunchPage() {
   const router = useRouter();
   const {
+    enabled: cinematicV3Enabled,
+    registerLaunchAnchor: registerCinematicV3Anchor,
+    dismiss: dismissCinematicV3
+  } = useAscendCinematicLaunchV3();
+  const {
     enabled: launchMorphV2Enabled,
-    registerLaunchAnchor: registerLaunchMorphV2Anchor
+    registerLaunchAnchor: registerLaunchMorphV2Anchor,
+    dismiss: dismissLaunchMorphV2
   } = useAscendLaunchMorphV2();
   const [message, setMessage] = useState("Opening Ascend...");
   const registerLaunchAnchor = useCallback((element: HTMLSpanElement | null) => {
-    registerLaunchMorphV2Anchor(element);
-  }, [registerLaunchMorphV2Anchor]);
+    if (cinematicV3Enabled) registerCinematicV3Anchor(element);
+    else registerLaunchMorphV2Anchor(element);
+  }, [cinematicV3Enabled, registerCinematicV3Anchor, registerLaunchMorphV2Anchor]);
 
   useEffect(() => {
     let isMounted = true;
     let unsubscribe = () => {};
 
-    if (!launchMorphV2Enabled) markTodayEssentialsColdLaunch();
+    if (!cinematicV3Enabled && !launchMorphV2Enabled) markTodayEssentialsColdLaunch();
 
     async function launch() {
       try {
@@ -65,10 +73,14 @@ export default function LaunchPage() {
             setMessage("Checking your account...");
             const profile = await withTimeout(getMe());
             const destination = roleHome(Array.isArray(profile.roles) ? profile.roles : []);
-            if (launchMorphV2Enabled) router.replace(destination);
+            if (destination !== "/dashboard") {
+              dismissCinematicV3();
+              dismissLaunchMorphV2();
+            }
+            if (cinematicV3Enabled || launchMorphV2Enabled) router.replace(destination);
             else window.location.replace(destination);
           } catch {
-            if (launchMorphV2Enabled) router.replace("/dashboard");
+            if (cinematicV3Enabled || launchMorphV2Enabled) router.replace("/dashboard");
             else window.location.replace("/dashboard");
           }
         });
@@ -83,12 +95,12 @@ export default function LaunchPage() {
       isMounted = false;
       unsubscribe();
     };
-  }, [launchMorphV2Enabled, router]);
+  }, [cinematicV3Enabled, dismissCinematicV3, dismissLaunchMorphV2, launchMorphV2Enabled, router]);
 
   return (
     <main className="grid min-h-screen place-items-center bg-ink px-4 text-white">
       <div className="text-center">
-        {launchMorphV2Enabled ? (
+        {cinematicV3Enabled || launchMorphV2Enabled ? (
           <div className="mx-auto grid h-56 w-full max-w-72 place-items-center">
             <span ref={registerLaunchAnchor} className="block h-28 w-28" aria-hidden="true" />
           </div>
