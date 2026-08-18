@@ -46,6 +46,7 @@ import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
 import { getAscendMorphV2Timing, useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
+import { getAscendMorphV22Timing, useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -347,6 +348,7 @@ function CollapsibleSection({
 }
 
 export function ClientDashboard() {
+  const launchMorphV22 = useAscendLaunchMorphV22();
   const launchMorphV2 = useAscendLaunchMorphV2();
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -380,7 +382,7 @@ export function ClientDashboard() {
   const [momentumRewardActive, setMomentumRewardActive] = useState(false);
   const [essentialsInView, setEssentialsInView] = useState(true);
   const [essentialsEntrancePhase, setEssentialsEntrancePhase] = useState<"waiting" | "running" | "settled">("waiting");
-  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph" | "morphV2">("undecided");
+  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph" | "morphV2" | "morphV22">("undecided");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -406,6 +408,7 @@ export function ClientDashboard() {
   const essentialsSectionRef = useRef<HTMLElement | null>(null);
   const essentialsVisibleRef = useRef(false);
   const essentialsEntranceStartedRef = useRef(false);
+  const essentialsV22StartedRef = useRef(false);
   const essentialsV2StartedRef = useRef(false);
   const essentialsEntranceFrameOneRef = useRef<number | null>(null);
   const essentialsEntranceFrameTwoRef = useRef<number | null>(null);
@@ -435,6 +438,11 @@ export function ClientDashboard() {
       return;
     }
 
+    if (launchMorphV22.enabled && launchMorphV22.holdingLaunchGlyph) {
+      setEssentialsOpeningMode("morphV22");
+      return;
+    }
+
     if (launchMorphV2.enabled && launchMorphV2.holdingLaunchGlyph) {
       setEssentialsOpeningMode("morphV2");
       return;
@@ -455,7 +463,12 @@ export function ClientDashboard() {
         }, shouldMorph ? 1120 : 660);
       });
     });
-  }, [launchMorphV2.enabled, launchMorphV2.holdingLaunchGlyph]);
+  }, [
+    launchMorphV2.enabled,
+    launchMorphV2.holdingLaunchGlyph,
+    launchMorphV22.enabled,
+    launchMorphV22.holdingLaunchGlyph
+  ]);
 
   const finishEssentialsOpening = useCallback(() => {
     if (essentialsEntranceTimerRef.current !== null) {
@@ -1358,6 +1371,31 @@ export function ClientDashboard() {
   const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(momentumSignals.length, 1)) * 100);
 
   useLayoutEffect(() => {
+    if (essentialsOpeningMode !== "morphV22" || essentialsEntrancePhase !== "waiting" || essentialsV22StartedRef.current) return;
+    const section = essentialsSectionRef.current;
+    if (!section) return;
+
+    essentialsV22StartedRef.current = true;
+    setEssentialsEntrancePhase("running");
+    essentialsEntranceFrameOneRef.current = window.requestAnimationFrame(() => {
+      essentialsEntranceFrameOneRef.current = null;
+      const started = launchMorphV22.startDashboardMorph({
+        section,
+        signals: activeMomentumSignals.map((signal) => ({ key: signal.key, progress: signal.progress, done: signal.done })),
+        onComplete: finishEssentialsOpening,
+        onAbort: () => {
+          setEssentialsOpeningMode("stagger");
+          finishEssentialsOpening();
+        }
+      });
+
+      if (started) return;
+      setEssentialsOpeningMode("stagger");
+      finishEssentialsOpening();
+    });
+  }, [activeMomentumSignals, essentialsEntrancePhase, essentialsOpeningMode, finishEssentialsOpening, launchMorphV22]);
+
+  useLayoutEffect(() => {
     if (essentialsOpeningMode !== "morphV2" || essentialsEntrancePhase !== "waiting" || essentialsV2StartedRef.current) return;
     const section = essentialsSectionRef.current;
     if (!section) return;
@@ -1672,11 +1710,15 @@ export function ClientDashboard() {
               const isPriority = index === 0 && !item.done;
               const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
               const morphV2Timing = getAscendMorphV2Timing(index);
+              const morphV22Timing = getAscendMorphV22Timing(index);
               const cardStyle = {
                 "--ascend-essential-entry-delay": `${index * 80}ms`,
                 "--ascend-v2-card-delay": `${morphV2Timing.cardDelayMs}ms`,
                 "--ascend-v2-content-delay": `${morphV2Timing.contentDelayMs}ms`,
-                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`
+                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`,
+                "--ascend-v22-card-delay": `${morphV22Timing.cardDelayMs}ms`,
+                "--ascend-v22-ring-delay": `${morphV22Timing.ringDelayMs}ms`,
+                "--ascend-v22-contact-delay": `${morphV22Timing.contactPulseDelayMs}ms`
               } as CSSProperties;
               const content = (
                 <>

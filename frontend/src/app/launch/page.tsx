@@ -8,6 +8,7 @@ import { getMe } from "@/lib/ascendApi";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { markTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
+import { useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 
 function roleHome(roles: string[]) {
   if (roles.includes("owner") || roles.includes("admin")) return "/admin";
@@ -30,16 +31,22 @@ export default function LaunchPage() {
     enabled: launchMorphV2Enabled,
     registerLaunchAnchor: registerLaunchMorphV2Anchor
   } = useAscendLaunchMorphV2();
+  const {
+    enabled: launchMorphV22Enabled,
+    registerLaunchAnchor: registerLaunchMorphV22Anchor
+  } = useAscendLaunchMorphV22();
+  const launchMorphEnabled = launchMorphV22Enabled || launchMorphV2Enabled;
   const [message, setMessage] = useState("Opening Ascend...");
   const registerLaunchAnchor = useCallback((element: HTMLSpanElement | null) => {
-    registerLaunchMorphV2Anchor(element);
-  }, [registerLaunchMorphV2Anchor]);
+    if (launchMorphV22Enabled) registerLaunchMorphV22Anchor(element);
+    else registerLaunchMorphV2Anchor(element);
+  }, [launchMorphV22Enabled, registerLaunchMorphV22Anchor, registerLaunchMorphV2Anchor]);
 
   useEffect(() => {
     let isMounted = true;
     let unsubscribe = () => {};
 
-    if (!launchMorphV2Enabled) markTodayEssentialsColdLaunch();
+    if (!launchMorphEnabled) markTodayEssentialsColdLaunch();
 
     async function launch() {
       try {
@@ -65,10 +72,10 @@ export default function LaunchPage() {
             setMessage("Checking your account...");
             const profile = await withTimeout(getMe());
             const destination = roleHome(Array.isArray(profile.roles) ? profile.roles : []);
-            if (launchMorphV2Enabled) router.replace(destination);
+            if (launchMorphEnabled) router.replace(destination);
             else window.location.replace(destination);
           } catch {
-            if (launchMorphV2Enabled) router.replace("/dashboard");
+            if (launchMorphEnabled) router.replace("/dashboard");
             else window.location.replace("/dashboard");
           }
         });
@@ -83,12 +90,12 @@ export default function LaunchPage() {
       isMounted = false;
       unsubscribe();
     };
-  }, [launchMorphV2Enabled, router]);
+  }, [launchMorphEnabled, router]);
 
   return (
     <main className="grid min-h-screen place-items-center bg-ink px-4 text-white">
       <div className="text-center">
-        {launchMorphV2Enabled ? (
+        {launchMorphEnabled ? (
           <div className="mx-auto grid h-56 w-full max-w-72 place-items-center">
             <span ref={registerLaunchAnchor} className="block h-28 w-28" aria-hidden="true" />
           </div>

@@ -580,6 +580,102 @@ html[data-theme="light"] .ascend-theme-glow {
   }
 }
 
+@keyframes ascend-morph-v22-whole-release {
+  0%, 56% { opacity: 1; transform: scale(1); }
+  76% { opacity: 0.82; transform: scale(0.985); }
+  100% { opacity: 0; transform: scale(0.96); }
+}
+
+@keyframes ascend-morph-v22-charge {
+  0% { opacity: 0; stroke-dashoffset: 0; }
+  16% { opacity: 0.82; }
+  76% { opacity: 0.9; }
+  100% { opacity: 0; stroke-dashoffset: -220; }
+}
+
+@keyframes ascend-morph-v22-charge-dot {
+  0%, 100% { opacity: 0; transform: scale(0.72); }
+  44% { opacity: 0.92; transform: scale(1); }
+}
+
+@keyframes ascend-morph-v22-flight {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1);
+    animation-timing-function: cubic-bezier(0.34, 0, 0.65, 1);
+  }
+  5% { opacity: 1; }
+  22% {
+    opacity: 1;
+    transform: translate3d(var(--ascend-v22-separate-x), var(--ascend-v22-separate-y), 0) scale(1);
+    animation-timing-function: cubic-bezier(0.2, 0.78, 0.26, 1);
+  }
+  58% {
+    opacity: 1;
+    transform: translate3d(var(--ascend-v22-mid-x), var(--ascend-v22-mid-y), 0) scale(0.94);
+    animation-timing-function: cubic-bezier(0.12, 0.72, 0.22, 1);
+  }
+  86% {
+    opacity: 1;
+    transform: translate3d(var(--ascend-v22-near-x), var(--ascend-v22-near-y), 0) scale(calc(var(--ascend-v22-target-scale) + 0.08));
+    animation-timing-function: cubic-bezier(0.16, 0.88, 0.3, 1);
+  }
+  98% {
+    opacity: 1;
+    transform: translate3d(var(--ascend-v22-dx), var(--ascend-v22-dy), 0) scale(var(--ascend-v22-target-scale));
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--ascend-v22-dx), var(--ascend-v22-dy), 0) scale(var(--ascend-v22-target-scale));
+  }
+}
+
+@keyframes ascend-morph-v22-wake {
+  0%, 12% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  24% {
+    opacity: var(--ascend-v22-wake-opacity);
+    transform: translate3d(var(--ascend-v22-separate-x), var(--ascend-v22-separate-y), 0) scale(0.99);
+  }
+  60% {
+    opacity: var(--ascend-v22-wake-mid-opacity);
+    transform: translate3d(var(--ascend-v22-mid-x), var(--ascend-v22-mid-y), 0) scale(0.9);
+  }
+  88% {
+    opacity: var(--ascend-v22-wake-tail-opacity);
+    transform: translate3d(var(--ascend-v22-wake-dx), var(--ascend-v22-wake-dy), 0) scale(var(--ascend-v22-target-scale));
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--ascend-v22-wake-dx), var(--ascend-v22-wake-dy), 0) scale(var(--ascend-v22-target-scale));
+  }
+}
+
+@keyframes ascend-morph-v22-contact {
+  0% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(0.45); }
+  28% { opacity: 0.92; transform: translate3d(-50%, -50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(2.15); }
+}
+
+@keyframes ascend-morph-v22-card-activate {
+  from { opacity: 0.58; transform: none; }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ascend-morph-v22-ring-draw {
+  from {
+    opacity: 0;
+    stroke-dasharray: 0 var(--ascend-v2-ring-circumference);
+  }
+  15% { opacity: 1; }
+  to {
+    opacity: 1;
+    stroke-dasharray: var(--ascend-v2-ring-length) var(--ascend-v2-ring-circumference);
+  }
+}
+
 @keyframes ascend-essential-ready {
   0%, 100% { opacity: 0.16; }
   50% { opacity: 0.36; }
@@ -1063,6 +1159,68 @@ main.min-h-screen {
   animation-delay: 40ms;
 }
 
+.ascend-morph-v22-overlay {
+  position: fixed;
+  z-index: 81;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: layout style paint;
+}
+
+.ascend-morph-v22-whole,
+.ascend-morph-v22-charge,
+.ascend-morph-v22-fragment,
+.ascend-morph-v22-wake {
+  position: absolute;
+  display: block;
+}
+
+.ascend-morph-v22-whole {
+  opacity: 1;
+  transform-origin: center;
+}
+
+.ascend-morph-v22-overlay[data-phase="running"] .ascend-morph-v22-whole {
+  animation: ascend-morph-v22-whole-release 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ascend-morph-v22-charge {
+  opacity: 0;
+}
+
+.ascend-morph-v22-charge path {
+  stroke: rgba(238, 255, 252, 0.94);
+  stroke-dasharray: 22 220;
+  stroke-dashoffset: 0;
+  animation: ascend-morph-v22-charge 170ms cubic-bezier(0.3, 0, 0.18, 1) 28ms both;
+}
+
+.ascend-morph-v22-charge circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ascend-morph-v22-charge-dot 150ms cubic-bezier(0.22, 1, 0.36, 1) 44ms both;
+}
+
+.ascend-morph-v22-fragment,
+.ascend-morph-v22-wake {
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.ascend-morph-v22-fragment {
+  animation: ascend-morph-v22-flight var(--ascend-v22-flight-duration) linear var(--ascend-v22-flight-delay) both;
+}
+
+.ascend-morph-v22-wake {
+  animation: ascend-morph-v22-wake var(--ascend-v22-flight-duration) linear var(--ascend-v22-flight-delay) both;
+}
+
+.ascend-morph-v22-wake path,
+.ascend-morph-v22-wake circle {
+  opacity: 0.92;
+}
+
 .ascend-today-essentials[data-opening="undecided"] .ascend-essentials-heading,
 .ascend-today-essentials[data-opening="undecided"] .ascend-essentials-completion,
 .ascend-today-essentials[data-opening="morph"][data-entrance="waiting"] .ascend-essentials-heading,
@@ -1120,7 +1278,85 @@ main.min-h-screen {
   animation: ascend-morph-v2-ring-draw 250ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-ring-delay) both;
 }
 
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essential-enter,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-enter {
+  opacity: 0.58;
+  transform: none;
+}
+
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-signal-ring-progress,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring-progress {
+  opacity: 0;
+  stroke-dasharray: 0 var(--ascend-v2-ring-circumference);
+}
+
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-enter {
+  animation: ascend-morph-v22-card-activate 180ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v22-card-delay) both;
+}
+
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring-progress {
+  transition: none;
+  animation: ascend-morph-v22-ring-draw 230ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v22-ring-delay) both;
+}
+
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring::after {
+  position: absolute;
+  z-index: 2;
+  top: 12.5%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border: 1px solid color-mix(in srgb, var(--ascend-v22-contact-tone) 88%, white 12%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ascend-v22-contact-tone) 42%, transparent);
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  animation: ascend-morph-v22-contact 160ms cubic-bezier(0.18, 0.84, 0.3, 1) var(--ascend-v22-contact-delay) both;
+}
+
+.ascend-today-essentials[data-opening="morphV22"] [data-tone="fuel"] .ascend-signal-ring {
+  --ascend-v22-contact-tone: #a484ff;
+}
+
+.ascend-today-essentials[data-opening="morphV22"] [data-tone="move"] .ascend-signal-ring {
+  --ascend-v22-contact-tone: #35f2d0;
+}
+
+.ascend-today-essentials[data-opening="morphV22"] [data-tone="recover"] .ascend-signal-ring {
+  --ascend-v22-contact-tone: #63a2ff;
+}
+
 /* Development comparison lab: pin both implementations to an exact global frame. */
+html[data-ascend-morph-audit-frame] .ascend-morph-v22-whole,
+html[data-ascend-morph-audit-frame] .ascend-morph-v22-charge path,
+html[data-ascend-morph-audit-frame] .ascend-morph-v22-charge circle {
+  animation-delay: calc(0ms - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-morph-v22-fragment,
+html[data-ascend-morph-audit-frame] .ascend-morph-v22-wake {
+  animation-delay: calc(var(--ascend-v22-flight-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-enter {
+  animation-delay: calc(var(--ascend-v22-card-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring-progress {
+  animation-delay: calc(var(--ascend-v22-ring-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring::after {
+  animation-delay: calc(var(--ascend-v22-contact-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
 html[data-ascend-morph-audit-frame] .ascend-essentials-morph-halo,
 html[data-ascend-morph-audit-frame] .ascend-essentials-morph-fragment,
 html[data-ascend-morph-audit-frame] .ascend-essentials-morph-mark,
@@ -2126,6 +2362,12 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-essentials-morph-ring,
   .ascend-morph-v2-fragment,
   .ascend-morph-v2-activation,
+  .ascend-morph-v22-whole,
+  .ascend-morph-v22-charge path,
+  .ascend-morph-v22-charge circle,
+  .ascend-morph-v22-fragment,
+  .ascend-morph-v22-wake,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring::after,
   .ascend-essentials-heading,
   .ascend-essentials-completion,
   .ascend-essential-card[data-active="true"]::after,
@@ -2166,6 +2408,10 @@ html[data-theme="light"] .ascend-skeleton::after {
   }
 
   .ascend-morph-v2-overlay {
+    display: none !important;
+  }
+
+  .ascend-morph-v22-overlay {
     display: none !important;
   }
 

@@ -8,6 +8,7 @@ import { CoachNotificationCoordinator } from "@/components/CoachNotificationCoor
 import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { AscendLaunchMorphV2Provider } from "@/components/dashboard/AscendLaunchMorphV2";
+import { AscendLaunchMorphV22Provider } from "@/components/dashboard/AscendLaunchMorphV22";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -75,17 +76,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
-        <AscendLaunchMorphV2Provider>
-          <CanonicalDomainGuard />
-          <AuthStateGuard />
-          <CapacitorAppUrlRouter />
-          <PwaRegistrar />
-          <PwaInstallCoordinator />
-          <CoachNotificationCoordinator />
-          <HealthSyncCoordinator />
-          <OfflineIndicator />
-          {children}
-        </AscendLaunchMorphV2Provider>
+        <AscendLaunchMorphV22Provider>
+          <AscendLaunchMorphV2Provider>
+            <CanonicalDomainGuard />
+            <AuthStateGuard />
+            <CapacitorAppUrlRouter />
+            <PwaRegistrar />
+            <PwaInstallCoordinator />
+            <CoachNotificationCoordinator />
+            <HealthSyncCoordinator />
+            <OfflineIndicator />
+            {children}
+          </AscendLaunchMorphV2Provider>
+        </AscendLaunchMorphV22Provider>
       </body>
     </html>
   );
