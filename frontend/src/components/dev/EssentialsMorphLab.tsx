@@ -220,6 +220,7 @@ export function EssentialsMorphLab() {
                 "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`,
                 "--ascend-v22-card-delay": `${morphV22Timing.cardDelayMs}ms`,
                 "--ascend-v22-ring-delay": `${morphV22Timing.ringDelayMs}ms`,
+                "--ascend-v22-content-delay": `${morphV22Timing.contentDelayMs}ms`,
                 "--ascend-v22-contact-delay": `${morphV22Timing.contactPulseDelayMs}ms`
               } as CSSProperties;
               return (

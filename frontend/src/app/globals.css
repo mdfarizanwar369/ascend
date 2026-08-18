@@ -581,8 +581,8 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 @keyframes ascend-morph-v22-whole-release {
-  0%, 64% { opacity: 1; transform: scale(1); }
-  78% { opacity: 0.72; transform: scale(0.99); }
+  0%, 70% { opacity: 1; transform: scale(1); }
+  84% { opacity: 0.68; transform: scale(0.99); }
   100% { opacity: 0; transform: scale(0.97); }
 }
 
@@ -604,19 +604,19 @@ html[data-theme="light"] .ascend-theme-glow {
     transform: translate3d(0, 0, 0) scale(1);
     animation-timing-function: cubic-bezier(0.34, 0, 0.65, 1);
   }
-  20% {
+  22% {
     opacity: 1;
     transform: translate3d(var(--ascend-v22-separate-x), var(--ascend-v22-separate-y), 0) scale(0.98);
     animation-timing-function: cubic-bezier(0.2, 0.78, 0.26, 1);
   }
-  48% {
+  42% {
     opacity: 1;
-    transform: translate3d(var(--ascend-v22-mid-x), var(--ascend-v22-mid-y), 0) scale(0.74);
+    transform: translate3d(var(--ascend-v22-mid-x), var(--ascend-v22-mid-y), 0) scale(0.9);
     animation-timing-function: cubic-bezier(0.12, 0.72, 0.22, 1);
   }
   82% {
     opacity: 1;
-    transform: translate3d(var(--ascend-v22-near-x), var(--ascend-v22-near-y), 0) scale(calc(var(--ascend-v22-target-scale) + 0.05));
+    transform: translate3d(var(--ascend-v22-near-x), var(--ascend-v22-near-y), 0) scale(calc(var(--ascend-v22-target-scale) + 0.08));
     animation-timing-function: cubic-bezier(0.16, 0.88, 0.3, 1);
   }
   98% {
@@ -653,14 +653,24 @@ html[data-theme="light"] .ascend-theme-glow {
 }
 
 @keyframes ascend-morph-v22-contact {
-  0% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(0.7); }
-  28% { opacity: var(--ascend-v22-impact-opacity); transform: translate3d(-50%, -50%, 0) scale(1); }
-  100% { opacity: 0; transform: translate3d(-50%, -50%, 0) scale(var(--ascend-v22-impact-scale)); }
+  0% { opacity: 0; transform: rotate(-10deg) scale(0.96); }
+  28% { opacity: var(--ascend-v22-impact-opacity); transform: rotate(0deg) scale(1); }
+  100% { opacity: 0; transform: rotate(9deg) scale(var(--ascend-v22-impact-scale)); }
 }
 
 @keyframes ascend-morph-v22-card-activate {
   from { opacity: 0.72; transform: none; }
   to { opacity: 1; transform: none; }
+}
+
+@keyframes ascend-morph-v22-content-resolve {
+  from { opacity: 0.18; }
+  to { opacity: 1; }
+}
+
+@keyframes ascend-morph-v22-heading-resolve {
+  from { opacity: 0.22; }
+  to { opacity: 1; }
 }
 
 @keyframes ascend-morph-v22-ring-draw {
@@ -1181,7 +1191,7 @@ main.min-h-screen {
 }
 
 .ascend-morph-v22-overlay[data-phase="running"] .ascend-morph-v22-whole {
-  animation: ascend-morph-v22-whole-release 230ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ascend-morph-v22-whole-release 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .ascend-morph-v22-charge {
@@ -1283,6 +1293,32 @@ main.min-h-screen {
   transform: none;
 }
 
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essentials-heading,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essentials-completion,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essentials-heading,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essentials-completion {
+  opacity: 0.22;
+}
+
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essentials-heading {
+  animation: ascend-morph-v22-heading-resolve 190ms cubic-bezier(0.22, 1, 0.36, 1) 300ms both;
+}
+
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essentials-completion {
+  animation: ascend-morph-v22-heading-resolve 180ms cubic-bezier(0.22, 1, 0.36, 1) 340ms both;
+}
+
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essential-copy,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essential-chevron,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essential-action,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-signal-ring-core,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-copy,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-chevron,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-action,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring-core {
+  opacity: 0.18;
+}
+
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-signal-ring-progress,
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring-progress {
   opacity: 0;
@@ -1293,6 +1329,13 @@ main.min-h-screen {
   animation: ascend-morph-v22-card-activate 150ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v22-card-delay) both;
 }
 
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-copy,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-chevron,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-essential-action,
+.ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring-core {
+  animation: ascend-morph-v22-content-resolve 160ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v22-content-delay) both;
+}
+
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring-progress {
   transition: none;
   animation: ascend-morph-v22-ring-draw 230ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v22-ring-delay) both;
@@ -1301,33 +1344,36 @@ main.min-h-screen {
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="running"] .ascend-signal-ring::after {
   position: absolute;
   z-index: 2;
-  top: 12.5%;
-  left: 50%;
-  width: 10px;
-  height: 10px;
-  border: 1px solid color-mix(in srgb, var(--ascend-v22-contact-tone) 88%, white 12%);
+  top: 12px;
+  left: 12px;
+  box-sizing: border-box;
+  width: 72px;
+  height: 72px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--ascend-v22-contact-tone) 42%, transparent);
+  background: conic-gradient(from -8deg, color-mix(in srgb, var(--ascend-v22-contact-tone) 90%, white 10%) 0deg 18deg, transparent 18deg 360deg);
   content: "";
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 5px));
   opacity: 0;
   pointer-events: none;
+  transform-origin: center;
   will-change: transform, opacity;
   animation: ascend-morph-v22-contact 160ms cubic-bezier(0.18, 0.84, 0.3, 1) var(--ascend-v22-contact-delay) both;
 }
 
 .ascend-today-essentials[data-opening="morphV22"] nav > .ascend-essential-card:nth-child(1) .ascend-signal-ring {
   --ascend-v22-impact-opacity: 0.92;
-  --ascend-v22-impact-scale: 2;
+  --ascend-v22-impact-scale: 1.08;
 }
 
 .ascend-today-essentials[data-opening="morphV22"] nav > .ascend-essential-card:nth-child(2) .ascend-signal-ring {
   --ascend-v22-impact-opacity: 0.58;
-  --ascend-v22-impact-scale: 1.65;
+  --ascend-v22-impact-scale: 1.06;
 }
 
 .ascend-today-essentials[data-opening="morphV22"] nav > .ascend-essential-card:nth-child(3) .ascend-signal-ring {
   --ascend-v22-impact-opacity: 0.42;
-  --ascend-v22-impact-scale: 1.45;
+  --ascend-v22-impact-scale: 1.04;
 }
 
 .ascend-today-essentials[data-opening="morphV22"] [data-tone="fuel"] .ascend-signal-ring {
@@ -1368,6 +1414,24 @@ html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph
 
 html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring::after {
   animation-delay: calc(var(--ascend-v22-contact-delay) - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essentials-heading {
+  animation-delay: calc(300ms - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essentials-completion {
+  animation-delay: calc(340ms - var(--ascend-morph-audit-frame)) !important;
+  animation-play-state: paused !important;
+}
+
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-copy,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-chevron,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-action,
+html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring-core {
+  animation-delay: calc(var(--ascend-v22-content-delay) - var(--ascend-morph-audit-frame)) !important;
   animation-play-state: paused !important;
 }
 
@@ -2382,6 +2446,10 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-morph-v22-fragment,
   .ascend-morph-v22-wake,
   .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring::after,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-copy,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-chevron,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-action,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring-core,
   .ascend-essentials-heading,
   .ascend-essentials-completion,
   .ascend-essential-card[data-active="true"]::after,
@@ -2411,6 +2479,15 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-today-essentials[data-entrance] .ascend-essential-enter {
     opacity: 1 !important;
     transform: none !important;
+  }
+
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essentials-heading,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essentials-completion,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-copy,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-chevron,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-action,
+  .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring-core {
+    opacity: 1 !important;
   }
 
   .ascend-topography-overlay {

@@ -20,12 +20,12 @@ type SourceGeometry = { left: number; top: number; size: number };
 type TargetGeometry = Point & { size: number };
 
 const GLYPH_SCALE = 1.2;
-const COMPLETE_MS = 1000;
+const COMPLETE_MS = 1080;
 
 export function getAscendMorphV22Timing(rank: number) {
   const normalizedRank = Math.min(2, Math.max(0, rank));
-  const flightDelayMs = [160, 250, 320][normalizedRank];
-  const flightDurationMs = [340, 380, 400][normalizedRank];
+  const flightDelayMs = [180, 260, 330][normalizedRank];
+  const flightDurationMs = [360, 410, 430][normalizedRank];
   const contactMs = flightDelayMs + flightDurationMs;
 
   return {
@@ -34,6 +34,7 @@ export function getAscendMorphV22Timing(rank: number) {
     contactMs,
     cardDelayMs: contactMs,
     ringDelayMs: contactMs,
+    contentDelayMs: contactMs + 24,
     contactPulseDelayMs: contactMs
   };
 }
@@ -334,10 +335,10 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
                   transformOrigin: `${(anchor.x / 128) * 100}% ${(anchor.y / 128) * 100}%`,
                   "--ascend-v22-dx": `${dx}px`,
                   "--ascend-v22-dy": `${dy}px`,
-                  "--ascend-v22-mid-x": `${dx * 0.88 + laneX}px`,
-                  "--ascend-v22-mid-y": `${separateY + (dy - separateY) * 0.52}px`,
-                  "--ascend-v22-near-x": `${dx * 0.98 + laneX * 0.2}px`,
-                  "--ascend-v22-near-y": `${separateY + (dy - separateY) * 0.9}px`,
+                  "--ascend-v22-mid-x": `${dx * 0.94 + laneX}px`,
+                  "--ascend-v22-mid-y": `${separateY + (dy - separateY) * 0.34}px`,
+                  "--ascend-v22-near-x": `${dx * 0.99 + laneX * 0.15}px`,
+                  "--ascend-v22-near-y": `${separateY + (dy - separateY) * 0.88}px`,
                   "--ascend-v22-wake-dx": `${wakeDx}px`,
                   "--ascend-v22-wake-dy": `${wakeDy}px`,
                   "--ascend-v22-separate-x": `${separateX}px`,
@@ -351,8 +352,8 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
                 } as CSSProperties;
                 return (
                   <span key={key} className="contents">
-                    <AscendLogoGlyph fragment={key} className="ascend-morph-v22-wake" style={style} />
-                    <AscendLogoGlyph fragment={key} className="ascend-morph-v22-fragment" style={style} />
+                    <AscendLogoGlyph fragment={key} destinationTone={key} className="ascend-morph-v22-wake" style={style} />
+                    <AscendLogoGlyph fragment={key} destinationTone={key} className="ascend-morph-v22-fragment" style={style} />
                   </span>
                 );
               })}
