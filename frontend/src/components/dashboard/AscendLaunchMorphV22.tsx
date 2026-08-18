@@ -75,9 +75,9 @@ const MorphContext = createContext<MorphContextValue>({
 });
 
 const fragmentAnchors: Record<AscendLogoFragmentKey, Point> = {
-  fuel: { x: 66, y: 58 },
-  move: { x: 76, y: 72 },
-  recover: { x: 92, y: 44 }
+  fuel: { x: 56, y: 60 },
+  move: { x: 76, y: 78 },
+  recover: { x: 92, y: 41 }
 };
 
 const separation: Record<AscendLogoFragmentKey, Point> = {
