@@ -44,7 +44,6 @@ import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@
 import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
-import { AscendTopographyOpening, type AscendTopographySignal } from "@/components/dashboard/AscendTopographyOpening";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -62,6 +61,7 @@ type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhot
 type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>>["targets"];
 type TodayPriority = TodayPriorityRecommendation;
 type HealthSyncStatus = Awaited<ReturnType<typeof getHealthSyncStatus>>["status"];
+type MomentumSignalKey = "fuel" | "move" | "recover";
 type CollapsibleKey =
   | "todaysNumbers";
 
@@ -111,7 +111,7 @@ function SignalProgressRing({
   progress: number;
   done: boolean;
   priority: boolean;
-  tone: AscendTopographySignal["key"];
+  tone: MomentumSignalKey;
   children: ReactNode;
 }) {
   const radius = 36;
@@ -344,7 +344,6 @@ export function ClientDashboard() {
   const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
-  const [playOpeningMotion, setPlayOpeningMotion] = useState(false);
   const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
     todaysNumbers: false
   });
@@ -354,18 +353,6 @@ export function ClientDashboard() {
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
   const logMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    try {
-      const storageKey = "ascend:topography:v1:session";
-      if (window.sessionStorage.getItem(storageKey)) return;
-      window.sessionStorage.setItem(storageKey, "true");
-      const frame = window.requestAnimationFrame(() => setPlayOpeningMotion(true));
-      return () => window.cancelAnimationFrame(frame);
-    } catch {
-      setPlayOpeningMotion(true);
-    }
-  }, []);
 
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
@@ -1132,7 +1119,7 @@ export function ClientDashboard() {
     waterTargetMl: nutritionTargets.waterTargetMl,
     sleepQuality
   });
-  const momentumSignals: Array<{ key: AscendTopographySignal["key"]; label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
+  const momentumSignals: Array<{ key: MomentumSignalKey; label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
     {
       key: "fuel",
       label: "Fuel",
@@ -1180,12 +1167,6 @@ export function ClientDashboard() {
     }
   ];
   const activeMomentumSignals = momentumSignals;
-  const topographySignals: AscendTopographySignal[] = activeMomentumSignals.map((item) => ({
-    key: item.key,
-    label: item.label,
-    value: item.summary,
-    progress: item.progress
-  }));
   const completedMomentumSignals = activeMomentumSignals.filter((item) => item.done).length;
   const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(activeMomentumSignals.length, 1)) * 100);
   const priorityMomentumLabel = todayPriority.key === "Meal"
@@ -1289,14 +1270,7 @@ export function ClientDashboard() {
   }
 
   return (
-    <main className={`ascend-today-canvas min-h-screen bg-ink pb-24 text-white ${playOpeningMotion ? "ascend-topography-running" : ""}`}>
-      <AscendTopographyOpening
-        active={playOpeningMotion}
-        score={score}
-        isStarting={isFirstDayState}
-        signals={topographySignals}
-        onFinish={() => setPlayOpeningMotion(false)}
-      />
+    <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <Link href="/dashboard" className="flex items-center gap-2">
