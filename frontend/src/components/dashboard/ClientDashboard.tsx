@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, calculateTodayRecoverySignal, CoachingMode, combineTodayActivityCalories } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, Check, ChevronDown, CircleHelp, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -41,7 +41,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
 import { clearDashboardRecord, DASHBOARD_RECORD_EVENT, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
-import { AccountBarSkeleton, DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
+import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { AscendTopographyOpening, type AscendTopographySignal } from "@/components/dashboard/AscendTopographyOpening";
@@ -114,35 +114,35 @@ function SignalProgressRing({
   tone: AscendTopographySignal["key"];
   children: ReactNode;
 }) {
-  const radius = 30;
+  const radius = 36;
   const circumference = 2 * Math.PI * radius;
   const visibleProgress = done ? 100 : clamp(progress);
-  const toneColor = tone === "fuel" ? "#a3ff46" : tone === "move" ? "#a484ff" : "#35f2d0";
+  const toneColor = tone === "fuel" ? "#a484ff" : tone === "move" ? "#35f2d0" : "#63a2ff";
 
   return (
     <span
-      className="ascend-signal-ring relative grid h-20 w-20 place-items-center"
+      className="ascend-signal-ring relative grid h-24 w-24 shrink-0 place-items-center"
       data-state={done ? "done" : priority ? "priority" : "open"}
       data-tone={tone}
       aria-hidden="true"
     >
-      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 80 80">
-        <circle className="ascend-signal-ring-track" cx="40" cy="40" r={radius} fill="none" strokeWidth="4" />
+      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 96 96">
+        <circle className="ascend-signal-ring-track" cx="48" cy="48" r={radius} fill="none" strokeWidth="5" />
         <circle
           className="ascend-signal-ring-progress transition-[stroke-dasharray] duration-700"
-          cx="40"
-          cy="40"
+          cx="48"
+          cy="48"
           r={radius}
           fill="none"
-          stroke={done ? "#a3ff46" : toneColor}
+          stroke={toneColor}
           strokeDasharray={`${(visibleProgress / 100) * circumference} ${circumference}`}
           strokeLinecap="round"
-          strokeWidth="4"
+          strokeWidth="5"
         />
       </svg>
-      <span className="ascend-signal-ring-core relative flex h-14 w-14 flex-col items-center justify-center rounded-full border">
-        <span className="ascend-signal-ring-icon grid h-6 place-items-center">{children}</span>
-        <span className="ascend-signal-ring-value mt-0.5 text-[9px] font-bold tracking-[0.08em]">
+      <span className="ascend-signal-ring-core relative flex h-[4.25rem] w-[4.25rem] flex-col items-center justify-center rounded-full border">
+        <span className="ascend-signal-ring-icon grid h-7 place-items-center">{children}</span>
+        <span className="ascend-signal-ring-value mt-0.5 text-[10px] font-bold tracking-[0.08em]">
           {done ? "DONE" : `${Math.round(visibleProgress)}%`}
         </span>
       </span>
@@ -810,7 +810,6 @@ export function ClientDashboard() {
   );
   const recentCelebration = recentAction ? AscendDNAService.getCelebration(toDnaAction(recentAction.type)) : null;
   const goalCompletedToday = Boolean(goalStatus?.milestone_id);
-  const greeting = AscendDNAService.getGreeting(dnaProfile, new Date());
   const yesterday = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() - 1);
@@ -830,7 +829,6 @@ export function ClientDashboard() {
     !habitLogs.length &&
     !progressPhotos.length &&
     currentStreak === 0;
-  const todayGreeting = isFirstDayState ? "Welcome" : greeting;
   const todayPriority = todayPriorityRecommendation
     ? {
         key: todayPriorityRecommendation.key,
@@ -1009,7 +1007,6 @@ export function ClientDashboard() {
           : "Coach Zoe noticed something worth your attention."
     };
   })();
-  const firstName = user?.full_name?.trim().split(/\s+/)[0] ?? "there";
   const primaryAction = { label: todayPriority.cta, href: todayPriority.href };
   const heroSupportingCopy = (() => {
     return todayPriority.reason;
@@ -1266,17 +1263,18 @@ export function ClientDashboard() {
           </header>
 
           <AccountBarSkeleton />
-          <DashboardHeroSkeleton bodyLines={2} footer={<SkeletonBlock className="h-10 w-40 rounded-lg" />} />
-          <SectionShell title="Today's priority">
+          <SectionShell title="Today's essentials">
+            <SkeletonBlock className="h-7 w-64" />
+            <div className="mt-4 space-y-3">
+              <SkeletonBlock className="h-32 w-full rounded-2xl" />
+              <SkeletonBlock className="h-32 w-full rounded-2xl" />
+              <SkeletonBlock className="h-32 w-full rounded-2xl" />
+            </div>
+          </SectionShell>
+          <SkeletonBlock className="h-28 w-full rounded-2xl" />
+          <SectionShell title="Today's focus">
             <SkeletonText lines={2} />
-            <div className="mt-3">
-              <SkeletonBlock className="h-4 w-full rounded-full" />
-            </div>
-            <div className="mt-4 space-y-2">
-              <SkeletonBlock className="h-16 w-full" />
-              <SkeletonBlock className="h-16 w-full" />
-              <SkeletonBlock className="h-16 w-full" />
-            </div>
+            <SkeletonBlock className="mt-4 h-12 w-full rounded-xl" />
           </SectionShell>
           <SectionShell title="Today's Numbers">
             <SkeletonStatGrid count={4} />
@@ -1358,23 +1356,75 @@ export function ClientDashboard() {
           </section>
         ) : null}
 
-        <section className="ascend-today-hero relative mt-2 overflow-hidden pb-4 pt-3 text-center">
-          <p className="ascend-eyebrow">Today</p>
-          <h1 className="mt-2 text-[1.65rem] font-semibold leading-tight text-white">{todayGreeting}, {firstName}.</h1>
-          <div data-ascend-opening-target="momentum">
-            <AscendRiseMomentum score={score} label={isFirstDayState ? "Begins with your first check-in" : scoreLabel} isStarting={isFirstDayState} />
+        <section className="ascend-today-essentials mt-3" aria-labelledby="today-essentials-title">
+          <div>
+            <p className="ascend-eyebrow">Today&apos;s essentials</p>
+            <h1 id="today-essentials-title" className="mt-1.5 text-[1.65rem] font-semibold leading-tight text-white">
+              Your three. Build your momentum.
+            </h1>
           </div>
-          <Link href="/momentum-score" className="ascend-pressable mx-auto -mt-4 mb-2 inline-flex min-h-9 items-center gap-1.5 text-xs font-semibold text-purple-200">
-            <CircleHelp size={14} /> 7-day consistency score
-          </Link>
-          <p className="mx-auto max-w-[20rem] text-[11px] font-bold uppercase tracking-[0.18em] text-calm">Today&apos;s focus</p>
+          <div className="mt-3 flex items-center gap-2" aria-label={`${completedMomentumSignals} of ${activeMomentumSignals.length} essentials complete`}>
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06]" aria-hidden="true">
+              <div
+                className="ascend-opening-path-progress h-full origin-left rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#63a2ff)] transition-[width] duration-700"
+                style={{ width: `${momentumSignalProgress}%` }}
+              />
+            </div>
+            <p className="text-[11px] font-semibold text-zinc-400">{completedMomentumSignals} of {activeMomentumSignals.length}</p>
+          </div>
+          <nav className="mt-4 grid gap-3" aria-label="Today activity shortcuts">
+            {activeMomentumSignals.map((item) => {
+              const Icon = item.icon;
+              const isPriority = priorityMomentumLabel === item.label;
+              const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
+              const content = (
+                <>
+                  <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority} tone={item.key}>
+                    {item.done ? <Check size={27} strokeWidth={2.7} /> : <Icon size={29} strokeWidth={2} />}
+                  </SignalProgressRing>
+                  <span className="ascend-essential-copy min-w-0">
+                    <span className="block text-xl font-semibold leading-6 text-white">{item.label}</span>
+                    <span className={`ascend-essential-status mt-1 block text-[15px] font-semibold leading-5 ${item.done ? "is-done" : isPriority ? "is-priority" : ""}`}>{item.summary}</span>
+                    <span className="mt-1.5 line-clamp-1 block text-xs leading-5 text-zinc-500">{item.detail}</span>
+                  </span>
+                  <span className="ascend-essential-chevron grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.04] text-zinc-300" aria-hidden="true">
+                    <ArrowRight size={17} />
+                  </span>
+                  <span className="ascend-essential-action inline-flex min-h-8 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-semibold">
+                    {actionLabel} <ArrowRight size={15} />
+                  </span>
+                </>
+              );
+              return item.href ? (
+                <Link key={item.label} href={item.href} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} className="ascend-pressable ascend-essential-card" aria-label={`${item.label}: ${item.summary}. ${item.detail}. ${actionLabel}.`}>
+                  {content}
+                </Link>
+              ) : (
+                <button key={item.label} type="button" onClick={openRecoveryMenu} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" className="ascend-pressable ascend-essential-card w-full text-left" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                  {content}
+                </button>
+              );
+            })}
+          </nav>
+        </section>
+
+        <Link href="/momentum-score" data-ascend-opening-target="momentum" className="ascend-pressable ascend-momentum-result mt-3 flex items-center gap-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label={isFirstDayState ? "Your Momentum begins with your first check-in" : `Your Momentum is ${score} out of 100 based on seven-day consistency`}>
+          <div className="min-w-0 flex-1">
+            <p className="ascend-eyebrow">Your momentum</p>
+            <p className="mt-1.5 text-lg font-semibold text-white">{isFirstDayState ? "Ready to build" : `${score}/100`}</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">Your seven-day consistency, built from Fuel, Move and Recover.</p>
+          </div>
+          <AscendRiseMomentum compact score={score} label={isFirstDayState ? "Start here" : scoreLabel} isStarting={isFirstDayState} />
+          <ArrowRight className="shrink-0 text-purple-200" size={17} />
+        </Link>
+
+        <section className="ascend-today-focus relative mt-3 overflow-hidden rounded-2xl border px-4 py-5 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-purple-200">Today&apos;s focus</p>
           <h2 className="mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
           <p className="mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
-          <div>
-            <Link href={primaryAction.href} className="ascend-pressable ascend-cta-pulse mx-auto mt-5 flex h-14 max-w-[21rem] items-center justify-center gap-2 rounded-2xl bg-lime text-base font-semibold text-ink shadow-[0_18px_45px_rgba(61,230,209,0.22)]">
-              {primaryAction.label} <ArrowRight size={18} />
-            </Link>
-          </div>
+          <Link href={primaryAction.href} className="ascend-pressable ascend-cta-pulse mx-auto mt-4 flex h-[3.25rem] max-w-[21rem] items-center justify-center gap-2 rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_16px_36px_rgba(61,230,209,0.18)]">
+            {primaryAction.label} <ArrowRight size={18} />
+          </Link>
         </section>
 
         {shouldShowProfileReminder ? (
@@ -1390,47 +1440,7 @@ export function ClientDashboard() {
           </Link>
         ) : null}
 
-        <section className="ascend-today-path ascend-card-rise py-5">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="ascend-eyebrow">Your day</p>
-              <h2 className="mt-1 text-lg font-semibold text-white">
-                {completedMomentumSignals ? "Your rhythm today" : "Start with one"}
-              </h2>
-            </div>
-            <p className="text-sm font-semibold text-calm">{completedMomentumSignals} of {activeMomentumSignals.length} essentials</p>
-          </div>
-          <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
-            <div
-              className="ascend-opening-path-progress h-full origin-left rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#a3ff46)] transition-[width] duration-700"
-              style={{ width: `${momentumSignalProgress}%` }}
-            />
-          </div>
-          <nav className="mx-auto mt-5 grid max-w-md grid-cols-3 gap-2" aria-label="Today activity shortcuts">
-            {activeMomentumSignals.map((item) => {
-              const Icon = item.icon;
-              const isPriority = priorityMomentumLabel === item.label;
-              const content = (
-                <>
-                  <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority} tone={item.key}>
-                    {item.done ? <Check size={23} strokeWidth={2.7} /> : <Icon size={24} strokeWidth={2.1} />}
-                  </SignalProgressRing>
-                  <span className={`truncate text-[15px] font-semibold leading-5 ${isPriority ? "text-calm" : item.done ? "text-white" : "text-zinc-200"}`}>{item.label}</span>
-                  <span className={`max-w-full text-xs font-semibold leading-4 ${item.done ? "text-lime" : isPriority ? "text-calm" : "text-zinc-400"}`}>{item.summary}</span>
-                  <span className="line-clamp-2 min-h-9 max-w-[6.5rem] text-[11px] leading-[1.15rem] text-zinc-500">{item.detail}</span>
-                </>
-              );
-              return item.href ? (
-                <Link key={item.label} href={item.href} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
-                  {content}
-                </Link>
-              ) : (
-                <button key={item.label} type="button" onClick={openRecoveryMenu} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
-                  {content}
-                </button>
-              );
-            })}
-          </nav>
+        <section className="ascend-today-path ascend-card-rise py-4">
           <button
             type="button"
             onClick={() => { setLogMenuContext("all"); setLogMenuOpen((current) => !current); }}

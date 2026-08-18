@@ -10,12 +10,14 @@ export function AscendRiseMomentum({
   score,
   label,
   isStarting = false,
-  animate = false
+  animate = false,
+  compact = false
 }: {
   score: number;
   label: string;
   isStarting?: boolean;
   animate?: boolean;
+  compact?: boolean;
 }) {
   const radius = 76;
   const progress = isStarting ? 0 : clamp(score);
@@ -30,7 +32,7 @@ export function AscendRiseMomentum({
 
   return (
     <div
-      className="ascend-rise-momentum relative mx-auto h-[9.5rem] w-[9.5rem] sm:h-[10.75rem] sm:w-[10.75rem]"
+      className={`ascend-rise-momentum relative mx-auto ${compact ? "h-[6.5rem] w-[6.5rem] shrink-0" : "h-[9.5rem] w-[9.5rem] sm:h-[10.75rem] sm:w-[10.75rem]"}`}
       data-animate={animate ? "true" : "false"}
       data-starting={isStarting ? "true" : "false"}
       role="img"
@@ -79,9 +81,9 @@ export function AscendRiseMomentum({
 
       <div className="absolute inset-0 grid place-items-center text-center">
         <div className="ascend-rise-score">
-          <p className="text-4xl font-semibold leading-none text-white sm:text-5xl">{isStarting ? "--" : score}</p>
-          <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-purple-200">Momentum</p>
-          <p className="mt-1 text-xs font-medium text-calm">{label}</p>
+          <p className={`${compact ? "text-2xl" : "text-4xl sm:text-5xl"} font-semibold leading-none text-white`}>{isStarting ? "--" : score}</p>
+          <p className={`${compact ? "mt-1 text-[7px]" : "mt-2 text-[10px]"} font-bold uppercase tracking-[0.2em] text-purple-200`}>Momentum</p>
+          <p className={`${compact ? "mt-0.5 max-w-16 text-[8px] leading-3" : "mt-1 text-xs"} mx-auto font-medium text-calm`}>{label}</p>
         </div>
       </div>
     </div>
