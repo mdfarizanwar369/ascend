@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { BrandMark } from "@/components/BrandMark";
 import { getMe } from "@/lib/ascendApi";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
+import { markTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 
 function roleHome(roles: string[]) {
   if (roles.includes("owner") || roles.includes("admin")) return "/admin";
@@ -27,6 +28,8 @@ export default function LaunchPage() {
   useEffect(() => {
     let isMounted = true;
     let unsubscribe = () => {};
+
+    markTodayEssentialsColdLaunch();
 
     async function launch() {
       try {

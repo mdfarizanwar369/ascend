@@ -44,6 +44,8 @@ import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@
 import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
+import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
+import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -372,6 +374,7 @@ export function ClientDashboard() {
   const [momentumRewardActive, setMomentumRewardActive] = useState(false);
   const [essentialsInView, setEssentialsInView] = useState(true);
   const [essentialsEntrancePhase, setEssentialsEntrancePhase] = useState<"waiting" | "running" | "settled">("waiting");
+  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph">("undecided");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -418,10 +421,14 @@ export function ClientDashboard() {
     essentialsEntranceStartedRef.current = true;
 
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    const shouldMorph = claimTodayEssentialsColdLaunch();
     if (reduceMotion) {
+      setEssentialsOpeningMode("stagger");
       setEssentialsEntrancePhase("settled");
       return;
     }
+
+    setEssentialsOpeningMode(shouldMorph ? "morph" : "stagger");
 
     essentialsEntranceFrameOneRef.current = window.requestAnimationFrame(() => {
       essentialsEntranceFrameOneRef.current = null;
@@ -431,9 +438,17 @@ export function ClientDashboard() {
         essentialsEntranceTimerRef.current = window.setTimeout(() => {
           essentialsEntranceTimerRef.current = null;
           setEssentialsEntrancePhase("settled");
-        }, 660);
+        }, shouldMorph ? 1120 : 660);
       });
     });
+  }, []);
+
+  const finishEssentialsOpening = useCallback(() => {
+    if (essentialsEntranceTimerRef.current !== null) {
+      window.clearTimeout(essentialsEntranceTimerRef.current);
+      essentialsEntranceTimerRef.current = null;
+    }
+    setEssentialsEntrancePhase("settled");
   }, []);
 
   const observeEssentialsSection = useCallback((section: HTMLElement | null) => {
@@ -1587,16 +1602,22 @@ export function ClientDashboard() {
         <section
           ref={observeEssentialsSection}
           data-entrance={essentialsEntrancePhase}
+          data-opening={essentialsOpeningMode}
           className="ascend-today-essentials mt-3"
           aria-labelledby="today-essentials-title"
         >
-          <div>
+          <AscendEssentialsMorph
+            active={essentialsOpeningMode === "morph" && essentialsEntrancePhase === "running"}
+            signals={activeMomentumSignals}
+            onAbort={finishEssentialsOpening}
+          />
+          <div className="ascend-essentials-heading">
             <p className="ascend-eyebrow">Today&apos;s essentials</p>
             <h1 id="today-essentials-title" className="mt-1.5 text-[1.65rem] font-semibold leading-tight text-white">
               Your three. Build your momentum.
             </h1>
           </div>
-          <div className="mt-3 flex items-center gap-2" aria-label={`${completedMomentumSignals} of ${activeMomentumSignals.length} essentials complete`}>
+          <div className="ascend-essentials-completion mt-3 flex items-center gap-2" aria-label={`${completedMomentumSignals} of ${activeMomentumSignals.length} essentials complete`}>
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06]" aria-hidden="true">
               <div
                 className="ascend-opening-path-progress h-full origin-left rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#63a2ff)] transition-[width] duration-700"
