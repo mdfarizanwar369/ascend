@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, calculateTodayRecoverySignal, CoachingMode, combineTodayActivityCalories } from "@ascend/shared";
 import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, X, Zap } from "lucide-react";
@@ -62,8 +62,43 @@ type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>
 type TodayPriority = TodayPriorityRecommendation;
 type HealthSyncStatus = Awaited<ReturnType<typeof getHealthSyncStatus>>["status"];
 type MomentumSignalKey = "fuel" | "move" | "recover";
+type MomentumSignal = {
+  key: MomentumSignalKey;
+  label: string;
+  icon: typeof Beef;
+  summary: string;
+  detail: string;
+  done: boolean;
+  progress: number;
+  href: string | null;
+};
 type CollapsibleKey =
   | "todaysNumbers";
+
+const momentumSignalFallbackOrder: MomentumSignalKey[] = ["fuel", "move", "recover"];
+
+function sameMomentumSignalOrder(left: MomentumSignalKey[], right: MomentumSignalKey[]) {
+  return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
+function buildMomentumSignalOrder(
+  signals: Array<Pick<MomentumSignal, "key" | "done">>,
+  priorityKey: MomentumSignalKey | null,
+  currentOrder: MomentumSignalKey[] = momentumSignalFallbackOrder
+) {
+  const signalsByKey = new Map(signals.map((signal) => [signal.key, signal]));
+  const stableOrder = [
+    ...currentOrder.filter((key) => signalsByKey.has(key)),
+    ...momentumSignalFallbackOrder.filter((key) => signalsByKey.has(key) && !currentOrder.includes(key))
+  ];
+  const incomplete = stableOrder.filter((key) => !signalsByKey.get(key)?.done);
+  const completed = stableOrder.filter((key) => signalsByKey.get(key)?.done);
+  const activePriority = priorityKey && incomplete.includes(priorityKey) ? priorityKey : incomplete[0] ?? null;
+
+  return activePriority
+    ? [activePriority, ...incomplete.filter((key) => key !== activePriority), ...completed]
+    : [...incomplete, ...completed];
+}
 
 const goalCelebrationMessages = [
   "This is what consistency looks like.",
@@ -332,6 +367,10 @@ export function ClientDashboard() {
   const [savingSleep, setSavingSleep] = useState(false);
   const [logMenuOpen, setLogMenuOpen] = useState(false);
   const [recoverySheetOpen, setRecoverySheetOpen] = useState(false);
+  const [momentumSignalOrder, setMomentumSignalOrder] = useState<MomentumSignalKey[] | null>(null);
+  const [settlingMomentumSignal, setSettlingMomentumSignal] = useState<MomentumSignalKey | null>(null);
+  const [momentumRewardActive, setMomentumRewardActive] = useState(false);
+  const [essentialsInView, setEssentialsInView] = useState(true);
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -353,6 +392,39 @@ export function ClientDashboard() {
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
   const recoveryCloseRef = useRef<HTMLButtonElement>(null);
+  const essentialsObserverRef = useRef<IntersectionObserver | null>(null);
+  const momentumSignalOrderRef = useRef<MomentumSignalKey[] | null>(null);
+  const momentumSignalCardRefs = useRef<Partial<Record<MomentumSignalKey, HTMLElement | null>>>({});
+  const momentumSignalBeforeRectsRef = useRef<Partial<Record<MomentumSignalKey, DOMRect>>>({});
+  const momentumSignalAnimationsRef = useRef<Partial<Record<MomentumSignalKey, Animation>>>({});
+  const previousMomentumDoneRef = useRef<Record<MomentumSignalKey, boolean> | null>(null);
+  const previousMomentumPriorityRef = useRef<MomentumSignalKey | null>(null);
+  const latestMomentumStateRef = useRef<{
+    done: Record<MomentumSignalKey, boolean>;
+    priorityKey: MomentumSignalKey | null;
+  } | null>(null);
+  const momentumHandoffTimerRef = useRef<number | null>(null);
+  const momentumRewardTimerRef = useRef<number | null>(null);
+  const momentumRewardResetTimerRef = useRef<number | null>(null);
+
+  const observeEssentialsSection = useCallback((section: HTMLElement | null) => {
+    essentialsObserverRef.current?.disconnect();
+    essentialsObserverRef.current = null;
+    if (!section || typeof IntersectionObserver === "undefined") return;
+
+    essentialsObserverRef.current = new IntersectionObserver(([entry]) => {
+      setEssentialsInView(entry.isIntersecting);
+    }, { threshold: 0.08 });
+    essentialsObserverRef.current.observe(section);
+  }, []);
+
+  useEffect(() => () => {
+    essentialsObserverRef.current?.disconnect();
+    if (momentumHandoffTimerRef.current !== null) window.clearTimeout(momentumHandoffTimerRef.current);
+    if (momentumRewardTimerRef.current !== null) window.clearTimeout(momentumRewardTimerRef.current);
+    if (momentumRewardResetTimerRef.current !== null) window.clearTimeout(momentumRewardResetTimerRef.current);
+    Object.values(momentumSignalAnimationsRef.current).forEach((animation) => animation?.cancel());
+  }, []);
 
   useEffect(() => {
     if (!recoverySheetOpen) return;
@@ -1138,7 +1210,7 @@ export function ClientDashboard() {
     waterTargetMl: nutritionTargets.waterTargetMl,
     sleepQuality
   });
-  const momentumSignals: Array<{ key: MomentumSignalKey; label: string; icon: typeof Beef; summary: string; detail: string; done: boolean; progress: number; href: string | null }> = [
+  const momentumSignals: MomentumSignal[] = [
     {
       key: "fuel",
       label: "Fuel",
@@ -1185,16 +1257,136 @@ export function ClientDashboard() {
       href: null
     }
   ];
-  const activeMomentumSignals = momentumSignals;
-  const completedMomentumSignals = activeMomentumSignals.filter((item) => item.done).length;
-  const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(activeMomentumSignals.length, 1)) * 100);
-  const priorityMomentumLabel = todayPriority.key === "Meal"
-    ? "Fuel"
+  const priorityMomentumKey: MomentumSignalKey | null = todayPriority.key === "Meal"
+    ? "fuel"
     : todayPriority.key === "Movement"
-      ? "Move"
+      ? "move"
       : todayPriority.key === "Water"
-        ? "Recover"
+        ? "recover"
         : null;
+  const fuelMomentumDone = momentumSignals.find((item) => item.key === "fuel")?.done ?? false;
+  const moveMomentumDone = momentumSignals.find((item) => item.key === "move")?.done ?? false;
+  const recoverMomentumDone = momentumSignals.find((item) => item.key === "recover")?.done ?? false;
+  const derivedMomentumSignalOrder = buildMomentumSignalOrder(momentumSignals, priorityMomentumKey);
+  const visibleMomentumSignalOrder = momentumSignalOrder ?? derivedMomentumSignalOrder;
+  const momentumSignalsByKey = new Map(momentumSignals.map((item) => [item.key, item]));
+  const activeMomentumSignals = visibleMomentumSignalOrder
+    .map((key) => momentumSignalsByKey.get(key))
+    .filter((item): item is MomentumSignal => Boolean(item));
+  const completedMomentumSignals = momentumSignals.filter((item) => item.done).length;
+  const momentumSignalProgress = Math.round((completedMomentumSignals / Math.max(momentumSignals.length, 1)) * 100);
+
+  useEffect(() => {
+    const nextDone = {
+      fuel: fuelMomentumDone,
+      move: moveMomentumDone,
+      recover: recoverMomentumDone
+    };
+    latestMomentumStateRef.current = { done: nextDone, priorityKey: priorityMomentumKey };
+    const orderingSignals = momentumSignalFallbackOrder.map((key) => ({ key, done: nextDone[key] }));
+    const initialOrder = buildMomentumSignalOrder(orderingSignals, priorityMomentumKey);
+    const previousDone = previousMomentumDoneRef.current;
+
+    if (!previousDone) {
+      previousMomentumDoneRef.current = nextDone;
+      previousMomentumPriorityRef.current = priorityMomentumKey;
+      momentumSignalOrderRef.current = initialOrder;
+      setMomentumSignalOrder(initialOrder);
+      return;
+    }
+
+    const newlyCompleted = momentumSignalFallbackOrder.filter((key) => !previousDone[key] && nextDone[key]);
+    const completionChanged = momentumSignalFallbackOrder.some((key) => previousDone[key] !== nextDone[key]);
+    const priorityChanged = previousMomentumPriorityRef.current !== priorityMomentumKey;
+    previousMomentumDoneRef.current = nextDone;
+    previousMomentumPriorityRef.current = priorityMomentumKey;
+
+    if (!completionChanged && !priorityChanged) return;
+    if (!completionChanged && priorityChanged && momentumHandoffTimerRef.current !== null) return;
+
+    if (momentumHandoffTimerRef.current !== null) {
+      window.clearTimeout(momentumHandoffTimerRef.current);
+      momentumHandoffTimerRef.current = null;
+    }
+    if (momentumRewardTimerRef.current !== null) {
+      window.clearTimeout(momentumRewardTimerRef.current);
+      momentumRewardTimerRef.current = null;
+    }
+    if (momentumRewardResetTimerRef.current !== null) {
+      window.clearTimeout(momentumRewardResetTimerRef.current);
+      momentumRewardResetTimerRef.current = null;
+    }
+    setMomentumRewardActive(false);
+
+    const commitPriorityOrder = () => {
+      momentumHandoffTimerRef.current = null;
+      const latestState = latestMomentumStateRef.current ?? { done: nextDone, priorityKey: priorityMomentumKey };
+      const latestOrderingSignals = momentumSignalFallbackOrder.map((key) => ({ key, done: latestState.done[key] }));
+      const currentOrder = momentumSignalOrderRef.current ?? initialOrder;
+      const nextOrder = buildMomentumSignalOrder(latestOrderingSignals, latestState.priorityKey, currentOrder);
+      if (!sameMomentumSignalOrder(currentOrder, nextOrder)) {
+        const beforeRects: Partial<Record<MomentumSignalKey, DOMRect>> = {};
+        momentumSignalFallbackOrder.forEach((key) => {
+          const element = momentumSignalCardRefs.current[key];
+          if (element) beforeRects[key] = element.getBoundingClientRect();
+        });
+        momentumSignalBeforeRectsRef.current = beforeRects;
+        momentumSignalOrderRef.current = nextOrder;
+        setMomentumSignalOrder(nextOrder);
+      }
+
+      setSettlingMomentumSignal(null);
+      if (momentumSignalFallbackOrder.every((key) => latestState.done[key])) {
+        momentumRewardTimerRef.current = window.setTimeout(() => {
+          momentumRewardTimerRef.current = null;
+          setMomentumRewardActive(true);
+          momentumRewardResetTimerRef.current = window.setTimeout(() => {
+            momentumRewardResetTimerRef.current = null;
+            setMomentumRewardActive(false);
+          }, 950);
+        }, 440);
+      }
+    };
+
+    if (newlyCompleted.length) {
+      setSettlingMomentumSignal(newlyCompleted[0]);
+      momentumHandoffTimerRef.current = window.setTimeout(commitPriorityOrder, 500);
+    } else {
+      commitPriorityOrder();
+    }
+  }, [
+    fuelMomentumDone,
+    moveMomentumDone,
+    recoverMomentumDone,
+    priorityMomentumKey
+  ]);
+
+  useLayoutEffect(() => {
+    const beforeRects = momentumSignalBeforeRectsRef.current;
+    if (!Object.keys(beforeRects).length) return;
+    momentumSignalBeforeRectsRef.current = {};
+
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    momentumSignalFallbackOrder.forEach((key) => {
+      const element = momentumSignalCardRefs.current[key];
+      const before = beforeRects[key];
+      if (!element || !before) return;
+
+      const after = element.getBoundingClientRect();
+      const deltaX = before.left - after.left;
+      const deltaY = before.top - after.top;
+      if (reduceMotion || (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1)) return;
+
+      momentumSignalAnimationsRef.current[key]?.cancel();
+      momentumSignalAnimationsRef.current[key] = element.animate(
+        [
+          { transform: `translate3d(${deltaX}px, ${deltaY}px, 0)` },
+          { transform: "translate3d(0, 0, 0)" }
+        ],
+        { duration: 430, easing: "cubic-bezier(0.22, 1, 0.36, 1)" }
+      );
+    });
+  }, [momentumSignalOrder]);
   const optionalLogActions = [
     { label: "Meal", href: "/food-log", icon: Beef },
     { label: "Water", href: "/water-log", icon: Droplets },
@@ -1341,7 +1533,7 @@ export function ClientDashboard() {
           </section>
         ) : null}
 
-        <section className="ascend-today-essentials mt-3" aria-labelledby="today-essentials-title">
+        <section ref={observeEssentialsSection} className="ascend-today-essentials mt-3" aria-labelledby="today-essentials-title">
           <div>
             <p className="ascend-eyebrow">Today&apos;s essentials</p>
             <h1 id="today-essentials-title" className="mt-1.5 text-[1.65rem] font-semibold leading-tight text-white">
@@ -1358,10 +1550,11 @@ export function ClientDashboard() {
             <p className="text-[11px] font-semibold text-zinc-400">{completedMomentumSignals} of {activeMomentumSignals.length}</p>
           </div>
           <nav className="mt-4 grid gap-3" aria-label="Today activity shortcuts">
-            {activeMomentumSignals.map((item) => {
+            {activeMomentumSignals.map((item, index) => {
               const Icon = item.icon;
-              const isPriority = priorityMomentumLabel === item.label;
+              const isPriority = index === 0 && !item.done;
               const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
+              const cardStyle = { "--ascend-essential-entry-delay": `${index * 80}ms` } as CSSProperties;
               const content = (
                 <>
                   <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority} tone={item.key}>
@@ -1381,11 +1574,38 @@ export function ClientDashboard() {
                 </>
               );
               return item.href ? (
-                <Link key={item.label} href={item.href} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} className="ascend-pressable ascend-essential-card" aria-label={`${item.label}: ${item.summary}. ${item.detail}. ${actionLabel}.`}>
+                <Link
+                  key={item.key}
+                  ref={(element) => { momentumSignalCardRefs.current[item.key] = element; }}
+                  href={item.href}
+                  data-ascend-opening-target={item.key}
+                  data-state={item.done ? "done" : isPriority ? "priority" : "open"}
+                  data-active={isPriority && essentialsInView ? "true" : "false"}
+                  data-handoff={settlingMomentumSignal === item.key ? "settling" : "idle"}
+                  data-tone={item.key}
+                  style={cardStyle}
+                  className="ascend-pressable ascend-essential-card ascend-essential-enter"
+                  aria-label={`${item.label}: ${item.summary}. ${item.detail}. ${actionLabel}.`}
+                >
                   {content}
                 </Link>
               ) : (
-                <button key={item.label} type="button" onClick={openRecoverySheet} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} aria-expanded={recoverySheetOpen} aria-controls="recovery-action-sheet" className="ascend-pressable ascend-essential-card w-full text-left" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button
+                  key={item.key}
+                  ref={(element) => { momentumSignalCardRefs.current[item.key] = element; }}
+                  type="button"
+                  onClick={openRecoverySheet}
+                  data-ascend-opening-target={item.key}
+                  data-state={item.done ? "done" : isPriority ? "priority" : "open"}
+                  data-active={isPriority && essentialsInView ? "true" : "false"}
+                  data-handoff={settlingMomentumSignal === item.key ? "settling" : "idle"}
+                  data-tone={item.key}
+                  style={cardStyle}
+                  aria-expanded={recoverySheetOpen}
+                  aria-controls="recovery-action-sheet"
+                  className="ascend-pressable ascend-essential-card ascend-essential-enter w-full text-left"
+                  aria-label={`${item.label}: ${item.summary}. Open recovery options.`}
+                >
                   {content}
                 </button>
               );
@@ -1399,7 +1619,7 @@ export function ClientDashboard() {
             <p className="mt-1.5 text-lg font-semibold text-white">{isFirstDayState ? "Ready to build" : `${score}/100`}</p>
             <p className="mt-1 text-xs leading-5 text-zinc-400">Your seven-day consistency, built from Fuel, Move and Recover.</p>
           </div>
-          <AscendRiseMomentum compact score={score} label={isFirstDayState ? "Start here" : scoreLabel} isStarting={isFirstDayState} />
+          <AscendRiseMomentum compact score={score} label={isFirstDayState ? "Start here" : scoreLabel} isStarting={isFirstDayState} reward={momentumRewardActive} />
           <ArrowRight className="shrink-0 text-purple-200" size={17} />
         </Link>
 

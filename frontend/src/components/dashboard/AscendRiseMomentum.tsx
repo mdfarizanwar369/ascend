@@ -11,12 +11,14 @@ export function AscendRiseMomentum({
   label,
   isStarting = false,
   animate = false,
+  reward = false,
   compact = false
 }: {
   score: number;
   label: string;
   isStarting?: boolean;
   animate?: boolean;
+  reward?: boolean;
   compact?: boolean;
 }) {
   const radius = 76;
@@ -34,6 +36,7 @@ export function AscendRiseMomentum({
     <div
       className={`ascend-rise-momentum relative mx-auto ${compact ? "h-[6.5rem] w-[6.5rem] shrink-0" : "h-[9.5rem] w-[9.5rem] sm:h-[10.75rem] sm:w-[10.75rem]"}`}
       data-animate={animate ? "true" : "false"}
+      data-reward={reward ? "true" : "false"}
       data-starting={isStarting ? "true" : "false"}
       role="img"
       aria-label={isStarting ? "Momentum starts building after your first check-in." : `Momentum ${score} out of 100, based on your last seven days.`}
