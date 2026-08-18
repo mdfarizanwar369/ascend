@@ -812,6 +812,108 @@ main.min-h-screen {
   animation: ascend-rise-endpoint 180ms ease-out 1060ms both;
 }
 
+.ascend-today-signal {
+  position: relative;
+  min-height: 10.5rem;
+  padding: 0.15rem 0.1rem 0.35rem;
+  border-radius: 1.25rem;
+  isolation: isolate;
+}
+
+.ascend-today-signal::before {
+  position: absolute;
+  z-index: -1;
+  top: -0.45rem;
+  left: 50%;
+  width: 6.75rem;
+  height: 6.75rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(164, 132, 255, 0.11), transparent 68%);
+  content: "";
+  opacity: 0.55;
+  transform: translateX(-50%);
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.ascend-today-signal[data-tone="fuel"]::before {
+  background: radial-gradient(circle, rgba(163, 255, 70, 0.11), transparent 68%);
+}
+
+.ascend-today-signal[data-tone="recover"]::before {
+  background: radial-gradient(circle, rgba(53, 242, 208, 0.11), transparent 68%);
+}
+
+.ascend-today-signal[data-state="priority"]::before,
+.ascend-today-signal[data-state="done"]::before,
+.ascend-today-signal:hover::before,
+.ascend-today-signal:focus-visible::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1.08);
+}
+
+.ascend-signal-ring {
+  filter: drop-shadow(0 10px 20px rgba(5, 9, 14, 0.28));
+  transition: filter 220ms ease, transform 220ms ease;
+}
+
+.ascend-today-signal:hover .ascend-signal-ring,
+.ascend-today-signal:focus-visible .ascend-signal-ring {
+  transform: translateY(-2px) scale(1.025);
+}
+
+.ascend-signal-ring-track {
+  stroke: rgba(255, 255, 255, 0.09);
+}
+
+.ascend-signal-ring-progress {
+  filter: drop-shadow(0 0 5px rgba(164, 132, 255, 0.24));
+}
+
+.ascend-signal-ring[data-tone="fuel"] .ascend-signal-ring-progress {
+  filter: drop-shadow(0 0 5px rgba(163, 255, 70, 0.24));
+}
+
+.ascend-signal-ring[data-tone="recover"] .ascend-signal-ring-progress {
+  filter: drop-shadow(0 0 5px rgba(53, 242, 208, 0.24));
+}
+
+.ascend-signal-ring-core {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  color: #a1a1aa;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.ascend-signal-ring[data-tone="fuel"] .ascend-signal-ring-core {
+  color: #c9f58e;
+}
+
+.ascend-signal-ring[data-tone="move"] .ascend-signal-ring-core {
+  color: #c8b5ff;
+}
+
+.ascend-signal-ring[data-tone="recover"] .ascend-signal-ring-core {
+  color: #75eedb;
+}
+
+.ascend-signal-ring[data-state="priority"] .ascend-signal-ring-core {
+  border-color: rgba(53, 242, 208, 0.3);
+  background: rgba(53, 242, 208, 0.08);
+}
+
+.ascend-signal-ring[data-state="done"] .ascend-signal-ring-core {
+  border-color: rgba(163, 255, 70, 0.3);
+  background: rgba(163, 255, 70, 0.09);
+  color: #a3ff46;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 20px rgba(163, 255, 70, 0.08);
+}
+
+.ascend-signal-ring-value {
+  color: currentColor;
+  opacity: 0.84;
+}
+
 .ascend-topography-overlay {
   position: fixed;
   inset: 0;
@@ -1146,27 +1248,27 @@ html[data-theme="light"] .ascend-signal-ring circle:first-of-type {
   stroke: rgba(15, 23, 42, 0.11);
 }
 
-html[data-theme="light"] .ascend-signal-ring > span {
+html[data-theme="light"] .ascend-signal-ring-core {
   border-color: #d5ddea !important;
   background: #ffffff !important;
   box-shadow: 0 5px 14px rgba(15, 23, 42, 0.08);
 }
 
-html[data-theme="light"] .ascend-signal-ring[data-state="priority"] > span {
+html[data-theme="light"] .ascend-signal-ring[data-state="priority"] .ascend-signal-ring-core {
   border-color: rgba(8, 127, 115, 0.34) !important;
   background: #ecfbf8 !important;
 }
 
-html[data-theme="light"] .ascend-signal-ring[data-state="done"] > span {
+html[data-theme="light"] .ascend-signal-ring[data-state="done"] .ascend-signal-ring-core {
   border-color: rgba(69, 133, 18, 0.28) !important;
   background: #f1fae9 !important;
   color: #3f7c16 !important;
 }
 
 html[data-theme="light"] .ascend-today-signal {
-  min-height: 5.7rem;
-  padding: 0.3rem 0.1rem;
-  border-radius: 1rem;
+  min-height: 10.5rem;
+  padding: 0.15rem 0.1rem 0.35rem;
+  border-radius: 1.25rem;
 }
 
 html[data-theme="light"] .ascend-today-secondary-action {

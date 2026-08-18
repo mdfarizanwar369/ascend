@@ -105,39 +105,46 @@ function SignalProgressRing({
   progress,
   done,
   priority,
+  tone,
   children
 }: {
   progress: number;
   done: boolean;
   priority: boolean;
+  tone: AscendTopographySignal["key"];
   children: ReactNode;
 }) {
-  const radius = 21;
+  const radius = 30;
   const circumference = 2 * Math.PI * radius;
   const visibleProgress = done ? 100 : clamp(progress);
+  const toneColor = tone === "fuel" ? "#a3ff46" : tone === "move" ? "#a484ff" : "#35f2d0";
 
   return (
     <span
-      className="ascend-signal-ring relative grid h-14 w-14 place-items-center"
+      className="ascend-signal-ring relative grid h-20 w-20 place-items-center"
       data-state={done ? "done" : priority ? "priority" : "open"}
+      data-tone={tone}
       aria-hidden="true"
     >
-      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 56 56">
-        <circle cx="28" cy="28" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="2.5" />
+      <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 80 80">
+        <circle className="ascend-signal-ring-track" cx="40" cy="40" r={radius} fill="none" strokeWidth="4" />
         <circle
-          cx="28"
-          cy="28"
+          className="ascend-signal-ring-progress transition-[stroke-dasharray] duration-700"
+          cx="40"
+          cy="40"
           r={radius}
           fill="none"
-          stroke={done ? "#a3ff46" : priority ? "#35f2d0" : "#a484ff"}
+          stroke={done ? "#a3ff46" : toneColor}
           strokeDasharray={`${(visibleProgress / 100) * circumference} ${circumference}`}
           strokeLinecap="round"
-          strokeWidth="2.5"
-          className="transition-[stroke-dasharray] duration-700"
+          strokeWidth="4"
         />
       </svg>
-      <span className={`relative grid h-10 w-10 place-items-center rounded-full border ${done ? "border-lime/30 bg-lime/12 text-lime" : priority ? "border-calm/35 bg-calm/10 text-calm" : "border-white/[0.07] bg-white/[0.025] text-zinc-400"}`}>
-        {children}
+      <span className="ascend-signal-ring-core relative flex h-14 w-14 flex-col items-center justify-center rounded-full border">
+        <span className="ascend-signal-ring-icon grid h-6 place-items-center">{children}</span>
+        <span className="ascend-signal-ring-value mt-0.5 text-[9px] font-bold tracking-[0.08em]">
+          {done ? "DONE" : `${Math.round(visibleProgress)}%`}
+        </span>
       </span>
     </span>
   );
@@ -1399,26 +1406,26 @@ export function ClientDashboard() {
               style={{ width: `${momentumSignalProgress}%` }}
             />
           </div>
-          <nav className="mx-auto mt-4 grid max-w-sm grid-cols-3 gap-3" aria-label="Today activity shortcuts">
+          <nav className="mx-auto mt-5 grid max-w-md grid-cols-3 gap-2" aria-label="Today activity shortcuts">
             {activeMomentumSignals.map((item) => {
               const Icon = item.icon;
               const isPriority = priorityMomentumLabel === item.label;
               const content = (
                 <>
-                  <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority}>
-                    {item.done ? <Check size={17} strokeWidth={2.5} /> : <Icon size={17} />}
+                  <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority} tone={item.key}>
+                    {item.done ? <Check size={23} strokeWidth={2.7} /> : <Icon size={24} strokeWidth={2.1} />}
                   </SignalProgressRing>
-                  <span className={`truncate text-xs font-semibold ${isPriority ? "text-calm" : item.done ? "text-zinc-200" : "text-zinc-400"}`}>{item.label}</span>
-                  <span className={`max-w-full text-[11px] font-medium leading-4 ${item.done ? "text-calm" : "text-zinc-500"}`}>{item.summary}</span>
-                  <span className="line-clamp-2 min-h-8 max-w-[5.25rem] text-[10px] leading-4 text-zinc-500">{item.detail}</span>
+                  <span className={`truncate text-[15px] font-semibold leading-5 ${isPriority ? "text-calm" : item.done ? "text-white" : "text-zinc-200"}`}>{item.label}</span>
+                  <span className={`max-w-full text-xs font-semibold leading-4 ${item.done ? "text-lime" : isPriority ? "text-calm" : "text-zinc-400"}`}>{item.summary}</span>
+                  <span className="line-clamp-2 min-h-9 max-w-[6.5rem] text-[11px] leading-[1.15rem] text-zinc-500">{item.detail}</span>
                 </>
               );
               return item.href ? (
-                <Link key={item.label} href={item.href} data-ascend-opening-target={item.key} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
+                <Link key={item.label} href={item.href} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. ${item.detail}`}>
                   {content}
                 </Link>
               ) : (
-                <button key={item.label} type="button" onClick={openRecoveryMenu} data-ascend-opening-target={item.key} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={openRecoveryMenu} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" className="ascend-pressable ascend-today-signal group flex min-w-0 flex-col items-center gap-1.5 text-center" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );
