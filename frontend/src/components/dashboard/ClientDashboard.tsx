@@ -3,7 +3,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, calculateTodayRecoverySignal, CoachingMode, combineTodayActivityCalories } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, X, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
   completeMission,
@@ -331,7 +331,7 @@ export function ClientDashboard() {
   const [sleepQuality, setSleepQuality] = useState<"poor" | "okay" | "good" | null>(null);
   const [savingSleep, setSavingSleep] = useState(false);
   const [logMenuOpen, setLogMenuOpen] = useState(false);
-  const [logMenuContext, setLogMenuContext] = useState<"all" | "recovery">("all");
+  const [recoverySheetOpen, setRecoverySheetOpen] = useState(false);
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
@@ -352,7 +352,26 @@ export function ClientDashboard() {
   const hasLoadedDashboardRef = useRef(false);
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
-  const logMenuRef = useRef<HTMLDivElement>(null);
+  const recoveryCloseRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!recoverySheetOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const focusFrame = window.requestAnimationFrame(() => recoveryCloseRef.current?.focus());
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRecoverySheetOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [recoverySheetOpen]);
 
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
@@ -1188,18 +1207,9 @@ export function ClientDashboard() {
     setOpenSections((current) => ({ ...current, [key]: isOpen }));
   }
 
-  function openRecoveryMenu() {
-    setLogMenuContext("recovery");
-    setLogMenuOpen(true);
-
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        logMenuRef.current?.scrollIntoView({
-          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
-          block: "nearest"
-        });
-      });
-    });
+  function openRecoverySheet() {
+    setLogMenuOpen(false);
+    setRecoverySheetOpen(true);
   }
 
   async function recordSleepQuality(quality: "poor" | "okay" | "good") {
@@ -1208,6 +1218,7 @@ export function ClientDashboard() {
       await saveRecoveryCheckin(quality);
       setSleepQuality(quality);
       setLogMenuOpen(false);
+      setRecoverySheetOpen(false);
       await loadDashboard();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Sleep check-in could not be saved.");
@@ -1374,7 +1385,7 @@ export function ClientDashboard() {
                   {content}
                 </Link>
               ) : (
-                <button key={item.label} type="button" onClick={openRecoveryMenu} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} aria-expanded={logMenuOpen && logMenuContext === "recovery"} aria-controls="today-log-menu" className="ascend-pressable ascend-essential-card w-full text-left" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
+                <button key={item.label} type="button" onClick={openRecoverySheet} data-ascend-opening-target={item.key} data-state={item.done ? "done" : isPriority ? "priority" : "open"} data-tone={item.key} aria-expanded={recoverySheetOpen} aria-controls="recovery-action-sheet" className="ascend-pressable ascend-essential-card w-full text-left" aria-label={`${item.label}: ${item.summary}. Open recovery options.`}>
                   {content}
                 </button>
               );
@@ -1417,28 +1428,18 @@ export function ClientDashboard() {
         <section className="ascend-today-path ascend-card-rise py-4">
           <button
             type="button"
-            onClick={() => { setLogMenuContext("all"); setLogMenuOpen((current) => !current); }}
+            onClick={() => setLogMenuOpen((current) => !current)}
             aria-expanded={logMenuOpen}
+            aria-controls="today-log-menu"
             className="ascend-pressable ascend-today-secondary-action mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 text-sm font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm"
           >
             <Plus size={16} className={`transition-transform duration-200 ${logMenuOpen ? "rotate-45" : ""}`} />
             Log something else
           </button>
           <div aria-hidden={!logMenuOpen} className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-300 ${logMenuOpen ? "visible mt-3 grid-rows-[1fr] opacity-100" : "invisible mt-0 grid-rows-[0fr] opacity-0"}`}>
-            <div className="min-h-0">
-              <div ref={logMenuRef} id="today-log-menu" className="ascend-today-log-menu scroll-mt-4 rounded-2xl border border-white/[0.07] bg-black/20 p-3">
-                {logMenuContext === "recovery" ? (
-                  <div className="mb-3 flex items-center justify-between gap-3 border-b border-white/[0.06] pb-3">
-                    <div>
-                      <p className="text-xs font-semibold text-white">Recovery check-in</p>
-                      <p className="mt-0.5 text-[11px] text-zinc-500">Add water or note how you slept.</p>
-                    </div>
-                    <Link href="/water-log" className="ascend-pressable inline-flex min-h-10 items-center gap-1.5 rounded-full border border-calm/25 bg-calm/8 px-3 text-xs font-semibold text-calm">
-                      <Droplets size={14} /> Water
-                    </Link>
-                  </div>
-                ) : null}
-                {logMenuContext === "all" ? <div className="grid grid-cols-3 gap-1.5">
+              <div className="min-h-0">
+              <div id="today-log-menu" className="ascend-today-log-menu rounded-2xl border border-white/[0.07] bg-black/20 p-3">
+                <div className="grid grid-cols-3 gap-1.5">
                   {optionalLogActions.map((action) => {
                     const Icon = action.icon;
                     return (
@@ -1448,7 +1449,7 @@ export function ClientDashboard() {
                       </Link>
                     );
                   })}
-                </div> : null}
+                </div>
                 {!sleepQuality ? (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
                     <div>
@@ -1622,6 +1623,90 @@ export function ClientDashboard() {
               </Link>
             </section>
       </div>
+
+      {recoverySheetOpen ? (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center sm:items-center sm:p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            aria-label="Close recovery check-in"
+            onClick={() => setRecoverySheetOpen(false)}
+          />
+          <section
+            id="recovery-action-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recovery-action-title"
+            className="ascend-card-rise relative z-10 w-full max-w-md rounded-t-3xl border border-sky-300/20 bg-surface px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-24px_70px_rgba(0,0,0,0.48)] sm:rounded-3xl sm:p-6"
+          >
+            <span className="mx-auto mb-3 block h-1 w-10 rounded-full bg-white/15 sm:hidden" aria-hidden="true" />
+            <div className="flex items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-400/12 text-sky-300">
+                <HeartPulse size={21} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 id="recovery-action-title" className="text-lg font-semibold text-white">Recovery check-in</h2>
+                <p className="mt-1 text-sm leading-5 text-zinc-400">Log hydration or how you slept. Either one helps Ascend guide today.</p>
+              </div>
+              <button
+                ref={recoveryCloseRef}
+                type="button"
+                onClick={() => setRecoverySheetOpen(false)}
+                className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-300 hover:border-sky-300/35 hover:text-white"
+                aria-label="Close recovery check-in"
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <Link
+              href="/water-log"
+              onClick={() => setRecoverySheetOpen(false)}
+              className="ascend-pressable mt-5 flex min-h-16 items-center gap-3 rounded-2xl border border-calm/25 bg-calm/10 px-4 text-left"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-calm/15 text-calm"><Droplets size={19} /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-white">Log water</span>
+                <span className="mt-0.5 block text-xs text-zinc-400">
+                  {todaysWaterMl > 0 ? `${(todaysWaterMl / 1000).toFixed(1)}L recorded today` : "Add a quick hydration check-in"}
+                </span>
+              </span>
+              <ArrowRight size={18} className="shrink-0 text-calm" />
+            </Link>
+
+            <div className="mt-3 rounded-2xl border border-white/[0.08] bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">How did you sleep?</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">One tap. You can update it later.</p>
+                </div>
+                {savingSleep ? <span className="text-xs font-semibold text-sky-300">Saving...</span> : null}
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {(["poor", "okay", "good"] as const).map((quality) => {
+                  const selected = sleepQuality === quality;
+                  return (
+                    <button
+                      key={quality}
+                      type="button"
+                      disabled={savingSleep}
+                      aria-pressed={selected}
+                      onClick={() => void recordSleepQuality(quality)}
+                      className={`ascend-pressable min-h-12 rounded-xl border px-3 text-sm font-semibold capitalize transition-colors disabled:opacity-50 ${
+                        selected
+                          ? "border-sky-300/60 bg-sky-300/15 text-sky-200"
+                          : "border-white/10 bg-white/[0.025] text-zinc-300 hover:border-sky-300/35 hover:text-white"
+                      }`}
+                    >
+                      {quality}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ink/95 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur" aria-label="Primary navigation">
         <div className={`mx-auto grid max-w-md gap-1 ${navItems.length === 5 ? "grid-cols-5" : navItems.length === 1 ? "grid-cols-1" : navItems.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
