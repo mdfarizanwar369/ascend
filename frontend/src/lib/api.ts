@@ -95,3 +95,26 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
   }
   return parsed;
 }
+
+export async function apiBlob(path: string, options: RequestInit = {}, token?: string) {
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      cache: options.cache ?? "no-store",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers
+      }
+    });
+  } catch {
+    throw new Error("Could not reach Ascend right now. Please check your internet connection and try again in a moment.");
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null);
+    const message = typeof errorBody?.error === "string" ? errorBody.error : `API request failed: ${response.status}`;
+    throw new Error(`${response.status}: ${message}`);
+  }
+  return response.blob();
+}

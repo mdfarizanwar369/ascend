@@ -1,7 +1,7 @@
 import { DeleteObjectsCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env";
-import { imageContentTypeSchema, parseImageDataUrl } from "../utils/images";
+import { imageContentTypeSchema, MAX_IMAGE_BYTES, parseImageDataUrl } from "../utils/images";
 
 const s3 = new S3Client({
   region: env.AWS_REGION,
@@ -55,6 +55,22 @@ export async function createReadUrl(key?: string | null) {
   });
 
   return getSignedUrl(s3, command, { expiresIn: 900 });
+}
+
+export async function readStoredImage(key: string) {
+  if (!env.AWS_S3_BUCKET) throw new Error("Photo storage is not configured.");
+
+  const response = await s3.send(new GetObjectCommand({
+    Bucket: env.AWS_S3_BUCKET,
+    Key: key
+  }));
+  const contentType = imageContentTypeSchema.safeParse(response.ContentType);
+  if (!response.Body || !contentType.success) throw new Error("Stored photo is unavailable.");
+  if (response.ContentLength && response.ContentLength > MAX_IMAGE_BYTES) throw new Error("Stored photo is too large.");
+
+  const bytes = await response.Body.transformToByteArray();
+  if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) throw new Error("Stored photo is unavailable.");
+  return { buffer: Buffer.from(bytes), contentType: contentType.data };
 }
 
 export async function deleteStoredObjects(keys: Array<string | null | undefined>) {

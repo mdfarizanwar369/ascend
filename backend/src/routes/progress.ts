@@ -3,7 +3,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { createReadUrl } from "../integrations/s3";
+import { createReadUrl, readStoredImage } from "../integrations/s3";
 import { canManageClient } from "../services/clientAccessService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 
@@ -44,6 +44,28 @@ progressRouter.get("/progress-photos", requireAuth, async (req, res, next) => {
     res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
   } catch (error) {
     next(error);
+  }
+});
+
+progressRouter.get("/progress-photos/:photoId/image", requireAuth, async (req, res, next) => {
+  try {
+    const photoId = z.string().uuid().parse(req.params.photoId);
+    const result = await query<{ image_s3_key: string | null }>(
+      "select image_s3_key from progress_photos where id = $1 and user_id = $2 limit 1",
+      [photoId, req.user!.id]
+    );
+    const key = result.rows[0]?.image_s3_key;
+    if (!key) return res.status(404).json({ error: "Progress photo not found." });
+
+    const image = await readStoredImage(key);
+    res.set({
+      "Cache-Control": "private, no-store",
+      "Content-Type": image.contentType,
+      "Content-Length": String(image.buffer.length)
+    });
+    return res.send(image.buffer);
+  } catch (error) {
+    return next(error);
   }
 });
 

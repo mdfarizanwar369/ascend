@@ -19,7 +19,7 @@ import {
   WorkoutProgressionHistoryItem,
   WorkoutProgressionIntelligenceV3
 } from "@ascend/shared";
-import { api } from "./api";
+import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
 
 export interface ProgressComparison {
@@ -154,6 +154,15 @@ async function authed<T>(path: string, options: RequestInit = {}) {
     const response = await api<T>(path, options, await getFirebaseToken(true));
     traceApi(`${path} retry`, startedAt, { method: options.method ?? "GET" });
     return response;
+  }
+}
+
+async function authedBlob(path: string) {
+  try {
+    return await apiBlob(path, {}, await getFirebaseToken());
+  } catch (error) {
+    if (!shouldRefreshToken(error)) throw error;
+    return apiBlob(path, {}, await getFirebaseToken(true));
   }
 }
 
@@ -841,6 +850,10 @@ export function getProgressPhotos() {
       logged_at: string;
     }>;
   }>("/progress-photos");
+}
+
+export function getProgressPhotoImageBlob(photoId: string) {
+  return authedBlob(`/progress-photos/${encodeURIComponent(photoId)}/image`);
 }
 
 export function saveProgressPhoto(input: { imageS3Key: string; photoType: "front" | "side" | "back" | "other"; loggedAt?: string }) {

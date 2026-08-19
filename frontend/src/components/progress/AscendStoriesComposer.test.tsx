@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getBurnLogs: vi.fn(),
   getFoodLogs: vi.fn(),
   getGoalStatus: vi.fn(),
+  getProgressPhotoImageBlob: vi.fn(),
   getMyProgressComparison: vi.fn(),
   getMyStreak: vi.fn()
 }));
@@ -23,6 +24,7 @@ vi.mock("@/lib/ascendApi", async (importOriginal) => {
     getBurnLogs: mocks.getBurnLogs,
     getFoodLogs: mocks.getFoodLogs,
     getGoalStatus: mocks.getGoalStatus,
+    getProgressPhotoImageBlob: mocks.getProgressPhotoImageBlob,
     getMyProgressComparison: mocks.getMyProgressComparison,
     getMyStreak: mocks.getMyStreak
   };
@@ -69,9 +71,12 @@ describe("Ascend Stories composer", () => {
     mocks.getBurnLogs.mockResolvedValue({ burnLogs: Array.from({ length: 12 }, (_, index) => ({ id: `burn-${index}` })) });
     mocks.getFoodLogs.mockResolvedValue({ foodLogs: Array.from({ length: 40 }, (_, index) => ({ id: `meal-${index}` })), nextOffset: null });
     mocks.getGoalStatus.mockResolvedValue({ goalStatus: null });
+    mocks.getProgressPhotoImageBlob.mockResolvedValue(new Blob(["photo"], { type: "image/jpeg" }));
     mocks.getMyProgressComparison.mockResolvedValue({ comparison: { current: { weightKg: 72, momentum: 55 }, baseline: { weightKg: 75 } } });
     mocks.getMyStreak.mockResolvedValue({ streak: { current: 14, best: 14 } });
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:protected-photo") });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
   });
 
   it("opens with sensitive and behavioural metrics hidden", async () => {
@@ -126,6 +131,9 @@ describe("Ascend Stories composer", () => {
     fireEvent.change(screen.getByLabelText("Your words"), { target: { value: "More promises kept." } });
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     await waitFor(() => expect(mocks.shareStory).toHaveBeenCalledWith(expect.any(Blob), "More promises kept."));
+    expect(mocks.getProgressPhotoImageBlob).toHaveBeenCalledWith("latest");
+    expect(mocks.renderStory.mock.calls.at(-1)?.[0].latestPhoto.url).toBe("blob:protected-photo");
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:protected-photo");
   });
 
   it("allows an Earned story to use another verified achievement", async () => {
@@ -160,9 +168,9 @@ describe("Ascend Stories composer", () => {
 
   it("keeps the editor usable when a photo URL can no longer be loaded", async () => {
     await openComposer();
-    mocks.renderStory.mockRejectedValueOnce(new Error("Could not prepare this photo. Reopen Progress Photos and try again."));
+    mocks.getProgressPhotoImageBlob.mockRejectedValueOnce(new Error("403"));
     fireEvent.click(screen.getByRole("button", { name: /Save image/i }));
-    expect(await screen.findByText("Could not prepare this photo. Reopen Progress Photos and try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Ascend could not securely load this photo. Please try again.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Save image/i })).toBeEnabled();
     expect(mocks.recordEvent).toHaveBeenCalledWith("ascend_story_generation_failed", expect.any(Object));
   });

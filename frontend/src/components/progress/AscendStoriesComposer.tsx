@@ -30,6 +30,7 @@ import {
 } from "@/lib/ascendStories";
 import { recordAscendStoryEvent } from "@/lib/ascendStoryAnalytics";
 import { renderAscendStory } from "@/lib/ascendStoryRenderer";
+import { prepareStoryPhotos } from "@/lib/ascendStoryPhotoSource";
 import { saveAscendStory, shareAscendStory } from "@/lib/ascendStoryShare";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
@@ -310,8 +311,11 @@ export function AscendStoriesComposer({ photos, onClose }: { photos: ProgressPho
     setIsWorking(true);
     setStatus(action === "share" ? "Preparing your share sheet..." : "Preparing your image...");
     let imageGenerated = false;
+    let releasePreparedPhotos: (() => void) | null = null;
     try {
-      const blob = await renderAscendStory(context, draft);
+      const prepared = await prepareStoryPhotos(context, draft.format);
+      releasePreparedPhotos = prepared.release;
+      const blob = await renderAscendStory(prepared.context, draft);
       imageGenerated = true;
       recordAscendStoryEvent("ascend_story_preview_generated", { format: draft.format, style: draft.style });
       if (action === "share") {
@@ -329,6 +333,7 @@ export function AscendStoriesComposer({ photos, onClose }: { photos: ProgressPho
       if (action === "share" && !/abort|cancel/i.test(message)) recordAscendStoryEvent("ascend_story_share_failed", { format: draft.format, style: draft.style });
       setStatus(/abort|cancel/i.test(message) ? "Sharing cancelled." : message);
     } finally {
+      releasePreparedPhotos?.();
       setIsWorking(false);
     }
   }

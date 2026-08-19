@@ -33,6 +33,8 @@ All formats use the canonical production asset at `/brand/ascend-mark-exact.png`
 
 ## Privacy and data handling
 
+Story export retrieves selected photo bytes through the authenticated member-only progress-photo endpoint. The server verifies photo ownership before reading private storage, and the browser uses short-lived local object URLs that are revoked immediately after rendering. This avoids depending on storage-provider CORS while keeping signed URLs and image content out of analytics.
+
 - Source photos remain governed by the existing authenticated Progress Photos endpoint and Premium entitlement.
 - The editor does not upload captions, crop settings, generated stories, or sharing destinations.
 - Rendering happens locally in the browser/WebView with Canvas 2D.
