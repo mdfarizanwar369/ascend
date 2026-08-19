@@ -4,7 +4,9 @@ import { getFirebaseMessaging } from "../integrations/firebase";
 import { getHealthSyncSummary } from "./healthSyncService";
 import { resolveNutritionTargets } from "./nutritionTargetService";
 import { env } from "../config/env";
-import { dailyCoachingRolloutMode, getLatestCachedDailyCoachingInsight } from "./dailyCoachingDecisionService";
+import { dailyCoachingNotificationSource, dailyCoachingRolloutMode, getLatestCachedDailyCoachingInsight } from "./dailyCoachingDecisionService";
+import { dailyCoachingTelemetry, safeDailyCoachingError } from "./dailyCoachingTelemetry";
+import { isPlatformOwnerEmail } from "./platformOwnerService";
 
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
 
@@ -426,16 +428,27 @@ export async function runCoachNotificationJob(limit = 500) {
   let sent = 0;
   for (const user of users.rows) {
     const todayKey = new Date().toISOString().slice(0, 10);
-    const ownerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
     const rolloutMode = dailyCoachingRolloutMode({
       enabledForAll: env.DAILY_COACHING_DECISION_V1,
       shadowEnabled: env.DAILY_COACHING_DECISION_SHADOW,
       ownerPilotEnabled: env.DAILY_COACHING_DECISION_OWNER_PILOT,
-      isPlatformOwner: Boolean(ownerEmail && user.email.trim().toLowerCase() === ownerEmail)
+      isPlatformOwner: isPlatformOwnerEmail(user.email)
     });
-    const unifiedNotificationInsight = rolloutMode === "active"
-      ? await getLatestCachedDailyCoachingInsight(user.id).catch(() => null)
-      : null;
+    let unifiedNotificationInsight: Awaited<ReturnType<typeof getLatestCachedDailyCoachingInsight>> = null;
+    if (rolloutMode === "active") {
+      try {
+        unifiedNotificationInsight = await getLatestCachedDailyCoachingInsight(user.id);
+        if (!unifiedNotificationInsight) {
+          dailyCoachingTelemetry("notification_decision_unavailable", { rolloutMode });
+        }
+      } catch (error) {
+        dailyCoachingTelemetry("notification_decision_lookup_failed", {
+          rolloutMode,
+          ...safeDailyCoachingError(error)
+        }, "warn");
+      }
+    }
+    const coachingNotificationSource = dailyCoachingNotificationSource(rolloutMode, Boolean(unifiedNotificationInsight));
     const [events, sentTodayResult, openedTodayResult, foodTodayResult, weeklyReflectionResult, proactiveInsight, nutritionTargets] = await Promise.all([
       buildDnaEvents(user.id),
       query<{
@@ -470,14 +483,16 @@ export async function runCoachNotificationJob(limit = 500) {
         "select count(*) as report_count from weekly_reports where user_id = $1 and created_at >= now() - interval '7 days'",
         [user.id]
       ),
-      unifiedNotificationInsight
+      coachingNotificationSource === "unified" && unifiedNotificationInsight
         ? Promise.resolve({
             title: unifiedNotificationInsight.insight.title,
             body: unifiedNotificationInsight.insight.body,
             href: unifiedNotificationInsight.insight.href,
             dedupeKey: `daily-decision:${unifiedNotificationInsight.id}`
           })
-        : buildProactiveInsightForUser(user.id, todayKey).catch(() => null),
+        : coachingNotificationSource === "none"
+          ? Promise.resolve(null)
+          : buildProactiveInsightForUser(user.id, todayKey).catch(() => null),
       resolveNutritionTargets(user.id)
     ]);
     const now = new Date();
@@ -518,7 +533,7 @@ export async function runCoachNotificationJob(limit = 500) {
         : dna.averageWeeklyConsistency >= 85
           ? [{ type: "best_week" }]
           : [],
-      nextBestMove
+      nextBestMove: coachingNotificationSource === "legacy" ? nextBestMove : null
     });
     if (!candidate) continue;
     const result = await sendNotificationToUser(user.id, candidate);

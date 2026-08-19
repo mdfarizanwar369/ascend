@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText, refineTodayPriority } from "../integrations/openai";
+import { createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText, refineTodayPriority, TODAY_PRIORITY_PROMPT_VERSION } from "../integrations/openai";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
@@ -12,8 +12,9 @@ import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
-import { buildTodayPriorityCandidates, deterministicTodayPriority, shouldUseAiPriorityRefinement, TodayPriorityFacts } from "../services/todayPriorityService";
+import { buildTodayPriorityCandidates, deterministicTodayPriority, localCalendarDaysSince, shouldUseAiPriorityRefinement, TodayPriorityFacts } from "../services/todayPriorityService";
 import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
+import { dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -631,6 +632,7 @@ const todayPrioritySchema = z.object({
 });
 
 aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
+  const requestStartedAt = Date.now();
   try {
     const { timezoneOffsetMinutes } = todayPrioritySchema.parse(req.body ?? {});
     const localNow = new Date(Date.now() - timezoneOffsetMinutes * 60_000);
@@ -670,7 +672,7 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
       waterTodayMl: Number(waterResult.rows[0]?.water_ml ?? 0),
       waterTargetMl: nutritionTargets.waterMl,
       workoutCompletedToday: Boolean(workoutResult.rows[0]?.completed_today) || healthSyncSummary?.workoutCompletedToday === true,
-      daysSinceWorkout: latestMovementAt === null ? null : Math.max(0, Math.floor((Date.now() - latestMovementAt) / 86_400_000)),
+      daysSinceWorkout: latestMovementAt === null ? null : localCalendarDaysSince(latestMovementAt, timezoneOffsetMinutes),
       stepsToday: healthSyncSummary?.todaySteps ?? 0,
       activeCaloriesToday: healthSyncSummary?.todayActiveCalories ?? 0,
       sleepQuality: recoveryResult.rows[0]?.sleep_quality ?? null
@@ -728,21 +730,45 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
           facts,
           allowAiRefinement: true,
           legacyPriorityKey: deterministicPriority.key
-        }, { refine: refineTodayPriority });
+        }, {
+          refine: refineTodayPriority,
+          aiProvider: env.AI_PROVIDER,
+          aiModel: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+          promptVersion: TODAY_PRIORITY_PROMPT_VERSION
+        });
 
-        if (decision.decisionSource === "ai" && !decision.cacheHit) {
+        if (decision.aiAttempted && !decision.cacheHit) {
           void logAiUsage({
             userId: req.user!.id,
             gymId: req.user!.gymId,
             eventType: "today_priority_analysis",
             provider: env.AI_PROVIDER,
             model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-            status: "success",
+            status: decision.decisionSource === "ai" ? "success" : "fallback",
             inputUnits: JSON.stringify(facts).length,
             outputUnits: decision.priority.title.length + decision.priority.reason.length,
-            metadata: { selectedKey: decision.priority.key, engine: decision.engineVersion, cacheHit: false }
+            metadata: {
+              selectedKey: decision.priority.key,
+              engine: decision.engineVersion,
+              cacheHit: false,
+              refinementStatus: decision.refinementStatus,
+              promptVersion: TODAY_PRIORITY_PROMPT_VERSION
+            }
           }).catch(() => undefined);
         }
+
+        dailyCoachingTelemetry("decision_resolved", {
+          rolloutMode,
+          decisionSource: decision.decisionSource,
+          responseSource: decision.responseSource,
+          selectedKey: decision.priority.key,
+          cacheHit: decision.cacheHit,
+          aiAttempted: decision.aiAttempted,
+          refinementStatus: decision.refinementStatus,
+          resolutionDurationMs: decision.resolutionDurationMs,
+          requestDurationMs: Date.now() - requestStartedAt,
+          engineVersion: decision.engineVersion
+        });
 
         return res.json({
           priority: decision.priority,
@@ -755,7 +781,12 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
             active: true
           }
         });
-      } catch {
+      } catch (error) {
+        dailyCoachingTelemetry("active_fallback", {
+          rolloutMode,
+          requestDurationMs: Date.now() - requestStartedAt,
+          ...safeDailyCoachingError(error)
+        }, "error");
         return res.json(await resolveLegacyPriority());
       }
     }
@@ -770,7 +801,25 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
         facts,
         allowAiRefinement: false,
         legacyPriorityKey: legacy.priority.key
-      }).catch(() => undefined);
+      }).then((decision) => {
+        dailyCoachingTelemetry("shadow_decision_recorded", {
+          rolloutMode,
+          decisionSource: decision.decisionSource,
+          selectedKey: decision.priority.key,
+          legacyKey: legacy.priority.key,
+          legacyMatches: decision.priority.key === legacy.priority.key,
+          cacheHit: decision.cacheHit,
+          resolutionDurationMs: decision.resolutionDurationMs,
+          requestDurationMs: Date.now() - requestStartedAt,
+          engineVersion: decision.engineVersion
+        });
+      }).catch((error) => {
+        dailyCoachingTelemetry("shadow_persistence_failed", {
+          rolloutMode,
+          requestDurationMs: Date.now() - requestStartedAt,
+          ...safeDailyCoachingError(error)
+        }, "warn");
+      });
     }
 
     return res.json(legacy);

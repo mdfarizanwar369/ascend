@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildDailyCoachingInsight,
   dailyCoachingFingerprint,
+  dailyCoachingNotificationSource,
   dailyCoachingRolloutMode,
   DailyCoachingDecisionStore,
   resolveDailyCoachingDecision
 } from "../services/dailyCoachingDecisionService";
-import { deterministicTodayPriority, TodayPriorityCandidate, TodayPriorityFacts } from "../services/todayPriorityService";
+import { deterministicTodayPriority, localCalendarDaysSince, TodayPriorityCandidate, TodayPriorityFacts } from "../services/todayPriorityService";
 
 function facts(overrides: Partial<TodayPriorityFacts> = {}): TodayPriorityFacts {
   return {
@@ -43,7 +44,8 @@ function memoryStore(): DailyCoachingDecisionStore & { rows: Array<Record<string
         priority: row.priority as Awaited<ReturnType<typeof resolveDailyCoachingDecision>>["priority"],
         insight: row.insight as Awaited<ReturnType<typeof resolveDailyCoachingDecision>>["insight"],
         decision_source: row.decisionSource as "rules" | "ai",
-        ai_attempted: Boolean(row.aiAttempted)
+        ai_attempted: Boolean(row.aiAttempted),
+        refinement_status: (row.refinementStatus as "disabled" | "not_needed" | "not_available" | "capped" | "selected" | "no_result" | "not_recorded") ?? "not_recorded"
       };
     },
     async countAiAttempts(input) {
@@ -54,6 +56,13 @@ function memoryStore(): DailyCoachingDecisionStore & { rows: Array<Record<string
         && candidate.resolutionMode === "refined"
         && candidate.aiAttempted === true
       ).length;
+    },
+    async refreshPresentation(input) {
+      const row = rows.find((candidate) => candidate.id === input.id);
+      if (row) {
+        row.priority = input.priority;
+        row.insight = input.insight;
+      }
     },
     async save(input) {
       const id = `decision-${rows.length + 1}`;
@@ -84,6 +93,13 @@ describe("daily coaching decision", () => {
     expect(dailyCoachingRolloutMode({ enabledForAll: false, shadowEnabled: false, ownerPilotEnabled: false, isPlatformOwner: true })).toBe("legacy");
   });
 
+  it("never falls back to a competing coaching notification while the unified layer is active", () => {
+    expect(dailyCoachingNotificationSource("active", true)).toBe("unified");
+    expect(dailyCoachingNotificationSource("active", false)).toBe("none");
+    expect(dailyCoachingNotificationSource("shadow", false)).toBe("legacy");
+    expect(dailyCoachingNotificationSource("legacy", false)).toBe("legacy");
+  });
+
   it("keeps a fingerprint stable for insignificant changes and changes it at a decision threshold", () => {
     const baseline = dailyCoachingFingerprint("2026-08-19", facts({ waterTodayMl: 1_500, localHour: 17 }));
     const sameBucket = dailyCoachingFingerprint("2026-08-19", facts({ waterTodayMl: 1_600, localHour: 18 }));
@@ -91,6 +107,13 @@ describe("daily coaching decision", () => {
 
     expect(sameBucket).toBe(baseline);
     expect(changed).not.toBe(baseline);
+  });
+
+  it("treats a workout on the previous local calendar day as yesterday even within 24 hours", () => {
+    const now = new Date("2026-08-20T00:00:00.000Z").getTime();
+    const previousEvening = new Date("2026-08-19T12:00:00.000Z").getTime();
+    expect(localCalendarDaysSince(previousEvening, -480, now)).toBe(1);
+    expect(localCalendarDaysSince(new Date("2026-08-20T00:30:00.000Z").getTime(), -480, now)).toBe(0);
   });
 
   it("uses AI only as a referee for close candidates and caches the result", async () => {
@@ -107,6 +130,43 @@ describe("daily coaching decision", () => {
     expect(second.priority.key).toBe("Water");
     expect(second.responseSource).toBe("cache");
     expect(refine).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes exact supporting copy from live facts without repeating the AI decision", async () => {
+    const store = memoryStore();
+    const refine = vi.fn(async ({ candidates }: { candidates: TodayPriorityCandidate[] }) => candidates.find((candidate) => candidate.key === "Water") ?? null);
+    const firstFacts = facts({ waterTodayMl: 800 });
+    const updatedFacts = facts({ waterTodayMl: 1_000 });
+
+    const first = await resolveDailyCoachingDecision(resolveInput({ facts: firstFacts }), { store, refine });
+    const second = await resolveDailyCoachingDecision(resolveInput({ facts: updatedFacts }), { store, refine });
+
+    expect(dailyCoachingFingerprint("2026-08-19", firstFacts)).toBe(dailyCoachingFingerprint("2026-08-19", updatedFacts));
+    expect(first.priority.key).toBe("Water");
+    expect(first.priority.reason).toContain("1.7L remains");
+    expect(second.priority.key).toBe("Water");
+    expect(second.priority.reason).toContain("1.5L remains");
+    expect(second.insight.body).toContain("1.5L remains");
+    expect(second.cacheHit).toBe(true);
+    expect(refine).toHaveBeenCalledTimes(1);
+  });
+
+  it("coalesces concurrent identical decisions into one AI refinement", async () => {
+    const store = memoryStore();
+    const refine = vi.fn(async ({ candidates }: { candidates: TodayPriorityCandidate[] }) => {
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      return candidates.find((candidate) => candidate.key === "Water") ?? null;
+    });
+    const input = resolveInput({ userId: "concurrent-user", facts: facts({ waterTodayMl: 800 }) });
+
+    const [first, second] = await Promise.all([
+      resolveDailyCoachingDecision(input, { store, refine }),
+      resolveDailyCoachingDecision(input, { store, refine })
+    ]);
+
+    expect(first.id).toBe(second.id);
+    expect(refine).toHaveBeenCalledTimes(1);
+    expect(store.rows).toHaveLength(1);
   });
 
   it("does not call AI when deterministic rules have a clear winner", async () => {
@@ -131,6 +191,7 @@ describe("daily coaching decision", () => {
     expect(decision.priority.key).toBe(deterministicTodayPriority(currentFacts).key);
     expect(decision.decisionSource).toBe("rules");
     expect(decision.aiAttempted).toBe(true);
+    expect(decision.refinementStatus).toBe("no_result");
   });
 
   it("does not let shadow mode make an AI call", async () => {
@@ -152,6 +213,7 @@ describe("daily coaching decision", () => {
 
     expect(decision.priority.key).toBe(deterministicTodayPriority(currentFacts).key);
     expect(decision.aiAttempted).toBe(false);
+    expect(decision.refinementStatus).toBe("capped");
     expect(refine).not.toHaveBeenCalled();
   });
 

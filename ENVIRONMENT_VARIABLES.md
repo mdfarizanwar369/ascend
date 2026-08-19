@@ -43,6 +43,7 @@ Set these on the Railway backend service.
 | `DAILY_COACHING_DECISION_V1` | No | `false` | Enables the unified daily coaching decision for every user. Keep off during the owner pilot. |
 | `DAILY_COACHING_DECISION_SHADOW` | No | `false` | Records rule-only comparison decisions without changing the member experience. |
 | `DAILY_COACHING_DECISION_OWNER_PILOT` | No | `false` | Enables the unified daily decision only for `BOOTSTRAP_OWNER_EMAIL`. |
+| `DAILY_COACHING_DECISION_LOGS` | No | `false` | Emits production-safe decision timing and source metadata without member health facts. |
 | `TOYYIBPAY_BASE_URL` | Yes for billing | `https://toyyibpay.com` | ToyyibPay API and checkout base. |
 | `TOYYIBPAY_SECRET_KEY` | Yes for billing | ToyyibPay key | Creates bills. |
 | `TOYYIBPAY_CATEGORY_CODE` | Yes for billing | ToyyibPay category | Creates bills under merchant category. |

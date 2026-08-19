@@ -23,6 +23,20 @@ export type TodayPriorityFacts = {
   sleepQuality: "poor" | "okay" | "good" | null;
 };
 
+const DAY_MS = 86_400_000;
+
+export function localCalendarDaysSince(
+  occurredAtMs: number,
+  timezoneOffsetMinutes: number,
+  nowMs = Date.now()
+) {
+  if (!Number.isFinite(occurredAtMs) || !Number.isFinite(nowMs)) return null;
+  const offsetMs = timezoneOffsetMinutes * 60_000;
+  const occurredDay = Math.floor((occurredAtMs - offsetMs) / DAY_MS);
+  const currentDay = Math.floor((nowMs - offsetMs) / DAY_MS);
+  return Math.max(0, currentDay - occurredDay);
+}
+
 export function buildTodayPriorityCandidates(facts: TodayPriorityFacts): TodayPriorityCandidate[] {
   const candidates: TodayPriorityCandidate[] = [];
   const waterLeftMl = Math.max(0, facts.waterTargetMl - facts.waterTodayMl);

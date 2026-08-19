@@ -72,6 +72,7 @@ const schema = z.object({
   DAILY_COACHING_DECISION_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   DAILY_COACHING_DECISION_SHADOW: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   DAILY_COACHING_DECISION_OWNER_PILOT: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  DAILY_COACHING_DECISION_LOGS: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   MOMENTUM_V2: z.string().default("true").transform((value) => value.toLowerCase() !== "false")
 });
 

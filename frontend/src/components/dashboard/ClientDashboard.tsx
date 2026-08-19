@@ -566,6 +566,12 @@ export function ClientDashboard() {
     try {
       const subscriptionRequest = loadAccountPlan().catch(() => "free" as const);
       const priorityRequest = getTodayPriorityRecommendation().catch(() => null);
+      void priorityRequest.then((response) => {
+        if (requestId === dashboardRequestRef.current && response) {
+          setTodayPriorityRecommendation(response.priority);
+          setDailyDecisionInsight(response.decision?.active ? response.decision.insight : null);
+        }
+      });
       const coreDataRequest = Promise.allSettled([
         getFoodLogs(),
         getWeightLogs(),
@@ -668,13 +674,6 @@ export function ClientDashboard() {
       hasLoadedDashboardRef.current = true;
       setSectionLoading((current) => ({ ...current, core: false }));
       setStatus("");
-
-      void priorityRequest.then((response) => {
-        if (requestId === dashboardRequestRef.current && response) {
-          setTodayPriorityRecommendation(response.priority);
-          setDailyDecisionInsight(response.decision?.active ? response.decision.insight : null);
-        }
-      });
 
       void secondaryDataRequest
         .then(([photos, nutritionTargets, presence, memory, healthSync, recovery]) => {

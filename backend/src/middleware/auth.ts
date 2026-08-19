@@ -4,6 +4,7 @@ import { query } from "../db/pool";
 import { getFirebaseAuth } from "../integrations/firebase";
 import { env } from "../config/env";
 import { createFoodAiTrace, timeFoodAiStage } from "../services/foodAiPerformance";
+import { isPlatformOwnerEmail } from "../services/platformOwnerService";
 
 export interface AuthUser {
   id: string;
@@ -124,7 +125,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     if (!dbUser) return res.status(403).json({ error: "User profile has not been provisioned" });
     if (dbUser.status !== "active") return res.status(403).json({ error: "This account has been deactivated" });
 
-    const isPlatformOwner = Boolean(ownerEmail && dbUser.email.trim().toLowerCase() === ownerEmail);
+    const isPlatformOwner = isPlatformOwnerEmail(dbUser.email);
     let roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
 
     if (isPlatformOwner) {

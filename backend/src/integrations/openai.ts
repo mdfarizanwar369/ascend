@@ -12,6 +12,7 @@ import {
   timeFoodAiSyncStage
 } from "../services/foodAiPerformance";
 import { buildWorkoutCapturePrompt, createFallbackWorkoutCapture, normalizeWorkoutCaptureResponse } from "../services/workoutCaptureService";
+import { dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -1196,6 +1197,8 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   return fallback;
 }
 
+export const TODAY_PRIORITY_PROMPT_VERSION = "today-priority-referee-v2";
+
 export async function refineTodayPriority(input: {
   candidates: Array<{
     key: "Meal" | "Water" | "Movement";
@@ -1213,7 +1216,7 @@ export async function refineTodayPriority(input: {
     "You are the judgement layer for Ascend's Today screen. Deterministic safety rules have already removed inappropriate actions. " +
     "Choose exactly one supplied candidate based on the member's current facts. Never introduce another category. Habits are not a core Today priority. " +
     "A workout yesterday or poor sleep should favor gentle movement rather than hard training. Keep the wording human and specific. " +
-    "Return strict JSON only with selectedKey, title, and reason. Title must be under 55 characters. Reason must be one sentence under 120 characters.\n\n" +
+    "Return strict JSON only with selectedKey. Do not rewrite the supplied candidate because Ascend refreshes its wording from live data.\n\n" +
     `Current facts: ${JSON.stringify(input.facts)}\nEligible candidates: ${JSON.stringify(input.candidates.map(({ key, title, reason, rank }) => ({ key, title, reason, rank })))}`;
 
   let reply: string;
@@ -1234,24 +1237,47 @@ export async function refineTodayPriority(input: {
     } else {
       return null;
     }
-  } catch {
+  } catch (error) {
+    dailyCoachingTelemetry("refinement_provider_failed", {
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      promptVersion: TODAY_PRIORITY_PROMPT_VERSION,
+      ...safeDailyCoachingError(error)
+    }, "warn");
     return null;
   }
 
   try {
     const parsed = parseJsonObject(reply);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      dailyCoachingTelemetry("refinement_response_invalid", {
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        promptVersion: TODAY_PRIORITY_PROMPT_VERSION,
+        failureStage: "json_shape"
+      }, "warn");
+      return null;
+    }
     const result = parsed as Record<string, unknown>;
     const selected = input.candidates.find((candidate) => candidate.key === result.selectedKey);
-    if (!selected) return null;
-    const title = typeof result.title === "string" ? result.title.trim().slice(0, 55) : selected.title;
-    const reason = typeof result.reason === "string" ? result.reason.trim().slice(0, 120) : selected.reason;
-    return {
-      ...selected,
-      title: title || selected.title,
-      reason: reason || selected.reason
-    };
-  } catch {
+    if (!selected) {
+      dailyCoachingTelemetry("refinement_response_invalid", {
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        promptVersion: TODAY_PRIORITY_PROMPT_VERSION,
+        failureStage: "candidate_selection"
+      }, "warn");
+      return null;
+    }
+    return selected;
+  } catch (error) {
+    dailyCoachingTelemetry("refinement_response_invalid", {
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      promptVersion: TODAY_PRIORITY_PROMPT_VERSION,
+      failureStage: "response_parse",
+      ...safeDailyCoachingError(error)
+    }, "warn");
     return null;
   }
 }
