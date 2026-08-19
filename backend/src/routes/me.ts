@@ -13,6 +13,8 @@ import { withProfilePhotoUrl } from "../services/profilePhotoService";
 import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "../services/bodyCompositionService";
 import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNutritionPreference } from "../services/nutritionTargetService";
+import { claimReturnMode, recordReturnModeContinued } from "../services/returnModeService";
+import { env } from "../config/env";
 
 export const meRouter = Router();
 
@@ -50,6 +52,29 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     user.body_composition_nutrition = bodyCompositionForNutrition(scanResult.rows.map(bodyCompositionScanFromDb)) ?? null;
   }
   res.json({ user: { ...user, is_platform_owner: req.user!.isPlatformOwner }, roles: req.user!.roles });
+});
+
+meRouter.post("/me/return-mode/claim", requireAuth, async (req, res, next) => {
+  try {
+    if (!env.RETURN_MODE_V1) return res.json({ returnMode: { claimed: false } });
+    const result = await claimReturnMode({
+      userId: req.user!.id,
+      primaryRole: req.user!.primaryRole,
+      roles: req.user!.roles
+    });
+    res.json({ returnMode: result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.post("/me/return-mode/continue", requireAuth, async (req, res, next) => {
+  try {
+    if (!env.RETURN_MODE_V1) return res.json({ recorded: false });
+    res.json(await recordReturnModeContinued(req.user!.id));
+  } catch (error) {
+    next(error);
+  }
 });
 
 const MAX_PROFILE_PHOTO_BYTES = 400 * 1024;

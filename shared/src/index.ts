@@ -27,6 +27,7 @@ export * from "./workoutProgression";
 export * from "./workoutProgressionV3";
 export * from "./trainerSession";
 export * from "./todayExperience";
+export * from "./returnMode";
 
 export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {
   const isIpadOs = platform === "MacIntel" && maxTouchPoints > 1;

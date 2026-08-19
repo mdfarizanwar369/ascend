@@ -305,6 +305,7 @@ export function getMe() {
       id: string;
       email: string;
       full_name: string;
+      status?: string | null;
       primary_role?: "client" | "trainer" | "admin" | "owner";
       coaching_mode?: CoachingMode | string | null;
       goal_type?: GoalType | null;
@@ -326,9 +327,26 @@ export function getMe() {
       is_platform_owner?: boolean;
       athlete_mode_enabled?: boolean;
       body_composition_nutrition?: BodyCompositionNutrition | null;
+      last_meaningful_activity_at?: string | null;
+      return_mode_last_shown_at?: string | null;
+      return_mode_shown_for_activity_at?: string | null;
     };
     roles: string[];
   }>("me:profile", "/me", 15_000);
+}
+
+export function claimReturnMode() {
+  return authed<{
+    returnMode: {
+      claimed: boolean;
+      fullName?: string;
+      inactivityBucket?: "5_13_days" | "14_29_days" | "30_plus_days";
+    };
+  }>("/me/return-mode/claim", { method: "POST" });
+}
+
+export function continueReturnMode() {
+  return authed<{ recorded: boolean }>("/me/return-mode/continue", { method: "POST" });
 }
 
 export function saveProfilePhoto(imageDataUrl: string) {

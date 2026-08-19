@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { BrandMark } from "@/components/BrandMark";
-import { getMe } from "@/lib/ascendApi";
+import { claimReturnMode, getMe } from "@/lib/ascendApi";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { markTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
+import { evaluateProfileForReturnMode, writeReturnModeHandoff } from "@/lib/returnMode";
 import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 
@@ -29,11 +30,13 @@ export default function LaunchPage() {
   const router = useRouter();
   const {
     enabled: launchMorphV2Enabled,
-    registerLaunchAnchor: registerLaunchMorphV2Anchor
+    registerLaunchAnchor: registerLaunchMorphV2Anchor,
+    dismiss: dismissLaunchMorphV2
   } = useAscendLaunchMorphV2();
   const {
     enabled: launchMorphV22Enabled,
-    registerLaunchAnchor: registerLaunchMorphV22Anchor
+    registerLaunchAnchor: registerLaunchMorphV22Anchor,
+    dismiss: dismissLaunchMorphV22
   } = useAscendLaunchMorphV22();
   const launchMorphEnabled = launchMorphV22Enabled || launchMorphV2Enabled;
   const [message, setMessage] = useState("Opening Ascend...");
@@ -72,6 +75,17 @@ export default function LaunchPage() {
             setMessage("Checking your account...");
             const profile = await withTimeout(getMe());
             const destination = roleHome(Array.isArray(profile.roles) ? profile.roles : []);
+            if (destination === "/dashboard" && evaluateProfileForReturnMode(profile).eligible) {
+              const returnMode = await withTimeout(claimReturnMode()).catch(() => null);
+              if (returnMode?.returnMode.claimed) {
+                writeReturnModeHandoff(returnMode.returnMode.fullName ?? profile.user.full_name);
+                dismissLaunchMorphV22();
+                dismissLaunchMorphV2();
+                if (launchMorphEnabled) router.replace("/return-mode");
+                else window.location.replace("/return-mode");
+                return;
+              }
+            }
             if (launchMorphEnabled) router.replace(destination);
             else window.location.replace(destination);
           } catch {
@@ -90,7 +104,7 @@ export default function LaunchPage() {
       isMounted = false;
       unsubscribe();
     };
-  }, [launchMorphEnabled, router]);
+  }, [dismissLaunchMorphV2, dismissLaunchMorphV22, launchMorphEnabled, router]);
 
   return (
     <main className="grid min-h-screen place-items-center bg-ink px-4 text-white">
