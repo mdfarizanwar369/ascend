@@ -10,10 +10,10 @@ The member-facing entry point is **Progress Photos → Share Your Ascent**.
 
 - Entitlement: inherits the existing Premium Progress Photos gate.
 - Feature flag: `NEXT_PUBLIC_ASCEND_STORIES_V1`.
-- Development and test: enabled automatically.
-- Production: disabled unless `NEXT_PUBLIC_ASCEND_STORIES_V1=true` is explicitly configured.
+- Development, test and production: enabled by default.
+- Emergency rollback: set `NEXT_PUBLIC_ASCEND_STORIES_V1=false` and redeploy the frontend.
 - No database migration is required.
-- Rollback: remove the production flag or revert the feature commit. Existing Progress Photos remain unchanged.
+- Rollback: set the production flag to `false` or revert the feature commit. Existing Progress Photos remain unchanged.
 
 ## Formats
 
