@@ -22,6 +22,7 @@ import {
   saveCompletedWorkout,
   sendCoachMessage
 } from "@/lib/ascendApi";
+import { loadAccountProfile } from "@/lib/accountSession";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 
 type ChatMessage = {
@@ -468,8 +469,11 @@ export function CoachHubClient() {
 
   useEffect(() => {
     let active = true;
+    const priorityRequest = loadAccountProfile()
+      .then((profile) => profile.isPlatformOwner ? getTodayPriorityRecommendation() : null)
+      .catch(() => null);
 
-    Promise.all([getCoachPresence(), getMyStreak(), getBurnLogs(), getFoodLogs({ range: "today", order: "newest", limit: 12 }), getHealthSyncStatus(), getGoalStatus(), getAscendMemory(), getTodayPriorityRecommendation().catch(() => null)])
+    Promise.all([getCoachPresence(), getMyStreak(), getBurnLogs(), getFoodLogs({ range: "today", order: "newest", limit: 12 }), getHealthSyncStatus(), getGoalStatus(), getAscendMemory(), priorityRequest])
       .then(([coachPresenceResponse, streakResponse, burnResponse, foodResponse, healthResponse, goalResponse, memoryResponse, priorityResponse]) => {
         if (!active) return;
         const todayKey = new Date().toDateString();
