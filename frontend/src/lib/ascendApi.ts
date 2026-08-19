@@ -1288,8 +1288,26 @@ export type TodayPriorityRecommendation = {
   cta: string;
 };
 
+export type DailyCoachingDecisionInsight = {
+  title: "Today's Insight";
+  body: string;
+  href: string;
+};
+
+export type TodayPriorityResponse = {
+  priority: TodayPriorityRecommendation;
+  source: "rules" | "cache" | "ai";
+  decision?: {
+    id: string | null;
+    insight: DailyCoachingDecisionInsight;
+    engineVersion: string;
+    cacheHit: boolean;
+    active: true;
+  };
+};
+
 export function getTodayPriorityRecommendation() {
-  return authed<{ priority: TodayPriorityRecommendation; source: "rules" | "cache" | "ai" }>("/ai/today-priority", {
+  return authed<TodayPriorityResponse>("/ai/today-priority", {
     method: "POST",
     body: JSON.stringify({ timezoneOffsetMinutes: new Date().getTimezoneOffset() })
   });

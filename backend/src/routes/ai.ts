@@ -13,6 +13,7 @@ import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonaliz
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
 import { buildTodayPriorityCandidates, deterministicTodayPriority, shouldUseAiPriorityRefinement, TodayPriorityFacts } from "../services/todayPriorityService";
+import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -682,29 +683,97 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
       && facts.stepsToday === 0
       && facts.activeCaloriesToday === 0
       && facts.sleepQuality === null;
-    const leadingRank = candidates[0]?.rank ?? 0;
-    const contenders = candidates.filter((candidate) => leadingRank - candidate.rank <= 10);
-    if (isFirstCheckIn || !shouldUseAiPriorityRefinement(candidates)) {
-      return res.json({ priority: deterministicPriority, source: "rules" });
+    const resolveLegacyPriority = async () => {
+      const leadingRank = candidates[0]?.rank ?? 0;
+      const contenders = candidates.filter((candidate) => leadingRank - candidate.rank <= 10);
+      if (isFirstCheckIn || !shouldUseAiPriorityRefinement(candidates)) {
+        return { priority: deterministicPriority, source: "rules" as const };
+      }
+
+      const refinedPriority = await refineTodayPriority({ candidates: contenders, facts }).catch(() => null);
+      if (!refinedPriority) {
+        return { priority: deterministicPriority, source: "rules" as const };
+      }
+
+      void logAiUsage({
+        userId: req.user!.id,
+        gymId: req.user!.gymId,
+        eventType: "today_priority_analysis",
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        status: "success",
+        inputUnits: JSON.stringify(facts).length,
+        outputUnits: refinedPriority.title.length + refinedPriority.reason.length,
+        metadata: { eligibleKeys: contenders.map((candidate) => candidate.key), selectedKey: refinedPriority.key, engine: "legacy" }
+      }).catch(() => undefined);
+      return { priority: refinedPriority, source: "ai" as const };
+    };
+
+    const rolloutMode = dailyCoachingRolloutMode({
+      enabledForAll: env.DAILY_COACHING_DECISION_V1,
+      shadowEnabled: env.DAILY_COACHING_DECISION_SHADOW,
+      ownerPilotEnabled: env.DAILY_COACHING_DECISION_OWNER_PILOT,
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+    const unifiedDecisionActive = rolloutMode === "active";
+    const shadowActive = rolloutMode === "shadow";
+
+    if (unifiedDecisionActive) {
+      try {
+        const decision = await resolveDailyCoachingDecision({
+          userId: req.user!.id,
+          localDate: localDay,
+          timezoneOffsetMinutes,
+          expiresAt: localDayEndUtc.toISOString(),
+          facts,
+          allowAiRefinement: true,
+          legacyPriorityKey: deterministicPriority.key
+        }, { refine: refineTodayPriority });
+
+        if (decision.decisionSource === "ai" && !decision.cacheHit) {
+          void logAiUsage({
+            userId: req.user!.id,
+            gymId: req.user!.gymId,
+            eventType: "today_priority_analysis",
+            provider: env.AI_PROVIDER,
+            model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+            status: "success",
+            inputUnits: JSON.stringify(facts).length,
+            outputUnits: decision.priority.title.length + decision.priority.reason.length,
+            metadata: { selectedKey: decision.priority.key, engine: decision.engineVersion, cacheHit: false }
+          }).catch(() => undefined);
+        }
+
+        return res.json({
+          priority: decision.priority,
+          source: decision.responseSource,
+          decision: {
+            id: decision.id,
+            insight: decision.insight,
+            engineVersion: decision.engineVersion,
+            cacheHit: decision.cacheHit,
+            active: true
+          }
+        });
+      } catch {
+        return res.json(await resolveLegacyPriority());
+      }
     }
 
-    const refinedPriority = await refineTodayPriority({ candidates: contenders, facts }).catch(() => null);
-    if (!refinedPriority) {
-      return res.json({ priority: deterministicPriority, source: "rules" });
+    const legacy = await resolveLegacyPriority();
+    if (shadowActive) {
+      void resolveDailyCoachingDecision({
+        userId: req.user!.id,
+        localDate: localDay,
+        timezoneOffsetMinutes,
+        expiresAt: localDayEndUtc.toISOString(),
+        facts,
+        allowAiRefinement: false,
+        legacyPriorityKey: legacy.priority.key
+      }).catch(() => undefined);
     }
 
-    void logAiUsage({
-      userId: req.user!.id,
-      gymId: req.user!.gymId,
-      eventType: "today_priority_analysis",
-      provider: env.AI_PROVIDER,
-      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-      status: "success",
-      inputUnits: JSON.stringify(facts).length,
-      outputUnits: refinedPriority.title.length + refinedPriority.reason.length,
-      metadata: { eligibleKeys: contenders.map((candidate) => candidate.key), selectedKey: refinedPriority.key }
-    }).catch(() => undefined);
-    return res.json({ priority: refinedPriority, source: "ai" });
+    return res.json(legacy);
   } catch (error) {
     next(error);
   }

@@ -33,6 +33,7 @@ import {
   AscendMemoryResponse,
   CoachPresenceSettings,
   CoachPresenceMessage,
+  DailyCoachingDecisionInsight,
   TodayPriorityRecommendation
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
@@ -384,6 +385,7 @@ export function ClientDashboard() {
   const [essentialsEntrancePhase, setEssentialsEntrancePhase] = useState<"waiting" | "running" | "settled">("waiting");
   const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph" | "morphV2" | "morphV22">("undecided");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
+  const [dailyDecisionInsight, setDailyDecisionInsight] = useState<DailyCoachingDecisionInsight | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
@@ -670,6 +672,7 @@ export function ClientDashboard() {
       void priorityRequest.then((response) => {
         if (requestId === dashboardRequestRef.current && response) {
           setTodayPriorityRecommendation(response.priority);
+          setDailyDecisionInsight(response.decision?.active ? response.decision.insight : null);
         }
       });
 
@@ -1152,6 +1155,13 @@ export function ClientDashboard() {
     syncedSteps > 0 ||
     todayActivityCalories > 0;
   const dailyCoachingMessage = (() => {
+    if (dailyDecisionInsight) {
+      return {
+        label: dailyDecisionInsight.title,
+        message: dailyDecisionInsight.body,
+        detail: "One clear direction, based on what matters most today."
+      };
+    }
     if (coachPresence.latest?.message && proactiveCoachInsight.key === "steady") {
       return {
         label: "Coach Presence",

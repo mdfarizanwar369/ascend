@@ -18,6 +18,7 @@ import {
   getGoalStatus,
   getHealthSyncStatus,
   getMyStreak,
+  getTodayPriorityRecommendation,
   saveCompletedWorkout,
   sendCoachMessage
 } from "@/lib/ascendApi";
@@ -468,8 +469,8 @@ export function CoachHubClient() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([getCoachPresence(), getMyStreak(), getBurnLogs(), getFoodLogs({ range: "today", order: "newest", limit: 12 }), getHealthSyncStatus(), getGoalStatus(), getAscendMemory()])
-      .then(([coachPresenceResponse, streakResponse, burnResponse, foodResponse, healthResponse, goalResponse, memoryResponse]) => {
+    Promise.all([getCoachPresence(), getMyStreak(), getBurnLogs(), getFoodLogs({ range: "today", order: "newest", limit: 12 }), getHealthSyncStatus(), getGoalStatus(), getAscendMemory(), getTodayPriorityRecommendation().catch(() => null)])
+      .then(([coachPresenceResponse, streakResponse, burnResponse, foodResponse, healthResponse, goalResponse, memoryResponse, priorityResponse]) => {
         if (!active) return;
         const todayKey = new Date().toDateString();
         const latestWorkoutToday = burnResponse.burnLogs.some((log) => new Date(log.created_at).toDateString() === todayKey);
@@ -479,7 +480,9 @@ export function CoachHubClient() {
           return new Date(log.created_at).toDateString() === date.toDateString();
         });
         setTodaysInsight(
-          buildTodaysInsight({
+          priorityResponse?.decision?.active
+            ? priorityResponse.decision.insight.body
+            : buildTodaysInsight({
             coachPresence: coachPresenceResponse.latest?.message ?? null,
             foodCountToday: foodResponse.foodLogs.length,
             totalWorkoutLogs: burnResponse.burnLogs.length,

@@ -40,6 +40,9 @@ Set these on the Railway backend service.
 | `OPENAI_API_KEY` | Optional | OpenAI API key | Optional fallback if `AI_PROVIDER=openai`. |
 | `OPENAI_MODEL` | Optional | `gpt-4.1-mini` | Optional OpenAI model. |
 | `WORKOUT_CAPTURE_V1` | No | `false` | Enables the authenticated Workout Capture analysis and save APIs. Keep off outside the private pilot. |
+| `DAILY_COACHING_DECISION_V1` | No | `false` | Enables the unified daily coaching decision for every user. Keep off during the owner pilot. |
+| `DAILY_COACHING_DECISION_SHADOW` | No | `false` | Records rule-only comparison decisions without changing the member experience. |
+| `DAILY_COACHING_DECISION_OWNER_PILOT` | No | `false` | Enables the unified daily decision only for `BOOTSTRAP_OWNER_EMAIL`. |
 | `TOYYIBPAY_BASE_URL` | Yes for billing | `https://toyyibpay.com` | ToyyibPay API and checkout base. |
 | `TOYYIBPAY_SECRET_KEY` | Yes for billing | ToyyibPay key | Creates bills. |
 | `TOYYIBPAY_CATEGORY_CODE` | Yes for billing | ToyyibPay category | Creates bills under merchant category. |

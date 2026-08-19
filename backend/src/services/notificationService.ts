@@ -4,6 +4,7 @@ import { getFirebaseMessaging } from "../integrations/firebase";
 import { getHealthSyncSummary } from "./healthSyncService";
 import { resolveNutritionTargets } from "./nutritionTargetService";
 import { env } from "../config/env";
+import { dailyCoachingRolloutMode, getLatestCachedDailyCoachingInsight } from "./dailyCoachingDecisionService";
 
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
 
@@ -410,9 +411,9 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
 }
 
 export async function runCoachNotificationJob(limit = 500) {
-  const users = await query<{ id: string }>(
+  const users = await query<{ id: string; email: string }>(
     `
-    select distinct u.id
+    select distinct u.id, u.email
     from users u
     join notification_devices nd on nd.user_id = u.id and nd.enabled = true
     where u.status = 'active'
@@ -425,6 +426,16 @@ export async function runCoachNotificationJob(limit = 500) {
   let sent = 0;
   for (const user of users.rows) {
     const todayKey = new Date().toISOString().slice(0, 10);
+    const ownerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
+    const rolloutMode = dailyCoachingRolloutMode({
+      enabledForAll: env.DAILY_COACHING_DECISION_V1,
+      shadowEnabled: env.DAILY_COACHING_DECISION_SHADOW,
+      ownerPilotEnabled: env.DAILY_COACHING_DECISION_OWNER_PILOT,
+      isPlatformOwner: Boolean(ownerEmail && user.email.trim().toLowerCase() === ownerEmail)
+    });
+    const unifiedNotificationInsight = rolloutMode === "active"
+      ? await getLatestCachedDailyCoachingInsight(user.id).catch(() => null)
+      : null;
     const [events, sentTodayResult, openedTodayResult, foodTodayResult, weeklyReflectionResult, proactiveInsight, nutritionTargets] = await Promise.all([
       buildDnaEvents(user.id),
       query<{
@@ -459,7 +470,14 @@ export async function runCoachNotificationJob(limit = 500) {
         "select count(*) as report_count from weekly_reports where user_id = $1 and created_at >= now() - interval '7 days'",
         [user.id]
       ),
-      buildProactiveInsightForUser(user.id, todayKey).catch(() => null),
+      unifiedNotificationInsight
+        ? Promise.resolve({
+            title: unifiedNotificationInsight.insight.title,
+            body: unifiedNotificationInsight.insight.body,
+            href: unifiedNotificationInsight.insight.href,
+            dedupeKey: `daily-decision:${unifiedNotificationInsight.id}`
+          })
+        : buildProactiveInsightForUser(user.id, todayKey).catch(() => null),
       resolveNutritionTargets(user.id)
     ]);
     const now = new Date();
