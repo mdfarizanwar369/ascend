@@ -12,7 +12,7 @@
     "setup": "npm install",
     "dev": "concurrently \"npm run dev --workspace backend\" \"npm run dev --workspace frontend\"",
     "build": "npm run build --workspace shared && npm run build --workspace backend && npm run build --workspace frontend",
-    "test": "npm run build --workspace shared && npm run test --workspace backend",
+    "test": "npm run build --workspace shared && npm run test --workspace frontend && npm run test --workspace backend",
     "lint": "npm run build --workspace shared && npm run lint --workspace frontend && npm run lint --workspace backend",
     "migrate": "npm run db:migrate --workspace backend",
     "seed": "npm run db:seed --workspace backend",
@@ -42,7 +42,9 @@
     "@capacitor/app": "^8.1.0",
     "@capacitor/camera": "^8.2.0",
     "@capacitor/core": "^8.4.1",
+    "@capacitor/filesystem": "^8.1.2",
     "@capacitor/push-notifications": "^8.1.1",
+    "@capacitor/share": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",
     "@capacitor/status-bar": "^8.0.2"
   }

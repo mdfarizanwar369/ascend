@@ -5,6 +5,8 @@ import { Camera, Check, ChevronLeft, ChevronRight, Expand, ImagePlus, ShieldChec
 import { getProgressPhotos, saveProgressPhoto, uploadProgressPhotoDataUrl } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { rememberDashboardAction } from "@/lib/dataSync";
+import { AscendStoriesLauncher } from "@/components/progress/AscendStoriesLauncher";
+import { ascendStoriesEnabled } from "@/lib/ascendStoriesFlag";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type PhotoType = ProgressPhoto["photo_type"];
@@ -217,6 +219,8 @@ export function ProgressPhotosClient() {
             ) : null}
           </section>
         ) : null}
+
+        {ascendStoriesEnabled() ? <AscendStoriesLauncher photos={photos} /> : null}
 
         <section className="mt-4 grid aspect-[4/5] place-items-center overflow-hidden rounded-2xl border border-line bg-surface">
           {previewUrl ? (
