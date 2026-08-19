@@ -109,7 +109,7 @@ function fallbackSource(): SourceGeometry {
 
 export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const [enabled, setEnabled] = useState(process.env.NEXT_PUBLIC_ASCEND_ESSENTIALS_MORPH_V2 === "true");
+  const [enabled, setEnabled] = useState(isTodayEssentialsMorphV2Requested);
   const [source, setSource] = useState<SourceGeometry | null>(null);
   const [run, setRun] = useState<MorphRun | null>(null);
   const [phase, setPhase] = useState<"idle" | "holding" | "running">("idle");
@@ -122,7 +122,7 @@ export function AscendLaunchMorphV2Provider({ children }: { children: ReactNode 
   const abortRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (isTodayEssentialsMorphV2Requested()) setEnabled(true);
+    setEnabled(isTodayEssentialsMorphV2Requested());
   }, []);
 
   const clearTimers = useCallback(() => {

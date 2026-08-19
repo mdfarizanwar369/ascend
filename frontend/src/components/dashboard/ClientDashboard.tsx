@@ -431,6 +431,11 @@ export function ClientDashboard() {
     if (essentialsEntranceStartedRef.current || document.visibilityState === "hidden") return;
     essentialsEntranceStartedRef.current = true;
 
+    // Consume the document's cold-launch marker even when a provider owns the
+    // opening morph. Otherwise a later Meals -> Today navigation can claim the
+    // stale marker and replay the legacy dashboard entrance.
+    const shouldMorph = claimTodayEssentialsColdLaunch();
+
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     if (reduceMotion) {
       setEssentialsOpeningMode("stagger");
@@ -447,8 +452,6 @@ export function ClientDashboard() {
       setEssentialsOpeningMode("morphV2");
       return;
     }
-
-    const shouldMorph = claimTodayEssentialsColdLaunch();
 
     setEssentialsOpeningMode(shouldMorph ? "morph" : "stagger");
 
