@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MOTIVATION_ANCHOR_VALUES, PRIMARY_BARRIER_VALUES } from "@ascend/shared";
 import { query } from "../db/pool";
 
 export const onboardingSchema = z.object({
@@ -11,7 +12,10 @@ export const onboardingSchema = z.object({
   activityLevel: z.enum(["low", "moderate", "high"]).optional(),
   heightCm: z.number().positive().optional(),
   startingWeightKg: z.number().positive(),
-  targetWeightKg: z.number().positive().optional()
+  targetWeightKg: z.number().positive().optional(),
+  // Optional at the API boundary so older installed clients remain compatible.
+  primaryBarrier: z.enum(PRIMARY_BARRIER_VALUES).optional(),
+  motivationAnchor: z.enum(MOTIVATION_ANCHOR_VALUES).nullable().optional()
 });
 
 export const guideProfileSchema = z.object({
@@ -88,6 +92,8 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
           when coalesce($11, assigned_trainer_id) is not null then 'human_coach'
           else $12
         end,
+        primary_barrier = coalesce($13, primary_barrier),
+        motivation_anchor = case when $14 then $15 else motivation_anchor end,
         updated_at = now()
     where id = $1
     returning *
@@ -104,7 +110,10 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
       input.activityLevel ?? null,
       referralRow?.gym_id ?? null,
       referralRow?.trainer_id ?? null,
-      input.coachingMode
+      input.coachingMode,
+      input.primaryBarrier ?? null,
+      Object.prototype.hasOwnProperty.call(input, "motivationAnchor"),
+      input.motivationAnchor ?? null
     ]
   );
 

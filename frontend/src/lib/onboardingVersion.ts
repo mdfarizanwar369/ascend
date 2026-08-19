@@ -8,3 +8,10 @@ export function getOnboardingVersion(): OnboardingVersion {
 export function isProgressiveOnboardingEnabled() {
   return getOnboardingVersion() === "v2";
 }
+
+export function hasCompletedClientOnboardingProfile(input: {
+  goal_type?: unknown;
+  starting_weight_kg?: unknown;
+}) {
+  return Boolean(input.goal_type && input.starting_weight_kg);
+}

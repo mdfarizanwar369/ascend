@@ -3,6 +3,16 @@ export type GoalType = "fat_loss" | "muscle_gain" | "maintenance";
 export type CoachingMode = "self_coached" | "ai_coach" | "human_coach";
 export type Sex = "female" | "male" | "prefer_not_to_say";
 export type ActivityLevel = "low" | "moderate" | "high";
+export const PRIMARY_BARRIER_VALUES = [
+  "motivation_loss",
+  "too_busy",
+  "stress_or_fatigue",
+  "unsure_what_to_do",
+  "all_or_nothing"
+] as const;
+export type PrimaryBarrier = (typeof PRIMARY_BARRIER_VALUES)[number];
+export const MOTIVATION_ANCHOR_VALUES = ["health", "family", "confidence", "capability", "milestone"] as const;
+export type MotivationAnchor = (typeof MOTIVATION_ANCHOR_VALUES)[number];
 export type SubscriptionPlan = "free" | "premium" | "trainer_pro";
 export type SubscriptionProvider = "lemonsqueezy" | "toyyibpay" | "stripe" | "manual" | "google_play";
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired";
@@ -83,6 +93,8 @@ export interface UserProfile {
   assignedTrainerId?: string;
   goalType?: GoalType;
   coachingMode?: CoachingMode;
+  primaryBarrier?: PrimaryBarrier;
+  motivationAnchor?: MotivationAnchor | null;
 }
 
 export interface FoodEstimate {

@@ -77,8 +77,81 @@ describe("guide profile", () => {
       "moderate",
       "gym-1",
       "trainer-1",
-      "self_coached"
+      "self_coached",
+      null,
+      false,
+      null
     ]);
+  });
+
+  it("stores onboarding human context without changing the existing profile inputs", async () => {
+    queryMock.mockResolvedValueOnce({
+      rows: [{ id: "user-1", primary_barrier: "too_busy", motivation_anchor: "family" }]
+    });
+
+    const { completeOnboarding } = await import("../services/userService");
+    const user = await completeOnboarding("user-1", {
+      fullName: "Sally",
+      coachingMode: "self_coached",
+      goalType: "fat_loss",
+      gender: "female",
+      ageYears: 30,
+      heightCm: 165,
+      activityLevel: "moderate",
+      startingWeightKg: 75,
+      targetWeightKg: 65,
+      primaryBarrier: "too_busy",
+      motivationAnchor: "family"
+    });
+
+    expect(user).toMatchObject({ primary_barrier: "too_busy", motivation_anchor: "family" });
+    expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("primary_barrier = coalesce"), [
+      "user-1",
+      "Sally",
+      "fat_loss",
+      165,
+      75,
+      65,
+      "female",
+      30,
+      "moderate",
+      null,
+      null,
+      "self_coached",
+      "too_busy",
+      true,
+      "family"
+    ]);
+  });
+
+  it("preserves existing human context when an older client omits the new fields", async () => {
+    queryMock.mockResolvedValueOnce({ rows: [{ id: "user-1" }] });
+
+    const { completeOnboarding } = await import("../services/userService");
+    await completeOnboarding("user-1", {
+      fullName: "Legacy Member",
+      coachingMode: "self_coached",
+      goalType: "maintenance",
+      startingWeightKg: 75
+    });
+
+    const [sql, values] = queryMock.mock.calls[0];
+    expect(sql).toContain("motivation_anchor = case when $14 then $15 else motivation_anchor end");
+    expect(values.slice(-3)).toEqual([null, false, null]);
+  });
+
+  it("accepts a skipped motivation anchor and rejects unknown context values", async () => {
+    const { onboardingSchema } = await import("../services/userService");
+    const base = {
+      fullName: "Sally",
+      coachingMode: "self_coached" as const,
+      goalType: "fat_loss" as const,
+      startingWeightKg: 75,
+      primaryBarrier: "motivation_loss" as const
+    };
+
+    expect(onboardingSchema.parse({ ...base, motivationAnchor: null }).motivationAnchor).toBeNull();
+    expect(() => onboardingSchema.parse({ ...base, primaryBarrier: "not-real" })).toThrow();
   });
 
   it("rejects an invalid onboarding referral instead of silently ignoring it", async () => {

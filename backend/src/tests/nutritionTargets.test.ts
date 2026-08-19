@@ -2,6 +2,25 @@ import { describe, expect, it } from "vitest";
 import { calculateAdaptiveNutritionTargets, calculateNutritionTargets, hasReachedWeightGoal } from "@ascend/shared";
 
 describe("nutrition targets", () => {
+  it("preserves the established macro output for identical onboarding inputs", () => {
+    const target = calculateNutritionTargets({
+      goalType: "fat_loss",
+      sex: "male",
+      ageYears: 35,
+      heightCm: 175,
+      weightKg: 90,
+      activityLevel: "moderate"
+    });
+
+    expect({
+      calories: target.calorieTarget,
+      protein: target.proteinTargetG,
+      carbs: target.carbsTargetG,
+      fat: target.fatTargetG,
+      water: target.waterTargetMl
+    }).toEqual({ calories: 2325, protein: 155, carbs: 270, fat: 70, water: 2500 });
+  });
+
   it("creates a lower calorie guide for fat loss", () => {
     const target = calculateNutritionTargets({
       goalType: "fat_loss",

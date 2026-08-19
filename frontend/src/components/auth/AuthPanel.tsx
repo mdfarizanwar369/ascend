@@ -25,7 +25,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { markInstallEligible } from "@/lib/installAscend";
-import { isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
+import { hasCompletedClientOnboardingProfile, isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
 import { isNativeAndroidCapacitor } from "@/lib/nativePlatform";
 
 type Mode = "signup" | "login";
@@ -331,7 +331,7 @@ export function AuthPanel() {
       router.replace(destination);
       return;
     }
-    if (profile.user.goal_type && profile.user.starting_weight_kg) {
+    if (hasCompletedClientOnboardingProfile(profile.user)) {
       authTrace("Final navigation decision", { destination: "/dashboard", reason: "profile_complete" });
       router.replace("/dashboard");
       return;

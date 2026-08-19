@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Camera, Droplets, Home, Scale, Sparkles } from "lucide-react";
-import { GoalType } from "@ascend/shared";
+import { GoalType, MotivationAnchor, PrimaryBarrier } from "@ascend/shared";
 import { completeOnboarding, getMe } from "@/lib/ascendApi";
 import { Field, inputClass, selectClass } from "@/components/Field";
 
@@ -11,6 +11,22 @@ const draftKey = "ascend:onboarding:v2:draft";
 const welcomeSeenKey = "ascend:onboarding:v2:welcome-seen";
 
 type GoalChoice = GoalType | "performance" | "healthy_lifestyle";
+
+const barrierOptions: Array<{ value: PrimaryBarrier; label: string }> = [
+  { value: "motivation_loss", label: "I lose motivation" },
+  { value: "too_busy", label: "Life gets too busy" },
+  { value: "stress_or_fatigue", label: "Stress or tiredness takes over" },
+  { value: "unsure_what_to_do", label: "I'm unsure what to do" },
+  { value: "all_or_nothing", label: "I start strongly, then stop" }
+];
+
+const motivationOptions: Array<{ value: MotivationAnchor; label: string }> = [
+  { value: "health", label: "My health" },
+  { value: "family", label: "My family" },
+  { value: "confidence", label: "My confidence" },
+  { value: "capability", label: "Feeling capable again" },
+  { value: "milestone", label: "A personal milestone" }
+];
 
 interface Draft {
   step: number;
@@ -22,6 +38,8 @@ interface Draft {
   currentWeightKg: string;
   targetWeightKg: string;
   activityLevel: "low" | "moderate" | "high";
+  primaryBarrier: PrimaryBarrier | null;
+  motivationAnchor: MotivationAnchor | null;
 }
 
 const defaultDraft: Draft = {
@@ -33,7 +51,9 @@ const defaultDraft: Draft = {
   gender: "prefer_not_to_say",
   currentWeightKg: "",
   targetWeightKg: "",
-  activityLevel: "moderate"
+  activityLevel: "moderate",
+  primaryBarrier: null,
+  motivationAnchor: null
 };
 
 function mapGoal(choice: GoalChoice): GoalType {
@@ -94,7 +114,9 @@ export function ProgressiveClientOnboarding() {
     if (draft.step === 0) return "What are you working toward?";
     if (draft.step === 1) return "Help Ascend personalise your guide.";
     if (draft.step === 2) return "Where are you starting from?";
-    return "How active are you right now?";
+    if (draft.step === 3) return "How active are you right now?";
+    if (draft.step === 4) return "What usually makes it difficult to stay consistent?";
+    return "What makes this important to you right now?";
   }, [draft.step]);
 
   function updateDraft(next: Partial<Draft>) {
@@ -135,18 +157,15 @@ export function ProgressiveClientOnboarding() {
         return "Please add a target weight for this goal.";
       }
     }
+    if (draft.step === 4 && !draft.primaryBarrier) {
+      return "Please choose the option that fits you best.";
+    }
     return null;
   }
 
-  async function nextStep() {
-    setStatus(null);
-    const validation = validateStep();
-    if (validation) {
-      setStatus(validation);
-      return;
-    }
-    if (draft.step < 3) {
-      updateDraft({ step: draft.step + 1 });
+  async function saveOnboarding(motivationAnchor: MotivationAnchor | null = draft.motivationAnchor) {
+    if (!draft.primaryBarrier) {
+      setStatus("Please choose the option that fits you best.");
       return;
     }
 
@@ -162,7 +181,9 @@ export function ProgressiveClientOnboarding() {
         heightCm: Number(draft.heightCm),
         activityLevel: draft.activityLevel,
         startingWeightKg: Number(draft.currentWeightKg),
-        targetWeightKg: draft.targetWeightKg ? Number(draft.targetWeightKg) : undefined
+        targetWeightKg: draft.targetWeightKg ? Number(draft.targetWeightKg) : undefined,
+        primaryBarrier: draft.primaryBarrier,
+        motivationAnchor
       });
       try {
         window.localStorage.removeItem(draftKey);
@@ -176,6 +197,20 @@ export function ProgressiveClientOnboarding() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  async function nextStep() {
+    setStatus(null);
+    const validation = validateStep();
+    if (validation) {
+      setStatus(validation);
+      return;
+    }
+    if (draft.step < 5) {
+      updateDraft({ step: draft.step + 1 });
+      return;
+    }
+    await saveOnboarding();
   }
 
   if (!showProfileFlow) {
@@ -235,7 +270,7 @@ export function ProgressiveClientOnboarding() {
           <Sparkles size={20} />
         </span>
         <div>
-          <p className="text-sm text-zinc-400">Step {draft.step + 1} of 4</p>
+          <p className="text-sm text-zinc-400">Step {draft.step + 1} of 6</p>
           <h1 className="mt-1 text-2xl font-semibold">{stepTitle}</h1>
         </div>
       </div>
@@ -307,6 +342,42 @@ export function ProgressiveClientOnboarding() {
             </select>
           </Field>
         ) : null}
+
+        {draft.step === 4 ? (
+          <div className="grid gap-2">
+            {barrierOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={draft.primaryBarrier === option.value}
+                onClick={() => updateDraft({ primaryBarrier: option.value })}
+                className={`rounded-xl border p-4 text-left font-semibold ${
+                  draft.primaryBarrier === option.value ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {draft.step === 5 ? (
+          <div className="grid gap-2">
+            {motivationOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={draft.motivationAnchor === option.value}
+                onClick={() => updateDraft({ motivationAnchor: option.value })}
+                className={`rounded-xl border p-4 text-left font-semibold ${
+                  draft.motivationAnchor === option.value ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       {status ? <p role="alert" className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">{status}</p> : null}
@@ -326,14 +397,25 @@ export function ProgressiveClientOnboarding() {
           onClick={nextStep}
           className="flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-wait disabled:opacity-60"
         >
-          {isSaving ? "Saving..." : draft.step === 3 ? "Done" : "Continue"}
+          {isSaving ? "Saving..." : draft.step === 5 ? "Done" : "Continue"}
           {!isSaving ? <ArrowRight className="ml-2" size={18} /> : null}
         </button>
       </div>
 
-      <button type="button" onClick={() => router.push("/dashboard")} className="mt-4 w-full text-sm font-medium text-zinc-400">
-        Skip for now
-      </button>
+      {draft.step === 5 ? (
+        <button
+          type="button"
+          disabled={isSaving}
+          onClick={() => saveOnboarding(null)}
+          className="mt-4 min-h-11 w-full text-sm font-medium text-zinc-300 underline decoration-zinc-600 underline-offset-4 disabled:opacity-50"
+        >
+          Skip for now
+        </button>
+      ) : (
+        <button type="button" onClick={() => router.push("/dashboard")} className="mt-4 min-h-11 w-full text-sm font-medium text-zinc-400">
+          Skip for now
+        </button>
+      )}
     </section>
   );
 }

@@ -2,7 +2,9 @@ import {
   CoachingMode,
   FoodEstimate,
   GoalType,
+  MotivationAnchor,
   NutritionTargetInput,
+  PrimaryBarrier,
   SubscriptionPlan,
   WorkoutCaptureAnalysisResponse,
   WorkoutCaptureAllowance,
@@ -233,6 +235,8 @@ export function completeOnboarding(input: {
   heightCm?: number;
   startingWeightKg: number;
   targetWeightKg?: number;
+  primaryBarrier?: PrimaryBarrier;
+  motivationAnchor?: MotivationAnchor | null;
 }) {
   invalidateCached("me:");
   return authed("/me/onboarding", {
@@ -311,6 +315,8 @@ export function getMe() {
       height_cm?: string | number | null;
       starting_weight_kg?: string | number | null;
       target_weight_kg?: string | number | null;
+      primary_barrier?: PrimaryBarrier | null;
+      motivation_anchor?: MotivationAnchor | null;
       goal_version?: string | number | null;
       gym_id?: string | null;
       assigned_trainer_id?: string | null;
