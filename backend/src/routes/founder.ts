@@ -13,6 +13,7 @@ import {
   syncFounderGmailReplies
 } from "../services/founderGmailService";
 import { env } from "../config/env";
+import { fetchPublicHttpUrl, readResponseBufferLimited } from "../utils/outboundUrl";
 
 export const founderRouter = Router();
 
@@ -81,14 +82,14 @@ async function fetchWebsiteText(url: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(url, {
+    const response = await fetchPublicHttpUrl(url, {
       signal: controller.signal,
       headers: {
         "user-agent": "Ascend founder lead research bot; contact: founder@getascend.fit"
       }
     });
     if (!response.ok) throw new Error(`Website returned ${response.status}`);
-    const text = await response.text();
+    const text = (await readResponseBufferLimited(response, 1_000_000)).toString("utf8");
     return text
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
       .replace(/<style[\s\S]*?<\/style>/gi, " ")

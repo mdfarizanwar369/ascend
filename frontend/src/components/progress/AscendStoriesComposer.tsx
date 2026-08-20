@@ -143,16 +143,16 @@ function CropControls({ label, crop, onChange }: { label: string; crop: AscendSt
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-400">{label}</p>
       <label className="mt-3 block text-xs text-zinc-300">
         Zoom
-        <input className="mt-1 h-9 w-full accent-lime" type="range" min="1" max="2.5" step="0.05" value={crop.zoom} onChange={(event) => onChange({ ...crop, zoom: Number(event.target.value) })} />
+        <input className="mt-1 h-11 w-full accent-lime" type="range" min="1" max="2.5" step="0.05" value={crop.zoom} onChange={(event) => onChange({ ...crop, zoom: Number(event.target.value) })} />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block text-xs text-zinc-300">
           Left / right
-          <input className="mt-1 h-9 w-full accent-lime" type="range" min="-50" max="50" step="1" value={crop.x} onChange={(event) => onChange({ ...crop, x: Number(event.target.value) })} />
+          <input className="mt-1 h-11 w-full accent-lime" type="range" min="-50" max="50" step="1" value={crop.x} onChange={(event) => onChange({ ...crop, x: Number(event.target.value) })} />
         </label>
         <label className="block text-xs text-zinc-300">
           Up / down
-          <input className="mt-1 h-9 w-full accent-lime" type="range" min="-50" max="50" step="1" value={crop.y} onChange={(event) => onChange({ ...crop, y: Number(event.target.value) })} />
+          <input className="mt-1 h-11 w-full accent-lime" type="range" min="-50" max="50" step="1" value={crop.y} onChange={(event) => onChange({ ...crop, y: Number(event.target.value) })} />
         </label>
       </div>
     </div>

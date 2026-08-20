@@ -323,7 +323,7 @@ export function AdminUsersClient() {
                   type="button"
                   disabled={savingUserId === trainer.user_id}
                   onClick={() => approveTrainer(trainer)}
-                  className="h-10 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
+                  className="h-11 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
                 >
                   Approve
                 </button>
@@ -411,14 +411,14 @@ export function AdminUsersClient() {
             <button
               type="button"
               onClick={() => setUserView("active")}
-              className={`h-10 rounded-md px-3 text-sm font-semibold ${userView === "active" ? "bg-lime text-ink" : "text-zinc-300"}`}
+              className={`h-11 rounded-md px-3 text-sm font-semibold ${userView === "active" ? "bg-lime text-ink" : "text-zinc-300"}`}
             >
               Active {activeUsers.length}
             </button>
             <button
               type="button"
               onClick={() => setUserView("inactive")}
-              className={`h-10 rounded-md px-3 text-sm font-semibold ${userView === "inactive" ? "bg-lime text-ink" : "text-zinc-300"}`}
+              className={`h-11 rounded-md px-3 text-sm font-semibold ${userView === "inactive" ? "bg-lime text-ink" : "text-zinc-300"}`}
             >
               Inactive {inactiveUsers.length}
             </button>
@@ -452,7 +452,7 @@ export function AdminUsersClient() {
                     type="button"
                     disabled={savingUserId === user.id}
                     onClick={() => changeUserStatus(user, "active")}
-                    className="h-10 rounded-lg bg-lime text-sm font-semibold text-ink disabled:opacity-60"
+                    className="h-11 rounded-lg bg-lime text-sm font-semibold text-ink disabled:opacity-60"
                   >
                     Reactivate access
                   </button>
@@ -460,7 +460,7 @@ export function AdminUsersClient() {
                     type="button"
                     disabled={savingUserId === user.id || user.primary_role === "owner" || user.primary_role === "admin"}
                     onClick={() => permanentlyDeleteUser(user)}
-                    className="flex h-10 items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-400/10 text-sm font-semibold text-red-300 disabled:opacity-40"
+                    className="flex h-11 items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-400/10 text-sm font-semibold text-red-300 disabled:opacity-40"
                   >
                     <Trash2 size={16} />
                     Delete permanently
@@ -513,7 +513,7 @@ export function AdminUsersClient() {
                         type="button"
                         disabled={savingUserId === user.id || isCurrent}
                         onClick={() => grantPlan(user, plan)}
-                        className={`h-10 rounded-lg text-xs font-semibold disabled:opacity-60 ${
+                        className={`h-11 rounded-lg text-xs font-semibold disabled:opacity-60 ${
                           isCurrent ? "border border-lime bg-lime/10 text-lime" : "border border-line bg-ink text-zinc-200"
                         }`}
                       >
@@ -535,7 +535,7 @@ export function AdminUsersClient() {
                       type="button"
                       disabled={savingUserId === user.id}
                       onClick={() => toggleAthleteMode(user)}
-                      className={`h-10 shrink-0 rounded-lg px-3 text-xs font-semibold disabled:opacity-60 ${
+                      className={`h-11 shrink-0 rounded-lg px-3 text-xs font-semibold disabled:opacity-60 ${
                         user.athlete_mode_enabled ? "bg-purple-400 text-ink" : "border border-purple-400/40 text-purple-300"
                       }`}
                     >
@@ -557,7 +557,7 @@ export function AdminUsersClient() {
                           type="button"
                           disabled={savingUserId === user.id}
                           onClick={() => toggleOwnerGym(user, gym.id)}
-                          className={`h-10 rounded-lg border text-sm font-semibold disabled:opacity-60 ${assigned ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-zinc-300"}`}
+                          className={`h-11 rounded-lg border text-sm font-semibold disabled:opacity-60 ${assigned ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-zinc-300"}`}
                         >
                           {assigned ? "Assigned: " : "Add: "}{gym.name}
                         </button>
@@ -576,7 +576,7 @@ export function AdminUsersClient() {
                     type="button"
                     disabled={savingUserId === user.id}
                     onClick={() => changeUserStatus(user, user.status === "active" ? "inactive" : "active")}
-                    className={`ascend-pressable mt-2 h-10 w-full rounded-lg text-sm font-semibold disabled:opacity-60 ${
+                    className={`ascend-pressable mt-2 h-11 w-full rounded-lg text-sm font-semibold disabled:opacity-60 ${
                       user.status === "active" ? "border border-amber/40 bg-amber/10 text-amber" : "bg-lime text-ink"
                     }`}
                   >
@@ -610,7 +610,7 @@ export function AdminUsersClient() {
                   type="button"
                   disabled={savingUserId === trainer.user_id}
                   onClick={() => createTrainerReferral(trainer)}
-                  className="ascend-pressable h-10 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
+                  className="ascend-pressable h-11 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
                 >
                   Create
                 </button>

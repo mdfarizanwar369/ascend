@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authStateAction } from "./AuthStateGuard";
+import { authStateAction, isPublicPath } from "./AuthStateGuard";
 
 describe("AuthStateGuard", () => {
   it("redirects an initially signed-out visitor away from a protected route", () => {
@@ -16,5 +16,10 @@ describe("AuthStateGuard", () => {
 
   it("does not redirect while already on login", () => {
     expect(authStateAction("member-1", null, "/login")).toBeNull();
+  });
+
+  it("keeps the public product demo accessible without an account", () => {
+    expect(isPublicPath("/demo")).toBe(true);
+    expect(isPublicPath("/dashboard")).toBe(false);
   });
 });

@@ -142,7 +142,7 @@ export function SubscriptionClient() {
 
   async function startCheckout(plan: Exclude<SubscriptionPlan, "free">) {
     if (nativePlayBilling) {
-      setStatus(plan === "trainer_pro" ? "Trainer Pro upgrades are not available in the Android app yet." : "Choose a Google Play option below.");
+      setStatus(plan === "trainer_pro" ? "Trainer Pro upgrades are not available in the Android app yet. Existing Trainer Pro access continues to work normally." : "Choose a Google Play option below.");
       return;
     }
 
@@ -428,7 +428,7 @@ export function SubscriptionClient() {
                       </div>
                     ) : nativePlayBilling && plan === "trainer_pro" ? (
                       <p className="rounded-lg border border-calm/40 bg-calm/10 p-3 text-center text-sm text-zinc-200">
-                        Trainer Pro upgrades are not available in the Android app yet. Please use the web app for trainer billing.
+                        Trainer Pro upgrades are not available in the Android app yet. Existing Trainer Pro access continues to work normally.
                       </p>
                     ) : hideHostedBilling ? (
                       <p className="rounded-lg border border-calm/40 bg-calm/10 p-3 text-center text-sm text-zinc-200">
@@ -470,7 +470,7 @@ export function SubscriptionClient() {
         </section>
         <p className="mt-5 text-center text-xs leading-5 text-zinc-500">
           {nativePlayBilling
-            ? "Google Play manages Android Premium billing. Web checkout continues to use Stripe."
+            ? "Google Play manages Premium billing in the Android app."
             : hideHostedBilling
             ? "Premium access can still be granted manually for closed testing while in-app billing is being prepared."
             : "By subscribing, you agree to the monthly renewal and cancellation terms shown at checkout."}

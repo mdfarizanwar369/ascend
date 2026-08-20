@@ -80,7 +80,10 @@ healthSyncRouter.post("/health-sync/import", requireAuth, async (req, res, next)
     res.json({ importedCount: result.importedCount, summary: result.summary });
   } catch (error) {
     await trackHealthSyncEvent(req.user!.id, req.user!.gymId, "health_sync_sync_failed", {
-      message: error instanceof Error ? error.message : "Unknown health sync failure"
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      errorCode: typeof (error as { code?: unknown })?.code === "string"
+        ? String((error as { code: string }).code).slice(0, 80)
+        : null
     }).catch(() => undefined);
     next(error);
   }

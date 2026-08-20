@@ -13,6 +13,8 @@ import {
 } from "../services/foodAiPerformance";
 import { buildWorkoutCapturePrompt, createFallbackWorkoutCapture, normalizeWorkoutCaptureResponse } from "../services/workoutCaptureService";
 import { dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
+import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "../utils/images";
+import { fetchPublicHttpUrl, readResponseBufferLimited } from "../utils/outboundUrl";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -664,23 +666,34 @@ function dataUrlToGeminiPart(imageUrl: string): GeminiPart | null {
   };
 }
 
-async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
-  const dataUrlPart = dataUrlToGeminiPart(imageUrl);
-  if (dataUrlPart) return dataUrlPart;
+async function prepareFoodImageDataUrl(imageUrl: string) {
+  if (dataUrlToGeminiPart(imageUrl)) return imageUrl;
 
-  const response = await fetch(imageUrl);
-  if (!response.ok) {
-    throw new Error("Could not fetch image for Gemini analysis.");
-  }
-
-  const contentType = response.headers.get("content-type") ?? "image/jpeg";
-  const buffer = Buffer.from(await response.arrayBuffer());
-  return {
-    inlineData: {
-      mimeType: contentType,
-      data: buffer.toString("base64")
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetchPublicHttpUrl(imageUrl, { signal: controller.signal }, { maxRedirects: 3 });
+    if (!response.ok) {
+      throw new Error("Could not fetch image for Gemini analysis.");
     }
-  };
+
+    const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
+    if (!contentType || !ALLOWED_IMAGE_TYPES.includes(contentType as (typeof ALLOWED_IMAGE_TYPES)[number])) {
+      throw new Error("Could not fetch image for Gemini analysis.");
+    }
+    const buffer = await readResponseBufferLimited(response, MAX_IMAGE_BYTES);
+    if (!buffer.length) throw new Error("Could not fetch image for Gemini analysis.");
+    return `data:${contentType};base64,${buffer.toString("base64")}`;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function urlToGeminiPart(imageUrl: string): Promise<GeminiPart> {
+  const preparedImageUrl = await prepareFoodImageDataUrl(imageUrl);
+  const part = dataUrlToGeminiPart(preparedImageUrl);
+  if (!part) throw new Error("Could not fetch image for Gemini analysis.");
+  return part;
 }
 
 async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodAiPerformanceTrace | null) {
@@ -785,6 +798,7 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
 
 async function estimateFoodWithOpenAI(imageUrl: string) {
   if (!openaiClient) return demoFoodEstimate();
+  const preparedImageUrl = await prepareFoodImageDataUrl(imageUrl);
 
   const response = await openaiClient.responses.create({
     model: env.OPENAI_MODEL,
@@ -799,7 +813,7 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
               LOCAL_FOODS.join(", ") +
               ". Return strict JSON with foodName, confidence, calories, proteinG, carbsG, fatG, notes. The user can edit the estimate."
           },
-          { type: "input_image", image_url: imageUrl, detail: "auto" }
+          { type: "input_image", image_url: preparedImageUrl, detail: "auto" }
         ]
       }
     ]

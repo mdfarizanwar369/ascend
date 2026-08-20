@@ -104,7 +104,7 @@ export function TrackingStatus({
       <div className="flex items-center justify-between gap-3">
         <p className="min-w-0 flex-1">{message}</p>
         {success && actionHref ? (
-          <Link href={actionHref} className="ascend-pressable inline-flex min-h-10 shrink-0 items-center rounded-lg border border-lime/30 bg-ink/70 px-3 text-xs font-semibold text-lime">
+          <Link href={actionHref} className="ascend-pressable inline-flex min-h-11 shrink-0 items-center rounded-lg border border-lime/30 bg-ink/70 px-3 text-xs font-semibold text-lime">
             {actionLabel}
           </Link>
         ) : null}

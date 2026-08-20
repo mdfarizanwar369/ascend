@@ -211,10 +211,10 @@ export function AscendDemoExperience() {
             <span className="text-lg font-semibold">Ascend</span>
           </Link>
           <div className="flex items-center gap-2">
-            <Link href="/demo?record=1" className="hidden h-10 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-zinc-200 sm:flex">
+            <Link href="/demo?record=1" className="hidden h-11 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-zinc-200 sm:flex">
               <Video size={16} /> Recording view
             </Link>
-            <Link href="https://www.getascend.fit/login" className="flex h-10 items-center rounded-lg border border-line px-3 text-xs font-semibold text-zinc-200">
+            <Link href="https://www.getascend.fit/login" className="flex h-11 items-center rounded-lg border border-line px-3 text-xs font-semibold text-zinc-200">
               Open Ascend
             </Link>
           </div>

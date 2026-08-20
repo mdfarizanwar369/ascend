@@ -9,6 +9,7 @@ import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/ope
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
 import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
 import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
+import { UnsafeOutboundUrlError, validatePublicHttpUrl } from "../utils/outboundUrl";
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
@@ -20,6 +21,7 @@ import {
   saveExerciseAlias
 } from "../services/workoutProgressionV3Service";
 import { savedWorkoutCaptureExerciseSchema } from "../schemas/workoutCaptureSchemas";
+import { storageKeyBelongsToUser } from "../utils/storageOwnership";
 
 export const logsRouter = Router();
 
@@ -161,8 +163,9 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
   try {
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
     const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodUrlEstimateSchema.parse(req.body));
+    const safeImageUrl = await validatePublicHttpUrl(input.imageUrl);
     const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
-      estimateFoodFromImage(input.imageUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf, timezoneOffsetMinutes: input.timezoneOffsetMinutes })
+      estimateFoodFromImage(safeImageUrl.toString(), { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf, timezoneOffsetMinutes: input.timezoneOffsetMinutes })
     );
     const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes));
     const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
@@ -180,8 +183,12 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
       res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
       return;
     }
+    if (error instanceof UnsafeOutboundUrlError) {
+      res.status(400).json({ error: "Image URL is not allowed.", ...(performance ? { performance } : {}) });
+      return;
+    }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message, ...(performance ? { performance } : {}) });
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", ...(performance ? { performance } : {}) });
       return;
     }
     next(error);
@@ -212,7 +219,7 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
       return;
     }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message, ...(performance ? { performance } : {}) });
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", ...(performance ? { performance } : {}) });
       return;
     }
     next(error);
@@ -231,7 +238,7 @@ logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req
       return;
     }
     if (error instanceof Error) {
-      res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", detail: error.message });
+      res.status(503).json({ error: "Food AI estimate is temporarily unavailable." });
       return;
     }
     next(error);
@@ -241,6 +248,9 @@ logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req
 logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
   try {
     const input = foodLogSchema.parse(req.body);
+    if (input.imageS3Key && !storageKeyBelongsToUser(input.imageS3Key, "food", req.user!.id)) {
+      return res.status(400).json({ error: "Meal photo is invalid." });
+    }
     const result = await query(
       `
       insert into food_logs (

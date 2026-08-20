@@ -1827,7 +1827,7 @@ export function ClientDashboard() {
                     </div>
                     <div className="flex gap-1.5">
                       {(["poor", "okay", "good"] as const).map((quality) => (
-                        <button key={quality} type="button" disabled={savingSleep} onClick={() => void recordSleepQuality(quality)} className="min-h-9 rounded-full border border-white/10 px-2.5 text-[10px] font-semibold capitalize text-zinc-200 hover:border-calm/50 hover:text-calm disabled:opacity-50">
+                        <button key={quality} type="button" disabled={savingSleep} onClick={() => void recordSleepQuality(quality)} className="min-h-11 rounded-full border border-white/10 px-2.5 text-[10px] font-semibold capitalize text-zinc-200 hover:border-calm/50 hover:text-calm disabled:opacity-50">
                           {quality}
                         </button>
                       ))}
@@ -1960,16 +1960,16 @@ export function ClientDashboard() {
                   <p className="mt-1 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {user?.assigned_trainer_id ? (
-                      <Link href="/messages" className="ascend-pressable inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
+                      <Link href="/messages" className="ascend-pressable inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-purple-200">
                         View Coach Note <ArrowRight size={15} />
                       </Link>
                     ) : (
-                      <Link href="/coach" className="ascend-pressable inline-flex h-10 items-center gap-2 text-sm font-semibold text-purple-200">
+                      <Link href="/coach" className="ascend-pressable inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-purple-200">
                         Talk to Zoe <ArrowRight size={15} />
                       </Link>
                     )}
                     {user?.athlete_mode_enabled ? (
-                      <Link href="/athlete" className="ascend-pressable inline-flex h-10 items-center justify-center rounded-full border border-sky-400/20 bg-sky-400/5 px-4 text-sm font-semibold text-sky-100">
+                      <Link href="/athlete" className="ascend-pressable inline-flex min-h-11 items-center justify-center rounded-full border border-sky-400/20 bg-sky-400/5 px-4 text-sm font-semibold text-sky-100">
                         {athleteTodaySummary ?? "Athlete Mode"}
                       </Link>
                     ) : null}

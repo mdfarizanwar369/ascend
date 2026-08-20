@@ -19,6 +19,7 @@ import {
   validateBodyCompositionScan
 } from "../services/bodyCompositionService";
 import { imageDataUrlSchema } from "../utils/images";
+import { storageKeyBelongsToUser } from "../utils/storageOwnership";
 
 export const bodyCompositionRouter = Router();
 
@@ -51,6 +52,10 @@ const scanSchema = z.object({
   userConfirmed: z.boolean().default(true)
 });
 const extractSchema = z.object({ images: z.array(imageDataUrlSchema).min(1).max(6) });
+export const bodyCompositionHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0)
+});
 
 function bodyCompositionRouteLog(event: string, metadata: Record<string, unknown>) {
   if (env.BODY_COMPOSITION_AI_DEBUG_LOGS || env.NODE_ENV !== "production") {
@@ -156,6 +161,13 @@ async function summaryFor(userId: string) {
 async function saveScan(userId: string, actorId: string, body: unknown) {
   bodyCompositionSaveLog("save_parse_started", { userId, actorId });
   const input = normalizeBodyCompositionScan(scanSchema.parse(body));
+  if ((input.sourceImages ?? []).some((image) => image.key
+    && !storageKeyBelongsToUser(image.key, "body-composition", userId)
+    && !storageKeyBelongsToUser(image.key, "body-composition", actorId))) {
+    const error = new Error("Body Scan image is invalid.");
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
   bodyCompositionSaveLog("save_parse_complete", {
     userId,
     scanDate: input.scanDate,
@@ -291,7 +303,8 @@ bodyCompositionRouter.post("/athlete/body-composition/scans", (req, _res, next) 
 bodyCompositionRouter.get("/athlete/body-composition/scans", requireAuth, async (req, res, next) => {
   try {
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
-    res.json({ scans: await getScans(req.user!.id, Number(req.query.limit ?? 50), Number(req.query.offset ?? 0)) });
+    const filters = bodyCompositionHistoryQuerySchema.parse(req.query);
+    res.json({ scans: await getScans(req.user!.id, filters.limit, filters.offset) });
   } catch (error) {
     next(error);
   }
@@ -314,9 +327,10 @@ bodyCompositionRouter.get("/trainer/clients/:clientId/body-composition", require
   try {
     if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
     if (!await requireEnabledAthlete(req.params.clientId)) return res.status(404).json({ error: "Athlete Mode is not enabled for this client." });
+    const filters = bodyCompositionHistoryQuerySchema.parse(req.query);
     const [summary, scans, nutritionTargets] = await Promise.all([
       summaryFor(req.params.clientId),
-      getScans(req.params.clientId, Number(req.query.limit ?? 50), Number(req.query.offset ?? 0)),
+      getScans(req.params.clientId, filters.limit, filters.offset),
       resolveNutritionTargets(req.params.clientId)
     ]);
     res.json({ summary, scans, nutritionTargets });

@@ -30,7 +30,8 @@ export function RoleGate({
   fallbackTitle,
   fallbackMessage,
   requiredPlan,
-  planFeature
+  planFeature,
+  requirePlatformOwner = false
 }: {
   allowedRoles: string[];
   children: React.ReactNode;
@@ -38,6 +39,7 @@ export function RoleGate({
   fallbackMessage: string;
   requiredPlan?: Exclude<SubscriptionPlan, "free">;
   planFeature?: string;
+  requirePlatformOwner?: boolean;
 }) {
   const [state, setState] = useState<"loading" | "allowed" | "role-blocked" | "plan-blocked" | "error">("loading");
   const [retryKey, setRetryKey] = useState(0);
@@ -55,6 +57,7 @@ export function RoleGate({
       const isOwnerOrAdmin = roles.some((role) => role === "owner" || role === "admin") || primaryRole === "owner" || primaryRole === "admin";
 
       if (!hasRole) return "role-blocked";
+      if (requirePlatformOwner && me.user.is_platform_owner !== true) return "role-blocked";
       if (!requiredPlan || isOwnerOrAdmin) return "allowed";
 
       const subscription = await withTimeout(getMySubscription());
@@ -102,7 +105,7 @@ export function RoleGate({
       isMounted = false;
       window.removeEventListener("pageshow", refreshAfterBack);
     };
-  }, [allowedRoleKey, requiredPlan, retryKey]);
+  }, [allowedRoleKey, requirePlatformOwner, requiredPlan, retryKey]);
 
   if (state === "loading") {
     return <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">Checking account access...</p>;

@@ -5,7 +5,7 @@ import {
   normalizeBodyCompositionScan,
   validateBodyCompositionScan
 } from "../services/bodyCompositionService";
-import { bodyCompositionScanToDbValues } from "../routes/bodyComposition";
+import { bodyCompositionHistoryQuerySchema, bodyCompositionScanToDbValues } from "../routes/bodyComposition";
 
 describe("Body Composition Engine", () => {
   it("normalizes lean mass from weight and fat mass", () => {
@@ -112,5 +112,11 @@ describe("Body Composition Engine", () => {
     expect(values[18]).toBe(JSON.stringify({ rightArmKg: 4.1 }));
     expect(values[19]).toBe(JSON.stringify({}));
     expect(values[24]).toBe(JSON.stringify([{ key: "body-composition/test/scan.jpg" }]));
+  });
+
+  it("validates scan history pagination before it reaches PostgreSQL", () => {
+    expect(bodyCompositionHistoryQuerySchema.parse({ limit: "25", offset: "10" })).toEqual({ limit: 25, offset: 10 });
+    expect(() => bodyCompositionHistoryQuerySchema.parse({ limit: "not-a-number" })).toThrow();
+    expect(() => bodyCompositionHistoryQuerySchema.parse({ limit: "101" })).toThrow();
   });
 });

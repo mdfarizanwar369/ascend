@@ -6,6 +6,7 @@ import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl, deleteStoredObjects, readStoredImage } from "../integrations/s3";
 import { canManageClient } from "../services/clientAccessService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
+import { storageKeyBelongsToUser } from "../utils/storageOwnership";
 
 export const progressRouter = Router();
 
@@ -32,6 +33,9 @@ async function withProgressImageUrls<T extends { image_s3_key?: string | null }>
 progressRouter.post("/progress-photos", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
   try {
     const input = progressPhotoSchema.parse(req.body);
+    if (!storageKeyBelongsToUser(input.imageS3Key, "progress", req.user!.id)) {
+      return res.status(400).json({ error: "Progress photo is invalid." });
+    }
     const result = await query(
       "insert into progress_photos (user_id, image_s3_key, photo_type, logged_at) values ($1, $2, coalesce($3, 'front'), coalesce($4, now())) returning *",
       [req.user!.id, input.imageS3Key, input.photoType, input.loggedAt ?? null]

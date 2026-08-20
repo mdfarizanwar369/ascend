@@ -188,7 +188,7 @@ export function ProgressPhotosClient() {
                     type="button"
                     disabled={!available}
                     onClick={() => setComparisonType(type.value)}
-                    className={`ascend-pressable h-10 shrink-0 rounded-full border px-4 text-sm font-semibold ${comparisonType === type.value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-zinc-300"} disabled:opacity-35`}
+                    className={`ascend-pressable h-11 shrink-0 rounded-full border px-4 text-sm font-semibold ${comparisonType === type.value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-zinc-300"} disabled:opacity-35`}
                   >
                     {type.label}
                   </button>
