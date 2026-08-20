@@ -1,3 +1,4 @@
+import { createHmac } from "crypto";
 import { env } from "../config/env";
 
 type SafeTelemetryValue = string | number | boolean | null;
@@ -15,11 +16,21 @@ export function dailyCoachingTelemetry(
 }
 
 export function safeDailyCoachingError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      errorName: error.name.slice(0, 80),
-      errorMessage: error.message.replace(/\s+/g, " ").trim().slice(0, 180)
-    };
-  }
-  return { errorName: "UnknownError", errorMessage: "Unknown daily coaching failure" };
+  const candidate = error as { name?: unknown; code?: unknown; status?: unknown; statusCode?: unknown } | null;
+  return {
+    errorName: typeof candidate?.name === "string" ? candidate.name.slice(0, 80) : "UnknownError",
+    errorCode: typeof candidate?.code === "string" || typeof candidate?.code === "number"
+      ? String(candidate.code).slice(0, 40)
+      : null,
+    httpStatus: typeof candidate?.status === "number"
+      ? candidate.status
+      : typeof candidate?.statusCode === "number"
+        ? candidate.statusCode
+        : null
+  };
+}
+
+export function dailyCoachingCorrelation(userId: string) {
+  const key = env.CRON_SECRET || env.BOOTSTRAP_OWNER_EMAIL || "ascend-daily-coaching";
+  return createHmac("sha256", key).update(userId).digest("hex").slice(0, 16);
 }

@@ -53,15 +53,16 @@ function memoryStore(): DailyCoachingDecisionStore & { rows: Array<Record<string
         candidate.userId === input.userId
         && candidate.localDate === input.localDate
         && candidate.engineVersion === input.engineVersion
-        && candidate.resolutionMode === "refined"
+        && candidate.resolutionMode === input.resolutionMode
         && candidate.aiAttempted === true
       ).length;
     },
-    async refreshPresentation(input) {
+    async recordCacheHit(input) {
       const row = rows.find((candidate) => candidate.id === input.id);
       if (row) {
         row.priority = input.priority;
         row.insight = input.insight;
+        row.cacheHitCount = Number(row.cacheHitCount ?? 0) + 1;
       }
     },
     async save(input) {
@@ -109,6 +110,12 @@ describe("daily coaching decision", () => {
     expect(changed).not.toBe(baseline);
   });
 
+  it("invalidates a cached decision when its prompt version changes", () => {
+    const currentFacts = facts({ waterTodayMl: 800 });
+    expect(dailyCoachingFingerprint("2026-08-19", currentFacts, "prompt-v1"))
+      .not.toBe(dailyCoachingFingerprint("2026-08-19", currentFacts, "prompt-v2"));
+  });
+
   it("treats a workout on the previous local calendar day as yesterday even within 24 hours", () => {
     const now = new Date("2026-08-20T00:00:00.000Z").getTime();
     const previousEvening = new Date("2026-08-19T12:00:00.000Z").getTime();
@@ -148,6 +155,34 @@ describe("daily coaching decision", () => {
     expect(second.priority.reason).toContain("1.5L remains");
     expect(second.insight.body).toContain("1.5L remains");
     expect(second.cacheHit).toBe(true);
+    expect(refine).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves legacy AI wording while caching it independently from the unified referee", async () => {
+    const store = memoryStore();
+    const refine = vi.fn(async ({ candidates }: { candidates: TodayPriorityCandidate[] }) => ({
+      ...(candidates.find((candidate) => candidate.key === "Water") ?? candidates[0]),
+      title: "Legacy personalized title",
+      reason: "Legacy personalized reason."
+    }));
+    const input = resolveInput({ facts: facts({ waterTodayMl: 800 }) });
+
+    const first = await resolveDailyCoachingDecision(input, {
+      store,
+      refine,
+      promptVersion: "legacy-v1",
+      preserveRefinedPresentation: true
+    });
+    const second = await resolveDailyCoachingDecision(input, {
+      store,
+      refine,
+      promptVersion: "legacy-v1",
+      preserveRefinedPresentation: true
+    });
+
+    expect(first.priority.title).toBe("Legacy personalized title");
+    expect(second.priority.reason).toBe("Legacy personalized reason.");
+    expect(store.rows[0]?.resolutionMode).toBe("legacy_refined");
     expect(refine).toHaveBeenCalledTimes(1);
   });
 

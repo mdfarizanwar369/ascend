@@ -15,7 +15,8 @@ const platformSchema = z.enum(["android", "ios", "desktop", "web"]);
 
 const registerDeviceSchema = z.object({
   fcmToken: z.string().min(20),
-  platform: platformSchema.default("web")
+  platform: platformSchema.default("web"),
+  timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
 
 const unregisterDeviceSchema = z.object({
@@ -23,7 +24,8 @@ const unregisterDeviceSchema = z.object({
 });
 
 const activitySchema = z.object({
-  screenName: z.string().min(1).max(80).default("app")
+  screenName: z.string().min(1).max(80).default("app"),
+  timezoneOffsetMinutes: z.number().int().min(-840).max(840).optional()
 });
 
 notificationsRouter.post("/notifications/devices", requireAuth, async (req, res, next) => {
@@ -33,6 +35,7 @@ notificationsRouter.post("/notifications/devices", requireAuth, async (req, res,
       userId: req.user!.id,
       fcmToken: input.fcmToken,
       platform: input.platform,
+      timezoneOffsetMinutes: input.timezoneOffsetMinutes,
       userAgent: req.header("user-agent")
     });
     res.status(201).json({ device });
@@ -54,7 +57,7 @@ notificationsRouter.delete("/notifications/devices", requireAuth, async (req, re
 notificationsRouter.post("/notifications/activity", requireAuth, async (req, res, next) => {
   try {
     const input = activitySchema.parse(req.body);
-    await recordNotificationActivity(req.user!.id, input.screenName);
+    await recordNotificationActivity(req.user!.id, input.screenName, input.timezoneOffsetMinutes);
     res.json({ recorded: true });
   } catch (error) {
     next(error);

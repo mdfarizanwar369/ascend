@@ -4,9 +4,17 @@ import { getFirebaseMessaging } from "../integrations/firebase";
 import { getHealthSyncSummary } from "./healthSyncService";
 import { resolveNutritionTargets } from "./nutritionTargetService";
 import { env } from "../config/env";
-import { dailyCoachingNotificationSource, dailyCoachingRolloutMode, getLatestCachedDailyCoachingInsight } from "./dailyCoachingDecisionService";
-import { dailyCoachingTelemetry, safeDailyCoachingError } from "./dailyCoachingTelemetry";
+import {
+  dailyCoachingNotificationSource,
+  dailyCoachingRolloutMode,
+  getLatestCachedDailyCoachingInsight,
+  resolveDailyCoachingDecision
+} from "./dailyCoachingDecisionService";
+import { dailyCoachingCorrelation, dailyCoachingTelemetry, safeDailyCoachingError } from "./dailyCoachingTelemetry";
 import { isPlatformOwnerEmail } from "./platformOwnerService";
+import { buildTodayPriorityDayContext, loadTodayPriorityFacts } from "./todayPriorityContextService";
+import { deterministicTodayPriority } from "./todayPriorityService";
+import { TODAY_PRIORITY_PROMPT_VERSION } from "../integrations/openai";
 
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
 
@@ -28,6 +36,9 @@ export async function ensureNotificationSchema() {
 
     create index if not exists notification_devices_user_enabled_idx
       on notification_devices(user_id, enabled, last_seen_at desc);
+
+    alter table notification_devices
+      add column if not exists timezone_offset_minutes smallint not null default 0;
 
     create table if not exists notification_events (
       id uuid primary key default uuid_generate_v4(),
@@ -59,21 +70,23 @@ export async function registerNotificationDevice(input: {
   fcmToken: string;
   platform: Platform;
   userAgent?: string | null;
+  timezoneOffsetMinutes: number;
 }) {
   const result = await query(
     `
-    insert into notification_devices (user_id, fcm_token, platform, user_agent)
-    values ($1, $2, $3, $4)
+    insert into notification_devices (user_id, fcm_token, platform, user_agent, timezone_offset_minutes)
+    values ($1, $2, $3, $4, $5)
     on conflict (fcm_token) do update set
       user_id = excluded.user_id,
       platform = excluded.platform,
       user_agent = excluded.user_agent,
+      timezone_offset_minutes = excluded.timezone_offset_minutes,
       enabled = true,
       last_seen_at = now(),
       updated_at = now()
     returning id, platform, enabled, last_seen_at
     `,
-    [input.userId, input.fcmToken, input.platform, input.userAgent ?? null]
+    [input.userId, input.fcmToken, input.platform, input.userAgent ?? null, input.timezoneOffsetMinutes]
   );
   return result.rows[0];
 }
@@ -82,7 +95,7 @@ export async function disableNotificationDevice(userId: string, fcmToken: string
   await query("update notification_devices set enabled = false, updated_at = now() where user_id = $1 and fcm_token = $2", [userId, fcmToken]);
 }
 
-export async function recordNotificationActivity(userId: string, screenName = "app") {
+export async function recordNotificationActivity(userId: string, screenName = "app", timezoneOffsetMinutes?: number) {
   await query(
     `
     insert into analytics_events (user_id, gym_id, event_name, metadata)
@@ -92,6 +105,16 @@ export async function recordNotificationActivity(userId: string, screenName = "a
     `,
     [userId, { screenName }]
   );
+  if (timezoneOffsetMinutes !== undefined) {
+    await query(
+      `
+      update notification_devices
+      set timezone_offset_minutes = $2, updated_at = now()
+      where user_id = $1 and enabled = true
+      `,
+      [userId, timezoneOffsetMinutes]
+    );
+  }
 }
 
 function notificationLink(href: string) {
@@ -412,12 +435,57 @@ async function buildProactiveInsightForUser(userId: string, todayKey: string) {
   };
 }
 
+type UnifiedNotificationInsight = Awaited<ReturnType<typeof getLatestCachedDailyCoachingInsight>>;
+
+type UnifiedNotificationDependencies = {
+  getCached?: typeof getLatestCachedDailyCoachingInsight;
+  loadFacts?: typeof loadTodayPriorityFacts;
+  resolveDecision?: typeof resolveDailyCoachingDecision;
+};
+
+export async function resolveUnifiedNotificationInsightForUser(
+  userId: string,
+  timezoneOffsetMinutes: number,
+  dependencies: UnifiedNotificationDependencies = {}
+): Promise<UnifiedNotificationInsight> {
+  const getCached = dependencies.getCached ?? getLatestCachedDailyCoachingInsight;
+  const loadFacts = dependencies.loadFacts ?? loadTodayPriorityFacts;
+  const resolveDecision = dependencies.resolveDecision ?? resolveDailyCoachingDecision;
+  const dayContext = buildTodayPriorityDayContext(timezoneOffsetMinutes);
+  const cached = await getCached(
+    userId,
+    dayContext.localDate,
+    timezoneOffsetMinutes,
+    TODAY_PRIORITY_PROMPT_VERSION
+  );
+  if (cached) return cached;
+
+  const { context, facts } = await loadFacts(userId, timezoneOffsetMinutes);
+  const deterministic = deterministicTodayPriority(facts);
+  const decision = await resolveDecision({
+    userId,
+    localDate: context.localDate,
+    timezoneOffsetMinutes,
+    expiresAt: context.dayEndUtc.toISOString(),
+    facts,
+    allowAiRefinement: false,
+    legacyPriorityKey: deterministic.key
+  });
+  return decision.id ? { id: decision.id, insight: decision.insight } : null;
+}
+
 export async function runCoachNotificationJob(limit = 500) {
-  const users = await query<{ id: string; email: string }>(
+  const users = await query<{ id: string; email: string; timezone_offset_minutes: number | string }>(
     `
-    select distinct u.id, u.email
+    select u.id, u.email, latest_device.timezone_offset_minutes
     from users u
-    join notification_devices nd on nd.user_id = u.id and nd.enabled = true
+    join lateral (
+      select timezone_offset_minutes
+      from notification_devices
+      where user_id = u.id and enabled = true
+      order by last_seen_at desc
+      limit 1
+    ) latest_device on true
     where u.status = 'active'
     order by u.id
     limit $1
@@ -427,7 +495,9 @@ export async function runCoachNotificationJob(limit = 500) {
 
   let sent = 0;
   for (const user of users.rows) {
-    const todayKey = new Date().toISOString().slice(0, 10);
+    const timezoneOffsetMinutes = Number(user.timezone_offset_minutes ?? 0);
+    const localDayContext = buildTodayPriorityDayContext(timezoneOffsetMinutes);
+    const todayKey = localDayContext.localDate;
     const rolloutMode = dailyCoachingRolloutMode({
       enabledForAll: env.DAILY_COACHING_DECISION_V1,
       shadowEnabled: env.DAILY_COACHING_DECISION_SHADOW,
@@ -437,13 +507,16 @@ export async function runCoachNotificationJob(limit = 500) {
     let unifiedNotificationInsight: Awaited<ReturnType<typeof getLatestCachedDailyCoachingInsight>> = null;
     if (rolloutMode === "active") {
       try {
-        unifiedNotificationInsight = await getLatestCachedDailyCoachingInsight(user.id);
-        if (!unifiedNotificationInsight) {
-          dailyCoachingTelemetry("notification_decision_unavailable", { rolloutMode });
-        }
+        unifiedNotificationInsight = await resolveUnifiedNotificationInsightForUser(user.id, timezoneOffsetMinutes);
+        dailyCoachingTelemetry("notification_decision_resolved", {
+          rolloutMode,
+          correlation: dailyCoachingCorrelation(user.id),
+          decisionAvailable: Boolean(unifiedNotificationInsight)
+        });
       } catch (error) {
         dailyCoachingTelemetry("notification_decision_lookup_failed", {
           rolloutMode,
+          correlation: dailyCoachingCorrelation(user.id),
           ...safeDailyCoachingError(error)
         }, "warn");
       }
@@ -462,22 +535,22 @@ export async function runCoachNotificationJob(limit = 500) {
           count(*) filter (where notification_type = 'celebration') as celebration,
           count(*) filter (where notification_type in ('trainer_message', 'trainer_praise', 'trainer_mission', 'trainer_nutrition_plan')) as trainer_message
         from notification_events
-        where user_id = $1 and created_at >= current_date
+        where user_id = $1 and created_at >= $2 and created_at < $3
         `,
-        [user.id]
+        [user.id, localDayContext.dayStartUtc.toISOString(), localDayContext.dayEndUtc.toISOString()]
       ),
       query<{ opened: string }>(
-        "select count(*) as opened from analytics_events where user_id = $1 and event_name = 'screen_open' and created_at >= current_date",
-        [user.id]
+        "select count(*) as opened from analytics_events where user_id = $1 and event_name = 'screen_open' and created_at >= $2 and created_at < $3",
+        [user.id, localDayContext.dayStartUtc.toISOString(), localDayContext.dayEndUtc.toISOString()]
       ),
       query<{ food_count: string; protein_g: string; water_ml: string }>(
         `
         select
-          (select count(*) from food_logs where user_id = $1 and logged_at >= current_date) as food_count,
-          (select coalesce(sum(protein_g), 0) from food_logs where user_id = $1 and logged_at >= current_date) as protein_g,
-          (select coalesce(sum(amount_ml), 0) from water_logs where user_id = $1 and logged_at >= current_date) as water_ml
+          (select count(*) from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3) as food_count,
+          (select coalesce(sum(protein_g), 0) from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3) as protein_g,
+          (select coalesce(sum(amount_ml), 0) from water_logs where user_id = $1 and logged_at >= $2 and logged_at < $3) as water_ml
         `,
-        [user.id]
+        [user.id, localDayContext.dayStartUtc.toISOString(), localDayContext.dayEndUtc.toISOString()]
       ),
       query<{ report_count: string }>(
         "select count(*) as report_count from weekly_reports where user_id = $1 and created_at >= now() - interval '7 days'",

@@ -1198,8 +1198,9 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
 }
 
 export const TODAY_PRIORITY_PROMPT_VERSION = "today-priority-referee-v2";
+export const TODAY_PRIORITY_LEGACY_PROMPT_VERSION = "today-priority-legacy-v1";
 
-export async function refineTodayPriority(input: {
+type TodayPriorityRefinementInput = {
   candidates: Array<{
     key: "Meal" | "Water" | "Movement";
     title: string;
@@ -1209,7 +1210,38 @@ export async function refineTodayPriority(input: {
     rank: number;
   }>;
   facts: unknown;
-}) {
+};
+
+async function requestTodayPriorityRefinement(prompt: string, promptVersion: string) {
+  try {
+    if (env.AI_PROVIDER === "gemini") {
+      const response = await callGeminiWithOptions([{ text: prompt }], 180, {
+        attemptsPerModel: 1,
+        timeoutMs: 2_500,
+        responseMimeType: "application/json"
+      });
+      return response.text;
+    }
+    if (env.AI_PROVIDER === "openai" && openaiClient) {
+      const response = await openaiClient.responses.create({
+        model: env.OPENAI_MODEL,
+        input: [{ role: "user", content: prompt }]
+      }, { timeout: 2_500 });
+      return response.output_text;
+    }
+    return null;
+  } catch (error) {
+    dailyCoachingTelemetry("refinement_provider_failed", {
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      promptVersion,
+      ...safeDailyCoachingError(error)
+    }, "warn");
+    return null;
+  }
+}
+
+export async function refineTodayPriority(input: TodayPriorityRefinementInput) {
   if (!providerConfigured() || input.candidates.length < 2) return null;
 
   const prompt =
@@ -1219,33 +1251,8 @@ export async function refineTodayPriority(input: {
     "Return strict JSON only with selectedKey. Do not rewrite the supplied candidate because Ascend refreshes its wording from live data.\n\n" +
     `Current facts: ${JSON.stringify(input.facts)}\nEligible candidates: ${JSON.stringify(input.candidates.map(({ key, title, reason, rank }) => ({ key, title, reason, rank })))}`;
 
-  let reply: string;
-  try {
-    if (env.AI_PROVIDER === "gemini") {
-      const response = await callGeminiWithOptions([{ text: prompt }], 180, {
-        attemptsPerModel: 1,
-        timeoutMs: 2_500,
-        responseMimeType: "application/json"
-      });
-      reply = response.text;
-    } else if (env.AI_PROVIDER === "openai" && openaiClient) {
-      const response = await openaiClient.responses.create({
-        model: env.OPENAI_MODEL,
-        input: [{ role: "user", content: prompt }]
-      }, { timeout: 2_500 });
-      reply = response.output_text;
-    } else {
-      return null;
-    }
-  } catch (error) {
-    dailyCoachingTelemetry("refinement_provider_failed", {
-      provider: env.AI_PROVIDER,
-      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-      promptVersion: TODAY_PRIORITY_PROMPT_VERSION,
-      ...safeDailyCoachingError(error)
-    }, "warn");
-    return null;
-  }
+  const reply = await requestTodayPriorityRefinement(prompt, TODAY_PRIORITY_PROMPT_VERSION);
+  if (!reply) return null;
 
   try {
     const parsed = parseJsonObject(reply);
@@ -1276,6 +1283,44 @@ export async function refineTodayPriority(input: {
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       promptVersion: TODAY_PRIORITY_PROMPT_VERSION,
       failureStage: "response_parse",
+      ...safeDailyCoachingError(error)
+    }, "warn");
+    return null;
+  }
+}
+
+export async function refineLegacyTodayPriority(input: TodayPriorityRefinementInput) {
+  if (!providerConfigured() || input.candidates.length < 2) return null;
+
+  const prompt =
+    "You are the judgement layer for Ascend's Today screen. Deterministic safety rules have already removed inappropriate actions. " +
+    "Choose exactly one supplied candidate based on the member's current facts. Never introduce another category. Habits are not a core Today priority. " +
+    "A workout yesterday or poor sleep should favor gentle movement rather than hard training. Keep the wording human and specific. " +
+    "Return strict JSON only with selectedKey, title, and reason. Title must be under 55 characters. Reason must be one sentence under 120 characters.\n\n" +
+    `Current facts: ${JSON.stringify(input.facts)}\nEligible candidates: ${JSON.stringify(input.candidates.map(({ key, title, reason, rank }) => ({ key, title, reason, rank })))}`;
+
+  const reply = await requestTodayPriorityRefinement(prompt, TODAY_PRIORITY_LEGACY_PROMPT_VERSION);
+  if (!reply) return null;
+
+  try {
+    const parsed = parseJsonObject(reply);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const result = parsed as Record<string, unknown>;
+    const selected = input.candidates.find((candidate) => candidate.key === result.selectedKey);
+    if (!selected) return null;
+    const title = typeof result.title === "string" ? result.title.trim().slice(0, 55) : selected.title;
+    const reason = typeof result.reason === "string" ? result.reason.trim().slice(0, 120) : selected.reason;
+    return {
+      ...selected,
+      title: title || selected.title,
+      reason: reason || selected.reason
+    };
+  } catch (error) {
+    dailyCoachingTelemetry("refinement_response_invalid", {
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      promptVersion: TODAY_PRIORITY_LEGACY_PROMPT_VERSION,
+      failureStage: "legacy_response_parse",
       ...safeDailyCoachingError(error)
     }, "warn");
     return null;

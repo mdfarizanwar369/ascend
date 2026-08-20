@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
-import { query } from "../db/pool";
+import { QueryResultRow } from "pg";
+import { pool, query } from "../db/pool";
 import {
   buildTodayPriorityCandidates,
   deterministicTodayPriority,
@@ -11,6 +12,8 @@ import {
 export const DAILY_COACHING_ENGINE_VERSION = "daily-coaching-v1";
 const MAX_AI_REFINEMENTS_PER_DAY = 3;
 const DECISION_RETENTION_DAYS = 90;
+
+export type DailyCoachingResolutionMode = "rules_only" | "refined" | "legacy_refined";
 
 export type DailyCoachingRefinementStatus =
   | "disabled"
@@ -83,10 +86,15 @@ export interface DailyCoachingDecisionStore {
     localDate: string;
     fingerprint: string;
     engineVersion: string;
-    resolutionMode: "rules_only" | "refined";
+    resolutionMode: DailyCoachingResolutionMode;
   }): Promise<StoredDecision | null>;
-  countAiAttempts(input: { userId: string; localDate: string; engineVersion: string }): Promise<number>;
-  refreshPresentation(input: {
+  countAiAttempts(input: {
+    userId: string;
+    localDate: string;
+    engineVersion: string;
+    resolutionMode: DailyCoachingResolutionMode;
+  }): Promise<number>;
+  recordCacheHit(input: {
     id: string;
     priority: DailyCoachingPriority;
     insight: DailyCoachingInsight;
@@ -97,7 +105,7 @@ export interface DailyCoachingDecisionStore {
     timezoneOffsetMinutes: number;
     fingerprint: string;
     engineVersion: string;
-    resolutionMode: "rules_only" | "refined";
+    resolutionMode: DailyCoachingResolutionMode;
     decisionSource: "rules" | "ai";
     priority: DailyCoachingPriority;
     insight: DailyCoachingInsight;
@@ -112,9 +120,15 @@ export interface DailyCoachingDecisionStore {
   }): Promise<string | null>;
 }
 
-const postgresDecisionStore: DailyCoachingDecisionStore = {
+type DecisionQuery = <T extends QueryResultRow = QueryResultRow>(sql: string, values?: unknown[]) => Promise<{
+  rows: T[];
+  rowCount: number | null;
+}>;
+
+function createPostgresDecisionStore(execute: DecisionQuery): DailyCoachingDecisionStore {
+  return {
   async findCached(input) {
-    const result = await query<StoredDecision>(
+    const result = await execute<StoredDecision>(
       `
       select id, priority, insight, decision_source, ai_attempted, refinement_status
       from daily_coaching_decisions
@@ -132,26 +146,30 @@ const postgresDecisionStore: DailyCoachingDecisionStore = {
   },
 
   async countAiAttempts(input) {
-    const result = await query<{ attempts: number | string }>(
+    const result = await execute<{ attempts: number | string }>(
       `
       select count(*)::int as attempts
       from daily_coaching_decisions
       where user_id = $1
         and local_date = $2::date
         and engine_version = $3
-        and resolution_mode = 'refined'
+        and resolution_mode = $4
         and ai_attempted = true
       `,
-      [input.userId, input.localDate, input.engineVersion]
+      [input.userId, input.localDate, input.engineVersion, input.resolutionMode]
     );
     return Number(result.rows[0]?.attempts ?? 0);
   },
 
-  async refreshPresentation(input) {
-    await query(
+  async recordCacheHit(input) {
+    await execute(
       `
       update daily_coaching_decisions
-      set priority = $2::jsonb, insight = $3::jsonb, updated_at = now()
+      set priority = $2::jsonb,
+          insight = $3::jsonb,
+          cache_hit_count = cache_hit_count + 1,
+          last_accessed_at = now(),
+          updated_at = now()
       where id = $1
       `,
       [input.id, JSON.stringify(input.priority), JSON.stringify(input.insight)]
@@ -159,7 +177,7 @@ const postgresDecisionStore: DailyCoachingDecisionStore = {
   },
 
   async save(input) {
-    const result = await query<{ id: string }>(
+    const result = await execute<{ id: string }>(
       `
       insert into daily_coaching_decisions (
         user_id, local_date, timezone_offset_minutes, input_fingerprint,
@@ -212,7 +230,10 @@ const postgresDecisionStore: DailyCoachingDecisionStore = {
     );
     return result.rows[0]?.id ?? null;
   }
-};
+  };
+}
+
+const postgresDecisionStore = createPostgresDecisionStore(query);
 
 function timeBand(localHour: number) {
   if (localHour < 11) return "early";
@@ -235,8 +256,9 @@ function ratioBucket(value: number, target: number) {
   return "complete";
 }
 
-export function dailyCoachingFingerprint(localDate: string, facts: TodayPriorityFacts) {
+export function dailyCoachingFingerprint(localDate: string, facts: TodayPriorityFacts, cacheVersion = "rules-v1") {
   const normalized = {
+    cacheVersion,
     localDate,
     timeBand: timeBand(facts.localHour),
     mealsToday: Math.min(facts.mealsToday, 4),
@@ -306,17 +328,32 @@ type ResolveDailyCoachingDecisionDependencies = {
   aiProvider?: string | null;
   aiModel?: string | null;
   promptVersion?: string | null;
+  preserveRefinedPresentation?: boolean;
 };
 
 const inFlightDecisions = new Map<string, Promise<DailyCoachingDecision>>();
 
+function isFirstCheckIn(facts: TodayPriorityFacts) {
+  return facts.mealsToday === 0
+    && facts.waterTodayMl === 0
+    && facts.daysSinceWorkout === null
+    && facts.stepsToday === 0
+    && facts.activeCaloriesToday === 0
+    && facts.sleepQuality === null;
+}
+
 function refreshedPriority(
   cached: DailyCoachingPriority,
   candidates: TodayPriorityCandidate[],
-  deterministic: DailyCoachingPriority
+  deterministic: DailyCoachingPriority,
+  preservePresentation = false
 ) {
   if (cached.key === null) return deterministic;
-  return candidates.find((candidate) => candidate.key === cached.key) ?? deterministic;
+  const liveCandidate = candidates.find((candidate) => candidate.key === cached.key);
+  if (!liveCandidate) return deterministic;
+  return preservePresentation
+    ? { ...liveCandidate, title: cached.title, reason: cached.reason }
+    : liveCandidate;
 }
 
 async function resolveDailyCoachingDecisionUncoalesced(
@@ -324,7 +361,7 @@ async function resolveDailyCoachingDecisionUncoalesced(
   dependencies: ResolveDailyCoachingDecisionDependencies,
   store: DailyCoachingDecisionStore,
   fingerprint: string,
-  resolutionMode: "rules_only" | "refined"
+  resolutionMode: DailyCoachingResolutionMode
 ): Promise<DailyCoachingDecision> {
   const startedAt = Date.now();
   const candidates = buildTodayPriorityCandidates(input.facts);
@@ -337,11 +374,14 @@ async function resolveDailyCoachingDecisionUncoalesced(
     resolutionMode
   });
   if (cached) {
-    const priority = refreshedPriority(cached.priority, candidates, deterministic);
+    const priority = refreshedPriority(
+      cached.priority,
+      candidates,
+      deterministic,
+      dependencies.preserveRefinedPresentation === true
+    );
     const insight = buildDailyCoachingInsight(priority, input.facts);
-    if (JSON.stringify(priority) !== JSON.stringify(cached.priority) || JSON.stringify(insight) !== JSON.stringify(cached.insight)) {
-      await store.refreshPresentation({ id: cached.id, priority, insight });
-    }
+    await store.recordCacheHit({ id: cached.id, priority, insight });
     return {
       id: cached.id,
       priority,
@@ -356,25 +396,21 @@ async function resolveDailyCoachingDecisionUncoalesced(
     };
   }
 
-  const isFirstCheckIn = input.facts.mealsToday === 0
-    && input.facts.waterTodayMl === 0
-    && input.facts.daysSinceWorkout === null
-    && input.facts.stepsToday === 0
-    && input.facts.activeCaloriesToday === 0
-    && input.facts.sleepQuality === null;
+  const firstCheckIn = isFirstCheckIn(input.facts);
   let priority: DailyCoachingPriority = deterministic;
   let decisionSource: "rules" | "ai" = "rules";
   let aiAttempted = false;
   let refinementStatus: DailyCoachingRefinementStatus = input.allowAiRefinement ? "not_needed" : "disabled";
 
-  if (input.allowAiRefinement && !isFirstCheckIn && shouldUseAiPriorityRefinement(candidates)) {
+  if (input.allowAiRefinement && !firstCheckIn && shouldUseAiPriorityRefinement(candidates)) {
     if (!dependencies.refine) {
       refinementStatus = "not_available";
     } else {
       const attempts = await store.countAiAttempts({
         userId: input.userId,
         localDate: input.localDate,
-        engineVersion: DAILY_COACHING_ENGINE_VERSION
+        engineVersion: DAILY_COACHING_ENGINE_VERSION,
+        resolutionMode
       });
       if (attempts >= (dependencies.maxAiRefinementsPerDay ?? MAX_AI_REFINEMENTS_PER_DAY)) {
         refinementStatus = "capped";
@@ -384,7 +420,12 @@ async function resolveDailyCoachingDecisionUncoalesced(
         const contenders = candidates.filter((candidate) => leadingRank - candidate.rank <= 10);
         const refined = await dependencies.refine({ candidates: contenders, facts: input.facts }).catch(() => null);
         if (refined) {
-          priority = refreshedPriority(refined, candidates, deterministic);
+          priority = refreshedPriority(
+            refined,
+            candidates,
+            deterministic,
+            dependencies.preserveRefinedPresentation === true
+          );
           decisionSource = "ai";
           refinementStatus = "selected";
         } else {
@@ -435,18 +476,33 @@ export async function resolveDailyCoachingDecision(
   dependencies: ResolveDailyCoachingDecisionDependencies = {}
 ): Promise<DailyCoachingDecision> {
   const store = dependencies.store ?? postgresDecisionStore;
-  const resolutionMode = input.allowAiRefinement ? "refined" : "rules_only";
-  const fingerprint = dailyCoachingFingerprint(input.localDate, input.facts);
+  const resolutionMode: DailyCoachingResolutionMode = dependencies.preserveRefinedPresentation
+    ? "legacy_refined"
+    : input.allowAiRefinement
+      ? "refined"
+      : "rules_only";
+  const cacheVersion = input.allowAiRefinement
+    ? dependencies.promptVersion ?? "refinement-unversioned"
+    : "rules-v1";
+  const fingerprint = dailyCoachingFingerprint(input.localDate, input.facts, cacheVersion);
   const inFlightKey = [input.userId, input.localDate, fingerprint, DAILY_COACHING_ENGINE_VERSION, resolutionMode].join(":");
   const existing = inFlightDecisions.get(inFlightKey);
   if (existing) return existing;
 
-  const pending = resolveDailyCoachingDecisionUncoalesced(
+  const resolve = () => resolveDailyCoachingDecisionUncoalesced(
     input,
     dependencies,
     store,
     fingerprint,
     resolutionMode
+  );
+  const refinementMayRun = input.allowAiRefinement
+    && dependencies.refine !== undefined
+    && !isFirstCheckIn(input.facts)
+    && shouldUseAiPriorityRefinement(buildTodayPriorityCandidates(input.facts));
+  const pending = (dependencies.store || !refinementMayRun
+    ? resolve()
+    : resolveWithDistributedLock(input, dependencies, fingerprint, resolutionMode)
   ).finally(() => {
     if (inFlightDecisions.get(inFlightKey) === pending) inFlightDecisions.delete(inFlightKey);
   });
@@ -454,7 +510,40 @@ export async function resolveDailyCoachingDecision(
   return pending;
 }
 
-export async function getLatestCachedDailyCoachingInsight(userId: string) {
+async function resolveWithDistributedLock(
+  input: ResolveDailyCoachingDecisionInput,
+  dependencies: ResolveDailyCoachingDecisionDependencies,
+  fingerprint: string,
+  resolutionMode: DailyCoachingResolutionMode
+) {
+  const client = await pool.connect();
+  const firstLockKey = `${input.userId}:${input.localDate}`;
+  const secondLockKey = `${fingerprint}:${resolutionMode}`;
+  try {
+    await client.query("select pg_advisory_lock(hashtext($1), hashtext($2))", [firstLockKey, secondLockKey]);
+    const lockedStore = createPostgresDecisionStore(async <T extends QueryResultRow = QueryResultRow>(sql: string, values: unknown[] = []) => {
+      const result = await client.query<T>(sql, values);
+      return { rows: result.rows, rowCount: result.rowCount };
+    });
+    return await resolveDailyCoachingDecisionUncoalesced(
+      input,
+      dependencies,
+      lockedStore,
+      fingerprint,
+      resolutionMode
+    );
+  } finally {
+    await client.query("select pg_advisory_unlock(hashtext($1), hashtext($2))", [firstLockKey, secondLockKey]).catch(() => undefined);
+    client.release();
+  }
+}
+
+export async function getLatestCachedDailyCoachingInsight(
+  userId: string,
+  localDate: string,
+  timezoneOffsetMinutes: number,
+  promptVersion: string
+) {
   const result = await query<{
     id: string;
     insight: DailyCoachingInsight;
@@ -463,15 +552,56 @@ export async function getLatestCachedDailyCoachingInsight(userId: string) {
     select id, insight
     from daily_coaching_decisions
     where user_id = $1
-      and resolution_mode = 'refined'
+      and local_date = $2::date
+      and timezone_offset_minutes = $3
+      and resolution_mode in ('refined', 'rules_only')
+      and (resolution_mode = 'rules_only' or prompt_version = $4)
       and expires_at > now()
-    order by updated_at desc
+    order by case when resolution_mode = 'refined' then 0 else 1 end, updated_at desc
     limit 1
     `,
-    [userId]
+    [userId, localDate, timezoneOffsetMinutes, promptVersion]
   );
   const row = result.rows[0];
   return row ? { id: row.id, insight: row.insight } : null;
+}
+
+export async function getDailyCoachingRolloutMetrics(days = 7) {
+  const safeDays = Math.max(1, Math.min(90, Math.trunc(days)));
+  const result = await query<{
+    decisions: number | string;
+    ai_attempts: number | string;
+    ai_selections: number | string;
+    capped: number | string;
+    cache_hits: number | string;
+    average_resolution_ms: number | string | null;
+    shadow_match_rate: number | string | null;
+  }>(
+    `
+    select
+      count(*)::int as decisions,
+      count(*) filter (where ai_attempted)::int as ai_attempts,
+      count(*) filter (where decision_source = 'ai')::int as ai_selections,
+      count(*) filter (where refinement_status = 'capped')::int as capped,
+      coalesce(sum(cache_hit_count), 0)::int as cache_hits,
+      round(avg(resolution_duration_ms))::int as average_resolution_ms,
+      round(100.0 * count(*) filter (where legacy_matches = true)
+        / nullif(count(*) filter (where legacy_matches is not null), 0), 1) as shadow_match_rate
+    from daily_coaching_decisions
+    where created_at >= now() - ($1::int * interval '1 day')
+    `,
+    [safeDays]
+  );
+  const row = result.rows[0];
+  return {
+    decisions: Number(row?.decisions ?? 0),
+    aiAttempts: Number(row?.ai_attempts ?? 0),
+    aiSelections: Number(row?.ai_selections ?? 0),
+    capped: Number(row?.capped ?? 0),
+    cacheHits: Number(row?.cache_hits ?? 0),
+    averageResolutionMs: row?.average_resolution_ms === null ? null : Number(row?.average_resolution_ms ?? 0),
+    shadowMatchRate: row?.shadow_match_rate === null ? null : Number(row?.shadow_match_rate ?? 0)
+  };
 }
 
 export async function cleanupExpiredDailyCoachingDecisions(retentionDays = DECISION_RETENTION_DAYS) {

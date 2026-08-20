@@ -2090,10 +2090,14 @@ export function getAdminNotifications() {
   }>("admin:notifications", "/admin/notifications", 20_000);
 }
 
-export function registerNotificationDevice(input: { fcmToken: string; platform: "android" | "ios" | "desktop" | "web" }) {
+export function registerNotificationDevice(input: {
+  fcmToken: string;
+  platform: "android" | "ios" | "desktop" | "web";
+  timezoneOffsetMinutes?: number;
+}) {
   return authed<{ device: { id: string; platform: string; enabled: boolean; last_seen_at: string } }>("/notifications/devices", {
     method: "POST",
-    body: JSON.stringify(input)
+    body: JSON.stringify({ ...input, timezoneOffsetMinutes: input.timezoneOffsetMinutes ?? new Date().getTimezoneOffset() })
   });
 }
 
@@ -2107,7 +2111,7 @@ export function unregisterNotificationDevice(fcmToken: string) {
 export function recordNotificationActivity(screenName: string) {
   return authed<{ recorded: boolean }>("/notifications/activity", {
     method: "POST",
-    body: JSON.stringify({ screenName })
+    body: JSON.stringify({ screenName, timezoneOffsetMinutes: new Date().getTimezoneOffset() })
   });
 }
 

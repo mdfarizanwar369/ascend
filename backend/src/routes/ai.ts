@@ -1,20 +1,30 @@
 import { Router } from "express";
-import { createCoachWorkoutPlan, createCoachZoeReply, createWorkoutCaptureDraft, estimateBurnFromText, refineTodayPriority, TODAY_PRIORITY_PROMPT_VERSION } from "../integrations/openai";
+import {
+  createCoachWorkoutPlan,
+  createCoachZoeReply,
+  createWorkoutCaptureDraft,
+  estimateBurnFromText,
+  refineLegacyTodayPriority,
+  refineTodayPriority,
+  TODAY_PRIORITY_LEGACY_PROMPT_VERSION,
+  TODAY_PRIORITY_PROMPT_VERSION
+} from "../integrations/openai";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
 import { getCoachZoeAccess, logAiUsage } from "../services/aiUsageService";
 import { env } from "../config/env";
-import { aiRateLimit } from "../middleware/rateLimits";
+import { aiRateLimit, todayPriorityRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
-import { buildTodayPriorityCandidates, deterministicTodayPriority, localCalendarDaysSince, shouldUseAiPriorityRefinement, TodayPriorityFacts } from "../services/todayPriorityService";
+import { deterministicTodayPriority } from "../services/todayPriorityService";
 import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
-import { dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
+import { dailyCoachingCorrelation, dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
+import { loadTodayPriorityFacts } from "../services/todayPriorityContextService";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -631,84 +641,58 @@ const todayPrioritySchema = z.object({
   timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
 
-aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
+aiRouter.post("/ai/today-priority", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
   const requestStartedAt = Date.now();
   try {
     const { timezoneOffsetMinutes } = todayPrioritySchema.parse(req.body ?? {});
-    const localNow = new Date(Date.now() - timezoneOffsetMinutes * 60_000);
-    const localDayStartUtc = new Date(Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate()) + timezoneOffsetMinutes * 60_000);
-    const localDayEndUtc = new Date(localDayStartUtc.getTime() + 86_400_000);
-    const localDay = localNow.toISOString().slice(0, 10);
-    const [foodResult, waterResult, workoutResult, recoveryResult, nutritionTargets, healthSyncSummary] = await Promise.all([
-      query<{ meals: number; protein_g: number | string }>(`
-        select count(*)::int as meals, coalesce(sum(protein_g), 0) as protein_g
-        from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3
-      `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
-      query<{ water_ml: number | string }>(`
-        select coalesce(sum(amount_ml), 0) as water_ml
-        from water_logs where user_id = $1 and logged_at >= $2 and logged_at < $3
-      `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
-      query<{ latest_at: string | null; completed_today: boolean }>(`
-        select max(created_at) as latest_at,
-          coalesce(bool_or(created_at >= $2 and created_at < $3), false) as completed_today
-        from analytics_events where user_id = $1 and event_name = 'burn_log'
-      `, [req.user!.id, localDayStartUtc.toISOString(), localDayEndUtc.toISOString()]),
-      query<{ sleep_quality: "poor" | "okay" | "good" | null }>(`
-        select sleep_quality from recovery_checkins
-        where user_id = $1 and checkin_date = $2::date
-        limit 1
-      `, [req.user!.id, localDay]),
-      resolveNutritionTargets(req.user!.id),
-      getHealthSyncSummary(req.user!.id).catch(() => null)
-    ]);
-    const latestWorkoutAt = workoutResult.rows[0]?.latest_at ? new Date(workoutResult.rows[0].latest_at).getTime() : null;
-    const latestSyncedWorkoutAt = healthSyncSummary?.latestWorkoutAt ? new Date(healthSyncSummary.latestWorkoutAt).getTime() : null;
-    const latestMovementAt = Math.max(latestWorkoutAt ?? 0, latestSyncedWorkoutAt ?? 0) || null;
-    const facts: TodayPriorityFacts = {
-      localHour: localNow.getUTCHours(),
-      mealsToday: Number(foodResult.rows[0]?.meals ?? 0),
-      proteinTodayG: Number(foodResult.rows[0]?.protein_g ?? 0),
-      proteinTargetG: nutritionTargets.proteinG,
-      waterTodayMl: Number(waterResult.rows[0]?.water_ml ?? 0),
-      waterTargetMl: nutritionTargets.waterMl,
-      workoutCompletedToday: Boolean(workoutResult.rows[0]?.completed_today) || healthSyncSummary?.workoutCompletedToday === true,
-      daysSinceWorkout: latestMovementAt === null ? null : localCalendarDaysSince(latestMovementAt, timezoneOffsetMinutes),
-      stepsToday: healthSyncSummary?.todaySteps ?? 0,
-      activeCaloriesToday: healthSyncSummary?.todayActiveCalories ?? 0,
-      sleepQuality: recoveryResult.rows[0]?.sleep_quality ?? null
-    };
-    const candidates = buildTodayPriorityCandidates(facts);
+    const { context, facts } = await loadTodayPriorityFacts(req.user!.id, timezoneOffsetMinutes);
+    const localDay = context.localDate;
     const deterministicPriority = deterministicTodayPriority(facts);
-    const isFirstCheckIn = facts.mealsToday === 0
-      && facts.waterTodayMl === 0
-      && facts.daysSinceWorkout === null
-      && facts.stepsToday === 0
-      && facts.activeCaloriesToday === 0
-      && facts.sleepQuality === null;
     const resolveLegacyPriority = async () => {
-      const leadingRank = candidates[0]?.rank ?? 0;
-      const contenders = candidates.filter((candidate) => leadingRank - candidate.rank <= 10);
-      if (isFirstCheckIn || !shouldUseAiPriorityRefinement(candidates)) {
+      try {
+        const decision = await resolveDailyCoachingDecision({
+          userId: req.user!.id,
+          localDate: localDay,
+          timezoneOffsetMinutes,
+          expiresAt: context.dayEndUtc.toISOString(),
+          facts,
+          allowAiRefinement: true,
+          legacyPriorityKey: deterministicPriority.key
+        }, {
+          refine: refineLegacyTodayPriority,
+          aiProvider: env.AI_PROVIDER,
+          aiModel: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+          promptVersion: TODAY_PRIORITY_LEGACY_PROMPT_VERSION,
+          preserveRefinedPresentation: true
+        });
+        if (decision.aiAttempted && !decision.cacheHit) {
+          void logAiUsage({
+            userId: req.user!.id,
+            gymId: req.user!.gymId,
+            eventType: "today_priority_analysis",
+            provider: env.AI_PROVIDER,
+            model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+            status: decision.decisionSource === "ai" ? "success" : "fallback",
+            inputUnits: JSON.stringify(facts).length,
+            outputUnits: decision.priority.title.length + decision.priority.reason.length,
+            metadata: {
+              selectedKey: decision.priority.key,
+              engine: "legacy",
+              cacheHit: false,
+              refinementStatus: decision.refinementStatus,
+              promptVersion: TODAY_PRIORITY_LEGACY_PROMPT_VERSION
+            }
+          }).catch(() => undefined);
+        }
+        return { priority: decision.priority, source: decision.responseSource };
+      } catch (error) {
+        dailyCoachingTelemetry("legacy_fallback", {
+          rolloutMode: "legacy",
+          correlation: dailyCoachingCorrelation(req.user!.id),
+          ...safeDailyCoachingError(error)
+        }, "warn");
         return { priority: deterministicPriority, source: "rules" as const };
       }
-
-      const refinedPriority = await refineTodayPriority({ candidates: contenders, facts }).catch(() => null);
-      if (!refinedPriority) {
-        return { priority: deterministicPriority, source: "rules" as const };
-      }
-
-      void logAiUsage({
-        userId: req.user!.id,
-        gymId: req.user!.gymId,
-        eventType: "today_priority_analysis",
-        provider: env.AI_PROVIDER,
-        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-        status: "success",
-        inputUnits: JSON.stringify(facts).length,
-        outputUnits: refinedPriority.title.length + refinedPriority.reason.length,
-        metadata: { eligibleKeys: contenders.map((candidate) => candidate.key), selectedKey: refinedPriority.key, engine: "legacy" }
-      }).catch(() => undefined);
-      return { priority: refinedPriority, source: "ai" as const };
     };
 
     const rolloutMode = dailyCoachingRolloutMode({
@@ -726,7 +710,7 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
           userId: req.user!.id,
           localDate: localDay,
           timezoneOffsetMinutes,
-          expiresAt: localDayEndUtc.toISOString(),
+          expiresAt: context.dayEndUtc.toISOString(),
           facts,
           allowAiRefinement: true,
           legacyPriorityKey: deterministicPriority.key
@@ -759,6 +743,7 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
 
         dailyCoachingTelemetry("decision_resolved", {
           rolloutMode,
+          correlation: dailyCoachingCorrelation(req.user!.id),
           decisionSource: decision.decisionSource,
           responseSource: decision.responseSource,
           selectedKey: decision.priority.key,
@@ -784,10 +769,11 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
       } catch (error) {
         dailyCoachingTelemetry("active_fallback", {
           rolloutMode,
+          correlation: dailyCoachingCorrelation(req.user!.id),
           requestDurationMs: Date.now() - requestStartedAt,
           ...safeDailyCoachingError(error)
         }, "error");
-        return res.json(await resolveLegacyPriority());
+        return res.json({ priority: deterministicPriority, source: "rules" });
       }
     }
 
@@ -797,13 +783,14 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
         userId: req.user!.id,
         localDate: localDay,
         timezoneOffsetMinutes,
-        expiresAt: localDayEndUtc.toISOString(),
+        expiresAt: context.dayEndUtc.toISOString(),
         facts,
         allowAiRefinement: false,
         legacyPriorityKey: legacy.priority.key
       }).then((decision) => {
         dailyCoachingTelemetry("shadow_decision_recorded", {
           rolloutMode,
+          correlation: dailyCoachingCorrelation(req.user!.id),
           decisionSource: decision.decisionSource,
           selectedKey: decision.priority.key,
           legacyKey: legacy.priority.key,
@@ -816,6 +803,7 @@ aiRouter.post("/ai/today-priority", requireAuth, async (req, res, next) => {
       }).catch((error) => {
         dailyCoachingTelemetry("shadow_persistence_failed", {
           rolloutMode,
+          correlation: dailyCoachingCorrelation(req.user!.id),
           requestDurationMs: Date.now() - requestStartedAt,
           ...safeDailyCoachingError(error)
         }, "warn");
