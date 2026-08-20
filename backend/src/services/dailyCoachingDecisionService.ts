@@ -187,7 +187,9 @@ function createPostgresDecisionStore(execute: DecisionQuery): DailyCoachingDecis
       )
       values (
         $1, $2::date, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12,
-        $13, $14, $15, $16, $17, case when $17 is null then null else $8 is not distinct from $17 end, $18
+        $13, $14, $15, $16, $17,
+        case when $17::text is null then null else $8::text is not distinct from $17::text end,
+        $18
       )
       on conflict (user_id, local_date, input_fingerprint, engine_version, resolution_mode)
       do update set

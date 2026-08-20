@@ -5,7 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { queryMock } = vi.hoisted(() => ({ queryMock: vi.fn() }));
 vi.mock("../db/pool", () => ({ query: queryMock }));
 
-import { cleanupExpiredDailyCoachingDecisions, getDailyCoachingRolloutMetrics } from "../services/dailyCoachingDecisionService";
+import {
+  cleanupExpiredDailyCoachingDecisions,
+  getDailyCoachingRolloutMetrics,
+  resolveDailyCoachingDecision
+} from "../services/dailyCoachingDecisionService";
 
 describe("daily coaching decision persistence", () => {
   beforeEach(() => queryMock.mockReset());
@@ -63,5 +67,37 @@ describe("daily coaching decision persistence", () => {
       shadowMatchRate: 91.7
     });
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("legacy_matches"), [90]);
+  });
+
+  it("casts nullable legacy keys so PostgreSQL can resolve the insert parameter type", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rowCount: 0, rows: [] })
+      .mockResolvedValueOnce({ rowCount: 1, rows: [{ id: "decision-1" }] });
+
+    await resolveDailyCoachingDecision({
+      userId: "11111111-1111-4111-8111-111111111111",
+      localDate: "2026-08-20",
+      timezoneOffsetMinutes: -480,
+      expiresAt: "2026-08-20T16:00:00.000Z",
+      facts: {
+        localHour: 14,
+        mealsToday: 0,
+        proteinTodayG: 0,
+        proteinTargetG: 125,
+        waterTodayMl: 1_500,
+        waterTargetMl: 2_500,
+        workoutCompletedToday: false,
+        daysSinceWorkout: 1,
+        stepsToday: 0,
+        activeCaloriesToday: 0,
+        sleepQuality: null
+      },
+      allowAiRefinement: false,
+      legacyPriorityKey: null
+    });
+
+    const insertSql = String(queryMock.mock.calls.find(([sql]) => String(sql).includes("insert into daily_coaching_decisions"))?.[0]);
+    expect(insertSql).toContain("$17::text is null");
+    expect(insertSql).toContain("$8::text is not distinct from $17::text");
   });
 });
