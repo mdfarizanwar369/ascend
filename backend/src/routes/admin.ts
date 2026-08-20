@@ -8,6 +8,7 @@ import { getFirebaseAuth } from "../integrations/firebase";
 import { deleteStoredObjects } from "../integrations/s3";
 import { permanentDeletionBlock } from "../services/userDeletionService";
 import { getAdminGymScope, getTrainerGymId, getUserGymId, scopeAllowsGym } from "../services/adminScopeService";
+import { getDailyCoachingRolloutMetrics } from "../services/dailyCoachingDecisionService";
 
 export const adminRouter = Router();
 
@@ -188,6 +189,14 @@ adminRouter.get("/admin/analytics/ai-errors", requireAuth, requireRole(["admin",
   `, [scope.gymIds]);
 
   res.json({ errors: result.rows });
+});
+
+adminRouter.get("/admin/analytics/daily-coaching", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
+  if (!req.user!.isPlatformOwner) {
+    return res.status(403).json({ error: "Only the Ascend platform owner can view rollout metrics" });
+  }
+  const days = z.coerce.number().int().min(1).max(90).default(7).parse(req.query.days);
+  res.json({ days, metrics: await getDailyCoachingRolloutMetrics(days) });
 });
 
 adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
