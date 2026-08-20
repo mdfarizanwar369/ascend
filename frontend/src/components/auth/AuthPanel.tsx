@@ -8,6 +8,7 @@ import {
   getRedirectResult,
   GoogleAuthProvider,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -523,6 +524,30 @@ export function AuthPanel() {
     }
   }
 
+  async function handlePasswordReset() {
+    if (isSubmitting) return;
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      setStatus("Enter your email address first, then choose Forgot password.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatus("Sending your password reset email...");
+    try {
+      await withTimeout(
+        sendPasswordResetEmail(getFirebaseClientAuth(), normalizedEmail),
+        "The password reset request is taking too long. Please check your connection and try again.",
+        15_000
+      );
+      setStatus("Check your inbox for a secure password reset link. You can return here when your password is updated.");
+    } catch (error) {
+      setStatus(getFriendlyAuthError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void handleAuthAction();
@@ -779,6 +804,16 @@ export function AuthPanel() {
               </button>
               </div>
             </Field>
+            {mode === "login" ? (
+              <button
+                type="button"
+                onClick={() => void handlePasswordReset()}
+                disabled={isSubmitting || !firebaseConfigured}
+                className="min-h-11 w-full text-right text-sm font-semibold text-lime transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Forgot password?
+              </button>
+            ) : null}
             {mode === "signup" ? (
               <div id="ascend-referral-field">
               <Field

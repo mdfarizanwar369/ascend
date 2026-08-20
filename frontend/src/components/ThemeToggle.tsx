@@ -27,7 +27,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
   return (
     <button
       type="button"
-      className={`ascend-pressable grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-line bg-surface text-zinc-100 hover:border-calm/50 ${className}`}
+      className={`ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line bg-surface text-zinc-100 hover:border-calm/50 ${className}`}
       aria-label={label}
       title={label}
       onClick={() => {

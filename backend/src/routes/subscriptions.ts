@@ -1,13 +1,57 @@
 import { Router } from "express";
+import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { createCheckout } from "../services/subscriptionService";
 import { getPaymentProvider, LemonSqueezyProvider, StripeProvider, ToyyibPayProvider } from "../integrations/payments";
 import { env } from "../config/env";
-import { applyVerifiedGooglePlaySubscription, syncGooglePlaySubscriptionForUser, verifyGooglePlaySubscriptionPurchase } from "../services/googlePlayBillingService";
+import { applyVerifiedGooglePlaySubscription, parseGooglePlayRtdnData, processGooglePlayRtdn, syncGooglePlaySubscriptionForUser, verifyGooglePlaySubscriptionPurchase } from "../services/googlePlayBillingService";
 
 export const subscriptionsRouter = Router();
+
+const googleOidcClient = new OAuth2Client();
+
+function secureTokenMatches(received: string, expected: string) {
+  const receivedBuffer = Buffer.from(received);
+  const expectedBuffer = Buffer.from(expected);
+  return receivedBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(receivedBuffer, expectedBuffer);
+}
+
+subscriptionsRouter.post("/subscriptions/google-play/rtdn", async (req, res, next) => {
+  try {
+    const verificationToken = env.GOOGLE_PLAY_RTDN_VERIFICATION_TOKEN;
+    const expectedAudience = env.GOOGLE_PLAY_RTDN_AUDIENCE;
+    const expectedServiceAccount = env.GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL?.toLowerCase();
+    if (!verificationToken || !expectedAudience || !expectedServiceAccount) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    const receivedToken = typeof req.query.token === "string" ? req.query.token : "";
+    if (!secureTokenMatches(receivedToken, verificationToken)) {
+      return res.status(401).json({ error: "Invalid notification token" });
+    }
+    const bearer = req.header("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+    if (!bearer) return res.status(401).json({ error: "Missing Pub/Sub identity" });
+    const ticket = await googleOidcClient.verifyIdToken({ idToken: bearer, audience: expectedAudience });
+    const identity = ticket.getPayload();
+    if (!identity?.email_verified || identity.email?.toLowerCase() !== expectedServiceAccount) {
+      return res.status(401).json({ error: "Invalid Pub/Sub identity" });
+    }
+
+    const input = z.object({
+      message: z.object({
+        messageId: z.string().min(1),
+        data: z.string().min(1)
+      })
+    }).parse(req.body);
+    const notification = parseGooglePlayRtdnData(input.message.data);
+    const result = await processGooglePlayRtdn(input.message.messageId, notification);
+    res.status(result.matchedSubscription || result.test ? 200 : 202).json(result);
+  } catch (error) {
+    next(error);
+  }
+});
 
 subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
   try {

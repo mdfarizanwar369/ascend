@@ -50,8 +50,8 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
     method: _req.method,
     path: _req.path,
     errorName: error.name,
-    message: error.message,
-    ...(process.env.NODE_ENV === "production" ? {} : { stack: error.stack })
+    ...(databaseCode ? { errorCode: databaseCode } : {}),
+    ...(process.env.NODE_ENV === "production" ? {} : { message: error.message, stack: error.stack })
   });
 
   res.status(500).json({

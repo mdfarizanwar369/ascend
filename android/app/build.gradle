@@ -121,6 +121,8 @@ dependencies {
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation "androidx.health.connect:connect-client:$healthConnectVersion"
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:$kotlinxCoroutinesVersion"
+    implementation platform("com.google.firebase:firebase-bom:34.17.0")
+    implementation "com.google.firebase:firebase-crashlytics"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
@@ -132,8 +134,9 @@ apply from: 'capacitor.build.gradle'
 
 if (hasGoogleServices) {
     apply plugin: 'com.google.gms.google-services'
+    apply plugin: 'com.google.firebase.crashlytics'
 } else {
-    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+    logger.info("google-services.json not found; Google services, Push Notifications, and Crashlytics won't be configured")
 }
 
 tasks.configureEach { task ->

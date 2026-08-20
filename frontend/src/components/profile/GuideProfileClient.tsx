@@ -89,8 +89,8 @@ export function GuideProfileClient() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!ageYears || Number.isNaN(Number(ageYears)) || Number(ageYears) < 13 || Number(ageYears) > 100) {
-      setStatus("Please enter an age between 13 and 100.");
+    if (!ageYears || Number.isNaN(Number(ageYears)) || Number(ageYears) < 18 || Number(ageYears) > 100) {
+      setStatus("Ascend self-managed accounts require an age between 18 and 100.");
       return;
     }
 

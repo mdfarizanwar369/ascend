@@ -416,7 +416,7 @@ export function AscendStoriesComposer({ photos, onClose }: { photos: ProgressPho
             <section className="ascend-surface mt-4 p-4">
               <div className="flex items-center justify-between gap-3">
                 <label className="text-sm font-semibold" htmlFor="ascend-story-caption">Your words</label>
-                <button type="button" onClick={copyCaption} disabled={!draft.caption.trim()} className="ascend-pressable flex h-10 items-center rounded-full border border-line bg-ink px-3 text-xs font-semibold text-zinc-300 disabled:opacity-40"><Copy className="mr-1.5" size={15} />Copy caption</button>
+                <button type="button" onClick={copyCaption} disabled={!draft.caption.trim()} className="ascend-pressable flex h-11 items-center rounded-full border border-line bg-ink px-3 text-xs font-semibold text-zinc-300 disabled:opacity-40"><Copy className="mr-1.5" size={15} />Copy caption</button>
               </div>
               <textarea id="ascend-story-caption" value={draft.caption} maxLength={140} onChange={(event) => setDraft({ ...draft, caption: event.target.value })} className="mt-3 min-h-24 w-full resize-none rounded-xl border border-line bg-ink p-3 text-sm leading-6 text-white outline-none focus:border-lime" placeholder="Add a short caption, or leave this empty." />
               <div className="mt-3 flex flex-wrap gap-2">

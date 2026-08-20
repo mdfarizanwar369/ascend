@@ -89,7 +89,7 @@ export function AccountBar({
         type="button"
         onClick={handleLogout}
         disabled={isLoggingOut}
-        className="ascend-pressable grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-100 hover:border-calm/50"
+        className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-100 hover:border-calm/50"
         aria-label="Log out"
       >
         <LogOut size={18} />

@@ -154,6 +154,97 @@ async function loadSelfDeletionTarget(userId: string): Promise<SelfDeletionTarge
   };
 }
 
+async function loadStoredMediaKeys(userId: string) {
+  const result = await pool.query<{ image_s3_key: string | null }>(
+    `
+    select image_s3_key
+    from food_logs
+    where user_id = $1
+      and image_s3_key is not null
+    union
+    select image_s3_key
+    from progress_photos
+    where user_id = $1
+      and image_s3_key is not null
+    union
+    select profile_photo_s3_key as image_s3_key
+    from users
+    where id = $1
+      and profile_photo_s3_key is not null
+    union
+    select nullif(image->>'key', '') as image_s3_key
+    from body_composition_scans bcs
+    cross join lateral jsonb_array_elements(coalesce(bcs.source_images, '[]'::jsonb)) image
+    where bcs.user_id = $1
+      and nullif(image->>'key', '') is not null
+    `,
+    [userId]
+  );
+  return result.rows.map((row) => row.image_s3_key);
+}
+
+async function completePendingImmediateDeletion(requestId: string, userId: string, firebaseUid: string) {
+  try {
+    await revokeAndDeleteFirebaseUser(firebaseUid);
+    await deleteStoredObjects(await loadStoredMediaKeys(userId));
+  } catch {
+    await pool.query(
+      "update account_deletion_requests set notes = $2 where id = $1",
+      [requestId, "Account access disabled. External data cleanup is pending automatic retry."]
+    ).catch(() => undefined);
+    return null;
+  }
+
+  const db = await pool.connect();
+  try {
+    await db.query("begin");
+    await db.query("update referral_codes set created_by_user_id = null where created_by_user_id = $1", [userId]);
+    const completed = await db.query(
+      `
+      update account_deletion_requests
+      set status = 'completed', notes = $2, processed_at = now()
+      where id = $1 and status = 'requested'
+      returning *
+      `,
+      [requestId, "Account and associated app data deleted."]
+    );
+    await db.query("delete from users where id = $1", [userId]);
+    await db.query("commit");
+    return completed.rows[0] ? mapDeletionRequest(completed.rows[0]) : null;
+  } catch {
+    await db.query("rollback").catch(() => undefined);
+    await pool.query(
+      "update account_deletion_requests set notes = $2 where id = $1",
+      [requestId, "External account data was removed. Final database cleanup is pending automatic retry."]
+    ).catch(() => undefined);
+    return null;
+  } finally {
+    db.release();
+  }
+}
+
+export async function retryPendingImmediateAccountDeletions(limit = 25) {
+  const pending = await pool.query<{ request_id: string; user_id: string; firebase_uid: string }>(
+    `
+    select adr.id as request_id, adr.user_id, u.firebase_uid
+    from account_deletion_requests adr
+    join users u on u.id = adr.user_id
+    where adr.mode = 'immediate'
+      and adr.status = 'requested'
+      and u.status = 'inactive'
+    order by adr.requested_at asc
+    limit $1
+    `,
+    [Math.max(1, Math.min(limit, 100))]
+  );
+
+  let completed = 0;
+  for (const request of pending.rows) {
+    if (await completePendingImmediateDeletion(request.request_id, request.user_id, request.firebase_uid)) completed += 1;
+  }
+  return { attempted: pending.rows.length, completed };
+}
+
 export async function submitSelfAccountDeletion(userId: string, options: { isPlatformOwner: boolean }) {
   const target = await loadSelfDeletionTarget(userId);
   if (!target) {
@@ -165,6 +256,12 @@ export async function submitSelfAccountDeletion(userId: string, options: { isPla
   target.isPlatformOwner = options.isPlatformOwner;
   const plan = buildSelfDeletionPlan(target);
   const db = await pool.connect();
+  let dbReleased = false;
+  const releaseDb = () => {
+    if (dbReleased) return;
+    db.release();
+    dbReleased = true;
+  };
 
   try {
     await db.query("begin");
@@ -185,8 +282,8 @@ export async function submitSelfAccountDeletion(userId: string, options: { isPla
       if (target.status === "active") {
         await db.query("update users set status = 'inactive', updated_at = now() where id = $1", [target.id]);
       }
-      await revokeFirebaseSessions(target.firebaseUid);
       await db.query("commit");
+      await revokeFirebaseSessions(target.firebaseUid).catch(() => undefined);
       return {
         outcome: "requested" as const,
         request: mapDeletionRequest(existingRequested.rows[0]),
@@ -206,8 +303,8 @@ export async function submitSelfAccountDeletion(userId: string, options: { isPla
       );
 
       await db.query("update users set status = 'inactive', updated_at = now() where id = $1", [target.id]);
-      await revokeFirebaseSessions(target.firebaseUid);
       await db.query("commit");
+      await revokeFirebaseSessions(target.firebaseUid).catch(() => undefined);
 
       return {
         outcome: "requested" as const,
@@ -216,58 +313,37 @@ export async function submitSelfAccountDeletion(userId: string, options: { isPla
       };
     }
 
-    const mediaResult = await db.query<{ image_s3_key: string | null }>(
-      `
-      select image_s3_key
-      from food_logs
-      where user_id = $1
-        and image_s3_key is not null
-      union
-      select image_s3_key
-      from progress_photos
-      where user_id = $1
-        and image_s3_key is not null
-      union
-      select profile_photo_s3_key as image_s3_key
-      from users
-      where id = $1
-        and profile_photo_s3_key is not null
-      union
-      select nullif(image->>'key', '') as image_s3_key
-      from body_composition_scans bcs
-      cross join lateral jsonb_array_elements(coalesce(bcs.source_images, '[]'::jsonb)) image
-      where bcs.user_id = $1
-        and nullif(image->>'key', '') is not null
-      `,
-      [target.id]
-    );
-
-    await db.query("update referral_codes set created_by_user_id = null where created_by_user_id = $1", [target.id]);
-    await revokeAndDeleteFirebaseUser(target.firebaseUid);
-    await deleteStoredObjects(mediaResult.rows.map((row) => row.image_s3_key));
-
     const inserted = await db.query(
       `
       insert into account_deletion_requests (
-        user_id, email, full_name, primary_role, mode, status, reason_codes, notes, processed_at
-      ) values ($1,$2,$3,$4,'immediate','completed',$5,$6,now())
+        user_id, email, full_name, primary_role, mode, status, reason_codes, notes
+      ) values ($1,$2,$3,$4,'immediate','requested',$5,$6)
       returning *
       `,
-      [target.id, target.email, target.fullName, target.primaryRole, plan.reasonCodes, "Account and associated app data deleted."]
+      [target.id, target.email, target.fullName, target.primaryRole, plan.reasonCodes, "Account access disabled. Secure deletion cleanup is in progress."]
     );
-
-    await db.query("delete from users where id = $1", [target.id]);
+    await db.query("update users set status = 'inactive', updated_at = now() where id = $1", [target.id]);
     await db.query("commit");
 
+    const pendingRequest = mapDeletionRequest(inserted.rows[0]);
+    releaseDb();
+    const completed = await completePendingImmediateDeletion(pendingRequest.id, target.id, target.firebaseUid);
+    if (completed) {
+      return {
+        outcome: "deleted" as const,
+        request: completed,
+        message: "Your account and associated app data have been deleted."
+      };
+    }
     return {
-      outcome: "deleted" as const,
-      request: mapDeletionRequest(inserted.rows[0]),
-      message: "Your account and associated app data have been deleted."
+      outcome: "requested" as const,
+      request: pendingRequest,
+      message: "Your account access has been disabled and deletion is in progress. Ascend will finish the remaining secure cleanup."
     };
   } catch (error) {
-    await db.query("rollback").catch(() => undefined);
+    if (!dbReleased) await db.query("rollback").catch(() => undefined);
     throw error;
   } finally {
-    db.release();
+    releaseDb();
   }
 }

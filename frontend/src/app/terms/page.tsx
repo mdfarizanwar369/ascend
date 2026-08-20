@@ -20,7 +20,7 @@ export default function TermsPage() {
           title: "Accounts and eligibility",
           bullets: [
             "You must provide accurate information, keep login credentials secure, and notify us of unauthorized access.",
-            "You must be at least 18 years old, unless participation is approved through a gym with appropriate parent or guardian consent.",
+            "You must be at least 18 years old to create and manage an Ascend account.",
             "Trainer and administrator access is subject to approval. Users may not claim qualifications, roles, or gym authority they do not possess.",
             "We may suspend accounts used for abuse, fraud, harassment, unlawful activity, security interference, or deliberate misuse."
           ]

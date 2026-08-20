@@ -8,7 +8,7 @@ export const onboardingSchema = z.object({
   coachingMode: z.enum(["self_coached", "ai_coach", "human_coach"]).default("self_coached"),
   goalType: z.enum(["fat_loss", "muscle_gain", "maintenance"]),
   gender: z.enum(["female", "male", "prefer_not_to_say"]).optional(),
-  ageYears: z.number().int().min(13).max(100).optional(),
+  ageYears: z.number().int().min(18).max(100).optional(),
   activityLevel: z.enum(["low", "moderate", "high"]).optional(),
   heightCm: z.number().positive().optional(),
   startingWeightKg: z.number().positive(),
@@ -20,7 +20,7 @@ export const onboardingSchema = z.object({
 
 export const guideProfileSchema = z.object({
   gender: z.enum(["female", "male", "prefer_not_to_say"]),
-  ageYears: z.number().int().min(13).max(100),
+  ageYears: z.number().int().min(18).max(100),
   activityLevel: z.enum(["low", "moderate", "high"]),
   heightCm: z.number().positive(),
   goalType: z.enum(["fat_loss", "muscle_gain", "maintenance"]),

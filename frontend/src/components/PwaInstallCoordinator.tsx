@@ -144,7 +144,7 @@ export function PwaInstallCoordinator() {
           <div className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center">
             <div className="relative overflow-hidden rounded-lg border border-calm/40 bg-surface p-5 shadow-2xl shadow-calm/10">
               <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet via-calm to-lime" />
-              <button type="button" onClick={postpone} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-lg border border-line bg-ink text-zinc-300" aria-label="Close install instructions">
+              <button type="button" onClick={postpone} className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-lg border border-line bg-ink text-zinc-300" aria-label="Close install instructions">
                 <X size={19} />
               </button>
 
@@ -207,7 +207,7 @@ export function PwaInstallCoordinator() {
               <span className="block text-sm font-semibold">Install Ascend</span>
               <span className="mt-0.5 block text-xs text-zinc-400">Use it like a normal app.</span>
             </button>
-            <button type="button" onClick={dismissBanner} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-zinc-400" aria-label="Dismiss install reminder"><X size={17} /></button>
+            <button type="button" onClick={dismissBanner} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-zinc-400" aria-label="Dismiss install reminder"><X size={17} /></button>
           </div>
         </aside>
       ) : null}

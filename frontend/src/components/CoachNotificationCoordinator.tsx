@@ -90,8 +90,8 @@ export function CoachNotificationCoordinator() {
               <p className="mt-1 text-sm leading-5 text-zinc-300">Get calm, useful nudges only when Ascend can genuinely help.</p>
               {status ? <p className="mt-2 text-xs text-zinc-400">{status}</p> : null}
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <button type="button" onClick={enable} className="flex h-10 items-center justify-center gap-2 rounded-lg bg-calm text-sm font-semibold text-ink"><Check size={16} /> Enable</button>
-                <button type="button" onClick={dismiss} className="flex h-10 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-300"><X size={16} /> Not now</button>
+                <button type="button" onClick={enable} className="flex h-11 items-center justify-center gap-2 rounded-lg bg-calm text-sm font-semibold text-ink"><Check size={16} /> Enable</button>
+                <button type="button" onClick={dismiss} className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-300"><X size={16} /> Not now</button>
               </div>
             </div>
           </div>

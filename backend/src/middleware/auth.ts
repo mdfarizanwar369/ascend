@@ -23,6 +23,55 @@ export interface FirebaseTokenUser {
   name?: string;
 }
 
+type DecodedFirebaseToken = Awaited<ReturnType<ReturnType<typeof getFirebaseAuth>["verifyIdToken"]>>;
+type AuthUserRow = {
+  id: string;
+  firebase_uid: string;
+  email: string;
+  primary_role: Role;
+  status: string;
+  gym_id?: string;
+  trainer_id?: string;
+  roles: Role[];
+};
+
+// Dashboard sections arrive together. Share only work that is currently in flight;
+// completed authentication results are never retained, so role and status changes
+// remain visible on the next request.
+const tokenVerificationInFlight = new Map<string, Promise<DecodedFirebaseToken>>();
+const userLookupInFlight = new Map<string, Promise<{ rows: AuthUserRow[] }>>();
+
+function verifyFirebaseTokenOnce(token: string) {
+  const existing = tokenVerificationInFlight.get(token);
+  if (existing) return existing;
+  const request = getFirebaseAuth().verifyIdToken(token).finally(() => {
+    tokenVerificationInFlight.delete(token);
+  });
+  tokenVerificationInFlight.set(token, request);
+  return request;
+}
+
+function loadAuthUserOnce(firebaseUid: string) {
+  const existing = userLookupInFlight.get(firebaseUid);
+  if (existing) return existing;
+  const request = query<AuthUserRow>(
+    `
+    select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id, t.id as trainer_id,
+      coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles
+    from users u
+    left join user_roles ur on ur.user_id = u.id
+    left join trainers t on t.user_id = u.id
+    where u.firebase_uid = $1
+    group by u.id, t.id
+    `,
+    [firebaseUid]
+  ).finally(() => {
+    userLookupInFlight.delete(firebaseUid);
+  });
+  userLookupInFlight.set(firebaseUid, request);
+  return request;
+}
+
 function parseRoles(roles: Role[] | string | null | undefined): Role[] {
   if (Array.isArray(roles)) return roles;
   if (typeof roles !== "string") return [];
@@ -68,7 +117,7 @@ export async function requireFirebaseToken(req: Request, res: Response, next: Ne
     const token = parseBearerToken(req.header("Authorization"));
     if (!token) return res.status(401).json({ error: "Missing bearer token" });
 
-    const decoded = await getFirebaseAuth().verifyIdToken(token);
+    const decoded = await verifyFirebaseTokenOnce(token);
     req.firebaseUser = {
       firebaseUid: decoded.uid,
       email: decoded.email,
@@ -85,9 +134,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const token = parseBearerToken(req.header("Authorization"));
   if (!token) return res.status(401).json({ error: "Missing bearer token" });
 
-  let decoded: Awaited<ReturnType<ReturnType<typeof getFirebaseAuth>["verifyIdToken"]>>;
+  let decoded: DecodedFirebaseToken;
   try {
-    decoded = await timeFoodAiStage(req.foodAiPerf, "Authentication: Firebase token verification", () => getFirebaseAuth().verifyIdToken(token));
+    decoded = await timeFoodAiStage(req.foodAiPerf, "Authentication: Firebase token verification", () => verifyFirebaseTokenOnce(token));
   } catch {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
@@ -99,27 +148,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       req.foodAiPerf = createFoodAiTrace(requestPath);
     }
 
-    const userResult = await timeFoodAiStage(req.foodAiPerf, "Authentication: PostgreSQL user lookup", () => query<{
-      id: string;
-      firebase_uid: string;
-      email: string;
-      primary_role: Role;
-      status: string;
-      gym_id?: string;
-      trainer_id?: string;
-      roles: Role[];
-    }>(
-      `
-      select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id, t.id as trainer_id,
-        coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles
-      from users u
-      left join user_roles ur on ur.user_id = u.id
-      left join trainers t on t.user_id = u.id
-      where u.firebase_uid = $1
-      group by u.id, t.id
-      `,
-      [decoded.uid]
-    ));
+    const userResult = await timeFoodAiStage(req.foodAiPerf, "Authentication: PostgreSQL user lookup", () => loadAuthUserOnce(decoded.uid));
 
     const dbUser = userResult.rows[0];
     if (!dbUser) return res.status(403).json({ error: "User profile has not been provisioned" });

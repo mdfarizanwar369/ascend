@@ -284,13 +284,13 @@ export function AscendDemoExperience() {
                 <DemoScene sceneIndex={frame.sceneIndex} sceneProgress={frame.sceneProgress} />
               </div>
               <div className="mt-4 flex items-center justify-between">
-                <button type="button" onClick={() => move(-1)} className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-zinc-300" aria-label="Previous scene">
+                <button type="button" onClick={() => move(-1)} className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface text-zinc-300" aria-label="Previous scene">
                   <ChevronLeft size={19} />
                 </button>
-                <button type="button" onClick={() => setPlaying((value) => !value)} className="grid h-10 w-10 place-items-center rounded-full bg-white text-ink" aria-label={playing ? "Pause demo" : "Play demo"}>
+                <button type="button" onClick={() => setPlaying((value) => !value)} className="grid h-11 w-11 place-items-center rounded-full bg-white text-ink" aria-label={playing ? "Pause demo" : "Play demo"}>
                   {playing ? <Pause size={17} /> : <Play size={17} />}
                 </button>
-                <button type="button" onClick={() => move(1)} className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-zinc-300" aria-label="Next scene">
+                <button type="button" onClick={() => move(1)} className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface text-zinc-300" aria-label="Next scene">
                   <ChevronRight size={19} />
                 </button>
               </div>
@@ -300,7 +300,7 @@ export function AscendDemoExperience() {
           {showIntro && !recordingMode && (
             <div className="absolute inset-0 z-30 grid place-items-center rounded-[34px] bg-black/75 p-6 backdrop-blur-sm">
               <div className="max-w-sm rounded-2xl border border-line bg-surface p-5 text-center shadow-2xl">
-                <button type="button" onClick={() => setShowIntro(false)} className="ml-auto grid h-8 w-8 place-items-center rounded-lg border border-line text-zinc-400" aria-label="Close introduction">
+                <button type="button" onClick={() => setShowIntro(false)} className="ml-auto grid h-11 w-11 place-items-center rounded-lg border border-line text-zinc-400" aria-label="Close introduction">
                   <X size={16} />
                 </button>
                 <Sparkles className="mx-auto mt-1 text-lime" size={28} />

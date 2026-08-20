@@ -291,6 +291,33 @@ Before or shortly after internal testing:
   - future backend attestation checks
 - document any future backend verification so it remains additive and does not affect web/iPhone users
 
+## 8D. Real-time subscription updates
+
+Ascend now accepts authenticated Google Play Real-time Developer Notifications (RTDN) and re-verifies every matched purchase with the Google Play Developer API before changing access.
+
+Before release:
+
+- create a Google Cloud Pub/Sub topic and grant Google Play permission to publish to it
+- configure the topic in Play Console under monetization setup
+- create an authenticated push subscription using a dedicated service account
+- set the push endpoint to `https://YOUR_API_DOMAIN/api/v1/subscriptions/google-play/rtdn?token=YOUR_RANDOM_TOKEN`
+- set `GOOGLE_PLAY_RTDN_VERIFICATION_TOKEN`, `GOOGLE_PLAY_RTDN_AUDIENCE`, and `GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL` in Railway
+- send a Play Console test notification and confirm HTTP 200
+- verify duplicate Pub/Sub message IDs are acknowledged without reprocessing
+- verify renewals, grace period, cancellation, recovery, and expiry update the existing Ascend subscription record
+
+## 8E. Crash reporting
+
+The Android release includes Firebase Crashlytics for native crashes and ANRs. Ascend's existing authenticated web error reporter remains responsible for JavaScript application errors.
+
+Before release:
+
+- open Crashlytics for the `fit.getascend.app` Firebase Android app
+- confirm the privacy policy and Play Data Safety responses disclose crash diagnostics
+- send one controlled test crash from a non-production debug build
+- confirm the issue appears in Firebase with the expected app version
+- confirm the release mapping file is uploaded by the Crashlytics Gradle task so R8 traces remain readable
+
 ## 9. Testing checklist before internal testing
 
 - Install debug APK on a real Android device

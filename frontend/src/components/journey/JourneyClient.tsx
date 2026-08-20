@@ -773,6 +773,9 @@ export function JourneyClient() {
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionSummary | null>(null);
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("all");
   const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [hasOlderHistory, setHasOlderHistory] = useState(false);
+  const [fullHistoryLoaded, setFullHistoryLoaded] = useState(false);
+  const [loadingFullTimeline, setLoadingFullTimeline] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -807,11 +810,11 @@ export function JourneyClient() {
         ] = await Promise.allSettled([
           getMyStreak(),
           getComplianceToday(),
-          getAllFoodLogs(),
-          getAllWaterLogs(),
-          getAllWeightLogs(),
-          getAllBurnLogs(),
-          getAllProgressPhotos(),
+          getFoodLogs({ range: "all", order: "newest", limit: 100 }),
+          getWaterLogs({ limit: 100 }),
+          getWeightLogs({ limit: 100 }),
+          getBurnLogs({ limit: 100 }),
+          getProgressPhotos({ limit: 100 }),
           getAscendMemory(),
           getGoalStatus(),
           getMyProgressComparison(),
@@ -834,11 +837,11 @@ export function JourneyClient() {
           streak: { current: 0, best: 0, activeDaysThisWeek: 0, checkedInToday: false }
         });
         const complianceResponse = fulfilledValue(complianceResult, { compliance: null });
-        const foodResponse = fulfilledValue(foodResult, { foodLogs: [] as FoodLog[] });
-        const waterResponse = fulfilledValue(waterResult, { waterLogs: [] as WaterLog[] });
-        const weightResponse = fulfilledValue(weightResult, { weightLogs: [] as WeightLog[] });
-        const burnResponse = fulfilledValue(burnResult, { burnLogs: [] as BurnLog[] });
-        const photoResponse = fulfilledValue(photoResult, { progressPhotos: [] as ProgressPhoto[] });
+        const foodResponse = fulfilledValue(foodResult, { foodLogs: [] as FoodLog[], nextOffset: null });
+        const waterResponse = fulfilledValue(waterResult, { waterLogs: [] as WaterLog[], nextOffset: null });
+        const weightResponse = fulfilledValue(weightResult, { weightLogs: [] as WeightLog[], nextOffset: null });
+        const burnResponse = fulfilledValue(burnResult, { burnLogs: [] as BurnLog[], nextOffset: null });
+        const photoResponse = fulfilledValue(photoResult, { progressPhotos: [] as ProgressPhoto[], nextOffset: null });
         const memoryResponse = fulfilledValue(memoryResult, { access: "free", timeline: [], stats: { aiReflectionsThisMonth: 0, monthlyLimit: 0, cacheHits: 0 } });
         const goalResponse = fulfilledValue(goalResult, { goalStatus: {} as GoalStatus });
         const comparisonResponse = fulfilledValue(comparisonResult, {
@@ -866,6 +869,13 @@ export function JourneyClient() {
         setWeightLogs(weightResponse.weightLogs);
         setBurnLogs(burnResponse.burnLogs);
         setProgressPhotos(photoResponse.progressPhotos);
+        setHasOlderHistory([
+          foodResponse.nextOffset,
+          waterResponse.nextOffset,
+          weightResponse.nextOffset,
+          burnResponse.nextOffset,
+          photoResponse.nextOffset
+        ].some((offset) => offset !== null && offset !== undefined));
         setAscendMemory(memoryResponse);
         setGoalStatus(goalResponse.goalStatus ?? null);
         setProgressComparison(comparisonResponse.comparison);
@@ -901,6 +911,33 @@ export function JourneyClient() {
       active = false;
     };
   }, []);
+
+  async function toggleFullTimeline() {
+    if (timelineExpanded) {
+      setTimelineExpanded(false);
+      return;
+    }
+
+    setTimelineExpanded(true);
+    if (fullHistoryLoaded || !hasOlderHistory || loadingFullTimeline) return;
+    setLoadingFullTimeline(true);
+    const [foodResult, waterResult, weightResult, burnResult, photoResult] = await Promise.allSettled([
+      getAllFoodLogs(),
+      getAllWaterLogs(),
+      getAllWeightLogs(),
+      getAllBurnLogs(),
+      getAllProgressPhotos()
+    ]);
+    if (foodResult.status === "fulfilled") setFoodLogs(foodResult.value.foodLogs);
+    if (waterResult.status === "fulfilled") setWaterLogs(waterResult.value.waterLogs);
+    if (weightResult.status === "fulfilled") setWeightLogs(weightResult.value.weightLogs);
+    if (burnResult.status === "fulfilled") setBurnLogs(burnResult.value.burnLogs);
+    if (photoResult.status === "fulfilled") setProgressPhotos(photoResult.value.progressPhotos);
+    const allLoaded = [foodResult, waterResult, weightResult, burnResult, photoResult].every((result) => result.status === "fulfilled");
+    setFullHistoryLoaded(allLoaded);
+    if (allLoaded) setHasOlderHistory(false);
+    setLoadingFullTimeline(false);
+  }
 
   const timeline = useMemo(
     () => buildTimeline(ascendMemory, foodLogs, burnLogs, weightLogs, waterLogs, progressPhotos, goalStatus, bodyComposition, weeklyReport),
@@ -1223,15 +1260,15 @@ export function JourneyClient() {
             </div>
           </div>
 
-          {filteredTimeline.length > 3 ? (
+          {filteredTimeline.length > 3 || hasOlderHistory ? (
             <div className="mt-4 border-t border-white/6 pt-4">
               <button
                 type="button"
-                onClick={() => setTimelineExpanded((value) => !value)}
+                onClick={() => void toggleFullTimeline()}
                 className="ascend-pressable flex w-full items-center justify-between rounded-xl border border-line bg-ink/70 px-4 py-3 text-left transition hover:border-calm/25"
               >
                 <span className="text-sm font-semibold text-white">
-                  {timelineExpanded ? "Hide full timeline" : `Show full timeline (${filteredTimeline.length} moments)`}
+                  {timelineExpanded ? "Hide full timeline" : fullHistoryLoaded ? `Show full timeline (${filteredTimeline.length} moments)` : "Show full timeline"}
                 </span>
                 {timelineExpanded ? <ChevronUp className="text-zinc-400" size={18} /> : <ChevronDown className="text-zinc-400" size={18} />}
               </button>
@@ -1243,6 +1280,7 @@ export function JourneyClient() {
               >
                 <div className="overflow-hidden">
                   <div className="mt-4 space-y-5">
+                    {loadingFullTimeline ? <p className="text-sm text-zinc-400">Loading older moments...</p> : null}
                     {fullTimelineGroups.map((group) => (
                       <div key={group.dateKey}>
                         <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-500">{group.label}</p>

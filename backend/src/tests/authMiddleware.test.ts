@@ -84,4 +84,32 @@ describe("authentication error boundaries", () => {
     expect(req.user?.roles).toEqual(expect.arrayContaining(["owner", "admin"]));
     expect(next).toHaveBeenCalledWith();
   });
+
+  it("deduplicates concurrent token verification and user lookup work", async () => {
+    let resolveToken!: (value: { uid: string }) => void;
+    const tokenResult = new Promise<{ uid: string }>((resolve) => { resolveToken = resolve; });
+    verifyIdToken.mockReturnValue(tokenResult);
+    dbQuery.mockResolvedValue({
+      rows: [{
+        id: "member-user",
+        firebase_uid: "firebase-user",
+        email: "member@example.com",
+        primary_role: "client",
+        status: "active",
+        roles: ["client"]
+      }]
+    });
+
+    const firstNext = vi.fn();
+    const secondNext = vi.fn();
+    const first = requireAuth(request(), response().value, firstNext);
+    const second = requireAuth(request(), response().value, secondNext);
+    resolveToken({ uid: "firebase-user" });
+    await Promise.all([first, second]);
+
+    expect(verifyIdToken).toHaveBeenCalledTimes(1);
+    expect(dbQuery).toHaveBeenCalledTimes(1);
+    expect(firstNext).toHaveBeenCalledWith();
+    expect(secondNext).toHaveBeenCalledWith();
+  });
 });

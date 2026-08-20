@@ -73,4 +73,42 @@ describe("Google Play billing verification", () => {
       rawState: "SUBSCRIPTION_STATE_ACTIVE",
     });
   });
+
+  it("decodes the official Pub/Sub RTDN envelope data without logging raw records", async () => {
+    const { parseGooglePlayRtdnData } = await import("../services/googlePlayBillingService");
+    const encoded = Buffer.from(JSON.stringify({
+      version: "1.0",
+      packageName: "fit.getascend.app",
+      eventTimeMillis: "1786579200000",
+      subscriptionNotification: {
+        version: "1.0",
+        notificationType: 2,
+        purchaseToken: "purchase-token"
+      }
+    })).toString("base64");
+
+    expect(parseGooglePlayRtdnData(encoded)).toMatchObject({
+      packageName: "fit.getascend.app",
+      subscriptionNotification: { notificationType: 2, purchaseToken: "purchase-token" }
+    });
+  });
+
+  it("rejects malformed RTDN data before entitlement processing", async () => {
+    const { parseGooglePlayRtdnData } = await import("../services/googlePlayBillingService");
+    expect(() => parseGooglePlayRtdnData("not-base64-json")).toThrow("malformed");
+  });
+
+  it("avoids a synchronous Google lookup for a recently verified subscription", async () => {
+    const { shouldRefreshGooglePlaySubscription } = await import("../services/googlePlayBillingService");
+    const now = new Date("2026-08-21T12:00:00.000Z");
+    expect(shouldRefreshGooglePlaySubscription("2026-08-21T10:00:00.000Z", "2026-09-21T12:00:00.000Z", now)).toBe(false);
+    expect(shouldRefreshGooglePlaySubscription("2026-08-21T05:00:00.000Z", "2026-09-21T12:00:00.000Z", now)).toBe(true);
+  });
+
+  it("refreshes more often near the subscription period end", async () => {
+    const { shouldRefreshGooglePlaySubscription } = await import("../services/googlePlayBillingService");
+    const now = new Date("2026-08-21T12:00:00.000Z");
+    expect(shouldRefreshGooglePlaySubscription("2026-08-21T11:50:00.000Z", "2026-08-21T18:00:00.000Z", now)).toBe(true);
+    expect(shouldRefreshGooglePlaySubscription(null, null, now)).toBe(true);
+  });
 });

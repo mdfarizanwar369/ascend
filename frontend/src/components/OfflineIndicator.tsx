@@ -26,7 +26,7 @@ export function OfflineIndicator() {
       className="fixed inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[100] mx-auto flex min-h-11 max-w-md items-center justify-center gap-2 rounded-xl border border-amber/40 bg-surface/95 px-4 py-2 text-sm font-medium text-amber shadow-soft backdrop-blur"
     >
       <WifiOff size={17} aria-hidden="true" />
-      You are offline. Saved information remains available while Ascend reconnects.
+      You are offline. New changes cannot sync until your connection returns.
     </div>
   );
 }

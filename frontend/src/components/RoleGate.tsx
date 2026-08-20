@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Lock, Sparkles } from "lucide-react";
+import { Lock, RefreshCw, Sparkles } from "lucide-react";
 import { SubscriptionPlan } from "@ascend/shared";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
 import { planRank, usablePlan } from "@/lib/subscriptionPlan";
@@ -39,7 +39,8 @@ export function RoleGate({
   requiredPlan?: Exclude<SubscriptionPlan, "free">;
   planFeature?: string;
 }) {
-  const [state, setState] = useState<"loading" | "allowed" | "role-blocked" | "plan-blocked">("loading");
+  const [state, setState] = useState<"loading" | "allowed" | "role-blocked" | "plan-blocked" | "error">("loading");
+  const [retryKey, setRetryKey] = useState(0);
   const allowedRoleKey = useMemo(() => allowedRoles.join("|"), [allowedRoles]);
 
   useEffect(() => {
@@ -56,17 +57,13 @@ export function RoleGate({
       if (!hasRole) return "role-blocked";
       if (!requiredPlan || isOwnerOrAdmin) return "allowed";
 
-      try {
-        const subscription = await withTimeout(getMySubscription());
-        const activePlan = usablePlan(
-          subscription.subscription.plan,
-          subscription.subscription.status,
-          subscription.subscription.current_period_end
-        );
-        return planRank[activePlan] >= planRank[requiredPlan] ? "allowed" : "plan-blocked";
-      } catch {
-        return "plan-blocked";
-      }
+      const subscription = await withTimeout(getMySubscription());
+      const activePlan = usablePlan(
+        subscription.subscription.plan,
+        subscription.subscription.status,
+        subscription.subscription.current_period_end
+      );
+      return planRank[activePlan] >= planRank[requiredPlan] ? "allowed" : "plan-blocked";
     }
 
     async function checkAccessWithRetry() {
@@ -90,7 +87,7 @@ export function RoleGate({
         setState(nextState);
       })
       .catch(() => {
-        if (isMounted) setState("role-blocked");
+        if (isMounted) setState("error");
       });
     }
 
@@ -105,7 +102,7 @@ export function RoleGate({
       isMounted = false;
       window.removeEventListener("pageshow", refreshAfterBack);
     };
-  }, [allowedRoleKey, requiredPlan]);
+  }, [allowedRoleKey, requiredPlan, retryKey]);
 
   if (state === "loading") {
     return <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">Checking account access...</p>;
@@ -119,6 +116,23 @@ export function RoleGate({
         <Link href="/dashboard" className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
           Back to client dashboard
         </Link>
+      </section>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <section className="mt-4 rounded-lg border border-amber/35 bg-amber/10 p-4">
+        <h1 className="text-xl font-semibold">Ascend could not check access</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Your account has not been blocked. Check your connection and try the access check again.</p>
+        <button
+          type="button"
+          onClick={() => setRetryKey((value) => value + 1)}
+          className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-lime font-semibold text-ink"
+        >
+          <RefreshCw size={18} />
+          Try again
+        </button>
       </section>
     );
   }

@@ -145,7 +145,7 @@ export function ProgressiveClientOnboarding() {
     if (draft.step === 1) {
       const age = Number(draft.ageYears);
       const height = Number(draft.heightCm);
-      if (!Number.isFinite(age) || age < 13 || age > 100) return "Please enter an age between 13 and 100.";
+      if (!Number.isFinite(age) || age < 18 || age > 100) return "You must be 18 or older to create and manage your own Ascend account.";
       if (!Number.isFinite(height) || height <= 0) return "Please enter your height in cm.";
     }
     if (draft.step === 2) {

@@ -47,7 +47,7 @@ export default function PrivacyPage() {
         {
           title: "AI and service providers",
           paragraphs: [
-            "Ascend uses specialist providers to operate the service, including Firebase for authentication, Railway and PostgreSQL infrastructure, Cloudflare R2 or compatible storage, Google Gemini for configured AI features, Stripe for web subscription payment processing, and Google Play for eligible Android subscription processing. Relevant data is shared only as needed to provide these services.",
+            "Ascend uses specialist providers to operate the service, including Firebase for authentication and Android crash diagnostics, Railway and PostgreSQL infrastructure, Cloudflare R2 or compatible storage, Google Gemini for configured AI features, Stripe for web subscription payment processing, and Google Play for eligible Android subscription processing. Relevant data is shared only as needed to provide these services.",
             "Food photos and AI coach messages may be processed by the configured AI provider. AI estimates can be inaccurate and should be reviewed before you rely on or save them."
           ]
         },
@@ -73,7 +73,7 @@ export default function PrivacyPage() {
         {
           title: "Age and policy updates",
           paragraphs: [
-            "Ascend is intended for users aged 18 or older. A younger user may only participate through an approved gym arrangement with appropriate parent or guardian consent. We may update this policy as the service evolves and will publish the revised date here."
+            "Ascend is intended for users aged 18 or older. We do not knowingly allow people under 18 to create or manage an Ascend account. We may update this policy as the service evolves and will publish the revised date here."
           ]
         }
       ]}

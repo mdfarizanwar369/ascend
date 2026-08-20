@@ -38,6 +38,58 @@ type GooglePlaySubscriptionsV2Response = {
   testPurchase?: Record<string, unknown>;
 };
 
+export type GooglePlayDeveloperNotification = {
+  version?: string;
+  packageName: string;
+  eventTimeMillis?: string;
+  subscriptionNotification?: {
+    version?: string;
+    notificationType: number;
+    purchaseToken: string;
+  };
+  testNotification?: { version?: string };
+};
+
+export function parseGooglePlayRtdnData(encodedData: string): GooglePlayDeveloperNotification {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(encodedData, "base64").toString("utf8"));
+  } catch {
+    throw new PaymentProviderError("Google Play RTDN payload is malformed.");
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new PaymentProviderError("Google Play RTDN payload is empty.");
+  }
+  const notification = parsed as Record<string, unknown>;
+  if (typeof notification.packageName !== "string" || !notification.packageName.trim()) {
+    throw new PaymentProviderError("Google Play RTDN package name is missing.");
+  }
+  const rawSubscription = notification.subscriptionNotification;
+  const subscriptionNotification = rawSubscription && typeof rawSubscription === "object"
+    ? rawSubscription as Record<string, unknown>
+    : null;
+  if (subscriptionNotification && (
+    typeof subscriptionNotification.purchaseToken !== "string" ||
+    !subscriptionNotification.purchaseToken.trim() ||
+    typeof subscriptionNotification.notificationType !== "number"
+  )) {
+    throw new PaymentProviderError("Google Play RTDN subscription data is invalid.");
+  }
+  return {
+    version: typeof notification.version === "string" ? notification.version : undefined,
+    packageName: notification.packageName,
+    eventTimeMillis: typeof notification.eventTimeMillis === "string" ? notification.eventTimeMillis : undefined,
+    subscriptionNotification: subscriptionNotification ? {
+      version: typeof subscriptionNotification.version === "string" ? subscriptionNotification.version : undefined,
+      notificationType: subscriptionNotification.notificationType as number,
+      purchaseToken: String(subscriptionNotification.purchaseToken)
+    } : undefined,
+    testNotification: notification.testNotification && typeof notification.testNotification === "object"
+      ? notification.testNotification as { version?: string }
+      : undefined
+  };
+}
+
 export type VerifiedGooglePlayPurchase = {
   purchaseToken: string;
   packageName: string;
@@ -333,15 +385,30 @@ export async function applyVerifiedGooglePlaySubscription(userId: string, purcha
   return subscription;
 }
 
+export function shouldRefreshGooglePlaySubscription(
+  updatedAt: string | null,
+  currentPeriodEnd: string | null,
+  now = new Date()
+) {
+  const updatedAtMs = updatedAt ? Date.parse(updatedAt) : Number.NaN;
+  if (!Number.isFinite(updatedAtMs)) return true;
+
+  const periodEndMs = currentPeriodEnd ? Date.parse(currentPeriodEnd) : Number.NaN;
+  const nearPeriodEnd = Number.isFinite(periodEndMs) && periodEndMs <= now.getTime() + 24 * 60 * 60 * 1000;
+  const refreshIntervalMs = nearPeriodEnd ? 5 * 60 * 1000 : 6 * 60 * 60 * 1000;
+  return now.getTime() - updatedAtMs >= refreshIntervalMs;
+}
+
 export async function syncGooglePlaySubscriptionForUser(userId: string) {
   const existing = await query<{
     id: string;
     provider_subscription_id: string | null;
     provider_customer_id: string | null;
     current_period_end: string | null;
+    updated_at: string | null;
   }>(
     `
-    select id, provider_subscription_id, provider_customer_id, current_period_end
+    select id, provider_subscription_id, provider_customer_id, current_period_end, updated_at
     from subscriptions
     where user_id = $1 and provider = 'google_play'
     order by created_at desc
@@ -351,6 +418,7 @@ export async function syncGooglePlaySubscriptionForUser(userId: string) {
   );
   const subscription = existing.rows[0];
   if (!subscription?.provider_subscription_id) return null;
+  if (!shouldRefreshGooglePlaySubscription(subscription.updated_at, subscription.current_period_end)) return null;
 
   const purchase = await verifyGooglePlaySubscriptionPurchase({
     purchaseToken: subscription.provider_subscription_id,
@@ -359,4 +427,76 @@ export async function syncGooglePlaySubscriptionForUser(userId: string) {
 
   await applyVerifiedGooglePlaySubscription(userId, purchase);
   return purchase;
+}
+
+export async function processGooglePlayRtdn(messageId: string, notification: GooglePlayDeveloperNotification) {
+  if (notification.packageName !== configuredGooglePlayPackageName()) {
+    const error = new PaymentProviderError("Google Play RTDN package name does not match Ascend.");
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
+
+  const duplicate = await query<{ id: string }>(
+    "select id from payment_events where provider = 'google_play' and provider_reference = $1 and event_type = 'google_play_rtdn' limit 1",
+    [messageId]
+  );
+  if (duplicate.rows[0]) return { received: true, duplicate: true, matchedSubscription: true };
+
+  async function recordNotification(payload: Record<string, unknown>) {
+    return query<{ id: string }>(
+      `
+      insert into payment_events (provider, provider_reference, event_type, payload)
+      values ('google_play', $1, 'google_play_rtdn', $2)
+      on conflict (provider_reference, event_type)
+        where provider = 'google_play' and event_type = 'google_play_rtdn'
+      do nothing
+      returning id
+      `,
+      [messageId, payload]
+    );
+  }
+
+  if (notification.testNotification) {
+    const recorded = await recordNotification({ kind: "test", packageName: notification.packageName });
+    if (!recorded.rows[0]) return { received: true, duplicate: true, matchedSubscription: false, test: true };
+    return { received: true, duplicate: false, matchedSubscription: false, test: true };
+  }
+
+  const subscriptionNotice = notification.subscriptionNotification;
+  if (!subscriptionNotice) {
+    return { received: true, duplicate: false, matchedSubscription: false, ignored: true };
+  }
+
+  const existing = await query<{ user_id: string }>(
+    `
+    select user_id
+    from subscriptions
+    where provider = 'google_play' and provider_subscription_id = $1
+    order by created_at desc
+    limit 1
+    `,
+    [subscriptionNotice.purchaseToken]
+  );
+  const userId = existing.rows[0]?.user_id;
+  if (!userId) {
+    const recorded = await recordNotification({ kind: "subscription", notificationType: subscriptionNotice.notificationType, matched: false, packageName: notification.packageName });
+    if (!recorded.rows[0]) return { received: true, duplicate: true, matchedSubscription: false };
+    return { received: true, duplicate: false, matchedSubscription: false };
+  }
+
+  const purchase = await verifyGooglePlaySubscriptionPurchase({
+    purchaseToken: subscriptionNotice.purchaseToken,
+    packageName: notification.packageName
+  });
+  await applyVerifiedGooglePlaySubscription(userId, purchase);
+  const recorded = await recordNotification({
+    kind: "subscription",
+    notificationType: subscriptionNotice.notificationType,
+    matched: true,
+    packageName: notification.packageName,
+    status: purchase.status,
+    currentPeriodEnd: purchase.currentPeriodEnd
+  });
+  if (!recorded.rows[0]) return { received: true, duplicate: true, matchedSubscription: true, status: purchase.status };
+  return { received: true, duplicate: false, matchedSubscription: true, status: purchase.status };
 }

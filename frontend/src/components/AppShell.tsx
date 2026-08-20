@@ -78,10 +78,10 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Link href="/contact" className="ascend-pressable grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface" aria-label="Get support">
+            <Link href="/contact" className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface" aria-label="Get support">
               <CircleHelp size={19} />
             </Link>
-            <Link href="/coach" className="ascend-pressable grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface" aria-label="Open coach">
+            <Link href="/coach" className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface" aria-label="Open coach">
               <MessageCircle size={19} />
             </Link>
           </div>

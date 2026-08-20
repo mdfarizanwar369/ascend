@@ -11,6 +11,24 @@ describe("guide profile", () => {
     queryMock.mockReset();
   });
 
+  it("enforces the published 18+ self-service age requirement", async () => {
+    const { guideProfileSchema, onboardingSchema } = await import("../services/userService");
+
+    expect(onboardingSchema.safeParse({
+      fullName: "Young Member",
+      goalType: "maintenance",
+      startingWeightKg: 60,
+      ageYears: 17
+    }).success).toBe(false);
+    expect(guideProfileSchema.safeParse({
+      gender: "prefer_not_to_say",
+      ageYears: 17,
+      activityLevel: "moderate",
+      heightCm: 170,
+      goalType: "maintenance"
+    }).success).toBe(false);
+  });
+
   it("updates the fields used for daily nutrition guides", async () => {
     queryMock.mockResolvedValueOnce({
       rows: [

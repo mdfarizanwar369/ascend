@@ -329,7 +329,7 @@ function WorkoutPlannerCard({
                     disabled={workoutSaved}
                     onClick={() => onToggleExercise(index)}
                     aria-label={`${complete ? "Mark incomplete" : "Mark complete"}: ${exercise.name}`}
-                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border ${
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border ${
                       complete ? "border-lime bg-lime text-ink" : "border-line text-zinc-500"
                     }`}
                   >

@@ -59,7 +59,10 @@ function bodyCompositionRouteLog(event: string, metadata: Record<string, unknown
 }
 
 function bodyCompositionRouteError(event: string, metadata: Record<string, unknown>) {
-  console.error("[body-composition-route]", event, metadata);
+  const safeMetadata = env.NODE_ENV === "production"
+    ? Object.fromEntries(Object.entries(metadata).filter(([key]) => ["durationMs", "name", "rejectedCount"].includes(key)))
+    : metadata;
+  console.error("[body-composition-route]", event, safeMetadata);
 }
 
 function bodyCompositionSaveLog(event: string, metadata: Record<string, unknown>) {

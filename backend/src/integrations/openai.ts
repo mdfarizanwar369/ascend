@@ -86,8 +86,30 @@ function bodyCompositionDebugLog(event: string, metadata: Record<string, unknown
   console.info("[body-composition-ai]", event, metadata);
 }
 
+const productionAiErrorMetadataKeys = new Set([
+  "aiProvider",
+  "blockReason",
+  "category",
+  "finishReason",
+  "hasGeminiKey",
+  "imageHash",
+  "imageIndex",
+  "model",
+  "models",
+  "provider",
+  "responseMode",
+  "status"
+]);
+
+export function safeAiErrorMetadata(metadata: Record<string, unknown>) {
+  if (env.NODE_ENV !== "production") return metadata;
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => productionAiErrorMetadataKeys.has(key))
+  );
+}
+
 function bodyCompositionErrorLog(event: string, metadata: Record<string, unknown>) {
-  console.error("[body-composition-ai]", event, metadata);
+  console.error("[body-composition-ai]", event, safeAiErrorMetadata(metadata));
 }
 
 function foodAiDebugLog(event: string, metadata: Record<string, unknown>) {
@@ -97,7 +119,7 @@ function foodAiDebugLog(event: string, metadata: Record<string, unknown>) {
 }
 
 function foodAiErrorLog(event: string, metadata: Record<string, unknown>) {
-  console.error("[food-ai]", event, metadata);
+  console.error("[food-ai]", event, safeAiErrorMetadata(metadata));
 }
 
 function demoFoodEstimate(): FoodEstimate {
