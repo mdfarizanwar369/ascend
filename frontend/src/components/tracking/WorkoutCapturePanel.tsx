@@ -17,7 +17,9 @@ import type {
   WorkoutCaptureDifficulty,
   WorkoutCaptureDraft,
   WorkoutCaptureExercise,
-  WorkoutCaptureAllowance
+  WorkoutCaptureAllowance,
+  WorkoutLoadBasis,
+  WorkoutTrainingMethod
 } from "@ascend/shared";
 import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
@@ -48,6 +50,79 @@ function metadataText(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+const METHOD_LABELS: Record<WorkoutTrainingMethod, string> = {
+  fst_7: "FST-7",
+  drop_set: "Drop set",
+  back_off: "Back-off",
+  ramp_up: "Ramp-up",
+  rest_pause: "Rest-pause",
+  amrap: "AMRAP",
+  superset: "Superset",
+  alternating_set: "Alternating",
+  giant_set: "Giant set",
+  circuit: "Circuit",
+  short_rest: "Short rest"
+};
+
+const LOAD_BASIS_LABELS: Record<WorkoutLoadBasis, string> = {
+  total: "total",
+  per_side: "per side",
+  per_hand: "per hand",
+  assistance: "assistance",
+  bodyweight: "bodyweight",
+  bodyweight_plus: "bodyweight + load",
+  machine_setting: "machine setting",
+  band: "band",
+  unknown: ""
+};
+
+function formatLoad(value: number | null | undefined, unit: "kg" | "lb" | null | undefined, basis: WorkoutLoadBasis | undefined) {
+  if (basis === "bodyweight" && value === null) return "Bodyweight";
+  if (basis === "band" && value === null) return "Resistance band";
+  if (value === null || value === undefined) return null;
+  const suffix = unit ? ` ${unit}` : "";
+  const basisLabel = basis ? LOAD_BASIS_LABELS[basis] : "";
+  return `${value}${suffix}${basisLabel ? ` ${basisLabel}` : ""}`;
+}
+
+function exerciseFacts(exercise: WorkoutCaptureExercise) {
+  const facts = [
+    exercise.sets ? `${exercise.sets} ${exercise.sets === 1 ? "set" : "sets"}` : null,
+    exercise.reps ? `${exercise.approximateReps ? "~" : ""}${exercise.reps} reps` : null,
+    formatLoad(exercise.load, exercise.loadUnit, exercise.loadBasis),
+    exercise.durationValue && exercise.durationUnit ? `${exercise.durationValue} ${exercise.durationUnit}` : exercise.durationMinutes ? `${exercise.durationMinutes} min` : null,
+    exercise.rpe ? `RPE ${exercise.rpe}` : null,
+    exercise.rir !== null && exercise.rir !== undefined ? `${exercise.rir} RIR` : null,
+    exercise.restSeconds !== null && exercise.restSeconds !== undefined ? `${exercise.restSeconds}s rest` : null,
+    exercise.groupRounds ? `${exercise.groupRounds} rounds` : null
+  ];
+  return [...new Set(facts.filter((fact): fact is string => Boolean(fact)))];
+}
+
+function progressionFacts(exercise: WorkoutCaptureExercise) {
+  const basis = exercise.loadBasis;
+  const unit = exercise.loadUnit;
+  const facts: string[] = [];
+  if (exercise.startingLoad !== null && exercise.startingLoad !== undefined && exercise.workingLoad !== null && exercise.workingLoad !== undefined) {
+    facts.push(`Progression: ${formatLoad(exercise.startingLoad, unit, basis)} -> ${formatLoad(exercise.workingLoad, unit, basis)}`);
+  } else if (exercise.startingLoad !== null && exercise.startingLoad !== undefined) {
+    facts.push(`Starting load: ${formatLoad(exercise.startingLoad, unit, basis)}`);
+  }
+  if (exercise.topLoad !== null && exercise.topLoad !== undefined) facts.push(`Top load: ${formatLoad(exercise.topLoad, unit, basis)}`);
+  if (exercise.backoffLoad !== null && exercise.backoffLoad !== undefined) {
+    const backoffStep = exercise.loadSteps?.find((step) => step.role === "backoff" || step.role === "correction");
+    facts.push(`Back-off: ${formatLoad(exercise.backoffLoad, unit, basis)}${backoffStep?.reps ? ` x ${backoffStep.reps}` : ""}`);
+  }
+  return facts;
+}
+
+function parseMethodInput(value: string): WorkoutTrainingMethod[] {
+  const normalized = value.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+  return Object.entries(METHOD_LABELS)
+    .filter(([key, label]) => normalized.includes(key) || normalized.includes(label.toLowerCase()))
+    .map(([key]) => key as WorkoutTrainingMethod);
+}
+
 function blankExercise(): WorkoutCaptureExercise {
   return {
     name: "",
@@ -61,7 +136,14 @@ function blankExercise(): WorkoutCaptureExercise {
     note: null,
     movementPattern: "other",
     confidence: 1,
-    needsConfirmation: false
+    needsConfirmation: false,
+    section: null,
+    exerciseOrder: null,
+    loadBasis: "unknown",
+    trainingMethods: [],
+    loadSteps: [],
+    setDetails: [],
+    uncertainFields: []
   };
 }
 
@@ -126,10 +208,10 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
       draft.exercises.length > 0 &&
       draft.exercises.every((exercise) =>
         exercise.name.trim().length > 0 &&
-        (exercise.sets === null || (exercise.sets >= 1 && exercise.sets <= 10)) &&
-        (exercise.load === null || (exercise.load >= 0 && exercise.load <= 1_000)) &&
+        (exercise.sets === null || (exercise.sets >= 1 && exercise.sets <= 100)) &&
+        (exercise.load === null || (exercise.load >= 0 && exercise.load <= 2_000)) &&
         (exercise.durationMinutes === null || (exercise.durationMinutes >= 1 && exercise.durationMinutes <= 300)) &&
-        (exercise.restSeconds === null || (exercise.restSeconds >= 0 && exercise.restSeconds <= 600))
+        (exercise.restSeconds === null || (exercise.restSeconds >= 0 && exercise.restSeconds <= 3_600))
       )
     );
   }, [draft]);
@@ -199,7 +281,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
       return {
         ...current,
         exercises: current.exercises.map((exercise, exerciseIndex) => exerciseIndex === index
-          ? { ...exercise, ...patch, needsConfirmation: false, confidence: 1 }
+          ? { ...exercise, ...patch, needsConfirmation: false, confidence: 1, uncertainFields: [] }
           : exercise)
       };
     });
@@ -349,7 +431,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
               setWorkoutText(event.target.value);
               setStatus("");
             }}
-            maxLength={2_000}
+            maxLength={5_000}
             rows={5}
             placeholder={"Bench 60kg 3x10\nLat pulldown 45kg 3x12\n45 minutes total"}
             className="ascend-field mt-2 w-full resize-none rounded-xl border px-3 py-3 text-base leading-6 outline-none focus:border-lime"
@@ -420,6 +502,14 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     );
   }
 
+  const receiptGroups = draft.exercises.reduce<Array<{ section: string | null; exercises: Array<{ exercise: WorkoutCaptureExercise; index: number }> }>>((groups, exercise, index) => {
+    const section = exercise.section?.trim() || null;
+    const existing = groups.at(-1);
+    if (!existing || existing.section !== section) groups.push({ section, exercises: [] });
+    groups.at(-1)?.exercises.push({ exercise, index });
+    return groups;
+  }, []);
+
   return (
     <section className="ascend-surface mt-4 space-y-4 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -481,84 +571,93 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         </label>
       </div>
 
-      <div className="space-y-3">
-        {draft.exercises.map((exercise, index) => (
-          <article
-            key={`${index}-${exercise.originalText ?? "exercise"}`}
-            className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber-400/40 bg-amber-400/5" : "border-line bg-ink"}`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-zinc-300">Exercise {index + 1}</p>
-              <button
-                type="button"
-                onClick={() => removeExercise(index)}
-                disabled={busy}
-                aria-label={`Remove exercise ${index + 1}`}
-                className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl text-zinc-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-            <input
-              aria-label={`Exercise ${index + 1} name`}
-              className={`${inputClass} mt-2`}
-              value={exercise.name}
-              onChange={(event) => updateExercise(index, { name: event.target.value })}
-              placeholder="Exercise name"
-              maxLength={120}
-            />
-            {exercise.needsConfirmation && exercise.originalText ? (
-              <p className="mt-2 text-xs leading-5 text-amber-200/80">From your note: &quot;{exercise.originalText}&quot;</p>
-            ) : null}
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <label>
-                <span className="text-xs text-zinc-500">Sets</span>
-                <input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.sets ?? ""} onChange={(event) => updateExercise(index, { sets: optionalInteger(event.target.value) })} placeholder="3" />
-              </label>
-              <label>
-                <span className="text-xs text-zinc-500">Reps</span>
-                <input className={`${inputClass} mt-1`} value={exercise.reps ?? ""} onChange={(event) => updateExercise(index, { reps: event.target.value || null })} placeholder="10 or 8-10" maxLength={40} />
-              </label>
-              <label>
-                <span className="text-xs text-zinc-500">Weight</span>
-                <input
-                  className={`${inputClass} mt-1`}
-                  inputMode="decimal"
-                  value={exercise.load ?? ""}
-                  onChange={(event) => {
-                    const load = optionalNumber(event.target.value);
-                    updateExercise(index, { load, loadUnit: load !== null ? exercise.loadUnit ?? "kg" : exercise.loadUnit });
-                  }}
-                  placeholder="Optional"
-                />
-              </label>
-              <label>
-                <span className="text-xs text-zinc-500">Unit</span>
-                <select className={`${selectClass} mt-1`} value={exercise.loadUnit ?? "kg"} onChange={(event) => updateExercise(index, { loadUnit: event.target.value as "kg" | "lb" })}>
-                  <option value="kg">kg</option>
-                  <option value="lb">lb</option>
-                </select>
-              </label>
-              <label>
-                <span className="text-xs text-zinc-500">Minutes</span>
-                <input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.durationMinutes ?? ""} onChange={(event) => updateExercise(index, { durationMinutes: optionalInteger(event.target.value) })} placeholder="Optional" />
-              </label>
-              <label>
-                <span className="text-xs text-zinc-500">Rest seconds</span>
-                <input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.restSeconds ?? ""} onChange={(event) => updateExercise(index, { restSeconds: optionalInteger(event.target.value) })} placeholder="Optional" />
-              </label>
-            </div>
-            <label className="mt-3 block">
-              <span className="text-xs text-zinc-500">Note</span>
-              <input
-                className={`${inputClass} mt-1`}
-                value={exercise.note ?? ""}
-                onChange={(event) => updateExercise(index, { note: event.target.value || null })}
-                placeholder="Optional"
-                maxLength={160}
-              />
-            </label>
-          </article>
+      <div className="space-y-5">
+        {receiptGroups.map((group, groupIndex) => (
+          <div key={`${group.section ?? "workout"}-${groupIndex}`} className="space-y-3">
+            {group.section ? <p className="ascend-eyebrow border-b border-line pb-2 text-purple-200">{group.section}</p> : null}
+            {group.exercises.map(({ exercise, index }) => {
+              const facts = exerciseFacts(exercise);
+              const progressions = progressionFacts(exercise);
+              const methods = exercise.trainingMethods ?? [];
+              return (
+                <article
+                  key={`${index}-${exercise.originalText ?? "exercise"}`}
+                  className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber-400/40 bg-amber-400/5" : "border-line bg-ink"}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-white">{exercise.name}</h3>
+                        {exercise.needsConfirmation ? <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-200">Check</span> : null}
+                      </div>
+                      {facts.length ? (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {facts.map((fact) => <span key={fact} className="rounded-full border border-white/10 bg-surface px-2.5 py-1 text-xs text-zinc-300">{fact}</span>)}
+                        </div>
+                      ) : <p className="mt-1 text-sm text-zinc-500">No sets, reps, or load were stated.</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeExercise(index)}
+                      disabled={busy}
+                      aria-label={`Remove ${exercise.name}`}
+                      className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-xl text-zinc-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+
+                  {progressions.length ? (
+                    <div className="mt-3 space-y-1 rounded-lg border border-lime/15 bg-lime/5 p-3 text-sm text-zinc-200">
+                      {progressions.map((fact) => <p key={fact}>{fact}</p>)}
+                    </div>
+                  ) : null}
+                  {methods.length ? (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {methods.map((method) => <span key={method} className="rounded-full border border-purple-300/25 bg-purple-300/10 px-2.5 py-1 text-xs font-medium text-purple-100">{METHOD_LABELS[method]}</span>)}
+                    </div>
+                  ) : null}
+                  {exercise.setDetails?.length && exercise.setDetails.length > 1 ? (
+                    <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
+                      {exercise.setDetails.slice(0, 8).map((set) => (
+                        <p key={`${set.order}-${set.load}-${set.reps}`} className="rounded-lg bg-surface px-2.5 py-2 text-xs text-zinc-400">
+                          Set {set.order}: {[formatLoad(set.load, set.loadUnit, set.loadBasis), set.reps ? `${set.reps} reps` : null, set.rpe ? `RPE ${set.rpe}` : null].filter(Boolean).join(" / ") || "Details not stated"}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {exercise.note ? <p className="mt-3 text-sm leading-6 text-zinc-400">{exercise.note}</p> : null}
+                  {exercise.needsConfirmation && exercise.originalText ? (
+                    <p className="mt-3 border-l-2 border-amber-300/40 pl-3 text-xs leading-5 text-amber-100/75">From your note: &quot;{exercise.originalText}&quot;</p>
+                  ) : null}
+
+                  <details className="mt-3 border-t border-line pt-3">
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-lime">Review or edit details</summary>
+                    <div className="mt-3 space-y-3">
+                      <input aria-label={`Exercise ${index + 1} name`} className={inputClass} value={exercise.name} onChange={(event) => updateExercise(index, { name: event.target.value })} placeholder="Exercise name" maxLength={120} />
+                      <label className="block">
+                        <span className="text-xs text-zinc-500">Section</span>
+                        <input className={`${inputClass} mt-1`} value={exercise.section ?? ""} onChange={(event) => updateExercise(index, { section: event.target.value || null })} placeholder="Optional" maxLength={80} />
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <label><span className="text-xs text-zinc-500">Sets</span><input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.sets ?? ""} onChange={(event) => updateExercise(index, { sets: optionalInteger(event.target.value), completedSets: optionalInteger(event.target.value) })} placeholder="3" /></label>
+                        <label><span className="text-xs text-zinc-500">Reps</span><input className={`${inputClass} mt-1`} value={exercise.reps ?? ""} onChange={(event) => updateExercise(index, { reps: event.target.value || null })} placeholder="10 or 8-10" maxLength={80} /></label>
+                        <label><span className="text-xs text-zinc-500">Load</span><input className={`${inputClass} mt-1`} inputMode="decimal" value={exercise.load ?? ""} onChange={(event) => { const load = optionalNumber(event.target.value); updateExercise(index, { load, loadUnit: load !== null ? exercise.loadUnit ?? "kg" : exercise.loadUnit }); }} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">Unit</span><select className={`${selectClass} mt-1`} value={exercise.loadUnit ?? ""} onChange={(event) => updateExercise(index, { loadUnit: event.target.value ? event.target.value as "kg" | "lb" : null })}><option value="">Not stated</option><option value="kg">kg</option><option value="lb">lb</option></select></label>
+                        <label className="col-span-2"><span className="text-xs text-zinc-500">Load meaning</span><select className={`${selectClass} mt-1`} value={exercise.loadBasis ?? "unknown"} onChange={(event) => updateExercise(index, { loadBasis: event.target.value as WorkoutLoadBasis })}>{Object.entries(LOAD_BASIS_LABELS).map(([value, label]) => <option key={value} value={value}>{label || "Not stated"}</option>)}</select></label>
+                        <label><span className="text-xs text-zinc-500">Minutes</span><input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.durationMinutes ?? ""} onChange={(event) => updateExercise(index, { durationMinutes: optionalInteger(event.target.value) })} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">Rest seconds</span><input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.restSeconds ?? ""} onChange={(event) => updateExercise(index, { restSeconds: optionalInteger(event.target.value) })} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">RPE</span><input className={`${inputClass} mt-1`} inputMode="decimal" value={exercise.rpe ?? ""} onChange={(event) => updateExercise(index, { rpe: optionalNumber(event.target.value) })} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">RIR</span><input className={`${inputClass} mt-1`} inputMode="decimal" value={exercise.rir ?? ""} onChange={(event) => updateExercise(index, { rir: optionalNumber(event.target.value) })} placeholder="Optional" /></label>
+                      </div>
+                      <label className="block"><span className="text-xs text-zinc-500">Methods</span><input className={`${inputClass} mt-1`} value={methods.map((method) => METHOD_LABELS[method]).join(", ")} onChange={(event) => updateExercise(index, { trainingMethods: parseMethodInput(event.target.value) })} placeholder="Superset, drop set, FST-7" maxLength={160} /></label>
+                      <label className="block"><span className="text-xs text-zinc-500">Note</span><input className={`${inputClass} mt-1`} value={exercise.note ?? ""} onChange={(event) => updateExercise(index, { note: event.target.value || null })} placeholder="Optional" maxLength={500} /></label>
+                    </div>
+                  </details>
+                </article>
+              );
+            })}
+          </div>
         ))}
       </div>
 

@@ -1,6 +1,13 @@
 import { query } from "../db/pool";
 import { createCoachPresenceForEvent } from "./coachPresenceService";
-import { WorkoutProgressionIntelligenceV3, WorkoutProgressionSnapshot } from "@ascend/shared";
+import {
+  WORKOUT_LOAD_BASES,
+  WORKOUT_SET_TYPES,
+  WORKOUT_TRAINING_METHODS,
+  WorkoutCaptureExercise,
+  WorkoutProgressionIntelligenceV3,
+  WorkoutProgressionSnapshot
+} from "@ascend/shared";
 import { env } from "../config/env";
 import {
   buildWorkoutProgression,
@@ -14,17 +21,12 @@ import {
   WorkoutObservation
 } from "./workoutProgressionV3Service";
 
-type WorkoutExerciseInput = {
+type WorkoutExerciseInput = Partial<Omit<WorkoutCaptureExercise, "name" | "confidence" | "movementPattern">> & {
   name: string;
-  sets?: number | null;
-  reps?: string | null;
-  load?: number | null;
-  loadUnit?: "kg" | "lb" | null;
+  confidence?: number | null;
+  movementPattern?: string | null;
   duration?: string | null;
   rest?: string | null;
-  note?: string | null;
-  movementPattern?: string | null;
-  confidence?: number | null;
 };
 
 type WorkoutCaloriesInput = {
@@ -132,18 +134,82 @@ function difficultyLabel(difficulty: WorkoutCaloriesInput["difficulty"]) {
 
 function cleanExerciseList(exercises: WorkoutExerciseInput[]) {
   return exercises
-    .map((exercise) => ({
-      name: exercise.name.trim().slice(0, 120),
-      sets: typeof exercise.sets === "number" ? clamp(Math.round(exercise.sets), 1, 10) : null,
-      reps: typeof exercise.reps === "string" ? exercise.reps.trim().slice(0, 40) : null,
-      load: typeof exercise.load === "number" && Number.isFinite(exercise.load) ? clamp(exercise.load, 0, 1_000) : null,
-      loadUnit: exercise.loadUnit === "kg" || exercise.loadUnit === "lb" ? exercise.loadUnit : null,
-      duration: typeof exercise.duration === "string" ? exercise.duration.trim().slice(0, 40) : null,
-      rest: typeof exercise.rest === "string" ? exercise.rest.trim().slice(0, 40) : null,
-      note: typeof exercise.note === "string" ? exercise.note.trim().slice(0, 160) : null,
-      movementPattern: typeof exercise.movementPattern === "string" ? exercise.movementPattern.trim().slice(0, 40) : null,
-      confidence: typeof exercise.confidence === "number" && Number.isFinite(exercise.confidence) ? clamp(exercise.confidence, 0, 1) : null
-    }))
+    .map((exercise, index) => {
+      const loadSteps = Array.isArray(exercise.loadSteps) ? exercise.loadSteps.slice(0, 30).map((step) => ({
+        value: typeof step.value === "number" && Number.isFinite(step.value) ? clamp(step.value, 0, 2_000) : null,
+        unit: step.unit === "kg" || step.unit === "lb" ? step.unit : null,
+        basis: WORKOUT_LOAD_BASES.includes(step.basis) ? step.basis : "unknown",
+        role: step.role,
+        reps: typeof step.reps === "string" ? step.reps.trim().slice(0, 80) : null,
+        approximate: step.approximate === true,
+        note: typeof step.note === "string" ? step.note.trim().slice(0, 300) : null,
+        confidence: typeof step.confidence === "number" && Number.isFinite(step.confidence) ? clamp(step.confidence, 0, 1) : 0.5
+      })) : [];
+      const setDetails = Array.isArray(exercise.setDetails) ? exercise.setDetails.slice(0, 100).map((detail, detailIndex) => ({
+        order: typeof detail.order === "number" ? clamp(Math.round(detail.order), 1, 100) : detailIndex + 1,
+        reps: typeof detail.reps === "string" ? detail.reps.trim().slice(0, 80) : null,
+        repRangeMin: typeof detail.repRangeMin === "number" ? clamp(detail.repRangeMin, 0, 1_000) : null,
+        repRangeMax: typeof detail.repRangeMax === "number" ? clamp(detail.repRangeMax, 0, 1_000) : null,
+        load: typeof detail.load === "number" ? clamp(detail.load, 0, 2_000) : null,
+        loadUnit: detail.loadUnit === "kg" || detail.loadUnit === "lb" ? detail.loadUnit : null,
+        loadBasis: WORKOUT_LOAD_BASES.includes(detail.loadBasis) ? detail.loadBasis : "unknown",
+        durationValue: typeof detail.durationValue === "number" ? clamp(detail.durationValue, 0, 3_600) : null,
+        durationUnit: detail.durationUnit === "seconds" || detail.durationUnit === "minutes" ? detail.durationUnit : null,
+        setType: WORKOUT_SET_TYPES.includes(detail.setType) ? detail.setType : "unknown",
+        rpe: typeof detail.rpe === "number" ? clamp(detail.rpe, 1, 10) : null,
+        rir: typeof detail.rir === "number" ? clamp(detail.rir, 0, 10) : null,
+        approximate: detail.approximate === true,
+        note: typeof detail.note === "string" ? detail.note.trim().slice(0, 300) : null
+      })) : [];
+      return {
+        name: exercise.name.trim().slice(0, 120),
+        originalText: typeof exercise.originalText === "string" ? exercise.originalText.trim().slice(0, 1_000) : null,
+        sets: typeof exercise.sets === "number" ? clamp(Math.round(exercise.sets), 1, 100) : null,
+        reps: typeof exercise.reps === "string" ? exercise.reps.trim().slice(0, 80) : null,
+        load: typeof exercise.load === "number" && Number.isFinite(exercise.load) ? clamp(exercise.load, 0, 2_000) : null,
+        loadUnit: exercise.loadUnit === "kg" || exercise.loadUnit === "lb" ? exercise.loadUnit : null,
+        durationMinutes: typeof exercise.durationMinutes === "number" ? clamp(Math.round(exercise.durationMinutes), 1, 300) : null,
+        restSeconds: typeof exercise.restSeconds === "number" ? clamp(Math.round(exercise.restSeconds), 0, 3_600) : null,
+        duration: typeof exercise.duration === "string" ? exercise.duration.trim().slice(0, 40) : null,
+        rest: typeof exercise.rest === "string" ? exercise.rest.trim().slice(0, 40) : null,
+        note: typeof exercise.note === "string" ? exercise.note.trim().slice(0, 500) : null,
+        movementPattern: typeof exercise.movementPattern === "string" ? exercise.movementPattern.trim().slice(0, 40) : null,
+        confidence: typeof exercise.confidence === "number" && Number.isFinite(exercise.confidence) ? clamp(exercise.confidence, 0, 1) : null,
+        needsConfirmation: exercise.needsConfirmation === true,
+        section: typeof exercise.section === "string" ? exercise.section.trim().slice(0, 80) : null,
+        exerciseOrder: typeof exercise.exerciseOrder === "number" ? clamp(Math.round(exercise.exerciseOrder), 1, 100) : index + 1,
+        completedSets: typeof exercise.completedSets === "number" ? clamp(Math.round(exercise.completedSets), 1, 100) : null,
+        repRangeMin: typeof exercise.repRangeMin === "number" ? clamp(exercise.repRangeMin, 0, 1_000) : null,
+        repRangeMax: typeof exercise.repRangeMax === "number" ? clamp(exercise.repRangeMax, 0, 1_000) : null,
+        approximateReps: exercise.approximateReps === true,
+        durationValue: typeof exercise.durationValue === "number" ? clamp(exercise.durationValue, 0, 3_600) : null,
+        durationUnit: exercise.durationUnit === "seconds" || exercise.durationUnit === "minutes" ? exercise.durationUnit : null,
+        loadBasis: exercise.loadBasis && WORKOUT_LOAD_BASES.includes(exercise.loadBasis) ? exercise.loadBasis : "unknown",
+        loadText: typeof exercise.loadText === "string" ? exercise.loadText.trim().slice(0, 300) : null,
+        startingLoad: typeof exercise.startingLoad === "number" ? clamp(exercise.startingLoad, 0, 2_000) : null,
+        workingLoad: typeof exercise.workingLoad === "number" ? clamp(exercise.workingLoad, 0, 2_000) : null,
+        topLoad: typeof exercise.topLoad === "number" ? clamp(exercise.topLoad, 0, 2_000) : null,
+        backoffLoad: typeof exercise.backoffLoad === "number" ? clamp(exercise.backoffLoad, 0, 2_000) : null,
+        rpe: typeof exercise.rpe === "number" ? clamp(exercise.rpe, 1, 10) : null,
+        rir: typeof exercise.rir === "number" ? clamp(exercise.rir, 0, 10) : null,
+        restStyle: typeof exercise.restStyle === "string" ? exercise.restStyle.trim().slice(0, 80) : null,
+        setType: exercise.setType && WORKOUT_SET_TYPES.includes(exercise.setType) ? exercise.setType : "unknown",
+        trainingMethods: Array.isArray(exercise.trainingMethods)
+          ? exercise.trainingMethods.filter((method) => WORKOUT_TRAINING_METHODS.includes(method)).slice(0, 12)
+          : [],
+        supersetGroup: typeof exercise.supersetGroup === "string" ? exercise.supersetGroup.trim().slice(0, 80) : null,
+        groupRounds: typeof exercise.groupRounds === "number" ? clamp(Math.round(exercise.groupRounds), 1, 100) : null,
+        warmup: exercise.warmup === true,
+        workingSet: exercise.workingSet === true,
+        backoffSet: exercise.backoffSet === true,
+        dropSet: exercise.dropSet === true,
+        loadSteps,
+        setDetails,
+        uncertainFields: Array.isArray(exercise.uncertainFields)
+          ? exercise.uncertainFields.filter((field): field is string => typeof field === "string").map((field) => field.trim().slice(0, 40)).slice(0, 20)
+          : []
+      };
+    })
     .filter((exercise) => exercise.name.length > 0);
 }
 

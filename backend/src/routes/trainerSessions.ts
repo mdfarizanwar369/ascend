@@ -1,5 +1,4 @@
 import { Request, Router } from "express";
-import { WORKOUT_CAPTURE_SOURCE_MODES, WORKOUT_MOVEMENT_PATTERNS } from "@ascend/shared";
 import { z } from "zod";
 import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
@@ -14,37 +13,11 @@ import {
   startTrainerSession,
   updateTrainerSessionDraft
 } from "../services/trainerSessionService";
+import { workoutCaptureDraftSchema } from "../schemas/workoutCaptureSchemas";
 
 export const trainerSessionsRouter = Router();
 
-const exerciseSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  originalText: z.string().max(500).nullable(),
-  sets: z.number().int().min(1).max(100).nullable(),
-  reps: z.string().trim().max(80).nullable(),
-  load: z.number().min(0).max(2_000).nullable(),
-  loadUnit: z.enum(["kg", "lb"]).nullable(),
-  durationMinutes: z.number().int().min(1).max(300).nullable(),
-  restSeconds: z.number().int().min(0).max(3_600).nullable(),
-  note: z.string().trim().max(500).nullable(),
-  movementPattern: z.enum(WORKOUT_MOVEMENT_PATTERNS),
-  confidence: z.number().min(0).max(1),
-  needsConfirmation: z.boolean()
-});
-
-const draftSchema = z.object({
-  version: z.literal("workout_capture_v1"),
-  sourceMode: z.enum(WORKOUT_CAPTURE_SOURCE_MODES),
-  originalInput: z.string().max(5_000),
-  title: z.string().trim().min(1).max(120),
-  workoutType: z.string().trim().min(1).max(80),
-  difficulty: z.enum(["easy", "moderate", "challenging"]),
-  durationMinutes: z.number().int().min(5).max(300).nullable(),
-  exercises: z.array(exerciseSchema).min(1).max(30),
-  confidence: z.number().min(0).max(1),
-  uncertainties: z.array(z.string().trim().min(1).max(300)).max(20),
-  requiresReview: z.literal(true)
-});
+const draftSchema = workoutCaptureDraftSchema;
 
 const narrativesSchema = z.object({
   clientRecap: z.string().trim().min(1).max(600),

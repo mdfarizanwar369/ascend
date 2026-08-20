@@ -1171,12 +1171,12 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
   }
 }
 
-async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string) {
+async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string, maxOutputTokens?: number) {
   if (!providerConfigured()) return fallback;
 
   if (env.AI_PROVIDER === "gemini") {
     try {
-      return await callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], 1400);
+      return await callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], maxOutputTokens ?? 1400);
     } catch {
       return fallback;
     }
@@ -1185,6 +1185,7 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   if (env.AI_PROVIDER === "openai" && openaiClient) {
     const response = await openaiClient.responses.create({
       model: env.OPENAI_MODEL,
+      ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
       input: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
@@ -1654,7 +1655,8 @@ export async function createWorkoutCaptureDraft(input: {
     const reply = await createTextReply(
       "You parse workout notes for Ascend. Accuracy matters more than completeness. Never guess missing numbers. Return strict JSON only.",
       prompt,
-      fallbackJson
+      fallbackJson,
+      4_000
     );
     const draft = normalizeWorkoutCaptureResponse(reply, input.text, input.sourceMode);
     const usedFallback = reply === fallbackJson;

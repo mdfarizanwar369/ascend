@@ -19,6 +19,7 @@ import {
   getWorkoutProgressionHistory,
   saveExerciseAlias
 } from "../services/workoutProgressionV3Service";
+import { savedWorkoutCaptureExerciseSchema } from "../schemas/workoutCaptureSchemas";
 
 export const logsRouter = Router();
 
@@ -102,18 +103,7 @@ const capturedWorkoutSchema = z.object({
   workoutDifficulty: z.enum(["easy", "moderate", "challenging"]),
   durationMinutes: z.number().int().min(5).max(300),
   completedAt: z.string().datetime().optional(),
-  exercises: z.array(z.object({
-    name: z.string().trim().min(1).max(120),
-    sets: z.number().int().min(1).max(10).nullable().optional(),
-    reps: z.string().trim().max(40).nullable().optional(),
-    load: z.number().min(0).max(1_000).nullable().optional(),
-    loadUnit: z.enum(["kg", "lb"]).nullable().optional(),
-    durationMinutes: z.number().int().min(1).max(300).nullable().optional(),
-    restSeconds: z.number().int().min(0).max(600).nullable().optional(),
-    note: z.string().trim().max(160).nullable().optional(),
-    movementPattern: z.enum(["squat", "hinge", "push", "pull", "carry", "core", "cardio", "mobility", "recovery", "other"]),
-    confidence: z.number().min(0).max(1).nullable().optional()
-  })).min(1).max(30),
+  exercises: z.array(savedWorkoutCaptureExerciseSchema).min(1).max(30),
   healthProviderCaloriesBurned: z.number().int().positive().optional().nullable()
 });
 
@@ -459,16 +449,10 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       durationMinutes: input.durationMinutes,
       completedAt: input.completedAt ?? null,
       exercises: input.exercises.map((exercise) => ({
-        name: exercise.name,
-        sets: exercise.sets ?? null,
-        reps: exercise.reps ?? null,
-        load: exercise.load ?? null,
-        loadUnit: exercise.loadUnit ?? null,
+        ...exercise,
         duration: exercise.durationMinutes ? `${exercise.durationMinutes} min` : null,
         rest: exercise.restSeconds !== null && exercise.restSeconds !== undefined ? `${exercise.restSeconds} sec` : null,
-        note: exercise.note ?? null,
-        movementPattern: exercise.movementPattern,
-        confidence: exercise.confidence ?? null
+        note: exercise.note ?? null
       })),
       healthProviderCaloriesBurned: input.healthProviderCaloriesBurned ?? null,
       source: "ai_workout_capture",

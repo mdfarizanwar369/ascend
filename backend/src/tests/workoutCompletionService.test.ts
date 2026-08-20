@@ -61,7 +61,18 @@ describe("Workout completion service", () => {
         load: 25,
         loadUnit: "kg",
         movementPattern: "push",
-        confidence: 0.96
+        confidence: 0.96,
+        section: "Chest",
+        loadBasis: "per_hand",
+        startingLoad: 20,
+        workingLoad: 25,
+        rpe: 8,
+        trainingMethods: ["ramp_up"],
+        loadSteps: [
+          { value: 20, unit: "kg", basis: "per_hand", role: "starting", reps: "10", approximate: false, note: null, confidence: 0.96 },
+          { value: 25, unit: "kg", basis: "per_hand", role: "working", reps: "10", approximate: false, note: null, confidence: 0.96 }
+        ],
+        setDetails: []
       }]
     });
 
@@ -69,7 +80,14 @@ describe("Workout completion service", () => {
       load: 25,
       loadUnit: "kg",
       movementPattern: "push",
-      confidence: 0.96
+      confidence: 0.96,
+      section: "Chest",
+      loadBasis: "per_hand",
+      startingLoad: 20,
+      workingLoad: 25,
+      rpe: 8,
+      trainingMethods: ["ramp_up"]
     });
+    expect(summary.exerciseList[0]?.loadSteps).toHaveLength(2);
   });
 });

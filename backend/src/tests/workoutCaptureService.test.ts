@@ -18,7 +18,7 @@ describe("Workout Capture V1", () => {
     expect(draft.durationMinutes).toBe(45);
     expect(draft.workoutType).toBe("Strength");
     expect(draft.exercises[0]).toMatchObject({
-      name: "Bench press",
+      name: "Bench Press",
       sets: 3,
       reps: "10",
       load: 60,
@@ -26,7 +26,7 @@ describe("Workout Capture V1", () => {
       movementPattern: "push"
     });
     expect(draft.exercises[1]).toMatchObject({
-      name: "Lat pulldown",
+      name: "Lat Pulldown",
       sets: 3,
       reps: "12",
       load: 45,
@@ -80,10 +80,10 @@ describe("Workout Capture V1", () => {
     expect(draft.title).toBe("Upper Body");
     expect(draft.difficulty).toBe("moderate");
     expect(draft.exercises[0]).toMatchObject({
-      name: "Dumbbell bench press",
+      name: "Dumbbell Bench Press",
       load: 25,
       loadUnit: "kg",
-      restSeconds: 90,
+      restSeconds: null,
       needsConfirmation: false
     });
   });
@@ -94,7 +94,7 @@ describe("Workout Capture V1", () => {
     expect(prompt).toContain("Never invent weights, sets, reps, duration, or exercise names.");
     expect(prompt).toContain("Dumbbell Bench Press");
     expect(prompt).toContain("Cable Row");
-    expect(prompt).toContain("Member input: DB bench 3x10");
+    expect(prompt).toContain("Member input:\nDB bench 3x10");
   });
 
   it("converts saved structured workout metadata into a safe repeat draft", () => {
@@ -104,7 +104,25 @@ describe("Workout Capture V1", () => {
       workoutDifficulty: "Challenging",
       durationMinutes: 50,
       exercises: [
-        { name: "Cable row", sets: 3, reps: "10", load: 45, loadUnit: "kg", rest: "90 sec", movementPattern: "pull" },
+        {
+          name: "Cable row",
+          sets: 3,
+          reps: "10",
+          load: 45,
+          loadUnit: "kg",
+          rest: "90 sec",
+          movementPattern: "pull",
+          section: "Back",
+          loadBasis: "total",
+          topLoad: 50,
+          backoffLoad: 45,
+          trainingMethods: ["back_off"],
+          loadSteps: [
+            { value: 50, unit: "kg", basis: "total", role: "top", reps: "8", approximate: false, note: null, confidence: 0.96 },
+            { value: 45, unit: "kg", basis: "total", role: "backoff", reps: "10", approximate: false, note: null, confidence: 0.96 }
+          ],
+          setDetails: []
+        },
         { name: "", sets: 2, reps: "12" }
       ]
     });
@@ -118,6 +136,17 @@ describe("Workout Capture V1", () => {
       requiresReview: true
     });
     expect(draft?.exercises).toHaveLength(1);
-    expect(draft?.exercises[0]).toMatchObject({ load: 45, loadUnit: "kg", restSeconds: 90, movementPattern: "pull" });
+    expect(draft?.exercises[0]).toMatchObject({
+      load: 45,
+      loadUnit: "kg",
+      restSeconds: 90,
+      movementPattern: "pull",
+      section: "Back",
+      loadBasis: "total",
+      topLoad: 50,
+      backoffLoad: 45,
+      trainingMethods: ["back_off"]
+    });
+    expect(draft?.exercises[0]?.loadSteps).toHaveLength(2);
   });
 });

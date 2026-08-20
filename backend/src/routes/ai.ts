@@ -817,7 +817,7 @@ aiRouter.post("/ai/today-priority", requireAuth, todayPriorityRateLimit, async (
 });
 
 const workoutCaptureSchema = z.object({
-  text: z.string().trim().min(2).max(2_000),
+  text: z.string().trim().min(2).max(5_000),
   sourceMode: z.enum(["text", "dictation"]).default("text")
 });
 
