@@ -16,9 +16,9 @@
     "lint": "npm run build --workspace shared && npm run lint --workspace frontend && npm run lint --workspace backend",
     "migrate": "npm run db:migrate --workspace backend",
     "seed": "npm run db:seed --workspace backend",
-    "android:assets": "node scripts/generate-android-brand-assets.mjs && npx capacitor-assets generate --android",
+    "android:assets": "node scripts/generate-android-brand-assets.mjs",
     "android:add": "npx cap add android",
-    "android:sync": "npm run android:assets && npx cap sync android",
+    "android:sync": "npx cap sync android",
     "android:prepare": "npm run build --workspace frontend && npm run android:sync",
     "android:open": "npx cap open android",
     "android:debug-apk": "powershell -Command \"if (Test-Path android\\\\gradlew.bat) { Set-Location android; .\\\\gradlew.bat assembleDebug } else { throw 'Android platform not added yet. Run npm run android:add first.' }\"",
@@ -28,7 +28,6 @@
     "android:internal-testing:prepare": "npm run build && npm run android:sync && npm run android:release-bundle"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.1",
     "concurrently": "^8.2.2",
     "sharp": "^0.35.2"

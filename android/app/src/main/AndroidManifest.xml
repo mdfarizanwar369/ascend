@@ -37,7 +37,6 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="https" android:host="www.getascend.fit" />
-                <data android:scheme="https" android:host="getascend.fit" />
             </intent-filter>
         </activity>
 

@@ -45,8 +45,6 @@ import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@
 import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
-import { AscendEssentialsMorph } from "@/components/dashboard/AscendEssentialsMorph";
-import { getAscendMorphV2Timing, useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { getAscendMorphV22Timing, useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 
@@ -350,7 +348,6 @@ function CollapsibleSection({
 
 export function ClientDashboard() {
   const launchMorphV22 = useAscendLaunchMorphV22();
-  const launchMorphV2 = useAscendLaunchMorphV2();
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
@@ -383,7 +380,7 @@ export function ClientDashboard() {
   const [momentumRewardActive, setMomentumRewardActive] = useState(false);
   const [essentialsInView, setEssentialsInView] = useState(true);
   const [essentialsEntrancePhase, setEssentialsEntrancePhase] = useState<"waiting" | "running" | "settled">("waiting");
-  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morph" | "morphV2" | "morphV22">("undecided");
+  const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morphV22">("undecided");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [dailyDecisionInsight, setDailyDecisionInsight] = useState<DailyCoachingDecisionInsight | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
@@ -411,7 +408,6 @@ export function ClientDashboard() {
   const essentialsVisibleRef = useRef(false);
   const essentialsEntranceStartedRef = useRef(false);
   const essentialsV22StartedRef = useRef(false);
-  const essentialsV2StartedRef = useRef(false);
   const essentialsEntranceFrameOneRef = useRef<number | null>(null);
   const essentialsEntranceFrameTwoRef = useRef<number | null>(null);
   const essentialsEntranceTimerRef = useRef<number | null>(null);
@@ -436,7 +432,7 @@ export function ClientDashboard() {
     // Consume the document's cold-launch marker even when a provider owns the
     // opening morph. Otherwise a later Meals -> Today navigation can claim the
     // stale marker and replay the legacy dashboard entrance.
-    const shouldMorph = claimTodayEssentialsColdLaunch();
+    claimTodayEssentialsColdLaunch();
 
     const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     if (reduceMotion) {
@@ -450,12 +446,7 @@ export function ClientDashboard() {
       return;
     }
 
-    if (launchMorphV2.enabled && launchMorphV2.holdingLaunchGlyph) {
-      setEssentialsOpeningMode("morphV2");
-      return;
-    }
-
-    setEssentialsOpeningMode(shouldMorph ? "morph" : "stagger");
+    setEssentialsOpeningMode("stagger");
 
     essentialsEntranceFrameOneRef.current = window.requestAnimationFrame(() => {
       essentialsEntranceFrameOneRef.current = null;
@@ -465,15 +456,10 @@ export function ClientDashboard() {
         essentialsEntranceTimerRef.current = window.setTimeout(() => {
           essentialsEntranceTimerRef.current = null;
           setEssentialsEntrancePhase("settled");
-        }, shouldMorph ? 1120 : 660);
+        }, 660);
       });
     });
-  }, [
-    launchMorphV2.enabled,
-    launchMorphV2.holdingLaunchGlyph,
-    launchMorphV22.enabled,
-    launchMorphV22.holdingLaunchGlyph
-  ]);
+  }, [launchMorphV22.enabled, launchMorphV22.holdingLaunchGlyph]);
 
   const finishEssentialsOpening = useCallback(() => {
     if (essentialsEntranceTimerRef.current !== null) {
@@ -573,12 +559,12 @@ export function ClientDashboard() {
         }
       });
       const coreDataRequest = Promise.allSettled([
-        getFoodLogs(),
-        getWeightLogs(),
-        getWaterLogs(),
+        getFoodLogs({ range: "30d", order: "newest", limit: 100 }),
+        getWeightLogs({ limit: 30 }),
+        getWaterLogs({ limit: 100 }),
         getHabits(),
         getHabitLogs(),
-        getBurnLogs(),
+        getBurnLogs({ limit: 30 }),
         getComplianceToday(),
         getTodayMission(),
         getLatestRecognition(),
@@ -586,7 +572,7 @@ export function ClientDashboard() {
         getGoalStatus()
       ]);
       const secondaryDataRequest = Promise.allSettled([
-        getProgressPhotos(),
+        getProgressPhotos({ limit: 12 }),
         getMyNutritionTargets(),
         getCoachPresence(),
         getAscendMemory(),
@@ -1407,31 +1393,6 @@ export function ClientDashboard() {
     });
   }, [activeMomentumSignals, essentialsEntrancePhase, essentialsOpeningMode, finishEssentialsOpening, launchMorphV22]);
 
-  useLayoutEffect(() => {
-    if (essentialsOpeningMode !== "morphV2" || essentialsEntrancePhase !== "waiting" || essentialsV2StartedRef.current) return;
-    const section = essentialsSectionRef.current;
-    if (!section) return;
-
-    essentialsV2StartedRef.current = true;
-    setEssentialsEntrancePhase("running");
-    essentialsEntranceFrameOneRef.current = window.requestAnimationFrame(() => {
-      essentialsEntranceFrameOneRef.current = null;
-      const started = launchMorphV2.startDashboardMorph({
-        section,
-        signals: activeMomentumSignals.map((signal) => ({ key: signal.key, progress: signal.progress, done: signal.done })),
-        onComplete: finishEssentialsOpening,
-        onAbort: () => {
-          setEssentialsOpeningMode("stagger");
-          finishEssentialsOpening();
-        }
-      });
-
-      if (started) return;
-      setEssentialsOpeningMode("stagger");
-      finishEssentialsOpening();
-    });
-  }, [activeMomentumSignals, essentialsEntrancePhase, essentialsOpeningMode, finishEssentialsOpening, launchMorphV2]);
-
   useEffect(() => {
     const nextDone = {
       fuel: fuelMomentumDone,
@@ -1696,11 +1657,6 @@ export function ClientDashboard() {
           className="ascend-today-essentials mt-3"
           aria-labelledby="today-essentials-title"
         >
-          <AscendEssentialsMorph
-            active={essentialsOpeningMode === "morph" && essentialsEntrancePhase === "running"}
-            signals={activeMomentumSignals}
-            onAbort={finishEssentialsOpening}
-          />
           <div className="ascend-essentials-heading">
             <p className="ascend-eyebrow">Today&apos;s essentials</p>
             <h1 id="today-essentials-title" className="mt-1.5 text-[1.65rem] font-semibold leading-tight text-white">
@@ -1721,13 +1677,9 @@ export function ClientDashboard() {
               const Icon = item.icon;
               const isPriority = index === 0 && !item.done;
               const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
-              const morphV2Timing = getAscendMorphV2Timing(index);
               const morphV22Timing = getAscendMorphV22Timing(index);
               const cardStyle = {
                 "--ascend-essential-entry-delay": `${index * 80}ms`,
-                "--ascend-v2-card-delay": `${morphV2Timing.cardDelayMs}ms`,
-                "--ascend-v2-content-delay": `${morphV2Timing.contentDelayMs}ms`,
-                "--ascend-v2-ring-delay": `${morphV2Timing.ringDelayMs}ms`,
                 "--ascend-v22-card-delay": `${morphV22Timing.cardDelayMs}ms`,
                 "--ascend-v22-ring-delay": `${morphV22Timing.ringDelayMs}ms`,
                 "--ascend-v22-content-delay": `${morphV22Timing.contentDelayMs}ms`,

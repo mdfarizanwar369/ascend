@@ -891,7 +891,7 @@ function shouldUseFoodFallback(estimate: FoodEstimate) {
 
 export async function estimateFoodFromImage(
   imageUrl: string,
-  context: { userId?: string | null; gymId?: string | null; performanceTrace?: FoodAiPerformanceTrace | null } = {}
+  context: { userId?: string | null; gymId?: string | null; performanceTrace?: FoodAiPerformanceTrace | null; timezoneOffsetMinutes?: number } = {}
 ): Promise<FoodEstimate> {
   const imageHash = timeFoodAiSyncStage(context.performanceTrace, "Image hash calculation", () =>
     imageUrl.startsWith("data:image/") ? imageHashFromDataUrl(imageUrl) : null
@@ -925,7 +925,7 @@ export async function estimateFoodFromImage(
   }
 
   if (context.userId) {
-    await timeFoodAiStage(context.performanceTrace, "Allowance lookup", () => assertFoodAiAllowance(context.userId!));
+    await timeFoodAiStage(context.performanceTrace, "Allowance lookup", () => assertFoodAiAllowance(context.userId!, context.timezoneOffsetMinutes));
   }
 
   try {
@@ -998,11 +998,11 @@ export async function estimateFoodFromImage(
 
 export async function estimateFoodFromText(
   description: string,
-  context: { userId?: string | null; gymId?: string | null } = {}
+  context: { userId?: string | null; gymId?: string | null; timezoneOffsetMinutes?: number } = {}
 ): Promise<FoodEstimate> {
   const trimmed = description.trim().replace(/\s+/g, " ").slice(0, 500);
   if (context.userId) {
-    await assertFoodAiAllowance(context.userId);
+    await assertFoodAiAllowance(context.userId, context.timezoneOffsetMinutes);
   }
 
   if (!providerConfigured()) {

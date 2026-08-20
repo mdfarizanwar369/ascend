@@ -3,7 +3,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { createReadUrl, readStoredImage } from "../integrations/s3";
+import { createReadUrl, deleteStoredObjects, readStoredImage } from "../integrations/s3";
 import { canManageClient } from "../services/clientAccessService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 
@@ -13,6 +13,11 @@ const progressPhotoSchema = z.object({
   imageS3Key: z.string().min(1),
   photoType: z.enum(["front", "side", "back", "other"]).default("front"),
   loggedAt: z.string().datetime().optional()
+});
+
+const progressPhotoQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+  offset: z.coerce.number().int().min(0).default(0)
 });
 
 async function withProgressImageUrls<T extends { image_s3_key?: string | null }>(rows: T[]) {
@@ -40,8 +45,28 @@ progressRouter.post("/progress-photos", requireAuth, requireActivePlan("premium"
 
 progressRouter.get("/progress-photos", requireAuth, async (req, res, next) => {
   try {
-    const result = await query("select * from progress_photos where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
-    res.json({ progressPhotos: await withProgressImageUrls(result.rows) });
+    const filters = progressPhotoQuerySchema.parse(req.query);
+    const result = await query("select * from progress_photos where user_id = $1 order by logged_at desc limit $2 offset $3", [req.user!.id, filters.limit, filters.offset]);
+    res.json({
+      progressPhotos: await withProgressImageUrls(result.rows),
+      nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+progressRouter.delete("/progress-photos/:photoId", requireAuth, async (req, res, next) => {
+  try {
+    const photoId = z.string().uuid().parse(req.params.photoId);
+    const result = await query<{ id: string; image_s3_key: string | null }>(
+      "delete from progress_photos where id = $1 and user_id = $2 returning id, image_s3_key",
+      [photoId, req.user!.id]
+    );
+    const deleted = result.rows[0];
+    if (!deleted) return res.status(404).json({ error: "Progress photo not found." });
+    await deleteStoredObjects([deleted.image_s3_key]).catch(() => undefined);
+    res.json({ deleted: true, photoId: deleted.id });
   } catch (error) {
     next(error);
   }

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Droplets } from "lucide-react";
-import { getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
+import { Droplets, Trash2 } from "lucide-react";
+import { deleteWaterLog, getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
 import { DelightBadge } from "@/components/Delight";
 import { localDateKey } from "@/lib/date";
 import { rememberDashboardRecord } from "@/lib/dataSync";
@@ -15,8 +15,10 @@ const dailyTargetMl = 2500;
 
 export function WaterLogClient() {
   const [todayMl, setTodayMl] = useState(0);
+  const [todayLogs, setTodayLogs] = useState<Array<{ id: string; amount_ml: number; logged_at: string }>>([]);
   const [status, setStatus] = useState("Loading today's water...");
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [saveSucceeded, setSaveSucceeded] = useState(false);
   const saveLockRef = useRef(false);
 
@@ -29,10 +31,11 @@ export function WaterLogClient() {
         if (!isMounted) return;
 
         const today = localDateKey();
-        const total = logs.waterLogs
-          .filter((log) => localDateKey(log.logged_at) === today)
+        const todaysLogs = logs.waterLogs.filter((log) => localDateKey(log.logged_at) === today);
+        const total = todaysLogs
           .reduce((sum, log) => sum + log.amount_ml, 0);
 
+        setTodayLogs(todaysLogs);
         setTodayMl(total);
         setStatus("");
       } catch {
@@ -58,6 +61,7 @@ export function WaterLogClient() {
     try {
       const saved = await saveWaterLog({ amountMl });
       rememberDashboardRecord("water", saved.waterLog);
+      setTodayLogs((current) => [saved.waterLog, ...current]);
       const nextTotal = todayMl + amountMl;
       setTodayMl(nextTotal);
       const remainingMl = Math.max(dailyTargetMl - nextTotal, 0);
@@ -70,6 +74,22 @@ export function WaterLogClient() {
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
+    }
+  }
+
+  async function removeWater(log: { id: string; amount_ml: number }) {
+    if (!window.confirm(`Remove this ${log.amount_ml}ml water entry?`)) return;
+    setDeletingId(log.id);
+    try {
+      await deleteWaterLog(log.id);
+      setTodayLogs((current) => current.filter((entry) => entry.id !== log.id));
+      setTodayMl((current) => Math.max(0, current - log.amount_ml));
+      setSaveSucceeded(false);
+      setStatus("Water entry removed.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove that water entry.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -101,6 +121,25 @@ export function WaterLogClient() {
         </section>
 
         <TrackingStatus message={status} success={saveSucceeded} actionHref="/dashboard" />
+
+        {todayLogs.length ? (
+          <section className="ascend-surface mt-4 p-4">
+            <h2 className="text-base font-semibold">Today&apos;s water</h2>
+            <div className="mt-3 space-y-2">
+              {todayLogs.map((log) => (
+                <div key={log.id} className="ascend-inset flex min-h-14 items-center gap-3 px-4 py-3">
+                  <div>
+                    <p className="font-semibold">{log.amount_ml >= 1000 ? `${log.amount_ml / 1000}L` : `${log.amount_ml}ml`}</p>
+                    <p className="mt-0.5 text-xs text-zinc-400">{new Date(log.logged_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>
+                  </div>
+                  <button type="button" onClick={() => removeWater(log)} disabled={deletingId === log.id} className="ascend-pressable ml-auto grid h-11 w-11 place-items-center rounded-xl border border-red-400/30 text-red-300 disabled:opacity-50" aria-label={`Remove ${log.amount_ml} millilitre water entry`}>
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );

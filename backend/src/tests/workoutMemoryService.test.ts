@@ -46,6 +46,21 @@ describe("Workout memory service", () => {
     expect(summary.continuityNote).toContain("lower body");
   });
 
+  it("classifies a post-midnight Singapore workout as today", () => {
+    const summary = buildWorkoutMemorySummary([
+      {
+        created_at: "2026-08-20T16:15:00.000Z",
+        metadata: { workoutTitle: "Evening Walk", workoutType: "Cardio" }
+      }
+    ], {
+      now: new Date("2026-08-20T17:00:00.000Z"),
+      timezoneOffsetMinutes: -480
+    });
+
+    expect(summary.latestWorkout?.completionDate).toBe("2026-08-21");
+    expect(summary.latestWorkout?.completedToday).toBe(true);
+  });
+
   it("exposes compact verified progression to Coach Zoe memory", () => {
     const summary = buildWorkoutMemorySummary([
       {

@@ -30,6 +30,7 @@ import { healthSyncRouter } from "./routes/healthSync";
 import { founderRouter } from "./routes/founder";
 import { trainerHomeworkRouter } from "./routes/trainerHomework";
 import { trainerSessionsRouter } from "./routes/trainerSessions";
+import { clientErrorsRouter } from "./routes/clientErrors";
 import { errorHandler } from "./middleware/errors";
 import { ensureAiUsageSchema } from "./services/aiUsageService";
 import { ensureCoachPresenceSchema } from "./services/coachPresenceService";
@@ -39,6 +40,7 @@ import { ensureWaitlistSchema } from "./services/waitlistService";
 import { ensureSubscriptionSchema } from "./services/subscriptionSchemaService";
 import { ensureNotificationSchema } from "./services/notificationService";
 import { ensureHealthSyncSchema } from "./services/healthSyncService";
+import { ensureClientErrorSchema } from "./services/clientErrorService";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -78,6 +80,7 @@ app.use("/api/v1", messagesRouter);
 app.use("/api/v1", missionsRouter);
 app.use("/api/v1", notificationsRouter);
 app.use("/api/v1", healthSyncRouter);
+app.use("/api/v1", clientErrorsRouter);
 app.use("/api/v1", coachPresenceRouter);
 app.use("/api/v1", memoryRouter);
 app.use("/api/v1", gymsRouter);
@@ -107,7 +110,8 @@ Promise.all([
   ensureNotificationSchema(),
   ensureCoachPresenceSchema(),
   ensureAscendMemorySchema(),
-  ensureHealthSyncSchema()
+  ensureHealthSyncSchema(),
+  ensureClientErrorSchema()
 ])
   .catch((error) => {
     console.error("Schema setup failed", error);

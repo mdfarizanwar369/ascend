@@ -25,6 +25,7 @@ import { deterministicTodayPriority } from "../services/todayPriorityService";
 import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
 import { dailyCoachingCorrelation, dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
 import { loadTodayPriorityFacts } from "../services/todayPriorityContextService";
+import { localDateKeyAtOffset, localDateKeyDaysAgo, localWeekKeyAtOffset } from "../services/memberTimeService";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -34,14 +35,16 @@ const momentumContextSelect = env.MOMENTUM_V2
 
 const coachChatSchema = z.object({
   message: z.string().trim().min(1).max(2_000),
-  mode: z.enum(["general", "progress", "consistency", "meal_advice", "workout"]).optional().default("general")
+  mode: z.enum(["general", "progress", "consistency", "meal_advice", "workout"]).optional().default("general"),
+  timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
 
 const workoutPlannerSchema = z.object({
   location: z.enum(["gym", "home", "hotel", "outdoors"]),
   timeAvailable: z.enum(["20", "30", "45", "60"]),
   goal: z.enum(["fat_loss", "muscle_gain", "strength", "general_fitness", "recovery", "mobility"]),
-  equipment: z.string().trim().min(2).max(80)
+  equipment: z.string().trim().min(2).max(80),
+  timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
 
 function asNumber(value: unknown) {
@@ -50,13 +53,7 @@ function asNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function localDateKey(value: string | Date) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(0, 10);
-}
-
-function summarizeFoodRows(rows: Array<Record<string, unknown>>) {
+function summarizeFoodRows(rows: Array<Record<string, unknown>>, timezoneOffsetMinutes = 0) {
   const days = new Set<string>();
   let proteinLowEvenings = 0;
   let totalProtein = 0;
@@ -64,7 +61,7 @@ function summarizeFoodRows(rows: Array<Record<string, unknown>>) {
 
   for (const row of rows) {
     const loggedAt = String(row.logged_at ?? "");
-    if (loggedAt) days.add(localDateKey(loggedAt));
+    if (loggedAt) days.add(localDateKeyAtOffset(loggedAt, timezoneOffsetMinutes));
     totalProtein += asNumber(row.protein_g) ?? 0;
     totalCalories += asNumber(row.calories) ?? 0;
 
@@ -82,15 +79,15 @@ function summarizeFoodRows(rows: Array<Record<string, unknown>>) {
   };
 }
 
-function summarizeWaterRows(rows: Array<Record<string, unknown>>) {
+export function summarizeWaterRows(rows: Array<Record<string, unknown>>, timezoneOffsetMinutes = 0) {
   const totalsByDay = new Map<string, number>();
   for (const row of rows) {
     const loggedAt = String(row.logged_at ?? "");
     if (!loggedAt) continue;
-    const key = localDateKey(loggedAt);
+    const key = localDateKeyAtOffset(loggedAt, timezoneOffsetMinutes);
     totalsByDay.set(key, (totalsByDay.get(key) ?? 0) + (asNumber(row.amount_ml) ?? 0));
   }
-  const days = [...totalsByDay.entries()];
+  const days = [...totalsByDay.entries()].sort(([left], [right]) => left.localeCompare(right));
   const goalDays = days.filter(([, amount]) => amount >= 2_000).length;
   return {
     daysTracked: days.length,
@@ -113,16 +110,16 @@ function summarizeWeightRows(rows: Array<Record<string, unknown>>) {
   };
 }
 
-function summarizeHabitRows(rows: Array<Record<string, unknown>>) {
+function summarizeHabitRows(rows: Array<Record<string, unknown>>, timezoneOffsetMinutes = 0) {
   const completed = rows.filter((row) => row.completed === true).length;
-  const days = new Set(rows.filter((row) => row.logged_at).map((row) => localDateKey(String(row.logged_at))));
+  const days = new Set(rows.filter((row) => row.logged_at).map((row) => localDateKeyAtOffset(String(row.logged_at), timezoneOffsetMinutes)));
   return {
     completed,
     activeDays: days.size
   };
 }
 
-function coverageStats(rows: Array<Record<string, unknown>>, key: "logged_at" | "created_at", daysWindow = 90) {
+function coverageStats(rows: Array<Record<string, unknown>>, key: "logged_at" | "created_at", daysWindow = 90, timezoneOffsetMinutes = 0) {
   const weekdayActive = new Set<string>();
   const weekendActive = new Set<string>();
   let weekdaySlots = 0;
@@ -131,15 +128,16 @@ function coverageStats(rows: Array<Record<string, unknown>>, key: "logged_at" | 
   for (const row of rows) {
     const value = String(row[key] ?? "");
     if (!value) continue;
-    const normalized = localDateKey(value);
+    const normalized = localDateKeyAtOffset(value, timezoneOffsetMinutes);
     const day = new Date(`${normalized}T00:00:00Z`).getUTCDay();
     if (day === 0 || day === 6) weekendActive.add(normalized);
     else weekdayActive.add(normalized);
   }
 
+  const localToday = new Date(`${localDateKeyDaysAgo(0, timezoneOffsetMinutes)}T00:00:00.000Z`);
   for (let index = 0; index < daysWindow; index += 1) {
-    const date = new Date();
-    date.setUTCDate(date.getUTCDate() - index);
+    const date = new Date(localToday);
+    date.setUTCDate(localToday.getUTCDate() - index);
     const day = date.getUTCDay();
     if (day === 0 || day === 6) weekendSlots += 1;
     else weekdaySlots += 1;
@@ -157,22 +155,18 @@ function summarizeLongTermSignals(input: {
   weightRows: Array<Record<string, unknown>>;
   burnRows: Array<Record<string, unknown>>;
   habitRows: Array<Record<string, unknown>>;
+  timezoneOffsetMinutes: number;
 }) {
-  const foodCoverage = coverageStats(input.foodRows, "logged_at");
-  const waterCoverage = coverageStats(input.waterRows, "logged_at");
-  const habitCoverage = coverageStats(input.habitRows, "logged_at");
-  const workoutCoverage = coverageStats(input.burnRows, "created_at");
+  const foodCoverage = coverageStats(input.foodRows, "logged_at", 90, input.timezoneOffsetMinutes);
+  const waterCoverage = coverageStats(input.waterRows, "logged_at", 90, input.timezoneOffsetMinutes);
+  const habitCoverage = coverageStats(input.habitRows, "logged_at", 90, input.timezoneOffsetMinutes);
+  const workoutCoverage = coverageStats(input.burnRows, "created_at", 90, input.timezoneOffsetMinutes);
 
   const workoutWeeks = new Set(
     input.burnRows
       .map((row) => String(row.created_at ?? ""))
       .filter(Boolean)
-      .map((value) => {
-        const date = new Date(value);
-        const weekStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-        weekStart.setUTCDate(weekStart.getUTCDate() - ((weekStart.getUTCDay() + 6) % 7));
-        return weekStart.toISOString().slice(0, 10);
-      })
+      .map((value) => localWeekKeyAtOffset(value, input.timezoneOffsetMinutes))
   );
 
   const orderedWeights = [...input.weightRows]
@@ -231,30 +225,31 @@ function summarizeDataConfidence(input: {
   burnRows: Array<Record<string, unknown>>;
   habitRows: Array<Record<string, unknown>>;
   bodyScanHistory: Array<{ scanDate: string | null; weightKg: number | null; bodyFatPercent: number | null; skeletalMuscleMassKg: number | null; visceralFat: number | null; bmrKcal: number | null }>;
+  timezoneOffsetMinutes: number;
 }) {
   const historyDays = new Set<string>();
   for (const row of input.foodRows) {
     const value = String(row.logged_at ?? "");
-    if (value) historyDays.add(localDateKey(value));
+    if (value) historyDays.add(localDateKeyAtOffset(value, input.timezoneOffsetMinutes));
   }
   for (const row of input.waterRows) {
     const value = String(row.logged_at ?? "");
-    if (value) historyDays.add(localDateKey(value));
+    if (value) historyDays.add(localDateKeyAtOffset(value, input.timezoneOffsetMinutes));
   }
   for (const row of input.weightRows) {
     const value = String(row.logged_at ?? "");
-    if (value) historyDays.add(localDateKey(value));
+    if (value) historyDays.add(localDateKeyAtOffset(value, input.timezoneOffsetMinutes));
   }
   for (const row of input.burnRows) {
     const value = String(row.created_at ?? "");
-    if (value) historyDays.add(localDateKey(value));
+    if (value) historyDays.add(localDateKeyAtOffset(value, input.timezoneOffsetMinutes));
   }
   for (const row of input.habitRows) {
     const value = String(row.logged_at ?? "");
-    if (value) historyDays.add(localDateKey(value));
+    if (value) historyDays.add(localDateKeyAtOffset(value, input.timezoneOffsetMinutes));
   }
   for (const row of input.bodyScanHistory) {
-    if (row.scanDate) historyDays.add(localDateKey(row.scanDate));
+    if (row.scanDate) historyDays.add(localDateKeyAtOffset(row.scanDate, input.timezoneOffsetMinutes));
   }
 
   const totalActivities =
@@ -286,8 +281,8 @@ function summarizeDataConfidence(input: {
 
 aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
-    const { message, mode } = coachChatSchema.parse(req.body);
-    const coachAccess = await getCoachZoeAccess(req.user!.id);
+    const { message, mode, timezoneOffsetMinutes } = coachChatSchema.parse(req.body);
+    const coachAccess = await getCoachZoeAccess(req.user!.id, timezoneOffsetMinutes);
     if (mode === "general" && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
       return res.status(402).json({
         error: "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights and a coach that learns from your journey."
@@ -510,32 +505,30 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
         : Promise.resolve({ rows: [] }),
       resolveNutritionTargets(req.user!.id)
     ]);
-    const foodWindow = summarizeFoodRows(foodWindowResult.rows);
-    const waterWindow = summarizeWaterRows(waterWindowResult.rows);
+    const foodWindow = summarizeFoodRows(foodWindowResult.rows, timezoneOffsetMinutes);
+    const waterWindow = summarizeWaterRows(waterWindowResult.rows, timezoneOffsetMinutes);
     const weightWindow = summarizeWeightRows(weightWindowResult.rows);
-    const habitsWindow = summarizeHabitRows(habitWindowResult.rows);
+    const habitsWindow = summarizeHabitRows(habitWindowResult.rows, timezoneOffsetMinutes);
     const longTermJourney = coachAccess.premiumDepth
       ? summarizeLongTermSignals({
           foodRows: longTermFoodResult.rows,
           waterRows: longTermWaterResult.rows,
           weightRows: longTermWeightResult.rows,
           burnRows: longTermBurnResult.rows,
-          habitRows: longTermHabitResult.rows
+          habitRows: longTermHabitResult.rows,
+          timezoneOffsetMinutes
         })
       : null;
 
     const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
-      currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null
+      currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null,
+      timezoneOffsetMinutes
     });
     const burnWindow = {
       workouts: burnWindowResult.rows.length,
       latestWorkoutAt: burnWindowResult.rows[0]?.created_at ?? null,
-      completedToday: burnWindowResult.rows.some((row) => localDateKey(String(row.created_at ?? "")) === localDateKey(new Date())),
-      completedYesterday: burnWindowResult.rows.some((row) => {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        return localDateKey(String(row.created_at ?? "")) === localDateKey(yesterday);
-      })
+      completedToday: burnWindowResult.rows.some((row) => localDateKeyAtOffset(String(row.created_at ?? ""), timezoneOffsetMinutes) === localDateKeyDaysAgo(0, timezoneOffsetMinutes)),
+      completedYesterday: burnWindowResult.rows.some((row) => localDateKeyAtOffset(String(row.created_at ?? ""), timezoneOffsetMinutes) === localDateKeyDaysAgo(1, timezoneOffsetMinutes))
     };
     const latestWeeklyReport = weeklyReportResult.rows[0]
       ? {
@@ -559,7 +552,8 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
       weightRows: weightWindowResult.rows,
       burnRows: burnWindowResult.rows,
       habitRows: habitWindowResult.rows,
-      bodyScanHistory
+      bodyScanHistory,
+      timezoneOffsetMinutes
     });
     const promptContext = JSON.stringify({
       coachAccess: {
@@ -889,7 +883,7 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
     const input = workoutPlannerSchema.parse(req.body);
     const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
       await Promise.all([
-        getCoachZoeAccess(req.user!.id),
+        getCoachZoeAccess(req.user!.id, input.timezoneOffsetMinutes),
         query(
           `
           select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
@@ -973,7 +967,8 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
         )
       ]);
     const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
-      currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null
+      currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null,
+      timezoneOffsetMinutes: input.timezoneOffsetMinutes
     });
 
     const promptContext = JSON.stringify(
@@ -1002,7 +997,8 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
           timeAvailable: input.timeAvailable,
           goal: input.goal,
           equipment: input.equipment
-        }
+        },
+        timezoneOffsetMinutes: input.timezoneOffsetMinutes
       })
     );
 

@@ -3,6 +3,7 @@ import { FoodEstimate } from "@ascend/shared";
 import { env } from "../config/env";
 import { query } from "../db/pool";
 import { Role, SubscriptionPlan } from "@ascend/shared";
+import { localDayStartUtc, localWeekStartUtc, normalizeTimezoneOffsetMinutes } from "./memberTimeService";
 
 export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection" | "workout_capture_analysis" | "today_priority_analysis";
 export type AiStatus = "success" | "error" | "cache_hit" | "fallback";
@@ -224,7 +225,7 @@ function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePla
   return { period: "week", label: "Free weekly AI scans", limit: 5 };
 }
 
-export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowance> {
+export async function getFoodAiAllowance(userId: string, timezoneOffsetMinutes = 0, now = new Date()): Promise<FoodAiAllowance> {
   const profile = await getAiAccessProfile(userId);
   const access = allowanceForAccess({
     primaryRole: profile.primaryRole,
@@ -236,7 +237,8 @@ export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowanc
     return { ...access, used: 0, remaining: null };
   }
 
-  const periodStartSql = access.period === "week" ? "date_trunc('week', now())" : "current_date";
+  const offset = normalizeTimezoneOffsetMinutes(timezoneOffsetMinutes);
+  const periodStart = access.period === "week" ? localWeekStartUtc(offset, now) : localDayStartUtc(offset, now);
   const usedResult = await query<{ used: string }>(
     `
     select count(*) as used
@@ -244,10 +246,10 @@ export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowanc
     where user_id = $1
       and event_type = 'food_image_analysis'
       and cache_hit = false
-      and status in ('success', 'error')
-      and created_at >= ${periodStartSql}
+      and status = 'success'
+      and created_at >= $2
     `,
-    [userId]
+    [userId, periodStart.toISOString()]
   );
   const used = Number(usedResult.rows[0]?.used ?? 0);
 
@@ -258,7 +260,7 @@ export async function getFoodAiAllowance(userId: string): Promise<FoodAiAllowanc
   };
 }
 
-export async function getCoachZoeAccess(userId: string): Promise<CoachZoeAccess> {
+export async function getCoachZoeAccess(userId: string, timezoneOffsetMinutes = 0, now = new Date()): Promise<CoachZoeAccess> {
   const profile = await getAiAccessProfile(userId);
   const unlimited =
     profile.primaryRole === "owner" ||
@@ -290,9 +292,9 @@ export async function getCoachZoeAccess(userId: string): Promise<CoachZoeAccess>
       and status = 'success'
       and coalesce(metadata->>'mode', 'general') = 'general'
       and coalesce(metadata->>'feature', '') <> 'coach_zoe_workout_planner'
-      and created_at >= current_date
+      and created_at >= $2
     `,
-    [userId]
+    [userId, localDayStartUtc(normalizeTimezoneOffsetMinutes(timezoneOffsetMinutes), now).toISOString()]
   );
   const used = Number(usedResult.rows[0]?.used ?? 0);
   const limit = 10;
@@ -306,16 +308,16 @@ export async function getCoachZoeAccess(userId: string): Promise<CoachZoeAccess>
   };
 }
 
-export async function assertCoachZoeConversationAccess(userId: string) {
-  const access = await getCoachZoeAccess(userId);
+export async function assertCoachZoeConversationAccess(userId: string, timezoneOffsetMinutes = 0) {
+  const access = await getCoachZoeAccess(userId, timezoneOffsetMinutes);
   if (access.dailyAskZoeLimit !== null && (access.dailyAskZoeRemaining ?? 0) <= 0) {
     throw new CoachZoeLimitError();
   }
   return access;
 }
 
-export async function assertFoodAiAllowance(userId: string) {
-  const allowance = await getFoodAiAllowance(userId);
+export async function assertFoodAiAllowance(userId: string, timezoneOffsetMinutes = 0) {
+  const allowance = await getFoodAiAllowance(userId, timezoneOffsetMinutes);
   if (allowance.limit !== null && (allowance.remaining ?? 0) <= 0) {
     throw new FoodAiLimitError(allowance);
   }

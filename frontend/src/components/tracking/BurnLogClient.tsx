@@ -2,8 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Flame, ListChecks, Save, Zap } from "lucide-react";
-import { estimateBurnFromText, getBurnLogs, getCurrentCoachHomework, getMe, getMySubscription, saveBurnLog, TrainerHomeworkAssignment } from "@/lib/ascendApi";
+import { Flame, ListChecks, Save, Trash2, Zap } from "lucide-react";
+import { deleteBurnLog, estimateBurnFromText, getBurnLogs, getCurrentCoachHomework, getMe, getMySubscription, saveBurnLog, TrainerHomeworkAssignment } from "@/lib/ascendApi";
 import { Field, inputClass, selectClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
@@ -52,17 +52,20 @@ export function BurnLogClient() {
   const [durationMinutes, setDurationMinutes] = useState("");
   const [activityText, setActivityText] = useState("");
   const [todayCalories, setTodayCalories] = useState(0);
+  const [todayLogs, setTodayLogs] = useState<Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"]>([]);
   const [aiCalories, setAiCalories] = useState<number | null>(null);
   const [estimateNotes, setEstimateNotes] = useState("");
   const [status, setStatus] = useState("Loading today's burn...");
   const [isSaving, setIsSaving] = useState(false);
   const [isEstimating, setIsEstimating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [canUseAiEstimate, setCanUseAiEstimate] = useState(false);
   const [homework, setHomework] = useState<TrainerHomeworkAssignment | null>(null);
   const saveLockRef = useRef(false);
 
   const handleDetailedSaved = useCallback((burnLog: { id: string; metadata: Record<string, unknown>; created_at: string }, calories: number) => {
     rememberDashboardRecord("burn", burnLog);
+    setTodayLogs((current) => [burnLog as Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number], ...current]);
     setTodayCalories((current) => current + calories);
   }, []);
 
@@ -107,10 +110,11 @@ export function BurnLogClient() {
         if (!isMounted) return;
 
         const today = localDateKey();
-        const total = logs.burnLogs
-          .filter((log) => localDateKey(log.created_at) === today)
+        const todaysLogs = logs.burnLogs.filter((log) => localDateKey(log.created_at) === today);
+        const total = todaysLogs
           .reduce((sum, log) => sum + Number(log.metadata?.caloriesBurned ?? 0), 0);
 
+        setTodayLogs(todaysLogs);
         setTodayCalories(total);
         setStatus("");
       } catch (error) {
@@ -181,6 +185,7 @@ export function BurnLogClient() {
         caloriesBurned: estimatedCalories
       });
       rememberDashboardRecord("burn", saved.burnLog);
+      setTodayLogs((current) => [saved.burnLog, ...current]);
       setTodayCalories((current) => current + estimatedCalories);
       setStatus(`${activityType} saved. About ${estimatedCalories} kcal added to today's movement.`);
     } catch (error) {
@@ -188,6 +193,22 @@ export function BurnLogClient() {
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
+    }
+  }
+
+  async function removeActivity(log: Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number]) {
+    if (!window.confirm("Remove this activity from your history and today's progress?")) return;
+    setDeletingId(log.id);
+    try {
+      await deleteBurnLog(log.id);
+      const calories = Number(log.metadata?.caloriesBurned ?? log.metadata?.estimatedCaloriesBurned ?? 0);
+      setTodayLogs((current) => current.filter((entry) => entry.id !== log.id));
+      setTodayCalories((current) => Math.max(0, current - calories));
+      setStatus("Activity entry removed.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove that activity.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -331,6 +352,28 @@ export function BurnLogClient() {
         ) : (
           <WorkoutCapturePanel onBusyChange={setDetailedBusy} onSaved={handleDetailedSaved} />
         )}
+        {todayLogs.length ? (
+          <section className="ascend-surface mt-4 p-4">
+            <h2 className="text-base font-semibold">Today&apos;s movement</h2>
+            <div className="mt-3 space-y-2">
+              {todayLogs.map((log) => {
+                const label = log.metadata?.workoutTitle ?? log.metadata?.activityType ?? "Activity";
+                const calories = Number(log.metadata?.caloriesBurned ?? log.metadata?.estimatedCaloriesBurned ?? 0);
+                return (
+                  <div key={log.id} className="ascend-inset flex min-h-14 items-center gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{label}</p>
+                      <p className="mt-0.5 text-xs text-zinc-400">{calories} kcal · {new Date(log.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>
+                    </div>
+                    <button type="button" onClick={() => removeActivity(log)} disabled={deletingId === log.id} className="ascend-pressable ml-auto grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-400/30 text-red-300 disabled:opacity-50" aria-label={`Remove ${label}`}>
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
         {coachedSessionsEnabled ? <CoachedSessionsCard /> : null}
       </div>
     </main>

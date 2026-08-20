@@ -20,6 +20,11 @@ import {
 } from "lucide-react";
 import {
   getAscendMemory,
+  getAllBurnLogs,
+  getAllFoodLogs,
+  getAllProgressPhotos,
+  getAllWaterLogs,
+  getAllWeightLogs,
   getBodyCompositionSummary,
   getBurnLogs,
   getCoachPresence,
@@ -802,11 +807,11 @@ export function JourneyClient() {
         ] = await Promise.allSettled([
           getMyStreak(),
           getComplianceToday(),
-          getFoodLogs({ range: "all", order: "newest", limit: 100 }),
-          getWaterLogs(),
-          getWeightLogs(),
-          getBurnLogs(),
-          getProgressPhotos(),
+          getAllFoodLogs(),
+          getAllWaterLogs(),
+          getAllWeightLogs(),
+          getAllBurnLogs(),
+          getAllProgressPhotos(),
           getAscendMemory(),
           getGoalStatus(),
           getMyProgressComparison(),

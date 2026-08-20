@@ -626,92 +626,6 @@ html[data-theme="light"] .ascend-theme-glow {
   to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
-@keyframes ascend-essentials-morph-halo {
-  0% { opacity: 0; transform: scale(0.72); }
-  18% { opacity: 0.7; transform: scale(1); }
-  45% { opacity: 0.42; transform: scale(1.08); }
-  68%, 100% { opacity: 0; transform: scale(1.18); }
-}
-
-@keyframes ascend-essentials-morph-flight {
-  0%, 23% { transform: translate3d(0, 0, 0); }
-  43% { transform: translate3d(var(--ascend-morph-separate-x), var(--ascend-morph-separate-y), 0); }
-  78%, 100% { transform: translate3d(var(--ascend-morph-dx), var(--ascend-morph-dy), 0); }
-}
-
-@keyframes ascend-essentials-morph-mark {
-  0% { opacity: 0; stroke-dashoffset: 1; }
-  12% { opacity: 0.96; }
-  24% { opacity: 1; stroke-dashoffset: 0; }
-  48% { opacity: 1; stroke-dashoffset: 0; }
-  70%, 100% { opacity: 0; stroke-dashoffset: 0; }
-}
-
-@keyframes ascend-essentials-morph-ring {
-  0%, 46% { opacity: 0; transform: scale(0.54) rotate(-7deg); }
-  61% { opacity: 0.7; transform: scale(0.82) rotate(-3deg); }
-  78% { opacity: 0.96; transform: scale(1) rotate(0deg); }
-  90% { opacity: 0.72; transform: scale(1) rotate(0deg); }
-  100% { opacity: 0; transform: scale(1) rotate(0deg); }
-}
-
-@keyframes ascend-essentials-ui-resolve {
-  from { opacity: 0; transform: translate3d(0, 6px, 0) scale(0.992); }
-  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-@keyframes ascend-morph-v2-flight {
-  0%, 24% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  36% {
-    opacity: 1;
-    transform: translate3d(var(--ascend-v2-separate-x), var(--ascend-v2-separate-y), 0) scale(1);
-  }
-  72% {
-    opacity: 1;
-    transform: translate3d(var(--ascend-v2-mid-x), var(--ascend-v2-mid-y), 0) scale(0.97);
-  }
-  92% {
-    opacity: 1;
-    transform: translate3d(var(--ascend-v2-near-x), var(--ascend-v2-near-y), 0) scale(0.88);
-  }
-  96% { opacity: 1; }
-  100% {
-    opacity: 0;
-    transform: translate3d(var(--ascend-v2-dx), var(--ascend-v2-dy), 0) scale(var(--ascend-v2-target-scale));
-  }
-}
-
-@keyframes ascend-morph-v2-activation {
-  0% { opacity: 0; stroke-dashoffset: 1; }
-  24% { opacity: 0.72; }
-  78% { opacity: 0.32; stroke-dashoffset: 0; }
-  100% { opacity: 0; stroke-dashoffset: 0; }
-}
-
-@keyframes ascend-morph-v2-card-resolve {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes ascend-morph-v2-content-resolve {
-  from { opacity: 0; transform: translate3d(0, 3px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
-@keyframes ascend-morph-v2-ring-draw {
-  from {
-    opacity: 0.18;
-    stroke-dasharray: 0 var(--ascend-v2-ring-circumference);
-  }
-  to {
-    opacity: 1;
-    stroke-dasharray: var(--ascend-v2-ring-length) var(--ascend-v2-ring-circumference);
-  }
-}
-
 @keyframes ascend-morph-v22-whole-release {
   0%, 70% { opacity: 1; transform: scale(1); }
   84% { opacity: 0.68; transform: scale(0.99); }
@@ -1198,108 +1112,6 @@ main.min-h-screen {
   box-shadow: 0 24px 54px rgba(2, 7, 13, 0.18);
 }
 
-.ascend-essentials-morph {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  contain: layout style paint;
-}
-
-.ascend-essentials-morph-stage {
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.ascend-essentials-morph-halo {
-  fill: rgba(104, 78, 210, 0.13);
-  stroke: rgba(53, 242, 208, 0.15);
-  stroke-width: 1;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: ascend-essentials-morph-halo 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.ascend-essentials-morph-fragment {
-  color: #a484ff;
-  transform-box: view-box;
-  transform-origin: 0 0;
-  will-change: transform;
-  animation: ascend-essentials-morph-flight 1100ms cubic-bezier(0.2, 0.82, 0.24, 1) both;
-}
-
-.ascend-essentials-morph-fragment[data-tone="move"] { color: #35f2d0; }
-.ascend-essentials-morph-fragment[data-tone="recover"] { color: #63a2ff; }
-
-.ascend-essentials-morph-mark {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 5px currentColor);
-  animation: ascend-essentials-morph-mark 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.ascend-essentials-morph-ring {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 5;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-  transform-box: fill-box;
-  transform-origin: center;
-  filter: drop-shadow(0 0 7px currentColor);
-  animation: ascend-essentials-morph-ring 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.ascend-morph-v2-overlay {
-  position: fixed;
-  z-index: 80;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  contain: layout style paint;
-}
-
-.ascend-morph-v2-whole,
-.ascend-morph-v2-fragment,
-.ascend-morph-v2-activation {
-  position: absolute;
-  display: block;
-}
-
-.ascend-morph-v2-whole {
-  opacity: 1;
-}
-
-.ascend-morph-v2-fragment {
-  will-change: transform, opacity;
-  animation: ascend-morph-v2-flight var(--ascend-v2-flight-duration) cubic-bezier(0.2, 0.82, 0.24, 1) var(--ascend-v2-flight-delay) both;
-}
-
-.ascend-morph-v2-activation {
-  opacity: 1;
-}
-
-.ascend-morph-v2-activation path {
-  opacity: 0;
-  stroke: rgba(225, 255, 250, 0.78);
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: ascend-morph-v2-activation 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.ascend-morph-v2-activation path:nth-of-type(2) {
-  animation-delay: 40ms;
-}
-
 .ascend-morph-v22-overlay {
   position: fixed;
   z-index: 81;
@@ -1363,60 +1175,8 @@ main.min-h-screen {
 }
 
 .ascend-today-essentials[data-opening="undecided"] .ascend-essentials-heading,
-.ascend-today-essentials[data-opening="undecided"] .ascend-essentials-completion,
-.ascend-today-essentials[data-opening="morph"][data-entrance="waiting"] .ascend-essentials-heading,
-.ascend-today-essentials[data-opening="morph"][data-entrance="waiting"] .ascend-essentials-completion {
+.ascend-today-essentials[data-opening="undecided"] .ascend-essentials-completion {
   opacity: 0;
-}
-
-.ascend-today-essentials[data-opening="morph"][data-entrance="running"] .ascend-essentials-heading {
-  animation: ascend-essentials-ui-resolve 330ms cubic-bezier(0.22, 1, 0.36, 1) 650ms both;
-}
-
-.ascend-today-essentials[data-opening="morph"][data-entrance="running"] .ascend-essentials-completion {
-  animation: ascend-essentials-ui-resolve 320ms cubic-bezier(0.22, 1, 0.36, 1) 700ms both;
-}
-
-.ascend-today-essentials[data-opening="morph"][data-entrance="running"] .ascend-essential-enter {
-  animation: ascend-essentials-ui-resolve 330ms cubic-bezier(0.22, 1, 0.36, 1) 720ms both;
-}
-
-.ascend-today-essentials[data-opening="morph"][data-entrance="running"] nav > .ascend-essential-enter:nth-child(2) {
-  animation-delay: 755ms;
-}
-
-.ascend-today-essentials[data-opening="morph"][data-entrance="running"] nav > .ascend-essential-enter:nth-child(3) {
-  animation-delay: 790ms;
-}
-
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="waiting"] .ascend-essentials-heading,
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="waiting"] .ascend-essentials-completion,
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="waiting"] .ascend-essential-enter {
-  opacity: 0;
-}
-
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essentials-heading {
-  animation: ascend-morph-v2-card-resolve 260ms cubic-bezier(0.22, 1, 0.36, 1) 760ms both;
-}
-
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essentials-completion {
-  animation: ascend-morph-v2-card-resolve 240ms cubic-bezier(0.22, 1, 0.36, 1) 800ms both;
-}
-
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-enter {
-  animation: ascend-morph-v2-card-resolve 190ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-card-delay) both;
-}
-
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-copy,
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-chevron,
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-essential-action,
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-signal-ring-core {
-  animation: ascend-morph-v2-content-resolve 185ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-content-delay) both;
-}
-
-.ascend-today-essentials[data-opening="morphV2"][data-entrance="running"] .ascend-signal-ring-progress {
-  transition: none;
-  animation: ascend-morph-v2-ring-draw 250ms cubic-bezier(0.22, 1, 0.36, 1) var(--ascend-v2-ring-delay) both;
 }
 
 .ascend-today-essentials[data-opening="morphV22"][data-entrance="waiting"] .ascend-essential-enter,
@@ -1518,122 +1278,6 @@ main.min-h-screen {
 
 .ascend-today-essentials[data-opening="morphV22"] [data-tone="recover"] .ascend-signal-ring {
   --ascend-v22-contact-tone: #63a2ff;
-}
-
-/* Development comparison lab: pin both implementations to an exact global frame. */
-html[data-ascend-morph-audit-frame] .ascend-morph-v22-whole,
-html[data-ascend-morph-audit-frame] .ascend-morph-v22-charge path,
-html[data-ascend-morph-audit-frame] .ascend-morph-v22-charge circle {
-  animation-delay: calc(0ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-morph-v22-fragment,
-html[data-ascend-morph-audit-frame] .ascend-morph-v22-wake {
-  animation-delay: calc(var(--ascend-v22-flight-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-enter {
-  animation-delay: calc(var(--ascend-v22-card-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring-progress {
-  animation-delay: calc(var(--ascend-v22-ring-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring::after {
-  animation-delay: calc(var(--ascend-v22-contact-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essentials-heading {
-  animation-delay: calc(300ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essentials-completion {
-  animation-delay: calc(340ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-copy,
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-chevron,
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-essential-action,
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV22"] .ascend-signal-ring-core {
-  animation-delay: calc(var(--ascend-v22-content-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-essentials-morph-halo,
-html[data-ascend-morph-audit-frame] .ascend-essentials-morph-fragment,
-html[data-ascend-morph-audit-frame] .ascend-essentials-morph-mark,
-html[data-ascend-morph-audit-frame] .ascend-essentials-morph-ring,
-html[data-ascend-morph-audit-frame] .ascend-morph-v2-activation path {
-  animation-delay: calc(0ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-morph-v2-fragment {
-  animation-delay: calc(var(--ascend-v2-flight-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-morph-v2-activation path:nth-of-type(2) {
-  animation-delay: calc(40ms - var(--ascend-morph-audit-frame)) !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph"] .ascend-essentials-heading {
-  animation-delay: calc(650ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph"] .ascend-essentials-completion {
-  animation-delay: calc(700ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph"] .ascend-essential-enter {
-  animation-delay: calc(720ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph"] nav > .ascend-essential-enter:nth-child(2) {
-  animation-delay: calc(755ms - var(--ascend-morph-audit-frame)) !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morph"] nav > .ascend-essential-enter:nth-child(3) {
-  animation-delay: calc(790ms - var(--ascend-morph-audit-frame)) !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essentials-heading {
-  animation-delay: calc(760ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essentials-completion {
-  animation-delay: calc(800ms - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-enter {
-  animation-delay: calc(var(--ascend-v2-card-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-copy,
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-chevron,
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-essential-action,
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-signal-ring-core {
-  animation-delay: calc(var(--ascend-v2-content-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
-}
-
-html[data-ascend-morph-audit-frame] .ascend-today-essentials[data-opening="morphV2"] .ascend-signal-ring-progress {
-  animation-delay: calc(var(--ascend-v2-ring-delay) - var(--ascend-morph-audit-frame)) !important;
-  animation-play-state: paused !important;
 }
 
 .ascend-essential-card {
@@ -2566,12 +2210,6 @@ html[data-theme="light"] .ascend-skeleton::after {
   .ascend-rise-endpoint,
   .ascend-rise-seed,
   .ascend-essential-enter,
-  .ascend-essentials-morph-halo,
-  .ascend-essentials-morph-fragment,
-  .ascend-essentials-morph-mark,
-  .ascend-essentials-morph-ring,
-  .ascend-morph-v2-fragment,
-  .ascend-morph-v2-activation,
   .ascend-morph-v22-whole,
   .ascend-morph-v22-charge path,
   .ascend-morph-v22-charge circle,
@@ -2623,14 +2261,6 @@ html[data-theme="light"] .ascend-skeleton::after {
   }
 
   .ascend-topography-overlay {
-    display: none !important;
-  }
-
-  .ascend-essentials-morph {
-    display: none !important;
-  }
-
-  .ascend-morph-v2-overlay {
     display: none !important;
   }
 

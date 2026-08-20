@@ -4,6 +4,7 @@ import {
   WorkoutProgressionIntelligenceV3,
   WorkoutProgressionSnapshot
 } from "@ascend/shared";
+import { formatLocalTimeAtOffset, localDateKeyAtOffset, localDateKeyDaysAgo } from "./memberTimeService";
 
 type WorkoutEventRow = {
   metadata?: Record<string, unknown> | null;
@@ -14,6 +15,7 @@ type WorkoutMemoryOptions = {
   currentStreak?: number | null;
   currentMomentum?: number | null;
   now?: Date;
+  timezoneOffsetMinutes?: number;
 };
 
 export type WorkoutMemorySummary = {
@@ -64,13 +66,6 @@ export type WorkoutMemorySummary = {
     latestProgression: string | null;
   };
 };
-
-function localDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function parseNumber(value: unknown) {
   const number = Number(value);
@@ -141,10 +136,9 @@ function continuityNote(workoutName: string, latestToday: boolean, focusArea: st
 
 export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: WorkoutMemoryOptions = {}): WorkoutMemorySummary {
   const now = options.now ?? new Date();
-  const todayKey = localDateKey(now);
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const yesterdayKey = localDateKey(yesterday);
+  const timezoneOffsetMinutes = options.timezoneOffsetMinutes ?? 0;
+  const todayKey = localDateKeyDaysAgo(0, timezoneOffsetMinutes, now);
+  const yesterdayKey = localDateKeyDaysAgo(1, timezoneOffsetMinutes, now);
 
   const recentWorkouts = rows
     .map((row) => {
@@ -152,10 +146,10 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       const workoutName = parseText(metadata.workoutTitle) ?? workoutTypeFromMetadata(metadata);
       const workoutType = workoutTypeFromMetadata(metadata);
       const createdAt = row.created_at ? new Date(row.created_at) : new Date(now);
-      const completionDate = Number.isNaN(createdAt.getTime()) ? todayKey : localDateKey(createdAt);
+      const completionDate = Number.isNaN(createdAt.getTime()) ? todayKey : localDateKeyAtOffset(createdAt, timezoneOffsetMinutes);
       const completionTime = Number.isNaN(createdAt.getTime())
         ? ""
-        : new Intl.DateTimeFormat("en-SG", { hour: "numeric", minute: "2-digit" }).format(createdAt);
+        : formatLocalTimeAtOffset(createdAt, timezoneOffsetMinutes);
       return {
         workoutName,
         workoutType,
@@ -182,7 +176,7 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       const createdAt = row.created_at ? new Date(row.created_at) : new Date(now);
       return {
         workoutName: parseText(metadata.workoutTitle) ?? workoutTypeFromMetadata(metadata),
-        completionDate: Number.isNaN(createdAt.getTime()) ? todayKey : localDateKey(createdAt),
+        completionDate: Number.isNaN(createdAt.getTime()) ? todayKey : localDateKeyAtOffset(createdAt, timezoneOffsetMinutes),
         status: progression.overallStatus,
         headline: progression.headline,
         highlights: progression.highlights.slice(0, 2)
@@ -197,7 +191,7 @@ export function buildWorkoutMemorySummary(rows: WorkoutEventRow[], options: Work
       const createdAt = row.created_at ? new Date(row.created_at) : new Date(now);
       return {
         workoutName: parseText(metadata.workoutTitle) ?? workoutTypeFromMetadata(metadata),
-        completionDate: Number.isNaN(createdAt.getTime()) ? todayKey : localDateKey(createdAt),
+        completionDate: Number.isNaN(createdAt.getTime()) ? todayKey : localDateKeyAtOffset(createdAt, timezoneOffsetMinutes),
         status: progression.overallStatus,
         headline: progression.headline,
         achievement: progression.achievements[0] ?? null,

@@ -1,8 +1,8 @@
 "use client";
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, ChevronLeft, ChevronRight, Expand, ImagePlus, ShieldCheck, X } from "lucide-react";
-import { getProgressPhotos, saveProgressPhoto, uploadProgressPhotoDataUrl } from "@/lib/ascendApi";
+import { Camera, Check, ChevronLeft, ChevronRight, Expand, ImagePlus, ShieldCheck, Trash2, X } from "lucide-react";
+import { deleteProgressPhoto, getProgressPhotos, saveProgressPhoto, uploadProgressPhotoDataUrl } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { rememberDashboardAction } from "@/lib/dataSync";
 import { AscendStoriesLauncher } from "@/components/progress/AscendStoriesLauncher";
@@ -65,6 +65,7 @@ export function ProgressPhotosClient() {
   const [fullscreenPhoto, setFullscreenPhoto] = useState<ProgressPhoto | null>(null);
   const [status, setStatus] = useState("Add a clear progress photo so your trainer can compare changes over time.");
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const saveLockRef = useRef(false);
 
   async function loadPhotos() {
@@ -139,6 +140,21 @@ export function ProgressPhotosClient() {
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
+    }
+  }
+
+  async function removePhoto(photo: ProgressPhoto) {
+    if (!window.confirm("Permanently remove this progress photo? This cannot be undone.")) return;
+    setDeletingId(photo.id);
+    try {
+      await deleteProgressPhoto(photo.id);
+      setPhotos((current) => current.filter((entry) => entry.id !== photo.id));
+      if (fullscreenPhoto?.id === photo.id) setFullscreenPhoto(null);
+      setStatus("Progress photo removed.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove that progress photo.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -306,21 +322,26 @@ export function ProgressPhotosClient() {
           <h2 className="text-base font-semibold">Recent photos</h2>
           <div className="mt-3 space-y-2">
             {photos.slice(0, 8).map((photo) => (
-              <button key={photo.id} type="button" onClick={() => setFullscreenPhoto(photo)} className="ascend-pressable flex w-full items-center gap-3 rounded-xl bg-ink p-3 text-left">
-                {photo.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photo.image_url} alt={formatPhotoType(photo.photo_type)} className="h-14 w-14 rounded-lg object-cover" loading="lazy" decoding="async" />
-                ) : (
-                  <div className="grid h-14 w-14 place-items-center rounded-lg bg-surface">
-                    <Camera className="text-zinc-500" size={18} />
+              <div key={photo.id} className="flex items-center gap-2 rounded-xl bg-ink p-2">
+                <button type="button" onClick={() => setFullscreenPhoto(photo)} className="ascend-pressable flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left">
+                  {photo.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photo.image_url} alt={formatPhotoType(photo.photo_type)} className="h-14 w-14 rounded-lg object-cover" loading="lazy" decoding="async" />
+                  ) : (
+                    <div className="grid h-14 w-14 place-items-center rounded-lg bg-surface">
+                      <Camera className="text-zinc-500" size={18} />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{formatPhotoType(photo.photo_type)}</p>
+                    <p className="mt-1 truncate text-xs text-zinc-400">{new Date(photo.logged_at).toLocaleString()}</p>
                   </div>
-                )}
-                <div>
-                  <p className="text-sm font-medium">{formatPhotoType(photo.photo_type)}</p>
-                  <p className="mt-1 text-xs text-zinc-400">{new Date(photo.logged_at).toLocaleString()}</p>
-                </div>
-                <Expand className="ml-auto shrink-0 text-zinc-500" size={18} />
-              </button>
+                  <Expand className="ml-auto shrink-0 text-zinc-500" size={18} />
+                </button>
+                <button type="button" onClick={() => removePhoto(photo)} disabled={deletingId === photo.id} className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-red-400/30 text-red-300 disabled:opacity-50" aria-label={`Remove ${formatPhotoType(photo.photo_type)} progress photo`}>
+                  <Trash2 size={18} />
+                </button>
+              </div>
             ))}
             {!photos.length ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Your first progress photo will appear here. Small visual wins become easier to notice over time.</p> : null}
           </div>

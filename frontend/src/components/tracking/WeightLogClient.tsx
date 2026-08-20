@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Save, Scale } from "lucide-react";
-import { getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
+import { Save, Scale, Trash2 } from "lucide-react";
+import { deleteWeightLog, getMe, getWeightLogs, saveWeightLog } from "@/lib/ascendApi";
 import { Field, inputClass } from "@/components/Field";
 import { DelightBadge } from "@/components/Delight";
 import { rememberDashboardRecord } from "@/lib/dataSync";
@@ -19,9 +19,10 @@ export function WeightLogClient() {
   const [weightKg, setWeightKg] = useState("");
   const [targetWeightKg, setTargetWeightKg] = useState<number | null>(null);
   const [latestWeightKg, setLatestWeightKg] = useState<number | null>(null);
-  const [weightHistory, setWeightHistory] = useState<Array<{ weight_kg: string | number; logged_at: string }>>([]);
+  const [weightHistory, setWeightHistory] = useState<Array<{ id: string; weight_kg: string | number; logged_at: string }>>([]);
   const [status, setStatus] = useState("Loading your latest weight...");
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [milestone, setMilestone] = useState<Awaited<ReturnType<typeof saveWeightLog>>["milestone"]>(null);
   const saveLockRef = useRef(false);
 
@@ -75,6 +76,27 @@ export function WeightLogClient() {
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
+    }
+  }
+
+  async function removeWeight(id: string) {
+    if (!window.confirm("Remove this weight entry? Your remaining history will stay unchanged.")) return;
+    setDeletingId(id);
+    try {
+      await deleteWeightLog(id);
+      setWeightHistory((current) => {
+        const next = current.filter((entry) => entry.id !== id);
+        const latest = next[0] ? asNumber(next[0].weight_kg) : null;
+        setLatestWeightKg(latest || null);
+        if (latest) setWeightKg(latest.toFixed(1));
+        return next;
+      });
+      setMilestone(null);
+      setStatus("Weight entry removed.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not remove that weight entry.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -149,6 +171,25 @@ export function WeightLogClient() {
             {isSaving ? "Saving..." : "Save weight"}
           </button>
         </form>
+
+        {weightHistory.length ? (
+          <section className="ascend-surface mt-4 p-4">
+            <h2 className="text-base font-semibold">Recent weigh-ins</h2>
+            <div className="mt-3 space-y-2">
+              {weightHistory.slice(0, 8).map((entry) => (
+                <div key={entry.id} className="ascend-inset flex min-h-14 items-center gap-3 px-4 py-3">
+                  <div>
+                    <p className="font-semibold">{asNumber(entry.weight_kg).toFixed(1)}kg</p>
+                    <p className="mt-0.5 text-xs text-zinc-400">{new Date(entry.logged_at).toLocaleString()}</p>
+                  </div>
+                  <button type="button" onClick={() => removeWeight(entry.id)} disabled={deletingId === entry.id} className="ascend-pressable ml-auto grid h-11 w-11 place-items-center rounded-xl border border-red-400/30 text-red-300 disabled:opacity-50" aria-label="Remove weight entry">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );

@@ -8,7 +8,9 @@ import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesResponseListener
+import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.QueryProductDetailsParams
+import com.android.billingclient.api.QueryProductDetailsResult
 import com.android.billingclient.api.QueryPurchasesParams
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
@@ -34,7 +36,11 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
     override fun load() {
         billingClient = BillingClient.newBuilder(context)
             .setListener(this)
-            .enablePendingPurchases()
+            .enablePendingPurchases(
+                PendingPurchasesParams.newBuilder()
+                    .enablePrepaidPlans()
+                    .build()
+            )
             .build()
     }
 
@@ -262,14 +268,14 @@ class PlayBillingPlugin : Plugin(), com.android.billingclient.api.PurchasesUpdat
                 )
                 .build()
 
-            billingClient.queryProductDetailsAsync(params) { billingResult, productDetailsList ->
+            billingClient.queryProductDetailsAsync(params) { billingResult, queryResult: QueryProductDetailsResult ->
                 if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                     continuation.resumeWith(Result.failure(IllegalStateException(billingResult.debugMessage.ifBlank {
                         "Google Play products could not be queried."
                     })))
                     return@queryProductDetailsAsync
                 }
-                continuation.resume(productDetailsList ?: emptyList())
+                continuation.resume(queryResult.productDetailsList ?: emptyList())
             }
         }
     }

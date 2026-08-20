@@ -44,12 +44,28 @@ const foodLogQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0)
 });
 
+const logHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(100),
+  offset: z.coerce.number().int().min(0).default(0)
+});
+
 const foodImageDataSchema = z.object({
-  imageDataUrl: imageDataUrlSchema
+  imageDataUrl: imageDataUrlSchema,
+  timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
 
 const foodTextEstimateSchema = z.object({
-  description: z.string().trim().min(2).max(500)
+  description: z.string().trim().min(2).max(500),
+  timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
+});
+
+const foodUrlEstimateSchema = z.object({
+  imageUrl: z.string().url(),
+  timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
+});
+
+const aiAllowanceQuerySchema = z.object({
+  timezoneOffsetMinutes: z.coerce.number().int().min(-840).max(840).default(0)
 });
 
 const photoUploadDataSchema = z.object({
@@ -109,7 +125,8 @@ const capturedWorkoutSchema = z.object({
 
 logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) => {
   try {
-    res.json({ allowance: await getFoodAiAllowance(req.user!.id) });
+    const input = aiAllowanceQuerySchema.parse(req.query);
+    res.json({ allowance: await getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes) });
   } catch (error) {
     next(error);
   }
@@ -143,11 +160,11 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
 logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
-    const imageUrl = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => z.string().url().parse(req.body.imageUrl));
+    const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodUrlEstimateSchema.parse(req.body));
     const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
-      estimateFoodFromImage(imageUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf })
+      estimateFoodFromImage(input.imageUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf, timezoneOffsetMinutes: input.timezoneOffsetMinutes })
     );
-    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id));
+    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes));
     const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
       estimate,
       allowance
@@ -176,9 +193,9 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
     const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodImageDataSchema.parse(req.body));
     const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
-      estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf })
+      estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf, timezoneOffsetMinutes: input.timezoneOffsetMinutes })
     );
-    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id));
+    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes));
     const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
       estimate,
       allowance
@@ -205,8 +222,8 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
 logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req, res, next) => {
   try {
     const input = foodTextEstimateSchema.parse(req.body);
-    const estimate = await estimateFoodFromText(input.description, { userId: req.user!.id, gymId: req.user!.gymId });
-    const allowance = await getFoodAiAllowance(req.user!.id);
+    const estimate = await estimateFoodFromText(input.description, { userId: req.user!.id, gymId: req.user!.gymId, timezoneOffsetMinutes: input.timezoneOffsetMinutes });
+    const allowance = await getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes);
     res.json({ estimate, allowance });
   } catch (error) {
     if (error instanceof FoodAiLimitError) {
@@ -343,9 +360,33 @@ logsRouter.post("/weight-logs", requireAuth, async (req, res, next) => {
   }
 });
 
-logsRouter.get("/weight-logs", requireAuth, async (req, res) => {
-  const result = await query("select * from weight_logs where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
-  res.json({ weightLogs: result.rows });
+logsRouter.get("/weight-logs", requireAuth, async (req, res, next) => {
+  try {
+    const filters = logHistoryQuerySchema.parse(req.query);
+    const result = await query("select * from weight_logs where user_id = $1 order by logged_at desc limit $2 offset $3", [req.user!.id, filters.limit, filters.offset]);
+    res.json({ weightLogs: result.rows, nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.delete("/weight-logs/:weightLogId", requireAuth, async (req, res, next) => {
+  try {
+    const weightLogId = z.string().uuid().parse(req.params.weightLogId);
+    const result = await query<{ id: string; logged_at: string; weight_kg: number }>(
+      `delete from weight_logs where id = $1 and user_id = $2 returning id, logged_at, weight_kg`,
+      [weightLogId, req.user!.id]
+    );
+    const deleted = result.rows[0];
+    if (!deleted) return res.status(404).json({ error: "Weight entry not found." });
+    await query(
+      `delete from goal_milestones where user_id = $1 and achieved_at = $2 and achieved_weight_kg = $3`,
+      [req.user!.id, deleted.logged_at, deleted.weight_kg]
+    );
+    res.json({ deleted: true, weightLogId: deleted.id });
+  } catch (error) {
+    next(error);
+  }
 });
 
 logsRouter.post("/water-logs", requireAuth, async (req, res, next) => {
@@ -363,9 +404,29 @@ logsRouter.post("/water-logs", requireAuth, async (req, res, next) => {
   }
 });
 
-logsRouter.get("/water-logs", requireAuth, async (req, res) => {
-  const result = await query("select * from water_logs where user_id = $1 order by logged_at desc limit 100", [req.user!.id]);
-  res.json({ waterLogs: result.rows });
+logsRouter.get("/water-logs", requireAuth, async (req, res, next) => {
+  try {
+    const filters = logHistoryQuerySchema.parse(req.query);
+    const result = await query("select * from water_logs where user_id = $1 order by logged_at desc limit $2 offset $3", [req.user!.id, filters.limit, filters.offset]);
+    res.json({ waterLogs: result.rows, nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.delete("/water-logs/:waterLogId", requireAuth, async (req, res, next) => {
+  try {
+    const waterLogId = z.string().uuid().parse(req.params.waterLogId);
+    const result = await query<{ id: string }>(
+      `delete from water_logs where id = $1 and user_id = $2 returning id`,
+      [waterLogId, req.user!.id]
+    );
+    const deleted = result.rows[0];
+    if (!deleted) return res.status(404).json({ error: "Water entry not found." });
+    res.json({ deleted: true, waterLogId: deleted.id });
+  } catch (error) {
+    next(error);
+  }
 });
 
 logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
@@ -544,12 +605,43 @@ logsRouter.put("/burn-logs/progression/aliases", requireAuth, async (req, res, n
   }
 });
 
-logsRouter.get("/burn-logs", requireAuth, async (req, res) => {
-  const result = await query(
-    "select * from analytics_events where user_id = $1 and event_name = 'burn_log' order by created_at desc limit 100",
-    [req.user!.id]
-  );
-  res.json({ burnLogs: result.rows });
+logsRouter.get("/burn-logs", requireAuth, async (req, res, next) => {
+  try {
+    const filters = logHistoryQuerySchema.parse(req.query);
+    const result = await query(
+      "select * from analytics_events where user_id = $1 and event_name = 'burn_log' order by created_at desc limit $2 offset $3",
+      [req.user!.id, filters.limit, filters.offset]
+    );
+    res.json({ burnLogs: result.rows, nextOffset: result.rows.length === filters.limit ? filters.offset + filters.limit : null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.delete("/burn-logs/:burnLogId", requireAuth, async (req, res, next) => {
+  try {
+    const burnLogId = z.string().uuid().parse(req.params.burnLogId);
+    const result = await query<{ id: string }>(
+      `
+      with homework_reset as (
+        update trainer_homework_assignments
+        set status = 'assigned', completed_at = null, completion_percent = 0, completed_burn_log_id = null
+        where completed_burn_log_id = $1 and client_user_id = $2
+        returning id
+      )
+      delete from analytics_events
+      where id = $1 and user_id = $2 and event_name = 'burn_log'
+        and (select count(*) from homework_reset) >= 0
+      returning id
+      `,
+      [burnLogId, req.user!.id]
+    );
+    const deleted = result.rows[0];
+    if (!deleted) return res.status(404).json({ error: "Activity entry not found." });
+    res.json({ deleted: true, burnLogId: deleted.id });
+  } catch (error) {
+    next(error);
+  }
 });
 
 logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res) => {

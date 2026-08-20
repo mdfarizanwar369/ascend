@@ -8,7 +8,6 @@ import { claimReturnMode, getMe } from "@/lib/ascendApi";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { markTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 import { evaluateProfileForReturnMode, writeReturnModeHandoff } from "@/lib/returnMode";
-import { useAscendLaunchMorphV2 } from "@/components/dashboard/AscendLaunchMorphV2";
 import { useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 
 function roleHome(roles: string[]) {
@@ -29,21 +28,16 @@ function withTimeout<T>(promise: Promise<T>, ms = 10_000) {
 export default function LaunchPage() {
   const router = useRouter();
   const {
-    enabled: launchMorphV2Enabled,
-    registerLaunchAnchor: registerLaunchMorphV2Anchor,
-    dismiss: dismissLaunchMorphV2
-  } = useAscendLaunchMorphV2();
-  const {
     enabled: launchMorphV22Enabled,
     registerLaunchAnchor: registerLaunchMorphV22Anchor,
     dismiss: dismissLaunchMorphV22
   } = useAscendLaunchMorphV22();
-  const launchMorphEnabled = launchMorphV22Enabled || launchMorphV2Enabled;
+  const launchMorphEnabled = launchMorphV22Enabled;
   const [message, setMessage] = useState("Opening Ascend...");
+  const [canRetry, setCanRetry] = useState(false);
   const registerLaunchAnchor = useCallback((element: HTMLSpanElement | null) => {
-    if (launchMorphV22Enabled) registerLaunchMorphV22Anchor(element);
-    else registerLaunchMorphV2Anchor(element);
-  }, [launchMorphV22Enabled, registerLaunchMorphV22Anchor, registerLaunchMorphV2Anchor]);
+    registerLaunchMorphV22Anchor(element);
+  }, [registerLaunchMorphV22Anchor]);
 
   useEffect(() => {
     let isMounted = true;
@@ -80,7 +74,6 @@ export default function LaunchPage() {
               if (returnMode?.returnMode.claimed) {
                 writeReturnModeHandoff(returnMode.returnMode.fullName ?? profile.user.full_name);
                 dismissLaunchMorphV22();
-                dismissLaunchMorphV2();
                 if (launchMorphEnabled) router.replace("/return-mode");
                 else window.location.replace("/return-mode");
                 return;
@@ -89,8 +82,9 @@ export default function LaunchPage() {
             if (launchMorphEnabled) router.replace(destination);
             else window.location.replace(destination);
           } catch {
-            if (launchMorphEnabled) router.replace("/dashboard");
-            else window.location.replace("/dashboard");
+            dismissLaunchMorphV22();
+            setMessage("We couldn't load your account. Check your connection and try again.");
+            setCanRetry(true);
           }
         });
       } catch {
@@ -104,7 +98,7 @@ export default function LaunchPage() {
       isMounted = false;
       unsubscribe();
     };
-  }, [dismissLaunchMorphV2, dismissLaunchMorphV22, launchMorphEnabled, router]);
+  }, [dismissLaunchMorphV22, launchMorphEnabled, router]);
 
   return (
     <main className="grid min-h-screen place-items-center bg-ink px-4 text-white">
@@ -120,6 +114,16 @@ export default function LaunchPage() {
         )}
         <h1 className="mt-5 text-2xl font-semibold">Ascend</h1>
         <p className="mt-2 text-sm text-zinc-400">{message}</p>
+        {canRetry ? (
+          <div className="mt-5 flex justify-center gap-3">
+            <button type="button" onClick={() => window.location.reload()} className="ascend-pressable h-11 rounded-xl bg-lime px-5 font-semibold text-ink">
+              Try again
+            </button>
+            <button type="button" onClick={() => window.location.replace("/login")} className="ascend-pressable h-11 rounded-xl border border-line px-5 font-semibold text-white">
+              Back to login
+            </button>
+          </div>
+        ) : null}
       </div>
     </main>
   );

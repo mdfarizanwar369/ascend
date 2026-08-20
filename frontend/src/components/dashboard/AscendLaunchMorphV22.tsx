@@ -234,19 +234,14 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
       } : current);
     }, 155);
 
-    const auditFrame = window.location.pathname.startsWith("/dev/essentials-morph")
-      ? document.documentElement.dataset.ascendMorphAuditFrame
-      : undefined;
-    if (!auditFrame) {
-      completionTimerRef.current = window.setTimeout(() => {
-        completionTimerRef.current = null;
-        setRun(null);
-        setPhase("idle");
-        completionRef.current?.();
-        completionRef.current = null;
-        abortRef.current = null;
-      }, COMPLETE_MS);
-    }
+    completionTimerRef.current = window.setTimeout(() => {
+      completionTimerRef.current = null;
+      setRun(null);
+      setPhase("idle");
+      completionRef.current?.();
+      completionRef.current = null;
+      abortRef.current = null;
+    }, COMPLETE_MS);
 
     const abortOnResize = () => {
       clearTimers();
@@ -263,7 +258,7 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
       window.removeEventListener("resize", abortOnResize);
       if (resizeAbortRef.current === abortOnResize) resizeAbortRef.current = null;
       abortTimerRef.current = null;
-    }, auditFrame ? 10_000 : COMPLETE_MS + 20);
+    }, COMPLETE_MS + 20);
     return true;
   }, [clearTimers, dismiss, enabled, phase, source]);
 
@@ -273,7 +268,6 @@ export function AscendLaunchMorphV22Provider({ children }: { children: ReactNode
       || phase !== "holding"
       || pathname === "/launch"
       || pathname === "/dashboard"
-      || pathname.startsWith("/dev/essentials-morph")
     ) return;
     const timer = window.setTimeout(dismiss, 180);
     return () => window.clearTimeout(timer);

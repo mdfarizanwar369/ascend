@@ -39,6 +39,26 @@ describe("AI food scan allowance", () => {
     });
   });
 
+  it("counts only successful scans from the member's local day", async () => {
+    queryMock
+      .mockResolvedValueOnce({ rows: [{ primary_role: "client", roles: ["client"], active_plan: "premium" }] })
+      .mockResolvedValueOnce({ rows: [{ used: "1" }] });
+
+    const { getFoodAiAllowance } = await import("../services/aiUsageService");
+    await getFoodAiAllowance(
+      "00000000-0000-0000-0000-000000000007",
+      -480,
+      new Date("2026-08-20T16:30:00.000Z")
+    );
+
+    const [sql, params] = queryMock.mock.calls[1];
+    expect(sql).toContain("status = 'success'");
+    expect(params).toEqual([
+      "00000000-0000-0000-0000-000000000007",
+      "2026-08-20T16:00:00.000Z"
+    ]);
+  });
+
   it("blocks a client when the allowance is used", async () => {
     queryMock
       .mockResolvedValueOnce({ rows: [{ primary_role: "client", roles: ["client"], active_plan: "premium" }] })

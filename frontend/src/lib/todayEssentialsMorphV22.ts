@@ -9,7 +9,6 @@ export function isTodayEssentialsMorphV22Requested() {
   try {
     const url = new URL(window.location.href);
     const requested = url.searchParams.get("ascendMorph") === "v22";
-    if (url.pathname.startsWith("/dev/essentials-morph")) return requested;
     if (requested) window.sessionStorage.setItem(prototypeSessionKey, "true");
     return requested || window.sessionStorage.getItem(prototypeSessionKey) === "true";
   } catch {

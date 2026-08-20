@@ -1,4 +1,5 @@
 import { WorkoutMemorySummary } from "./workoutMemoryService";
+import { localDateKeyAtOffset } from "./memberTimeService";
 
 type CoachAccessInput = {
   tier: string;
@@ -78,6 +79,7 @@ type BuildWorkoutPlannerContextInput = {
   recentCoachZoeContext: RecentMessageRow[];
   healthSync: HealthSyncSummaryInput;
   request: WorkoutRequestInput;
+  timezoneOffsetMinutes?: number;
 };
 
 function asNumber(value: unknown) {
@@ -93,13 +95,6 @@ function asText(value: unknown) {
 function round(value: number, digits = 1) {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
-}
-
-function localDateKey(value: string | Date | null | undefined) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString().slice(0, 10);
 }
 
 function summarizeRecentWorkouts(rows: RecentWorkoutRow[]) {
@@ -163,7 +158,11 @@ export function buildWorkoutPlannerContext(input: BuildWorkoutPlannerContextInpu
   const sex = asText(profile.gender);
   const goalType = asText(profile.goal_type);
   const recentWorkoutHistory = summarizeRecentWorkouts(input.recentWorkouts);
-  const recentWorkoutDays = new Set(recentWorkoutHistory.map((row) => localDateKey(row.completedAt)).filter(Boolean)).size;
+  const recentWorkoutDays = new Set(
+    recentWorkoutHistory
+      .map((row) => row.completedAt ? localDateKeyAtOffset(row.completedAt, input.timezoneOffsetMinutes) : "")
+      .filter(Boolean)
+  ).size;
   const athleteModeEnabled = athleteMode.enabled === true;
   const missingProfileFields = [
     ageYears === null ? "ageYears" : null,

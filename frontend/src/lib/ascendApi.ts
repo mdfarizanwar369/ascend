@@ -392,6 +392,13 @@ export function getFoodLogs(
   }>(`dashboard:food-logs:${query || "all"}`, `/food-logs${query ? `?${query}` : ""}`, 15_000);
 }
 
+export async function getAllFoodLogs() {
+  return { foodLogs: await collectAllHistory(async (offset) => {
+    const page = await getFoodLogs({ range: "all", order: "newest", limit: 100, offset });
+    return { items: page.foodLogs, nextOffset: page.nextOffset };
+  }) };
+}
+
 export function clearAscendResponseCache() {
   invalidateCached();
 }
@@ -409,24 +416,82 @@ export function deleteFoodLog(foodLogId: string) {
   return authed<{ deleted: true; foodLogId: string }>(`/food-logs/${foodLogId}`, { method: "DELETE" });
 }
 
-export function getWeightLogs() {
+type HistoryPageOptions = { limit?: number; offset?: number };
+
+function historyPageQuery(options: HistoryPageOptions) {
+  const params = new URLSearchParams();
+  if (options.limit !== undefined) params.set("limit", String(options.limit));
+  if (options.offset !== undefined) params.set("offset", String(options.offset));
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+async function collectAllHistory<T>(load: (offset: number) => Promise<{ items: T[]; nextOffset?: number | null }>) {
+  const items: T[] = [];
+  let offset = 0;
+  for (let page = 0; page < 100; page += 1) {
+    const response = await load(offset);
+    items.push(...response.items);
+    if (response.nextOffset === null || response.nextOffset === undefined) return items;
+    offset = response.nextOffset;
+  }
+  throw new Error("History is larger than the supported safety limit.");
+}
+
+export function getWeightLogs(options: HistoryPageOptions = {}) {
+  const query = historyPageQuery(options);
   return authedCached<{
     weightLogs: Array<{
       id: string;
       weight_kg: string | number;
       logged_at: string;
     }>;
-  }>("dashboard:weight-logs", "/weight-logs", 15_000);
+    nextOffset?: number | null;
+  }>(`dashboard:weight-logs:${query || "first"}`, `/weight-logs${query}`, 15_000);
 }
 
-export function getWaterLogs() {
+export function getWaterLogs(options: HistoryPageOptions = {}) {
+  const query = historyPageQuery(options);
   return authedCached<{
     waterLogs: Array<{
       id: string;
       amount_ml: number;
       logged_at: string;
     }>;
-  }>("dashboard:water-logs", "/water-logs", 15_000);
+    nextOffset?: number | null;
+  }>(`dashboard:water-logs:${query || "first"}`, `/water-logs${query}`, 15_000);
+}
+
+export async function getAllWeightLogs() {
+  return { weightLogs: await collectAllHistory(async (offset) => {
+    const page = await getWeightLogs({ limit: 100, offset });
+    return { items: page.weightLogs, nextOffset: page.nextOffset };
+  }) };
+}
+
+export async function getAllWaterLogs() {
+  return { waterLogs: await collectAllHistory(async (offset) => {
+    const page = await getWaterLogs({ limit: 100, offset });
+    return { items: page.waterLogs, nextOffset: page.nextOffset };
+  }) };
+}
+
+export function deleteWeightLog(weightLogId: string) {
+  invalidateDashboardReadCaches();
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  invalidateCached("athlete:");
+  invalidateCached("nutrition:");
+  return authed<{ deleted: true; weightLogId: string }>(`/weight-logs/${weightLogId}`, { method: "DELETE" });
+}
+
+export function deleteWaterLog(waterLogId: string) {
+  invalidateDashboardReadCaches();
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  return authed<{ deleted: true; waterLogId: string }>(`/water-logs/${waterLogId}`, { method: "DELETE" });
 }
 
 export function saveWeightLog(input: { weightKg: number; loggedAt?: string }) {
@@ -595,7 +660,8 @@ export function getMyStreak() {
   }>("dashboard:streak", "/streaks/me", 15_000);
 }
 
-export function getBurnLogs() {
+export function getBurnLogs(options: HistoryPageOptions = {}) {
+  const query = historyPageQuery(options);
   return authedCached<{
     burnLogs: Array<{
       id: string;
@@ -621,7 +687,23 @@ export function getBurnLogs() {
       };
       created_at: string;
     }>;
-  }>("dashboard:burn-logs", "/burn-logs", 15_000);
+    nextOffset?: number | null;
+  }>(`dashboard:burn-logs:${query || "first"}`, `/burn-logs${query}`, 15_000);
+}
+
+export async function getAllBurnLogs() {
+  return { burnLogs: await collectAllHistory(async (offset) => {
+    const page = await getBurnLogs({ limit: 100, offset });
+    return { items: page.burnLogs, nextOffset: page.nextOffset };
+  }) };
+}
+
+export function deleteBurnLog(burnLogId: string) {
+  invalidateDashboardReadCaches();
+  invalidateCached("reports:weekly");
+  invalidateCached("memory:");
+  invalidateCached("coach:");
+  return authed<{ deleted: true; burnLogId: string }>(`/burn-logs/${burnLogId}`, { method: "DELETE" });
 }
 
 export function getTodayMission() {
@@ -864,7 +946,8 @@ export function uploadProgressPhotoDataUrl(imageDataUrl: string) {
   });
 }
 
-export function getProgressPhotos() {
+export function getProgressPhotos(options: HistoryPageOptions = {}) {
+  const query = historyPageQuery(options);
   return authed<{
     progressPhotos: Array<{
       id: string;
@@ -873,7 +956,22 @@ export function getProgressPhotos() {
       photo_type: "front" | "side" | "back" | "other";
       logged_at: string;
     }>;
-  }>("/progress-photos");
+    nextOffset?: number | null;
+  }>(`/progress-photos${query}`);
+}
+
+export async function getAllProgressPhotos() {
+  return { progressPhotos: await collectAllHistory(async (offset) => {
+    const page = await getProgressPhotos({ limit: 100, offset });
+    return { items: page.progressPhotos, nextOffset: page.nextOffset };
+  }) };
+}
+
+export function deleteProgressPhoto(photoId: string) {
+  invalidateDashboardReadCaches();
+  invalidateCached("memory:");
+  invalidateCached("athlete:");
+  return authed<{ deleted: true; photoId: string }>(`/progress-photos/${photoId}`, { method: "DELETE" });
 }
 
 export function getProgressPhotoImageBlob(photoId: string) {
@@ -950,13 +1048,13 @@ export type FoodAiPerformanceReport = {
 };
 
 export function getFoodAiAllowance() {
-  return authed<{ allowance: FoodAiAllowance }>("/food-logs/ai-allowance");
+  return authed<{ allowance: FoodAiAllowance }>(`/food-logs/ai-allowance?timezoneOffsetMinutes=${new Date().getTimezoneOffset()}`);
 }
 
 export function estimateFood(imageUrl: string) {
   return authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance; performance?: FoodAiPerformanceReport }>("/food-logs/estimate", {
     method: "POST",
-    body: JSON.stringify({ imageUrl })
+    body: JSON.stringify({ imageUrl, timezoneOffsetMinutes: new Date().getTimezoneOffset() })
   });
 }
 
@@ -964,7 +1062,7 @@ export function estimateFoodFromDataUrl(imageDataUrl: string) {
   return withTimeout(75_000, (signal) =>
     authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance; performance?: FoodAiPerformanceReport }>("/food-logs/estimate-data-url", {
       method: "POST",
-      body: JSON.stringify({ imageDataUrl }),
+      body: JSON.stringify({ imageDataUrl, timezoneOffsetMinutes: new Date().getTimezoneOffset() }),
       signal
     })
   );
@@ -974,7 +1072,7 @@ export function estimateFoodFromText(description: string) {
   return withTimeout(45_000, (signal) =>
     authed<{ estimate: FoodEstimate; allowance?: FoodAiAllowance }>("/food-logs/estimate-text", {
       method: "POST",
-      body: JSON.stringify({ description }),
+      body: JSON.stringify({ description, timezoneOffsetMinutes: new Date().getTimezoneOffset() }),
       signal
     })
   );
@@ -1276,7 +1374,7 @@ export type CoachChatMode = "general" | "progress" | "consistency" | "meal_advic
 export function sendCoachMessage(message: string, mode: CoachChatMode = "general") {
   return authed<{ reply: string }>("/ai/chat", {
     method: "POST",
-    body: JSON.stringify({ message, mode })
+    body: JSON.stringify({ message, mode, timezoneOffsetMinutes: new Date().getTimezoneOffset() })
   });
 }
 
@@ -1370,7 +1468,7 @@ export function generateTodayWorkout(input: {
 }) {
   return authed<{ workout: GeneratedWorkout }>("/ai/workout", {
     method: "POST",
-    body: JSON.stringify(input)
+    body: JSON.stringify({ ...input, timezoneOffsetMinutes: new Date().getTimezoneOffset() })
   });
 }
 
