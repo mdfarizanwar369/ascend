@@ -93,7 +93,7 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
       const [response, bodyResponse, foodResponse] = await Promise.all([
         getTrainerAthleteDashboard(clientId),
         getTrainerBodyComposition(clientId).catch(() => null),
-        getTrainerClientFoodLogs(clientId, { range: "30d", limit: 200 }).catch(() => null)
+        getTrainerClientFoodLogs(clientId, { range: "30d", limit: 100 }).catch(() => null)
       ]);
       setAthlete(response.athlete);
       setBodyComposition(bodyResponse?.summary ?? null);

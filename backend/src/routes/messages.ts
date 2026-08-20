@@ -10,6 +10,10 @@ import { notifyHumanCoachEvent } from "../services/notificationService";
 
 export const messagesRouter = Router();
 
+const trainerThreadQuerySchema = z.object({
+  markRead: z.enum(["true", "false"]).default("true").transform((value) => value === "true")
+});
+
 const messageSchema = z.object({
   receiverUserId: z.string().uuid(),
   body: z.string().min(1).max(4000)
@@ -83,11 +87,21 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
       const scope = await getAdminGymScope(req.user!);
       const result = await query(
         `
-        select id, full_name, email, primary_role, profile_photo_s3_key
-        from users
-        where id <> $1 and status = 'active'
-          and ($2::uuid[] is null or gym_id = any($2))
-        order by created_at desc
+        select u.id, u.full_name, u.email, u.primary_role, u.profile_photo_s3_key,
+          coalesce(thread.unread_count, 0) as unread_count,
+          thread.last_message_at
+        from users u
+        left join lateral (
+          select
+            count(*) filter (where sender_user_id = u.id and receiver_user_id = $1 and read_at is null) as unread_count,
+            max(created_at) as last_message_at
+          from messages
+          where (sender_user_id = u.id and receiver_user_id = $1)
+             or (sender_user_id = $1 and receiver_user_id = u.id)
+        ) thread on true
+        where u.id <> $1 and u.status = 'active'
+          and ($2::uuid[] is null or u.gym_id = any($2))
+        order by coalesce(thread.unread_count, 0) desc, thread.last_message_at desc nulls last, u.full_name asc
         limit 100
         `,
         [req.user!.id, scope.gymIds]
@@ -98,22 +112,42 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
     if (req.user!.trainerId) {
       const result = await query(
         `
-        select id, full_name, email, primary_role, profile_photo_s3_key
-        from users
-        where assigned_trainer_id = $1 and status = 'active'
-        order by full_name asc
+        select u.id, u.full_name, u.email, u.primary_role, u.profile_photo_s3_key,
+          coalesce(thread.unread_count, 0) as unread_count,
+          thread.last_message_at
+        from users u
+        left join lateral (
+          select
+            count(*) filter (where sender_user_id = u.id and receiver_user_id = $2 and read_at is null) as unread_count,
+            max(created_at) as last_message_at
+          from messages
+          where (sender_user_id = u.id and receiver_user_id = $2)
+             or (sender_user_id = $2 and receiver_user_id = u.id)
+        ) thread on true
+        where u.assigned_trainer_id = $1 and u.status = 'active'
+        order by coalesce(thread.unread_count, 0) desc, thread.last_message_at desc nulls last, u.full_name asc
         `,
-        [req.user!.trainerId]
+        [req.user!.trainerId, req.user!.id]
       );
       return res.json({ contacts: await withProfilePhotoUrls(result.rows) });
     }
 
     const assignedTrainerResult = await query(
       `
-      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role, trainer_user.profile_photo_s3_key
+      select trainer_user.id, trainer_user.full_name, trainer_user.email, trainer_user.primary_role, trainer_user.profile_photo_s3_key,
+        coalesce(thread.unread_count, 0) as unread_count,
+        thread.last_message_at
       from users client_user
       join trainers t on t.id = client_user.assigned_trainer_id
       join users trainer_user on trainer_user.id = t.user_id and trainer_user.status = 'active'
+      left join lateral (
+        select
+          count(*) filter (where sender_user_id = trainer_user.id and receiver_user_id = $1 and read_at is null) as unread_count,
+          max(created_at) as last_message_at
+        from messages
+        where (sender_user_id = trainer_user.id and receiver_user_id = $1)
+           or (sender_user_id = $1 and receiver_user_id = trainer_user.id)
+      ) thread on true
       where client_user.id = $1 and client_user.status = 'active'
       limit 1
       `,
@@ -129,6 +163,7 @@ messagesRouter.get("/messages/contacts", requireAuth, requireActivePlan("premium
 
 messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireActivePlan("trainer_pro"), async (req, res, next) => {
   try {
+    const { markRead } = trainerThreadQuerySchema.parse(req.query);
     const context = await getTrainerClientThreadContext(req.params.clientId, req.user!);
     if (!context) return res.status(404).json({ error: "Client not found" });
 
@@ -148,16 +183,18 @@ messagesRouter.get("/trainer/clients/:clientId/messages", requireAuth, requireAc
       [participantIds, context.client_user_id]
     );
 
-    await query(
-      `
-      update messages
-      set read_at = now()
-      where receiver_user_id = $1
-        and sender_user_id = $2
-        and read_at is null
-      `,
-      [req.user!.id, context.client_user_id]
-    );
+    if (markRead) {
+      await query(
+        `
+        update messages
+        set read_at = now()
+        where receiver_user_id = $1
+          and sender_user_id = $2
+          and read_at is null
+        `,
+        [req.user!.id, context.client_user_id]
+      );
+    }
 
     res.json({ messages: result.rows.reverse() });
   } catch (error) {

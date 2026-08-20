@@ -2,8 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { calculateAdaptiveNutritionTargets } from "@ascend/shared";
-import { CalendarClock, ChevronLeft, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { CalendarClock, RefreshCw } from "lucide-react";
 import {
   getTrainerClient,
   getTrainerClientBurnLogs,
@@ -172,13 +171,7 @@ export function TrainerCoachingTimelineHistoryClient({ clientId }: { clientId: s
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6">
-      <div className="flex items-center justify-between gap-3">
-        <BackButton fallbackHref={`/trainer/clients/${clientId}`} />
-        <Link href={`/trainer/clients/${clientId}`} className="inline-flex items-center gap-2 rounded-2xl border border-line bg-surface px-4 py-3 text-sm font-semibold text-zinc-200">
-          <ChevronLeft size={16} />
-          Client profile
-        </Link>
-      </div>
+      <div><BackButton fallbackHref={`/trainer/clients/${clientId}`} /></div>
 
       <TimelineShell
         title={client ? `${client.full_name}'s full coaching timeline` : "Full coaching timeline"}

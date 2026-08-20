@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Send } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Search, Send } from "lucide-react";
 import { getMe, getMessageContacts, getMessages, sendMessage } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -25,12 +25,19 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
   const [body, setBody] = useState("");
   const [status, setStatus] = useState("Loading messages...");
   const [isSending, setIsSending] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [isTrainerView, setIsTrainerView] = useState(false);
+  const threadEndRef = useRef<HTMLDivElement>(null);
 
   const selectedContact = useMemo(
     () => contacts.find((contact) => contact.id === selectedContactId) ?? contacts[0],
     [contacts, selectedContactId]
   );
   const isInitialLoading = !contacts.length && !messages.length && status.startsWith("Loading");
+  const visibleContacts = useMemo(() => {
+    const query = contactSearch.trim().toLowerCase();
+    return query ? contacts.filter((contact) => `${contact.full_name} ${contact.email}`.toLowerCase().includes(query)) : contacts;
+  }, [contactSearch, contacts]);
 
   useEffect(() => {
     let isMounted = true;
@@ -41,17 +48,32 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
         if (!isMounted) return;
 
         setCurrentUserId(me.user.id);
+        setIsTrainerView(me.roles.some((role) => ["trainer", "owner", "admin"].includes(role)));
         setContacts(contactResponse.contacts);
         setSelectedContactId((current) => current || contactResponse.contacts[0]?.id || "");
-        setStatus(contactResponse.contacts.length ? "" : "No message contacts yet. Ask the owner to assign a trainer.");
+        setStatus(contactResponse.contacts.length ? "" : me.roles.some((role) => ["trainer", "owner", "admin"].includes(role)) ? "No assigned client conversations yet." : "No trainer conversation is available yet.");
       } catch {
         if (isMounted) setStatus("Log in again if messages do not load.");
       }
     }
 
+    async function refreshContacts() {
+      try {
+        const contactResponse = await getMessageContacts();
+        if (!isMounted) return;
+        setContacts(contactResponse.contacts);
+      } catch {
+        // Keep the existing inbox usable when a background refresh fails.
+      }
+    }
+
     loadContacts();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshContacts();
+    }, 30_000);
     return () => {
       isMounted = false;
+      window.clearInterval(interval);
     };
   }, []);
 
@@ -64,6 +86,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
         const response = await getMessages(selectedContact.id);
         if (!isMounted) return;
         setMessages(response.messages);
+        setContacts((current) => current.map((contact) => contact.id === selectedContact.id ? { ...contact, unread_count: 0 } : contact));
         setStatus("");
       } catch (error) {
         if (isMounted) setStatus(error instanceof Error ? error.message : "Could not load this conversation.");
@@ -71,10 +94,18 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
     }
 
     loadThread();
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadThread();
+    }, 20_000);
     return () => {
       isMounted = false;
+      window.clearInterval(interval);
     };
   }, [selectedContact?.id]);
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
 
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -134,8 +165,15 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
         </header>
 
         {contacts.length > 1 ? (
-          <section className="mt-2 flex gap-2 overflow-x-auto pb-2">
-            {contacts.map((contact) => (
+          <section className="mt-2">
+            {contacts.length > 5 || isTrainerView ? (
+              <label className="mb-2 flex h-11 items-center gap-2 rounded-xl border border-line bg-surface px-3 focus-within:border-calm/50">
+                <Search size={17} className="text-zinc-500" />
+                <input value={contactSearch} onChange={(event) => setContactSearch(event.target.value)} placeholder="Search conversations" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+              </label>
+            ) : null}
+            <div className="flex gap-2 overflow-x-auto pb-2">
+            {visibleContacts.map((contact) => (
               <button
                 key={contact.id}
                 type="button"
@@ -146,10 +184,18 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
               >
                 <span className="flex items-center gap-2">
                   <ProfileAvatar src={contact.profile_photo_url} name={contact.full_name} size="sm" />
-                  <span><span className="block text-sm font-semibold">{contact.full_name}</span><span className="text-xs opacity-75">{roleLabel(contact.primary_role)}</span></span>
+                  <span>
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      {contact.full_name}
+                      {Number(contact.unread_count ?? 0) > 0 ? <span className="rounded-full bg-calm px-2 py-0.5 text-[10px] font-bold text-ink">{Number(contact.unread_count)}</span> : null}
+                    </span>
+                    <span className="text-xs opacity-75">{roleLabel(contact.primary_role)}</span>
+                  </span>
                 </span>
               </button>
             ))}
+            {!visibleContacts.length ? <p className="px-2 py-3 text-sm text-zinc-400">No conversations match that name.</p> : null}
+            </div>
           </section>
         ) : null}
 
@@ -172,6 +218,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
           {!messages.length && !status ? (
             <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">No messages yet. Send a quick check-in to start.</p>
           ) : null}
+          <div ref={threadEndRef} aria-hidden="true" />
         </section>
 
         <form onSubmit={handleSend} className="mt-3 flex gap-2">

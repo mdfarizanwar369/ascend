@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { calculateNutritionTargets } from "@ascend/shared";
-import { AlertTriangle, MessageSquare, Sparkles, Target, TrendingUp } from "lucide-react";
-import { getMe, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise } from "@/lib/ascendApi";
+import { AlertTriangle, Check, MessageSquare, Search, TrendingUp } from "lucide-react";
+import { getMe, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise, updateTrainerRiskAlert } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { DelightEmptyState } from "@/components/Delight";
@@ -22,11 +22,13 @@ function formatGoal(goal?: string | null) {
   return "Goal not set";
 }
 
-function riskLabel(client: TrainerClient) {
+export function riskLabel(client: TrainerClient) {
+  if (client.risk_severity === "high") return "High risk";
+  if (client.risk_severity) return "Watch";
   if (client.compliance_score === null || client.compliance_score === undefined) return "No score";
   const score = Number(client.compliance_score);
-  if (client.risk_severity === "high" || score < 50) return "High risk";
-  if (client.risk_severity || score < 70) return "Watch";
+  if (score < 50) return "High risk";
+  if (score < 70) return "Watch";
   return "On track";
 }
 
@@ -95,6 +97,7 @@ type PriorityCard = {
   action: string;
   lastActivity: string;
   score: number;
+  alertId?: string;
 };
 
 function maxDate(...values: Array<string | null | undefined>) {
@@ -108,8 +111,8 @@ function membershipBadge(client: TrainerClient): "Premium" | "Athlete" | null {
   return client.current_plan === "premium" || client.current_plan === "trainer_pro" ? "Premium" : null;
 }
 
-function lastActivityFor(client: TrainerClient) {
-  return maxDate(client.last_food_logged_at, client.last_weight_logged_at, client.last_water_logged_at, client.last_client_message_at);
+export function lastActivityFor(client: TrainerClient) {
+  return client.last_activity_at ?? maxDate(client.last_food_logged_at, client.last_weight_logged_at, client.last_water_logged_at, client.last_client_message_at);
 }
 
 function premiumNeedsAttention(client: TrainerClient) {
@@ -145,10 +148,14 @@ function premiumGreatProgress(client: TrainerClient) {
   return null;
 }
 
-function trainerPriorityCards(clients: TrainerClient[]) {
+export function trainerPriorityCards(clients: TrainerClient[], alerts: RiskAlert[] = []) {
   const eligible = clients.filter((client) => membershipBadge(client));
   const needsAttention: PriorityCard[] = [];
   const greatProgress: PriorityCard[] = [];
+  const alertByClient = new Map<string, RiskAlert>();
+  for (const alert of alerts) {
+    if (!alertByClient.has(alert.user_id)) alertByClient.set(alert.user_id, alert);
+  }
 
   for (const client of eligible) {
     const badge = membershipBadge(client)!;
@@ -168,6 +175,20 @@ function trainerPriorityCards(clients: TrainerClient[]) {
     const premiumAttention = premiumNeedsAttention(client);
     const premiumProgress = premiumGreatProgress(client);
     const lastActivity = daysAgo(lastActivityFor(client));
+    const riskAlert = alertByClient.get(client.id);
+
+    if (riskAlert) {
+      needsAttention.push({
+        client,
+        badge,
+        reason: riskAlert.message,
+        action: riskAlert.severity === "high" ? "Review this signal and contact the client today." : "Review the signal at the next useful touchpoint.",
+        lastActivity,
+        score: riskAlert.severity === "high" ? 120 : riskAlert.severity === "medium" ? 100 : 80,
+        alertId: riskAlert.id
+      });
+      continue;
+    }
 
     if (athleteInsight && ["red", "orange", "yellow"].includes(athleteInsight.tone)) {
       needsAttention.push({ client, badge, reason: athleteInsight.title, action: athleteInsight.action, lastActivity, score: athleteInsight.priority + 10 });
@@ -193,8 +214,7 @@ function trainerPriorityCards(clients: TrainerClient[]) {
   };
 }
 
-function weeklyClientSummary(clients: TrainerClient[]) {
-  const priorities = trainerPriorityCards(clients);
+function weeklyClientSummary(clients: TrainerClient[], priorities = trainerPriorityCards(clients)) {
   const athleteClients = clients.filter((client) => client.athlete_mode_enabled);
   const bodyScansDue = athleteClients.filter((client) => {
     const latestScanDate = client.body_composition_summary?.latestScan?.scanDate ?? null;
@@ -215,7 +235,28 @@ function weeklyClientSummary(clients: TrainerClient[]) {
   };
 }
 
-function PriorityClientCard({ item, type }: { item: PriorityCard; type: "attention" | "progress" }) {
+export function countActiveToday(clients: TrainerClient[]) {
+  return clients.filter((client) => client.active_today === true).length;
+}
+
+export function countHighRiskClients(clients: TrainerClient[], alerts: RiskAlert[]) {
+  const eligibleIds = new Set(clients.filter((client) => membershipBadge(client)).map((client) => client.id));
+  const clientIds = new Set(clients.filter((client) => eligibleIds.has(client.id) && riskLabel(client) === "High risk").map((client) => client.id));
+  alerts.filter((alert) => alert.severity === "high" && eligibleIds.has(alert.user_id)).forEach((alert) => clientIds.add(alert.user_id));
+  return clientIds.size;
+}
+
+function PriorityClientCard({
+  item,
+  type,
+  onResolve,
+  resolving
+}: {
+  item: PriorityCard;
+  type: "attention" | "progress";
+  onResolve?: (item: PriorityCard) => void;
+  resolving?: boolean;
+}) {
   const border = type === "attention" ? "border-line border-l-4 border-l-amber bg-ink/55" : "border-line border-l-4 border-l-lime bg-ink/55";
   const badgeClass = item.badge === "Athlete" ? "border-purple-400/50 bg-purple-400/10 text-purple-100" : "border-teal-400/50 bg-teal-400/10 text-teal-100";
   return (
@@ -236,11 +277,21 @@ function PriorityClientCard({ item, type }: { item: PriorityCard; type: "attenti
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Link href={`/trainer/clients/${item.client.id}`} className="ascend-pressable flex h-11 items-center justify-center rounded-xl border border-line bg-surface text-sm font-semibold">
-          View Client
+          View
         </Link>
         <Link href={`/messages?userId=${item.client.id}`} className="ascend-pressable flex h-11 items-center justify-center rounded-xl bg-lime text-sm font-semibold text-ink">
-          Message Client
+          Message
         </Link>
+        {item.alertId && onResolve ? (
+          <button
+            type="button"
+            disabled={resolving}
+            onClick={() => onResolve(item)}
+            className="ascend-pressable col-span-2 flex h-11 items-center justify-center gap-1 rounded-xl border border-lime/40 bg-lime/10 text-sm font-semibold text-lime disabled:opacity-60"
+          >
+            <Check size={15} /> Handled
+          </button>
+        ) : null}
       </div>
     </article>
   );
@@ -252,18 +303,17 @@ export function TrainerDashboardClient() {
   const [status, setStatus] = useState("Loading assigned clients...");
   const [isPendingApproval, setIsPendingApproval] = useState(false);
   const [praisingClientId, setPraisingClientId] = useState("");
+  const [resolvingAlertId, setResolvingAlertId] = useState("");
   const [trainerName, setTrainerName] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientFilter, setClientFilter] = useState<"all" | "attention" | "unread" | "on_track">("all");
 
   useEffect(() => {
     let isMounted = true;
 
     async function load() {
       try {
-        const profilePromise = getMe();
-        const clientsPromise = getTrainerClients();
-        const alertsPromise = getTrainerRiskAlerts().catch(() => null);
-
-        const profile = await profilePromise;
+        const profile = await getMe();
         if (isMounted) setTrainerName(profile.user.full_name || profile.user.email || "Coach");
         const isTrainerOnly = profile.roles.includes("trainer") && !profile.roles.some((role) => role === "owner" || role === "admin");
         if (isTrainerOnly && profile.user.trainer_status && profile.user.trainer_status !== "active") {
@@ -273,7 +323,10 @@ export function TrainerDashboardClient() {
           return;
         }
 
-        const [clientResponse, alertResponse] = await Promise.all([clientsPromise, alertsPromise]);
+        const [clientResponse, alertResponse] = await Promise.all([
+          getTrainerClients(),
+          getTrainerRiskAlerts().catch(() => null)
+        ]);
         if (!isMounted) return;
         setClients(clientResponse.clients);
         setStatus("");
@@ -294,11 +347,8 @@ export function TrainerDashboardClient() {
     };
   }, []);
 
-  const activeToday = useMemo(() => clients.filter((client) => Number(client.compliance_score ?? 0) > 0).length, [clients]);
-  const highRisk = useMemo(
-    () => clients.filter((client) => riskLabel(client) === "High risk").length + alerts.filter((alert) => alert.severity === "high").length,
-    [alerts, clients]
-  );
+  const activeToday = useMemo(() => countActiveToday(clients), [clients]);
+  const highRisk = useMemo(() => countHighRiskClients(clients, alerts), [alerts, clients]);
   const averageScore = useMemo(() => {
     const scored = clients.map((client) => Number(client.compliance_score)).filter((score) => Number.isFinite(score));
     if (!scored.length) return "--";
@@ -321,12 +371,24 @@ export function TrainerDashboardClient() {
       ),
     [clients]
   );
-  const priorities = useMemo(() => trainerPriorityCards(clients), [clients]);
-  const weeklySummary = useMemo(() => weeklyClientSummary(clients), [clients]);
+  const priorities = useMemo(() => trainerPriorityCards(clients, alerts), [alerts, clients]);
+  const weeklySummary = useMemo(() => weeklyClientSummary(clients, priorities), [clients, priorities]);
   const athleteAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Athlete").length, [priorities.needsAttention]);
   const premiumAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Premium").length, [priorities.needsAttention]);
   const excellentProgress = priorities.greatProgress.length;
   const needsCheckIn = priorities.needsAttention.length;
+  const unreadMessages = useMemo(() => clients.reduce((total, client) => total + Number(client.unread_messages ?? 0), 0), [clients]);
+  const visibleClients = useMemo(() => {
+    const query = clientSearch.trim().toLowerCase();
+    const attentionIds = new Set(priorities.needsAttention.map((item) => item.client.id));
+    return sortedClients.filter((client) => {
+      if (query && !`${client.full_name} ${client.email}`.toLowerCase().includes(query)) return false;
+      if (clientFilter === "attention") return attentionIds.has(client.id);
+      if (clientFilter === "unread") return Number(client.unread_messages ?? 0) > 0;
+      if (clientFilter === "on_track") return riskLabel(client) === "On track";
+      return true;
+    });
+  }, [clientFilter, clientSearch, priorities.needsAttention, sortedClients]);
   const isInitialLoading = !clients.length && !alerts.length && !trainerName && status.startsWith("Loading");
 
   async function sendPraise(clientId: string, clientName: string) {
@@ -340,6 +402,21 @@ export function TrainerDashboardClient() {
       setStatus("Could not send praise yet. Make sure this client is assigned to you.");
     } finally {
       setPraisingClientId("");
+    }
+  }
+
+  async function resolveAlert(item: PriorityCard) {
+    if (!item.alertId) return;
+    setResolvingAlertId(item.alertId);
+    setStatus("");
+    try {
+      await updateTrainerRiskAlert(item.alertId, "resolved");
+      setAlerts((current) => current.filter((alert) => alert.id !== item.alertId));
+      setStatus(`${item.client.full_name}'s alert marked handled.`);
+    } catch {
+      setStatus("Could not update this alert yet. Please try again.");
+    } finally {
+      setResolvingAlertId("");
     }
   }
 
@@ -381,9 +458,9 @@ export function TrainerDashboardClient() {
   return (
     <>
       <AscendHeroPanel
-        eyebrow={`Good morning${trainerName ? `, ${trainerName}` : ""}`}
+        eyebrow={`${new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening"}${trainerName ? `, ${trainerName}` : ""}`}
         title="Today's Priorities"
-        body="The fastest view of who needs attention and who deserves recognition."
+        body="See who needs you, take one useful action, and move on with your coaching day."
         tone="trainer"
         visual={<PrioritySigil count={priorities.needsAttention.length} />}
       />
@@ -392,99 +469,80 @@ export function TrainerDashboardClient() {
 
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="grid grid-cols-2 gap-3">
-          <MetricCard label="Premium attention" value={String(premiumAttention)} detail="Need check-in" tone={premiumAttention ? "warning" : "success"} />
-          <MetricCard label="Athlete attention" value={String(athleteAttention)} detail="Coach intelligence" tone={athleteAttention ? "warning" : "success"} />
-          <MetricCard label="Great progress" value={String(excellentProgress)} detail="Praise opportunities" tone="success" />
-          <MetricCard label="Tracked clients" value={String(priorities.eligible.length)} detail="Premium + Athlete" />
+          <MetricCard label="Needs attention" value={String(needsCheckIn)} detail={`${premiumAttention} Premium / ${athleteAttention} Athlete`} tone={needsCheckIn ? "warning" : "success"} />
+          <MetricCard label="Wins to celebrate" value={String(excellentProgress)} detail="Praise opportunities" tone="success" />
+          <MetricCard label="Active today" value={String(activeToday)} detail={`of ${clients.length} assigned clients`} />
+          <MetricCard label="Unread messages" value={String(unreadMessages)} detail={unreadMessages ? "Waiting for a reply" : "Inbox is clear"} tone={unreadMessages ? "warning" : "success"} />
         </div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(20rem,.75fr)]">
-        <div>
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="text-amber" size={19} />
-            <h2 className="text-lg font-semibold">Needs Attention</h2>
-          </div>
-          <div className="mt-3 space-y-3">
-            {priorities.needsAttention.slice(0, 5).map((item) => <PriorityClientCard key={item.client.id} item={item} type="attention" />)}
-            {!priorities.needsAttention.length ? (
-              <p className="rounded-xl border border-lime/40 bg-lime/10 p-3 text-sm leading-6 text-zinc-200">No urgent Premium or Athlete client priorities right now.</p>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="text-teal-300" size={19} />
-            <h2 className="text-lg font-semibold">Great Progress</h2>
-          </div>
-          <div className="mt-3 space-y-3">
-            {priorities.greatProgress.slice(0, 4).map((item) => <PriorityClientCard key={item.client.id} item={item} type="progress" />)}
-            {!priorities.greatProgress.length ? (
-            <DelightEmptyState
-              tone="lime"
-              title="No wins missed."
-              body="As clients log meals, weight, water, workouts, or Body Scans, Ascend will surface the moments worth celebrating."
-            />
-            ) : null}
-          </div>
-        </div>
-
-        <div className="ascend-workspace-inset p-4">
-          <div className="flex items-center gap-2">
-            <Target className="text-purple-300" size={18} />
-            <h2 className="text-sm font-semibold">Today's Summary</h2>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-zinc-300">
-            {priorities.needsAttention.length
-              ? `${priorities.needsAttention.length} client${priorities.needsAttention.length === 1 ? "" : "s"} need a trainer touchpoint.`
-              : "No urgent follow-ups. Keep the tone positive and reinforce consistency."}
-          </p>
-        </div>
-
-        <div className="ascend-workspace-inset p-4">
-          <h2 className="text-sm font-semibold">Weekly Client Summary</h2>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-teal-200">{weeklySummary.improving}</span>Clients improving</p>
-            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.plateaued}</span>Clients plateaued</p>
-            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.atRisk}</span>Clients at risk</p>
-            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.checkInsDue}</span>Check-ins due</p>
-            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-purple-200">{weeklySummary.bodyScansDue}</span>Body Scans due</p>
-            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-lime">{weeklySummary.goalAchievements}</span>Goal achievements</p>
-          </div>
-        </div>
-        </div>
-        </div>
-      </section>
-
-      <section className="mt-4 grid grid-cols-2 gap-3">
-        <MetricCard label="Clients" value={String(clients.length)} detail={`${activeToday} active today`} />
-        <MetricCard label="Avg score" value={averageScore} detail="Momentum" tone={averageScore !== "--" && Number(averageScore) < 60 ? "warning" : "success"} />
-        <MetricCard label="Check-ins" value={String(needsCheckIn)} detail="Need attention" tone={needsCheckIn ? "warning" : "success"} />
-        <MetricCard label="Alerts" value={String(alerts.length || highRisk)} detail={`${highRisk} high priority`} tone={highRisk ? "warning" : "success"} />
-      </section>
-
-      {alerts[0] ? (
-        <section className="ascend-workspace-section mt-4 border-amber/40 bg-amber/10 p-4">
-          <div className="flex items-start gap-3">
-            <ProfileAvatar src={alerts[0].profile_photo_url} name={alerts[0].full_name} size="sm" />
-            <div>
-              <p className="text-sm font-semibold text-amber">Client risk alert</p>
-              {alerts[0].full_name ? <p className="mt-1 text-sm font-medium text-white">{alerts[0].full_name}</p> : null}
-              <p className="mt-1 text-sm leading-6 text-zinc-300">{alerts[0].message}</p>
+          <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="text-amber" size={19} />
+                <h2 className="text-lg font-semibold">Needs Attention</h2>
+              </div>
+              {highRisk ? <span className="rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">{highRisk} high priority</span> : null}
+            </div>
+            <div className="mt-3 space-y-3">
+              {priorities.needsAttention.slice(0, 5).map((item) => (
+                <PriorityClientCard key={item.client.id} item={item} type="attention" onResolve={resolveAlert} resolving={resolvingAlertId === item.alertId} />
+              ))}
+              {!priorities.needsAttention.length ? (
+                <p className="rounded-xl border border-lime/40 bg-lime/10 p-3 text-sm leading-6 text-zinc-200">No urgent Premium or Athlete client priorities right now.</p>
+              ) : null}
             </div>
           </div>
-        </section>
-      ) : null}
+
+          <div>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="text-teal-300" size={19} />
+              <h2 className="text-lg font-semibold">Great Progress</h2>
+            </div>
+            <div className="mt-3 space-y-3">
+              {priorities.greatProgress.slice(0, 3).map((item) => <PriorityClientCard key={item.client.id} item={item} type="progress" />)}
+              {!priorities.greatProgress.length ? (
+                <DelightEmptyState tone="lime" title="No wins missed." body="Ascend will surface the next moment worth celebrating as clients build consistency." />
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <details className="ascend-workspace-inset mt-4 p-4">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-zinc-200">Weekly overview</summary>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-teal-200">{weeklySummary.improving}</span>Improving</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.plateaued}</span>Plateaued</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-amber">{weeklySummary.checkInsDue}</span>Check-ins due</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-purple-200">{weeklySummary.bodyScansDue}</span>Scans due</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-lime">{weeklySummary.goalAchievements}</span>Goals reached</p>
+            <p className="ascend-workspace-stat min-h-0 p-3"><span className="block text-lg font-semibold text-white">{averageScore}</span>Avg Momentum</p>
+          </div>
+        </details>
+      </section>
 
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-semibold">Client work queue</h2>
-          <span className="rounded-full border border-line bg-ink px-3 py-1 text-xs text-zinc-300">Risk first</span>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">All Clients</h2>
+            <p className="mt-1 text-xs text-zinc-500">Search or filter without losing today&apos;s priority order.</p>
+          </div>
+          <Link href="/messages" className="ascend-pressable flex h-11 items-center gap-2 rounded-xl border border-calm/40 bg-calm/10 px-4 text-sm font-semibold text-calm">
+            <MessageSquare size={17} /> Messages
+          </Link>
+        </div>
+        <label className="mt-4 flex h-12 items-center gap-2 rounded-xl border border-line bg-ink px-3 focus-within:border-calm/50">
+          <Search size={18} className="text-zinc-500" />
+          <input value={clientSearch} onChange={(event) => setClientSearch(event.target.value)} placeholder="Search clients" className="min-w-0 flex-1 bg-transparent text-sm text-white outline-none" />
+        </label>
+        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+          {([['all', 'All'], ['attention', 'Attention'], ['unread', 'Unread'], ['on_track', 'On track']] as const).map(([value, label]) => (
+            <button key={value} type="button" onClick={() => setClientFilter(value)} className={`h-10 shrink-0 rounded-full border px-4 text-sm font-semibold ${clientFilter === value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-zinc-300"}`}>{label}</button>
+          ))}
         </div>
         <div className="mt-3 grid gap-3 xl:grid-cols-2">
-          {sortedClients.length ? (
-            sortedClients.map((client) => {
+          {visibleClients.length ? (
+            visibleClients.map((client) => {
               const score = client.compliance_score;
               const label = riskLabel(client);
               return (
@@ -495,6 +553,7 @@ export function TrainerDashboardClient() {
                       <div className="min-w-0">
                       <p className="font-medium">{client.full_name}</p>
                       <p className="mt-1 text-xs text-zinc-400">{formatGoal(client.goal_type)}</p>
+                      {Number(client.unread_messages ?? 0) > 0 ? <p className="mt-2 inline-flex rounded-full bg-calm/15 px-2 py-1 text-xs font-semibold text-calm">{Number(client.unread_messages)} unread</p> : null}
                       {client.goal_achieved_at ? (
                         <p className="mt-2 inline-flex rounded bg-lime px-2 py-1 text-xs font-semibold text-ink">Goal achieved</p>
                       ) : isRecent(client.goal_updated_at) ? (
@@ -508,7 +567,7 @@ export function TrainerDashboardClient() {
                       <p className={`mt-2 text-xs font-semibold ${nutritionSummaryClass(nutritionSummaryMap.get(client.id) ?? "No food logged yet")}`}>
                         Nutrition: {nutritionSummaryMap.get(client.id) ?? "No food logged yet"}
                       </p>
-                      <p className="mt-2 text-xs text-zinc-500">Food: {daysAgo(client.last_food_logged_at)} / Weight: {daysAgo(client.last_weight_logged_at)}</p>
+                      <p className="mt-2 text-xs text-zinc-500">Last activity: {daysAgo(lastActivityFor(client))}</p>
                       </div>
                     </div>
                     <div className="text-right">
@@ -540,25 +599,11 @@ export function TrainerDashboardClient() {
           ) : (
             <DelightEmptyState
               tone="purple"
-              title="Your coaching list is ready when clients are."
-              body="Once an owner assigns members to this trainer, today's priorities will appear here."
+              title={clients.length ? "No clients match this view." : "Your coaching list is ready when clients are."}
+              body={clients.length ? "Clear the search or choose another filter." : "Once an owner assigns members to this trainer, today's priorities will appear here."}
             />
           )}
         </div>
-      </section>
-
-      <section className="mt-4 grid grid-cols-2 gap-3">
-        <Link
-          href={clients[0] ? `/trainer/clients/${clients[0].id}` : "/trainer"}
-          className="ascend-pressable ascend-workspace-action p-4 text-left"
-        >
-          <Sparkles className="text-calm" size={20} />
-          <span className="mt-3 block text-sm font-medium">AI check-ins</span>
-        </Link>
-        <Link href={clients[0] ? `/messages?userId=${clients[0].id}` : "/messages"} className="ascend-pressable ascend-workspace-action p-4 text-left">
-          <MessageSquare className="text-lime" size={20} />
-          <span className="mt-3 block text-sm font-medium">Messages</span>
-        </Link>
       </section>
     </>
   );

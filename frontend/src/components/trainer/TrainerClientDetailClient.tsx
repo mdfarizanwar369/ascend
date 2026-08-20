@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { calculateAdaptiveNutritionTargets } from "@ascend/shared";
 import {
@@ -10,6 +10,7 @@ import {
   Brain,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Dumbbell,
   Flame,
@@ -154,6 +155,60 @@ function SectionCard({
   );
 }
 
+function CollapsibleSection({
+  storageKey,
+  title,
+  preview,
+  icon,
+  children,
+  onOpen
+}: {
+  storageKey: string;
+  title: string;
+  preview: string;
+  icon: ReactNode;
+  children: ReactNode;
+  onOpen?: () => void | Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
+
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem(`ascend:trainer-section:${storageKey}`) === "open";
+    setOpen(saved);
+    setHasOpened(saved);
+    if (saved) void onOpen?.();
+  }, [onOpen, storageKey]);
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next) {
+      setHasOpened(true);
+      void onOpen?.();
+    }
+    window.sessionStorage.setItem(`ascend:trainer-section:${storageKey}`, next ? "open" : "closed");
+  }
+
+  return (
+    <section className="mt-4">
+      <button type="button" onClick={toggle} aria-expanded={open} className="ascend-pressable flex min-h-20 w-full items-center gap-3 rounded-2xl border border-line bg-surface p-4 text-left shadow-soft">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-ink text-calm">{icon}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-white">{title}</span>
+          <span className="mt-1 block truncate text-sm text-zinc-400">{preview}</span>
+        </span>
+        <ChevronDown className={`shrink-0 text-zinc-400 transition-transform duration-300 motion-reduce:transition-none ${open ? "rotate-180" : ""}`} size={20} />
+      </button>
+      <div className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+        <div className="overflow-hidden">
+          <div className="pt-3">{hasOpened ? children : null}</div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function MetricTile({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="rounded-2xl border border-white/5 bg-ink/80 p-3">
@@ -228,9 +283,7 @@ function WorkoutDetail({ workout }: { workout: BurnLog }) {
           <p className="mt-2 text-sm leading-6 text-zinc-200">{workout.metadata.coachMessage}</p>
         </div>
       ) : null}
-      <p className="mt-3 text-xs text-zinc-500">
-        Calories and momentum are from the saved workout completion. No workout is regenerated for trainer review.
-      </p>
+      <p className="mt-3 text-xs text-zinc-500">Saved exactly as the client completed it.</p>
     </div>
   );
 }
@@ -272,6 +325,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [isSendingPraise, setIsSendingPraise] = useState(false);
   const [isSavingNutrition, setIsSavingNutrition] = useState(false);
   const [showWorkout, setShowWorkout] = useState(false);
+  const loadedSections = useRef(new Set<string>());
 
   useEffect(() => {
     let isMounted = true;
@@ -284,47 +338,26 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         setClient(profile.client);
         setStatus("");
 
-        const [foods, nextMessages, progress, weights, waters, burns, nextMissions, comparison, nutritionPlan, presence, memory, report] = await Promise.allSettled([
+        const [foods, nextMessages, weights, waters, burns, nextMissions, presence] = await Promise.allSettled([
           getTrainerClientFoodLogs(clientId, { range: "7d", order: "newest", limit: 50 }),
-          getTrainerClientMessages(clientId),
-          getTrainerClientProgressPhotos(clientId),
+          getTrainerClientMessages(clientId, { markRead: false }),
           getTrainerClientWeightLogs(clientId),
           getTrainerClientWaterLogs(clientId),
           getTrainerClientBurnLogs(clientId),
           getTrainerClientMissions(clientId),
-          getTrainerClientProgressComparison(clientId),
-          getTrainerClientNutritionPlan(clientId),
-          getTrainerClientCoachPresence(clientId),
-          getTrainerClientMemory(clientId),
-          getTrainerClientWeeklyReport(clientId)
+          getTrainerClientCoachPresence(clientId)
         ]);
 
         if (!isMounted) return;
         if (foods.status === "fulfilled") setFoodLogs(foods.value.foodLogs);
         if (nextMessages.status === "fulfilled") setMessages(nextMessages.value.messages);
-        if (progress.status === "fulfilled") setProgressPhotos(progress.value.progressPhotos);
         if (weights.status === "fulfilled") setWeightLogs(weights.value.weightLogs);
         if (waters.status === "fulfilled") setWaterLogs(waters.value.waterLogs);
         if (burns.status === "fulfilled") setBurnLogs(burns.value.burnLogs);
         if (nextMissions.status === "fulfilled") setMissions(nextMissions.value.missions);
-        if (comparison.status === "fulfilled") setProgressComparison(comparison.value.comparison);
-        if (nutritionPlan.status === "fulfilled") {
-          const plan = nutritionPlan.value.coachPlan;
-          setCoachNutritionPlan(plan);
-          if (plan) {
-            setNutritionCalories(String(plan.calories));
-            setNutritionProtein(String(plan.protein_g));
-            setNutritionCarbs(String(plan.carbs_g));
-            setNutritionFat(String(plan.fat_g));
-            setNutritionLabel(plan.plan_label ?? "");
-            setNutritionNote(plan.coach_note ?? "");
-          }
-        }
         if (presence.status === "fulfilled") setCoachPresence(presence.value);
-        if (memory.status === "fulfilled") setAscendMemory(memory.value);
-        if (report.status === "fulfilled") setWeeklyReport(report.value.report);
 
-        if ([foods, nextMessages, progress, weights, waters, burns, nextMissions, report].some((result) => result.status === "rejected")) {
+        if ([foods, nextMessages, weights, waters, burns, nextMissions, presence].some((result) => result.status === "rejected")) {
           setStatus("Some client sections could not load yet. The main handover is still available.");
         }
       } catch (error) {
@@ -337,6 +370,53 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       isMounted = false;
     };
   }, [clientId]);
+
+  const loadSection = useCallback(async (section: "messages" | "progress" | "memory" | "weekly" | "nutrition") => {
+    if (loadedSections.current.has(section)) return;
+    loadedSections.current.add(section);
+    try {
+      if (section === "messages") {
+        const response = await getTrainerClientMessages(clientId, { markRead: true });
+        const readAt = new Date().toISOString();
+        setMessages(response.messages.map((message) => message.sender_user_id === clientId ? { ...message, read_at: message.read_at ?? readAt } : message));
+      } else if (section === "progress") {
+        const [photos, comparison] = await Promise.all([getTrainerClientProgressPhotos(clientId), getTrainerClientProgressComparison(clientId)]);
+        setProgressPhotos(photos.progressPhotos);
+        setProgressComparison(comparison.comparison);
+      } else if (section === "memory") {
+        setAscendMemory(await getTrainerClientMemory(clientId));
+      } else if (section === "weekly") {
+        const response = await getTrainerClientWeeklyReport(clientId);
+        setWeeklyReport(response.report);
+      } else if (section === "nutrition") {
+        const response = await getTrainerClientNutritionPlan(clientId);
+        const plan = response.coachPlan;
+        setCoachNutritionPlan(plan);
+        if (plan) {
+          setNutritionCalories(String(plan.calories));
+          setNutritionProtein(String(plan.protein_g));
+          setNutritionCarbs(String(plan.carbs_g));
+          setNutritionFat(String(plan.fat_g));
+          setNutritionLabel(plan.plan_label ?? "");
+          setNutritionNote(plan.coach_note ?? "");
+        }
+      }
+    } catch {
+      loadedSections.current.delete(section);
+      setStatus(`Could not load ${section} details yet. The rest of the client profile is still available.`);
+    }
+  }, [clientId]);
+  const openMessages = useCallback(() => loadSection("messages"), [loadSection]);
+  const openProgress = useCallback(() => loadSection("progress"), [loadSection]);
+  const openMemory = useCallback(() => loadSection("memory"), [loadSection]);
+  const openWeekly = useCallback(() => loadSection("weekly"), [loadSection]);
+  const openNutrition = useCallback(() => loadSection("nutrition"), [loadSection]);
+
+  useEffect(() => {
+    if (!status || status.startsWith("Loading") || status.startsWith("Pausing") || status.startsWith("Resuming")) return;
+    const timeout = window.setTimeout(() => setStatus(""), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [status]);
 
   const today = useMemo(() => localDateKey(), []);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
@@ -364,8 +444,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const latestMessage = messages[messages.length - 1] ?? null;
   const unreadMessages = messages.filter((message) => message.sender_user_id === clientId && !message.read_at).length;
   const todaysCoachInsight = coachPresence.latest && isToday(coachPresence.latest.created_at) ? coachPresence.latest : null;
-  const latestWorkout = burnLogs.find((log) => log.metadata?.source === "coach_zoe_workout_planner" || Boolean(log.metadata?.workoutTitle)) ?? null;
+  const latestWorkout = burnLogs.find((log) => log.metadata?.source === "coach_zoe_workout_planner" || log.metadata?.source === "trainer_logged_session" || Boolean(log.metadata?.workoutTitle)) ?? null;
   const latestWorkoutIsCoached = latestWorkout?.metadata?.source === "trainer_logged_session";
+  const latestWorkoutIsZoe = latestWorkout?.metadata?.source === "coach_zoe_workout_planner";
+  const latestCoachedSession = burnLogs.find((log) => log.metadata?.source === "trainer_logged_session") ?? null;
+  const latestCoachedSessionTime = latestCoachedSession ? new Date(latestCoachedSession.created_at).getTime() : 0;
+  const recentCoachedSession = latestCoachedSession && Number.isFinite(latestCoachedSessionTime) && Date.now() - latestCoachedSessionTime <= 7 * 24 * 60 * 60 * 1000
+    ? latestCoachedSession
+    : null;
+  const handoverBoundary = recentCoachedSession ? latestCoachedSessionTime : Date.now() - 7 * 24 * 60 * 60 * 1000;
   const todaysWorkout = latestWorkout && isToday(latestWorkout.created_at) ? latestWorkout : null;
   const workoutsThisWeek = burnLogs.filter((log) => {
     const date = new Date(log.created_at);
@@ -373,6 +460,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   });
   const completedMissions = missions.filter((mission) => mission.status === "completed");
   const openMissions = missions.filter((mission) => mission.status !== "completed");
+  const workoutsSinceHandover = burnLogs.filter((log) => new Date(log.created_at).getTime() > handoverBoundary && log.id !== recentCoachedSession?.id);
+  const foodLogsSinceHandover = foodLogs.filter((log) => new Date(log.logged_at).getTime() > handoverBoundary);
   const memoryHero = ascendMemory?.timeline?.find((item) => item.reflection) ?? ascendMemory?.timeline?.[0] ?? null;
   const nutritionTargets = calculateAdaptiveNutritionTargets({
     goalType: client?.goal_type,
@@ -391,6 +480,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const effectiveProteinTarget = client?.nutrition_targets?.proteinG ?? nutritionTargets.proteinTargetG;
   const effectiveCarbsTarget = client?.nutrition_targets?.carbsG ?? nutritionTargets.carbsTargetG;
   const effectiveFatTarget = client?.nutrition_targets?.fatG ?? nutritionTargets.fatTargetG;
+  const effectiveWaterTargetMl = client?.nutrition_targets?.waterMl ?? nutritionTargets.waterTargetMl;
 
   const timelineGroups = useMemo(() => buildCoachingTimelineGroups({
     foodLogs,
@@ -411,7 +501,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       return "Review recovery from today's workout and agree on one high-protein meal.";
     }
     if ((score ?? 100) < 50) return "Keep the next conversation simple: one supportive check-in and one achievable action.";
-    if (!todaysFood.length) return "Ask what made food logging difficult today and remove one friction point.";
+    if (!todaysFood.length && new Date().getHours() >= 14) return "Ask what made food logging difficult today and remove one friction point.";
     if (weightDelta > 0.5 && client?.goal_type === "fat_loss") return "Review the weight trend and compare it with recent food consistency.";
     if (todaysWorkout) return "Celebrate the completed workout, then align recovery, water, and protein.";
     return "Reinforce the strongest consistent behaviour and choose one focus for the next session.";
@@ -578,17 +668,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             >
               Open chat
             </Link>
-            <a
-              href="#trainer-message-card"
-              className="flex h-12 items-center justify-center rounded-2xl border border-calm/50 bg-calm/10 font-semibold text-calm"
-            >
-              Check-In
-            </a>
             <button
               type="button"
               disabled={isSendingPraise}
               onClick={handleSendPraise}
-              className="h-12 rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
+              className="col-span-2 h-12 rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
             >
               {isSendingPraise ? "Sending..." : "Send praise"}
             </button>
@@ -596,7 +680,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ) : null}
       </section>
 
-      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
+      {status ? (
+        <p role="status" className="fixed bottom-24 left-1/2 z-50 w-[min(32rem,calc(100%-2rem))] -translate-x-1/2 rounded-2xl border border-line bg-ink/95 p-3 text-center text-sm text-zinc-200 shadow-xl backdrop-blur md:bottom-6">
+          {status}
+        </p>
+      ) : null}
 
       <section className="mt-4 rounded-[1.75rem] border border-purple-400/30 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.18),transparent_16rem),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.2),transparent_16rem),linear-gradient(180deg,rgba(18,22,35,0.98),rgba(8,13,24,0.98))] p-5 shadow-soft">
         <div className="flex items-start gap-3">
@@ -605,16 +693,16 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">Coach Zoe Handover</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Since your last coaching session</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{recentCoachedSession ? "Since your last coaching session" : "Recent client activity"}</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-300">
-              The other 166 hours, summarized so you know what to discuss next.
+              {recentCoachedSession ? "The time between sessions, summarized so you know what to discuss next." : "A focused seven-day summary to prepare your next conversation."}
             </p>
           </div>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <HandoverItem icon={<Dumbbell size={18} />} label="workouts completed" value={String(workoutsThisWeek.length)} />
-          <HandoverItem icon={<Utensils size={18} />} label="food logs this week" value={String(foodLogs.filter((log) => Date.now() - new Date(log.logged_at).getTime() <= 7 * 24 * 60 * 60 * 1000).length)} />
+          <HandoverItem icon={<Dumbbell size={18} />} label={recentCoachedSession ? "workouts since session" : "workouts in 7 days"} value={String(workoutsSinceHandover.length)} />
+          <HandoverItem icon={<Utensils size={18} />} label={recentCoachedSession ? "meals since session" : "food logs in 7 days"} value={String(foodLogsSinceHandover.length)} />
           <HandoverItem icon={<Sparkles size={18} />} label="today's insight" value={todaysCoachInsight ? "Delivered" : "Not yet"} />
           <HandoverItem icon={<Zap size={18} />} label="momentum" value={score === null || score === undefined ? "--" : `${score}/100`} />
         </div>
@@ -638,8 +726,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         </SectionCard>
 
         <SectionCard
-          eyebrow={latestWorkoutIsCoached ? "Coached Session" : "Coach Zoe Workout"}
-          title={latestWorkout ? workoutName(latestWorkout) : "No saved Coach Zoe workout yet"}
+          eyebrow={latestWorkoutIsCoached ? "Coached Session" : latestWorkoutIsZoe ? "Coach Zoe Workout" : "Logged Workout"}
+          title={latestWorkout ? workoutName(latestWorkout) : "No saved workout yet"}
           tone={latestWorkout ? "success" : "default"}
           action={<Dumbbell className="text-lime" size={22} />}
         >
@@ -654,7 +742,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-ink/70 p-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Momentum earned</p>
-                  <p className="mt-1 text-lg font-semibold text-lime">+{Number(latestWorkout.metadata?.momentumEarned ?? 0) || 8}</p>
+                  <p className="mt-1 text-lg font-semibold text-lime">
+                    {latestWorkout.metadata?.momentumEarned === null || latestWorkout.metadata?.momentumEarned === undefined
+                      ? "Not recorded"
+                      : `+${Number(latestWorkout.metadata.momentumEarned)}`}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -668,37 +760,43 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             </>
           ) : (
             <p className="mt-3 rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
-              When the client completes a Coach Zoe workout, the exact saved session appears here for review.
+              Completed Coach Zoe workouts, coached sessions, and detailed client workouts will appear here.
             </p>
           )}
         </SectionCard>
       </div>
 
-      <TrainerHomeworkPanel clientId={clientId} />
-
-      <AthleteCoachPanel clientId={clientId} />
-
-      <SectionCard
-        eyebrow="AI Activity Timeline"
-        title="What happened between sessions"
-        action={<CalendarClock className="text-calm" size={22} />}
+      <CollapsibleSection
+        storageKey={`${clientId}:homework`}
+        title="Coach Homework"
+        preview="Create or review a workout for this client"
+        icon={<ClipboardList size={20} />}
       >
-        <div className="mt-4 space-y-4">
-          <CoachingTimelineGroups groups={timelineGroups} />
-          {!timelineGroups.length ? (
-            <p className="rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
-              No coaching summary yet. Once the client logs nutrition, completes workouts, receives Coach Zoe support, or finishes missions, this will summarize what mattered between sessions.
-            </p>
-          ) : null}
-          <Link
-            href={`/trainer/clients/${clientId}/timeline`}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-calm/40 bg-calm/10 font-semibold text-calm"
-          >
-            View Full Coaching Timeline
-            <ArrowRight size={18} />
-          </Link>
-        </div>
-      </SectionCard>
+        <TrainerHomeworkPanel clientId={clientId} />
+      </CollapsibleSection>
+
+      {client?.athlete_mode_enabled ? <AthleteCoachPanel clientId={clientId} /> : null}
+
+      <CollapsibleSection
+        storageKey={`${clientId}:timeline`}
+        title="Coaching Timeline"
+        preview={timelineGroups.length ? `${timelineGroups.length} recent days summarized` : "Recent activity will be summarized here"}
+        icon={<CalendarClock size={20} />}
+      >
+        <SectionCard eyebrow="AI Activity Timeline" title="What happened between sessions" action={<CalendarClock className="text-calm" size={22} />}>
+          <div className="mt-4 space-y-4">
+            <CoachingTimelineGroups groups={timelineGroups} />
+            {!timelineGroups.length ? (
+              <p className="rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
+                Once the client logs nutrition, completes workouts, receives Coach Zoe support, or finishes missions, the important activity will be summarized here.
+              </p>
+            ) : null}
+            <Link href={`/trainer/clients/${clientId}/timeline`} className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-calm/40 bg-calm/10 font-semibold text-calm">
+              View Full Coaching Timeline <ArrowRight size={18} />
+            </Link>
+          </div>
+        </SectionCard>
+      </CollapsibleSection>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <SectionCard eyebrow="Nutrition Snapshot" title="Today's intake" action={<Utensils className="text-lime" size={22} />}>
@@ -707,7 +805,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             <MetricTile label="Protein" value={`${Math.round(todaysNutrition.proteinG)}g`} detail={`${effectiveProteinTarget}g guide`} />
             <MetricTile label="Carbs" value={`${Math.round(todaysNutrition.carbsG)}g`} detail={`${effectiveCarbsTarget}g guide`} />
             <MetricTile label="Fat" value={`${Math.round(todaysNutrition.fatG)}g`} detail={`${effectiveFatTarget}g guide`} />
-            <MetricTile label="Water" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail="2.5L target" />
+            <MetricTile label="Water" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail={`${(effectiveWaterTargetMl / 1000).toFixed(1)}L target`} />
             <MetricTile label="Meals" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No meals today"} />
           </div>
           <Link
@@ -718,11 +816,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           </Link>
         </SectionCard>
 
-        <SectionCard eyebrow="Progress Snapshot" title="Direction of travel" action={<BarChart3 className="text-calm" size={22} />}>
+        <SectionCard eyebrow="Progress Snapshot" title="Recent progress" action={<BarChart3 className="text-calm" size={22} />}>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <MetricTile label="Momentum" value={score === null || score === undefined ? "--" : `${score}/100`} detail={score === null || score === undefined ? "No score yet" : score < 50 ? "Needs support" : score < 70 ? "Building" : "On track"} />
             <MetricTile label="Current weight" value={latestWeight ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg` : "--"} detail={weightDelta ? `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg vs previous` : "No trend yet"} />
-            <MetricTile label="Check-ins" value={`${progressComparison?.current.checkinDays ?? "--"}/7`} detail="active days this week" />
+            <MetricTile label="Open missions" value={String(openMissions.length)} detail={openMissions.length === 1 ? "one action to follow up" : "actions to follow up"} />
             <MetricTile label="Workouts" value={String(workoutsThisWeek.length)} detail="logged in the last 7 days" />
           </div>
           {momentumPillars.some((pillar) => pillar.value !== null && pillar.value !== undefined) ? (
@@ -738,13 +836,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         </SectionCard>
       </div>
 
-      {progressComparison ? (
-        <div className="mt-4">
-          <ProgressComparisonCard comparison={progressComparison} photoHref="#progress-photos" />
-        </div>
-      ) : null}
-
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <CollapsibleSection
+          storageKey={`${clientId}:messages`}
+          title="Messages"
+          preview={unreadMessages ? `${unreadMessages} unread message${unreadMessages === 1 ? "" : "s"}` : latestMessage ? `Latest: ${latestMessage.body}` : "No conversation yet"}
+          icon={<MessageCircle size={20} />}
+          onOpen={openMessages}
+        >
         <SectionCard
           eyebrow="Messages"
           title={latestMessage ? "Latest conversation" : "No conversation yet"}
@@ -791,7 +890,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             </Link>
           ) : null}
         </SectionCard>
+        </CollapsibleSection>
 
+        <CollapsibleSection
+          storageKey={`${clientId}:memory`}
+          title="Ascend Memory"
+          preview={memoryHero ? memoryHero.title : "Journey milestones and coaching reflections"}
+          icon={<NotebookText size={20} />}
+          onOpen={openMemory}
+        >
         <SectionCard eyebrow="Ascend Memory" title={memoryHero ? "Coach Zoe remembers" : "No memories yet"} action={<NotebookText className="text-purple-200" size={22} />} tone="zoe">
           {memoryHero ? (
             <article className="mt-3 rounded-2xl bg-ink/70 p-4">
@@ -815,9 +922,17 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             </div>
           ) : null}
         </SectionCard>
+        </CollapsibleSection>
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <CollapsibleSection
+          storageKey={`${clientId}:weekly`}
+          title="Weekly Report"
+          preview={weeklyReport ? `Latest: week of ${formatShortDate(weeklyReport.week_start)}` : "Generate a weekly coaching summary"}
+          icon={<ClipboardList size={20} />}
+          onOpen={openWeekly}
+        >
         <SectionCard
           eyebrow="Weekly Report"
           title={weeklyReport ? "Latest report ready" : "Generate a coaching draft"}
@@ -850,7 +965,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             {isGenerating ? "Generating..." : checkin ? "Refresh coach draft" : "Generate Weekly Report"}
           </button>
         </SectionCard>
+        </CollapsibleSection>
 
+        <CollapsibleSection
+          storageKey={`${clientId}:tools`}
+          title="Coach Tools"
+          preview={`${openMissions.length} open mission${openMissions.length === 1 ? "" : "s"} • Zoe ${coachPresence.settings.paused ? "paused" : "active"}`}
+          icon={<Target size={20} />}
+        >
         <SectionCard eyebrow="Coach Tools" title="Simple actions for next session" action={<Target className="text-lime" size={22} />}>
           <form onSubmit={handleCreateMission} className="mt-3 space-y-3">
             <textarea
@@ -881,25 +1003,24 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             <MetricTile label="Open missions" value={String(openMissions.length)} />
             <MetricTile label="Completed" value={String(completedMissions.length)} />
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setCoachPresencePause(24)}
-              className="h-11 rounded-2xl border border-amber/50 bg-amber/10 font-semibold text-amber"
-            >
-              Pause Zoe 24h
-            </button>
-            <button
-              type="button"
-              onClick={() => setCoachPresencePause(null)}
-              className="h-11 rounded-2xl border border-calm/50 bg-calm/10 font-semibold text-calm"
-            >
-              Resume Zoe
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setCoachPresencePause(coachPresence.settings.paused ? null : 24)}
+            className={`mt-3 h-11 w-full rounded-2xl border font-semibold ${coachPresence.settings.paused ? "border-calm/50 bg-calm/10 text-calm" : "border-amber/50 bg-amber/10 text-amber"}`}
+          >
+            {coachPresence.settings.paused ? "Resume Coach Zoe" : "Pause Coach Zoe for 24h"}
+          </button>
         </SectionCard>
+        </CollapsibleSection>
       </div>
 
+      <CollapsibleSection
+        storageKey={`${clientId}:nutrition-plan`}
+        title="Coach Nutrition Plan"
+        preview={coachNutritionPlan ? `${coachNutritionPlan.plan_label || "Custom plan"} active` : `${effectiveCalorieTarget.toLocaleString()} kcal Ascend guide`}
+        icon={<Flame size={20} />}
+        onOpen={openNutrition}
+      >
       <SectionCard eyebrow="Coach Nutrition Plan" title={coachNutritionPlan ? "Custom plan active" : "Using Ascend recommendation"} action={<Flame className="text-lime" size={22} />}>
         <div className="mt-3 rounded-2xl border border-line bg-ink p-3">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Ascend recommendation</p>
@@ -954,8 +1075,15 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ) : null}
         {nutritionStatus ? <p className="mt-3 rounded-2xl border border-line bg-ink p-3 text-sm text-zinc-300">{nutritionStatus}</p> : null}
       </SectionCard>
+      </CollapsibleSection>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <CollapsibleSection
+          storageKey={`${clientId}:food-evidence`}
+          title="Food Logs"
+          preview={foodLogs.length ? `${foodLogs.length} recent log${foodLogs.length === 1 ? "" : "s"}` : "No food logs yet"}
+          icon={<Utensils size={20} />}
+        >
         <SectionCard eyebrow="Food Evidence" title="Latest meals" action={<Utensils className="text-lime" size={22} />}>
           <div className="mt-3 space-y-2">
             {foodLogs.slice(0, 3).map((log) => (
@@ -980,7 +1108,16 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             {!foodLogs.length ? <p className="rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">No food logs yet.</p> : null}
           </div>
         </SectionCard>
+        </CollapsibleSection>
 
+        <CollapsibleSection
+          storageKey={`${clientId}:progress`}
+          title="Progress Photos"
+          preview={progressPhotos.length ? `${progressPhotos.length} saved photo${progressPhotos.length === 1 ? "" : "s"}` : "Photos and weekly comparison"}
+          icon={<Activity size={20} />}
+          onOpen={openProgress}
+        >
+        {progressComparison ? <ProgressComparisonCard comparison={progressComparison} photoHref="#progress-photos" /> : null}
         <SectionCard eyebrow="Progress Photos" title={progressPhotos.length ? `${progressPhotos.length} saved photos` : "No photos yet"} action={<Activity className="text-calm" size={22} />}>
           <div id="progress-photos" className="mt-3 grid grid-cols-3 gap-2">
             {progressPhotos.slice(0, 6).map((photo) => (
@@ -1002,12 +1139,13 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             {!progressPhotos.length ? <p className="col-span-3 rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">Progress photos will appear here when the client uploads them.</p> : null}
           </div>
         </SectionCard>
+        </CollapsibleSection>
       </div>
 
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-3">
           {weightDelta < 0 ? <TrendingDown className="text-lime" size={20} /> : <TrendingUp className="text-calm" size={20} />}
-          <p className="text-sm text-zinc-300">Food, water, workouts, messages, memory, reports, and progress come from existing Ascend records.</p>
+          <p className="text-sm text-zinc-300">Everything your client has shared, ready for the next conversation.</p>
           <ArrowRight className="ml-auto hidden text-zinc-600 sm:block" size={18} />
         </div>
       </section>

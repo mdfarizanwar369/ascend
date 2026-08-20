@@ -364,6 +364,10 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         weight.latest_weight_kg,
         water.last_water_logged_at,
         msg.last_client_message_at,
+        greatest(u.last_meaningful_activity_at, msg.last_client_message_at) as last_activity_at,
+        coalesce(u.last_meaningful_activity_at::date = current_date, false)
+          or coalesce(msg.last_client_message_at::date = current_date, false) as active_today,
+        coalesce(unread.unread_messages, 0) as unread_messages,
         goal_milestone.achieved_at as goal_achieved_at,
         coalesce(streak.current_streak, 0) as consistency_streak,
         coalesce(athlete_profile.enabled, false) as athlete_mode_enabled,
@@ -414,6 +418,13 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         where sender_user_id = u.id
       ) msg on true
       left join lateral (
+        select count(*) as unread_messages
+        from messages
+        where sender_user_id = u.id
+          and receiver_user_id = $6
+          and read_at is null
+      ) unread on true
+      left join lateral (
         select achieved_at from goal_milestones
         where user_id = u.id and goal_version = u.goal_version and milestone_type = 'target_reached'
         order by achieved_at desc limit 1
@@ -449,7 +460,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         and (u.assigned_trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or u.gym_id = any($5))))
       order by risk.open_alerts desc nulls last, cs.score asc nulls last, food.last_food_logged_at asc nulls first
       `,
-      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds, req.user!.id]
     );
     const clients = await withProfilePhotoUrls(result.rows);
     const athleteClientIds = clients.filter((client) => client.athlete_mode_enabled === true).map((client) => client.id);
@@ -765,7 +776,7 @@ trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("traine
       join users u on u.id = ra.user_id
       where (ra.trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or ra.gym_id = any($5))))
         and ra.status = 'open'
-      order by ra.created_at desc
+      order by ra.severity desc, ra.created_at desc
       `,
       [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
     );

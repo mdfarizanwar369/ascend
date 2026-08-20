@@ -1694,6 +1694,8 @@ export function getMessageContacts() {
       email: string;
       primary_role: string;
       profile_photo_url?: string | null;
+      unread_count?: string | number | null;
+      last_message_at?: string | null;
     }>;
   }>("/messages/contacts");
 }
@@ -1726,8 +1728,9 @@ export function sendMessage(input: { receiverUserId: string; body: string }) {
   });
 }
 
-export function getTrainerClientMessages(clientId: string) {
-  return authed<{
+export async function getTrainerClientMessages(clientId: string, options: { markRead?: boolean } = {}) {
+  const markRead = options.markRead ?? true;
+  const response = await authed<{
     messages: Array<{
       id: string;
       sender_user_id: string;
@@ -1736,7 +1739,9 @@ export function getTrainerClientMessages(clientId: string) {
       created_at: string;
       read_at?: string | null;
     }>;
-  }>(`/trainer/clients/${clientId}/messages`);
+  }>(`/trainer/clients/${clientId}/messages?markRead=${markRead}`);
+  if (markRead) invalidateCached("trainer:");
+  return response;
 }
 
 export function getTrainerClientCoachPresence(clientId: string) {
@@ -1805,6 +1810,9 @@ export function getTrainerClients() {
       last_weight_logged_at?: string | null;
       last_water_logged_at?: string | null;
       last_client_message_at?: string | null;
+      last_activity_at?: string | null;
+      active_today?: boolean;
+      unread_messages?: string | number | null;
       open_alerts?: string | number | null;
       consistency_streak?: string | number | null;
       profile_photo_url?: string | null;
@@ -2045,6 +2053,14 @@ export function getTrainerRiskAlerts() {
       profile_photo_url?: string | null;
     }>;
   }>("trainer:risk-alerts", "/trainer/risk-alerts", 20_000);
+}
+
+export function updateTrainerRiskAlert(alertId: string, status: "acknowledged" | "resolved") {
+  invalidateCached("trainer:");
+  return authed<{ alert: { id: string; status: string } }>(`/trainer/risk-alerts/${alertId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status })
+  });
 }
 
 export function createWeeklyCheckin(clientId: string) {

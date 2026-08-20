@@ -224,6 +224,19 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
       </div>
 
       <div className="ascend-workspace-inset mt-4 space-y-3 p-4">
+        <div>
+          <p className="text-sm font-semibold text-white">Quick brief</p>
+          <p className="mt-1 text-xs text-zinc-500">Choose a sensible starting point, then adjust only if needed.</p>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => { setLocation("home"); setTimeAvailable("20"); setGoal("mobility"); setEquipment(["Bodyweight"]); }} className="ascend-pressable min-h-11 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-zinc-200">Recovery 20</button>
+            <button type="button" onClick={() => { setLocation("home"); setTimeAvailable("30"); setGoal("full_body"); setEquipment(["Bodyweight"]); }} className="ascend-pressable min-h-11 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-zinc-200">Home 30</button>
+            <button type="button" onClick={() => { setLocation("commercial_gym"); setTimeAvailable("45"); setGoal("strength"); setEquipment(["Dumbbells", "Machines", "Cable Machine"]); }} className="ascend-pressable min-h-11 rounded-xl border border-line bg-surface px-2 text-xs font-semibold text-zinc-200">Gym 45</button>
+          </div>
+        </div>
+
+        <details className="rounded-xl border border-line bg-ink/60 p-3">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-calm">Adjust workout details</summary>
+          <div className="mt-3 space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <label className="grid gap-1 text-sm text-zinc-300">
             Where will your client train?
@@ -323,6 +336,8 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
             className="min-h-20 rounded-2xl border border-line bg-surface px-3 py-3 text-white outline-none focus:border-lime"
           />
         </label>
+          </div>
+        </details>
 
         <button
           type="button"

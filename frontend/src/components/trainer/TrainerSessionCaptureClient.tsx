@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type { TrainerCoachingSession, TrainerSessionIntelligence, TrainerSessionNarratives, WorkoutCaptureDraft, WorkoutCaptureExercise } from "@ascend/shared";
 import { Check, ChevronDown, ChevronUp, Clock3, Dumbbell, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
@@ -25,6 +26,24 @@ function exerciseSummary(exercise: WorkoutCaptureExercise) {
   return [exercise.sets ? `${exercise.sets} sets` : null, exercise.reps ? `${exercise.reps} reps` : null, exercise.load !== null ? `${exercise.load}${exercise.loadUnit ?? ""}` : null]
     .filter(Boolean)
     .join(" / ") || "Details not captured";
+}
+
+function localDraftKey(clientId: string, sessionId: string) {
+  return `ascend:trainer-session-draft:${clientId}:${sessionId}`;
+}
+
+function readLocalDraft(clientId: string, sessionId: string) {
+  try {
+    const raw = window.localStorage.getItem(localDraftKey(clientId, sessionId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { rawInput?: unknown; durationMinutes?: unknown };
+    return {
+      rawInput: typeof parsed.rawInput === "string" ? parsed.rawInput : "",
+      durationMinutes: Number.isFinite(Number(parsed.durationMinutes)) ? Math.max(5, Number(parsed.durationMinutes)) : null
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) {
@@ -55,9 +74,10 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
           return;
         }
         if (overview.activeSession) {
+          const localDraft = readLocalDraft(clientId, overview.activeSession.id);
           setSession(overview.activeSession);
-          setRawInput(overview.activeSession.rawInput);
-          setDurationMinutes(overview.activeSession.durationMinutes ?? elapsedMinutes(overview.activeSession.startedAt));
+          setRawInput(localDraft?.rawInput || overview.activeSession.rawInput);
+          setDurationMinutes(localDraft?.durationMinutes ?? overview.activeSession.durationMinutes ?? elapsedMinutes(overview.activeSession.startedAt));
           setDraft(overview.activeSession.workoutDraft);
           setNarratives(overview.activeSession.narratives);
           setIntelligence(overview.activeSession.intelligence);
@@ -73,6 +93,15 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       });
     return () => { mounted = false; };
   }, [clientId]);
+
+  useEffect(() => {
+    if (!session || phase !== "capture") return;
+    try {
+      window.localStorage.setItem(localDraftKey(clientId, session.id), JSON.stringify({ rawInput, durationMinutes, savedAt: new Date().toISOString() }));
+    } catch {
+      // The server save on review remains available when device storage is unavailable.
+    }
+  }, [clientId, durationMinutes, phase, rawInput, session]);
 
   const canInterpret = rawInput.trim().length >= 2 || Boolean(session?.workoutDraft?.exercises.length);
   const title = session?.clientName ? `Session with ${session.clientName}` : "Record PT Session";
@@ -136,6 +165,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     setStatus("Saving and sharing the session...");
     try {
       const response = await completeTrainerCoachingSession(clientId, session.id, { userConfirmed: true, draft, narratives });
+      window.localStorage.removeItem(localDraftKey(clientId, session.id));
       setCompletion({ calories: response.completion.summary.estimatedCaloriesBurned, momentum: response.completion.summary.momentumEarned });
       setSession(response.session);
       setPhase("success");
@@ -151,6 +181,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     setBusy(true);
     try {
       await cancelTrainerCoachingSession(clientId, session.id);
+      window.localStorage.removeItem(localDraftKey(clientId, session.id));
       setSession(null); setDraft(null); setRawInput(""); setPhase("start"); setStatus("Draft discarded.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Could not discard the draft."); }
     finally { setBusy(false); }
@@ -242,7 +273,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
           </div>
         ) : null}
 
-        {phase === "success" ? <section className="mt-5 rounded-2xl border border-lime/40 bg-lime/10 p-6 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-lime text-ink"><Check size={34} /></span><h2 className="mt-4 text-2xl font-semibold">Session shared</h2><p className="mt-2 text-zinc-300">The client can now see what they completed and what to focus on next.</p><div className="mx-auto mt-5 grid max-w-md grid-cols-2 gap-3"><div className="rounded-xl bg-ink p-3"><p className="text-sm text-zinc-500">Estimated burn</p><p className="text-xl font-semibold">~{completion?.calories ?? 0} kcal</p></div><div className="rounded-xl bg-ink p-3"><p className="text-sm text-zinc-500">Momentum</p><p className="text-xl font-semibold text-lime">+{completion?.momentum ?? 0}</p></div></div><a href={`/trainer/clients/${clientId}`} className="mx-auto mt-5 flex min-h-14 max-w-md items-center justify-center rounded-xl bg-lime font-bold text-ink">Return to client</a></section> : null}
+        {phase === "success" ? <section className="mt-5 rounded-2xl border border-lime/40 bg-lime/10 p-6 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-lime text-ink"><Check size={34} /></span><h2 className="mt-4 text-2xl font-semibold">Session shared</h2><p className="mt-2 text-zinc-300">The client can now see what they completed and what to focus on next.</p><div className="mx-auto mt-5 grid max-w-md grid-cols-2 gap-3"><div className="rounded-xl bg-ink p-3"><p className="text-sm text-zinc-500">Estimated burn</p><p className="text-xl font-semibold">~{completion?.calories ?? 0} kcal</p></div><div className="rounded-xl bg-ink p-3"><p className="text-sm text-zinc-500">Momentum</p><p className="text-xl font-semibold text-lime">+{completion?.momentum ?? 0}</p></div></div><Link href={`/trainer/clients/${clientId}`} className="mx-auto mt-5 flex min-h-14 max-w-md items-center justify-center rounded-xl bg-lime font-bold text-ink">Return to client</Link></section> : null}
       </div>
     </main>
   );

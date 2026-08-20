@@ -81,7 +81,11 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
             <Link href="/contact" className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface" aria-label="Get support">
               <CircleHelp size={19} />
             </Link>
-            <Link href="/coach" className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface" aria-label="Open coach">
+            <Link
+              href={isOperational ? "/messages" : "/coach"}
+              className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface"
+              aria-label={isOperational ? "Open messages" : "Open coach"}
+            >
               <MessageCircle size={19} />
             </Link>
           </div>
