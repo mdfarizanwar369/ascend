@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { AscendDNAService, NotificationEngine } from "@ascend/shared";
 
+const SINGAPORE_OFFSET_MINUTES = -480;
 const dna = AscendDNAService.buildProfile({
   now: "2026-06-24T19:00:00+08:00",
+  timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
   events: [
     { type: "food", occurredAt: "2026-06-23T20:00:00+08:00" },
     { type: "water", occurredAt: "2026-06-23T20:10:00+08:00" },
@@ -16,6 +18,7 @@ describe("NotificationEngine", () => {
   it("prioritizes human trainer communication immediately", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T23:30:00+08:00",
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       openedToday: true,
       prioritiesComplete: true,
@@ -31,6 +34,7 @@ describe("NotificationEngine", () => {
   it("blocks coaching nudges during quiet hours", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T23:30:00+08:00",
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       openedToday: false,
       prioritiesComplete: false,
@@ -44,6 +48,7 @@ describe("NotificationEngine", () => {
   it("notifies clients when a coach updates nutrition targets", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T23:30:00+08:00",
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       openedToday: true,
       prioritiesComplete: true,
@@ -59,6 +64,7 @@ describe("NotificationEngine", () => {
   it("does not coach if the user already opened today", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T19:00:00+08:00",
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       openedToday: true,
       prioritiesComplete: false,
@@ -72,6 +78,7 @@ describe("NotificationEngine", () => {
   it("sends at most one celebration per day", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T19:00:00+08:00",
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       openedToday: false,
       prioritiesComplete: false,
@@ -85,6 +92,7 @@ describe("NotificationEngine", () => {
   it("keeps wording supportive and non-guilt based", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T19:00:00+08:00",
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       openedToday: false,
       prioritiesComplete: false,
@@ -99,6 +107,7 @@ describe("NotificationEngine", () => {
   it("prefers proactive coaching over a generic next best move", () => {
     const selected = NotificationEngine.select({
       now: "2026-06-24T19:00:00+08:00",
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       openedToday: false,
       prioritiesComplete: false,

@@ -48,6 +48,7 @@ export interface AscendDnaWeeklyMemory {
 
 export interface AscendDnaBuildInput {
   now?: string | Date;
+  timezoneOffsetMinutes?: number;
   events: AscendDnaEvent[];
   currentStreak?: number | null;
   bestStreak?: number | null;
@@ -57,6 +58,7 @@ export interface AscendDnaBuildInput {
 
 export interface AscendDnaRecommendationInput {
   now?: string | Date;
+  timezoneOffsetMinutes?: number;
   dna: AscendDnaProfile;
   todaysFoodCount: number;
   caloriesLeft: number;
@@ -91,34 +93,53 @@ function toDate(value: string | Date): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function dateKey(value: string | Date): string | null {
+function localDateParts(value: string | Date, timezoneOffsetMinutes?: number) {
   const date = toDate(value);
   if (!date) return null;
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  if (timezoneOffsetMinutes === undefined) {
+    return { year: date.getFullYear(), month: date.getMonth(), day: date.getDate(), hour: date.getHours() };
+  }
+  const safeOffset = Math.min(840, Math.max(-840, timezoneOffsetMinutes));
+  const localDate = new Date(date.getTime() - safeOffset * 60_000);
+  return {
+    year: localDate.getUTCFullYear(),
+    month: localDate.getUTCMonth(),
+    day: localDate.getUTCDate(),
+    hour: localDate.getUTCHours()
+  };
 }
 
-function daysAgo(now: Date, days: number) {
-  const date = new Date(now);
-  date.setDate(date.getDate() - days);
-  return dateKey(date) ?? "";
+function dateKey(value: string | Date, timezoneOffsetMinutes?: number): string | null {
+  const parts = localDateParts(value, timezoneOffsetMinutes);
+  if (!parts) return null;
+  return `${parts.year}-${String(parts.month + 1).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+function daysAgo(now: Date, days: number, timezoneOffsetMinutes?: number) {
+  if (timezoneOffsetMinutes === undefined) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - days);
+    return dateKey(date) ?? "";
+  }
+  return dateKey(new Date(now.getTime() - days * DAY_MS), timezoneOffsetMinutes) ?? "";
 }
 
 function clampPercent(value: number) {
   return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-function getUniqueDays(events: AscendDnaEvent[], type: AscendDnaActionType, now: Date, days = 7) {
-  const keys = new Set(Array.from({ length: days }, (_, index) => daysAgo(now, index)));
+function getUniqueDays(events: AscendDnaEvent[], type: AscendDnaActionType, now: Date, days = 7, timezoneOffsetMinutes?: number) {
+  const keys = new Set(Array.from({ length: days }, (_, index) => daysAgo(now, index, timezoneOffsetMinutes)));
   return new Set(
     events
       .filter((event) => event.type === type)
-      .map((event) => dateKey(event.occurredAt))
+      .map((event) => dateKey(event.occurredAt, timezoneOffsetMinutes))
       .filter((key): key is string => key !== null && keys.has(key))
   );
 }
 
-function consistency(events: AscendDnaEvent[], type: AscendDnaActionType, now: Date, days = 7) {
-  return clampPercent((getUniqueDays(events, type, now, days).size / days) * 100);
+function consistency(events: AscendDnaEvent[], type: AscendDnaActionType, now: Date, days = 7, timezoneOffsetMinutes?: number) {
+  return clampPercent((getUniqueDays(events, type, now, days, timezoneOffsetMinutes).size / days) * 100);
 }
 
 function lastEvent(events: AscendDnaEvent[], types = ACTION_TYPES as AscendDnaActionType[]) {
@@ -149,9 +170,8 @@ function stableChoice<T>(items: T[], seed: string) {
   return items[hash % items.length];
 }
 
-export function getAscendDnaTimeBucket(value: string | Date): AscendDnaTimeBucket {
-  const date = toDate(value) ?? new Date();
-  const hour = date.getHours();
+export function getAscendDnaTimeBucket(value: string | Date, timezoneOffsetMinutes?: number): AscendDnaTimeBucket {
+  const hour = localDateParts(value, timezoneOffsetMinutes)?.hour ?? new Date().getHours();
   if (hour >= 5 && hour < 12) return "morning";
   if (hour >= 12 && hour < 17) return "afternoon";
   if (hour >= 17 && hour < 22) return "evening";
@@ -160,17 +180,18 @@ export function getAscendDnaTimeBucket(value: string | Date): AscendDnaTimeBucke
 
 export function buildAscendDnaProfile(input: AscendDnaBuildInput): AscendDnaProfile {
   const now = toDate(input.now ?? new Date()) ?? new Date();
+  const timezoneOffsetMinutes = input.timezoneOffsetMinutes;
   const events = input.events.filter((event) => Boolean(toDate(event.occurredAt)));
   const actionEvents = events.filter((event) => event.type !== "screen_open");
-  const buckets = actionEvents.map((event) => getAscendDnaTimeBucket(event.occurredAt));
-  const preferredLoggingTime = mostCommon(buckets) as AscendDnaTimeBucket | null ?? getAscendDnaTimeBucket(now);
+  const buckets = actionEvents.map((event) => getAscendDnaTimeBucket(event.occurredAt, timezoneOffsetMinutes));
+  const preferredLoggingTime = mostCommon(buckets) as AscendDnaTimeBucket | null ?? getAscendDnaTimeBucket(now, timezoneOffsetMinutes);
   const screenEvents = events.filter((event) => event.type === "screen_open");
   const openedScreen = lastEvent(events, ["screen_open"]);
   const sessionLengths = screenEvents.map((event) => Number(event.durationMs ?? 0)).filter((duration) => duration > 0);
   const averageSessionLength = sessionLengths.length
     ? Math.round(sessionLengths.reduce((total, duration) => total + duration, 0) / sessionLengths.length)
     : 0;
-  const averageOpenTime = mostCommon(screenEvents.map((event) => getAscendDnaTimeBucket(event.occurredAt))) as AscendDnaTimeBucket | null ?? preferredLoggingTime;
+  const averageOpenTime = mostCommon(screenEvents.map((event) => getAscendDnaTimeBucket(event.occurredAt, timezoneOffsetMinutes))) as AscendDnaTimeBucket | null ?? preferredLoggingTime;
   const momentumScores = (input.momentumScores ?? [])
     .map((entry) => ({ score: Number(entry.score), date: toDate(entry.occurredAt) }))
     .filter((entry): entry is { score: number; date: Date } => Number.isFinite(entry.score) && Boolean(entry.date))
@@ -184,18 +205,19 @@ export function buildAscendDnaProfile(input: AscendDnaBuildInput): AscendDnaProf
         : "stable";
   const weekendKeys = new Set(
     Array.from({ length: 14 }, (_, index) => {
-      const date = new Date(now);
-      date.setDate(date.getDate() - index);
-      return [0, 6].includes(date.getDay()) ? dateKey(date) : null;
+      const key = daysAgo(now, index, timezoneOffsetMinutes);
+      if (!key) return null;
+      const day = new Date(`${key}T00:00:00.000Z`).getUTCDay();
+      return [0, 6].includes(day) ? key : null;
     }).filter((key): key is string => Boolean(key))
   );
-  const weekendActiveDays = new Set(actionEvents.map((event) => dateKey(event.occurredAt)).filter((key): key is string => key !== null && weekendKeys.has(key)));
-  const foodConsistency = consistency(events, "food", now);
-  const waterConsistency = consistency(events, "water", now);
-  const weightConsistency = consistency(events, "weight", now);
-  const habitConsistency = consistency(events, "habit", now);
-  const activityConsistency = consistency(events, "activity", now);
-  const progressPhotoConsistency = consistency(events, "progress_photo", now, 28);
+  const weekendActiveDays = new Set(actionEvents.map((event) => dateKey(event.occurredAt, timezoneOffsetMinutes)).filter((key): key is string => key !== null && weekendKeys.has(key)));
+  const foodConsistency = consistency(events, "food", now, 7, timezoneOffsetMinutes);
+  const waterConsistency = consistency(events, "water", now, 7, timezoneOffsetMinutes);
+  const weightConsistency = consistency(events, "weight", now, 7, timezoneOffsetMinutes);
+  const habitConsistency = consistency(events, "habit", now, 7, timezoneOffsetMinutes);
+  const activityConsistency = consistency(events, "activity", now, 7, timezoneOffsetMinutes);
+  const progressPhotoConsistency = consistency(events, "progress_photo", now, 28, timezoneOffsetMinutes);
   const averageWeeklyConsistency = clampPercent(
     (foodConsistency + waterConsistency + weightConsistency + habitConsistency + activityConsistency) / 5
   );
@@ -274,7 +296,7 @@ function waterCoachAction(remainingMl: number, bucket: AscendDnaTimeBucket) {
 
 export function getAscendDnaNextBestMove(input: AscendDnaRecommendationInput): AscendDnaMove {
   const now = input.now ?? new Date();
-  const bucket = getAscendDnaTimeBucket(now);
+  const bucket = getAscendDnaTimeBucket(now, input.timezoneOffsetMinutes);
   const deferFoodForEveningLogger =
     input.dna.preferredLoggingTime === "evening" &&
     bucket === "morning" &&

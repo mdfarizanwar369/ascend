@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { AscendDNAService, AscendDnaEvent } from "@ascend/shared";
 
 const NOW = "2026-06-24T10:00:00+08:00";
+const SINGAPORE_OFFSET_MINUTES = -480;
 
 describe("AscendDNAService", () => {
   it("builds a safe default DNA profile for a new user with no events", () => {
-    const dna = AscendDNAService.buildProfile({ now: NOW, events: [] });
+    const dna = AscendDNAService.buildProfile({ now: NOW, events: [], timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES });
 
     expect(dna.preferredLoggingTime).toBe("morning");
     expect(dna.foodConsistency).toBe(0);
@@ -15,9 +16,10 @@ describe("AscendDNAService", () => {
   });
 
   it("chooses one deterministic first food action for a new day", () => {
-    const dna = AscendDNAService.buildProfile({ now: NOW, events: [] });
+    const dna = AscendDNAService.buildProfile({ now: NOW, events: [], timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES });
     const move = AscendDNAService.getNextBestMove({
       now: NOW,
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       todaysFoodCount: 0,
       caloriesLeft: 1500,
@@ -46,9 +48,10 @@ describe("AscendDNAService", () => {
       { type: "food", occurredAt: "2026-06-21T18:15:00+08:00" },
       { type: "water", occurredAt: "2026-06-24T08:15:00+08:00" }
     ];
-    const dna = AscendDNAService.buildProfile({ now: NOW, events });
+    const dna = AscendDNAService.buildProfile({ now: NOW, events, timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES });
     const move = AscendDNAService.getNextBestMove({
       now: NOW,
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       todaysFoodCount: 0,
       caloriesLeft: 1500,
@@ -71,9 +74,10 @@ describe("AscendDNAService", () => {
       type: "water" as const,
       occurredAt: `2026-06-${String(18 + index).padStart(2, "0")}T09:00:00+08:00`
     }));
-    const dna = AscendDNAService.buildProfile({ now: NOW, events });
+    const dna = AscendDNAService.buildProfile({ now: NOW, events, timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES });
     const move = AscendDNAService.getNextBestMove({
       now: NOW,
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       dna,
       todaysFoodCount: 1,
       caloriesLeft: 100,
@@ -94,6 +98,7 @@ describe("AscendDNAService", () => {
   it("returns deterministic greetings and celebrations", () => {
     const dna = AscendDNAService.buildProfile({
       now: NOW,
+      timezoneOffsetMinutes: SINGAPORE_OFFSET_MINUTES,
       events: [{ type: "habit", habitName: "Steps", occurredAt: NOW }],
       currentStreak: 6,
       bestStreak: 6,

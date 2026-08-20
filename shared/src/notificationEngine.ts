@@ -25,6 +25,7 @@ export interface NotificationCandidate {
 export interface NotificationEngineInput {
   now?: string | Date;
   localTimeZone?: string | null;
+  timezoneOffsetMinutes?: number;
   dna: AscendDnaProfile;
   openedToday: boolean;
   prioritiesComplete: boolean;
@@ -72,8 +73,18 @@ function toDate(value: string | Date | undefined) {
   return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
-function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function localDateAtOffset(date: Date, timezoneOffsetMinutes?: number) {
+  if (timezoneOffsetMinutes === undefined) return date;
+  const safeOffset = Math.min(840, Math.max(-840, timezoneOffsetMinutes));
+  return new Date(date.getTime() - safeOffset * 60_000);
+}
+
+function localDateKey(date: Date, timezoneOffsetMinutes?: number) {
+  const localDate = localDateAtOffset(date, timezoneOffsetMinutes);
+  const year = timezoneOffsetMinutes === undefined ? localDate.getFullYear() : localDate.getUTCFullYear();
+  const month = timezoneOffsetMinutes === undefined ? localDate.getMonth() : localDate.getUTCMonth();
+  const day = timezoneOffsetMinutes === undefined ? localDate.getDate() : localDate.getUTCDate();
+  return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function hourForBucket(bucket: AscendDnaTimeBucket) {
@@ -83,16 +94,21 @@ function hourForBucket(bucket: AscendDnaTimeBucket) {
   return 21;
 }
 
-function isQuietHour(now: Date) {
-  const hour = now.getHours();
+function localHour(now: Date, timezoneOffsetMinutes?: number) {
+  const localDate = localDateAtOffset(now, timezoneOffsetMinutes);
+  return timezoneOffsetMinutes === undefined ? localDate.getHours() : localDate.getUTCHours();
+}
+
+function isQuietHour(now: Date, timezoneOffsetMinutes?: number) {
+  const hour = localHour(now, timezoneOffsetMinutes);
   return hour >= 22 || hour < 8;
 }
 
-function isCoachWindow(now: Date, dna: AscendDnaProfile) {
+function isCoachWindow(now: Date, dna: AscendDnaProfile, timezoneOffsetMinutes?: number) {
   const targetHour = hourForBucket(dna.averageOpenTime || dna.preferredLoggingTime);
   const notifyStart = Math.max(8, targetHour - 1);
   const notifyEnd = Math.min(21, targetHour);
-  const hour = now.getHours();
+  const hour = localHour(now, timezoneOffsetMinutes);
   return hour >= notifyStart && hour <= notifyEnd;
 }
 
@@ -233,7 +249,7 @@ function nextMoveCandidate(input: NotificationEngineInput, todayKey: string): No
 
 export function selectNotification(input: NotificationEngineInput): NotificationCandidate | null {
   const now = toDate(input.now);
-  const todayKey = localDateKey(now);
+  const todayKey = localDateKey(now, input.timezoneOffsetMinutes);
   const candidates = [
     trainerCandidate(input, todayKey),
     celebrationCandidate(input, todayKey),
@@ -244,8 +260,8 @@ export function selectNotification(input: NotificationEngineInput): Notification
 
   const selected = candidates.sort((a, b) => a.priority - b.priority)[0] ?? null;
   if (!selected) return null;
-  if (!selected.bypassQuietHours && isQuietHour(now)) return null;
-  if (selected.type === "next_best_move" && !isCoachWindow(now, input.dna)) return null;
+  if (!selected.bypassQuietHours && isQuietHour(now, input.timezoneOffsetMinutes)) return null;
+  if (selected.type === "next_best_move" && !isCoachWindow(now, input.dna, input.timezoneOffsetMinutes)) return null;
   return cleanCandidate(selected);
 }
 

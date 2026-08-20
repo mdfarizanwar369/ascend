@@ -569,7 +569,7 @@ export async function runCoachNotificationJob(limit = 500) {
       resolveNutritionTargets(user.id)
     ]);
     const now = new Date();
-    const dna = AscendDNAService.buildProfile({ now, events });
+    const dna = AscendDNAService.buildProfile({ now, events, timezoneOffsetMinutes });
     const sentToday = sentTodayResult.rows[0];
     const foodToday = foodTodayResult.rows[0];
     const foodCount = Number(foodToday?.food_count ?? 0);
@@ -577,6 +577,7 @@ export async function runCoachNotificationJob(limit = 500) {
     const waterLeftMl = Math.max(0, nutritionTargets.waterMl - Number(foodToday?.water_ml ?? 0));
     const nextBestMove = AscendDNAService.getNextBestMove({
       now,
+      timezoneOffsetMinutes,
       dna,
       todaysFoodCount: foodCount,
       caloriesLeft: foodCount ? 0 : nutritionTargets.calories,
@@ -591,6 +592,7 @@ export async function runCoachNotificationJob(limit = 500) {
     });
     const candidate = NotificationEngine.select({
       now,
+      timezoneOffsetMinutes,
       dna,
       openedToday: Number(openedTodayResult.rows[0]?.opened ?? 0) > 0,
       prioritiesComplete: foodCount > 0 && proteinLeft <= 15 && waterLeftMl <= 250,
