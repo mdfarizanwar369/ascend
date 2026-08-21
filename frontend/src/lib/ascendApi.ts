@@ -2314,6 +2314,7 @@ export function getAdminUsers() {
       subscription_status: string | null;
       subscription_provider: string | null;
       subscription_current_period_end: string | null;
+      trainer_assignment_eligible: boolean;
       status: "active" | "inactive";
       created_at: string;
     }>;

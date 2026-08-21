@@ -47,6 +47,25 @@ const subscriptionListSchema = z.object({
   q: z.string().trim().max(100).default("")
 });
 
+async function hasTrainerSupportedAccess(userId: string) {
+  const result = await query<{ has_access: boolean }>(
+    `
+    select exists (
+      select 1
+      from subscriptions s
+      where s.user_id = $1
+        and s.plan in ('premium', 'trainer_pro')
+        and (
+          s.status in ('active', 'trialing', 'past_due')
+          or (s.status = 'canceled' and s.current_period_end > now())
+        )
+    ) as has_access
+    `,
+    [userId]
+  );
+  return Boolean(result.rows[0]?.has_access);
+}
+
 adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
   const scope = await getAdminGymScope(req.user!);
   res.json({
@@ -234,6 +253,16 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
           and status = 'active'
           and ($1::uuid[] is null or gym_id = any($1))
       ),
+      coached_client_base as (
+        select distinct cb.*
+        from client_base cb
+        join subscriptions s on s.user_id = cb.id
+        where s.plan in ('premium', 'trainer_pro')
+          and (
+            s.status in ('active', 'trialing', 'past_due')
+            or (s.status = 'canceled' and s.current_period_end > now())
+          )
+      ),
       trainer_base as (
         select t.id, t.user_id, t.gym_id
         from trainers t
@@ -261,7 +290,14 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
         select
           (select count(distinct m.sender_user_id) from messages m join trainer_base tb on tb.user_id = m.sender_user_id where m.created_at::date = current_date) as trainers_messaged_today,
           (select count(distinct m.receiver_user_id) from messages m join trainer_base tb on tb.user_id = m.sender_user_id join client_base cb on cb.id = m.receiver_user_id and cb.assigned_trainer_id = tb.id where m.created_at >= now() - interval '7 days') as clients_contacted_7d,
-          (select count(*) from weekly_reports wr join trainer_base tb on tb.id = wr.trainer_id where wr.created_at >= now() - interval '7 days') as weekly_reviews_completed_7d,
+          (
+            select count(*)
+            from ai_usage_events e
+            join trainer_base tb on tb.user_id = e.user_id
+            where e.event_type = 'weekly_report_generation'
+              and e.created_at >= now() - interval '7 days'
+              and e.metadata->>'generatedBy' = 'trainer'
+          ) as weekly_reviews_completed_7d,
           (select count(*) from risk_alerts where status = 'open' and ($1::uuid[] is null or gym_id = any($1))) as outstanding_followups,
           (select count(*) from messages cm join client_base cb on cb.id = cm.sender_user_id join trainer_base tb on tb.user_id = cm.receiver_user_id where cm.created_at >= now() - interval '7 days') as client_messages,
           (
@@ -280,8 +316,8 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
           ) as client_messages_answered_48h,
           (select count(*) from risk_alerts where created_at >= now() - interval '30 days' and ($1::uuid[] is null or gym_id = any($1))) as risk_alerts_generated,
           (select count(*) from risk_alerts where (resolved_at >= now() - interval '30 days' or (status in ('resolved','acknowledged') and created_at >= now() - interval '30 days')) and ($1::uuid[] is null or gym_id = any($1))) as risk_alerts_resolved,
-          (select count(*) from client_base where assigned_trainer_id is not null) as clients_monitored,
-          (select count(*) from client_base where assigned_trainer_id is null) as unassigned_clients,
+          (select count(*) from coached_client_base where assigned_trainer_id is not null) as clients_monitored,
+          (select count(*) from coached_client_base where assigned_trainer_id is null) as unassigned_clients,
           (select count(*) from trainers t join users u on u.id = t.user_id where t.status <> 'active' and u.status = 'active' and ($1::uuid[] is null or t.gym_id = any($1))) as pending_trainers,
           (select count(*) from trainer_base) as active_trainers
       ),
@@ -486,12 +522,15 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
         and ($1::uuid[] is null or t.gym_id = any($1))
     `, [scope.gymIds]),
     query(`
-      select count(*) as count
-      from users
-      where primary_role = 'client'
-        and status = 'active'
-        and assigned_trainer_id is null
-        and ($1::uuid[] is null or gym_id = any($1))
+      select count(distinct u.id) as count
+      from users u
+      join subscriptions s on s.user_id = u.id
+      where u.primary_role = 'client'
+        and u.status = 'active'
+        and u.assigned_trainer_id is null
+        and s.plan in ('premium', 'trainer_pro')
+        and (s.status in ('active', 'trialing', 'past_due') or (s.status = 'canceled' and s.current_period_end > now()))
+        and ($1::uuid[] is null or u.gym_id = any($1))
     `, [scope.gymIds]),
     query(`
       select count(*) as count
@@ -539,7 +578,7 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
       type: "client_assignment",
       severity: "critical",
       title: "Clients need trainer assignment",
-      body: "Gym referrals should be assigned so members have someone accountable for them.",
+      body: "Premium coached members should be assigned so someone is accountable for them.",
       href: "/admin/users",
       count: Number(unassignedClients.rows[0]?.count ?? 0)
     },
@@ -599,6 +638,12 @@ adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "own
     if (input.trainerId && clientGymId && trainerGymId !== clientGymId) {
       return res.status(400).json({ error: "Client and trainer must belong to the same gym" });
     }
+    if (input.trainerId && !await hasTrainerSupportedAccess(input.clientId)) {
+      return res.status(409).json({
+        error: "Upgrade this member to Premium before assigning a trainer.",
+        code: "trainer_assignment_requires_premium"
+      });
+    }
     const result = await query(
       `
       update users
@@ -651,6 +696,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
       active_subscription.status as subscription_status,
       active_subscription.provider as subscription_provider,
       active_subscription.current_period_end as subscription_current_period_end,
+      coalesce(active_subscription.plan::text, 'free') in ('premium', 'trainer_pro') as trainer_assignment_eligible,
       u.status,
       u.created_at
     from users u

@@ -1286,11 +1286,12 @@ export function ClientDashboard() {
     ].filter((item): item is string => Boolean(item));
     return parts.slice(0, 2).join(" · ");
   })();
-  const coachCardTitle = user?.assigned_trainer_id
+  const hasHumanCoachSignal = Boolean(dailyMission?.title || latestRecognition?.message);
+  const coachCardTitle = hasHumanCoachSignal
     ? dailyMission?.trainer_name ?? latestRecognition?.trainer_name ?? "Your coach"
     : "Coach Zoe";
-  const coachCardMessage = user?.assigned_trainer_id ? coachedFocusMessage.message : dailyCoachingMessage.message;
-  const coachCardDetail = user?.assigned_trainer_id ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
+  const coachCardMessage = hasHumanCoachSignal ? coachedFocusMessage.message : dailyCoachingMessage.message;
+  const coachCardDetail = hasHumanCoachSignal ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
   const completeCoachSentences = coachCardMessage.match(/[^.!?]+[.!?]+/g)?.slice(0, 2).join(" ").trim();
   const coachCardSnippet = isFirstDayState
     ? "I'll learn what helps you as you check in. For now, keep today simple."
@@ -1947,7 +1948,7 @@ export function ClientDashboard() {
 
             <section className="ascend-stagger-enter ascend-branded-surface ascend-today-coach my-5 overflow-hidden rounded-2xl border border-purple-400/25 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.92)_52%,rgba(53,242,208,0.05))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.22),0_0_30px_rgba(139,92,246,0.08)]" style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
-                {user?.assigned_trainer_id ? (
+                {hasHumanCoachSignal ? (
                   <span className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
                 ) : <ZoeAvatar className="mt-0.5" />}
                 <div className="min-w-0 flex-1">
@@ -1959,7 +1960,7 @@ export function ClientDashboard() {
                   <p className="mt-3 text-lg font-semibold leading-7 text-white">{coachCardSnippet}</p>
                   <p className="mt-1 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {user?.assigned_trainer_id ? (
+                    {hasHumanCoachSignal ? (
                       <Link href="/messages" className="ascend-pressable inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-purple-200">
                         View Coach Note <ArrowRight size={15} />
                       </Link>

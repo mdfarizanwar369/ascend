@@ -623,14 +623,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   }
 
   async function setCoachPresencePause(pauseHours: number | null) {
-    setStatus(pauseHours ? "Pausing Coach Zoe support..." : "Resuming Coach Zoe support...");
+    setStatus(pauseHours ? "Pausing proactive Zoe insights..." : "Resuming proactive Zoe insights...");
     try {
       await pauseTrainerClientCoachPresence(clientId, pauseHours);
       const response = await getTrainerClientCoachPresence(clientId);
       setCoachPresence(response);
-      setStatus(pauseHours ? "Coach Zoe support paused for this client." : "Coach Zoe support resumed for this client.");
+      setStatus(pauseHours ? "Proactive Zoe insights paused for this client." : "Proactive Zoe insights resumed for this client.");
     } catch {
-      setStatus("Could not update Coach Zoe support for this client yet.");
+      setStatus("Could not update proactive Zoe insights for this client yet.");
     }
   }
 
@@ -1008,7 +1008,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             onClick={() => setCoachPresencePause(coachPresence.settings.paused ? null : 24)}
             className={`mt-3 h-11 w-full rounded-2xl border font-semibold ${coachPresence.settings.paused ? "border-calm/50 bg-calm/10 text-calm" : "border-amber/50 bg-amber/10 text-amber"}`}
           >
-            {coachPresence.settings.paused ? "Resume Coach Zoe" : "Pause Coach Zoe for 24h"}
+            {coachPresence.settings.paused ? "Resume insights" : "Pause insights for 24h"}
           </button>
         </SectionCard>
         </CollapsibleSection>
