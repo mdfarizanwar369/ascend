@@ -19,7 +19,7 @@ function summaryWithComparison(overrides: Partial<BodyCompositionSummary["compar
       sameMachine: true,
       status: "PROVISIONAL",
       confidence: "possible",
-      reason: "Same machine and useful interval.",
+      reason: "Same recorded scanner model and useful interval.",
       headline: "One reading changed.",
       measurementNote: "Compare under similar conditions.",
       metrics: [],
@@ -39,15 +39,41 @@ describe("Athlete Coach Intelligence body scan comparisons", () => {
     expect(buildAthleteCoachInsights({ summary, scans: [summary.latestScan!, summary.previousScan!] }).some((insight) => insight.title.includes("muscle"))).toBe(false);
   });
 
-  it("uses cautious language when a lower muscle reading is meaningful", () => {
+  it("keeps a provisional lower muscle reading cautious and non-urgent", () => {
     const summary = summaryWithComparison({
       metrics: [{ metric: "Skeletal Muscle", current: 33.8, previous: 35, change: -1.2, unit: "kg", threshold: 0.8, signal: "lower", evidenceStatus: "PROVISIONAL", confidence: "possible", meaningful: true, message: "Skeletal Muscle reads 1.2 kg lower than the previous scan, although another comparable scan is needed." }]
     });
 
-    const insight = buildAthleteCoachInsights({ summary, scans: [summary.latestScan!, summary.previousScan!] })[0];
-    expect(insight.title).toBe("Lower muscle reading");
-    expect(insight.explanation).toContain("reads");
-    expect(insight.explanation).not.toContain("loss detected");
+    const insights = buildAthleteCoachInsights({ summary, scans: [summary.latestScan!, summary.previousScan!] });
+    const insight = insights.find((item) => item.title === "Muscle reading needs confirmation");
+    expect(insight).toBeDefined();
+    expect(insight?.tone).toBe("yellow");
+    expect(insight?.explanation).toContain("reads");
+    expect(insight?.action).toContain("one more scan");
+    expect(insights.some((item) => item.tone === "red" && item.title.toLowerCase().includes("muscle"))).toBe(false);
+  });
+
+  it("creates a high-priority alert only for an established lower muscle trend", () => {
+    const summary = summaryWithComparison({
+      status: "ESTABLISHED",
+      confidence: "high",
+      metrics: [{ metric: "Skeletal Muscle", current: 33.8, previous: 35, change: -1.2, unit: "kg", threshold: 0.8, signal: "lower", evidenceStatus: "ESTABLISHED", confidence: "high", meaningful: true, message: "The last three comparable skeletal muscle readings support a sustained decrease." }]
+    });
+
+    const insight = buildAthleteCoachInsights({ summary, scans: [summary.latestScan!, summary.previousScan!] })
+      .find((item) => item.title === "Lower muscle trend");
+    expect(insight).toMatchObject({ tone: "red", priority: 100 });
+  });
+
+  it("does not preserve a decline alert after the provisional movement reverses", () => {
+    const summary = summaryWithComparison({
+      status: "PROVISIONAL",
+      confidence: "possible",
+      metrics: [{ metric: "Skeletal Muscle", current: 34.6, previous: 33.8, change: 0.8, unit: "kg", threshold: 0.8, signal: "uncertain_change", evidenceStatus: "PROVISIONAL", confidence: "possible", meaningful: false, message: "The readings changed direction, so no trend is established." }]
+    });
+
+    const insights = buildAthleteCoachInsights({ summary, scans: [summary.latestScan!, summary.previousScan!] });
+    expect(insights.some((item) => item.title.toLowerCase().includes("muscle"))).toBe(false);
   });
 
   it("uses only established shared evidence when evaluating a body-fat plateau", () => {

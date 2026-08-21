@@ -362,15 +362,14 @@ export function calculateBodyCompositionDerived(
   const ffmi = heightM && estimatedLeanBodyMassKg ? estimatedLeanBodyMassKg / (heightM * heightM) : null;
   const bmr = metric(latest, "bmrKcal");
   const activityMultiplier = profile?.activityLevel === "high" ? 1.7 : profile?.activityLevel === "low" ? 1.35 : 1.5;
-  const established = comparison.status === "ESTABLISHED";
   const fatMassComparison = comparison.metrics.find((entry) => entry.metric === "Fat Mass" && entry.evidenceStatus === "ESTABLISHED") ?? null;
   const muscleComparison = comparison.metrics.find((entry) => entry.metric === "Skeletal Muscle" && entry.evidenceStatus === "ESTABLISHED") ?? null;
   const intervalWeeks = comparison.daysBetweenScans ? comparison.daysBetweenScans / 7 : null;
   const intervalMonths = comparison.daysBetweenScans ? comparison.daysBetweenScans / 30.4 : null;
-  const fatLossRate = established && fatMassComparison?.signal === "lower" && intervalWeeks
+  const fatLossRate = fatMassComparison?.signal === "lower" && intervalWeeks
     ? Math.abs(fatMassComparison.change ?? 0) / intervalWeeks
     : null;
-  const muscleGainRate = established && muscleComparison?.signal === "higher" && intervalMonths
+  const muscleGainRate = muscleComparison?.signal === "higher" && intervalMonths
     ? Math.abs(muscleComparison.change ?? 0) / intervalMonths
     : null;
 
@@ -427,20 +426,19 @@ export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profil
   const comparison = buildBodyCompositionComparison(orderedDesc);
   const derived = calculateBodyCompositionDerived(orderedDesc, profile, comparison);
   const dnaScore = calculateDnaScore(orderedDesc, comparison);
-  const trendMetrics: Array<[string, keyof BodyCompositionScanInput, "min" | "max"]> = [
-    ["Weight", "weightKg", profile?.goalType === "muscle_gain" ? "max" : "min"],
-    ["Body Fat", "bodyFatPercent", "min"],
-    ["Muscle", "muscleMassKg", "max"],
-    ["Skeletal Muscle", "skeletalMuscleMassKg", "max"],
-    ["Lean Mass", "leanBodyMassKg", "max"],
-    ["Fat Mass", "fatMassKg", "min"],
-    ["Visceral Fat", "visceralFat", "min"],
-    ["Body Water", "bodyWaterPercent", "max"],
-    ["BMR", "bmrKcal", "max"],
-    ["Metabolic Age", "metabolicAge", "min"]
+  const trendMetrics: Array<[string, keyof BodyCompositionScanInput]> = [
+    ["Weight", "weightKg"],
+    ["Body Fat", "bodyFatPercent"],
+    ["Muscle", "muscleMassKg"],
+    ["Skeletal Muscle", "skeletalMuscleMassKg"],
+    ["Lean Mass", "leanBodyMassKg"],
+    ["Fat Mass", "fatMassKg"],
+    ["Visceral Fat", "visceralFat"],
+    ["Body Water", "bodyWaterPercent"],
+    ["BMR", "bmrKcal"],
+    ["Metabolic Age", "metabolicAge"]
   ];
-  const trends = trendMetrics.map(([label, key, best]) => {
-    const values = orderedDesc.map((scan) => metric(scan, key)).filter((value): value is number => value !== null);
+  const trends = trendMetrics.map(([label, key]) => {
     const current = metric(latest, key);
     const prev = metric(previous, key);
     const comparisonLabel = label === "Muscle" ? "Skeletal Muscle" : label;
@@ -450,7 +448,7 @@ export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profil
       metric: label,
       current,
       previous: prev,
-      bestEver: established && values.length ? (best === "min" ? Math.min(...values) : Math.max(...values)) : null,
+      bestEver: null,
       change: established && current !== null && prev !== null ? rounded(current - prev, 2) : null
     };
   });
@@ -478,7 +476,7 @@ export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profil
   if (visceralComparison?.evidenceStatus === "ESTABLISHED" && visceralComparison.meaningful && visceralComparison.signal === "higher") {
     coachAlerts.push({ type: "visceral_fat_increasing", severity: "medium", message: `${visceralComparison.message} Confirm the direction with another consistently timed scan.` });
   }
-  if (comparison.status === "ESTABLISHED" && bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
+  if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
     coachAlerts.push({ type: "excellent_progress", severity: "positive", message: "The body-fat reading is lower without a clear decline in the skeletal-muscle reading." });
   }
   if (!latest || ((Date.now() - (dateMs(latest.scanDate) ?? Date.now())) / 86_400_000) > 45) coachAlerts.push({ type: "scan_overdue", severity: "medium", message: "No recent body composition scan uploaded." });

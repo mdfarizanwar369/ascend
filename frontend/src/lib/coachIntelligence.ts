@@ -54,21 +54,29 @@ export function buildAthleteCoachInsights(input: {
   const muscleComparison = comparison?.metrics.find((metric) => metric.metric === "Skeletal Muscle") ?? null;
   const bodyFatComparison = comparison?.metrics.find((metric) => metric.metric === "Body Fat") ?? null;
 
-  if (muscleComparison?.meaningful && muscleComparison.signal === "lower") {
+  if (muscleComparison?.evidenceStatus === "ESTABLISHED" && muscleComparison.meaningful && muscleComparison.signal === "lower") {
     insights.push({
       tone: "red",
-      title: "Lower muscle reading",
+      title: "Lower muscle trend",
       explanation: muscleComparison.message,
       action: "Recheck the scan conditions, then review protein, recovery, and resistance training.",
       priority: 100
     });
+  } else if (muscleComparison?.evidenceStatus === "PROVISIONAL" && muscleComparison.meaningful && muscleComparison.signal === "lower") {
+    insights.push({
+      tone: "yellow",
+      title: "Muscle reading needs confirmation",
+      explanation: muscleComparison.message,
+      action: "Compare one more scan under similar conditions before drawing a conclusion.",
+      priority: 55
+    });
   }
 
-  if (comparison?.status === "ESTABLISHED" && bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "no_clear_change") {
+  if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "no_clear_change") {
     insights.push({
       tone: "orange",
       title: "Body fat trend is steady",
-      explanation: "Three same-machine readings over at least six weeks show no clear movement beyond the comparison caution range.",
+      explanation: "Three readings from the same recorded scanner model over at least six weeks show no clear movement beyond the comparison caution range.",
       action: "Review recent consistency before adjusting the plan.",
       priority: 80
     });
@@ -105,7 +113,7 @@ export function buildAthleteCoachInsights(input: {
     });
   }
 
-  if (comparison?.status === "ESTABLISHED" && bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
+  if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
     insights.push({
       tone: "green",
       title: "Excellent progress",

@@ -35,6 +35,7 @@ import { BackButton } from "@/components/BackButton";
 import { DelightBadge } from "@/components/Delight";
 import { DnaSigil } from "@/components/AscendVisualIdentity";
 import { OptimizedBodyScanImage, clearBodyScanImageCache, optimizeBodyScanImage } from "@/lib/bodyScanImageProcessor";
+import { establishedProgressSeries } from "@/lib/bodyCompositionEvidence";
 
 type MetricKey = keyof BodyCompositionScan;
 
@@ -254,9 +255,7 @@ function TrendSparkline({ values }: { values: number[] }) {
 
 function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary | null; draftScan?: BodyCompositionScan | null }) {
   const score = summary?.dnaScore.current;
-  const change = summary?.comparison?.status === "ESTABLISHED"
-    ? summary?.dnaScore.change
-    : null;
+  const change = summary?.dnaScore.change ?? null;
   return (
     <section className="rounded-lg border border-teal-400/40 bg-gradient-to-br from-teal-400/15 to-purple-400/10 p-4 shadow-lg shadow-teal-400/5">
       <div className="flex items-center justify-between gap-3">
@@ -381,7 +380,7 @@ function resultOpportunities(scan: BodyCompositionScan) {
   const opportunities: Array<{ title: string; detail: string }> = [];
   const muscle = numericValue(scan.skeletalMuscleMassKg ?? scan.muscleMassKg);
 
-  if (!scan.machine) opportunities.push({ title: "Record the scanner model", detail: "Using the same recorded device helps Ascend judge whether future readings are comparable." });
+  if (!scan.machine) opportunities.push({ title: "Record the scanner model", detail: "Using the same recorded scanner model helps Ascend judge whether future readings are comparable." });
   if (muscle === null) opportunities.push({ title: "Confirm muscle data", detail: "Add skeletal muscle next time so your coach can track recomposition more clearly." });
   if (numericValue(scan.bodyFatPercent) === null) opportunities.push({ title: "Confirm body fat data", detail: "Add body fat next time to create a more complete baseline." });
   if (scan.importSource === "ai_import" && (numericValue(scan.confidenceScore) ?? 0) < 0.75) opportunities.push({ title: "Review the extracted values", detail: "A clearer report photo or manual check will strengthen future comparisons." });
@@ -399,12 +398,11 @@ function progressRows(summary: BodyCompositionSummary | null) {
     const change = changeText(item.change, fallbackUnit);
     return item.evidenceStatus === "PROVISIONAL" ? `${change} provisional` : change;
   };
-  const hasMeaningfulComparison = summary.comparison?.status === "ESTABLISHED";
   return [
     { label: "Weight", value: comparisonValue("Weight", "kg") },
     { label: "Body fat", value: comparisonValue("Body Fat", "%") },
     { label: "Skeletal muscle", value: comparisonValue("Skeletal Muscle", "kg") },
-    { label: "DNA Score", value: hasMeaningfulComparison && summary.dnaScore.change !== null ? changeText(summary.dnaScore.change, "") : "Not established" }
+    { label: "DNA Score", value: summary.dnaScore.change !== null ? changeText(summary.dnaScore.change, "") : "Not established" }
   ];
 }
 
@@ -413,9 +411,7 @@ function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyComposi
   const guide = nutritionGuide(summary, scan, nutritionTargets);
   const summaryText = bodySummary(summary, scan);
   const score = summary?.dnaScore.current ?? null;
-  const scoreChange = summary?.comparison?.status === "ESTABLISHED"
-    ? summary?.dnaScore.change ?? null
-    : null;
+  const scoreChange = summary?.dnaScore.change ?? null;
   const strengths = resultStrengths(scan);
   const opportunities = resultOpportunities(scan);
   const progress = progressRows(summary);
@@ -654,9 +650,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
 
   useEffect(() => { load(); }, [load]);
 
-  const trendValues = useMemo(() => summary?.comparison.status === "ESTABLISHED"
-    ? [...scans].reverse().map((scan) => Number(scan.bodyFatPercent ?? scan.weightKg ?? 0)).filter(Boolean)
-    : [], [scans, summary?.comparison.status]);
+  const trendSeries = useMemo(() => establishedProgressSeries(summary, scans), [scans, summary]);
+  const trendValues = trendSeries?.values ?? [];
   const draftHasValues = showManualEntry && detectedMetricCount(draft) > 0;
   const displayScan = draftHasValues ? draft : summary?.latestScan ?? null;
   const guide = nutritionGuide(summary, draftHasValues ? draft : null, nutritionTargets);
@@ -664,14 +659,14 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
   const fitnessAge = latest?.metabolicAge ?? null;
   const nextScanDate = latest?.scanDate ? new Date(new Date(latest.scanDate).getTime() + 30 * 86_400_000) : null;
   const greatestImprovement = (() => {
-    if (summary?.comparison.status !== "ESTABLISHED") return null;
+    if (!summary) return null;
     return summary.comparison.metrics.find((metric) => metric.evidenceStatus === "ESTABLISHED" && metric.meaningful && (
       (["Body Fat", "Fat Mass", "Visceral Fat", "Metabolic Age"].includes(metric.metric) && metric.signal === "lower")
       || (["Skeletal Muscle", "Lean Mass"].includes(metric.metric) && metric.signal === "higher")
     )) ?? null;
   })();
   const biggestChallenge = (() => {
-    if (summary?.comparison.status !== "ESTABLISHED") return null;
+    if (!summary) return null;
     return summary.comparison.metrics.find((metric) => metric.evidenceStatus === "ESTABLISHED" && metric.meaningful && (
       (["Body Fat", "Fat Mass", "Visceral Fat", "Metabolic Age"].includes(metric.metric) && metric.signal === "higher")
       || (["Skeletal Muscle", "Lean Mass"].includes(metric.metric) && metric.signal === "lower")
@@ -870,7 +865,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             <LineChart className="text-teal-300" size={20} />
             <div>
               <h2 className="font-semibold">Progress Snapshot</h2>
-              <p className="text-xs text-zinc-400">{summary?.latestScan ? "Using your latest confirmed scan" : "Add a scan to unlock trends"}</p>
+              <p className="text-xs text-zinc-400">{trendSeries ? `${trendSeries.label} trend from comparable scans` : summary?.latestScan ? "No metric trend is established yet" : "Add a scan to unlock trends"}</p>
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-ink p-3">
@@ -1060,7 +1055,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               </button>
               {showAdvancedMetrics ? (
                 <div className="mt-3 space-y-4">
-                  <label className="block text-xs text-zinc-400">Scanner or device (optional)<input value={draft.machine ?? ""} onChange={(event) => setDraftValue("machine", event.target.value)} placeholder="InBody, Tanita, Evolt..." className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white" /></label>
+                  <label className="block text-xs text-zinc-400">Scanner brand/model (optional)<input value={draft.machine ?? ""} onChange={(event) => setDraftValue("machine", event.target.value)} placeholder="InBody, Tanita, Evolt..." className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white" /></label>
                   {(["body", "composition", "hydration", "health"] as const).map((section) => {
                     const fields = metricFields.filter((field) => field.section === section && advancedMetricKeys.has(field.key));
                     if (!fields.length) return null;
@@ -1114,7 +1109,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{new Date(scan.scanDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</p>
-                      <p className="text-xs text-zinc-500">{scan.machine || "Device not entered"} / {scan.importSource === "ai_import" ? "Read by AI" : "Entered manually"}</p>
+                      <p className="text-xs text-zinc-500">{scan.machine || "Scanner model not entered"} / {scan.importSource === "ai_import" ? "Read by AI" : "Entered manually"}</p>
                     </div>
                     <span className={`rounded-md border px-2 py-1 text-xs ${scanConfidence.tone}`}>{scanConfidence.percent ? `${scanConfidence.percent}%` : "reviewed"}</span>
                   </div>

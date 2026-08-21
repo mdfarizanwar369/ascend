@@ -52,6 +52,7 @@ import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { SectionShell, SkeletonBlock, SkeletonCardList, SkeletonText } from "@/components/PerceivedLoading";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
+import { bodyCompositionJourneyDetail } from "@/lib/bodyCompositionEvidence";
 
 type JourneyUser = Awaited<ReturnType<typeof getMe>>["user"];
 type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
@@ -209,9 +210,7 @@ function buildBiggestAchievement({
       ? {
           rank: 7 + bodyComposition.scanCount,
           title: `You've saved ${bodyComposition.scanCount} body scans.`,
-          detail: bodyComposition.comparison.status === "ESTABLISHED"
-            ? "Your comparable scans now support a body-composition trend."
-            : "You are building a body-composition record for future comparison."
+          detail: bodyCompositionJourneyDetail(bodyComposition)
         }
       : null,
     memory?.timeline[0]

@@ -3,6 +3,7 @@ import { query } from "../db/pool";
 import { createAscendMemoryReflection } from "../integrations/openai";
 import { logAiUsage } from "./aiUsageService";
 import { bodyCompositionScanFromDb, buildBodyCompositionSummary, getTrustedBodyCompositionHistory } from "./bodyCompositionService";
+import type { BodyCompositionSummary } from "./bodyCompositionService";
 
 type MemoryEvent = {
   milestoneKey: string;
@@ -20,6 +21,29 @@ export type AscendMemoryTimelineItem = MemoryEvent & {
   aiGenerated?: boolean;
   imageUrl?: string | null;
 };
+
+export function buildBodyCompositionMemoryMilestone(summary: BodyCompositionSummary) {
+  const bodyFat = summary.comparison.metrics.find((metric) => metric.metric === "Body Fat" && metric.evidenceStatus === "ESTABLISHED") ?? null;
+  const muscle = summary.comparison.metrics.find((metric) => metric.metric === "Skeletal Muscle" && metric.evidenceStatus === "ESTABLISHED") ?? null;
+  const bodyFatImproved = bodyFat?.meaningful === true && bodyFat.signal === "lower";
+  const muscleImproved = muscle?.meaningful === true && muscle.signal === "higher";
+  if (!bodyFatImproved && !muscleImproved) return null;
+
+  const establishedChanges = [bodyFatImproved ? "body-fat readings trending lower" : null, muscleImproved ? "muscle readings trending higher" : null].filter(Boolean);
+  return {
+    title: bodyFatImproved && muscleImproved
+      ? "Body Fat and Muscle Trends Established"
+      : bodyFatImproved
+        ? "Body Fat Trend Established"
+        : "Muscle Trend Established",
+    subtitle: `Your last three comparable scans support ${establishedChanges.join(" and ")}.`,
+    metadata: {
+      establishedMetrics: [bodyFatImproved ? "Body Fat" : null, muscleImproved ? "Skeletal Muscle" : null].filter(Boolean),
+      bodyFatChange: bodyFat?.change ?? null,
+      muscleChange: muscle?.change ?? null
+    }
+  };
+}
 
 function numberValue(value: unknown) {
   const number = Number(value);
@@ -408,24 +432,16 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
   if (scanRows.length >= 2) {
     const summary = buildBodyCompositionSummary(scanRows);
     const latestScan = scanRows[scanRows.length - 1];
-    const bodyFat = summary.comparison.metrics.find((metric) => metric.metric === "Body Fat" && metric.evidenceStatus === "ESTABLISHED") ?? null;
-    const muscle = summary.comparison.metrics.find((metric) => metric.metric === "Skeletal Muscle" && metric.evidenceStatus === "ESTABLISHED") ?? null;
-    const bodyFatImproved = bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful === true && bodyFat.signal === "lower";
-    const muscleImproved = muscle?.evidenceStatus === "ESTABLISHED" && muscle.meaningful === true && muscle.signal === "higher";
-    if (summary.comparison.status === "ESTABLISHED" && (bodyFatImproved || muscleImproved)) {
-      const establishedChanges = [bodyFatImproved ? "body-fat readings trending lower" : null, muscleImproved ? "muscle readings trending higher" : null].filter(Boolean);
+    const milestone = buildBodyCompositionMemoryMilestone(summary);
+    if (milestone) {
       events.push({
         milestoneKey: "body-composition-trend-established",
         type: "body_composition_trend_established",
-        title: "Body Composition Trend Established",
-        subtitle: `Your last three comparable scans support ${establishedChanges.join(" and ")}.`,
+        title: milestone.title,
+        subtitle: milestone.subtitle,
         occurredAt: isoDate(latestScan.scanDate),
         priority: 12,
-        metadata: {
-          evidenceStatus: summary.comparison.status,
-          bodyFatChange: bodyFat?.change ?? null,
-          muscleChange: muscle?.change ?? null
-        }
+        metadata: milestone.metadata
       });
     }
   }

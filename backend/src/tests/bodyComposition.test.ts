@@ -324,6 +324,35 @@ describe("Body Composition Engine", () => {
     expect(summary.coachAlerts.some((alert) => alert.severity === "positive")).toBe(false);
   });
 
+  it("keeps body-fat confidence provisional when another metric establishes the global state", () => {
+    const summary = buildBodyCompositionSummary([
+      normalizeBodyCompositionScan({ scanDate: "2026-05-01", machine: "InBody 770", bodyFatPercent: 26, bmrKcal: 1700, importSource: "manual_entry", userConfirmed: true }),
+      normalizeBodyCompositionScan({ scanDate: "2026-06-01", machine: "InBody 770", bodyFatPercent: 21, bmrKcal: 1705, importSource: "manual_entry", userConfirmed: true }),
+      normalizeBodyCompositionScan({ scanDate: "2026-07-01", machine: "InBody 770", bodyFatPercent: 24, bmrKcal: 1702, importSource: "manual_entry", userConfirmed: true })
+    ]);
+
+    expect(summary.comparison.status).toBe("ESTABLISHED");
+    expect(summary.comparison.metrics.find((metric) => metric.metric === "BMR")).toMatchObject({ evidenceStatus: "ESTABLISHED", signal: "no_clear_change" });
+    expect(summary.comparison.metrics.find((metric) => metric.metric === "Body Fat")).toMatchObject({ evidenceStatus: "PROVISIONAL" });
+    expect(summary.trends.find((trend) => trend.metric === "Body Fat")?.change).toBeNull();
+    expect(summary.coachAlerts.some((alert) => ["body_fat_increasing", "excellent_progress"].includes(alert.type))).toBe(false);
+  });
+
+  it("does not expose an old anomalous reading as an evidence-backed best-ever claim", () => {
+    const summary = buildBodyCompositionSummary([
+      normalizeBodyCompositionScan({ scanDate: "2026-01-01", machine: "InBody 770", bodyFatPercent: 5, skeletalMuscleMassKg: 50, importSource: "manual_entry", userConfirmed: true }),
+      normalizeBodyCompositionScan({ scanDate: "2026-05-01", machine: "InBody 770", bodyFatPercent: 26, skeletalMuscleMassKg: 31, importSource: "manual_entry", userConfirmed: true }),
+      normalizeBodyCompositionScan({ scanDate: "2026-06-01", machine: "InBody 770", bodyFatPercent: 23, skeletalMuscleMassKg: 32, importSource: "manual_entry", userConfirmed: true }),
+      normalizeBodyCompositionScan({ scanDate: "2026-07-01", machine: "InBody 770", bodyFatPercent: 20, skeletalMuscleMassKg: 33, importSource: "manual_entry", userConfirmed: true })
+    ]);
+
+    expect(summary.comparison.status).toBe("ESTABLISHED");
+    expect(summary.trends.find((trend) => trend.metric === "Body Fat")?.bestEver).toBeNull();
+    expect(summary.trends.find((trend) => trend.metric === "Skeletal Muscle")?.bestEver).toBeNull();
+    expect(JSON.stringify(summary.trends)).not.toContain('"bestEver":5');
+    expect(JSON.stringify(summary.trends)).not.toContain('"bestEver":50');
+  });
+
   it("can establish that three comparable readings show no clear trend", () => {
     const summary = buildBodyCompositionSummary([
       normalizeBodyCompositionScan({ scanDate: "2026-05-01", machine: "InBody 770", bodyFatPercent: 20, importSource: "manual_entry", userConfirmed: true }),

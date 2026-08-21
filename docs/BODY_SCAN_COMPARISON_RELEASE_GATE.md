@@ -6,11 +6,11 @@ Status: **Validated for controlled preview; recurring scans remain disabled for 
 
 The release gate covers the complete comparison path from scan-photo extraction to the deterministic coaching conclusion:
 
-- Same-machine scans 31 days apart with material positive movement
-- Same-machine scans 31 days apart with ordinary measurement noise
+- Same recorded scanner model, 31 days apart, with material positive movement
+- Same recorded scanner model, 31 days apart, with ordinary measurement noise
 - Large apparent movement after only two days
 - Material negative movement after 31 days
-- Different-machine scans with conflicting estimates
+- Different recorded scanner models with conflicting estimates
 - A degraded, rotated, compressed camera image
 - A partial follow-up scan with missing muscle and visceral-fat readings
 - Unordered histories and unconfirmed drafts
@@ -37,9 +37,9 @@ Benchmark artifacts are generated locally under `work/body-scan-comparison-bench
 ## Interpretation rules
 
 - Fewer than seven days between scans: insufficient evidence
-- Different recorded machines: insufficient evidence
-- Unknown machine on either scan: comparison is possible, never high confidence
-- Same machine, at least 21 days apart, confirmed extraction confidence: high confidence
+- Different recorded scanner models: insufficient evidence
+- Unknown scanner model on either scan: comparison is possible, never high confidence
+- Same recorded scanner model, at least 21 days apart, confirmed extraction confidence: high confidence
 - Missing readings remain not comparable and never become zero
 - Small changes stay inside a caution range and are described as "no clear change"
 - Body fat: 2 percentage points before directional coaching
@@ -47,7 +47,7 @@ Benchmark artifacts are generated locally under `work/body-scan-comparison-bench
 - Weight: 0.8 kg before directional coaching
 - Visceral fat: 2 levels before directional coaching
 
-These are conservative product guardrails, not clinical thresholds. Ascend reports changes in **machine readings** and does not claim that the member gained or lost a precise amount of tissue.
+These are conservative product guardrails, not clinical thresholds. Ascend reports changes in **scanner readings** and does not claim that the member gained or lost a precise amount of tissue.
 
 ## Evidence basis
 
@@ -60,8 +60,7 @@ These are conservative product guardrails, not clinical thresholds. Ascend repor
 
 The comparison engine is suitable for an owner-only or small controlled preview after validation. Before a broad Premium release:
 
-1. Test at least one real member's two scans taken roughly four weeks apart on the same machine.
+1. Test at least one real member's two scans taken roughly four weeks apart with the same recorded scanner model.
 2. Confirm the mobile wording and missing-field states on a physical Android and iPhone.
 3. Monitor extraction latency and retry frequency during the preview.
 4. Keep recurring scan entitlement off until the preview passes.
-
