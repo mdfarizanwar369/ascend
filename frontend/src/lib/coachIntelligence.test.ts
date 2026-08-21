@@ -17,7 +17,8 @@ function summaryWithComparison(overrides: Partial<BodyCompositionSummary["compar
       available: true,
       daysBetweenScans: 30,
       sameMachine: true,
-      confidence: "high",
+      status: "PROVISIONAL",
+      confidence: "possible",
       reason: "Same machine and useful interval.",
       headline: "One reading changed.",
       measurementNote: "Compare under similar conditions.",
@@ -30,8 +31,9 @@ function summaryWithComparison(overrides: Partial<BodyCompositionSummary["compar
 describe("Athlete Coach Intelligence body scan comparisons", () => {
   it("does not create a muscle-loss alert from an uncertain comparison", () => {
     const summary = summaryWithComparison({
+      status: "INSUFFICIENT",
       confidence: "insufficient",
-      metrics: [{ metric: "Skeletal Muscle", current: 33.8, previous: 35, change: -1.2, unit: "kg", threshold: 0.8, signal: "uncertain_change", confidence: "insufficient", meaningful: false, message: "Needs another scan." }]
+      metrics: [{ metric: "Skeletal Muscle", current: 33.8, previous: 35, change: -1.2, unit: "kg", threshold: 0.8, signal: "uncertain_change", evidenceStatus: "INSUFFICIENT", confidence: "insufficient", meaningful: false, message: "Needs another scan." }]
     });
 
     expect(buildAthleteCoachInsights({ summary, scans: [summary.latestScan!, summary.previousScan!] }).some((insight) => insight.title.includes("muscle"))).toBe(false);
@@ -39,17 +41,21 @@ describe("Athlete Coach Intelligence body scan comparisons", () => {
 
   it("uses cautious language when a lower muscle reading is meaningful", () => {
     const summary = summaryWithComparison({
-      metrics: [{ metric: "Skeletal Muscle", current: 33.8, previous: 35, change: -1.2, unit: "kg", threshold: 0.8, signal: "lower", confidence: "high", meaningful: true, message: "Skeletal Muscle reading is 1.2 kg lower than the previous scan." }]
+      metrics: [{ metric: "Skeletal Muscle", current: 33.8, previous: 35, change: -1.2, unit: "kg", threshold: 0.8, signal: "lower", evidenceStatus: "PROVISIONAL", confidence: "possible", meaningful: true, message: "Skeletal Muscle reads 1.2 kg lower than the previous scan, although another comparable scan is needed." }]
     });
 
     const insight = buildAthleteCoachInsights({ summary, scans: [summary.latestScan!, summary.previousScan!] })[0];
     expect(insight.title).toBe("Lower muscle reading");
-    expect(insight.explanation).toContain("reading");
+    expect(insight.explanation).toContain("reads");
     expect(insight.explanation).not.toContain("loss detected");
   });
 
-  it("sorts confirmed scans before evaluating a body-fat plateau", () => {
-    const summary = summaryWithComparison({ metrics: [] });
+  it("uses only established shared evidence when evaluating a body-fat plateau", () => {
+    const summary = summaryWithComparison({
+      status: "ESTABLISHED",
+      confidence: "high",
+      metrics: [{ metric: "Body Fat", current: 19.5, previous: 19.8, change: -0.3, unit: "percentage points", threshold: 2, signal: "no_clear_change", evidenceStatus: "ESTABLISHED", confidence: "high", meaningful: false, message: "Body fat remained within the caution range across three scans." }]
+    });
     const scans = [
       { scanDate: "2026-04-01", machine: "InBody 770", bodyFatPercent: 20, userConfirmed: true, importSource: "manual_entry" as const },
       { scanDate: "2026-07-01", machine: "InBody 770", bodyFatPercent: 19.5, userConfirmed: true, importSource: "manual_entry" as const },

@@ -6,6 +6,7 @@ import { getHealthSyncSummary } from "./healthSyncService";
 import { persistCompletedWorkout, resolveWorkoutWeightKg } from "./workoutCompletionService";
 import { sendNotificationToUser } from "./notificationService";
 import { createTrainerHomeworkPlan } from "../integrations/openai";
+import { bodyCompositionScanFromDb, getTrustedBodyCompositionHistory } from "./bodyCompositionService";
 
 export type TrainerHomeworkStatus = "assigned" | "completed" | "missed";
 
@@ -198,13 +199,13 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
       ),
       query(
         `
-        select scan_date, weight_kg, body_fat_percent, skeletal_muscle_mass_kg, visceral_fat, bmr_kcal
+        select *
         from body_composition_scans
         where user_id = $1
           and user_confirmed = true
           and experience_scope = 'athlete'
         order by scan_date desc, created_at desc
-        limit 1
+        limit 20
         `,
         [input.clientId]
       ),
@@ -235,6 +236,17 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
   const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
     currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null
   });
+  const latestTrustedBodyScan = getTrustedBodyCompositionHistory(bodyScanResult.rows.map((row) => bodyCompositionScanFromDb(row))).latestConfirmedScan;
+  const workoutBodyScan = latestTrustedBodyScan
+    ? {
+        scan_date: latestTrustedBodyScan.scanDate,
+        weight_kg: latestTrustedBodyScan.weightKg ?? null,
+        body_fat_percent: latestTrustedBodyScan.bodyFatPercent ?? null,
+        skeletal_muscle_mass_kg: latestTrustedBodyScan.skeletalMuscleMassKg ?? latestTrustedBodyScan.muscleMassKg ?? null,
+        visceral_fat: latestTrustedBodyScan.visceralFat ?? null,
+        bmr_kcal: latestTrustedBodyScan.bmrKcal ?? null
+      }
+    : null;
 
   const promptContext = JSON.stringify(
     buildWorkoutPlannerContext({
@@ -245,7 +257,7 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
       recentWorkouts: recentBurnResult.rows,
       workoutMemory,
       athleteMode: athleteResult.rows[0] ?? null,
-      latestBodyScan: bodyScanResult.rows[0] ?? null,
+      latestBodyScan: workoutBodyScan,
       recentCoachZoeContext: recentMessagesResult.rows.reverse(),
       healthSync: healthSyncSummary
         ? {

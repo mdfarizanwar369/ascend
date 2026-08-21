@@ -14,8 +14,10 @@ import { resolveNutritionTargets } from "../services/nutritionTargetService";
 import {
   BodyCompositionScan,
   BodyCompositionScanInput,
+  areSuspiciousDuplicateBodyCompositionScans,
   bodyCompositionScanFromDb,
   buildBodyCompositionSummary,
+  getTrustedBodyCompositionHistory,
   normalizeBodyCompositionScan,
   validateBodyCompositionScan
 } from "../services/bodyCompositionService";
@@ -141,12 +143,19 @@ async function hydrateImages(scan: BodyCompositionScan) {
   return { ...scan, sourceImages };
 }
 
-async function getScans(userId: string, limit = 50, offset = 0) {
+async function getTrustedScans(userId: string) {
   const result = await query(
-    "select * from body_composition_scans where user_id = $1 and experience_scope = 'athlete' order by scan_date desc, created_at desc limit $2 offset $3",
-    [userId, Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)]
+    "select * from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = 'athlete' order by scan_date desc, created_at desc",
+    [userId]
   );
-  return Promise.all(result.rows.map((row) => hydrateImages(bodyCompositionScanFromDb(row))));
+  return getTrustedBodyCompositionHistory(result.rows.map((row) => bodyCompositionScanFromDb(row))).confirmedHistory;
+}
+
+async function getScans(userId: string, limit = 50, offset = 0) {
+  const trustedScans = await getTrustedScans(userId);
+  const start = Math.max(offset, 0);
+  const selected = trustedScans.slice(start, start + Math.min(Math.max(limit, 1), 100));
+  return Promise.all(selected.map((scan) => hydrateImages(scan)));
 }
 
 async function getProfile(userId: string): Promise<NutritionTargetInput> {
@@ -172,7 +181,7 @@ async function getProfile(userId: string): Promise<NutritionTargetInput> {
 }
 
 async function summaryFor(userId: string) {
-  const [scans, profile] = await Promise.all([getScans(userId, 100), getProfile(userId)]);
+  const [scans, profile] = await Promise.all([getTrustedScans(userId), getProfile(userId)]);
   return buildBodyCompositionSummary(scans, profile);
 }
 
@@ -207,6 +216,20 @@ async function saveScan(
     throw error;
   }
   bodyCompositionSaveLog("save_validation_complete", { userId });
+  if (input.userConfirmed !== false) {
+    const existingResult = await query(
+      "select * from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = $2 order by scan_date desc, created_at desc",
+      [userId, experienceScope]
+    );
+    const duplicate = existingResult.rows
+      .map((row) => bodyCompositionScanFromDb(row))
+      .some((scan) => areSuspiciousDuplicateBodyCompositionScans(scan, input));
+    if (duplicate) {
+      const error = new Error("This confirmed Body Scan already exists in your history.");
+      (error as Error & { status?: number }).status = 409;
+      throw error;
+    }
+  }
   const dbValues = bodyCompositionScanToDbValues(input, userId, actorId, experienceScope);
   const introductoryConflictGuard = experienceScope === "introductory"
     ? "on conflict (user_id) where experience_scope = 'introductory' and user_confirmed = true do nothing"

@@ -40,23 +40,6 @@ function foodLogsInWindow(foodLogs: FoodLogLike[], startDaysAgo: number, endDays
   }).length;
 }
 
-function bodyFatPlateau(scans: BodyCompositionScan[]) {
-  const withBodyFat = scans
-    .filter((scan) => scan.userConfirmed !== false && numberOrNull(scan.bodyFatPercent) !== null)
-    .sort((left, right) => new Date(`${right.scanDate}T00:00:00Z`).getTime() - new Date(`${left.scanDate}T00:00:00Z`).getTime())
-    .slice(0, 3);
-  if (withBodyFat.length < 3) return false;
-  const newestDate = new Date(`${withBodyFat[0].scanDate}T00:00:00Z`).getTime();
-  const oldestDate = new Date(`${withBodyFat[withBodyFat.length - 1].scanDate}T00:00:00Z`).getTime();
-  if (!Number.isFinite(newestDate) || !Number.isFinite(oldestDate) || newestDate - oldestDate < 42 * 86_400_000) return false;
-  const machines = withBodyFat.map((scan) => scan.machine?.toLowerCase().replace(/[^a-z0-9]/g, "") || null);
-  if (machines.some((machine) => !machine) || new Set(machines).size !== 1) return false;
-  const newest = numberOrNull(withBodyFat[0].bodyFatPercent);
-  const oldest = numberOrNull(withBodyFat[withBodyFat.length - 1].bodyFatPercent);
-  if (newest === null || oldest === null) return false;
-  return Math.abs(oldest - newest) < 2;
-}
-
 export function buildAthleteCoachInsights(input: {
   athlete?: Pick<AthleteDashboard, "profile"> | null;
   summary: BodyCompositionSummary | null;
@@ -81,7 +64,7 @@ export function buildAthleteCoachInsights(input: {
     });
   }
 
-  if (bodyFatPlateau(scans)) {
+  if (comparison?.status === "ESTABLISHED" && bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "no_clear_change") {
     insights.push({
       tone: "orange",
       title: "Body fat trend is steady",
@@ -122,7 +105,7 @@ export function buildAthleteCoachInsights(input: {
     });
   }
 
-  if (bodyFatComparison?.meaningful && bodyFatComparison.signal === "lower" && muscleComparison && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
+  if (comparison?.status === "ESTABLISHED" && bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
     insights.push({
       tone: "green",
       title: "Excellent progress",

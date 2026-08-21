@@ -2626,6 +2626,7 @@ export type BodyCompositionSummary = {
     available: boolean;
     daysBetweenScans: number | null;
     sameMachine: boolean | null;
+    status: "INSUFFICIENT" | "PROVISIONAL" | "ESTABLISHED";
     confidence: "high" | "possible" | "insufficient";
     reason: string;
     headline: string;
@@ -2638,6 +2639,7 @@ export type BodyCompositionSummary = {
       unit: string;
       threshold: number;
       signal: "higher" | "lower" | "no_clear_change" | "uncertain_change" | "not_comparable";
+      evidenceStatus: "INSUFFICIENT" | "PROVISIONAL" | "ESTABLISHED";
       confidence: "high" | "possible" | "insufficient";
       meaningful: boolean;
       message: string;

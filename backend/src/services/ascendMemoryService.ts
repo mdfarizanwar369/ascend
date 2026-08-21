@@ -2,7 +2,7 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { createAscendMemoryReflection } from "../integrations/openai";
 import { logAiUsage } from "./aiUsageService";
-import { bodyCompositionScanFromDb, buildBodyCompositionSummary } from "./bodyCompositionService";
+import { bodyCompositionScanFromDb, buildBodyCompositionSummary, getTrustedBodyCompositionHistory } from "./bodyCompositionService";
 
 type MemoryEvent = {
   milestoneKey: string;
@@ -382,7 +382,7 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
     }
   }
 
-  const scanRows = scans.rows.map(bodyCompositionScanFromDb);
+  const scanRows = [...getTrustedBodyCompositionHistory(scans.rows.map(bodyCompositionScanFromDb)).confirmedHistory].reverse();
   if (scanRows[0]) {
     events.push({
       milestoneKey: "first-body-scan",
@@ -399,7 +399,7 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
       milestoneKey: "second-body-scan",
       type: "body_scan",
       title: "Second Body Scan",
-      subtitle: "Now Ascend can compare change over time.",
+      subtitle: "You added another reference point. One more consistent scan can help establish a sustained trend.",
       occurredAt: isoDate(scanRows[1].scanDate),
       priority: 8,
       metadata: { bodyFatPercent: scanRows[1].bodyFatPercent, skeletalMuscleMassKg: scanRows[1].skeletalMuscleMassKg }
@@ -407,24 +407,25 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
   }
   if (scanRows.length >= 2) {
     const summary = buildBodyCompositionSummary(scanRows);
-    const dnaChange = numberValue(summary.dnaScore.change);
-    const firstScan = scanRows[0];
     const latestScan = scanRows[scanRows.length - 1];
-    const bodyFatChange = numberValue(firstScan.bodyFatPercent) !== null && numberValue(latestScan.bodyFatPercent) !== null
-      ? round(Number(firstScan.bodyFatPercent) - Number(latestScan.bodyFatPercent), 1)
-      : null;
-    const muscleChange = numberValue(firstScan.skeletalMuscleMassKg) !== null && numberValue(latestScan.skeletalMuscleMassKg) !== null
-      ? round(Number(latestScan.skeletalMuscleMassKg) - Number(firstScan.skeletalMuscleMassKg), 1)
-      : null;
-    if ((dnaChange ?? 0) >= 6 || (bodyFatChange ?? 0) >= 3 || (muscleChange ?? 0) >= 1) {
+    const bodyFat = summary.comparison.metrics.find((metric) => metric.metric === "Body Fat" && metric.evidenceStatus === "ESTABLISHED") ?? null;
+    const muscle = summary.comparison.metrics.find((metric) => metric.metric === "Skeletal Muscle" && metric.evidenceStatus === "ESTABLISHED") ?? null;
+    const bodyFatImproved = bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful === true && bodyFat.signal === "lower";
+    const muscleImproved = muscle?.evidenceStatus === "ESTABLISHED" && muscle.meaningful === true && muscle.signal === "higher";
+    if (summary.comparison.status === "ESTABLISHED" && (bodyFatImproved || muscleImproved)) {
+      const establishedChanges = [bodyFatImproved ? "body-fat readings trending lower" : null, muscleImproved ? "muscle readings trending higher" : null].filter(Boolean);
       events.push({
-        milestoneKey: "dna-improved",
-        type: "dna_improved",
-        title: "Ascend DNA Improved",
-        subtitle: "Your body composition trend is moving in a better direction.",
+        milestoneKey: "body-composition-trend-established",
+        type: "body_composition_trend_established",
+        title: "Body Composition Trend Established",
+        subtitle: `Your last three comparable scans support ${establishedChanges.join(" and ")}.`,
         occurredAt: isoDate(latestScan.scanDate),
         priority: 12,
-        metadata: { dnaChange, bodyFatChange, muscleChange }
+        metadata: {
+          evidenceStatus: summary.comparison.status,
+          bodyFatChange: bodyFat?.change ?? null,
+          muscleChange: muscle?.change ?? null
+        }
       });
     }
   }

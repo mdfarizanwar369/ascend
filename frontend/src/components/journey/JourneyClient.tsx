@@ -209,7 +209,9 @@ function buildBiggestAchievement({
       ? {
           rank: 7 + bodyComposition.scanCount,
           title: `You've saved ${bodyComposition.scanCount} body scans.`,
-          detail: "You are building proof of progress, not guessing."
+          detail: bodyComposition.comparison.status === "ESTABLISHED"
+            ? "Your comparable scans now support a body-composition trend."
+            : "You are building a body-composition record for future comparison."
         }
       : null,
     memory?.timeline[0]
