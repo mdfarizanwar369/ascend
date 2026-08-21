@@ -38,6 +38,25 @@ const userStatusSchema = z.object({
 
 const ownerGymSchema = z.object({ gymId: z.string().uuid() });
 
+async function hasTrainerSupportedAccess(userId: string) {
+  const result = await query<{ has_access: boolean }>(
+    `
+    select exists (
+      select 1
+      from subscriptions s
+      where s.user_id = $1
+        and s.plan in ('premium', 'trainer_pro')
+        and (
+          s.status in ('active', 'trialing')
+          or (s.status = 'canceled' and s.current_period_end > now())
+        )
+    ) as has_access
+    `,
+    [userId]
+  );
+  return Boolean(result.rows[0]?.has_access);
+}
+
 adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
   const scope = await getAdminGymScope(req.user!);
   res.json({
@@ -121,7 +140,7 @@ adminRouter.get("/admin/analytics/ai-usage", requireAuth, requireRole(["admin", 
         coalesce(sum(estimated_cost_cents), 0) as estimated_cost_cents
       from ai_usage_events
       where created_at >= date_trunc('week', now()) - interval '7 weeks'
-        and ($1::uuid[] is null or gym_id = any($1))
+        and ($1::uuid[] is null or u.gym_id = any($1))
       group by date_trunc('week', created_at)::date
       order by period desc
     `, [scope.gymIds]),
@@ -236,7 +255,25 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
           count(m.id) filter (where su.primary_role = 'client' and m.created_at >= now() - interval '7 days') as client_messages,
           (select count(*) from risk_alerts where created_at >= now() - interval '30 days' and ($1::uuid[] is null or gym_id = any($1))) as risk_alerts_generated,
           (select count(*) from risk_alerts where (resolved_at >= now() - interval '30 days' or (status in ('resolved','acknowledged') and created_at >= now() - interval '30 days')) and ($1::uuid[] is null or gym_id = any($1))) as risk_alerts_resolved,
-          (select count(distinct id) from users where primary_role = 'client' and assigned_trainer_id is not null and ($1::uuid[] is null or gym_id = any($1))) as clients_monitored
+          (
+            select count(*)
+            from ai_usage_events e
+            where e.event_type = 'weekly_report_generation'
+              and e.created_at >= now() - interval '7 days'
+              and e.metadata->>'generatedBy' = 'trainer'
+              and ($1::uuid[] is null or e.gym_id = any($1))
+          ) as trainer_checkin_drafts,
+          (
+            select count(distinct u.id)
+            from users u
+            join subscriptions s on s.user_id = u.id
+            where u.primary_role = 'client'
+              and u.status = 'active'
+              and u.assigned_trainer_id is not null
+              and s.plan in ('premium', 'trainer_pro')
+              and (s.status in ('active', 'trialing') or (s.status = 'canceled' and s.current_period_end > now()))
+              and ($1::uuid[] is null or u.gym_id = any($1))
+          ) as clients_monitored
         from messages m
         join users su on su.id = m.sender_user_id
         where ($1::uuid[] is null or su.gym_id = any($1))
@@ -357,6 +394,7 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
       trainerResponseRate: clientMessages ? Math.min(100, Math.round((trainerReplies / clientMessages) * 100)) : 0,
       riskAlertsGenerated: Number(row.risk_alerts_generated ?? 0),
       riskAlertsResolved: Number(row.risk_alerts_resolved ?? 0),
+      trainerCheckinDrafts: Number(row.trainer_checkin_drafts ?? 0),
       clientsMonitored: Number(row.clients_monitored ?? 0)
     },
     business: {
@@ -390,10 +428,19 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
     `, [scope.gymIds]),
     query(`
       select count(*) as count
-      from users
-      where primary_role = 'client'
-        and status = 'active'
-        and assigned_trainer_id is null
+      from users u
+      join lateral (
+        select s.plan, s.status
+        from subscriptions s
+        where s.user_id = u.id
+          and s.plan in ('premium', 'trainer_pro')
+          and (s.status in ('active', 'trialing') or (s.status = 'canceled' and s.current_period_end > now()))
+        order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+        limit 1
+      ) active_subscription on true
+      where u.primary_role = 'client'
+        and u.status = 'active'
+        and u.assigned_trainer_id is null
         and ($1::uuid[] is null or gym_id = any($1))
     `, [scope.gymIds]),
     query(`
@@ -442,7 +489,7 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
       type: "client_assignment",
       severity: "critical",
       title: "Clients need trainer assignment",
-      body: "Gym referrals should be assigned so members have someone accountable for them.",
+      body: "Premium coached members should be assigned so someone is accountable for them.",
       href: "/admin/users",
       count: Number(unassignedClients.rows[0]?.count ?? 0)
     },
@@ -497,6 +544,12 @@ adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "own
     if (input.trainerId && clientGymId && trainerGymId !== clientGymId) {
       return res.status(400).json({ error: "Client and trainer must belong to the same gym" });
     }
+    if (input.trainerId && !await hasTrainerSupportedAccess(input.clientId)) {
+      return res.status(409).json({
+        error: "Upgrade this member to Premium before assigning a trainer.",
+        code: "trainer_assignment_requires_premium"
+      });
+    }
     const result = await query(
       `
       update users
@@ -547,6 +600,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
       ) as roles,
       coalesce(active_subscription.plan::text, 'free') as current_plan,
       active_subscription.status as subscription_status,
+      coalesce(active_subscription.plan::text, 'free') in ('premium', 'trainer_pro') as trainer_assignment_eligible,
       u.status,
       u.created_at
     from users u

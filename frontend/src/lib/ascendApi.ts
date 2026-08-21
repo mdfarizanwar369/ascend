@@ -1979,6 +1979,7 @@ export function getAdminPilotMetrics() {
       trainerResponseRate: number;
       riskAlertsGenerated: number;
       riskAlertsResolved: number;
+      trainerCheckinDrafts: number;
       clientsMonitored: number;
     };
     business: {
@@ -2104,6 +2105,7 @@ export function getAdminUsers() {
       owner_gym_ids: string[];
       current_plan: SubscriptionPlan;
       subscription_status: string | null;
+      trainer_assignment_eligible: boolean;
       status: "active" | "inactive";
       created_at: string;
     }>;

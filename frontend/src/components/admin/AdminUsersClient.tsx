@@ -142,8 +142,8 @@ export function AdminUsersClient() {
       await assignAdminClient({ clientId, trainerId: trainerId || null });
       await load();
       setStatus("Client assignment updated.");
-    } catch {
-      setStatus("Could not assign trainer.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not assign trainer.");
     } finally {
       setSavingUserId("");
     }
@@ -488,7 +488,7 @@ export function AdminUsersClient() {
                 <Field label="Trainer">
                   <select
                     className={selectClass}
-                    disabled={user.primary_role !== "client" || savingUserId === user.id}
+                    disabled={user.primary_role !== "client" || savingUserId === user.id || (!user.trainer_assignment_eligible && !user.assigned_trainer_id)}
                     value={user.assigned_trainer_id ?? ""}
                     onChange={(event) => assignTrainer(user.id, event.target.value)}
                   >
@@ -499,6 +499,9 @@ export function AdminUsersClient() {
                       </option>
                     ))}
                   </select>
+                  {user.primary_role === "client" && !user.trainer_assignment_eligible && !user.assigned_trainer_id ? (
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">Upgrade to Premium before assigning a trainer.</p>
+                  ) : null}
                 </Field>
               </div>
 

@@ -228,8 +228,9 @@ export function AdminDashboardClient() {
   const clientUsers = users.filter((user) => user.primary_role === "client");
   const activeClientUsers = clientUsers.filter((user) => user.status === "active");
   const premiumUsers = clientUsers.filter((user) => user.current_plan === "premium" || user.current_plan === "trainer_pro");
+  const activeCoachedClientUsers = activeClientUsers.filter((user) => user.trainer_assignment_eligible);
   const athleteUsers = clientUsers.filter((user) => user.athlete_mode_enabled);
-  const unassignedClients = activeClientUsers.filter((user) => !user.assigned_trainer_id).length;
+  const unassignedClients = activeCoachedClientUsers.filter((user) => !user.assigned_trainer_id).length;
   const pendingTrainers = trainers.filter((trainer) => trainer.status !== "active").length;
   const activeTrainers = trainers.filter((trainer) => trainer.status === "active").length;
   const aiSummary = aiUsage?.summary;
