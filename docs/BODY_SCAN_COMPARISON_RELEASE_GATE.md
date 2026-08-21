@@ -55,6 +55,30 @@ The failed first run was caused by three transient 25-second provider timeouts. 
 
 Benchmark artifacts are generated locally under `work/body-scan-comparison-benchmark/results` and remain excluded from source control because they are QA output, not application assets.
 
+### Expanded AI rerun — 22 August 2026
+
+The repaired branch was rerun through the production-configured `gemini-2.5-flash` extraction path without saving any scan to the database.
+
+| Test set | Extraction | Comparison | Average extraction latency |
+| --- | ---: | ---: | ---: |
+| Existing mixed-quality benchmark | 8/8 | 7/7 | 8.29 s |
+| Manufacturer-specific matrix | 12/12 | 4/4 three-scan histories | 9.47 s |
+| Combined | **20/20** | **11/11** | 9.00 s |
+
+The manufacturer matrix used three synthetic report images each for InBody, Tanita, Evolt, and seca. Labels, units, and realistic values were based on the public manufacturer material listed below. The Evolt endpoints use its published before/after values, with a clearly synthetic middle scan added only to exercise the three-scan evidence rule.
+
+The AI correctly:
+
+- converted InBody and Evolt pound readings to kilograms;
+- kept Tanita `Muscle Mass` in `muscleMassKg` and left skeletal muscle blank;
+- ignored Tanita SMI as a whole-body muscle value;
+- extracted Evolt Skeletal Muscle Mass separately from Lean Body Mass;
+- left Evolt total-body-water mass out of `bodyWaterPercent`;
+- extracted seca SMM while leaving VAT litres and TBW litres out of level/percentage fields;
+- produced established three-scan directions only after all three extracted reports passed the scanner, spacing, and confidence rules.
+
+No AI request failed or fell back during the 20-image rerun. Individual extraction latency ranged from 4.53 s to 21.43 s. The generated reports, extracted JSON, and timing logs remain local QA artifacts and contain no member data.
+
 ## Interpretation rules
 
 - Fewer than seven days between scans: insufficient evidence
