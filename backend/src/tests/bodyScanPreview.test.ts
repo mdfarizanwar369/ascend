@@ -45,9 +45,33 @@ describe("owner Body Scan preview", () => {
     expect(facts.context).toBe("first confirmed scan baseline");
     expect(facts.comparisonAllowed).toBe(false);
     expect(facts.nutritionRecalculationAllowed).toBe(false);
+    expect(facts.recommendedRescanWindowWeeks).toEqual({ minimum: 4, maximum: 6 });
     expect(facts.confirmedReadings.bodyFatPercent).toBe(21.4);
     expect(facts).not.toHaveProperty("previousScan");
     expect(facts).not.toHaveProperty("dnaScore");
+  });
+
+  it("does not present derived or missing readings to Coach Zoe as confirmed measurements", () => {
+    const partialScan = normalizeBodyCompositionScan({
+      scanDate: "2026-08-20",
+      weightKg: 61.3,
+      bmi: 22.5,
+      bodyFatPercent: 27.4,
+      skeletalMuscleMassKg: 23.9,
+      missingFields: ["fatMassKg", "leanBodyMassKg", "estimatedLeanBodyMassKg", "visceralFat", "bodyWaterPercent", "bmrKcal"],
+      confidenceScore: 0.95,
+      importSource: "ai_import",
+      userConfirmed: true
+    });
+    const facts = introductoryScanFacts(partialScan, { fullName: "Test Owner", goalType: "fat_loss" });
+
+    expect(partialScan.fatMassKg).toBe(16.8);
+    expect(facts.confirmedReadings.fatMassKg).toBeNull();
+    expect(facts.confirmedReadings.leanBodyMassKg).toBeNull();
+    expect(facts.confirmedReadings.visceralFat).toBeNull();
+    expect(facts.confirmedReadings.weightKg).toBe(61.3);
+    expect(facts.confirmedReadings.bodyFatPercent).toBe(27.4);
+    expect(facts.confirmedReadings.skeletalMuscleMassKg).toBe(23.9);
   });
 
   it("returns only introductory baseline fields to the universal client", () => {
@@ -108,5 +132,15 @@ describe("owner Body Scan preview", () => {
     });
 
     expect(parseBodyScanExplanation(tooShort, fallback)).toBe(fallback);
+  });
+
+  it("rejects an otherwise valid explanation that introduces an unsupported number", () => {
+    const fallback = fallbackIntroductoryExplanation(scan, { fullName: "Test Owner", goalType: "fat_loss" });
+    const inventedInterval = JSON.stringify({
+      ...fallback,
+      nextScanGuidance: "Repeat this scan in 12 weeks under similar conditions."
+    });
+
+    expect(parseBodyScanExplanation(inventedInterval, fallback, [74.2, 21.4, 33.1, 8, 55.2, 1620, 4, 6])).toBe(fallback);
   });
 });

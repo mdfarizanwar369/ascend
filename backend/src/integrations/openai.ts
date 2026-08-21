@@ -1285,10 +1285,12 @@ export function createBodyScanExplanationReply(facts: unknown, fallbackJson: str
     "The supplied JSON is the only source of truth. Never invent, recalculate, diagnose, or introduce a number that is not supplied.",
     "This is a first-scan baseline, so do not claim progress, decline, trends, comparisons, or that a reading is medically healthy or unhealthy.",
     "Explain what the available readings mean in context of the member's stated goal without using clinical jargon.",
+    "Describe skeletal muscle mass as the member's current machine reading, never as the amount they can potentially build. Do not label any value good, bad, high, low, optimal, or concerning unless that interpretation is explicitly supplied.",
     "Return strict JSON with keys: headline, summary, importantNumbers, priorities, measurementNote, nextScanGuidance, safetyNote.",
     "importantNumbers must contain 2 or 3 objects with label, value, meaning. priorities must contain 2 or 3 objects with title and action.",
-    "The combined user-facing copy should be approximately 150 to 200 words. Keep every sentence useful.",
+    "The total across every JSON string value, including labels and values, must be 150 to 190 words. Count and shorten it before returning. Keep every sentence useful.",
     "Mention that small body-composition readings can vary with hydration, food, glycogen, recent training, and time of day.",
+    "Use the supplied recommendedRescanWindowWeeks for nextScanGuidance. Do not introduce a different interval.",
     "Do not make medical claims or prescribe an exact calorie intake."
   ].join(" ");
   return createBodyScanCoachingReply(systemPrompt, `Confirmed scan facts:\n${JSON.stringify(facts)}`, fallbackJson, 900);

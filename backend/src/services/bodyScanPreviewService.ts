@@ -118,6 +118,18 @@ function numberText(value: number | null | undefined, unit: string) {
 }
 
 export function introductoryScanFacts(scan: BodyCompositionScan, profile: BaselineProfile) {
+  const missing = new Set(scan.missingFields ?? []);
+  const confirmed = (field: string, value: number | null | undefined) => missing.has(field) ? null : value ?? null;
+  const leanBodyMassKg = !missing.has("leanBodyMassKg")
+    ? scan.leanBodyMassKg ?? null
+    : !missing.has("estimatedLeanBodyMassKg")
+      ? scan.estimatedLeanBodyMassKg ?? null
+      : null;
+  const skeletalMuscleMassKg = !missing.has("skeletalMuscleMassKg")
+    ? scan.skeletalMuscleMassKg ?? null
+    : !missing.has("muscleMassKg")
+      ? scan.muscleMassKg ?? null
+      : null;
   return {
     context: "first confirmed scan baseline",
     memberName: profile.fullName,
@@ -125,18 +137,19 @@ export function introductoryScanFacts(scan: BodyCompositionScan, profile: Baseli
     scanDate: scan.scanDate,
     machine: scan.machine ?? null,
     confirmedReadings: {
-      weightKg: scan.weightKg ?? null,
-      bmi: scan.bmi ?? null,
-      bodyFatPercent: scan.bodyFatPercent ?? null,
-      fatMassKg: scan.fatMassKg ?? null,
-      leanBodyMassKg: scan.leanBodyMassKg ?? scan.estimatedLeanBodyMassKg ?? null,
-      skeletalMuscleMassKg: scan.skeletalMuscleMassKg ?? scan.muscleMassKg ?? null,
-      visceralFat: scan.visceralFat ?? null,
-      bodyWaterPercent: scan.bodyWaterPercent ?? null,
-      bmrKcal: scan.bmrKcal ?? null
+      weightKg: confirmed("weightKg", scan.weightKg),
+      bmi: confirmed("bmi", scan.bmi),
+      bodyFatPercent: confirmed("bodyFatPercent", scan.bodyFatPercent),
+      fatMassKg: confirmed("fatMassKg", scan.fatMassKg),
+      leanBodyMassKg,
+      skeletalMuscleMassKg,
+      visceralFat: confirmed("visceralFat", scan.visceralFat),
+      bodyWaterPercent: confirmed("bodyWaterPercent", scan.bodyWaterPercent),
+      bmrKcal: confirmed("bmrKcal", scan.bmrKcal)
     },
     extractionConfidence: scan.confidenceScore ?? null,
     missingFields: scan.missingFields ?? [],
+    recommendedRescanWindowWeeks: { minimum: 4, maximum: 6 },
     comparisonAllowed: false,
     nutritionRecalculationAllowed: false
   };
@@ -214,11 +227,26 @@ function structuredWordCount(value: unknown): number {
   return words.length;
 }
 
-export function parseBodyScanExplanation(value: string, fallback: BodyScanExplanation) {
+function structuredNumbers(value: unknown): number[] {
+  if (Array.isArray(value)) return value.flatMap(structuredNumbers);
+  if (value && typeof value === "object") return Object.values(value).flatMap(structuredNumbers);
+  if (typeof value === "number" && Number.isFinite(value)) return [value];
+  if (typeof value !== "string") return [];
+  return [...value.matchAll(/\b\d+(?:\.\d+)?\b/g)].map((match) => Number(match[0])).filter(Number.isFinite);
+}
+
+export function parseBodyScanExplanation(value: string, fallback: BodyScanExplanation, allowedNumbers?: number[]) {
   try {
     const parsed = bodyScanExplanationSchema.parse(JSON.parse(cleanJson(value)));
     const words = structuredWordCount(parsed);
-    return words >= 150 && words <= 200 ? parsed : fallback;
+    if (words < 150 || words > 200) return fallback;
+    if (allowedNumbers) {
+      const unsupportedNumber = structuredNumbers(parsed).some((number) => (
+        !allowedNumbers.some((allowed) => Math.abs(allowed - number) < 0.01)
+      ));
+      if (unsupportedNumber) return fallback;
+    }
+    return parsed;
   } catch {
     return fallback;
   }
@@ -244,7 +272,7 @@ export async function getOrCreateBodyScanExplanation(userId: string, scan: BodyC
   const facts = introductoryScanFacts(scan, profile);
   const fallback = fallbackIntroductoryExplanation(scan, profile);
   const reply = await createBodyScanExplanationReply(facts, JSON.stringify(fallback));
-  const explanation = parseBodyScanExplanation(reply.text, fallback);
+  const explanation = parseBodyScanExplanation(reply.text, fallback, structuredNumbers(facts));
   const source = reply.source === "ai" && explanation !== fallback ? "ai" as const : "fallback" as const;
   const result = await query<ExplanationRow>(
     `
