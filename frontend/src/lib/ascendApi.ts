@@ -2622,6 +2622,27 @@ export type BodyCompositionSummary = {
   trends: Array<{ metric: string; current: number | null; previous: number | null; bestEver: number | null; change: number | null }>;
   coachAlerts: Array<{ type: string; severity: "positive" | "medium" | "high"; message: string }>;
   insights: string[];
+  comparison: {
+    available: boolean;
+    daysBetweenScans: number | null;
+    sameMachine: boolean | null;
+    confidence: "high" | "possible" | "insufficient";
+    reason: string;
+    headline: string;
+    measurementNote: string;
+    metrics: Array<{
+      metric: string;
+      current: number | null;
+      previous: number | null;
+      change: number | null;
+      unit: string;
+      threshold: number;
+      signal: "higher" | "lower" | "no_clear_change" | "uncertain_change" | "not_comparable";
+      confidence: "high" | "possible" | "insufficient";
+      meaningful: boolean;
+      message: string;
+    }>;
+  };
   nutritionDataSource: "Profile Only" | "Profile + Body Scan" | "Profile + Body Scan History";
 };
 

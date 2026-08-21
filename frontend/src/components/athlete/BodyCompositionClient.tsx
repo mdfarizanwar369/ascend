@@ -208,6 +208,10 @@ function trendFor(summary: BodyCompositionSummary | null, metric: string) {
   return summary?.trends.find((item) => item.metric === metric) ?? null;
 }
 
+function comparisonFor(summary: BodyCompositionSummary | null, metric: string) {
+  return summary?.comparison?.metrics.find((item) => item.metric === metric) ?? null;
+}
+
 function changeText(change: number | null | undefined, unit = "") {
   if (change === null || change === undefined || Number.isNaN(Number(change))) return "No previous scan";
   const sign = change > 0 ? "+" : "";
@@ -216,19 +220,20 @@ function changeText(change: number | null | undefined, unit = "") {
 
 function quickSummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan | null) {
   if (!scan) return "Save your first scan to see your confirmed Body Scan progress.";
-  const bodyFatChange = trendFor(summary, "Body Fat")?.change ?? null;
-  const muscleChange = (trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle"))?.change ?? null;
-  if (bodyFatChange !== null && bodyFatChange < -0.4 && (muscleChange ?? 0) >= 0) {
-    return "Fat is trending down while muscle is being maintained. Strong recomposition signal.";
+  if ((summary?.scanCount ?? 0) <= 1 || !summary?.comparison?.available) return "First scan saved. Add another scan later to unlock true trend coaching.";
+  if (summary.comparison.confidence === "insufficient") return summary.comparison.headline;
+  const bodyFat = comparisonFor(summary, "Body Fat");
+  const muscle = comparisonFor(summary, "Skeletal Muscle");
+  if (bodyFat?.meaningful && bodyFat.signal === "lower" && muscle && ["higher", "no_clear_change"].includes(muscle.signal)) {
+    return "The body-fat reading is lower without a clear decline in the skeletal-muscle reading.";
   }
-  if (muscleChange !== null && muscleChange < -0.4) {
-    return "Muscle is trending down. Review protein, recovery, and training load.";
+  if (muscle?.meaningful && muscle.signal === "lower") {
+    return "The skeletal-muscle reading is lower. Recheck under similar conditions and review protein, recovery, and training load.";
   }
-  if (bodyFatChange !== null && bodyFatChange > 0.5) {
-    return "Body fat is moving up. Review nutrition consistency before the next scan.";
+  if (bodyFat?.meaningful && bodyFat.signal === "higher") {
+    return "The body-fat reading is higher. Repeat under similar conditions before changing the plan.";
   }
-  if ((summary?.scanCount ?? 0) <= 1) return "First scan saved. Add another scan later to unlock true trend coaching.";
-  return "Scan saved. Keep the next check-in consistent so the trend becomes clearer.";
+  return summary.comparison.headline;
 }
 
 function TrendSparkline({ values }: { values: number[] }) {
@@ -250,7 +255,9 @@ function TrendSparkline({ values }: { values: number[] }) {
 
 function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary | null; draftScan?: BodyCompositionScan | null }) {
   const score = summary?.dnaScore.current;
-  const change = summary?.dnaScore.change;
+  const change = summary?.comparison?.confidence !== "insufficient" && summary?.comparison?.metrics.some((metric) => metric.meaningful)
+    ? summary?.dnaScore.change
+    : null;
   return (
     <section className="rounded-lg border border-teal-400/40 bg-gradient-to-br from-teal-400/15 to-purple-400/10 p-4 shadow-lg shadow-teal-400/5">
       <div className="flex items-center justify-between gap-3">
@@ -388,12 +395,19 @@ function resultOpportunities(scan: BodyCompositionScan) {
 
 function progressRows(summary: BodyCompositionSummary | null) {
   if (!summary?.previousScan) return [];
-  const muscleTrend = trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle");
+  const comparisonValue = (metric: string, fallbackUnit: string) => {
+    const item = comparisonFor(summary, metric);
+    if (!item || item.signal === "not_comparable") return "Not available";
+    if (item.signal === "uncertain_change") return "Needs recheck";
+    if (item.signal === "no_clear_change") return "No clear change";
+    return changeText(item.change, fallbackUnit);
+  };
+  const hasMeaningfulComparison = summary.comparison?.confidence !== "insufficient" && summary.comparison?.metrics.some((metric) => metric.meaningful);
   return [
-    { label: "Weight", value: changeText(trendFor(summary, "Weight")?.change, "kg") },
-    { label: "Body fat", value: changeText(trendFor(summary, "Body Fat")?.change, "%") },
-    { label: "Skeletal muscle", value: changeText(muscleTrend?.change, "kg") },
-    { label: "DNA Score", value: changeText(summary.dnaScore.change, "") }
+    { label: "Weight", value: comparisonValue("Weight", "kg") },
+    { label: "Body fat", value: comparisonValue("Body Fat", "%") },
+    { label: "Skeletal muscle", value: comparisonValue("Skeletal Muscle", "kg") },
+    { label: "DNA Score", value: hasMeaningfulComparison ? changeText(summary.dnaScore.change, "") : "Not yet clear" }
   ];
 }
 
@@ -402,7 +416,9 @@ function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyComposi
   const guide = nutritionGuide(summary, scan, nutritionTargets);
   const summaryText = bodySummary(summary, scan);
   const score = summary?.dnaScore.current ?? null;
-  const scoreChange = summary?.dnaScore.change ?? null;
+  const scoreChange = summary?.comparison?.confidence !== "insufficient" && summary?.comparison?.metrics.some((metric) => metric.meaningful)
+    ? summary?.dnaScore.change ?? null
+    : null;
   const strengths = resultStrengths(scan);
   const opportunities = resultOpportunities(scan);
   const progress = progressRows(summary);
@@ -485,13 +501,16 @@ function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyComposi
           <p className="text-sm font-semibold">Progress vs Previous Scan</p>
         </div>
         {progress.length ? (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {progress.map((item) => (
-              <div key={item.label} className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">{item.label}</p>
-                <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
-              </div>
-            ))}
+          <div className="mt-3">
+            <div className="grid grid-cols-2 gap-2">
+              {progress.map((item) => (
+                <div key={item.label} className="rounded-lg bg-surface p-3">
+                  <p className="text-xs text-zinc-500">{item.label}</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            {summary?.comparison?.measurementNote ? <p className="mt-3 text-xs leading-5 text-zinc-500">{summary.comparison.measurementNote}</p> : null}
           </div>
         ) : (
           <p className="mt-2 rounded-lg bg-surface p-3 text-sm leading-6 text-zinc-300">

@@ -1,4 +1,9 @@
 import { GoalType, NutritionTargetInput } from "@ascend/shared";
+import {
+  BodyCompositionComparison,
+  buildBodyCompositionComparison,
+  normalizeBodyCompositionMachine
+} from "./bodyCompositionComparisonService";
 
 export type BodyCompositionImportSource = "ai_import" | "manual_entry";
 
@@ -65,6 +70,7 @@ export type BodyCompositionSummary = {
   trends: BodyCompositionTrend[];
   coachAlerts: Array<{ type: string; severity: "positive" | "medium" | "high"; message: string }>;
   insights: string[];
+  comparison: BodyCompositionComparison;
   nutritionDataSource: "Profile Only" | "Profile + Body Scan" | "Profile + Body Scan History";
 };
 
@@ -248,10 +254,24 @@ export function calculateBodyCompositionDerived(scans: BodyCompositionScan[], pr
 
   const first = ordered[0] ?? null;
   const days = first && latest ? ((dateMs(latest.scanDate) ?? 0) - (dateMs(first.scanDate) ?? 0)) / 86_400_000 : 0;
-  const fatLossRate = days >= 14 ? ((metric(first, "fatMassKg") ?? 0) - (fatMassKg ?? 0)) / (days / 7) : null;
-  const muscleGainRate = days >= 28 ? ((metric(latest, "skeletalMuscleMassKg") ?? metric(latest, "muscleMassKg") ?? 0) - (metric(first, "skeletalMuscleMassKg") ?? metric(first, "muscleMassKg") ?? 0)) / (days / 30.4) : null;
-  const bodyFatChange = previous ? (metric(previous, "bodyFatPercent") ?? 0) - (metric(latest, "bodyFatPercent") ?? 0) : null;
-  const muscleChange = previous ? (metric(latest, "skeletalMuscleMassKg") ?? metric(latest, "muscleMassKg") ?? 0) - (metric(previous, "skeletalMuscleMassKg") ?? metric(previous, "muscleMassKg") ?? 0) : null;
+  const firstFatMass = metric(first, "fatMassKg");
+  const latestMuscle = metric(latest, "skeletalMuscleMassKg") ?? metric(latest, "muscleMassKg");
+  const firstMuscle = metric(first, "skeletalMuscleMassKg") ?? metric(first, "muscleMassKg");
+  const latestBodyFat = metric(latest, "bodyFatPercent");
+  const previousBodyFat = metric(previous, "bodyFatPercent");
+  const previousMuscle = metric(previous, "skeletalMuscleMassKg") ?? metric(previous, "muscleMassKg");
+  const sameTrackedMachine = first && latest
+    ? normalizeBodyCompositionMachine(first.machine) !== null
+      && normalizeBodyCompositionMachine(first.machine) === normalizeBodyCompositionMachine(latest.machine)
+    : false;
+  const fatLossRate = days >= 14 && sameTrackedMachine && firstFatMass !== null && fatMassKg !== null
+    ? (firstFatMass - fatMassKg) / (days / 7)
+    : null;
+  const muscleGainRate = days >= 28 && sameTrackedMachine && latestMuscle !== null && firstMuscle !== null
+    ? (latestMuscle - firstMuscle) / (days / 30.4)
+    : null;
+  const bodyFatChange = previousBodyFat !== null && latestBodyFat !== null ? previousBodyFat - latestBodyFat : null;
+  const muscleChange = latestMuscle !== null && previousMuscle !== null ? latestMuscle - previousMuscle : null;
 
   let goalEtaWeeks: number | null = null;
   const targetWeight = toNumber(profile?.targetWeightKg);
@@ -270,12 +290,16 @@ export function calculateBodyCompositionDerived(scans: BodyCompositionScan[], pr
     estimatedLeanBodyMassKg: rounded(estimatedLeanBodyMassKg, 2),
     ffmi: rounded(ffmi, 2),
     estimatedDailyEnergyNeedsKcal: bmr ? Math.round(bmr * activityMultiplier) : null,
-    bodyRecompositionIndex: rounded((bodyFatChange ?? 0) * 8 + (muscleChange ?? 0) * 6, 1),
+    bodyRecompositionIndex: bodyFatChange !== null || muscleChange !== null
+      ? rounded((bodyFatChange ?? 0) * 8 + (muscleChange ?? 0) * 6, 1)
+      : null,
     rateOfFatLossKgPerWeek: rounded(fatLossRate, 2),
     rateOfMuscleGainKgPerMonth: rounded(muscleGainRate, 2),
     goalEtaWeeks: rounded(goalEtaWeeks, 1),
     weeklyProgressPercent: rounded(bodyFatChange !== null || muscleChange !== null ? Math.max(-100, Math.min(100, (bodyFatChange ?? 0) * 10 + (muscleChange ?? 0) * 8)) : null, 1),
-    monthlyProgressPercent: rounded(days >= 28 && first ? Math.max(-100, Math.min(100, ((metric(first, "bodyFatPercent") ?? 0) - (metric(latest, "bodyFatPercent") ?? 0)) * 8 + ((metric(latest, "skeletalMuscleMassKg") ?? 0) - (metric(first, "skeletalMuscleMassKg") ?? 0)) * 6)) : null, 1)
+    monthlyProgressPercent: rounded(days >= 28 && sameTrackedMachine && latestBodyFat !== null && metric(first, "bodyFatPercent") !== null && latestMuscle !== null && firstMuscle !== null
+      ? Math.max(-100, Math.min(100, ((metric(first, "bodyFatPercent") as number) - latestBodyFat) * 8 + (latestMuscle - firstMuscle) * 6))
+      : null, 1)
   };
 }
 
@@ -320,6 +344,7 @@ export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profil
   const previous = orderedDesc[1] ?? null;
   const derived = calculateBodyCompositionDerived(scans, profile);
   const dnaScore = calculateDnaScore(scans);
+  const comparison = buildBodyCompositionComparison(scans);
   const trendMetrics: Array<[string, keyof BodyCompositionScanInput, "min" | "max"]> = [
     ["Weight", "weightKg", profile?.goalType === "muscle_gain" ? "max" : "min"],
     ["Body Fat", "bodyFatPercent", "min"],
@@ -346,24 +371,34 @@ export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profil
   });
 
   const coachAlerts: BodyCompositionSummary["coachAlerts"] = [];
-  const bodyFatChange = trends.find((trend) => trend.metric === "Body Fat")?.change ?? null;
-  const muscleChange = trends.find((trend) => trend.metric === "Skeletal Muscle")?.change ?? trends.find((trend) => trend.metric === "Muscle")?.change ?? null;
-  const weightChange = trends.find((trend) => trend.metric === "Weight")?.change ?? null;
-  const visceralChange = trends.find((trend) => trend.metric === "Visceral Fat")?.change ?? null;
+  const comparisonMetric = (label: string) => comparison.metrics.find((entry) => entry.metric === label) ?? null;
+  const bodyFatComparison = comparisonMetric("Body Fat");
+  const muscleComparison = comparisonMetric("Skeletal Muscle");
+  const weightComparison = comparisonMetric("Weight");
+  const visceralComparison = comparisonMetric("Visceral Fat");
 
-  if (muscleChange !== null && muscleChange < -0.5) coachAlerts.push({ type: "muscle_loss", severity: "high", message: "Muscle loss detected. Review protein, recovery and training load." });
-  if (weightChange !== null && weightChange < -1.5) coachAlerts.push({ type: "rapid_weight_loss", severity: "high", message: "Rapid weight loss detected. Avoid aggressive deficits." });
-  if (bodyFatChange !== null && bodyFatChange > 1) coachAlerts.push({ type: "body_fat_increasing", severity: "medium", message: "Body fat is trending upward. Review recent consistency." });
-  if (visceralChange !== null && visceralChange > 1) coachAlerts.push({ type: "visceral_fat_increasing", severity: "medium", message: "Visceral fat is increasing. Monitor nutrition consistency." });
-  if (bodyFatChange !== null && bodyFatChange < -0.5 && (muscleChange ?? 0) >= 0) coachAlerts.push({ type: "excellent_progress", severity: "positive", message: "Excellent recomposition: body fat decreased while muscle was maintained or improved." });
+  if (muscleComparison?.meaningful && muscleComparison.signal === "lower") {
+    coachAlerts.push({ type: "muscle_loss", severity: "high", message: `${muscleComparison.message} Recheck under similar conditions and review protein, recovery, and training load.` });
+  }
+  if (weightComparison?.meaningful && weightComparison.signal === "lower" && comparison.daysBetweenScans) {
+    const previousWeight = weightComparison.previous ?? 0;
+    const weeklyPercent = previousWeight > 0
+      ? (Math.abs(weightComparison.change ?? 0) / previousWeight) / (comparison.daysBetweenScans / 7) * 100
+      : 0;
+    if (weeklyPercent > 1) coachAlerts.push({ type: "rapid_weight_loss", severity: "high", message: `${weightComparison.message} Review whether the current pace is intentional and sustainable.` });
+  }
+  if (bodyFatComparison?.meaningful && bodyFatComparison.signal === "higher") {
+    coachAlerts.push({ type: "body_fat_increasing", severity: "medium", message: `${bodyFatComparison.message} Repeat under similar conditions before changing the plan.` });
+  }
+  if (visceralComparison?.meaningful && visceralComparison.signal === "higher") {
+    coachAlerts.push({ type: "visceral_fat_increasing", severity: "medium", message: `${visceralComparison.message} Confirm the direction with another consistently timed scan.` });
+  }
+  if (bodyFatComparison?.meaningful && bodyFatComparison.signal === "lower" && muscleComparison && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
+    coachAlerts.push({ type: "excellent_progress", severity: "positive", message: "The body-fat reading is lower without a clear decline in the skeletal-muscle reading." });
+  }
   if (!latest || ((Date.now() - (dateMs(latest.scanDate) ?? Date.now())) / 86_400_000) > 45) coachAlerts.push({ type: "scan_overdue", severity: "medium", message: "No recent body composition scan uploaded." });
 
-  const insights = [
-    bodyFatChange !== null && bodyFatChange < 0 ? `Body fat improved by ${Math.abs(bodyFatChange).toFixed(1)} percentage points since the previous scan.` : null,
-    muscleChange !== null && muscleChange > 0 ? `Muscle improved by ${muscleChange.toFixed(1)}kg since the previous scan.` : null,
-    derived.rateOfFatLossKgPerWeek !== null && derived.rateOfFatLossKgPerWeek > 0 ? `Average fat loss is ${derived.rateOfFatLossKgPerWeek.toFixed(2)}kg per week.` : null,
-    derived.goalEtaWeeks !== null ? `Estimated goal timeline is about ${Math.round(derived.goalEtaWeeks)} weeks if the current trend continues.` : null
-  ].filter((item): item is string => Boolean(item));
+  const insights = comparison.metrics.filter((entry) => entry.meaningful).map((entry) => entry.message);
 
   return {
     latestScan: latest,
@@ -374,6 +409,7 @@ export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profil
     trends,
     coachAlerts,
     insights,
+    comparison,
     nutritionDataSource: scans.length > 1 ? "Profile + Body Scan History" : scans.length === 1 ? "Profile + Body Scan" : "Profile Only"
   };
 }

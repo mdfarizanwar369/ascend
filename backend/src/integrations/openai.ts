@@ -650,6 +650,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
     if (errors.some((message) => /quota|RESOURCE_EXHAUSTED|429/i.test(message))) {
       throw new Error("Gemini quota or credits are exhausted. Add Gemini billing credits or use another AI provider for reliable AI responses.");
     }
+    if (lastError instanceof Error) throw lastError;
     throw new Error(`All Gemini models failed: ${errors.join(" | ")}`);
   }
   throw lastError instanceof Error ? lastError : new Error("Gemini request failed.");
@@ -1140,7 +1141,7 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
       { text: prompt }
     ], 1600, {
       models: [env.GEMINI_MODEL],
-      attemptsPerModel: 1,
+      attemptsPerModel: 2,
       timeoutMs: 25_000,
       responseMimeType: "application/json"
     });
