@@ -47,22 +47,37 @@ type ExplanationRow = {
   model: string | null;
 };
 
-export function resolveOwnerBodyScanPreviewAccess(input: { featureEnabled: boolean; user: Pick<AuthUser, "isPlatformOwner"> }) {
-  const enabled = input.featureEnabled && input.user.isPlatformOwner;
+export function resolveBodyScanIntroductoryAccess(input: {
+  publicEnabled: boolean;
+  ownerPreviewEnabled: boolean;
+  user: Pick<AuthUser, "isPlatformOwner">;
+  hasBaseline: boolean;
+}) {
+  const ownerPreview = input.ownerPreviewEnabled && input.user.isPlatformOwner;
+  const enabled = input.publicEnabled || ownerPreview;
   return {
     enabled,
     experience: "introductory" as const,
-    canCapture: enabled,
+    rollout: (input.publicEnabled ? "public" : ownerPreview ? "owner_preview" : "disabled") as "public" | "owner_preview" | "disabled",
+    canCapture: enabled && !input.hasBaseline,
     canViewBaseline: enabled,
     canCompareScans: false,
     canViewDna: false,
     canUseScanForNutrition: false,
-    followUpLimit: 2
+    followUpLimit: 2 as const,
+    captureLimit: 1 as const,
+    capturesUsed: input.hasBaseline ? 1 as const : 0 as const,
+    capturesRemaining: enabled && !input.hasBaseline ? 1 as const : 0 as const
   };
 }
 
-export function bodyScanPreviewAccess(user: AuthUser) {
-  return resolveOwnerBodyScanPreviewAccess({ featureEnabled: env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW, user });
+export function bodyScanPreviewAccess(user: AuthUser, hasBaseline = false) {
+  return resolveBodyScanIntroductoryAccess({
+    publicEnabled: env.BODY_SCAN_UNIVERSAL_PUBLIC,
+    ownerPreviewEnabled: env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW,
+    user,
+    hasBaseline
+  });
 }
 
 export function introductoryBaseline(scan: BodyCompositionScan | null) {

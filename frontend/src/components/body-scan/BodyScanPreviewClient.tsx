@@ -12,7 +12,6 @@ import {
   CircleHelp,
   ImagePlus,
   LockKeyhole,
-  RefreshCw,
   ScanLine,
   ShieldCheck,
   Sparkles
@@ -28,6 +27,7 @@ import {
   saveBodyScanPreview
 } from "@/lib/ascendApi";
 import { clearBodyScanImageCache, optimizeBodyScanImage, OptimizedBodyScanImage } from "@/lib/bodyScanImageProcessor";
+import { BackButton } from "@/components/BackButton";
 
 type EditableMetricKey =
   | "weightKg"
@@ -105,12 +105,12 @@ export function BodyScanPreviewClient() {
       const response = await getBodyScanPreviewBaseline();
       setAvailable(response.access.enabled);
       setBaseline(response.scan);
-      setShowCapture(!response.scan);
+      setShowCapture(response.access.canCapture && !response.scan);
       if (response.scan?.id) await loadExplanation(response.scan.id);
       else setStatus("");
     } catch (error) {
       setAvailable(false);
-      setStatus(error instanceof Error ? error.message : "Body Scan preview could not be loaded.");
+      setStatus(error instanceof Error ? error.message : "Body Scan could not be loaded.");
     }
   }, [loadExplanation]);
 
@@ -232,8 +232,8 @@ export function BodyScanPreviewClient() {
     return (
       <section className="mx-auto mt-6 max-w-md rounded-xl border border-line bg-surface p-5">
         <LockKeyhole className="text-zinc-400" size={24} />
-        <h1 className="mt-4 text-xl font-semibold">Body Scan preview is unavailable</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">This owner-only preview is disabled. The rest of Ascend is unaffected.</p>
+        <h1 className="mt-4 text-xl font-semibold">Body Scan is unavailable</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">Body Scan is not available for this account right now.</p>
         {status ? <p className="mt-4 text-xs text-zinc-500">{status}</p> : null}
       </section>
     );
@@ -241,13 +241,16 @@ export function BodyScanPreviewClient() {
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-10 pt-4">
-      <header className="px-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-400">Owner preview</p>
-        <div className="mt-2 flex items-start gap-3">
+      <header className="flex items-start gap-3 px-1">
+        <BackButton fallbackHref="/profile" />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-400">Your first Body Scan</p>
+          <div className="mt-2 flex items-start gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-lime text-ink"><ScanLine size={22} /></span>
           <div>
             <h1 className="text-2xl font-semibold">Understand your Body Scan</h1>
             <p className="mt-1 text-sm leading-6 text-zinc-400">Confirm the report, then Coach Zoe will explain what the numbers mean in plain language.</p>
+          </div>
           </div>
         </div>
       </header>
@@ -338,14 +341,14 @@ export function BodyScanPreviewClient() {
 
       {baseline ? (
         <section className="mt-4 rounded-xl border border-line bg-surface p-4">
-          <div className="flex gap-3"><LockKeyhole className="mt-0.5 shrink-0 text-violet-400" size={19} /><div><p className="text-sm font-semibold">See how your body changes over time</p><p className="mt-1 text-xs leading-5 text-zinc-400">Comparison confidence, longer-term patterns, and scan-informed adjustments are reserved for the future Premium and Athlete experiences.</p></div></div>
+          <div className="flex gap-3"><LockKeyhole className="mt-0.5 shrink-0 text-violet-400" size={19} /><div><p className="text-sm font-semibold">Your first scan is your starting point</p><p className="mt-1 text-xs leading-5 text-zinc-400">This introductory experience explains one confirmed report. Comparisons, ongoing trends, DNA, and scan-informed nutrition are not included.</p></div></div>
         </section>
       ) : null}
 
       {showCapture ? (
         <section className="mt-5 rounded-xl border border-line bg-surface p-4 sm:p-5">
           <h2 className="text-lg font-semibold">Add your scan report</h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-400">Use a clear, straight-on photo. Ascend reads the visible values; you confirm them before anything is saved.</p>
+          <p className="mt-1 text-sm leading-6 text-zinc-400">One introductory scan is included. Use a clear, straight-on photo; Ascend reads the visible values and you confirm them before anything is saved.</p>
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={prepareImages} />
           <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={prepareImages} />
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -392,8 +395,6 @@ export function BodyScanPreviewClient() {
             </form>
           ) : null}
         </section>
-      ) : baseline ? (
-        <button type="button" onClick={() => { setShowCapture(true); setDraft(null); setImages([]); setStatus(""); }} className="ascend-pressable mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-line bg-surface text-sm font-semibold text-zinc-300"><RefreshCw size={16} /> Test another owner scan</button>
       ) : null}
 
       {status && !(baseline && !coaching) ? <p role="status" className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm leading-6 text-zinc-300">{status}</p> : null}

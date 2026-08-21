@@ -377,9 +377,9 @@ export function ProfileClient() {
             <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
               <Activity size={17} /> Health Sync
             </Link>
-            {user?.body_scan_owner_preview_enabled ? (
-              <Link href="/body-scan" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/10 text-sm font-semibold text-violet-200">
-                <ScanLine size={17} /> Body Scan Preview
+            {user?.athlete_mode_enabled || user?.body_scan_introductory_enabled ? (
+              <Link href={user?.athlete_mode_enabled ? "/athlete/body-composition" : "/body-scan"} className="flex h-11 items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/10 text-sm font-semibold text-violet-200">
+                <ScanLine size={17} /> Body Scan
               </Link>
             ) : null}
           </div>

@@ -1,0 +1,1 @@
+drop index if exists body_composition_scans_introductory_user_unique_idx;

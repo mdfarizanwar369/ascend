@@ -7,6 +7,7 @@ import { query } from "../db/pool";
 import { uploadDataUrl, createReadUrl } from "../integrations/s3";
 import { extractBodyCompositionFromImages } from "../integrations/openai";
 import { requireAuth, requireRole } from "../middleware/auth";
+import { introductoryBodyScanRateLimit } from "../middleware/rateLimits";
 import { canManageClient } from "../services/clientAccessService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
@@ -207,6 +208,9 @@ async function saveScan(
   }
   bodyCompositionSaveLog("save_validation_complete", { userId });
   const dbValues = bodyCompositionScanToDbValues(input, userId, actorId, experienceScope);
+  const introductoryConflictGuard = experienceScope === "introductory"
+    ? "on conflict (user_id) where experience_scope = 'introductory' and user_confirmed = true do nothing"
+    : "";
   bodyCompositionSaveLog("save_db_insert_started", {
     userId,
     sourceImagesType: typeof dbValues[24],
@@ -226,10 +230,15 @@ async function saveScan(
       experience_scope
     ) values (
       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30
-    ) returning *
+    ) ${introductoryConflictGuard} returning *
     `,
     dbValues
   );
+  if (experienceScope === "introductory" && !result.rows[0]) {
+    const error = new Error("Your introductory Body Scan is already complete.");
+    (error as Error & { status?: number }).status = 409;
+    throw error;
+  }
   bodyCompositionSaveLog("save_db_insert_complete", {
     userId,
     scanId: result.rows[0]?.id ?? null
@@ -294,25 +303,32 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
   }
 });
 
-bodyCompositionRouter.get("/body-composition/access", requireAuth, async (req, res) => {
-  res.json({ access: bodyScanPreviewAccess(req.user!) });
+bodyCompositionRouter.get("/body-composition/access", requireAuth, async (req, res, next) => {
+  try {
+    const scan = await latestConfirmedBodyScan(req.user!.id);
+    res.json({ access: bodyScanPreviewAccess(req.user!, Boolean(scan)) });
+  } catch (error) {
+    next(error);
+  }
 });
 
-bodyCompositionRouter.post("/body-composition/extract", requireAuth, async (req, res, next) => {
+bodyCompositionRouter.post("/body-composition/extract", requireAuth, introductoryBodyScanRateLimit, async (req, res, next) => {
   const startedAt = Date.now();
   try {
-    const access = bodyScanPreviewAccess(req.user!);
-    if (!access.enabled || !access.canCapture) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
+    const scan = await latestConfirmedBodyScan(req.user!.id);
+    const access = bodyScanPreviewAccess(req.user!, Boolean(scan));
+    if (!access.enabled) return res.status(404).json({ error: "Body Scan is not available for this account." });
+    if (!access.canCapture) return res.status(409).json({ error: "Your introductory Body Scan is already complete." });
     const input = extractSchema.parse(req.body);
     const draft = await extractDraftForUser(req.user!.id, input.images);
-    bodyCompositionRouteLog("owner_preview_extraction_complete", {
+    bodyCompositionRouteLog("introductory_extraction_complete", {
       durationMs: Date.now() - startedAt,
       confidenceScore: draft.confidenceScore,
       missingFields: draft.missingFields
     });
     res.json({ draft, access });
   } catch (error) {
-    bodyCompositionRouteError("owner_preview_extraction_failed", {
+    bodyCompositionRouteError("introductory_extraction_failed", {
       durationMs: Date.now() - startedAt,
       name: error instanceof Error ? error.name : "Unknown"
     });
@@ -322,10 +338,12 @@ bodyCompositionRouter.post("/body-composition/extract", requireAuth, async (req,
 
 bodyCompositionRouter.post("/body-composition/scans", requireAuth, async (req, res, next) => {
   try {
-    const access = bodyScanPreviewAccess(req.user!);
-    if (!access.enabled || !access.canCapture) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
+    const existingScan = await latestConfirmedBodyScan(req.user!.id);
+    const access = bodyScanPreviewAccess(req.user!, Boolean(existingScan));
+    if (!access.enabled) return res.status(404).json({ error: "Body Scan is not available for this account." });
+    if (!access.canCapture) return res.status(409).json({ error: "Your introductory Body Scan is already complete." });
     const scan = await saveScan(req.user!.id, req.user!.id, req.body, "introductory");
-    res.status(201).json({ scan: introductoryBaseline(scan), access });
+    res.status(201).json({ scan: introductoryBaseline(scan), access: bodyScanPreviewAccess(req.user!, true) });
   } catch (error) {
     next(error);
   }
@@ -333,9 +351,9 @@ bodyCompositionRouter.post("/body-composition/scans", requireAuth, async (req, r
 
 bodyCompositionRouter.get("/body-composition/baseline", requireAuth, async (req, res, next) => {
   try {
-    const access = bodyScanPreviewAccess(req.user!);
-    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
     const scan = await latestConfirmedBodyScan(req.user!.id);
+    const access = bodyScanPreviewAccess(req.user!, Boolean(scan));
+    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan is not available for this account." });
     const explanation = scan?.id ? await getCachedBodyScanExplanation(req.user!.id, scan.id) : null;
     res.json({ scan: introductoryBaseline(scan), explanation: explanation?.explanation ?? null, access });
   } catch (error) {
@@ -345,10 +363,10 @@ bodyCompositionRouter.get("/body-composition/baseline", requireAuth, async (req,
 
 bodyCompositionRouter.post("/body-composition/scans/:scanId/explanation", requireAuth, async (req, res, next) => {
   try {
-    const access = bodyScanPreviewAccess(req.user!);
-    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
     const scanId = bodyScanIdSchema.parse(req.params.scanId);
     const scan = await confirmedBodyScanById(req.user!.id, scanId);
+    const access = bodyScanPreviewAccess(req.user!, Boolean(scan));
+    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan is not available for this account." });
     if (!scan) return res.status(404).json({ error: "Confirmed Body Scan not found." });
     const coaching = await getOrCreateBodyScanExplanation(req.user!.id, scan);
     res.json({ coaching, access });
@@ -359,11 +377,11 @@ bodyCompositionRouter.post("/body-composition/scans/:scanId/explanation", requir
 
 bodyCompositionRouter.post("/body-composition/scans/:scanId/follow-ups", requireAuth, async (req, res, next) => {
   try {
-    const access = bodyScanPreviewAccess(req.user!);
-    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
     const scanId = bodyScanIdSchema.parse(req.params.scanId);
     const input = bodyScanFollowUpSchema.parse(req.body);
     const scan = await confirmedBodyScanById(req.user!.id, scanId);
+    const access = bodyScanPreviewAccess(req.user!, Boolean(scan));
+    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan is not available for this account." });
     if (!scan) return res.status(404).json({ error: "Confirmed Body Scan not found." });
     const result = await createBodyScanFollowUp(req.user!.id, scan, input.question);
     res.status(201).json({ ...result, access });

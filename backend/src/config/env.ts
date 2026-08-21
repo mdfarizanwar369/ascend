@@ -35,6 +35,7 @@ const schema = z.object({
   FOOD_AI_PERFORMANCE_LOGS: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   BODY_COMPOSITION_AI_DEBUG_LOGS: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   BODY_SCAN_UNIVERSAL_OWNER_PREVIEW: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  BODY_SCAN_UNIVERSAL_PUBLIC: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PAYMENT_PROVIDER: z.enum(["stripe", "lemonsqueezy", "toyyibpay"]).default("stripe"),
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   STRIPE_SECRET_KEY: z.string().optional(),

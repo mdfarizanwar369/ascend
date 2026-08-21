@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { normalizeBodyCompositionScan } from "../services/bodyCompositionService";
 import {
   bodyScanExplanationSchema,
@@ -6,7 +8,7 @@ import {
   introductoryBaseline,
   introductoryScanFacts,
   parseBodyScanExplanation,
-  resolveOwnerBodyScanPreviewAccess
+  resolveBodyScanIntroductoryAccess
 } from "../services/bodyScanPreviewService";
 
 const scan = normalizeBodyCompositionScan({
@@ -23,20 +25,47 @@ const scan = normalizeBodyCompositionScan({
   userConfirmed: true
 });
 
-describe("owner Body Scan preview", () => {
-  it("is available only when both the flag and platform-owner identity are present", () => {
-    expect(resolveOwnerBodyScanPreviewAccess({ featureEnabled: false, user: { isPlatformOwner: true } }).enabled).toBe(false);
-    expect(resolveOwnerBodyScanPreviewAccess({ featureEnabled: true, user: { isPlatformOwner: false } }).enabled).toBe(false);
-    expect(resolveOwnerBodyScanPreviewAccess({ featureEnabled: true, user: { isPlatformOwner: true } }).enabled).toBe(true);
+describe("introductory Body Scan", () => {
+  it("supports a reversible public rollout while preserving the owner preview fallback", () => {
+    const disabled = resolveBodyScanIntroductoryAccess({ publicEnabled: false, ownerPreviewEnabled: false, user: { isPlatformOwner: false }, hasBaseline: false });
+    const ownerPreview = resolveBodyScanIntroductoryAccess({ publicEnabled: false, ownerPreviewEnabled: true, user: { isPlatformOwner: true }, hasBaseline: false });
+    const publicMember = resolveBodyScanIntroductoryAccess({ publicEnabled: true, ownerPreviewEnabled: false, user: { isPlatformOwner: false }, hasBaseline: false });
+
+    expect(disabled.enabled).toBe(false);
+    expect(disabled.rollout).toBe("disabled");
+    expect(ownerPreview.enabled).toBe(true);
+    expect(ownerPreview.rollout).toBe("owner_preview");
+    expect(publicMember.enabled).toBe(true);
+    expect(publicMember.rollout).toBe("public");
   });
 
   it("does not expose comparison, DNA, or scan-driven nutrition access", () => {
-    const access = resolveOwnerBodyScanPreviewAccess({ featureEnabled: true, user: { isPlatformOwner: true } });
+    const access = resolveBodyScanIntroductoryAccess({ publicEnabled: true, ownerPreviewEnabled: false, user: { isPlatformOwner: false }, hasBaseline: false });
 
     expect(access.canCompareScans).toBe(false);
     expect(access.canViewDna).toBe(false);
     expect(access.canUseScanForNutrition).toBe(false);
     expect(access.followUpLimit).toBe(2);
+  });
+
+  it("allows one lifetime introductory scan and becomes read-only afterward", () => {
+    const before = resolveBodyScanIntroductoryAccess({ publicEnabled: true, ownerPreviewEnabled: false, user: { isPlatformOwner: false }, hasBaseline: false });
+    const after = resolveBodyScanIntroductoryAccess({ publicEnabled: true, ownerPreviewEnabled: false, user: { isPlatformOwner: false }, hasBaseline: true });
+
+    expect(before.canCapture).toBe(true);
+    expect(before.capturesRemaining).toBe(1);
+    expect(after.canCapture).toBe(false);
+    expect(after.canViewBaseline).toBe(true);
+    expect(after.capturesUsed).toBe(1);
+    expect(after.capturesRemaining).toBe(0);
+  });
+
+  it("backs the lifetime limit with a partial unique database index", () => {
+    const migration = readFileSync(resolve(process.cwd(), "migrations/032_body_scan_introductory_lifetime_limit.sql"), "utf8");
+
+    expect(migration).toContain("create unique index");
+    expect(migration).toContain("experience_scope = 'introductory'");
+    expect(migration).toContain("user_confirmed = true");
   });
 
   it("builds first-scan facts without trends or nutrition authority", () => {

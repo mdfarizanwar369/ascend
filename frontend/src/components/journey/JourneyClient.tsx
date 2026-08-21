@@ -1439,6 +1439,16 @@ export function JourneyClient() {
                 </span>
               </div>
             </Link>
+          ) : user?.body_scan_introductory_enabled ? (
+            <Link href="/body-scan" className="mt-4 block rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Body Scan</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">Turn one scan report into a clear starting point with Coach Zoe.</p>
+                </div>
+                <span className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-purple-200">Included</span>
+              </div>
+            </Link>
           ) : null}
         </section>
 

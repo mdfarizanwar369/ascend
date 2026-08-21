@@ -21,4 +21,12 @@ export const todayPriorityRateLimit = rateLimit({
   message: { error: "Today's coaching is refreshing too often. Please wait a moment and try again." }
 });
 export const uploadRateLimit = createLimiter(60_000, 20, "Too many upload requests. Please wait a moment and try again.");
+export const introductoryBodyScanRateLimit = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 6,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "authenticated-user",
+  message: { error: "Body Scan has been retried several times. Please wait a few minutes before reading another photo." }
+});
 export const waitlistRateLimit = createLimiter(15 * 60_000, 10, "Too many requests. Please try again later.");

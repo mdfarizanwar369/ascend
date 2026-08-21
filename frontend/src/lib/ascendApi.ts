@@ -326,6 +326,7 @@ export function getMe() {
       profile_photo_url?: string | null;
       is_platform_owner?: boolean;
       body_scan_owner_preview_enabled?: boolean;
+      body_scan_introductory_enabled?: boolean;
       athlete_mode_enabled?: boolean;
       body_composition_nutrition?: BodyCompositionNutrition | null;
       last_meaningful_activity_at?: string | null;
@@ -2627,12 +2628,16 @@ export type BodyCompositionSummary = {
 export type BodyScanPreviewAccess = {
   enabled: boolean;
   experience: "introductory";
+  rollout: "public" | "owner_preview" | "disabled";
   canCapture: boolean;
   canViewBaseline: boolean;
   canCompareScans: false;
   canViewDna: false;
   canUseScanForNutrition: false;
   followUpLimit: 2;
+  captureLimit: 1;
+  capturesUsed: 0 | 1;
+  capturesRemaining: 0 | 1;
 };
 
 export type BodyScanIntroductoryBaseline = {
