@@ -27,7 +27,6 @@ import {
   saveBodyScanPreview
 } from "@/lib/ascendApi";
 import { clearBodyScanImageCache, optimizeBodyScanImage, OptimizedBodyScanImage } from "@/lib/bodyScanImageProcessor";
-import { BackButton } from "@/components/BackButton";
 
 type EditableMetricKey =
   | "weightKg"
@@ -241,9 +240,8 @@ export function BodyScanPreviewClient() {
 
   return (
     <div className="mx-auto w-full max-w-2xl pb-10 pt-4">
-      <header className="flex items-start gap-3 px-1">
-        <BackButton fallbackHref="/profile" />
-        <div className="min-w-0 flex-1">
+      <header className="px-1">
+        <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-400">Your first Body Scan</p>
           <div className="mt-2 flex items-start gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-lime text-ink"><ScanLine size={22} /></span>
