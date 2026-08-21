@@ -92,18 +92,20 @@ function deterministicWeeklySummary(input: {
   let athleteFocus: string | null = null;
   if (athleteEnabled) {
     const latest = bodySummary?.latestScan ?? null;
-    const bodyFatTrend = bodySummary?.trends.find((trend) => trend.metric === "Body Fat") ?? null;
-    const muscleTrend = bodySummary?.trends.find((trend) => trend.metric === "Skeletal Muscle") ?? bodySummary?.trends.find((trend) => trend.metric === "Muscle") ?? null;
+    const evidence = bodySummary?.comparison ?? null;
+    const bodyFatTrend = evidence?.metrics.find((metric) => metric.metric === "Body Fat") ?? null;
+    const muscleTrend = evidence?.metrics.find((metric) => metric.metric === "Skeletal Muscle") ?? null;
     const dna = bodySummary?.dnaScore;
     lines.push("Athlete Mode");
     if (latest) {
       lines.push(`- Latest Body Scan: ${latest.scanDate}.`);
-      lines.push(`- Body fat trend: ${formatChange(bodyFatTrend?.change ?? null, "%")}.`);
-      lines.push(`- Skeletal muscle trend: ${formatChange(muscleTrend?.change ?? null, "kg")}.`);
+      lines.push(`- Comparison evidence: ${evidence?.status === "ESTABLISHED" ? "Established for at least one metric across comparable scans" : evidence?.status === "PROVISIONAL" ? "Provisional; another comparable scan is needed" : "Insufficient for a trend claim"}.`);
+      lines.push(`- Body fat: ${bodyFatTrend?.evidenceStatus === "ESTABLISHED" ? formatChange(bodyFatTrend.change, " percentage points") : "No established trend"}.`);
+      lines.push(`- Skeletal muscle: ${muscleTrend?.evidenceStatus === "ESTABLISHED" ? formatChange(muscleTrend.change, "kg") : "No established trend"}.`);
       lines.push(`- Ascend DNA: ${dna?.current ?? "--"}${dna?.change !== null && dna?.change !== undefined ? ` (${formatChange(dna.change)})` : ""}.`);
-      if ((muscleTrend?.change ?? 0) < -0.2) athleteFocus = "Protect muscle next week with consistent protein, resistance training, and recovery.";
-      else if ((bodyFatTrend?.change ?? 0) > 0.3) athleteFocus = "Review calories and activity because body fat is moving up.";
-      else if ((bodyFatTrend?.change ?? 0) < -0.3 && (muscleTrend?.change ?? 0) >= -0.1) athleteFocus = "Continue the current plan because body composition is moving in the right direction.";
+      if (muscleTrend?.evidenceStatus === "ESTABLISHED" && muscleTrend.signal === "lower") athleteFocus = "Review protein, recovery, and resistance training because comparable scans support a lower muscle trend.";
+      else if (bodyFatTrend?.evidenceStatus === "ESTABLISHED" && bodyFatTrend.signal === "higher") athleteFocus = "Review recent nutrition and activity because comparable scans support a higher body-fat trend.";
+      else if (bodyFatTrend?.evidenceStatus === "ESTABLISHED" && bodyFatTrend.signal === "lower" && muscleTrend?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleTrend.signal)) athleteFocus = "Continue the current plan because comparable scans support the current direction.";
       else athleteFocus = "Keep scan conditions consistent and compare again after the next check-in.";
     } else {
       lines.push("- No confirmed Body Scan yet.");

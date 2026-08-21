@@ -26,6 +26,7 @@ import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../servi
 import { dailyCoachingCorrelation, dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
 import { loadTodayPriorityFacts } from "../services/todayPriorityContextService";
 import { localDateKeyAtOffset, localDateKeyDaysAgo, localWeekKeyAtOffset } from "../services/memberTimeService";
+import { bodyCompositionScanFromDb, buildBodyCompositionSummary, getTrustedBodyCompositionHistory } from "../services/bodyCompositionService";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -290,7 +291,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
     }
 
     const analysisWindowDays = coachAccess.premiumDepth ? 30 : 7;
-    const [contextResult, recentFoodResult, foodWindowResult, recentBurnResult, burnWindowResult, athleteResult, bodyScanResult, bodyScanHistoryResult, recentMessagesResult, healthSyncSummary, momentumResult, waterWindowResult, weightWindowResult, habitWindowResult, weeklyReportResult, recognitionResult, longTermFoodResult, longTermWaterResult, longTermWeightResult, longTermHabitResult, longTermBurnResult, resolvedNutritionTargets] = await Promise.all([
+    const [contextResult, recentFoodResult, foodWindowResult, recentBurnResult, burnWindowResult, athleteResult, bodyScanHistoryResult, recentMessagesResult, healthSyncSummary, momentumResult, waterWindowResult, weightWindowResult, habitWindowResult, weeklyReportResult, recognitionResult, longTermFoodResult, longTermWaterResult, longTermWeightResult, longTermHabitResult, longTermBurnResult, resolvedNutritionTargets] = await Promise.all([
       query<{ metadata: Record<string, unknown> | null; created_at: string }>(
         `
         select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
@@ -351,25 +352,13 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
       ),
       query(
         `
-        select scan_date, weight_kg, body_fat_percent, skeletal_muscle_mass_kg, visceral_fat, bmr_kcal
+        select *
         from body_composition_scans
         where user_id = $1
           and user_confirmed = true
           and experience_scope = 'athlete'
         order by scan_date desc, created_at desc
-        limit 1
-        `,
-        [req.user!.id]
-      ),
-      query(
-        `
-        select scan_date, weight_kg, body_fat_percent, skeletal_muscle_mass_kg, visceral_fat, bmr_kcal
-        from body_composition_scans
-        where user_id = $1
-          and user_confirmed = true
-          and experience_scope = 'athlete'
-        order by scan_date desc, created_at desc
-        limit 3
+        limit 20
         `,
         [req.user!.id]
       ),
@@ -540,13 +529,15 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
           weekEnd: weeklyReportResult.rows[0].week_end
         }
       : null;
-    const bodyScanHistory = bodyScanHistoryResult.rows.map((row) => ({
-      scanDate: row.scan_date,
-      weightKg: asNumber(row.weight_kg),
-      bodyFatPercent: asNumber(row.body_fat_percent),
-      skeletalMuscleMassKg: asNumber(row.skeletal_muscle_mass_kg),
-      visceralFat: asNumber(row.visceral_fat),
-      bmrKcal: asNumber(row.bmr_kcal)
+    const trustedBodyScans = getTrustedBodyCompositionHistory(bodyScanHistoryResult.rows.map((row) => bodyCompositionScanFromDb(row))).confirmedHistory;
+    const bodyScanSummary = buildBodyCompositionSummary(trustedBodyScans);
+    const bodyScanHistory = trustedBodyScans.map((scan) => ({
+      scanDate: scan.scanDate,
+      weightKg: scan.weightKg ?? null,
+      bodyFatPercent: scan.bodyFatPercent ?? null,
+      skeletalMuscleMassKg: scan.skeletalMuscleMassKg ?? scan.muscleMassKg ?? null,
+      visceralFat: scan.visceralFat ?? null,
+      bmrKcal: scan.bmrKcal ?? null
     }));
     const dataConfidence = summarizeDataConfidence({
       foodRows: foodWindowResult.rows,
@@ -570,8 +561,19 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
       recentWorkouts: recentBurnResult.rows,
       workoutMemory,
       athleteMode: athleteResult.rows[0] ?? null,
-      latestBodyScan: bodyScanResult.rows[0] ?? null,
-      bodyScanHistory,
+      latestBodyScan: bodyScanSummary.latestScan,
+      bodyScanEvidence: {
+        historyCount: bodyScanSummary.scanCount,
+        status: bodyScanSummary.comparison.status,
+        headline: bodyScanSummary.comparison.headline,
+        reason: bodyScanSummary.comparison.reason,
+        metrics: bodyScanSummary.comparison.metrics.map((metric) => ({
+          metric: metric.metric,
+          evidenceStatus: metric.evidenceStatus,
+          signal: metric.signal,
+          message: metric.message
+        }))
+      },
       recentAnalysisWindow: {
         windowDays: analysisWindowDays,
         dataConfidence,
@@ -937,13 +939,13 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
         ),
         query(
           `
-          select scan_date, weight_kg, body_fat_percent, skeletal_muscle_mass_kg, visceral_fat, bmr_kcal
+          select *
           from body_composition_scans
           where user_id = $1
             and user_confirmed = true
             and experience_scope = 'athlete'
           order by scan_date desc, created_at desc
-          limit 1
+          limit 20
           `,
           [req.user!.id]
         ),
@@ -973,6 +975,17 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
       currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null,
       timezoneOffsetMinutes: input.timezoneOffsetMinutes
     });
+    const latestTrustedBodyScan = getTrustedBodyCompositionHistory(bodyScanResult.rows.map((row) => bodyCompositionScanFromDb(row))).latestConfirmedScan;
+    const workoutBodyScan = latestTrustedBodyScan
+      ? {
+          scan_date: latestTrustedBodyScan.scanDate,
+          weight_kg: latestTrustedBodyScan.weightKg ?? null,
+          body_fat_percent: latestTrustedBodyScan.bodyFatPercent ?? null,
+          skeletal_muscle_mass_kg: latestTrustedBodyScan.skeletalMuscleMassKg ?? latestTrustedBodyScan.muscleMassKg ?? null,
+          visceral_fat: latestTrustedBodyScan.visceralFat ?? null,
+          bmr_kcal: latestTrustedBodyScan.bmrKcal ?? null
+        }
+      : null;
 
     const promptContext = JSON.stringify(
       buildWorkoutPlannerContext({
@@ -983,7 +996,7 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
         recentWorkouts: recentBurnResult.rows,
         workoutMemory,
         athleteMode: athleteResult.rows[0] ?? null,
-        latestBodyScan: bodyScanResult.rows[0] ?? null,
+        latestBodyScan: workoutBodyScan,
         recentCoachZoeContext: recentMessagesResult.rows.reverse(),
         healthSync: healthSyncSummary
           ? {

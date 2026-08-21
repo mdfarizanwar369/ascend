@@ -12,15 +12,16 @@ function formatDate(value: string) {
 function metricLine(metadata?: Record<string, unknown>) {
   if (!metadata) return null;
   const parts: string[] = [];
-  const weightChange = Number(metadata.weightChangeKg);
-  const bodyFatChange = Number(metadata.bodyFatChange);
-  const muscleChange = Number(metadata.muscleChange);
-  const bestStreak = Number(metadata.bestStreak);
+  const value = (input: unknown) => input === null || input === undefined || input === "" || !Number.isFinite(Number(input)) ? null : Number(input);
+  const weightChange = value(metadata.weightChangeKg);
+  const bodyFatChange = value(metadata.bodyFatChange);
+  const muscleChange = value(metadata.muscleChange);
+  const bestStreak = value(metadata.bestStreak);
 
-  if (Number.isFinite(weightChange)) parts.push(`${weightChange > 0 ? "+" : ""}${weightChange}kg`);
-  if (Number.isFinite(bodyFatChange)) parts.push(`Body fat ${bodyFatChange > 0 ? "-" : "+"}${Math.abs(bodyFatChange)}%`);
-  if (Number.isFinite(muscleChange)) parts.push(`Muscle ${muscleChange > 0 ? "+" : ""}${muscleChange}kg`);
-  if (Number.isFinite(bestStreak)) parts.push(`${bestStreak}-day best streak`);
+  if (weightChange !== null) parts.push(`${weightChange > 0 ? "+" : ""}${weightChange}kg`);
+  if (bodyFatChange !== null) parts.push(`Body fat ${bodyFatChange > 0 ? "+" : ""}${bodyFatChange}%`);
+  if (muscleChange !== null) parts.push(`Muscle ${muscleChange > 0 ? "+" : ""}${muscleChange}kg`);
+  if (bestStreak !== null) parts.push(`${bestStreak}-day best streak`);
   return parts.length ? parts.join(" · ") : null;
 }
 

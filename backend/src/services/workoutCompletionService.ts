@@ -20,6 +20,7 @@ import {
   projectWorkoutExerciseObservations,
   WorkoutObservation
 } from "./workoutProgressionV3Service";
+import { bodyCompositionScanFromDb, getTrustedBodyCompositionHistory } from "./bodyCompositionService";
 
 type WorkoutExerciseInput = Partial<Omit<WorkoutCaptureExercise, "name" | "confidence" | "movementPattern">> & {
   name: string;
@@ -266,20 +267,23 @@ export function createWorkoutCompletionSummary(input: {
 }
 
 export async function resolveWorkoutWeightKg(userId: string) {
-  const result = await query<{ weight_kg: string | number | null }>(
-    `
-    select coalesce(
-      (select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1),
-      (select weight_kg from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = 'athlete' order by scan_date desc, created_at desc limit 1),
-      u.starting_weight_kg
-    ) as weight_kg
-    from users u
-    where u.id = $1
-    limit 1
-    `,
-    [userId]
-  );
-  const weight = Number(result.rows[0]?.weight_kg ?? 0);
+  const [profileResult, scanResult] = await Promise.all([
+    query<{ latest_weight_kg: string | number | null; starting_weight_kg: string | number | null }>(
+      `select
+        (select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1) as latest_weight_kg,
+        starting_weight_kg
+      from users where id = $1 limit 1`,
+      [userId]
+    ),
+    query(
+      `select * from body_composition_scans
+       where user_id = $1 and user_confirmed = true and experience_scope = 'athlete'
+       order by scan_date desc, created_at desc limit 20`,
+      [userId]
+    )
+  ]);
+  const trustedScanWeight = getTrustedBodyCompositionHistory(scanResult.rows.map((row) => bodyCompositionScanFromDb(row))).latestConfirmedScan?.weightKg ?? null;
+  const weight = Number(profileResult.rows[0]?.latest_weight_kg ?? trustedScanWeight ?? profileResult.rows[0]?.starting_weight_kg ?? 0);
   return Number.isFinite(weight) && weight > 0 ? weight : null;
 }
 

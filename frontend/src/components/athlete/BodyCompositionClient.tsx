@@ -35,6 +35,7 @@ import { BackButton } from "@/components/BackButton";
 import { DelightBadge } from "@/components/Delight";
 import { DnaSigil } from "@/components/AscendVisualIdentity";
 import { OptimizedBodyScanImage, clearBodyScanImageCache, optimizeBodyScanImage } from "@/lib/bodyScanImageProcessor";
+import { establishedProgressSeries } from "@/lib/bodyCompositionEvidence";
 
 type MetricKey = keyof BodyCompositionScan;
 
@@ -204,8 +205,8 @@ function nutritionGuide(summary: BodyCompositionSummary | null, scanOverride?: B
   return { calories, protein, carbs, fat };
 }
 
-function trendFor(summary: BodyCompositionSummary | null, metric: string) {
-  return summary?.trends.find((item) => item.metric === metric) ?? null;
+function comparisonFor(summary: BodyCompositionSummary | null, metric: string) {
+  return summary?.comparison?.metrics.find((item) => item.metric === metric) ?? null;
 }
 
 function changeText(change: number | null | undefined, unit = "") {
@@ -216,23 +217,27 @@ function changeText(change: number | null | undefined, unit = "") {
 
 function quickSummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan | null) {
   if (!scan) return "Save your first scan to see your confirmed Body Scan progress.";
-  const bodyFatChange = trendFor(summary, "Body Fat")?.change ?? null;
-  const muscleChange = (trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle"))?.change ?? null;
-  if (bodyFatChange !== null && bodyFatChange < -0.4 && (muscleChange ?? 0) >= 0) {
-    return "Fat is trending down while muscle is being maintained. Strong recomposition signal.";
+  if ((summary?.scanCount ?? 0) <= 1 || !summary?.comparison?.available) return "First scan saved. Add another scan later to unlock true trend coaching.";
+  if (summary.comparison.status === "INSUFFICIENT") return summary.comparison.headline;
+  const bodyFat = comparisonFor(summary, "Body Fat");
+  const muscle = comparisonFor(summary, "Skeletal Muscle");
+  if (summary.comparison.status === "PROVISIONAL") {
+    return bodyFat?.meaningful ? bodyFat.message : muscle?.meaningful ? muscle.message : summary.comparison.headline;
   }
-  if (muscleChange !== null && muscleChange < -0.4) {
-    return "Muscle is trending down. Review protein, recovery, and training load.";
+  if (bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful && bodyFat.signal === "lower" && muscle?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscle.signal)) {
+    return "The body-fat reading is lower without a clear decline in the skeletal-muscle reading.";
   }
-  if (bodyFatChange !== null && bodyFatChange > 0.5) {
-    return "Body fat is moving up. Review nutrition consistency before the next scan.";
+  if (muscle?.evidenceStatus === "ESTABLISHED" && muscle.meaningful && muscle.signal === "lower") {
+    return "The skeletal-muscle reading is lower. Recheck under similar conditions and review protein, recovery, and training load.";
   }
-  if ((summary?.scanCount ?? 0) <= 1) return "First scan saved. Add another scan later to unlock true trend coaching.";
-  return "Scan saved. Keep the next check-in consistent so the trend becomes clearer.";
+  if (bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful && bodyFat.signal === "higher") {
+    return "The body-fat reading is higher. Repeat under similar conditions before changing the plan.";
+  }
+  return summary.comparison.headline;
 }
 
 function TrendSparkline({ values }: { values: number[] }) {
-  if (values.length < 2) return <div className="h-10 rounded-lg bg-ink" />;
+  if (values.length < 2) return <div className="grid h-10 place-items-center rounded-lg bg-ink text-xs text-zinc-500">Trend appears after three comparable scans</div>;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -250,14 +255,14 @@ function TrendSparkline({ values }: { values: number[] }) {
 
 function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary | null; draftScan?: BodyCompositionScan | null }) {
   const score = summary?.dnaScore.current;
-  const change = summary?.dnaScore.change;
+  const change = summary?.dnaScore.change ?? null;
   return (
     <section className="rounded-lg border border-teal-400/40 bg-gradient-to-br from-teal-400/15 to-purple-400/10 p-4 shadow-lg shadow-teal-400/5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Ascend DNA</p>
           <h2 className="mt-1 text-xl font-semibold">Body Progress Score</h2>
-          <p className="mt-1 text-xs leading-5 text-zinc-400">A simple coaching signal based on your scan trend.</p>
+          <p className="mt-1 text-xs leading-5 text-zinc-400">An experimental coaching signal based on your confirmed scan measurements.</p>
           {draftScan ? <p className="mt-2 inline-flex rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">Draft (Not yet saved)</p> : null}
         </div>
         <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-ink text-center">
@@ -269,7 +274,7 @@ function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary 
       ) : change !== null && change !== undefined ? (
         <p className="mt-3 text-sm text-teal-200">{change >= 0 ? "+" : ""}{change} vs previous scan</p>
       ) : (
-        <p className="mt-3 text-sm text-zinc-400">Add another scan later to see how your score changes.</p>
+        <p className="mt-3 text-sm text-zinc-400">Three comparable scans are required before Ascend shows a score trend.</p>
       )}
     </section>
   );
@@ -362,38 +367,42 @@ function resultStrengths(scan: BodyCompositionScan) {
   const visceral = numericValue(scan.visceralFat);
   const bodyWater = numericValue(scan.bodyWaterPercent);
 
-  if (bodyFat !== null && bodyFat <= 20) strengths.push({ title: "Lean body fat signal", detail: `${valueText(bodyFat, "%")} body fat gives your coach a strong performance baseline.` });
+  if (bodyFat !== null) strengths.push({ title: "Body fat baseline captured", detail: `${valueText(bodyFat, "%")} body fat is now recorded for future comparable scans.` });
   if (muscle !== null) strengths.push({ title: "Muscle baseline captured", detail: `${valueText(muscle, "kg")} muscle is now tracked for future comparisons.` });
   if (bmr !== null) strengths.push({ title: "Metabolism recorded", detail: `${valueText(bmr, "kcal")} resting burn can help refine athlete nutrition targets.` });
-  if (visceral !== null && visceral <= 10) strengths.push({ title: "Lower visceral fat reading", detail: `Visceral fat is recorded at ${valueText(visceral)}, a useful accountability marker.` });
-  if (bodyWater !== null && bodyWater >= 45 && bodyWater <= 65) strengths.push({ title: "Hydration metric captured", detail: `${valueText(bodyWater, "%")} body water gives extra context for future scans.` });
+  if (visceral !== null) strengths.push({ title: "Visceral fat baseline captured", detail: `The scanner recorded a visceral fat reading of ${valueText(visceral)}.` });
+  if (bodyWater !== null) strengths.push({ title: "Body water context captured", detail: `${valueText(bodyWater, "%")} body water can help explain differences between future readings.` });
 
   return strengths.length ? strengths.slice(0, 3) : [{ title: "Baseline created", detail: "Your first confirmed scan gives Ascend a starting point for better coaching." }];
 }
 
 function resultOpportunities(scan: BodyCompositionScan) {
   const opportunities: Array<{ title: string; detail: string }> = [];
-  const bodyFat = numericValue(scan.bodyFatPercent);
-  const visceral = numericValue(scan.visceralFat);
-  const bodyWater = numericValue(scan.bodyWaterPercent);
   const muscle = numericValue(scan.skeletalMuscleMassKg ?? scan.muscleMassKg);
 
-  if (visceral !== null && visceral > 10) opportunities.push({ title: "Reduce visceral fat trend", detail: "Prioritize consistent nutrition, daily movement, and the next four-week scan trend." });
-  if (bodyFat !== null && bodyFat > 25) opportunities.push({ title: "Improve body fat trend", detail: "Aim for steady progress instead of an aggressive cut that risks performance." });
-  if (bodyWater !== null && bodyWater < 45) opportunities.push({ title: "Improve hydration consistency", detail: "Use water intake and sodium consistency to make future scans easier to compare." });
+  if (!scan.machine) opportunities.push({ title: "Record the scanner model", detail: "Using the same recorded scanner model helps Ascend judge whether future readings are comparable." });
   if (muscle === null) opportunities.push({ title: "Confirm muscle data", detail: "Add skeletal muscle next time so your coach can track recomposition more clearly." });
+  if (numericValue(scan.bodyFatPercent) === null) opportunities.push({ title: "Confirm body fat data", detail: "Add body fat next time to create a more complete baseline." });
+  if (scan.importSource === "ai_import" && (numericValue(scan.confidenceScore) ?? 0) < 0.75) opportunities.push({ title: "Review the extracted values", detail: "A clearer report photo or manual check will strengthen future comparisons." });
 
-  return opportunities.length ? opportunities.slice(0, 3) : [{ title: "Protect the baseline", detail: "Keep training, protein, and recovery steady so the next scan confirms the direction." }];
+  return opportunities.length ? opportunities.slice(0, 3) : [{ title: "Build comparable history", detail: "Repeat the scan under similar conditions in about four weeks." }];
 }
 
 function progressRows(summary: BodyCompositionSummary | null) {
   if (!summary?.previousScan) return [];
-  const muscleTrend = trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle");
+  const comparisonValue = (metric: string, fallbackUnit: string) => {
+    const item = comparisonFor(summary, metric);
+    if (!item || item.signal === "not_comparable") return "Not available";
+    if (item.evidenceStatus === "INSUFFICIENT") return "Not established";
+    if (item.signal === "no_clear_change") return "No clear change";
+    const change = changeText(item.change, fallbackUnit);
+    return item.evidenceStatus === "PROVISIONAL" ? `${change} provisional` : change;
+  };
   return [
-    { label: "Weight", value: changeText(trendFor(summary, "Weight")?.change, "kg") },
-    { label: "Body fat", value: changeText(trendFor(summary, "Body Fat")?.change, "%") },
-    { label: "Skeletal muscle", value: changeText(muscleTrend?.change, "kg") },
-    { label: "DNA Score", value: changeText(summary.dnaScore.change, "") }
+    { label: "Weight", value: comparisonValue("Weight", "kg") },
+    { label: "Body fat", value: comparisonValue("Body Fat", "%") },
+    { label: "Skeletal muscle", value: comparisonValue("Skeletal Muscle", "kg") },
+    { label: "DNA Score", value: summary.dnaScore.change !== null ? changeText(summary.dnaScore.change, "") : "Not established" }
   ];
 }
 
@@ -426,7 +435,7 @@ function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyComposi
             {scoreChange >= 0 ? "+" : ""}{scoreChange} vs previous scan
           </p>
         ) : (
-          <p className="mt-4 inline-flex rounded-full border border-purple-300/40 bg-purple-400/10 px-3 py-1 text-xs font-semibold text-purple-100">First confirmed scan</p>
+          <p className="mt-4 inline-flex rounded-full border border-purple-300/40 bg-purple-400/10 px-3 py-1 text-xs font-semibold text-purple-100">{(summary?.scanCount ?? 0) <= 1 ? "First confirmed scan" : "Score trend not established yet"}</p>
         )}
       </div>
 
@@ -485,17 +494,20 @@ function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyComposi
           <p className="text-sm font-semibold">Progress vs Previous Scan</p>
         </div>
         {progress.length ? (
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {progress.map((item) => (
-              <div key={item.label} className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">{item.label}</p>
-                <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
-              </div>
-            ))}
+          <div className="mt-3">
+            <div className="grid grid-cols-2 gap-2">
+              {progress.map((item) => (
+                <div key={item.label} className="rounded-lg bg-surface p-3">
+                  <p className="text-xs text-zinc-500">{item.label}</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            {summary?.comparison?.measurementNote ? <p className="mt-3 text-xs leading-5 text-zinc-500">{summary.comparison.measurementNote}</p> : null}
           </div>
         ) : (
           <p className="mt-2 rounded-lg bg-surface p-3 text-sm leading-6 text-zinc-300">
-            This is your first confirmed Body Scan. Your next scan will show exactly what changed.
+            This is your first confirmed Body Scan. Another comparable scan will add a useful reference point.
           </p>
         )}
       </div>
@@ -523,7 +535,7 @@ function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyComposi
           <Clock className="text-teal-300" size={18} />
           <p className="text-sm font-semibold">Next Scan</p>
         </div>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Recommended in approximately 4 weeks so your coach can compare real change, not daily noise.</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Recommended in approximately 4 weeks under similar conditions to build a clearer trend.</p>
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -565,9 +577,14 @@ function AiDraftSummary({ draft }: { draft: BodyCompositionScan }) {
 
 function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) {
   if (!summary?.latestScan) return null;
-  const bodyFat = trendFor(summary, "Body Fat");
-  const muscle = trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle");
-  const visceral = trendFor(summary, "Visceral Fat");
+  const bodyFat = comparisonFor(summary, "Body Fat");
+  const muscle = comparisonFor(summary, "Skeletal Muscle");
+  const comparisonLabel = (metric: typeof bodyFat, unit: string) => {
+    if (!metric || metric.signal === "not_comparable") return "Not available";
+    if (metric.evidenceStatus === "INSUFFICIENT") return "Change not established";
+    if (metric.evidenceStatus === "PROVISIONAL") return `${changeText(metric.change, unit)} provisional`;
+    return changeText(metric.change, unit);
+  };
   return (
     <section className="rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
       <div className="flex items-center gap-2">
@@ -576,10 +593,10 @@ function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) 
       </div>
       <p className="mt-2 text-sm leading-6 text-zinc-300">Use this scan to guide the next check-in without turning the client review into a data dump.</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Body fat movement</p><p className="mt-1 font-semibold">{changeText(bodyFat?.change, "%")}</p></div>
-        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Muscle movement</p><p className="mt-1 font-semibold">{changeText(muscle?.change, "kg")}</p></div>
+        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Body fat movement</p><p className="mt-1 font-semibold">{comparisonLabel(bodyFat, "%")}</p></div>
+        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Muscle movement</p><p className="mt-1 font-semibold">{comparisonLabel(muscle, "kg")}</p></div>
         <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Visceral fat</p><p className="mt-1 font-semibold">{valueText(summary.latestScan.visceralFat)}</p></div>
-        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Compliance</p><p className="mt-1 font-semibold">{summary.scanCount > 1 ? "Trending" : "Baseline"}</p></div>
+        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Evidence</p><p className="mt-1 font-semibold">{summary.comparison.status === "ESTABLISHED" ? "Established" : summary.comparison.status === "PROVISIONAL" ? "Provisional" : "Building"}</p></div>
       </div>
       <div className="mt-3 rounded-lg bg-ink p-3">
         <p className="text-xs text-zinc-500">Recommended discussion</p>
@@ -633,35 +650,28 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
 
   useEffect(() => { load(); }, [load]);
 
-  const trendValues = useMemo(() => [...scans].reverse().map((scan) => Number(scan.bodyFatPercent ?? scan.weightKg ?? 0)).filter(Boolean), [scans]);
+  const trendSeries = useMemo(() => establishedProgressSeries(summary, scans), [scans, summary]);
+  const trendValues = trendSeries?.values ?? [];
   const draftHasValues = showManualEntry && detectedMetricCount(draft) > 0;
   const displayScan = draftHasValues ? draft : summary?.latestScan ?? null;
   const guide = nutritionGuide(summary, draftHasValues ? draft : null, nutritionTargets);
   const latest = summary?.latestScan ?? null;
   const fitnessAge = latest?.metabolicAge ?? null;
   const nextScanDate = latest?.scanDate ? new Date(new Date(latest.scanDate).getTime() + 30 * 86_400_000) : null;
-  const greatestImprovement = useMemo(() => {
-    const ranked = (summary?.trends ?? [])
-      .filter((trend) => trend.change !== null && trend.change !== undefined)
-      .map((trend) => {
-        const lowerIsBetter = ["Weight", "Body Fat", "Fat Mass", "Visceral Fat", "Metabolic Age"].includes(trend.metric);
-        const score = lowerIsBetter ? -Number(trend.change) : Number(trend.change);
-        return { ...trend, score };
-      })
-      .sort((a, b) => b.score - a.score);
-    return ranked[0] ?? null;
-  }, [summary?.trends]);
-  const biggestChallenge = useMemo(() => {
-    const ranked = (summary?.trends ?? [])
-      .filter((trend) => trend.change !== null && trend.change !== undefined)
-      .map((trend) => {
-        const lowerIsBetter = ["Weight", "Body Fat", "Fat Mass", "Visceral Fat", "Metabolic Age"].includes(trend.metric);
-        const score = lowerIsBetter ? -Number(trend.change) : Number(trend.change);
-        return { ...trend, score };
-      })
-      .sort((a, b) => a.score - b.score);
-    return ranked[0]?.score < 0 ? ranked[0] : null;
-  }, [summary?.trends]);
+  const greatestImprovement = (() => {
+    if (!summary) return null;
+    return summary.comparison.metrics.find((metric) => metric.evidenceStatus === "ESTABLISHED" && metric.meaningful && (
+      (["Body Fat", "Fat Mass", "Visceral Fat", "Metabolic Age"].includes(metric.metric) && metric.signal === "lower")
+      || (["Skeletal Muscle", "Lean Mass"].includes(metric.metric) && metric.signal === "higher")
+    )) ?? null;
+  })();
+  const biggestChallenge = (() => {
+    if (!summary) return null;
+    return summary.comparison.metrics.find((metric) => metric.evidenceStatus === "ESTABLISHED" && metric.meaningful && (
+      (["Body Fat", "Fat Mass", "Visceral Fat", "Metabolic Age"].includes(metric.metric) && metric.signal === "higher")
+      || (["Skeletal Muscle", "Lean Mass"].includes(metric.metric) && metric.signal === "lower")
+    )) ?? null;
+  })();
 
   async function onFiles(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []).slice(0, 6);
@@ -837,7 +847,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         <div>
           <p className="text-sm text-teal-300">Update Progress</p>
           <h1 className="mt-1 text-3xl font-semibold">Body Scan</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan photo, confirm the key numbers, and see what changed.</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan photo, confirm the key numbers, and build a trusted history.</p>
         </div>
       </section>
 
@@ -855,7 +865,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             <LineChart className="text-teal-300" size={20} />
             <div>
               <h2 className="font-semibold">Progress Snapshot</h2>
-              <p className="text-xs text-zinc-400">{summary?.latestScan ? "Using your latest confirmed scan" : "Add a scan to unlock trends"}</p>
+              <p className="text-xs text-zinc-400">{trendSeries ? `${trendSeries.label} trend from comparable scans` : summary?.latestScan ? "No metric trend is established yet" : "Add a scan to unlock trends"}</p>
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-ink p-3">
@@ -875,8 +885,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             </div>
             <div className="rounded-lg border border-teal-400/30 bg-teal-400/10 p-3">
               <p className="text-xs text-teal-200">Goal ETA</p>
-              <p className="mt-1 text-xl font-semibold">{summary?.derived.goalEtaWeeks ? `${Math.round(summary.derived.goalEtaWeeks)} weeks` : "--"}</p>
-              <p className="mt-1 text-[11px] leading-4 text-zinc-500">Based on current trend, not a guarantee.</p>
+              <p className="mt-1 text-xl font-semibold">--</p>
+              <p className="mt-1 text-[11px] leading-4 text-zinc-500">Uses longer-term weight history, not Body Scan estimates.</p>
             </div>
           </div>
           <details className="mt-3 rounded-lg border border-line bg-ink p-3">
@@ -888,22 +898,22 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               <div className="rounded-lg bg-surface p-3">
                 <p className="text-xs text-zinc-500">Best improvement</p>
                 <p className="mt-1 text-sm font-semibold">{greatestImprovement ? greatestImprovement.metric : "--"}</p>
-                <p className="mt-1 text-xs text-teal-200">{greatestImprovement ? changeText(greatestImprovement.change) : "Add another scan"}</p>
+                <p className="mt-1 text-xs text-teal-200">{greatestImprovement ? greatestImprovement.message : "Requires an established trend"}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
                 <p className="text-xs text-zinc-500">Needs focus</p>
                 <p className="mt-1 text-sm font-semibold">{biggestChallenge ? biggestChallenge.metric : "--"}</p>
-                <p className="mt-1 text-xs text-amber">{biggestChallenge ? changeText(biggestChallenge.change) : "No concern detected"}</p>
+                <p className="mt-1 text-xs text-amber">{biggestChallenge ? biggestChallenge.message : "No established concern"}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Weekly movement</p>
-                <p className="mt-1 text-sm font-semibold">{summary?.derived.weeklyProgressPercent !== null && summary?.derived.weeklyProgressPercent !== undefined ? `${summary.derived.weeklyProgressPercent}%` : "--"}</p>
-                <p className="mt-1 text-xs text-zinc-500">Based on scan trend</p>
+                <p className="text-xs text-zinc-500">Evidence</p>
+                <p className="mt-1 text-sm font-semibold">{summary?.comparison.status === "ESTABLISHED" ? "Established" : summary?.comparison.status === "PROVISIONAL" ? "Provisional" : "Building"}</p>
+                <p className="mt-1 text-xs text-zinc-500">{summary?.comparison.reason ?? "Add your first scan"}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Monthly movement</p>
-                <p className="mt-1 text-sm font-semibold">{summary?.derived.monthlyProgressPercent !== null && summary?.derived.monthlyProgressPercent !== undefined ? `${summary.derived.monthlyProgressPercent}%` : "--"}</p>
-                <p className="mt-1 text-xs text-zinc-500">Clearer after 28 days</p>
+                <p className="text-xs text-zinc-500">Trend evidence</p>
+                <p className="mt-1 text-sm font-semibold">{summary?.comparison.status === "ESTABLISHED" ? `${summary.comparison.metrics.filter((metric) => metric.evidenceStatus === "ESTABLISHED").length} supported readings` : "Not established"}</p>
+                <p className="mt-1 text-xs text-zinc-500">Three comparable scans are required</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
                 <p className="text-xs text-zinc-500">Scans saved</p>
@@ -1045,7 +1055,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               </button>
               {showAdvancedMetrics ? (
                 <div className="mt-3 space-y-4">
-                  <label className="block text-xs text-zinc-400">Scanner or device (optional)<input value={draft.machine ?? ""} onChange={(event) => setDraftValue("machine", event.target.value)} placeholder="InBody, Tanita, Evolt..." className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white" /></label>
+                  <label className="block text-xs text-zinc-400">Scanner brand/model (optional)<input value={draft.machine ?? ""} onChange={(event) => setDraftValue("machine", event.target.value)} placeholder="InBody, Tanita, Evolt..." className="mt-1 h-11 w-full rounded-lg border border-line bg-surface px-3 text-white" /></label>
                   {(["body", "composition", "hydration", "health"] as const).map((section) => {
                     const fields = metricFields.filter((field) => field.section === section && advancedMetricKeys.has(field.key));
                     if (!fields.length) return null;
@@ -1086,14 +1096,20 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
           <div className="mt-3 space-y-3">
             {scans.map((scan) => {
               const scanConfidence = confidenceInfo(scan.confidenceScore);
-              const bodyFatChange = scan.id === latest?.id ? trendFor(summary, "Body Fat")?.change : null;
-              const muscleChange = scan.id === latest?.id ? (trendFor(summary, "Skeletal Muscle") ?? trendFor(summary, "Muscle"))?.change : null;
+              const bodyFatComparison = scan.id === latest?.id ? comparisonFor(summary, "Body Fat") : null;
+              const muscleComparison = scan.id === latest?.id ? comparisonFor(summary, "Skeletal Muscle") : null;
+              const historyChange = (comparison: typeof bodyFatComparison, unit: string) => {
+                if (!comparison || comparison.signal === "not_comparable") return "Not comparable";
+                if (comparison.evidenceStatus === "INSUFFICIENT") return "Change not established";
+                if (comparison.evidenceStatus === "PROVISIONAL") return `${changeText(comparison.change, unit)} provisional`;
+                return changeText(comparison.change, unit);
+              };
               return (
                 <article key={scan.id ?? `${scan.scanDate}-${scan.createdAt}`} className="rounded-lg border border-line bg-ink p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-semibold">{new Date(scan.scanDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</p>
-                      <p className="text-xs text-zinc-500">{scan.machine || "Device not entered"} / {scan.importSource === "ai_import" ? "Read by AI" : "Entered manually"}</p>
+                      <p className="text-xs text-zinc-500">{scan.machine || "Scanner model not entered"} / {scan.importSource === "ai_import" ? "Read by AI" : "Entered manually"}</p>
                     </div>
                     <span className={`rounded-md border px-2 py-1 text-xs ${scanConfidence.tone}`}>{scanConfidence.percent ? `${scanConfidence.percent}%` : "reviewed"}</span>
                   </div>
@@ -1104,8 +1120,8 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
                   </div>
                   {scan.id === latest?.id ? (
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <p className="rounded-lg bg-surface p-2">{bodyFatChange !== null && bodyFatChange !== undefined && bodyFatChange < 0 ? <ArrowDownRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}Body fat {changeText(bodyFatChange, "%")}</p>
-                      <p className="rounded-lg bg-surface p-2">{muscleChange !== null && muscleChange !== undefined && muscleChange > 0 ? <ArrowUpRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}Muscle {changeText(muscleChange, "kg")}</p>
+                      <p className="rounded-lg bg-surface p-2">{bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "lower" ? <ArrowDownRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}Body fat {historyChange(bodyFatComparison, "%")}</p>
+                      <p className="rounded-lg bg-surface p-2">{muscleComparison?.evidenceStatus === "ESTABLISHED" && muscleComparison.signal === "higher" ? <ArrowUpRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}Muscle {historyChange(muscleComparison, "kg")}</p>
                     </div>
                   ) : null}
                   {scan.sourceImages?.[0]?.url ? (

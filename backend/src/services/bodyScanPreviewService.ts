@@ -3,7 +3,7 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { createBodyScanExplanationReply, createBodyScanFollowUpReply } from "../integrations/openai";
 import { AuthUser } from "../middleware/auth";
-import { BodyCompositionScan, bodyCompositionScanFromDb } from "./bodyCompositionService";
+import { BodyCompositionScan, bodyCompositionScanFromDb, getTrustedBodyCompositionHistory } from "./bodyCompositionService";
 import { logAiUsage } from "./aiUsageService";
 
 export const BODY_SCAN_EXPLANATION_PROMPT_VERSION = "body-scan-introductory-v1";
@@ -102,10 +102,10 @@ export function introductoryBaseline(scan: BodyCompositionScan | null) {
 
 export async function latestConfirmedBodyScan(userId: string) {
   const result = await query(
-    `select * from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = 'introductory' order by scan_date desc, created_at desc limit 1`,
+    `select * from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = 'introductory' order by scan_date desc, created_at desc limit 20`,
     [userId]
   );
-  return result.rows[0] ? bodyCompositionScanFromDb(result.rows[0]) : null;
+  return getTrustedBodyCompositionHistory(result.rows.map((row) => bodyCompositionScanFromDb(row))).latestConfirmedScan;
 }
 
 export async function confirmedBodyScanById(userId: string, scanId: string) {
@@ -113,7 +113,7 @@ export async function confirmedBodyScanById(userId: string, scanId: string) {
     `select * from body_composition_scans where id = $1 and user_id = $2 and user_confirmed = true and experience_scope = 'introductory' limit 1`,
     [scanId, userId]
   );
-  return result.rows[0] ? bodyCompositionScanFromDb(result.rows[0]) : null;
+  return result.rows[0] ? getTrustedBodyCompositionHistory([bodyCompositionScanFromDb(result.rows[0])]).latestConfirmedScan : null;
 }
 
 async function baselineProfile(userId: string): Promise<BaselineProfile> {

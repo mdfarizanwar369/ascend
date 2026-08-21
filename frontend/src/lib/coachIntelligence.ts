@@ -40,15 +40,6 @@ function foodLogsInWindow(foodLogs: FoodLogLike[], startDaysAgo: number, endDays
   }).length;
 }
 
-function bodyFatPlateau(scans: BodyCompositionScan[]) {
-  const withBodyFat = scans.filter((scan) => numberOrNull(scan.bodyFatPercent) !== null).slice(0, 3);
-  if (withBodyFat.length < 3) return false;
-  const newest = numberOrNull(withBodyFat[0].bodyFatPercent);
-  const oldest = numberOrNull(withBodyFat[withBodyFat.length - 1].bodyFatPercent);
-  if (newest === null || oldest === null) return false;
-  return oldest - newest < 0.3;
-}
-
 export function buildAthleteCoachInsights(input: {
   athlete?: Pick<AthleteDashboard, "profile"> | null;
   summary: BodyCompositionSummary | null;
@@ -59,28 +50,34 @@ export function buildAthleteCoachInsights(input: {
   const scans = input.scans ?? [];
   const foodLogs = input.foodLogs ?? [];
   const latest = input.summary?.latestScan ?? scans[0] ?? null;
-  const previous = input.summary?.previousScan ?? scans[1] ?? null;
-  const latestMuscle = numberOrNull(latest?.skeletalMuscleMassKg ?? latest?.muscleMassKg);
-  const previousMuscle = numberOrNull(previous?.skeletalMuscleMassKg ?? previous?.muscleMassKg);
-  const latestBodyFat = numberOrNull(latest?.bodyFatPercent);
-  const previousBodyFat = numberOrNull(previous?.bodyFatPercent);
+  const comparison = input.summary?.comparison;
+  const muscleComparison = comparison?.metrics.find((metric) => metric.metric === "Skeletal Muscle") ?? null;
+  const bodyFatComparison = comparison?.metrics.find((metric) => metric.metric === "Body Fat") ?? null;
 
-  if (latestMuscle !== null && previousMuscle !== null && latestMuscle < previousMuscle - 0.2) {
+  if (muscleComparison?.evidenceStatus === "ESTABLISHED" && muscleComparison.meaningful && muscleComparison.signal === "lower") {
     insights.push({
       tone: "red",
-      title: "Muscle loss detected",
-      explanation: `Skeletal muscle is down by ${(previousMuscle - latestMuscle).toFixed(1)}kg since the previous scan.`,
-      action: "Review protein intake and resistance training.",
+      title: "Lower muscle trend",
+      explanation: muscleComparison.message,
+      action: "Recheck the scan conditions, then review protein, recovery, and resistance training.",
       priority: 100
+    });
+  } else if (muscleComparison?.evidenceStatus === "PROVISIONAL" && muscleComparison.meaningful && muscleComparison.signal === "lower") {
+    insights.push({
+      tone: "yellow",
+      title: "Muscle reading needs confirmation",
+      explanation: muscleComparison.message,
+      action: "Compare one more scan under similar conditions before drawing a conclusion.",
+      priority: 55
     });
   }
 
-  if (bodyFatPlateau(scans)) {
+  if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "no_clear_change") {
     insights.push({
       tone: "orange",
-      title: "Body fat plateau",
-      explanation: "Body fat has not meaningfully improved across the recent scans.",
-      action: "Consider reviewing calorie intake or increasing activity.",
+      title: "Body fat trend is steady",
+      explanation: "Three readings from the same recorded scanner model over at least six weeks show no clear movement beyond the comparison caution range.",
+      action: "Review recent consistency before adjusting the plan.",
       priority: 80
     });
   }
@@ -116,11 +113,11 @@ export function buildAthleteCoachInsights(input: {
     });
   }
 
-  if (latestBodyFat !== null && previousBodyFat !== null && latestBodyFat < previousBodyFat - 0.3 && (latestMuscle ?? 0) >= (previousMuscle ?? 0) - 0.1) {
+  if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
     insights.push({
       tone: "green",
       title: "Excellent progress",
-      explanation: "Body fat decreased while muscle stayed stable or improved.",
+      explanation: "The body-fat reading is lower without a clear decline in the skeletal-muscle reading.",
       action: "Continue current plan.",
       priority: 40
     });

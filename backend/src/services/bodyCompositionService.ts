@@ -1,4 +1,11 @@
-import { GoalType, NutritionTargetInput } from "@ascend/shared";
+import { NutritionTargetInput } from "@ascend/shared";
+import {
+  BodyCompositionComparison,
+  bodyCompositionDateMs,
+  buildBodyCompositionComparison,
+  isExtremeBodyCompositionChange,
+  normalizeBodyCompositionMachine
+} from "./bodyCompositionComparisonService";
 
 export type BodyCompositionImportSource = "ai_import" | "manual_entry";
 
@@ -65,7 +72,20 @@ export type BodyCompositionSummary = {
   trends: BodyCompositionTrend[];
   coachAlerts: Array<{ type: string; severity: "positive" | "medium" | "high"; message: string }>;
   insights: string[];
+  comparison: BodyCompositionComparison;
   nutritionDataSource: "Profile Only" | "Profile + Body Scan" | "Profile + Body Scan History";
+};
+
+export type BodyCompositionScanFlag = "low_extraction_confidence" | "unknown_scanner" | "extreme_change";
+export type BodyCompositionExcludedReason = "unconfirmed" | "invalid_scan" | "suspicious_duplicate";
+
+export type TrustedBodyCompositionHistory = {
+  confirmedHistory: BodyCompositionScan[];
+  latestConfirmedScan: BodyCompositionScan | null;
+  previousConfirmedScan: BodyCompositionScan | null;
+  draftScans: BodyCompositionScan[];
+  excludedScans: Array<{ scan: BodyCompositionScan; reasons: BodyCompositionExcludedReason[]; validationErrors: string[] }>;
+  flags: Array<{ scanId: string | null; scanDate: string; flags: BodyCompositionScanFlag[] }>;
 };
 
 export function bodyCompositionScanFromDb(row: Record<string, unknown>): BodyCompositionScan {
@@ -132,9 +152,7 @@ function rounded(value: number | null, decimals = 1) {
 }
 
 function dateMs(value?: string | null) {
-  if (!value) return null;
-  const time = new Date(`${value.slice(0, 10)}T00:00:00Z`).getTime();
-  return Number.isFinite(time) ? time : null;
+  return bodyCompositionDateMs(value);
 }
 
 function metric(scan: BodyCompositionScan | null | undefined, key: keyof BodyCompositionScanInput) {
@@ -144,26 +162,122 @@ function metric(scan: BodyCompositionScan | null | undefined, key: keyof BodyCom
 
 export function validateBodyCompositionScan(input: BodyCompositionScanInput) {
   const errors: string[] = [];
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.scanDate)) errors.push("Scan date must be YYYY-MM-DD.");
+  const parsedScanDate = bodyCompositionDateMs(input.scanDate);
+  if (parsedScanDate === null) errors.push("Scan date must be a real calendar date in YYYY-MM-DD format.");
+  else if (parsedScanDate > Date.now()) errors.push("Scan date cannot be in the future.");
   if (!["ai_import", "manual_entry"].includes(input.importSource)) errors.push("Import source is invalid.");
 
   for (const [key, [min, max]] of Object.entries(metricRanges)) {
-    const value = toNumber(input[key as keyof BodyCompositionScanInput]);
+    const rawValue = input[key as keyof BodyCompositionScanInput];
+    const value = toNumber(rawValue);
+    if (rawValue !== null && rawValue !== undefined && rawValue !== "" && value === null) {
+      errors.push(`${key} must be a valid number.`);
+      continue;
+    }
     if (value === null) continue;
     if (value < min || value > max) errors.push(`${key} must be between ${min} and ${max}.`);
   }
 
-  if (input.weightKg && input.fatMassKg && input.fatMassKg > input.weightKg) {
+  const weightKg = toNumber(input.weightKg);
+  const fatMassKg = toNumber(input.fatMassKg);
+  const leanBodyMassKg = toNumber(input.leanBodyMassKg);
+  const estimatedLeanBodyMassKg = toNumber(input.estimatedLeanBodyMassKg);
+  const skeletalMuscleMassKg = toNumber(input.skeletalMuscleMassKg);
+  const muscleMassKg = toNumber(input.muscleMassKg);
+  const bodyFatPercent = toNumber(input.bodyFatPercent);
+  const measurableFields = Object.keys(metricRanges).filter((key) => key !== "confidenceScore" && toNumber(input[key as keyof BodyCompositionScanInput]) !== null);
+
+  if (measurableFields.length === 0) errors.push("At least one body composition measurement is required.");
+  if (weightKg !== null && fatMassKg !== null && fatMassKg > weightKg) {
     errors.push("Fat mass cannot be higher than total weight.");
   }
-  if (input.weightKg && input.leanBodyMassKg && input.leanBodyMassKg > input.weightKg) {
+  if (weightKg !== null && leanBodyMassKg !== null && leanBodyMassKg > weightKg) {
     errors.push("Lean body mass cannot be higher than total weight.");
+  }
+  if (weightKg !== null && estimatedLeanBodyMassKg !== null && estimatedLeanBodyMassKg > weightKg) errors.push("Estimated lean body mass cannot be higher than total weight.");
+  if (weightKg !== null && skeletalMuscleMassKg !== null && skeletalMuscleMassKg > weightKg * 0.8) errors.push("Skeletal muscle mass is not plausible for the recorded total weight.");
+  if (weightKg !== null && muscleMassKg !== null && muscleMassKg > weightKg) errors.push("Muscle mass cannot be higher than total weight.");
+  if (weightKg !== null && leanBodyMassKg !== null && fatMassKg !== null && leanBodyMassKg + fatMassKg > weightKg * 1.1) {
+    errors.push("Lean mass and fat mass are inconsistent with total weight.");
+  }
+  if (weightKg !== null && bodyFatPercent !== null && fatMassKg !== null) {
+    const expectedFatMass = weightKg * bodyFatPercent / 100;
+    if (Math.abs(expectedFatMass - fatMassKg) > Math.max(3, weightKg * 0.08)) errors.push("Fat mass is inconsistent with weight and body fat percentage.");
   }
   if (input.machine && input.machine.length > 120) errors.push("Machine name is too long.");
   if (input.notes && input.notes.length > 2000) errors.push("Notes are too long.");
   if ((input.sourceImages?.length ?? 0) > 6) errors.push("A scan can include at most 6 images.");
 
   return { valid: errors.length === 0, errors };
+}
+
+function scanFingerprint(scan: BodyCompositionScan) {
+  const values = [
+    scan.weightKg,
+    scan.bmi,
+    scan.bodyFatPercent,
+    scan.fatMassKg,
+    scan.leanBodyMassKg,
+    scan.estimatedLeanBodyMassKg,
+    scan.skeletalMuscleMassKg,
+    scan.muscleMassKg,
+    scan.visceralFat,
+    scan.bodyWaterPercent,
+    scan.bmrKcal,
+    scan.metabolicAge
+  ]
+    .map((value) => toNumber(value)?.toFixed(2) ?? "-")
+    .join("|");
+  return `${scan.scanDate}|${normalizeBodyCompositionMachine(scan.machine) ?? "unknown"}|${values}`;
+}
+
+export function areSuspiciousDuplicateBodyCompositionScans(left: BodyCompositionScan, right: BodyCompositionScan) {
+  return scanFingerprint(left) === scanFingerprint(right);
+}
+
+export function getTrustedBodyCompositionHistory(scans: BodyCompositionScan[]): TrustedBodyCompositionHistory {
+  const draftScans: BodyCompositionScan[] = [];
+  const excludedScans: TrustedBodyCompositionHistory["excludedScans"] = [];
+  const candidates: BodyCompositionScan[] = [];
+  const fingerprints = new Set<string>();
+
+  for (const scan of scans) {
+    if (scan.userConfirmed === false) {
+      draftScans.push(scan);
+      excludedScans.push({ scan, reasons: ["unconfirmed"], validationErrors: [] });
+      continue;
+    }
+    const validation = validateBodyCompositionScan(scan);
+    if (!validation.valid) {
+      excludedScans.push({ scan, reasons: ["invalid_scan"], validationErrors: validation.errors });
+      continue;
+    }
+    const fingerprint = scanFingerprint(scan);
+    if (fingerprints.has(fingerprint)) {
+      excludedScans.push({ scan, reasons: ["suspicious_duplicate"], validationErrors: [] });
+      continue;
+    }
+    fingerprints.add(fingerprint);
+    candidates.push(scan);
+  }
+
+  const confirmedHistory = candidates.sort((left, right) => (dateMs(right.scanDate) ?? 0) - (dateMs(left.scanDate) ?? 0));
+  const flags = confirmedHistory.map((scan, index) => {
+    const scanFlags: BodyCompositionScanFlag[] = [];
+    if (!normalizeBodyCompositionMachine(scan.machine)) scanFlags.push("unknown_scanner");
+    if (scan.importSource === "ai_import" && (toNumber(scan.confidenceScore) ?? 0) < 0.65) scanFlags.push("low_extraction_confidence");
+    if (confirmedHistory[index + 1] && isExtremeBodyCompositionChange(scan, confirmedHistory[index + 1])) scanFlags.push("extreme_change");
+    return { scanId: scan.id ?? null, scanDate: scan.scanDate, flags: scanFlags };
+  }).filter((entry) => entry.flags.length > 0);
+
+  return {
+    confirmedHistory,
+    latestConfirmedScan: confirmedHistory[0] ?? null,
+    previousConfirmedScan: confirmedHistory[1] ?? null,
+    draftScans,
+    excludedScans,
+    flags
+  };
 }
 
 export function normalizeBodyCompositionScan(input: BodyCompositionScanInput): BodyCompositionScanInput {
@@ -233,10 +347,13 @@ export function mergeBodyCompositionDrafts(drafts: BodyCompositionScanInput[]) {
   return normalizeBodyCompositionScan(merged);
 }
 
-export function calculateBodyCompositionDerived(scans: BodyCompositionScan[], profile?: NutritionTargetInput): BodyCompositionDerived {
+export function calculateBodyCompositionDerived(
+  scans: BodyCompositionScan[],
+  profile?: NutritionTargetInput,
+  comparison = buildBodyCompositionComparison(scans)
+): BodyCompositionDerived {
   const ordered = [...scans].sort((a, b) => (dateMs(a.scanDate) ?? 0) - (dateMs(b.scanDate) ?? 0));
   const latest = ordered[ordered.length - 1] ?? null;
-  const previous = ordered[ordered.length - 2] ?? null;
   const weightKg = metric(latest, "weightKg");
   const heightM = toNumber(profile?.heightCm) ? Number(profile?.heightCm) / 100 : null;
   const fatMassKg = metric(latest, "fatMassKg");
@@ -245,136 +362,138 @@ export function calculateBodyCompositionDerived(scans: BodyCompositionScan[], pr
   const ffmi = heightM && estimatedLeanBodyMassKg ? estimatedLeanBodyMassKg / (heightM * heightM) : null;
   const bmr = metric(latest, "bmrKcal");
   const activityMultiplier = profile?.activityLevel === "high" ? 1.7 : profile?.activityLevel === "low" ? 1.35 : 1.5;
-
-  const first = ordered[0] ?? null;
-  const days = first && latest ? ((dateMs(latest.scanDate) ?? 0) - (dateMs(first.scanDate) ?? 0)) / 86_400_000 : 0;
-  const fatLossRate = days >= 14 ? ((metric(first, "fatMassKg") ?? 0) - (fatMassKg ?? 0)) / (days / 7) : null;
-  const muscleGainRate = days >= 28 ? ((metric(latest, "skeletalMuscleMassKg") ?? metric(latest, "muscleMassKg") ?? 0) - (metric(first, "skeletalMuscleMassKg") ?? metric(first, "muscleMassKg") ?? 0)) / (days / 30.4) : null;
-  const bodyFatChange = previous ? (metric(previous, "bodyFatPercent") ?? 0) - (metric(latest, "bodyFatPercent") ?? 0) : null;
-  const muscleChange = previous ? (metric(latest, "skeletalMuscleMassKg") ?? metric(latest, "muscleMassKg") ?? 0) - (metric(previous, "skeletalMuscleMassKg") ?? metric(previous, "muscleMassKg") ?? 0) : null;
-
-  let goalEtaWeeks: number | null = null;
-  const targetWeight = toNumber(profile?.targetWeightKg);
-  const goal = profile?.goalType;
-  if (targetWeight && weightKg && ordered.length >= 2) {
-    const latestDate = dateMs(latest.scanDate) ?? 0;
-    const previousDate = dateMs(previous?.scanDate) ?? 0;
-    const weeks = (latestDate - previousDate) / (7 * 86_400_000);
-    const weeklyChange = weeks > 0 ? (weightKg - (metric(previous, "weightKg") ?? weightKg)) / weeks : 0;
-    if (goal === "fat_loss" && weeklyChange < -0.05) goalEtaWeeks = Math.max(0, (weightKg - targetWeight) / Math.abs(weeklyChange));
-    if (goal === "muscle_gain" && weeklyChange > 0.05) goalEtaWeeks = Math.max(0, (targetWeight - weightKg) / weeklyChange);
-  }
+  const fatMassComparison = comparison.metrics.find((entry) => entry.metric === "Fat Mass" && entry.evidenceStatus === "ESTABLISHED") ?? null;
+  const muscleComparison = comparison.metrics.find((entry) => entry.metric === "Skeletal Muscle" && entry.evidenceStatus === "ESTABLISHED") ?? null;
+  const intervalWeeks = comparison.daysBetweenScans ? comparison.daysBetweenScans / 7 : null;
+  const intervalMonths = comparison.daysBetweenScans ? comparison.daysBetweenScans / 30.4 : null;
+  const fatLossRate = fatMassComparison?.signal === "lower" && intervalWeeks
+    ? Math.abs(fatMassComparison.change ?? 0) / intervalWeeks
+    : null;
+  const muscleGainRate = muscleComparison?.signal === "higher" && intervalMonths
+    ? Math.abs(muscleComparison.change ?? 0) / intervalMonths
+    : null;
 
   return {
     fatFreeMassKg: rounded(estimatedLeanBodyMassKg, 2),
     estimatedLeanBodyMassKg: rounded(estimatedLeanBodyMassKg, 2),
     ffmi: rounded(ffmi, 2),
     estimatedDailyEnergyNeedsKcal: bmr ? Math.round(bmr * activityMultiplier) : null,
-    bodyRecompositionIndex: rounded((bodyFatChange ?? 0) * 8 + (muscleChange ?? 0) * 6, 1),
+    bodyRecompositionIndex: null,
     rateOfFatLossKgPerWeek: rounded(fatLossRate, 2),
     rateOfMuscleGainKgPerMonth: rounded(muscleGainRate, 2),
-    goalEtaWeeks: rounded(goalEtaWeeks, 1),
-    weeklyProgressPercent: rounded(bodyFatChange !== null || muscleChange !== null ? Math.max(-100, Math.min(100, (bodyFatChange ?? 0) * 10 + (muscleChange ?? 0) * 8)) : null, 1),
-    monthlyProgressPercent: rounded(days >= 28 && first ? Math.max(-100, Math.min(100, ((metric(first, "bodyFatPercent") ?? 0) - (metric(latest, "bodyFatPercent") ?? 0)) * 8 + ((metric(latest, "skeletalMuscleMassKg") ?? 0) - (metric(first, "skeletalMuscleMassKg") ?? 0)) * 6)) : null, 1)
+    goalEtaWeeks: null,
+    weeklyProgressPercent: null,
+    monthlyProgressPercent: null
   };
 }
 
-function scoreScan(scan: BodyCompositionScan | null, previous: BodyCompositionScan | null, consistency: number) {
+function scoreScan(scan: BodyCompositionScan | null) {
   if (!scan) return null;
   let score = 55;
   const bodyFat = metric(scan, "bodyFatPercent");
   const visceral = metric(scan, "visceralFat");
   const water = metric(scan, "bodyWaterPercent");
-  const muscle = metric(scan, "skeletalMuscleMassKg") ?? metric(scan, "muscleMassKg");
-  const previousBodyFat = metric(previous, "bodyFatPercent");
-  const previousMuscle = metric(previous, "skeletalMuscleMassKg") ?? metric(previous, "muscleMassKg");
 
   if (bodyFat !== null) score += bodyFat < 18 ? 12 : bodyFat < 25 ? 8 : bodyFat < 35 ? 2 : -6;
   if (visceral !== null) score += visceral < 10 ? 8 : visceral <= 14 ? 2 : -8;
   if (water !== null) score += water >= 45 && water <= 65 ? 6 : -4;
-  if (previousBodyFat !== null && bodyFat !== null) score += Math.max(-12, Math.min(12, (previousBodyFat - bodyFat) * 5));
-  if (previousMuscle !== null && muscle !== null) score += Math.max(-10, Math.min(10, (muscle - previousMuscle) * 4));
-  score += Math.min(10, consistency);
-
   return Math.round(Math.max(0, Math.min(100, score)));
 }
 
-export function calculateDnaScore(scans: BodyCompositionScan[]) {
+export function calculateDnaScore(scans: BodyCompositionScan[], comparison = buildBodyCompositionComparison(scans)) {
   const ordered = [...scans].sort((a, b) => (dateMs(a.scanDate) ?? 0) - (dateMs(b.scanDate) ?? 0));
   const latest = ordered[ordered.length - 1] ?? null;
   const previous = ordered[ordered.length - 2] ?? null;
-  const consistency = Math.min(10, ordered.length * 2);
-  const current = scoreScan(latest, previous, consistency);
-  const previousScore = scoreScan(previous, ordered[ordered.length - 3] ?? null, Math.max(0, consistency - 2));
+  const current = scoreScan(latest);
+  const previousScore = scoreScan(previous);
+  const dnaMetricLabels = ["Body Fat", "Visceral Fat", "Body Water"];
+  const availableDnaMetrics = comparison.metrics.filter((entry) => dnaMetricLabels.includes(entry.metric) && entry.current !== null && entry.previous !== null);
+  const dnaChangeEstablished = availableDnaMetrics.length > 0
+    && availableDnaMetrics.every((entry) => entry.evidenceStatus === "ESTABLISHED");
   return {
     current,
     previous: previousScore,
-    change: current !== null && previousScore !== null ? current - previousScore : null,
+    change: dnaChangeEstablished && current !== null && previousScore !== null ? current - previousScore : null,
     label: "Experimental"
   };
 }
 
 export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profile?: NutritionTargetInput): BodyCompositionSummary {
-  const orderedDesc = [...scans].sort((a, b) => (dateMs(b.scanDate) ?? 0) - (dateMs(a.scanDate) ?? 0));
+  const trustedHistory = getTrustedBodyCompositionHistory(scans);
+  const orderedDesc = trustedHistory.confirmedHistory;
   const latest = orderedDesc[0] ?? null;
   const previous = orderedDesc[1] ?? null;
-  const derived = calculateBodyCompositionDerived(scans, profile);
-  const dnaScore = calculateDnaScore(scans);
-  const trendMetrics: Array<[string, keyof BodyCompositionScanInput, "min" | "max"]> = [
-    ["Weight", "weightKg", profile?.goalType === "muscle_gain" ? "max" : "min"],
-    ["Body Fat", "bodyFatPercent", "min"],
-    ["Muscle", "muscleMassKg", "max"],
-    ["Skeletal Muscle", "skeletalMuscleMassKg", "max"],
-    ["Lean Mass", "leanBodyMassKg", "max"],
-    ["Fat Mass", "fatMassKg", "min"],
-    ["Visceral Fat", "visceralFat", "min"],
-    ["Body Water", "bodyWaterPercent", "max"],
-    ["BMR", "bmrKcal", "max"],
-    ["Metabolic Age", "metabolicAge", "min"]
+  const comparison = buildBodyCompositionComparison(orderedDesc);
+  const derived = calculateBodyCompositionDerived(orderedDesc, profile, comparison);
+  const dnaScore = calculateDnaScore(orderedDesc, comparison);
+  const trendMetrics: Array<[string, keyof BodyCompositionScanInput]> = [
+    ["Weight", "weightKg"],
+    ["Body Fat", "bodyFatPercent"],
+    ["Muscle", "muscleMassKg"],
+    ["Skeletal Muscle", "skeletalMuscleMassKg"],
+    ["Lean Mass", "leanBodyMassKg"],
+    ["Fat Mass", "fatMassKg"],
+    ["Visceral Fat", "visceralFat"],
+    ["Body Water", "bodyWaterPercent"],
+    ["BMR", "bmrKcal"],
+    ["Metabolic Age", "metabolicAge"]
   ];
-  const trends = trendMetrics.map(([label, key, best]) => {
-    const values = orderedDesc.map((scan) => metric(scan, key)).filter((value): value is number => value !== null);
+  const trends = trendMetrics.map(([label, key]) => {
     const current = metric(latest, key);
     const prev = metric(previous, key);
+    const comparisonLabel = label === "Muscle" ? "Muscle Mass" : label;
+    const metricComparison = comparison.metrics.find((entry) => entry.metric === comparisonLabel) ?? null;
+    const established = metricComparison?.evidenceStatus === "ESTABLISHED";
     return {
       metric: label,
       current,
       previous: prev,
-      bestEver: values.length ? (best === "min" ? Math.min(...values) : Math.max(...values)) : null,
-      change: current !== null && prev !== null ? rounded(current - prev, 2) : null
+      bestEver: null,
+      change: established && current !== null && prev !== null ? rounded(current - prev, 2) : null
     };
   });
 
   const coachAlerts: BodyCompositionSummary["coachAlerts"] = [];
-  const bodyFatChange = trends.find((trend) => trend.metric === "Body Fat")?.change ?? null;
-  const muscleChange = trends.find((trend) => trend.metric === "Skeletal Muscle")?.change ?? trends.find((trend) => trend.metric === "Muscle")?.change ?? null;
-  const weightChange = trends.find((trend) => trend.metric === "Weight")?.change ?? null;
-  const visceralChange = trends.find((trend) => trend.metric === "Visceral Fat")?.change ?? null;
+  const comparisonMetric = (label: string) => comparison.metrics.find((entry) => entry.metric === label) ?? null;
+  const bodyFatComparison = comparisonMetric("Body Fat");
+  const muscleComparison = comparisonMetric("Skeletal Muscle");
+  const weightComparison = comparisonMetric("Weight");
+  const visceralComparison = comparisonMetric("Visceral Fat");
 
-  if (muscleChange !== null && muscleChange < -0.5) coachAlerts.push({ type: "muscle_loss", severity: "high", message: "Muscle loss detected. Review protein, recovery and training load." });
-  if (weightChange !== null && weightChange < -1.5) coachAlerts.push({ type: "rapid_weight_loss", severity: "high", message: "Rapid weight loss detected. Avoid aggressive deficits." });
-  if (bodyFatChange !== null && bodyFatChange > 1) coachAlerts.push({ type: "body_fat_increasing", severity: "medium", message: "Body fat is trending upward. Review recent consistency." });
-  if (visceralChange !== null && visceralChange > 1) coachAlerts.push({ type: "visceral_fat_increasing", severity: "medium", message: "Visceral fat is increasing. Monitor nutrition consistency." });
-  if (bodyFatChange !== null && bodyFatChange < -0.5 && (muscleChange ?? 0) >= 0) coachAlerts.push({ type: "excellent_progress", severity: "positive", message: "Excellent recomposition: body fat decreased while muscle was maintained or improved." });
+  if (muscleComparison?.evidenceStatus === "ESTABLISHED" && muscleComparison.meaningful && muscleComparison.signal === "lower") {
+    coachAlerts.push({ type: "muscle_loss", severity: "high", message: `${muscleComparison.message} Recheck under similar conditions and review protein, recovery, and training load.` });
+  }
+  if (weightComparison?.evidenceStatus === "ESTABLISHED" && weightComparison.meaningful && weightComparison.signal === "lower" && comparison.daysBetweenScans) {
+    const previousWeight = weightComparison.previous ?? 0;
+    const weeklyPercent = previousWeight > 0
+      ? (Math.abs(weightComparison.change ?? 0) / previousWeight) / (comparison.daysBetweenScans / 7) * 100
+      : 0;
+    if (weeklyPercent > 1) coachAlerts.push({ type: "rapid_weight_loss", severity: "high", message: `${weightComparison.message} Review whether the current pace is intentional and sustainable.` });
+  }
+  if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "higher") {
+    coachAlerts.push({ type: "body_fat_increasing", severity: "medium", message: `${bodyFatComparison.message} Repeat under similar conditions before changing the plan.` });
+  }
+  if (visceralComparison?.evidenceStatus === "ESTABLISHED" && visceralComparison.meaningful && visceralComparison.signal === "higher") {
+    coachAlerts.push({ type: "visceral_fat_increasing", severity: "medium", message: `${visceralComparison.message} Confirm the direction with another consistently timed scan.` });
+  }
+  if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
+    coachAlerts.push({ type: "excellent_progress", severity: "positive", message: "The body-fat reading is lower without a clear decline in the skeletal-muscle reading." });
+  }
   if (!latest || ((Date.now() - (dateMs(latest.scanDate) ?? Date.now())) / 86_400_000) > 45) coachAlerts.push({ type: "scan_overdue", severity: "medium", message: "No recent body composition scan uploaded." });
 
-  const insights = [
-    bodyFatChange !== null && bodyFatChange < 0 ? `Body fat improved by ${Math.abs(bodyFatChange).toFixed(1)} percentage points since the previous scan.` : null,
-    muscleChange !== null && muscleChange > 0 ? `Muscle improved by ${muscleChange.toFixed(1)}kg since the previous scan.` : null,
-    derived.rateOfFatLossKgPerWeek !== null && derived.rateOfFatLossKgPerWeek > 0 ? `Average fat loss is ${derived.rateOfFatLossKgPerWeek.toFixed(2)}kg per week.` : null,
-    derived.goalEtaWeeks !== null ? `Estimated goal timeline is about ${Math.round(derived.goalEtaWeeks)} weeks if the current trend continues.` : null
-  ].filter((item): item is string => Boolean(item));
+  const insights = comparison.metrics.filter((entry) => entry.meaningful).map((entry) => entry.message);
 
   return {
     latestScan: latest,
     previousScan: previous,
-    scanCount: scans.length,
+    scanCount: orderedDesc.length,
     derived,
     dnaScore,
     trends,
     coachAlerts,
     insights,
-    nutritionDataSource: scans.length > 1 ? "Profile + Body Scan History" : scans.length === 1 ? "Profile + Body Scan" : "Profile Only"
+    comparison,
+    nutritionDataSource: orderedDesc.length > 1 ? "Profile + Body Scan History" : orderedDesc.length === 1 ? "Profile + Body Scan" : "Profile Only"
   };
 }
 
@@ -390,7 +509,7 @@ export function bodyCompositionForNutrition(scans: BodyCompositionScan[]) {
     bmrKcal: metric(latest, "bmrKcal"),
     visceralFat: metric(latest, "visceralFat"),
     metabolicAge: metric(latest, "metabolicAge"),
-    scanCount: scans.length
+    scanCount: summary.scanCount
   };
 }
 
@@ -402,6 +521,12 @@ export function buildBodyCompositionAiPrompt() {
     "If multiple images show the same value, merge duplicates and prefer the clearest value.",
     "Many InBody reports use lb, not kg. Convert lb values to kg for every field ending in Kg. 1 lb = 0.453592 kg.",
     "For InBody Muscle-Fat Analysis, Weight, SMM and Body Fat Mass may be shown in lb; convert those to weightKg, skeletalMuscleMassKg and fatMassKg.",
+    "Keep muscle definitions separate: only values explicitly labelled Skeletal Muscle Mass or SMM belong in skeletalMuscleMassKg. Generic Muscle Mass belongs in muscleMassKg and must never be relabelled as skeletal muscle.",
+    "Keep lean definitions separate: Lean Body Mass or Fat Free Mass belongs in leanBodyMassKg. Do not place it in either muscle field.",
+    "For Tanita reports, put the value labelled Muscle Mass in muscleMassKg. Do not treat SMI, MM/BW, a segment value, or a muscle rating as whole-body skeletal muscle mass.",
+    "For Evolt reports, Skeletal Muscle Mass belongs in skeletalMuscleMassKg and Lean Body Mass belongs in leanBodyMassKg.",
+    "For seca reports, SMM or Skeletal Muscle Mass belongs in skeletalMuscleMassKg. Visceral Adipose Tissue reported in litres, kilograms, pounds, or square centimetres is not a visceral-fat level and must remain null.",
+    "Only put a percentage in bodyWaterPercent. Total Body Water shown in kg, lb, or litres must not be placed in bodyWaterPercent.",
     "For Segmental Lean Analysis, each segment often shows two rows: the top row is lb and the bottom row is percent. Put converted lb values in segmentalMuscle.*Kg and put percent values in segmentalMuscle.*Percent. Never put a percent value into a Kg field.",
     "For Visceral Fat Level, use the visible level number. For Basal Metabolic Rate, use the visible kcal number.",
     "confidenceScore must be a decimal from 0 to 1, not 0 to 10 or 0 to 100.",
@@ -413,7 +538,7 @@ export function buildBodyCompositionAiPrompt() {
 export function buildBodyCompositionCoachSummary(scans: BodyCompositionScan[]) {
   const summary = buildBodyCompositionSummary(scans);
   if (!summary.latestScan) return "No body composition scan is available yet.";
-  const highlights = summary.insights.length ? summary.insights.join(" ") : "A baseline scan is available. Upload another scan to unlock trend coaching.";
+  const highlights = summary.insights.length ? summary.insights.join(" ") : "A baseline scan is available. Future comparable scans can build trend evidence.";
   const alerts = summary.coachAlerts.filter((alert) => alert.severity !== "positive").map((alert) => alert.message).join(" ");
   return `${highlights}${alerts ? ` ${alerts}` : ""}`.trim();
 }
