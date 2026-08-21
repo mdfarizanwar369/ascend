@@ -441,7 +441,7 @@ export function buildBodyCompositionSummary(scans: BodyCompositionScan[], profil
   const trends = trendMetrics.map(([label, key]) => {
     const current = metric(latest, key);
     const prev = metric(previous, key);
-    const comparisonLabel = label === "Muscle" ? "Skeletal Muscle" : label;
+    const comparisonLabel = label === "Muscle" ? "Muscle Mass" : label;
     const metricComparison = comparison.metrics.find((entry) => entry.metric === comparisonLabel) ?? null;
     const established = metricComparison?.evidenceStatus === "ESTABLISHED";
     return {
@@ -521,6 +521,12 @@ export function buildBodyCompositionAiPrompt() {
     "If multiple images show the same value, merge duplicates and prefer the clearest value.",
     "Many InBody reports use lb, not kg. Convert lb values to kg for every field ending in Kg. 1 lb = 0.453592 kg.",
     "For InBody Muscle-Fat Analysis, Weight, SMM and Body Fat Mass may be shown in lb; convert those to weightKg, skeletalMuscleMassKg and fatMassKg.",
+    "Keep muscle definitions separate: only values explicitly labelled Skeletal Muscle Mass or SMM belong in skeletalMuscleMassKg. Generic Muscle Mass belongs in muscleMassKg and must never be relabelled as skeletal muscle.",
+    "Keep lean definitions separate: Lean Body Mass or Fat Free Mass belongs in leanBodyMassKg. Do not place it in either muscle field.",
+    "For Tanita reports, put the value labelled Muscle Mass in muscleMassKg. Do not treat SMI, MM/BW, a segment value, or a muscle rating as whole-body skeletal muscle mass.",
+    "For Evolt reports, Skeletal Muscle Mass belongs in skeletalMuscleMassKg and Lean Body Mass belongs in leanBodyMassKg.",
+    "For seca reports, SMM or Skeletal Muscle Mass belongs in skeletalMuscleMassKg. Visceral Adipose Tissue reported in litres, kilograms, pounds, or square centimetres is not a visceral-fat level and must remain null.",
+    "Only put a percentage in bodyWaterPercent. Total Body Water shown in kg, lb, or litres must not be placed in bodyWaterPercent.",
     "For Segmental Lean Analysis, each segment often shows two rows: the top row is lb and the bottom row is percent. Put converted lb values in segmentalMuscle.*Kg and put percent values in segmentalMuscle.*Percent. Never put a percent value into a Kg field.",
     "For Visceral Fat Level, use the visible level number. For Basal Metabolic Rate, use the visible kcal number.",
     "confidenceScore must be a decimal from 0 to 1, not 0 to 10 or 0 to 100.",

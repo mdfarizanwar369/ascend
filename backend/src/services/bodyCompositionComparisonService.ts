@@ -33,7 +33,6 @@ export type BodyCompositionComparison = {
 type ComparableMetric = {
   label: string;
   key: keyof BodyCompositionScan;
-  fallbackKey?: keyof BodyCompositionScan;
   unit: string;
   threshold: number;
 };
@@ -43,9 +42,11 @@ type ComparableMetric = {
 const comparableMetrics: ComparableMetric[] = [
   { label: "Weight", key: "weightKg", unit: "kg", threshold: 0.8 },
   { label: "Body Fat", key: "bodyFatPercent", unit: "percentage points", threshold: 2 },
-  { label: "Skeletal Muscle", key: "skeletalMuscleMassKg", fallbackKey: "muscleMassKg", unit: "kg", threshold: 0.8 },
+  { label: "Skeletal Muscle", key: "skeletalMuscleMassKg", unit: "kg", threshold: 0.8 },
+  { label: "Muscle Mass", key: "muscleMassKg", unit: "kg", threshold: 0.8 },
   { label: "Fat Mass", key: "fatMassKg", unit: "kg", threshold: 1 },
-  { label: "Lean Mass", key: "leanBodyMassKg", fallbackKey: "estimatedLeanBodyMassKg", unit: "kg", threshold: 1 },
+  { label: "Lean Mass", key: "leanBodyMassKg", unit: "kg", threshold: 1 },
+  { label: "Estimated Lean Mass", key: "estimatedLeanBodyMassKg", unit: "kg", threshold: 1 },
   { label: "Visceral Fat", key: "visceralFat", unit: "levels", threshold: 2 },
   { label: "Body Water", key: "bodyWaterPercent", unit: "percentage points", threshold: 2 },
   { label: "BMR", key: "bmrKcal", unit: "kcal", threshold: 50 },
@@ -58,7 +59,7 @@ function numeric(value: unknown) {
 }
 
 function metricValue(scan: BodyCompositionScan, metric: ComparableMetric) {
-  return numeric(scan[metric.key]) ?? (metric.fallbackKey ? numeric(scan[metric.fallbackKey]) : null);
+  return numeric(scan[metric.key]);
 }
 
 export function bodyCompositionDateMs(value?: string | null) {
@@ -100,13 +101,18 @@ export function isExtremeBodyCompositionChange(current: BodyCompositionScan, pre
   const currentBodyFat = numeric(current.bodyFatPercent);
   const previousBodyFat = numeric(previous.bodyFatPercent);
   const bodyFatChange = currentBodyFat !== null && previousBodyFat !== null ? Math.abs(currentBodyFat - previousBodyFat) : 0;
-  const currentMuscle = numeric(current.skeletalMuscleMassKg) ?? numeric(current.muscleMassKg);
-  const previousMuscle = numeric(previous.skeletalMuscleMassKg) ?? numeric(previous.muscleMassKg);
+  const currentSkeletalMuscle = numeric(current.skeletalMuscleMassKg);
+  const previousSkeletalMuscle = numeric(previous.skeletalMuscleMassKg);
+  const currentMuscle = numeric(current.muscleMassKg);
+  const previousMuscle = numeric(previous.muscleMassKg);
   const weightChangePercent = currentWeight !== null && previousWeight !== null && previousWeight > 0
     ? Math.abs(currentWeight - previousWeight) / previousWeight * 100
     : 0;
+  const skeletalMuscleChange = currentSkeletalMuscle !== null && previousSkeletalMuscle !== null
+    ? Math.abs(currentSkeletalMuscle - previousSkeletalMuscle)
+    : 0;
   const muscleChange = currentMuscle !== null && previousMuscle !== null ? Math.abs(currentMuscle - previousMuscle) : 0;
-  return weightChangePercent > 10 || bodyFatChange > 8 || muscleChange > 4;
+  return weightChangePercent > 10 || bodyFatChange > 8 || skeletalMuscleChange > 4 || muscleChange > 4;
 }
 
 function pairAssessment(current: BodyCompositionScan, previous: BodyCompositionScan, daysBetween: number, sameMachine: boolean | null) {
