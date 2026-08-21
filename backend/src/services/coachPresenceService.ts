@@ -177,7 +177,7 @@ async function getStats(userId: string): Promise<UserCoachPresenceStats> {
       ) as activity_days_7,
       (select score from ${momentumScoreTable} where user_id = $1 order by calculated_for_date desc limit 1) as latest_score,
       (select score from ${momentumScoreTable} where user_id = $1 order by calculated_for_date desc offset 1 limit 1) as previous_score,
-      (select created_at from body_composition_scans where user_id = $1 and user_confirmed = true order by scan_date desc, created_at desc limit 1) as latest_scan_at
+      (select created_at from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = 'athlete' order by scan_date desc, created_at desc limit 1) as latest_scan_at
     `,
     [userId]
   );

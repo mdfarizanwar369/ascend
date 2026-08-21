@@ -355,6 +355,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
         from body_composition_scans
         where user_id = $1
           and user_confirmed = true
+          and experience_scope = 'athlete'
         order by scan_date desc, created_at desc
         limit 1
         `,
@@ -366,6 +367,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
         from body_composition_scans
         where user_id = $1
           and user_confirmed = true
+          and experience_scope = 'athlete'
         order by scan_date desc, created_at desc
         limit 3
         `,
@@ -939,6 +941,7 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
           from body_composition_scans
           where user_id = $1
             and user_confirmed = true
+            and experience_scope = 'athlete'
           order by scan_date desc, created_at desc
           limit 1
           `,

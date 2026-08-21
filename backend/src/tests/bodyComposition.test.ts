@@ -112,6 +112,15 @@ describe("Body Composition Engine", () => {
     expect(values[18]).toBe(JSON.stringify({ rightArmKg: 4.1 }));
     expect(values[19]).toBe(JSON.stringify({}));
     expect(values[24]).toBe(JSON.stringify([{ key: "body-composition/test/scan.jpg" }]));
+    expect(values[29]).toBe("athlete");
+
+    const introductoryValues = bodyCompositionScanToDbValues({
+      scanDate: "2026-06-26",
+      weightKg: 74.07,
+      importSource: "ai_import",
+      userConfirmed: true
+    }, "390b6a4f-a2fc-43c8-afcf-44324ca12fb2", "390b6a4f-a2fc-43c8-afcf-44324ca12fb2", "introductory");
+    expect(introductoryValues[29]).toBe("introductory");
   });
 
   it("validates scan history pagination before it reaches PostgreSQL", () => {

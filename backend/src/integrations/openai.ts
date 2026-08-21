@@ -1234,6 +1234,77 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   return fallback;
 }
 
+type BodyScanCoachingReply = {
+  text: string;
+  source: "ai" | "fallback";
+  provider: string;
+  model: string | null;
+};
+
+async function createBodyScanCoachingReply(
+  systemPrompt: string,
+  userPrompt: string,
+  fallback: string,
+  maxOutputTokens: number
+): Promise<BodyScanCoachingReply> {
+  const provider = env.AI_PROVIDER;
+  const model = provider === "gemini" ? env.GEMINI_MODEL : provider === "openai" ? env.OPENAI_MODEL : null;
+  if (!providerConfigured()) return { text: fallback, source: "fallback", provider, model };
+
+  try {
+    if (provider === "gemini") {
+      const response = await callGeminiWithOptions([{ text: `${systemPrompt}\n\n${userPrompt}` }], maxOutputTokens, {
+        attemptsPerModel: 1,
+        timeoutMs: 15_000,
+        responseMimeType: "application/json"
+      });
+      return { text: response.text, source: "ai", provider, model };
+    }
+
+    if (provider === "openai" && openaiClient) {
+      const response = await openaiClient.responses.create({
+        model: env.OPENAI_MODEL,
+        max_output_tokens: maxOutputTokens,
+        input: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ]
+      }, { timeout: 15_000 });
+      return { text: response.output_text, source: "ai", provider, model };
+    }
+  } catch {
+    return { text: fallback, source: "fallback", provider, model };
+  }
+
+  return { text: fallback, source: "fallback", provider, model };
+}
+
+export function createBodyScanExplanationReply(facts: unknown, fallbackJson: string) {
+  const systemPrompt = [
+    "You are Coach Zoe inside Ascend. Translate one confirmed body-composition scan into plain, calm fitness coaching for an everyday person.",
+    "The supplied JSON is the only source of truth. Never invent, recalculate, diagnose, or introduce a number that is not supplied.",
+    "This is a first-scan baseline, so do not claim progress, decline, trends, comparisons, or that a reading is medically healthy or unhealthy.",
+    "Explain what the available readings mean in context of the member's stated goal without using clinical jargon.",
+    "Return strict JSON with keys: headline, summary, importantNumbers, priorities, measurementNote, nextScanGuidance, safetyNote.",
+    "importantNumbers must contain 2 or 3 objects with label, value, meaning. priorities must contain 2 or 3 objects with title and action.",
+    "The combined user-facing copy should be approximately 150 to 200 words. Keep every sentence useful.",
+    "Mention that small body-composition readings can vary with hydration, food, glycogen, recent training, and time of day.",
+    "Do not make medical claims or prescribe an exact calorie intake."
+  ].join(" ");
+  return createBodyScanCoachingReply(systemPrompt, `Confirmed scan facts:\n${JSON.stringify(facts)}`, fallbackJson, 900);
+}
+
+export function createBodyScanFollowUpReply(input: { facts: unknown; explanation: unknown; question: string; fallbackJson: string }) {
+  const systemPrompt = [
+    "You are Coach Zoe answering one follow-up question about a confirmed first body-composition scan.",
+    "Use only the supplied scan facts and cached explanation. Never invent numbers, trends, diagnoses, or comparisons.",
+    "Answer the actual question in warm, plain language in no more than 120 words.",
+    "If the scan cannot support the requested conclusion, say so clearly and explain what can be concluded.",
+    "Return strict JSON with one key: answer."
+  ].join(" ");
+  return createBodyScanCoachingReply(systemPrompt, JSON.stringify({ facts: input.facts, explanation: input.explanation, question: input.question }), input.fallbackJson, 500);
+}
+
 export const TODAY_PRIORITY_PROMPT_VERSION = "today-priority-referee-v2";
 export const TODAY_PRIORITY_LEGACY_PROMPT_VERSION = "today-priority-legacy-v1";
 

@@ -1,7 +1,7 @@
 import { calculateAdaptiveNutritionTargets, NutritionTargets } from "@ascend/shared";
 import { z } from "zod";
 import { query } from "../db/pool";
-import { bodyCompositionForNutrition, bodyCompositionScanFromDb } from "./bodyCompositionService";
+import { BodyCompositionScan, bodyCompositionForNutrition, bodyCompositionScanFromDb } from "./bodyCompositionService";
 
 export type NutritionTargetSource = "coach_plan" | "member_custom" | "body_scan" | "ascend_recommendation";
 
@@ -127,6 +127,10 @@ export function applyNutritionTargetPrecedence(input: {
   };
 }
 
+export function selectBodyCompositionForNutrition(athleteModeEnabled: boolean, scans: BodyCompositionScan[]) {
+  return athleteModeEnabled ? bodyCompositionForNutrition(scans) : undefined;
+}
+
 export async function resolveNutritionTargets(userId: string): Promise<ResolvedNutritionTargets> {
   const [profileResult, weightsResult, coachPlanResult, preferenceResult] = await Promise.all([
     query<{
@@ -172,12 +176,14 @@ export async function resolveNutritionTargets(userId: string): Promise<ResolvedN
     ? await query(`
         select * from body_composition_scans
         where user_id = $1 and user_confirmed = true
+          and experience_scope = 'athlete'
         order by scan_date desc, created_at desc limit 10
       `, [userId])
     : { rows: [] };
-  const bodyComposition = profile.athlete_mode_enabled
-    ? bodyCompositionForNutrition(scans.rows.map(bodyCompositionScanFromDb))
-    : undefined;
+  const bodyComposition = selectBodyCompositionForNutrition(
+    profile.athlete_mode_enabled,
+    scans.rows.map(bodyCompositionScanFromDb)
+  );
   const latestWeight = weightsResult.rows[0]?.weight_kg ?? profile.starting_weight_kg;
   const recommended = calculateAdaptiveNutritionTargets({
     goalType: profile.goal_type,

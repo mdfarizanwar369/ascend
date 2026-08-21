@@ -44,6 +44,7 @@ meRouter.get("/me", requireAuth, async (req, res) => {
       from body_composition_scans
       where user_id = $1
         and user_confirmed = true
+        and experience_scope = 'athlete'
       order by scan_date desc, created_at desc
       limit 10
       `,
@@ -51,7 +52,14 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     );
     user.body_composition_nutrition = bodyCompositionForNutrition(scanResult.rows.map(bodyCompositionScanFromDb)) ?? null;
   }
-  res.json({ user: { ...user, is_platform_owner: req.user!.isPlatformOwner }, roles: req.user!.roles });
+  res.json({
+    user: {
+      ...user,
+      is_platform_owner: req.user!.isPlatformOwner,
+      body_scan_owner_preview_enabled: env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner
+    },
+    roles: req.user!.roles
+  });
 });
 
 meRouter.post("/me/return-mode/claim", requireAuth, async (req, res, next) => {

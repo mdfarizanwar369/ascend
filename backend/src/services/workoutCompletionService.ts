@@ -270,7 +270,7 @@ export async function resolveWorkoutWeightKg(userId: string) {
     `
     select coalesce(
       (select weight_kg from weight_logs where user_id = $1 order by logged_at desc limit 1),
-      (select weight_kg from body_composition_scans where user_id = $1 and user_confirmed = true order by scan_date desc, created_at desc limit 1),
+      (select weight_kg from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = 'athlete' order by scan_date desc, created_at desc limit 1),
       u.starting_weight_kg
     ) as weight_kg
     from users u

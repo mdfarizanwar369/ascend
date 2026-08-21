@@ -20,6 +20,15 @@ import {
 } from "../services/bodyCompositionService";
 import { imageDataUrlSchema } from "../utils/images";
 import { storageKeyBelongsToUser } from "../utils/storageOwnership";
+import {
+  bodyScanPreviewAccess,
+  confirmedBodyScanById,
+  createBodyScanFollowUp,
+  getCachedBodyScanExplanation,
+  getOrCreateBodyScanExplanation,
+  introductoryBaseline,
+  latestConfirmedBodyScan
+} from "../services/bodyScanPreviewService";
 
 export const bodyCompositionRouter = Router();
 
@@ -52,6 +61,8 @@ const scanSchema = z.object({
   userConfirmed: z.boolean().default(true)
 });
 const extractSchema = z.object({ images: z.array(imageDataUrlSchema).min(1).max(6) });
+const bodyScanIdSchema = z.string().uuid();
+const bodyScanFollowUpSchema = z.object({ question: z.string().trim().min(2).max(500) });
 export const bodyCompositionHistoryQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).default(0)
@@ -81,7 +92,12 @@ async function requireEnabledAthlete(userId: string) {
   return result.rows[0]?.enabled === true;
 }
 
-export function bodyCompositionScanToDbValues(scan: BodyCompositionScanInput, userId: string, actorId: string) {
+export function bodyCompositionScanToDbValues(
+  scan: BodyCompositionScanInput,
+  userId: string,
+  actorId: string,
+  experienceScope: "introductory" | "athlete" = "athlete"
+) {
   return [
     userId,
     scan.scanDate,
@@ -111,7 +127,8 @@ export function bodyCompositionScanToDbValues(scan: BodyCompositionScanInput, us
     scan.userConfirmed ?? true,
     scan.userConfirmed ? new Date() : null,
     actorId,
-    actorId
+    actorId,
+    experienceScope
   ];
 }
 
@@ -125,7 +142,7 @@ async function hydrateImages(scan: BodyCompositionScan) {
 
 async function getScans(userId: string, limit = 50, offset = 0) {
   const result = await query(
-    "select * from body_composition_scans where user_id = $1 order by scan_date desc, created_at desc limit $2 offset $3",
+    "select * from body_composition_scans where user_id = $1 and experience_scope = 'athlete' order by scan_date desc, created_at desc limit $2 offset $3",
     [userId, Math.min(Math.max(limit, 1), 100), Math.max(offset, 0)]
   );
   return Promise.all(result.rows.map((row) => hydrateImages(bodyCompositionScanFromDb(row))));
@@ -158,7 +175,12 @@ async function summaryFor(userId: string) {
   return buildBodyCompositionSummary(scans, profile);
 }
 
-async function saveScan(userId: string, actorId: string, body: unknown) {
+async function saveScan(
+  userId: string,
+  actorId: string,
+  body: unknown,
+  experienceScope: "introductory" | "athlete" = "athlete"
+) {
   bodyCompositionSaveLog("save_parse_started", { userId, actorId });
   const input = normalizeBodyCompositionScan(scanSchema.parse(body));
   if ((input.sourceImages ?? []).some((image) => image.key
@@ -184,7 +206,7 @@ async function saveScan(userId: string, actorId: string, body: unknown) {
     throw error;
   }
   bodyCompositionSaveLog("save_validation_complete", { userId });
-  const dbValues = bodyCompositionScanToDbValues(input, userId, actorId);
+  const dbValues = bodyCompositionScanToDbValues(input, userId, actorId, experienceScope);
   bodyCompositionSaveLog("save_db_insert_started", {
     userId,
     sourceImagesType: typeof dbValues[24],
@@ -200,9 +222,10 @@ async function saveScan(userId: string, actorId: string, body: unknown) {
       muscle_mass_kg, visceral_fat, body_water_percent, protein_percent,
       mineral_percent, bone_mass_kg, bmr_kcal, metabolic_age, segmental_muscle,
       segmental_fat, confidence_score, missing_fields, notes, import_source,
-      source_images, user_confirmed, confirmed_at, created_by_user_id, updated_by_user_id
+      source_images, user_confirmed, confirmed_at, created_by_user_id, updated_by_user_id,
+      experience_scope
     ) values (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30
     ) returning *
     `,
     dbValues
@@ -220,6 +243,27 @@ async function saveScan(userId: string, actorId: string, body: unknown) {
   return hydrated;
 }
 
+async function extractDraftForUser(userId: string, images: string[]) {
+  const draft = await extractBodyCompositionFromImages(images);
+  const uploaded = await Promise.allSettled(images.map((imageDataUrl) => uploadDataUrl(`body-composition/${userId}/${randomUUID()}.jpg`, imageDataUrl)));
+  const sourceImages = uploaded
+    .filter((result): result is PromiseFulfilledResult<{ key: string; storageConfigured: boolean }> => result.status === "fulfilled")
+    .map((result) => ({ key: result.value.key }));
+  const storageFailed = uploaded.some((result) => result.status === "rejected");
+  if (storageFailed) {
+    bodyCompositionRouteError("storage_partial_failure", {
+      rejectedCount: uploaded.filter((result) => result.status === "rejected").length
+    });
+  }
+  return {
+    ...draft,
+    sourceImages,
+    notes: storageFailed
+      ? `${draft.notes ? `${draft.notes} ` : ""}Scan image storage did not complete, but you can still review and save the values.`
+      : draft.notes
+  };
+}
+
 bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, async (req, res, next) => {
   const startedAt = Date.now();
   try {
@@ -233,37 +277,97 @@ bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, asy
       imageCount: input.images.length,
       imageBytes: input.images.map((image) => Buffer.byteLength(image, "utf8"))
     });
-    const draft = await extractBodyCompositionFromImages(input.images);
+    const draft = await extractDraftForUser(req.user!.id, input.images);
     bodyCompositionRouteLog("ai_extraction_complete", {
       durationMs: Date.now() - startedAt,
       confidenceScore: draft.confidenceScore,
       missingFields: draft.missingFields
     });
-    const uploaded = await Promise.allSettled(input.images.map((imageDataUrl) => uploadDataUrl(`body-composition/${req.user!.id}/${randomUUID()}.jpg`, imageDataUrl)));
-    const sourceImages = uploaded
-      .filter((result): result is PromiseFulfilledResult<{ key: string; storageConfigured: boolean }> => result.status === "fulfilled")
-      .map((result) => ({ key: result.value.key }));
-    const storageFailed = uploaded.some((result) => result.status === "rejected");
-    if (storageFailed) {
-      bodyCompositionRouteError("storage_partial_failure", {
-        rejectedCount: uploaded.filter((result) => result.status === "rejected").length
-      });
-    }
-    res.json({
-      draft: {
-        ...draft,
-        sourceImages,
-        notes: storageFailed
-          ? `${draft.notes ? `${draft.notes} ` : ""}Scan image storage did not complete, but you can still review and save the values.`
-          : draft.notes
-      }
-    });
+    res.json({ draft });
   } catch (error) {
     bodyCompositionRouteError("request_failed", {
       durationMs: Date.now() - startedAt,
       message: error instanceof Error ? error.message : "Unknown error",
       name: error instanceof Error ? error.name : "Unknown"
     });
+    next(error);
+  }
+});
+
+bodyCompositionRouter.get("/body-composition/access", requireAuth, async (req, res) => {
+  res.json({ access: bodyScanPreviewAccess(req.user!) });
+});
+
+bodyCompositionRouter.post("/body-composition/extract", requireAuth, async (req, res, next) => {
+  const startedAt = Date.now();
+  try {
+    const access = bodyScanPreviewAccess(req.user!);
+    if (!access.enabled || !access.canCapture) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
+    const input = extractSchema.parse(req.body);
+    const draft = await extractDraftForUser(req.user!.id, input.images);
+    bodyCompositionRouteLog("owner_preview_extraction_complete", {
+      durationMs: Date.now() - startedAt,
+      confidenceScore: draft.confidenceScore,
+      missingFields: draft.missingFields
+    });
+    res.json({ draft, access });
+  } catch (error) {
+    bodyCompositionRouteError("owner_preview_extraction_failed", {
+      durationMs: Date.now() - startedAt,
+      name: error instanceof Error ? error.name : "Unknown"
+    });
+    next(error);
+  }
+});
+
+bodyCompositionRouter.post("/body-composition/scans", requireAuth, async (req, res, next) => {
+  try {
+    const access = bodyScanPreviewAccess(req.user!);
+    if (!access.enabled || !access.canCapture) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
+    const scan = await saveScan(req.user!.id, req.user!.id, req.body, "introductory");
+    res.status(201).json({ scan: introductoryBaseline(scan), access });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.get("/body-composition/baseline", requireAuth, async (req, res, next) => {
+  try {
+    const access = bodyScanPreviewAccess(req.user!);
+    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
+    const scan = await latestConfirmedBodyScan(req.user!.id);
+    const explanation = scan?.id ? await getCachedBodyScanExplanation(req.user!.id, scan.id) : null;
+    res.json({ scan: introductoryBaseline(scan), explanation: explanation?.explanation ?? null, access });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.post("/body-composition/scans/:scanId/explanation", requireAuth, async (req, res, next) => {
+  try {
+    const access = bodyScanPreviewAccess(req.user!);
+    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
+    const scanId = bodyScanIdSchema.parse(req.params.scanId);
+    const scan = await confirmedBodyScanById(req.user!.id, scanId);
+    if (!scan) return res.status(404).json({ error: "Confirmed Body Scan not found." });
+    const coaching = await getOrCreateBodyScanExplanation(req.user!.id, scan);
+    res.json({ coaching, access });
+  } catch (error) {
+    next(error);
+  }
+});
+
+bodyCompositionRouter.post("/body-composition/scans/:scanId/follow-ups", requireAuth, async (req, res, next) => {
+  try {
+    const access = bodyScanPreviewAccess(req.user!);
+    if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan preview is not available for this account." });
+    const scanId = bodyScanIdSchema.parse(req.params.scanId);
+    const input = bodyScanFollowUpSchema.parse(req.body);
+    const scan = await confirmedBodyScanById(req.user!.id, scanId);
+    if (!scan) return res.status(404).json({ error: "Confirmed Body Scan not found." });
+    const result = await createBodyScanFollowUp(req.user!.id, scan, input.question);
+    res.status(201).json({ ...result, access });
+  } catch (error) {
     next(error);
   }
 });

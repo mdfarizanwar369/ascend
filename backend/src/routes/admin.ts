@@ -86,7 +86,7 @@ adminRouter.get("/admin/analytics/usage", requireAuth, requireRole(["admin", "ow
       (select count(*) from water_logs wat join users u on u.id = wat.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and wat.logged_at >= now() - interval '30 days') as water_logs,
       (select count(*) from users u where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and u.last_meaningful_activity_at >= now() - interval '7 days') as weekly_active_clients,
       (select count(distinct ae.user_id) from analytics_events ae join users u on u.id = ae.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and ae.event_name = 'burn_log' and ae.created_at >= now() - interval '7 days') as workout_loggers_7d,
-      (select count(distinct bcs.user_id) from body_composition_scans bcs join users u on u.id = bcs.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and bcs.user_confirmed = true and bcs.created_at >= now() - interval '90 days') as body_scan_users_90d,
+      (select count(distinct bcs.user_id) from body_composition_scans bcs join users u on u.id = bcs.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and bcs.user_confirmed = true and bcs.experience_scope = 'athlete' and bcs.created_at >= now() - interval '90 days') as body_scan_users_90d,
       (select count(*) from users u where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and u.assigned_trainer_id is not null) as assigned_clients,
       (select count(*) from trainers t join users tu on tu.id = t.user_id where t.gym_id = g.id and t.status = 'active' and tu.status = 'active') as active_trainers,
       (
@@ -281,7 +281,7 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
           (select count(distinct wat.user_id) from water_logs wat join client_base cb on cb.id = wat.user_id where wat.logged_at >= now() - interval '7 days') as water_loggers,
           (select count(distinct hl.user_id) from habit_logs hl join client_base cb on cb.id = hl.user_id where hl.completed = true and hl.logged_at >= now() - interval '7 days') as habit_completers,
           (select count(distinct ae.user_id) from analytics_events ae join client_base cb on cb.id = ae.user_id where ae.event_name = 'burn_log' and ae.created_at >= now() - interval '7 days') as workout_loggers,
-          (select count(distinct bcs.user_id) from body_composition_scans bcs join client_base cb on cb.id = bcs.user_id where bcs.user_confirmed = true and bcs.created_at >= now() - interval '90 days') as body_scan_users_90d,
+          (select count(distinct bcs.user_id) from body_composition_scans bcs join client_base cb on cb.id = bcs.user_id where bcs.user_confirmed = true and bcs.experience_scope = 'athlete' and bcs.created_at >= now() - interval '90 days') as body_scan_users_90d,
           (select count(*) from athlete_profiles ap join client_base cb on cb.id = ap.user_id where ap.enabled = true) as athlete_clients,
           (select round(avg(latest.score)) from client_base cb left join lateral (select score from compliance_scores where user_id = cb.id order by calculated_for_date desc limit 1) latest on true) as average_compliance_score
         from client_base

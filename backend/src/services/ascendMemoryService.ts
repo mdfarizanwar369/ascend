@@ -179,7 +179,7 @@ async function buildMemoryEvents(userId: string, context: NonNullable<Awaited<Re
       `,
       [userId]
     ),
-    query("select * from body_composition_scans where user_id = $1 and user_confirmed = true order by scan_date asc, created_at asc", [userId]),
+    query("select * from body_composition_scans where user_id = $1 and user_confirmed = true and experience_scope = 'athlete' order by scan_date asc, created_at asc", [userId]),
     query<{ milestone_type: string; achieved_weight_kg: string | number | null; achieved_at: string }>(
       "select milestone_type, achieved_weight_kg, achieved_at from goal_milestones where user_id = $1 order by achieved_at asc",
       [userId]

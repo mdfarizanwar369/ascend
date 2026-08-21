@@ -325,6 +325,7 @@ export function getMe() {
       trainer_status?: string | null;
       profile_photo_url?: string | null;
       is_platform_owner?: boolean;
+      body_scan_owner_preview_enabled?: boolean;
       athlete_mode_enabled?: boolean;
       body_composition_nutrition?: BodyCompositionNutrition | null;
       last_meaningful_activity_at?: string | null;
@@ -2622,6 +2623,105 @@ export type BodyCompositionSummary = {
   insights: string[];
   nutritionDataSource: "Profile Only" | "Profile + Body Scan" | "Profile + Body Scan History";
 };
+
+export type BodyScanPreviewAccess = {
+  enabled: boolean;
+  experience: "introductory";
+  canCapture: boolean;
+  canViewBaseline: boolean;
+  canCompareScans: false;
+  canViewDna: false;
+  canUseScanForNutrition: false;
+  followUpLimit: 2;
+};
+
+export type BodyScanIntroductoryBaseline = {
+  id: string;
+  scanDate: string;
+  machine: string | null;
+  weightKg: number | null;
+  bmi: number | null;
+  bodyFatPercent: number | null;
+  fatMassKg: number | null;
+  leanBodyMassKg: number | null;
+  skeletalMuscleMassKg: number | null;
+  visceralFat: number | null;
+  bodyWaterPercent: number | null;
+  bmrKcal: number | null;
+  confidenceScore: number | null;
+  sourceImageUrl: string | null;
+};
+
+export type BodyScanExplanation = {
+  headline: string;
+  summary: string;
+  importantNumbers: Array<{ label: string; value: string; meaning: string }>;
+  priorities: Array<{ title: string; action: string }>;
+  measurementNote: string;
+  nextScanGuidance: string;
+  safetyNote: string;
+};
+
+export type BodyScanFollowUp = {
+  id: string;
+  question: string;
+  answer: string;
+  slot: number;
+  created_at: string;
+};
+
+export type BodyScanCoaching = {
+  id: string;
+  explanation: BodyScanExplanation;
+  source: "ai" | "fallback";
+  followUps: BodyScanFollowUp[];
+  followUpsRemaining: number;
+  cacheHit: boolean;
+};
+
+export function getBodyScanPreviewAccess() {
+  return authedCached<{ access: BodyScanPreviewAccess }>("body-scan-preview:access", "/body-composition/access", 30_000);
+}
+
+export function getBodyScanPreviewBaseline() {
+  return authedCached<{
+    scan: BodyScanIntroductoryBaseline | null;
+    explanation: BodyScanExplanation | null;
+    access: BodyScanPreviewAccess;
+  }>("body-scan-preview:baseline", "/body-composition/baseline", 15_000);
+}
+
+export function extractBodyScanPreview(images: string[], externalSignal?: AbortSignal) {
+  return withTimeout(90_000, (timeoutSignal) =>
+    authed<{ draft: BodyCompositionScan; access: BodyScanPreviewAccess }>("/body-composition/extract", {
+      method: "POST",
+      body: JSON.stringify({ images }),
+      signal: externalSignal ? combineAbortSignals([timeoutSignal, externalSignal]) : timeoutSignal
+    })
+  );
+}
+
+export function saveBodyScanPreview(scan: BodyCompositionScan) {
+  invalidateCached("body-scan-preview:");
+  return authed<{ scan: BodyScanIntroductoryBaseline; access: BodyScanPreviewAccess }>("/body-composition/scans", {
+    method: "POST",
+    body: JSON.stringify(scan)
+  });
+}
+
+export function getBodyScanPreviewExplanation(scanId: string) {
+  invalidateCached("body-scan-preview:");
+  return authed<{ coaching: BodyScanCoaching; access: BodyScanPreviewAccess }>(`/body-composition/scans/${scanId}/explanation`, {
+    method: "POST"
+  });
+}
+
+export function askBodyScanPreviewQuestion(scanId: string, question: string) {
+  return authed<{ followUp: BodyScanFollowUp; followUpsRemaining: number; access: BodyScanPreviewAccess }>(
+    `/body-composition/scans/${scanId}/follow-ups`,
+    { method: "POST", body: JSON.stringify({ question }) }
+  );
+}
 
 export function extractBodyComposition(images: string[], externalSignal?: AbortSignal) {
   return withTimeout(90_000, (timeoutSignal) =>

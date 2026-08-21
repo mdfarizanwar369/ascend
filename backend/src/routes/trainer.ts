@@ -473,6 +473,7 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
             row_number() over (partition by user_id order by scan_date desc, created_at desc) as scan_rank
           from body_composition_scans
           where user_confirmed = true
+            and experience_scope = 'athlete'
             and user_id = any($1::uuid[])
         ) ranked_scans
         where scan_rank <= 10
@@ -553,6 +554,7 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
         from body_composition_scans
         where user_id = $1
           and user_confirmed = true
+          and experience_scope = 'athlete'
         order by scan_date desc, created_at desc
         limit 10
         `,

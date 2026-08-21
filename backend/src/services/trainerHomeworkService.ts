@@ -202,6 +202,7 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
         from body_composition_scans
         where user_id = $1
           and user_confirmed = true
+          and experience_scope = 'athlete'
         order by scan_date desc, created_at desc
         limit 1
         `,
