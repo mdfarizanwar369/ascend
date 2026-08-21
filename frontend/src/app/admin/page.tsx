@@ -7,8 +7,8 @@ export default function AdminPage() {
     <AppShell active="admin">
       <RoleGate
         allowedRoles={["admin", "owner"]}
-        fallbackTitle="Admin access only"
-        fallbackMessage="This account cannot view gym revenue or admin analytics. Use an owner or admin login."
+        fallbackTitle="Business access only"
+        fallbackMessage="This account cannot view club operations. Use an owner or admin login."
       >
         <AdminDashboardClient />
       </RoleGate>

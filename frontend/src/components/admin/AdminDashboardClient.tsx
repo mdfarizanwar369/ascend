@@ -8,12 +8,9 @@ import {
   Bell,
   Bot,
   Building2,
-  CheckCircle2,
-  Lightbulb,
+  ChevronRight,
+  ClipboardCheck,
   QrCode,
-  ShieldCheck,
-  Target,
-  TrendingUp,
   Users
 } from "lucide-react";
 import {
@@ -22,119 +19,103 @@ import {
   getAdminNotifications,
   getAdminPilotMetrics,
   getAdminRevenue,
-  getAdminTrainers,
-  getAdminUsage,
-  getAdminUsers
+  getAdminUsage
 } from "@/lib/ascendApi";
 import { DelightBadge, DelightEmptyState } from "@/components/Delight";
 import { AscendHeroPanel, BusinessSigil } from "@/components/AscendVisualIdentity";
-import { DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid } from "@/components/PerceivedLoading";
+import { DashboardHeroSkeleton, SectionShell, SkeletonCardList, SkeletonStatGrid } from "@/components/PerceivedLoading";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
+type RevenueGym = Revenue["byGym"][number];
+type RevenueTrainer = Revenue["byTrainer"][number];
 type UsageRow = Awaited<ReturnType<typeof getAdminUsage>>["usage"][number];
 type ComplianceRow = Awaited<ReturnType<typeof getAdminCompliance>>["compliance"][number];
-type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
-type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
 type AiUsage = Awaited<ReturnType<typeof getAdminAiUsage>>;
 type PilotMetrics = Awaited<ReturnType<typeof getAdminPilotMetrics>>;
 type AdminNotifications = Awaited<ReturnType<typeof getAdminNotifications>>;
-
-type HealthStatus = "Excellent" | "Good" | "Watch" | "Needs Attention";
-type Priority = {
-  title: string;
-  detail: string;
-  action: string;
-  href?: string;
-  tone: "critical" | "warning" | "success" | "info";
-};
-
-function money(cents: string | number | null | undefined) {
-  return `RM ${(Number(cents ?? 0) / 100).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
+type Notification = AdminNotifications["notifications"][number];
 
 function asNumber(value: string | number | null | undefined) {
-  if (value === null || value === undefined) return 0;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : 0;
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function safeArray<T>(value: T[] | undefined | null) {
   return Array.isArray(value) ? value : [];
 }
 
-function percent(value: string | number | null | undefined) {
-  return `${Math.round(asNumber(value))}%`;
+function formatCurrency(cents: string | number | null | undefined, currency = "MYR") {
+  try {
+    return new Intl.NumberFormat("en-MY", {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      maximumFractionDigits: 0
+    }).format(asNumber(cents) / 100);
+  } catch {
+    return `${currency.toUpperCase()} ${(asNumber(cents) / 100).toLocaleString("en-MY")}`;
+  }
 }
 
-function trendChange(values: number[]) {
-  if (values.length < 2) return 0;
-  return values[values.length - 1] - values[0];
+export function summarizeCurrentPlanValue(rows: RevenueGym[]) {
+  const currencies = new Set(rows.flatMap((row) => asNumber(row.currency_count) > 1 ? ["mixed"] : [row.currency || "MYR"]));
+  const subscriptions = rows.reduce((total, row) => total + asNumber(row.active_subscriptions), 0);
+  if (currencies.size !== 1 || currencies.has("mixed")) {
+    return {
+      value: `${subscriptions} active`,
+      detail: "Subscription values use multiple currencies. Review each club for the accurate amount."
+    };
+  }
+  const currency = [...currencies][0] ?? "MYR";
+  const cents = rows.reduce((total, row) => total + asNumber(row.active_plan_value_cents), 0);
+  return {
+    value: formatCurrency(cents, currency),
+    detail: `${subscriptions} current paid access periods. This is plan value, not recognized revenue.`
+  };
 }
 
-function healthFromScore(score: number): HealthStatus {
-  if (score >= 82) return "Excellent";
-  if (score >= 65) return "Good";
-  if (score >= 45) return "Watch";
-  return "Needs Attention";
+export function uniquePriorities(notifications: Notification[]) {
+  const seen = new Set<string>();
+  return [...notifications]
+    .sort((left, right) => {
+      const severity = { critical: 0, important: 1 } as const;
+      return severity[left.severity] - severity[right.severity] || right.count - left.count;
+    })
+    .filter((item) => {
+      const key = `${item.type}:${item.href}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
 }
 
-function healthTone(status: HealthStatus) {
-  if (status === "Excellent") return "border-lime/40 bg-lime/10 text-lime";
-  if (status === "Good") return "border-calm/40 bg-calm/10 text-calm";
-  if (status === "Watch") return "border-amber/40 bg-amber/10 text-amber";
-  return "border-red-400/40 bg-red-500/10 text-red-300";
+function percentage(value: number) {
+  return `${Math.max(0, Math.min(100, Math.round(value)))}%`;
 }
 
-function cardTone(tone: Priority["tone"]) {
-  if (tone === "critical") return "border-red-400/40 bg-red-500/10";
-  if (tone === "warning") return "border-amber/40 bg-amber/10";
-  if (tone === "success") return "border-lime/40 bg-lime/10";
-  return "border-calm/40 bg-calm/10";
+function ProgressRow({ label, value, percentageValue }: { label: string; value: string; percentageValue: number }) {
+  const safeValue = Math.max(0, Math.min(100, percentageValue));
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-4 text-sm">
+        <span className="text-zinc-300">{label}</span>
+        <span className="font-semibold text-white">{value}</span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(safeValue)}>
+        <div className="h-full rounded-full bg-lime transition-[width] duration-500" style={{ width: `${safeValue}%` }} />
+      </div>
+    </div>
+  );
 }
 
-function StatusPill({ status }: { status: HealthStatus }) {
-  return <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${healthTone(status)}`}>{status}</span>;
-}
-
-function ExecutiveCard({
-  title,
-  status,
-  value,
-  detail
-}: {
-  title: string;
-  status: HealthStatus;
-  value: string;
-  detail: string;
-}) {
+function SummaryCard({ label, value, detail, tone = "plain" }: { label: string; value: string; detail: string; tone?: "plain" | "warning" | "positive" }) {
+  const toneClass = tone === "warning" ? "text-amber" : tone === "positive" ? "text-lime" : "text-white";
   return (
     <article className="ascend-workspace-stat p-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-sm text-zinc-400">{title}</p>
-        <StatusPill status={status} />
-      </div>
-      <p className="mt-4 text-2xl font-semibold">{value}</p>
+      <p className="text-xs font-semibold uppercase text-zinc-400">{label}</p>
+      <p className={`mt-3 text-2xl font-semibold ${toneClass}`}>{value}</p>
       <p className="mt-2 text-sm leading-6 text-zinc-300">{detail}</p>
     </article>
-  );
-}
-
-function OpportunityCard({ title, value, detail }: { title: string; value: string; detail: string }) {
-  return (
-    <article className="ascend-workspace-inset p-4">
-      <p className="text-sm text-zinc-400">{title}</p>
-      <p className="mt-2 text-2xl font-semibold text-lime">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-zinc-300">{detail}</p>
-    </article>
-  );
-}
-
-function MiniBar({ value, label }: { value: number; label: string }) {
-  const safeValue = Math.min(100, Math.max(0, value));
-  return (
-    <div className="h-2 overflow-hidden rounded-full bg-ink" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(safeValue)}>
-      <div className="h-full rounded-full bg-lime" style={{ width: `${safeValue}%` }} />
-    </div>
   );
 }
 
@@ -142,520 +123,229 @@ export function AdminDashboardClient() {
   const [revenue, setRevenue] = useState<Revenue>({ byGym: [], byTrainer: [] });
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [compliance, setCompliance] = useState<ComplianceRow[]>([]);
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [aiUsage, setAiUsage] = useState<AiUsage | null>(null);
   const [pilotMetrics, setPilotMetrics] = useState<PilotMetrics | null>(null);
   const [notifications, setNotifications] = useState<AdminNotifications | null>(null);
-  const [status, setStatus] = useState("Loading owner command center...");
-  const [hasStartedHydrating, setHasStartedHydrating] = useState(false);
+  const [loadFailures, setLoadFailures] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setHasStartedHydrating(true);
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
+    let mounted = true;
+    const failures: string[] = [];
+    const recordFailure = (label: string) => () => failures.push(label);
 
     async function load() {
-      const failures: string[] = [];
-      const tasks = [
-        getAdminRevenue()
-          .then((revenueResponse) => {
-            if (!isMounted) return;
-            setRevenue({
-              byGym: safeArray(revenueResponse.byGym),
-              byTrainer: safeArray(revenueResponse.byTrainer)
-            });
-          })
-          .catch((error) => failures.push(error instanceof Error ? `Revenue: ${error.message}` : "Revenue failed")),
-        getAdminUsage()
-          .then((usageResponse) => {
-            if (!isMounted) return;
-            setUsage(safeArray(usageResponse.usage));
-          })
-          .catch((error) => failures.push(error instanceof Error ? `Usage: ${error.message}` : "Usage failed")),
-        getAdminCompliance()
-          .then((complianceResponse) => {
-            if (!isMounted) return;
-            setCompliance(safeArray(complianceResponse.compliance));
-          })
-          .catch((error) => failures.push(error instanceof Error ? `Momentum: ${error.message}` : "Momentum failed")),
-        getAdminAiUsage()
-          .then((aiUsageResponse) => {
-            if (!isMounted) return;
-            setAiUsage(aiUsageResponse);
-          })
-          .catch((error) => failures.push(error instanceof Error ? `AI usage: ${error.message}` : "AI usage failed")),
-        getAdminPilotMetrics()
-          .then((pilotMetricsResponse) => {
-            if (!isMounted) return;
-            setPilotMetrics(pilotMetricsResponse);
-          })
-          .catch((error) => failures.push(error instanceof Error ? `Business metrics: ${error.message}` : "Business metrics failed")),
-        getAdminNotifications()
-          .then((notificationsResponse) => {
-            if (!isMounted) return;
-            setNotifications(notificationsResponse);
-          })
-          .catch((error) => failures.push(error instanceof Error ? `Notifications: ${error.message}` : "Notifications failed")),
-        Promise.all([getAdminUsers(), getAdminTrainers()])
-          .then(([userResponse, trainerResponse]) => {
-            if (!isMounted) return;
-            setUsers(safeArray(userResponse.users));
-            setTrainers(safeArray(trainerResponse.trainers));
-          })
-          .catch((error) => failures.push(error instanceof Error ? `Users: ${error.message}` : "Users failed"))
-      ];
-
-      await Promise.allSettled(tasks);
-
-      if (!isMounted) return;
-      setStatus(failures.length ? `Some business signals did not load. ${failures.join(" / ")}` : "");
+      await Promise.allSettled([
+        getAdminRevenue().then((value) => mounted && setRevenue({ byGym: safeArray(value.byGym), byTrainer: safeArray(value.byTrainer) })).catch(recordFailure("subscription values")),
+        getAdminUsage().then((value) => mounted && setUsage(safeArray(value.usage))).catch(recordFailure("club activity")),
+        getAdminCompliance().then((value) => mounted && setCompliance(safeArray(value.compliance))).catch(recordFailure("member momentum")),
+        getAdminAiUsage().then((value) => mounted && setAiUsage(value)).catch(recordFailure("AI operations")),
+        getAdminPilotMetrics().then((value) => mounted && setPilotMetrics(value)).catch(recordFailure("business summary")),
+        getAdminNotifications().then((value) => mounted && setNotifications(value)).catch(recordFailure("owner priorities"))
+      ]);
+      if (mounted) {
+        setLoadFailures(failures);
+        setLoading(false);
+      }
     }
 
     load();
     return () => {
-      isMounted = false;
+      mounted = false;
     };
   }, []);
 
   const byGym = safeArray(revenue.byGym);
   const byTrainer = safeArray(revenue.byTrainer);
-  const notificationList = safeArray(notifications?.notifications);
-  const totalRevenueCents = byGym.reduce((total, row) => total + asNumber(row.revenue_cents), 0);
-  const activeSubscriptions = byGym.reduce((total, row) => total + asNumber(row.active_subscriptions), 0);
-  const clientUsers = users.filter((user) => user.primary_role === "client");
-  const activeClientUsers = clientUsers.filter((user) => user.status === "active");
-  const premiumUsers = clientUsers.filter((user) => user.current_plan === "premium" || user.current_plan === "trainer_pro");
-  const athleteUsers = clientUsers.filter((user) => user.athlete_mode_enabled);
-  const unassignedClients = activeClientUsers.filter((user) => !user.assigned_trainer_id).length;
-  const pendingTrainers = trainers.filter((trainer) => trainer.status !== "active").length;
-  const activeTrainers = trainers.filter((trainer) => trainer.status === "active").length;
-  const aiSummary = aiUsage?.summary;
-  const aiWarning = aiSummary?.warning_level;
-  const trends = safeArray(pilotMetrics?.trends);
-  const activeTrend = trends.map((item) => asNumber(item.active_users));
-  const foodTrend = trends.map((item) => asNumber(item.food_logs));
-  const complianceTrend = trends.map((item) => asNumber(item.average_compliance_score));
-  const activeChange = trendChange(activeTrend);
-  const foodChange = trendChange(foodTrend);
-  const averageCompliance = useMemo(() => {
-    const scores = compliance.map((row) => asNumber(row.average_compliance)).filter(Boolean);
-    if (!scores.length) return pilotMetrics?.clients.averageComplianceScore ?? 0;
-    return Math.round(scores.reduce((total, score) => total + score, 0) / scores.length);
-  }, [compliance, pilotMetrics?.clients.averageComplianceScore]);
+  const priorities = useMemo(() => uniquePriorities(safeArray(notifications?.notifications)), [notifications]);
+  const planValue = summarizeCurrentPlanValue(byGym);
+  const totalClients = pilotMetrics?.clients.totalClients ?? usage.reduce((total, row) => total + asNumber(row.clients), 0);
+  const weeklyActive = pilotMetrics?.clients.weeklyActiveUsers ?? usage.reduce((total, row) => total + asNumber(row.weekly_active_clients), 0);
+  const clientsMonitored = pilotMetrics?.trainers.clientsMonitored ?? usage.reduce((total, row) => total + asNumber(row.assigned_clients), 0);
+  const clientsContacted = pilotMetrics?.trainers.clientsContacted7d ?? usage.reduce((total, row) => total + asNumber(row.clients_contacted_7d), 0);
+  const followUpCoverage = pilotMetrics?.trainers.followUpCoverageRate ?? (clientsMonitored ? Math.round((clientsContacted / clientsMonitored) * 100) : 0);
+  const outstandingFollowUps = pilotMetrics?.trainers.outstandingFollowUps ?? 0;
+  const freeCandidates = pilotMetrics?.business.freeUsers ?? 0;
+  const premiumCandidates = pilotMetrics?.business.premiumReviewCandidates ?? 0;
+  const unassignedClients = pilotMetrics?.trainers.unassignedClients ?? 0;
+  const pendingTrainers = pilotMetrics?.trainers.pendingTrainers ?? 0;
+  const criticalCount = notifications?.summary.critical ?? 0;
+  const heroStatus = loadFailures.length ? "Watch" : criticalCount ? "Needs Attention" : priorities.length ? "Watch" : "Good";
+  const heroBrief = loadFailures.length
+    ? `Some business data is temporarily unavailable. Ascend is showing confirmed results only; ${loadFailures.join(", ")} will refresh on your next visit.`
+    : criticalCount
+      ? `${criticalCount} urgent ${criticalCount === 1 ? "item needs" : "items need"} your attention. Start with the first priority below.`
+      : outstandingFollowUps
+        ? `${outstandingFollowUps} trainer follow-ups are outstanding. ${weeklyActive} of ${totalClients} active clients used Ascend this week.`
+        : `No urgent owner actions are waiting. ${weeklyActive} of ${totalClients} active clients used Ascend this week, and trainers contacted ${clientsContacted} assigned clients.`;
 
-  const memberHealthScore = Math.round(
-    (Math.min(100, pilotMetrics?.clients.foodLoggingRate ?? 0) * 0.25) +
-    (Math.min(100, pilotMetrics?.clients.waterLoggingRate ?? 0) * 0.15) +
-    (Math.min(100, pilotMetrics?.clients.weightLoggingRate ?? 0) * 0.15) +
-    (Math.min(100, averageCompliance) * 0.25) +
-    (Math.min(100, (pilotMetrics?.clients.weeklyActiveUsers ?? 0) * 10) * 0.2)
-  );
-  const trainerHealthScore = Math.round(
-    (Math.min(100, pilotMetrics?.trainers.trainerResponseRate ?? 0) * 0.45) +
-    (activeTrainers ? Math.min(100, ((pilotMetrics?.trainers.dailyTrainerLogins ?? 0) / activeTrainers) * 100) * 0.25 : 0) +
-    (unassignedClients ? 35 : 85) * 0.3
-  );
-  const revenueHealthScore = Math.round(
-    (activeSubscriptions ? 75 : 45) +
-    Math.min(15, activeSubscriptions * 2) -
-    Math.min(20, pilotMetrics?.business.churnRate ?? 0)
-  );
-  const aiHealthScore = aiWarning ? (aiWarning >= 90 ? 35 : aiWarning >= 75 ? 50 : 65) : 88;
-  const overallHealthScore = Math.round((memberHealthScore + trainerHealthScore + revenueHealthScore + aiHealthScore) / 4);
+  const clubRows = useMemo(() => {
+    const gymIds = new Set([...usage.map((row) => row.gym_id), ...byGym.map((row) => row.id)]);
+    return [...gymIds].map((gymId) => {
+      const activity = usage.find((row) => row.gym_id === gymId);
+      const subscriptions = byGym.find((row) => row.id === gymId);
+      const momentum = compliance.find((row) => row.gym_id === gymId);
+      const clients = asNumber(activity?.clients);
+      const active = asNumber(activity?.weekly_active_clients);
+      const assigned = asNumber(activity?.assigned_clients);
+      const contacted = asNumber(activity?.clients_contacted_7d);
+      const lowMomentum = asNumber(momentum?.low_compliance_clients);
+      const currencyCount = asNumber(subscriptions?.currency_count);
+      const planValueText = currencyCount > 1 ? "Multiple currencies" : formatCurrency(subscriptions?.active_plan_value_cents, subscriptions?.currency || "MYR");
+      const recommendation = lowMomentum > 0
+        ? `Ask trainers to contact ${lowMomentum} low-momentum ${lowMomentum === 1 ? "member" : "members"}.`
+        : assigned > contacted
+          ? `${assigned - contacted} assigned ${assigned - contacted === 1 ? "member has" : "members have"} not received a trainer message this week.`
+          : clients && !active
+            ? "Member activity is quiet this week; review the client list."
+            : "No immediate club action is indicated by the available data.";
+      return {
+        id: gymId,
+        name: activity?.gym_name || subscriptions?.gym_name || "Club",
+        clients,
+        active,
+        assigned,
+        contacted,
+        lowMomentum,
+        activeSubscriptions: asNumber(subscriptions?.active_subscriptions),
+        planValueText,
+        recommendation
+      };
+    }).sort((left, right) => right.lowMomentum - left.lowMomentum || left.name.localeCompare(right.name));
+  }, [byGym, compliance, usage]);
 
-  const memberHealth = healthFromScore(memberHealthScore);
-  const trainerHealth = healthFromScore(trainerHealthScore);
-  const revenueHealth = healthFromScore(revenueHealthScore);
-  const aiHealth = healthFromScore(aiHealthScore);
-  const overallHealth = healthFromScore(overallHealthScore);
-  const isInitialLoading =
-    hasStartedHydrating &&
-    !pilotMetrics &&
-    !aiUsage &&
-    !users.length &&
-    !trainers.length &&
-    !byGym.length &&
-    status.startsWith("Loading");
+  const trainerRows = useMemo(() => [...byTrainer].sort((left, right) => {
+    const leftGap = asNumber(left.clients_assigned) - asNumber(left.clients_contacted_7d);
+    const rightGap = asNumber(right.clients_assigned) - asNumber(right.clients_contacted_7d);
+    return rightGap - leftGap || asNumber(right.open_risk_alerts) - asNumber(left.open_risk_alerts);
+  }), [byTrainer]);
 
-  const businessBrief = (() => {
-    const positives: string[] = [];
-    const concerns: string[] = [];
-    if (activeChange > 0) positives.push("member activity is improving");
-    if (foodChange > 0) positives.push("nutrition logging is increasing");
-    if (!aiWarning) positives.push("AI costs remain healthy");
-    if (unassignedClients) concerns.push(`${unassignedClients} clients need trainer assignment`);
-    if (pendingTrainers) concerns.push(`${pendingTrainers} trainers need approval`);
-    if ((pilotMetrics?.trainers.trainerResponseRate ?? 0) < 50 && activeTrainers) concerns.push("trainer follow-up needs attention");
-    if (aiWarning) concerns.push("AI spend is approaching its limit");
-
-    if (!positives.length && !concerns.length) return "Your clubs are stable. No urgent action is waiting, so the next best move is to keep building member activity and trainer consistency.";
-    return `Your clubs are ${overallHealth === "Needs Attention" ? "showing pressure" : "performing steadily"}. ${positives.length ? positives.join(", ") : "Core operating signals are available"}. ${concerns.length ? `Today, focus on ${concerns.join(", ")}.` : "No major owner intervention is needed today."}`;
-  })();
-
-  const priorityItems: Priority[] = [];
-  for (const notification of notificationList) {
-    priorityItems.push({
-      title: notification.title,
-      detail: notification.body,
-      action: notification.type === "trainer_approval" ? "Review and approve trainer access." : "Open the item and clear the blocker.",
-      href: notification.href,
-      tone: notification.severity === "critical" ? "critical" : "warning"
-    });
-  }
-  if (unassignedClients > 0) {
-    priorityItems.push({
-      title: `${unassignedClients} clients waiting for trainer assignment`,
-      detail: "Unassigned clients are less likely to get timely follow-up.",
-      action: "Assign them to an active trainer today.",
-      href: "/admin/users",
-      tone: "critical"
-    });
-  }
-  if ((pilotMetrics?.trainers.trainerResponseRate ?? 0) < 50 && activeTrainers > 0) {
-    priorityItems.push({
-      title: "Trainer follow-up is low",
-      detail: "Member accountability weakens when trainers do not respond consistently.",
-      action: "Ask trainers to clear their priority list before end of day.",
-      href: "/trainer",
-      tone: "warning"
-    });
-  }
-  if ((pilotMetrics?.clients.foodLoggingRate ?? 0) >= 60) {
-    priorityItems.push({
-      title: "Nutrition engagement is strong",
-      detail: "Members are using one of Ascend's highest-value daily habits.",
-      action: "Use this proof when inviting the next pilot group.",
-      href: "/admin/referrals",
-      tone: "success"
-    });
-  }
-  if (aiWarning) {
-    priorityItems.push({
-      title: "AI spend needs monitoring",
-      detail: `Projected AI usage has reached the ${aiWarning}% warning level.`,
-      action: "Review food scan usage and cache performance.",
-      tone: "warning"
-    });
-  }
-  if (!priorityItems.length) {
-    priorityItems.push({
-      title: "No urgent owner actions",
-      detail: "The system is stable today.",
-      action: "Review referral performance and invite the next small member group.",
-      href: "/admin/referrals",
-      tone: "success"
-    });
-  }
-  const priorities = priorityItems.slice(0, 5);
-
-  const opportunities = [
-    {
-      title: "Premium upgrades",
-      value: money(Math.max(0, activeClientUsers.length - premiumUsers.length) * 1999),
-      detail: `${Math.max(0, activeClientUsers.length - premiumUsers.length)} active free clients could upgrade to Premium.`
-    },
-    {
-      title: "Athlete upgrades",
-      value: money(Math.max(0, premiumUsers.length - athleteUsers.length) * 4990),
-      detail: `${Math.max(0, premiumUsers.length - athleteUsers.length)} Premium clients could be offered Athlete Mode.`
-    },
-    {
-      title: "Trainer follow-up value",
-      value: money(Math.max(0, unassignedClients) * 1999),
-      detail: "Assigning clients faster protects accountability and upgrade potential."
-    },
-    {
-      title: "Referral growth",
-      value: money(safeArray(pilotMetrics?.business.referralPerformance).reduce((total, item) => total + asNumber(item.revenue_cents), 0)),
-      detail: "Revenue already attributed through referral codes."
-    }
-  ];
-
-  const clubCards = byGym.map((gym) => {
-    const usageRow = usage.find((row) => row.gym_name === gym.gym_name);
-    const complianceRow = compliance.find((row) => row.gym_name === gym.gym_name);
-    const clients = asNumber(usageRow?.clients);
-    const engagementScore = Math.min(100, clients ? ((asNumber(usageRow?.food_logs) + asNumber(usageRow?.water_logs) + asNumber(usageRow?.weight_logs)) / Math.max(clients, 1)) * 8 : 0);
-    const trainerEngagement = activeTrainers ? Math.min(100, (pilotMetrics?.trainers.trainerResponseRate ?? 0)) : 0;
-    const clubScore = Math.round((engagementScore * 0.35) + (asNumber(complianceRow?.average_compliance) * 0.35) + (asNumber(gym.active_subscriptions) ? 80 : 40) * 0.2 + trainerEngagement * 0.1);
-    const status = healthFromScore(clubScore);
-    return {
-      name: gym.gym_name ?? "Unknown club",
-      score: clubScore,
-      status,
-      revenue: money(gym.revenue_cents),
-      subscriptions: asNumber(gym.active_subscriptions),
-      memberEngagement: Math.round(engagementScore),
-      trainerEngagement: Math.round(trainerEngagement),
-      retention: healthFromScore(asNumber(complianceRow?.average_compliance)),
-      risk: asNumber(complianceRow?.low_compliance_clients),
-      recommendation: asNumber(complianceRow?.low_compliance_clients)
-        ? "Ask trainers to contact low-momentum clients."
-        : asNumber(gym.active_subscriptions)
-          ? "Keep referral activity running while engagement is stable."
-          : "Invite a small Premium pilot group for this club."
-    };
-  });
-
-  const trainerRows = byTrainer.map((trainer) => {
-    const record = trainers.find((item) => item.full_name === trainer.trainer_name);
-    const subscriptions = asNumber(trainer.active_subscriptions);
-    const score = Math.round(Math.min(100, subscriptions * 18 + (record?.status === "active" ? 35 : 0) + (pilotMetrics?.trainers.trainerResponseRate ?? 0) * 0.35));
-    return {
-      name: trainer.trainer_name ?? "Unknown trainer",
-      revenue: money(trainer.revenue_cents),
-      subscriptions,
-      score,
-      status: healthFromScore(score),
-      action: score >= 75 ? "Use as a benchmark for other trainers." : "Support with client follow-up and referral habits."
-    };
-  }).sort((a, b) => b.score - a.score);
-
-  const insights = [
-    activeChange > 0 ? `Members staying active increased by ${activeChange} over the trend window.` : "Member activity is steady; look for ways to increase weekly check-ins.",
-    foodChange > 0 ? `Food logging increased by ${foodChange} logs across the trend window.` : "Nutrition consistency has room to grow.",
-    (pilotMetrics?.trainers.trainerResponseRate ?? 0) >= 70 ? "Trainer response is supporting accountability." : "Trainer response should be watched because it directly affects member retention.",
-    athleteUsers.length ? `${athleteUsers.length} clients are already in Athlete Mode.` : "Athlete Mode is ready to be introduced to serious transformation clients.",
-    safeArray(pilotMetrics?.business.referralPerformance).length ? "Referral attribution is active, so growth can be traced by gym and trainer." : "Referral codes are available but not producing visible activity yet."
-  ];
-
-  if (isInitialLoading) {
+  if (loading) {
     return (
       <>
-        <DashboardHeroSkeleton bodyLines={3} footer={<SkeletonBlock className="h-8 w-40 rounded-full" />} />
-        <SectionShell title="Business Health">
-          <SkeletonStatGrid count={4} />
-        </SectionShell>
-        <SectionShell title="Today's Priorities">
-          <SkeletonCardList count={3} compact />
-        </SectionShell>
-        <SectionShell title="Business Opportunities">
-          <SkeletonStatGrid count={4} />
-        </SectionShell>
-        <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p>
+        <DashboardHeroSkeleton bodyLines={2} />
+        <SectionShell title="Today's Business Picture"><SkeletonStatGrid count={4} /></SectionShell>
+        <SectionShell title="Today's Priorities"><SkeletonCardList count={3} compact /></SectionShell>
       </>
     );
   }
 
   return (
     <>
-      <AscendHeroPanel
-        eyebrow="Today's Business Brief"
-        title="Owner Command Center"
-        body={businessBrief}
-        tone="owner"
-        visual={<BusinessSigil status={overallHealth} />}
-      >
+      <AscendHeroPanel eyebrow="Today's Business Brief" title="Owner Command Center" body={heroBrief} tone="owner" visual={<BusinessSigil status={heroStatus} />}>
         <div className="mt-3">
-          <DelightBadge tone={overallHealth === "Excellent" ? "lime" : overallHealth === "Good" ? "teal" : "amber"}>
-            {overallHealth === "Excellent" ? "Clubs are humming" : overallHealth === "Good" ? "Healthy operating rhythm" : "A few signals need attention"}
+          <DelightBadge tone={heroStatus === "Good" ? "teal" : "amber"}>
+            {heroStatus === "Good" ? "No urgent owner actions" : heroStatus === "Watch" ? "Review today's signals" : "Start with the urgent item"}
           </DelightBadge>
         </div>
       </AscendHeroPanel>
 
-      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
-
-      <section className="mt-4">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="text-lime" size={20} />
-          <h2 className="text-xl font-semibold">Business Health</h2>
+      <section className="mt-5">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">Today&apos;s Business Picture</h2>
+          {pilotMetrics?.generatedAt ? <time className="text-xs text-zinc-500" dateTime={pilotMetrics.generatedAt}>Updated {new Date(pilotMetrics.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time> : null}
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <ExecutiveCard title="Overall Club Health" status={overallHealth} value={`${overallHealthScore}/100`} detail="Combined view of member activity, trainer follow-up, revenue, and AI cost." />
-          <ExecutiveCard title="Revenue Health" status={revenueHealth} value={money(totalRevenueCents)} detail={`${activeSubscriptions} active paid subscriptions across your clubs.`} />
-          <ExecutiveCard title="Member Health" status={memberHealth} value={String(pilotMetrics?.clients.weeklyActiveUsers ?? 0)} detail="Members staying active this week." />
-          <ExecutiveCard title="Trainer Health" status={trainerHealth} value={`${activeTrainers} active`} detail={`${pendingTrainers} pending approvals, ${unassignedClients} unassigned clients.`} />
-          <ExecutiveCard title="AI Health" status={aiHealth} value={money(aiSummary?.projected_monthly_cost_cents ?? 0)} detail={aiWarning ? `Projected spend has reached the ${aiWarning}% warning level.` : "AI cost is within the safe operating range."} />
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SummaryCard label="Current plan value" value={planValue.value} detail={planValue.detail} />
+          <SummaryCard label="Members active this week" value={`${weeklyActive} / ${totalClients}`} detail="Active clients with meaningful Ascend activity in the last 7 days." tone={weeklyActive > 0 ? "positive" : "plain"} />
+          <SummaryCard label="Trainer follow-up" value={`${clientsContacted} / ${clientsMonitored}`} detail={`${percentage(followUpCoverage)} of assigned clients received a trainer message this week.`} tone={followUpCoverage >= 70 ? "positive" : clientsMonitored ? "warning" : "plain"} />
+          <SummaryCard label="Outstanding follow-ups" value={String(outstandingFollowUps)} detail="Open client risk alerts that still need trainer action." tone={outstandingFollowUps ? "warning" : "positive"} />
         </div>
       </section>
 
-      <div className="mt-4 grid items-start gap-4 xl:grid-cols-2">
-      <section className="ascend-workspace-section p-4 sm:p-5">
+      <section className="mt-5">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Bell className="text-calm" size={20} />
-            <h2 className="text-xl font-semibold">Today&apos;s Priorities</h2>
-          </div>
-          <span className="rounded-full bg-ink px-3 py-1 text-xs font-semibold text-zinc-300">Top {priorities.length}</span>
+          <div className="flex items-center gap-2"><Bell className="text-calm" size={20} /><h2 className="text-xl font-semibold">Today&apos;s Priorities</h2></div>
+          <span className="text-sm text-zinc-400">{notifications?.summary.total ?? priorities.length} open</span>
         </div>
-        <div className="mt-4 space-y-3">
-          {priorities.map((priority) => {
-            const content = (
-              <article className={`rounded-xl border p-4 ${cardTone(priority.tone)}`}>
-                <div className="flex items-start gap-3">
-                  {priority.tone === "success" ? <CheckCircle2 className="mt-0.5 shrink-0 text-lime" size={20} /> : <AlertTriangle className="mt-0.5 shrink-0 text-amber" size={20} />}
-                  <div>
-                    <p className="font-semibold">{priority.title}</p>
-                    <p className="mt-1 text-sm leading-6 text-zinc-300">{priority.detail}</p>
-                    <p className="mt-2 text-sm font-semibold text-white">Suggested action: {priority.action}</p>
-                  </div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-3">
+          {priorities.length ? priorities.map((priority) => (
+            <article key={`${priority.type}:${priority.href}`} className={`rounded-xl border p-4 ${priority.severity === "critical" ? "border-red-400/40 bg-red-500/10" : "border-amber/40 bg-amber/10"}`}>
+              <div className="flex items-start gap-3">
+                <AlertTriangle className={priority.severity === "critical" ? "mt-0.5 shrink-0 text-red-300" : "mt-0.5 shrink-0 text-amber"} size={20} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3"><p className="font-semibold">{priority.title}</p><span className="rounded-full bg-ink px-2 py-0.5 text-xs text-zinc-300">{priority.count}</span></div>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">{priority.body}</p>
+                  <Link href={priority.href} className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-white">Take action <ChevronRight size={17} /></Link>
                 </div>
+              </div>
+            </article>
+          )) : (
+            <div className="xl:col-span-3"><DelightEmptyState tone="teal" title="Nothing urgent is waiting." body="Ascend will surface trainer approvals, unassigned members, risk follow-ups, and service issues here when action is required." /></div>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-5">
+        <div className="flex items-center gap-2"><ClipboardCheck className="text-lime" size={20} /><h2 className="text-xl font-semibold">Review Candidates</h2></div>
+        <p className="mt-1 text-sm text-zinc-400">These are people to review, not guaranteed sales or revenue.</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <SummaryCard label="Free plan members" value={String(freeCandidates)} detail="Active free members who may benefit from a personal Premium conversation." />
+          <SummaryCard label="Athlete review" value={String(premiumCandidates)} detail="Premium members not currently using Athlete Mode." />
+          <SummaryCard label="Trainer assignment" value={String(unassignedClients)} detail="Active clients without an assigned trainer." tone={unassignedClients ? "warning" : "positive"} />
+        </div>
+      </section>
+
+      <section className="mt-5">
+        <div className="flex items-center gap-2"><Building2 className="text-lime" size={20} /><h2 className="text-xl font-semibold">Club Performance</h2></div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          {clubRows.length ? clubRows.map((club) => (
+            <article key={club.id} className="ascend-workspace-stat p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div><p className="font-semibold">{club.name}</p><p className="mt-1 text-sm text-zinc-400">{club.activeSubscriptions} paid access periods · {club.planValueText} current plan value</p></div>
+                {club.lowMomentum ? <span className="rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">Watch</span> : <span className="rounded-full border border-calm/40 bg-calm/10 px-3 py-1 text-xs font-semibold text-calm">Steady</span>}
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div><p className="text-zinc-500">Active</p><p className="mt-1 font-semibold">{club.active}/{club.clients}</p></div>
+                <div><p className="text-zinc-500">Contacted</p><p className="mt-1 font-semibold">{club.contacted}/{club.assigned}</p></div>
+                <div><p className="text-zinc-500">Low momentum</p><p className="mt-1 font-semibold">{club.lowMomentum}</p></div>
+                <div><p className="text-zinc-500">Paid access</p><p className="mt-1 font-semibold">{club.activeSubscriptions}</p></div>
+              </div>
+              <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-6 text-zinc-300"><span className="font-semibold text-white">Recommended action:</span> {club.recommendation}</p>
+            </article>
+          )) : <div className="xl:col-span-2"><DelightEmptyState tone="teal" title="No club activity yet." body="Club-level member, trainer, and subscription facts will appear here as activity is recorded." /></div>}
+        </div>
+      </section>
+
+      <section className="mt-5">
+        <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Users className="text-calm" size={20} /><h2 className="text-xl font-semibold">Trainer Follow-up</h2></div>{pendingTrainers ? <Link href="/admin/users" className="text-sm font-semibold text-amber">{pendingTrainers} pending approval</Link> : null}</div>
+        <div className="mt-3 grid gap-3 xl:grid-cols-2">
+          {trainerRows.length ? trainerRows.map((trainer: RevenueTrainer) => {
+            const assigned = asNumber(trainer.clients_assigned);
+            const contacted = asNumber(trainer.clients_contacted_7d);
+            const gap = Math.max(0, assigned - contacted);
+            return (
+              <article key={trainer.id} className="ascend-workspace-stat p-4">
+                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{trainer.trainer_name || "Trainer"}</p><p className="mt-1 text-sm text-zinc-400">{trainer.gym_name}</p></div><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${gap || asNumber(trainer.open_risk_alerts) ? "border-amber/40 bg-amber/10 text-amber" : "border-calm/40 bg-calm/10 text-calm"}`}>{gap || asNumber(trainer.open_risk_alerts) ? "Follow up" : "On track"}</span></div>
+                <div className="mt-4 grid grid-cols-3 gap-3 text-sm"><div><p className="text-zinc-500">Clients reached</p><p className="mt-1 font-semibold">{contacted}/{assigned}</p></div><div><p className="text-zinc-500">Weekly reviews</p><p className="mt-1 font-semibold">{asNumber(trainer.weekly_reviews_7d)}</p></div><div><p className="text-zinc-500">Open alerts</p><p className="mt-1 font-semibold">{asNumber(trainer.open_risk_alerts)}</p></div></div>
+                <p className="mt-4 text-sm text-zinc-300">{gap ? `${gap} assigned ${gap === 1 ? "client has" : "clients have"} not received a trainer message this week.` : assigned ? "Every assigned client has received a trainer message this week." : "No active clients are assigned yet."}</p>
               </article>
             );
-            return priority.href ? <Link key={`${priority.title}-${priority.action}`} href={priority.href}>{content}</Link> : <div key={`${priority.title}-${priority.action}`}>{content}</div>;
-          })}
+          }) : <div className="xl:col-span-2"><DelightEmptyState tone="purple" title="No active trainers yet." body="Approved trainers will appear here with factual client contact, review, and alert counts." /></div>}
         </div>
       </section>
 
-      <section className="ascend-workspace-section p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <Target className="text-lime" size={20} />
-          <h2 className="text-xl font-semibold">Business Opportunities</h2>
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {opportunities.map((opportunity) => (
-            <OpportunityCard key={opportunity.title} {...opportunity} />
-          ))}
-        </div>
-      </section>
-      </div>
-
-      <div className="mt-4 grid items-start gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-      <section className="ascend-workspace-section p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <Building2 className="text-lime" size={20} />
-          <h2 className="text-xl font-semibold">Club Performance</h2>
-        </div>
-        <div className="mt-4 space-y-3">
-          {clubCards.length ? clubCards.map((club) => (
-            <article key={club.name} className="rounded-xl bg-ink p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{club.name}</p>
-                  <p className="mt-1 text-sm text-zinc-400">{club.revenue} revenue / {club.subscriptions} paid members</p>
-                </div>
-                <StatusPill status={club.status} />
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-zinc-400">Member engagement</p>
-                  <p className="mt-1 font-semibold">{club.memberEngagement}/100</p>
-                  <MiniBar value={club.memberEngagement} label={`${club.name} member engagement`} />
-                </div>
-                <div>
-                  <p className="text-zinc-400">Trainer engagement</p>
-                  <p className="mt-1 font-semibold">{club.trainerEngagement}/100</p>
-                  <MiniBar value={club.trainerEngagement} label={`${club.name} trainer engagement`} />
-                </div>
-              </div>
-              <p className="mt-3 text-sm leading-6 text-zinc-300">Risk level: {club.risk ? `${club.risk} low-momentum clients` : "Low"}. Recommendation: {club.recommendation}</p>
-            </article>
-          )) : (
-            <DelightEmptyState
-              tone="teal"
-              title="Club signals will light up here."
-              body="Once members, trainers, and subscriptions start generating activity, Ascend will turn it into a clear operating picture."
-            />
-          )}
+      <section className="ascend-workspace-section mt-5 p-4 sm:p-5">
+        <h2 className="text-xl font-semibold">Member Engagement</h2>
+        <p className="mt-1 text-sm text-zinc-400">Measured activity from active members in the current reporting window.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <ProgressRow label="Members active this week" value={`${weeklyActive}/${totalClients}`} percentageValue={totalClients ? (weeklyActive / totalClients) * 100 : 0} />
+          <ProgressRow label="Food logging" value={percentage(pilotMetrics?.clients.foodLoggingRate ?? 0)} percentageValue={pilotMetrics?.clients.foodLoggingRate ?? 0} />
+          <ProgressRow label="Workout logging" value={percentage(pilotMetrics?.clients.workoutLoggingRate ?? 0)} percentageValue={pilotMetrics?.clients.workoutLoggingRate ?? 0} />
+          <ProgressRow label="Body Scan adoption" value={pilotMetrics?.clients.athleteClients ? `${pilotMetrics.clients.bodyScanUsers90d}/${pilotMetrics.clients.athleteClients} Athlete members` : "No Athlete members"} percentageValue={pilotMetrics?.clients.bodyScanAdoptionRate ?? 0} />
         </div>
       </section>
 
-      <section className="ascend-workspace-section p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <Users className="text-calm" size={20} />
-          <h2 className="text-xl font-semibold">Trainer Performance</h2>
-        </div>
-        <div className="mt-4 space-y-3">
-          {trainerRows.length ? trainerRows.slice(0, 6).map((trainer, index) => (
-            <article key={trainer.name} className="rounded-xl bg-ink p-4 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:gap-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-semibold">{index + 1}. {trainer.name}</p>
-                  <p className="mt-1 text-sm text-zinc-400">{trainer.revenue} / {trainer.subscriptions} attributed subscriptions</p>
-                </div>
-                <StatusPill status={trainer.status} />
-              </div>
-              <p className="mt-3 text-sm leading-6 text-zinc-300 md:col-span-2">Suggested coaching action: {trainer.action}</p>
-            </article>
-          )) : (
-            <DelightEmptyState
-              tone="purple"
-              title="Trainer impact will become visible."
-              body="Trainer attribution will appear here once subscriptions and referrals are connected to trainers."
-            />
-          )}
-        </div>
-      </section>
-      </div>
+      <details id="ai-business-monitor" className="ascend-workspace-section mt-5 p-4 sm:p-5">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="flex items-center gap-2"><Bot className="text-calm" size={20} /><span className="font-semibold">AI Operations</span></span><span className="text-sm text-zinc-400">{aiUsage ? "Technical details" : "Unavailable"}</span></summary>
+        {aiUsage ? <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-ink p-3"><p className="text-zinc-400">Projected spend</p><p className="mt-1 text-lg font-semibold">{formatCurrency(aiUsage.summary.projected_monthly_cost_cents)}</p></div><div className="rounded-xl bg-ink p-3"><p className="text-zinc-400">Recorded failures</p><p className="mt-1 text-lg font-semibold">{asNumber(aiUsage.summary.monthly_errors)}</p></div></div> : <p className="mt-3 text-sm text-zinc-300">AI operation data could not be loaded. Other owner tools remain available.</p>}
+      </details>
 
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="text-lime" size={20} />
-          <h2 className="text-xl font-semibold">Member Engagement</h2>
-        </div>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Plain-language signals that show whether members are staying connected between sessions.</p>
-        <div className="mt-4 grid gap-4">
-          {[
-            ["Members staying active", `${pilotMetrics?.clients.weeklyActiveUsers ?? 0} this week`, Math.min(100, (pilotMetrics?.clients.weeklyActiveUsers ?? 0) * 10)],
-            ["Nutrition consistency", percent(pilotMetrics?.clients.foodLoggingRate ?? 0), pilotMetrics?.clients.foodLoggingRate ?? 0],
-            ["Workout consistency", `${pilotMetrics?.trainers.clientsMonitored ?? 0} clients monitored`, Math.min(100, (pilotMetrics?.trainers.clientsMonitored ?? 0) * 10)],
-            ["Body Scan adoption", `${athleteUsers.length} Athlete clients`, Math.min(100, athleteUsers.length * 20)],
-            ["Coach interaction", percent(pilotMetrics?.trainers.trainerResponseRate ?? 0), pilotMetrics?.trainers.trainerResponseRate ?? 0],
-            ["Retention outlook", healthFromScore(averageCompliance), averageCompliance]
-          ].map(([label, value, bar]) => (
-            <div key={label as string}>
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-zinc-300">{label}</span>
-                <span className="font-semibold text-white">{value}</span>
-              </div>
-              <div className="mt-2"><MiniBar value={Number(bar)} label={String(label)} /></div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className={`mt-4 rounded-2xl border p-4 ${aiWarning ? "border-amber/40 bg-amber/10" : "border-calm/30 bg-calm/10"}`}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Bot className={aiWarning ? "text-amber" : "text-calm"} size={20} />
-            <h2 className="text-xl font-semibold">AI Business Monitor</h2>
-          </div>
-          <StatusPill status={aiHealth} />
-        </div>
-        <p className="mt-3 text-sm leading-6 text-zinc-300">
-          {aiWarning ? `AI spend has reached the ${aiWarning}% warning level. Review usage before adding more pilot users.` : "AI cost is healthy. No owner action required right now."}
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-xl bg-ink p-3">
-            <p className="text-zinc-400">Projected spend</p>
-            <p className="mt-1 text-lg font-semibold">{money(aiSummary?.projected_monthly_cost_cents ?? 0)}</p>
-          </div>
-          <div className="rounded-xl bg-ink p-3">
-            <p className="text-zinc-400">Failures</p>
-            <p className="mt-1 text-lg font-semibold">{asNumber(aiSummary?.monthly_errors)}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
-        <div className="flex items-center gap-2">
-          <Lightbulb className="text-amber" size={20} />
-          <h2 className="text-xl font-semibold">Executive Insights</h2>
-        </div>
-        <div className="mt-4 space-y-2">
-          {insights.map((insight) => (
-            <p key={insight} className="rounded-xl bg-ink p-3 text-sm leading-6 text-zinc-300">{insight}</p>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-4 grid grid-cols-2 gap-3">
-        <Link href="/admin/users" className="ascend-pressable ascend-workspace-action p-4 text-left">
-          <Users className="text-lime" size={20} />
-          <span className="mt-3 block text-sm font-medium">Users</span>
-        </Link>
-        <Link href="/admin/subscriptions" className="ascend-pressable ascend-workspace-action p-4 text-left">
-          <BadgeDollarSign className="text-calm" size={20} />
-          <span className="mt-3 block text-sm font-medium">Subscriptions</span>
-        </Link>
-        <Link href="/admin/referrals" className="ascend-pressable ascend-workspace-action p-4 text-left">
-          <QrCode className="text-lime" size={20} />
-          <span className="mt-3 block text-sm font-medium">Referral codes</span>
-        </Link>
-      </section>
+      <nav aria-label="Owner tools" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Link href="/admin/users" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><Users className="text-lime" size={20} /><span className="font-medium">Users and assignments</span></Link>
+        <Link href="/admin/subscriptions" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><BadgeDollarSign className="text-calm" size={20} /><span className="font-medium">Subscriptions</span></Link>
+        <Link href="/admin/referrals" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><QrCode className="text-lime" size={20} /><span className="font-medium">Referral codes</span></Link>
+      </nav>
     </>
   );
 }

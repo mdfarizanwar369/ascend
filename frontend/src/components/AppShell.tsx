@@ -25,7 +25,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   const items = [
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
     { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: canTrain },
-    { href: "/admin", label: "Admin", icon: Shield, key: "admin", show: canAdmin },
+    { href: "/admin", label: roles.includes("owner") ? "Business" : "Admin", icon: Shield, key: "admin", show: canAdmin },
     { href: "/founder", label: "Founder", icon: Crown, key: "founder", show: canFounder }
   ].filter((item) => item.show);
   const backHref = active === "founder" ? "/founder" : active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";

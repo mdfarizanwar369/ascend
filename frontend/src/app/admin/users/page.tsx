@@ -7,7 +7,7 @@ export default function AdminUsersPage() {
     <AppShell active="admin">
       <RoleGate
         allowedRoles={["admin", "owner"]}
-        fallbackTitle="Admin access only"
+        fallbackTitle="Business access only"
         fallbackMessage="This account cannot manage users. Use an owner or admin login."
       >
         <AdminUsersClient />

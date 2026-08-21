@@ -7,7 +7,7 @@ export default function AdminSubscriptionsPage() {
     <AppShell active="admin">
       <RoleGate
         allowedRoles={["admin", "owner"]}
-        fallbackTitle="Admin access only"
+        fallbackTitle="Business access only"
         fallbackMessage="This account cannot manage subscriptions. Use an owner or admin login."
       >
         <AdminSubscriptionsClient />

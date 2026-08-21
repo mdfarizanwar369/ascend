@@ -2072,14 +2072,26 @@ export function createWeeklyCheckin(clientId: string) {
 export function getAdminRevenue() {
   return authedCached<{
     byGym: Array<{
+      id: string;
       gym_name: string | null;
-      revenue_cents: string | number;
+      active_plan_value_cents: string | number;
       active_subscriptions: string | number;
+      currency: string;
+      currency_count: string | number;
     }>;
     byTrainer: Array<{
+      id: string;
       trainer_name: string | null;
-      revenue_cents: string | number;
-      active_subscriptions: string | number;
+      gym_id: string;
+      gym_name: string;
+      clients_assigned: string | number;
+      clients_contacted_7d: string | number;
+      weekly_reviews_7d: string | number;
+      open_risk_alerts: string | number;
+      attributed_plan_value_cents: string | number;
+      attributed_subscriptions: string | number;
+      currency: string;
+      currency_count: string | number;
     }>;
   }>("admin:revenue", "/admin/analytics/revenue", 30_000);
 }
@@ -2087,11 +2099,18 @@ export function getAdminRevenue() {
 export function getAdminUsage() {
   return authedCached<{
     usage: Array<{
+      gym_id: string;
       gym_name: string;
       clients: string | number;
       food_logs: string | number;
       weight_logs: string | number;
       water_logs: string | number;
+      weekly_active_clients: string | number;
+      workout_loggers_7d: string | number;
+      body_scan_users_90d: string | number;
+      assigned_clients: string | number;
+      active_trainers: string | number;
+      clients_contacted_7d: string | number;
     }>;
   }>("admin:usage", "/admin/analytics/usage", 30_000);
 }
@@ -2099,6 +2118,7 @@ export function getAdminUsage() {
 export function getAdminCompliance() {
   return authedCached<{
     compliance: Array<{
+      gym_id: string;
       gym_name: string;
       average_compliance: string | number | null;
       low_compliance_clients: string | number;
@@ -2134,18 +2154,31 @@ export function getAdminAiUsage() {
 
 export function getAdminPilotMetrics() {
   return authedCached<{
+    generatedAt: string;
     clients: {
+      totalClients: number;
       dailyActiveUsers: number;
       weeklyActiveUsers: number;
       foodLoggingRate: number;
       weightLoggingRate: number;
       waterLoggingRate: number;
       habitCompletionRate: number;
+      workoutLoggingRate: number;
+      bodyScanUsers90d: number;
+      athleteClients: number;
+      bodyScanAdoptionRate: number;
       averageComplianceScore: number;
     };
     trainers: {
-      dailyTrainerLogins: number;
-      trainerResponseRate: number;
+      activeTrainers: number;
+      trainersMessagedToday: number;
+      clientsContacted7d: number;
+      followUpCoverageRate: number;
+      weeklyReviewsCompleted7d: number;
+      outstandingFollowUps: number;
+      unassignedClients: number;
+      pendingTrainers: number;
+      responseWithin48hRate: number;
       riskAlertsGenerated: number;
       riskAlertsResolved: number;
       clientsMonitored: number;
@@ -2153,9 +2186,10 @@ export function getAdminPilotMetrics() {
     business: {
       freeUsers: number;
       premiumUsers: number;
-      trialConversions: number;
-      monthlyRecurringRevenueCents: number;
-      churnRate: number;
+      premiumReviewCandidates: number;
+      trainerProUsers: number;
+      activeSubscriptions: number;
+      activePlanValueCents: number;
       referralPerformance: Array<{
         code: string;
         type: "gym" | "trainer";
@@ -2163,7 +2197,7 @@ export function getAdminPilotMetrics() {
         trainer_name: string | null;
         referred_users: string | number;
         converted_users: string | number;
-        revenue_cents: string | number;
+        active_plan_value_cents: string | number;
       }>;
     };
     ai: {
@@ -2179,6 +2213,7 @@ export function getAdminPilotMetrics() {
       weight_logs: string | number;
       water_logs: string | number;
       habit_completions: string | number;
+      workout_logs: string | number;
       average_compliance_score: string | number;
       ai_cost_cents: string | number;
     }>;
@@ -2277,6 +2312,8 @@ export function getAdminUsers() {
       owner_gym_ids: string[];
       current_plan: SubscriptionPlan;
       subscription_status: string | null;
+      subscription_provider: string | null;
+      subscription_current_period_end: string | null;
       status: "active" | "inactive";
       created_at: string;
     }>;
@@ -2650,12 +2687,21 @@ export function getAdminReferrals() {
       gym_name: string | null;
       trainer_name: string | null;
       referred_users: string | number;
-      active_revenue_cents: string | number;
+      active_plan_value_cents: string | number;
+      currency: string;
+      currency_count: string | number;
     }>;
   }>("/admin/referrals/analytics");
 }
 
-export function getAdminSubscriptions() {
+export function getAdminSubscriptions(input: { page?: number; pageSize?: number; status?: string; provider?: string; q?: string } = {}) {
+  const params = new URLSearchParams({
+    page: String(input.page ?? 1),
+    pageSize: String(input.pageSize ?? 50),
+    status: input.status ?? "current"
+  });
+  if (input.provider) params.set("provider", input.provider);
+  if (input.q) params.set("q", input.q);
   return authed<{
     subscriptions: Array<{
       id: string;
@@ -2668,9 +2714,13 @@ export function getAdminSubscriptions() {
       currency: string;
       referred_gym_name: string | null;
       referred_trainer_name: string | null;
+      current_period_start: string | null;
+      current_period_end: string | null;
       created_at: string;
     }>;
-  }>("/admin/subscriptions");
+    summary: { current: number; trials: number; pastDue: number };
+    pagination: { page: number; pageSize: number; total: number; totalPages: number };
+  }>(`/admin/subscriptions?${params.toString()}`);
 }
 
 export type FounderLeadStatus =

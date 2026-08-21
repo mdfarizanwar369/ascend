@@ -16,7 +16,7 @@ import {
   updateAdminUserRole
 } from "@/lib/ascendApi";
 import { CoachingMode, SubscriptionPlan } from "@ascend/shared";
-import { Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Search, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
 
@@ -65,6 +65,11 @@ function assignmentTone(user: AdminUser) {
   return "bg-surface text-zinc-300";
 }
 
+export function trainersForUser(user: AdminUser, trainers: AdminTrainer[]) {
+  if (!user.gym_id) return [];
+  return trainers.filter((trainer) => trainer.gym_id === user.gym_id && trainer.user_status === "active" && trainer.status === "active");
+}
+
 export function AdminUsersClient() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
@@ -74,6 +79,10 @@ export function AdminUsersClient() {
   const [referralStatus, setReferralStatus] = useState("");
   const [userView, setUserView] = useState<"active" | "inactive">("active");
   const [canManageOwnerGyms, setCanManageOwnerGyms] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
+  const [gymFilter, setGymFilter] = useState("all");
+  const [expandedUserId, setExpandedUserId] = useState("");
 
   async function load() {
     const userResponse = await getAdminUsers();
@@ -104,7 +113,16 @@ export function AdminUsersClient() {
 
   const activeUsers = useMemo(() => users.filter((user) => user.status === "active"), [users]);
   const inactiveUsers = useMemo(() => users.filter((user) => user.status !== "active"), [users]);
-  const visibleUsers = userView === "active" ? activeUsers : inactiveUsers;
+  const visibleUsers = useMemo(() => {
+    const source = userView === "active" ? activeUsers : inactiveUsers;
+    const normalizedSearch = search.trim().toLowerCase();
+    return source.filter((user) => {
+      if (roleFilter !== "all" && user.primary_role !== roleFilter) return false;
+      if (gymFilter !== "all" && user.gym_id !== gymFilter) return false;
+      if (!normalizedSearch) return true;
+      return `${user.full_name} ${user.email} ${user.gym_name ?? ""}`.toLowerCase().includes(normalizedSearch);
+    });
+  }, [activeUsers, gymFilter, inactiveUsers, roleFilter, search, userView]);
   const clients = useMemo(() => activeUsers.filter((user) => user.primary_role === "client"), [activeUsers]);
   const pendingTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status !== "active"), [trainers]);
   const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status === "active"), [trainers]);
@@ -119,12 +137,17 @@ export function AdminUsersClient() {
   }, [clients]);
 
   async function changeRole(user: AdminUser, role: Role) {
+    if (role === user.primary_role) return;
+    if ((role === "trainer" || role === "owner") && !user.gym_id) {
+      setStatus(`Choose a gym for ${user.full_name} before granting ${formatRole(role)} access.`);
+      return;
+    }
+    if (!window.confirm(`Change ${user.full_name}'s role from ${formatRole(user.primary_role)} to ${formatRole(role)}?`)) return;
     setSavingUserId(user.id);
     setStatus("");
 
     try {
-      const gymId = user.gym_id ?? gyms[0]?.id;
-      await updateAdminUserRole({ userId: user.id, role, gymId: role === "trainer" || role === "owner" ? gymId : undefined });
+      await updateAdminUserRole({ userId: user.id, role, gymId: role === "trainer" || role === "owner" ? user.gym_id ?? undefined : undefined });
       await load();
       setStatus(`${user.full_name} is now ${formatRole(role)}.`);
     } catch {
@@ -198,6 +221,12 @@ export function AdminUsersClient() {
   }
 
   async function grantPlan(user: AdminUser, plan: SubscriptionPlan) {
+    if (user.subscription_provider && user.subscription_provider !== "manual") {
+      setStatus(`${user.full_name}'s access is managed by ${user.subscription_provider}. Update it through that billing provider.`);
+      return;
+    }
+    if (plan === user.current_plan) return;
+    if (!window.confirm(`Manually change ${user.full_name} from ${formatPlan(user.current_plan)} to ${formatPlan(plan)}?`)) return;
     setSavingUserId(user.id);
     setStatus("");
 
@@ -213,6 +242,7 @@ export function AdminUsersClient() {
   }
 
   async function changeUserStatus(user: AdminUser, status: "active" | "inactive") {
+    if (status === "inactive" && !window.confirm(`Deactivate ${user.full_name}? They will lose access until reactivated.`)) return;
     setSavingUserId(user.id);
     setStatus("");
 
@@ -242,10 +272,10 @@ export function AdminUsersClient() {
   }
 
   async function permanentlyDeleteUser(user: AdminUser) {
-    const confirmed = window.confirm(
-      `Permanently delete ${user.full_name} (${user.email})?\n\nThis removes their login, logs, messages, photos, and subscription history. This cannot be undone.`
+    const confirmation = window.prompt(
+      `Permanently delete ${user.full_name} (${user.email})?\n\nThis removes their login, logs, messages, photos, and subscription history. Live paid access must be cancelled first.\n\nType DELETE to continue.`
     );
-    if (!confirmed) return;
+    if (confirmation !== "DELETE") return;
 
     setSavingUserId(user.id);
     setStatus("");
@@ -365,13 +395,14 @@ export function AdminUsersClient() {
                     onChange={(event) => assignTrainer(client.id, event.target.value)}
                   >
                     <option value="">Choose trainer</option>
-                    {activeTrainers.map((trainer) => (
+                    {trainersForUser(client, activeTrainers).map((trainer) => (
                       <option key={trainer.id} value={trainer.id}>
                         {trainer.full_name} / {trainer.gym_name} ({trainerClientCounts.get(trainer.id) ?? 0} clients)
                       </option>
                     ))}
                   </select>
                 </Field>
+                {!client.gym_id ? <p className="mt-2 text-xs text-amber">Assign this client to a gym before choosing a trainer.</p> : trainersForUser(client, activeTrainers).length === 0 ? <p className="mt-2 text-xs text-zinc-500">No active trainers are available in this client&apos;s gym.</p> : null}
               </div>
             </article>
           ))}
@@ -424,6 +455,36 @@ export function AdminUsersClient() {
             </button>
           </div>
         </div>
+
+        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_220px]">
+          <label className="relative block">
+            <span className="sr-only">Search users</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+            <input
+              className={`${inputClass} pl-10`}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search name, email, or gym"
+            />
+          </label>
+          <label>
+            <span className="sr-only">Filter by role</span>
+            <select className={selectClass} value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}>
+              <option value="all">All roles</option>
+              <option value="client">Clients</option>
+              <option value="trainer">Trainers</option>
+              <option value="owner">Owners</option>
+              <option value="admin">Admins</option>
+            </select>
+          </label>
+          <label>
+            <span className="sr-only">Filter by gym</span>
+            <select className={selectClass} value={gymFilter} onChange={(event) => setGymFilter(event.target.value)}>
+              <option value="all">All gyms</option>
+              {gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
+            </select>
+          </label>
+        </div>
         <div className="mt-3 space-y-3">
           {visibleUsers.map((user) => (
             <article key={user.id} className="bg-ink p-3 md:p-4">
@@ -443,10 +504,19 @@ export function AdminUsersClient() {
                   <span className={`rounded px-2 py-1 text-xs ${user.status === "active" ? "bg-lime text-ink" : "bg-amber text-ink"}`}>
                     {user.status === "active" ? "Active" : "Inactive"}
                   </span>
+                  <button
+                    type="button"
+                    className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-zinc-200"
+                    aria-expanded={expandedUserId === user.id}
+                    onClick={() => setExpandedUserId((current) => current === user.id ? "" : user.id)}
+                  >
+                    {expandedUserId === user.id ? "Close" : "Manage"}
+                    {expandedUserId === user.id ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                  </button>
                 </div>
               </div>
 
-              {user.status !== "active" ? (
+              {expandedUserId === user.id ? user.status !== "active" ? (
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <button
                     type="button"
@@ -493,17 +563,23 @@ export function AdminUsersClient() {
                     onChange={(event) => assignTrainer(user.id, event.target.value)}
                   >
                     <option value="">Unassigned</option>
-                    {activeTrainers.map((trainer) => (
+                    {trainersForUser(user, activeTrainers).map((trainer) => (
                       <option key={trainer.id} value={trainer.id}>
-                        {trainer.full_name}
+                        {trainer.full_name} / {trainer.gym_name}
                       </option>
                     ))}
                   </select>
                 </Field>
               </div>
+              {user.primary_role === "client" && !user.gym_id ? <p className="mt-2 text-xs text-amber">Assign a gym before assigning a trainer.</p> : null}
 
               <div className="ascend-workspace-inset mt-3 p-3">
                 <p className="text-xs font-semibold uppercase text-zinc-400">Plan access</p>
+                {user.subscription_provider && user.subscription_provider !== "manual" ? (
+                  <p className="mt-2 rounded-lg border border-calm/30 bg-calm/10 p-3 text-xs leading-5 text-zinc-300">
+                    Managed by {user.subscription_provider}. Billing changes must be made through that provider; manual controls are disabled to protect paid access.
+                  </p>
+                ) : null}
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   {(["free", "premium", "trainer_pro"] as SubscriptionPlan[]).map((plan) => {
                     const isCurrent = user.current_plan === plan;
@@ -511,7 +587,7 @@ export function AdminUsersClient() {
                       <button
                         key={plan}
                         type="button"
-                        disabled={savingUserId === user.id || isCurrent}
+                        disabled={savingUserId === user.id || isCurrent || Boolean(user.subscription_provider && user.subscription_provider !== "manual")}
                         onClick={() => grantPlan(user, plan)}
                         className={`h-11 rounded-lg text-xs font-semibold disabled:opacity-60 ${
                           isCurrent ? "border border-lime bg-lime/10 text-lime" : "border border-line bg-ink text-zinc-200"
@@ -585,7 +661,7 @@ export function AdminUsersClient() {
                 )}
               </div>
                 </>
-              )}
+              ) : null}
             </article>
           ))}
           {!visibleUsers.length ? (

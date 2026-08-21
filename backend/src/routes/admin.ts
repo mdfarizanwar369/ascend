@@ -39,6 +39,14 @@ const userStatusSchema = z.object({
 
 const ownerGymSchema = z.object({ gymId: z.string().uuid() });
 
+const subscriptionListSchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  status: z.enum(["current", "all", "active", "trialing", "past_due", "canceled", "expired"]).default("current"),
+  provider: z.string().trim().max(40).default(""),
+  q: z.string().trim().max(100).default("")
+});
+
 adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
   const scope = await getAdminGymScope(req.user!);
   res.json({
@@ -50,18 +58,28 @@ adminRouter.get("/admin/analytics/revenue", requireAuth, requireRole(["admin", "
 adminRouter.get("/admin/analytics/usage", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
   const scope = await getAdminGymScope(req.user!);
   const result = await query(`
-    select g.name as gym_name,
-      count(distinct u.id) filter (where u.primary_role = 'client') as clients,
-      count(distinct fl.id) as food_logs,
-      count(distinct wl.id) as weight_logs,
-      count(distinct wat.id) as water_logs
+    select
+      g.id as gym_id,
+      g.name as gym_name,
+      (select count(*) from users u where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active') as clients,
+      (select count(*) from food_logs fl join users u on u.id = fl.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and fl.logged_at >= now() - interval '30 days') as food_logs,
+      (select count(*) from weight_logs wl join users u on u.id = wl.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and wl.logged_at >= now() - interval '30 days') as weight_logs,
+      (select count(*) from water_logs wat join users u on u.id = wat.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and wat.logged_at >= now() - interval '30 days') as water_logs,
+      (select count(*) from users u where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and u.last_meaningful_activity_at >= now() - interval '7 days') as weekly_active_clients,
+      (select count(distinct ae.user_id) from analytics_events ae join users u on u.id = ae.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and ae.event_name = 'burn_log' and ae.created_at >= now() - interval '7 days') as workout_loggers_7d,
+      (select count(distinct bcs.user_id) from body_composition_scans bcs join users u on u.id = bcs.user_id where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and bcs.user_confirmed = true and bcs.created_at >= now() - interval '90 days') as body_scan_users_90d,
+      (select count(*) from users u where u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active' and u.assigned_trainer_id is not null) as assigned_clients,
+      (select count(*) from trainers t join users tu on tu.id = t.user_id where t.gym_id = g.id and t.status = 'active' and tu.status = 'active') as active_trainers,
+      (
+        select count(distinct m.receiver_user_id)
+        from messages m
+        join users trainer_user on trainer_user.id = m.sender_user_id
+        join trainers t on t.user_id = trainer_user.id and t.gym_id = g.id
+        join users client on client.id = m.receiver_user_id and client.assigned_trainer_id = t.id
+        where m.created_at >= now() - interval '7 days'
+      ) as clients_contacted_7d
     from gyms g
-    left join users u on u.gym_id = g.id
-    left join food_logs fl on fl.user_id = u.id and fl.created_at > now() - interval '30 days'
-    left join weight_logs wl on wl.user_id = u.id and wl.created_at > now() - interval '30 days'
-    left join water_logs wat on wat.user_id = u.id and wat.created_at > now() - interval '30 days'
     where ($1::uuid[] is null or g.id = any($1))
-    group by g.id
     order by g.name
   `, [scope.gymIds]);
   res.json({ usage: result.rows });
@@ -70,12 +88,18 @@ adminRouter.get("/admin/analytics/usage", requireAuth, requireRole(["admin", "ow
 adminRouter.get("/admin/analytics/compliance", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
   const scope = await getAdminGymScope(req.user!);
   const result = await query(`
-    select g.name as gym_name,
+    select g.id as gym_id, g.name as gym_name,
       round(avg(cs.score)) as average_compliance,
-      count(cs.id) filter (where cs.score < 50) as low_compliance_clients
+      count(u.id) filter (where cs.score < 50) as low_compliance_clients
     from gyms g
-    left join users u on u.gym_id = g.id and u.primary_role = 'client'
-    left join compliance_scores cs on cs.user_id = u.id and cs.calculated_for_date = current_date
+    left join users u on u.gym_id = g.id and u.primary_role = 'client' and u.status = 'active'
+    left join lateral (
+      select score
+      from compliance_scores
+      where user_id = u.id
+      order by calculated_for_date desc
+      limit 1
+    ) cs on true
     where ($1::uuid[] is null or g.id = any($1))
     group by g.id
     order by g.name
@@ -204,65 +228,81 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
   const [summary, trends, referrals] = await Promise.all([
     query(`
       with client_base as (
-        select id
+        select id, gym_id, assigned_trainer_id, last_meaningful_activity_at
         from users
         where primary_role = 'client'
+          and status = 'active'
           and ($1::uuid[] is null or gym_id = any($1))
       ),
-      active_today as (
-        select distinct user_id from food_logs where logged_at::date = current_date
-        union select distinct user_id from weight_logs where logged_at::date = current_date
-        union select distinct user_id from water_logs where logged_at::date = current_date
-        union select distinct user_id from habit_logs where logged_at::date = current_date
-        union select distinct user_id from analytics_events where created_at::date = current_date
-        union select distinct sender_user_id as user_id from messages where created_at::date = current_date
-        union select distinct user_id from ai_usage_events where created_at::date = current_date
-      ),
-      active_week as (
-        select distinct user_id from food_logs where logged_at >= now() - interval '7 days'
-        union select distinct user_id from weight_logs where logged_at >= now() - interval '7 days'
-        union select distinct user_id from water_logs where logged_at >= now() - interval '7 days'
-        union select distinct user_id from habit_logs where logged_at >= now() - interval '7 days'
-        union select distinct user_id from analytics_events where created_at >= now() - interval '7 days'
-        union select distinct sender_user_id as user_id from messages where created_at >= now() - interval '7 days'
-        union select distinct user_id from ai_usage_events where created_at >= now() - interval '7 days'
+      trainer_base as (
+        select t.id, t.user_id, t.gym_id
+        from trainers t
+        join users u on u.id = t.user_id
+        where t.status = 'active'
+          and u.status = 'active'
+          and ($1::uuid[] is null or t.gym_id = any($1))
       ),
       client_activity as (
         select
           (select count(*) from client_base) as total_clients,
-          (select count(*) from active_today a join client_base c on c.id = a.user_id) as daily_active_users,
-          (select count(*) from active_week a join client_base c on c.id = a.user_id) as weekly_active_users,
+          count(*) filter (where last_meaningful_activity_at::date = current_date) as daily_active_users,
+          count(*) filter (where last_meaningful_activity_at >= now() - interval '7 days') as weekly_active_users,
           (select count(distinct fl.user_id) from food_logs fl join client_base cb on cb.id = fl.user_id where fl.logged_at >= now() - interval '7 days') as food_loggers,
           (select count(distinct wl.user_id) from weight_logs wl join client_base cb on cb.id = wl.user_id where wl.logged_at >= now() - interval '7 days') as weight_loggers,
           (select count(distinct wat.user_id) from water_logs wat join client_base cb on cb.id = wat.user_id where wat.logged_at >= now() - interval '7 days') as water_loggers,
           (select count(distinct hl.user_id) from habit_logs hl join client_base cb on cb.id = hl.user_id where hl.completed = true and hl.logged_at >= now() - interval '7 days') as habit_completers,
-          (select round(avg(cs.score)) from compliance_scores cs join client_base cb on cb.id = cs.user_id where cs.calculated_for_date >= current_date - interval '7 days') as average_compliance_score
+          (select count(distinct ae.user_id) from analytics_events ae join client_base cb on cb.id = ae.user_id where ae.event_name = 'burn_log' and ae.created_at >= now() - interval '7 days') as workout_loggers,
+          (select count(distinct bcs.user_id) from body_composition_scans bcs join client_base cb on cb.id = bcs.user_id where bcs.user_confirmed = true and bcs.created_at >= now() - interval '90 days') as body_scan_users_90d,
+          (select count(*) from athlete_profiles ap join client_base cb on cb.id = ap.user_id where ap.enabled = true) as athlete_clients,
+          (select round(avg(latest.score)) from client_base cb left join lateral (select score from compliance_scores where user_id = cb.id order by calculated_for_date desc limit 1) latest on true) as average_compliance_score
+        from client_base
       ),
       trainer_activity as (
         select
-          count(distinct m.sender_user_id) filter (where m.created_at::date = current_date and su.primary_role in ('trainer','admin','owner')) as daily_trainer_logins,
-          count(m.id) filter (where su.primary_role in ('trainer','admin','owner') and m.created_at >= now() - interval '7 days') as trainer_replies,
-          count(m.id) filter (where su.primary_role = 'client' and m.created_at >= now() - interval '7 days') as client_messages,
+          (select count(distinct m.sender_user_id) from messages m join trainer_base tb on tb.user_id = m.sender_user_id where m.created_at::date = current_date) as trainers_messaged_today,
+          (select count(distinct m.receiver_user_id) from messages m join trainer_base tb on tb.user_id = m.sender_user_id join client_base cb on cb.id = m.receiver_user_id and cb.assigned_trainer_id = tb.id where m.created_at >= now() - interval '7 days') as clients_contacted_7d,
+          (select count(*) from weekly_reports wr join trainer_base tb on tb.id = wr.trainer_id where wr.created_at >= now() - interval '7 days') as weekly_reviews_completed_7d,
+          (select count(*) from risk_alerts where status = 'open' and ($1::uuid[] is null or gym_id = any($1))) as outstanding_followups,
+          (select count(*) from messages cm join client_base cb on cb.id = cm.sender_user_id join trainer_base tb on tb.user_id = cm.receiver_user_id where cm.created_at >= now() - interval '7 days') as client_messages,
+          (
+            select count(*)
+            from messages cm
+            join client_base cb on cb.id = cm.sender_user_id
+            join trainer_base tb on tb.user_id = cm.receiver_user_id
+            where cm.created_at >= now() - interval '7 days'
+              and exists (
+                select 1 from messages reply
+                where reply.sender_user_id = cm.receiver_user_id
+                  and reply.receiver_user_id = cm.sender_user_id
+                  and reply.created_at > cm.created_at
+                  and reply.created_at <= cm.created_at + interval '48 hours'
+              )
+          ) as client_messages_answered_48h,
           (select count(*) from risk_alerts where created_at >= now() - interval '30 days' and ($1::uuid[] is null or gym_id = any($1))) as risk_alerts_generated,
           (select count(*) from risk_alerts where (resolved_at >= now() - interval '30 days' or (status in ('resolved','acknowledged') and created_at >= now() - interval '30 days')) and ($1::uuid[] is null or gym_id = any($1))) as risk_alerts_resolved,
-          (select count(distinct id) from users where primary_role = 'client' and assigned_trainer_id is not null and ($1::uuid[] is null or gym_id = any($1))) as clients_monitored
-        from messages m
-        join users su on su.id = m.sender_user_id
-        where ($1::uuid[] is null or su.gym_id = any($1))
+          (select count(*) from client_base where assigned_trainer_id is not null) as clients_monitored,
+          (select count(*) from client_base where assigned_trainer_id is null) as unassigned_clients,
+          (select count(*) from trainers t join users u on u.id = t.user_id where t.status <> 'active' and u.status = 'active' and ($1::uuid[] is null or t.gym_id = any($1))) as pending_trainers,
+          (select count(*) from trainer_base) as active_trainers
       ),
       business as (
         select
           count(cb.id) filter (where coalesce(s.plan::text, 'free') = 'free' or s.id is null) as free_users,
-          count(cb.id) filter (where s.plan = 'premium' and s.status in ('active','trialing')) as premium_users,
-          count(cb.id) filter (where s.plan in ('premium','trainer_pro') and s.status in ('active','trialing')) as trial_conversions,
-          coalesce(sum(s.amount_cents) filter (where s.status in ('active','trialing') and s.plan in ('premium','trainer_pro')), 0) as monthly_recurring_revenue_cents,
-          count(s.id) filter (where s.status in ('canceled','expired') and s.plan in ('premium','trainer_pro')) as churned_subscriptions,
-          count(s.id) filter (where s.plan in ('premium','trainer_pro')) as paid_subscriptions_ever
+          count(cb.id) filter (where s.plan = 'premium') as premium_users,
+          count(cb.id) filter (where s.plan = 'premium' and coalesce(ap.enabled, false) = false) as premium_review_candidates,
+          count(cb.id) filter (where s.plan = 'trainer_pro') as trainer_pro_users,
+          count(s.id) filter (where s.id is not null) as active_subscriptions,
+          coalesce(sum(s.amount_cents), 0) as active_plan_value_cents
         from client_base cb
+        left join athlete_profiles ap on ap.user_id = cb.id
         left join lateral (
           select *
           from subscriptions s
           where s.user_id = cb.id
+            and (
+              s.status in ('active', 'trialing', 'past_due')
+              or (s.status = 'canceled' and s.current_period_end > now())
+            )
           order by s.created_at desc
           limit 1
         ) s on true
@@ -289,38 +329,61 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
         select generate_series(current_date - interval '13 days', current_date, interval '1 day')::date as period
       ),
       activity as (
-        select fl.user_id, fl.logged_at::date as period, 'food' as type from food_logs fl join users u on u.id = fl.user_id where fl.logged_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
-        union all select wl.user_id, wl.logged_at::date, 'weight' from weight_logs wl join users u on u.id = wl.user_id where wl.logged_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
-        union all select wat.user_id, wat.logged_at::date, 'water' from water_logs wat join users u on u.id = wat.user_id where wat.logged_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
-        union all select hl.user_id, hl.logged_at::date, 'habit' from habit_logs hl join users u on u.id = hl.user_id where hl.logged_at >= current_date - interval '13 days' and hl.completed = true and ($1::uuid[] is null or u.gym_id = any($1))
-        union all select ae.user_id, ae.created_at::date, 'activity' from analytics_events ae join users u on u.id = ae.user_id where ae.created_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
-        union all select m.sender_user_id, m.created_at::date, 'message' from messages m join users u on u.id = m.sender_user_id where m.created_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
+        select fl.user_id, fl.logged_at::date as period, 'food' as type from food_logs fl join users u on u.id = fl.user_id where u.primary_role = 'client' and u.status = 'active' and fl.logged_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
+        union all select wl.user_id, wl.logged_at::date, 'weight' from weight_logs wl join users u on u.id = wl.user_id where u.primary_role = 'client' and u.status = 'active' and wl.logged_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
+        union all select wat.user_id, wat.logged_at::date, 'water' from water_logs wat join users u on u.id = wat.user_id where u.primary_role = 'client' and u.status = 'active' and wat.logged_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
+        union all select hl.user_id, hl.logged_at::date, 'habit' from habit_logs hl join users u on u.id = hl.user_id where u.primary_role = 'client' and u.status = 'active' and hl.logged_at >= current_date - interval '13 days' and hl.completed = true and ($1::uuid[] is null or u.gym_id = any($1))
+        union all select ae.user_id, ae.created_at::date, 'workout' from analytics_events ae join users u on u.id = ae.user_id where u.primary_role = 'client' and u.status = 'active' and ae.event_name = 'burn_log' and ae.created_at >= current_date - interval '13 days' and ($1::uuid[] is null or u.gym_id = any($1))
+      ),
+      daily_activity as (
+        select period,
+          count(distinct user_id) as active_users,
+          count(*) filter (where type = 'food') as food_logs,
+          count(*) filter (where type = 'weight') as weight_logs,
+          count(*) filter (where type = 'water') as water_logs,
+          count(*) filter (where type = 'habit') as habit_completions,
+          count(*) filter (where type = 'workout') as workout_logs
+        from activity
+        group by period
+      ),
+      daily_compliance as (
+        select cs.calculated_for_date as period, round(avg(cs.score)) as average_compliance_score
+        from compliance_scores cs
+        join users u on u.id = cs.user_id
+        where cs.calculated_for_date >= current_date - interval '13 days'
+          and u.primary_role = 'client'
+          and u.status = 'active'
+          and ($1::uuid[] is null or u.gym_id = any($1))
+        group by cs.calculated_for_date
+      ),
+      daily_ai as (
+        select created_at::date as period, sum(estimated_cost_cents) as estimated_cost_cents
+        from ai_usage_events
+        where created_at >= current_date - interval '13 days'
+          and ($1::uuid[] is null or gym_id = any($1))
+        group by created_at::date
       )
       select
         d.period,
-        count(distinct a.user_id) as active_users,
-        count(*) filter (where a.type = 'food') as food_logs,
-        count(*) filter (where a.type = 'weight') as weight_logs,
-        count(*) filter (where a.type = 'water') as water_logs,
-        count(*) filter (where a.type = 'habit') as habit_completions,
-        coalesce(round(avg(cs.score)), 0) as average_compliance_score,
+        coalesce(a.active_users, 0) as active_users,
+        coalesce(a.food_logs, 0) as food_logs,
+        coalesce(a.weight_logs, 0) as weight_logs,
+        coalesce(a.water_logs, 0) as water_logs,
+        coalesce(a.habit_completions, 0) as habit_completions,
+        coalesce(a.workout_logs, 0) as workout_logs,
+        coalesce(c.average_compliance_score, 0) as average_compliance_score,
         coalesce(ai.estimated_cost_cents, 0) as ai_cost_cents
       from days d
-      left join activity a on a.period = d.period
-      left join compliance_scores cs on cs.calculated_for_date = d.period and cs.user_id in (select id from users where $1::uuid[] is null or gym_id = any($1))
-      left join lateral (
-        select sum(estimated_cost_cents) as estimated_cost_cents
-        from ai_usage_events
-        where created_at::date = d.period and ($1::uuid[] is null or gym_id = any($1))
-      ) ai on true
-      group by d.period, ai.estimated_cost_cents
+      left join daily_activity a on a.period = d.period
+      left join daily_compliance c on c.period = d.period
+      left join daily_ai ai on ai.period = d.period
       order by d.period
     `, [scope.gymIds]),
     query(`
       select rc.code, rc.type, coalesce(g.name, trainer_gym.name) as gym_name, tu.full_name as trainer_name,
-        count(u.id) as referred_users,
-        count(s.id) filter (where s.status in ('active','trialing') and s.plan in ('premium','trainer_pro')) as converted_users,
-        coalesce(sum(s.amount_cents) filter (where s.status in ('active','trialing')), 0) as revenue_cents
+        count(distinct u.id) as referred_users,
+        count(current_subscription.user_id) filter (where current_subscription.plan in ('premium','trainer_pro')) as converted_users,
+        coalesce(sum(current_subscription.amount_cents), 0) as active_plan_value_cents
       from referral_codes rc
       left join gyms g on g.id = rc.gym_id
       left join trainers t on t.id = rc.trainer_id
@@ -330,10 +393,20 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
         (rc.type = 'gym' and u.referred_by_gym_id = rc.gym_id and u.referred_by_trainer_id is null)
         or (rc.type = 'trainer' and u.referred_by_trainer_id = rc.trainer_id)
       )
-      left join subscriptions s on s.user_id = u.id
+      left join lateral (
+        select s.user_id, s.plan, s.amount_cents
+        from subscriptions s
+        where s.user_id = u.id
+          and (
+            s.status in ('active', 'trialing', 'past_due')
+            or (s.status = 'canceled' and s.current_period_end > now())
+          )
+        order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+        limit 1
+      ) current_subscription on true
       where ($1::uuid[] is null or coalesce(rc.gym_id, trainer_gym.id) = any($1))
       group by rc.id, g.name, trainer_gym.name, tu.full_name
-      order by referred_users desc, revenue_cents desc
+      order by referred_users desc, active_plan_value_cents desc
       limit 20
     `, [scope.gymIds])
   ]);
@@ -341,10 +414,11 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
   const row = summary.rows[0] ?? {};
   const totalClients = Number(row.total_clients ?? 0);
   const weeklyActiveUsers = Number(row.weekly_active_users ?? 0);
-  const trainerReplies = Number(row.trainer_replies ?? 0);
   const clientMessages = Number(row.client_messages ?? 0);
-  const paidEver = Number(row.paid_subscriptions_ever ?? 0);
-  const churned = Number(row.churned_subscriptions ?? 0);
+  const clientMessagesAnswered = Number(row.client_messages_answered_48h ?? 0);
+  const clientsMonitored = Number(row.clients_monitored ?? 0);
+  const clientsContacted = Number(row.clients_contacted_7d ?? 0);
+  const athleteClients = Number(row.athlete_clients ?? 0);
   const foodAiEvents = Number(row.food_ai_events ?? 0);
   const cacheHits = Number(row.cache_hits ?? 0);
   const monthCost = Number(row.monthly_estimated_cost_cents ?? 0);
@@ -352,28 +426,42 @@ adminRouter.get("/admin/analytics/pilot-metrics", requireAuth, requireRole(["adm
   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
 
   res.json({
+    generatedAt: new Date().toISOString(),
     clients: {
+      totalClients,
       dailyActiveUsers: Number(row.daily_active_users ?? 0),
       weeklyActiveUsers,
       foodLoggingRate: totalClients ? Math.round((Number(row.food_loggers ?? 0) / totalClients) * 100) : 0,
       weightLoggingRate: totalClients ? Math.round((Number(row.weight_loggers ?? 0) / totalClients) * 100) : 0,
       waterLoggingRate: totalClients ? Math.round((Number(row.water_loggers ?? 0) / totalClients) * 100) : 0,
       habitCompletionRate: totalClients ? Math.round((Number(row.habit_completers ?? 0) / totalClients) * 100) : 0,
+      workoutLoggingRate: totalClients ? Math.round((Number(row.workout_loggers ?? 0) / totalClients) * 100) : 0,
+      bodyScanUsers90d: Number(row.body_scan_users_90d ?? 0),
+      athleteClients,
+      bodyScanAdoptionRate: athleteClients ? Math.round((Number(row.body_scan_users_90d ?? 0) / athleteClients) * 100) : 0,
       averageComplianceScore: Number(row.average_compliance_score ?? 0)
     },
     trainers: {
-      dailyTrainerLogins: Number(row.daily_trainer_logins ?? 0),
-      trainerResponseRate: clientMessages ? Math.min(100, Math.round((trainerReplies / clientMessages) * 100)) : 0,
+      activeTrainers: Number(row.active_trainers ?? 0),
+      trainersMessagedToday: Number(row.trainers_messaged_today ?? 0),
+      clientsContacted7d: clientsContacted,
+      followUpCoverageRate: clientsMonitored ? Math.min(100, Math.round((clientsContacted / clientsMonitored) * 100)) : 0,
+      weeklyReviewsCompleted7d: Number(row.weekly_reviews_completed_7d ?? 0),
+      outstandingFollowUps: Number(row.outstanding_followups ?? 0),
+      unassignedClients: Number(row.unassigned_clients ?? 0),
+      pendingTrainers: Number(row.pending_trainers ?? 0),
+      responseWithin48hRate: clientMessages ? Math.min(100, Math.round((clientMessagesAnswered / clientMessages) * 100)) : 0,
       riskAlertsGenerated: Number(row.risk_alerts_generated ?? 0),
       riskAlertsResolved: Number(row.risk_alerts_resolved ?? 0),
-      clientsMonitored: Number(row.clients_monitored ?? 0)
+      clientsMonitored
     },
     business: {
       freeUsers: Number(row.free_users ?? 0),
       premiumUsers: Number(row.premium_users ?? 0),
-      trialConversions: Number(row.trial_conversions ?? 0),
-      monthlyRecurringRevenueCents: Number(row.monthly_recurring_revenue_cents ?? 0),
-      churnRate: paidEver ? Math.round((churned / paidEver) * 100) : 0,
+      premiumReviewCandidates: Number(row.premium_review_candidates ?? 0),
+      trainerProUsers: Number(row.trainer_pro_users ?? 0),
+      activeSubscriptions: Number(row.active_subscriptions ?? 0),
+      activePlanValueCents: Number(row.active_plan_value_cents ?? 0),
       referralPerformance: referrals.rows
     },
     ai: {
@@ -412,7 +500,7 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
         select s.plan, s.status
         from subscriptions s
         where s.user_id = u.id
-          and (s.status in ('active', 'trialing') or (s.status = 'canceled' and s.current_period_end > now()))
+          and (s.status in ('active', 'trialing', 'past_due') or (s.status = 'canceled' and s.current_period_end > now()))
         order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
         limit 1
       ) active_subscription on true
@@ -457,10 +545,10 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
     },
     {
       id: "free-clients",
-      type: "pilot_access",
+      type: "premium_review",
       severity: "important",
-      title: "Free clients awaiting pilot access",
-      body: "Upgrade approved pilot members from Free to Premium when they are accepted.",
+      title: "Members eligible for Premium review",
+      body: "Review active Free members before offering Premium coaching. This is a candidate count, not guaranteed revenue.",
       href: "/admin/users",
       count: Number(freeClients.rows[0]?.count ?? 0)
     },
@@ -479,10 +567,15 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
       severity: "important",
       title: "AI errors in the last 24 hours",
       body: "Check this when food estimates or AI coach replies feel unreliable.",
-      href: "/admin",
+      href: "/admin#ai-business-monitor",
       count: Number(recentAiErrors.rows[0]?.count ?? 0)
     }
-  ].filter((notification) => notification.count > 0);
+  ]
+    .filter((notification) => notification.count > 0)
+    .sort((a, b) => {
+      const severityDifference = (a.severity === "critical" ? 0 : 1) - (b.severity === "critical" ? 0 : 1);
+      return severityDifference || b.count - a.count;
+    });
 
   res.json({
     notifications,
@@ -556,6 +649,8 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
       ) as roles,
       coalesce(active_subscription.plan::text, 'free') as current_plan,
       active_subscription.status as subscription_status,
+      active_subscription.provider as subscription_provider,
+      active_subscription.current_period_end as subscription_current_period_end,
       u.status,
       u.created_at
     from users u
@@ -567,10 +662,10 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
     left join users referred_trainer_user on referred_trainer_user.id = referred_trainer.user_id
     left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
     left join lateral (
-      select s.plan, s.status
+      select s.plan, s.status, s.provider, s.current_period_end
       from subscriptions s
       where s.user_id = u.id
-        and (s.status in ('active', 'trialing') or (s.status = 'canceled' and s.current_period_end > now()))
+        and (s.status in ('active', 'trialing', 'past_due') or (s.status = 'canceled' and s.current_period_end > now()))
       order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
       limit 1
     ) active_subscription on true
@@ -689,8 +784,11 @@ adminRouter.delete("/admin/users/:userId", requireAuth, requireRole(["owner"]), 
         exists (
           select 1 from subscriptions s
           where s.user_id = u.id
-            and s.provider in ('stripe', 'lemonsqueezy')
-            and s.status in ('active', 'trialing', 'past_due')
+            and s.provider <> 'manual'
+            and (
+              s.status in ('active', 'trialing', 'past_due')
+              or (s.status = 'canceled' and s.current_period_end > now())
+            )
         ) as has_live_paid_subscription
       from users u
       left join trainers t on t.user_id = u.id
@@ -776,7 +874,28 @@ adminRouter.post("/admin/users/:userId/subscription", requireAuth, requireRole([
     const user = userResult.rows[0];
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    await query("update subscriptions set status = 'canceled', updated_at = now() where user_id = $1 and status in ('active', 'trialing')", [
+    const externalSubscription = await query<{ provider: string }>(
+      `
+      select provider::text as provider
+      from subscriptions
+      where user_id = $1
+        and provider <> 'manual'
+        and (
+          status in ('active', 'trialing', 'past_due')
+          or (status = 'canceled' and current_period_end > now())
+        )
+      order by created_at desc
+      limit 1
+      `,
+      [req.params.userId]
+    );
+    if (externalSubscription.rows[0]) {
+      return res.status(409).json({
+        error: `This member has an active ${externalSubscription.rows[0].provider.replace("_", " ")} subscription. Manage billing with that provider before changing manual access.`
+      });
+    }
+
+    await query("update subscriptions set status = 'canceled', updated_at = now() where user_id = $1 and provider = 'manual' and status in ('active', 'trialing')", [
       req.params.userId
     ]);
 
@@ -899,15 +1018,12 @@ adminRouter.post("/admin/referral-codes", requireAuth, requireRole(["admin", "ow
       `
       insert into referral_codes (code, type, gym_id, trainer_id, created_by_user_id)
       values ($1, $2, $3, $4, $5)
-      on conflict (code) do update set
-        type = excluded.type,
-        gym_id = excluded.gym_id,
-        trainer_id = excluded.trainer_id,
-        active = true
+      on conflict (code) do nothing
       returning *
       `,
       [input.code.toUpperCase(), input.type, input.gymId ?? null, input.trainerId ?? null, req.user!.id]
     );
+    if (!result.rows[0]) return res.status(409).json({ error: "That referral code already exists. Choose a unique code." });
     res.status(201).json({ referral: result.rows[0] });
   } catch (error) {
     next(error);
@@ -918,8 +1034,10 @@ adminRouter.get("/admin/referrals/analytics", requireAuth, requireRole(["admin",
   const scope = await getAdminGymScope(req.user!);
   const result = await query(`
     select rc.code, rc.type, coalesce(g.name, trainer_gym.name) as gym_name, tu.full_name as trainer_name,
-      count(u.id) as referred_users,
-      coalesce(sum(s.amount_cents) filter (where s.status = 'active'), 0) as active_revenue_cents
+      count(distinct u.id) as referred_users,
+      coalesce(sum(current_subscription.amount_cents), 0) as active_plan_value_cents,
+      coalesce(min(current_subscription.currency), 'MYR') as currency,
+      count(distinct current_subscription.currency) as currency_count
     from referral_codes rc
     left join gyms g on g.id = rc.gym_id
     left join trainers t on t.id = rc.trainer_id
@@ -929,17 +1047,29 @@ adminRouter.get("/admin/referrals/analytics", requireAuth, requireRole(["admin",
       (rc.type = 'gym' and u.referred_by_gym_id = rc.gym_id and u.referred_by_trainer_id is null)
       or (rc.type = 'trainer' and u.referred_by_trainer_id = rc.trainer_id)
     )
-    left join subscriptions s on s.user_id = u.id
+    left join lateral (
+      select s.amount_cents, s.currency
+      from subscriptions s
+      where s.user_id = u.id
+        and (
+          s.status in ('active', 'trialing', 'past_due')
+          or (s.status = 'canceled' and s.current_period_end > now())
+        )
+      order by case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+      limit 1
+    ) current_subscription on true
     where ($1::uuid[] is null or coalesce(rc.gym_id, trainer_gym.id) = any($1))
     group by rc.id, g.name, trainer_gym.name, tu.full_name
-    order by active_revenue_cents desc, referred_users desc
+    order by active_plan_value_cents desc, referred_users desc
   `, [scope.gymIds]);
   res.json({ referrals: result.rows });
 });
 
 adminRouter.get("/admin/subscriptions", requireAuth, requireRole(["admin", "owner"]), async (req, res) => {
   const scope = await getAdminGymScope(req.user!);
-  const result = await query(`
+  const input = subscriptionListSchema.parse(req.query);
+  const offset = (input.page - 1) * input.pageSize;
+  const [result, countResult, summaryResult] = await Promise.all([query(`
     select s.*, u.full_name, u.email, g.name as referred_gym_name, tu.full_name as referred_trainer_name
     from subscriptions s
     join users u on u.id = s.user_id
@@ -947,8 +1077,68 @@ adminRouter.get("/admin/subscriptions", requireAuth, requireRole(["admin", "owne
     left join trainers t on t.id = s.referred_by_trainer_id
     left join users tu on tu.id = t.user_id
     where ($1::uuid[] is null or u.gym_id = any($1))
+      and (
+        $2 = 'all'
+        or ($2 = 'current' and s.id = (
+          select s2.id from subscriptions s2
+          where s2.user_id = s.user_id
+            and (s2.status in ('active', 'trialing', 'past_due') or (s2.status = 'canceled' and s2.current_period_end > now()))
+          order by case s2.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s2.created_at desc
+          limit 1
+        ))
+        or s.status::text = $2
+      )
+      and ($3 = '' or s.provider::text = $3)
+      and ($4 = '' or u.full_name ilike '%' || $4 || '%' or u.email ilike '%' || $4 || '%' or coalesce(g.name, '') ilike '%' || $4 || '%')
     order by s.created_at desc
-    limit 200
-  `, [scope.gymIds]);
-  res.json({ subscriptions: result.rows });
+    limit $5 offset $6
+  `, [scope.gymIds, input.status, input.provider, input.q, input.pageSize, offset]), query(`
+    select count(*) as total
+    from subscriptions s
+    join users u on u.id = s.user_id
+    left join gyms g on g.id = s.referred_by_gym_id
+    where ($1::uuid[] is null or u.gym_id = any($1))
+      and (
+        $2 = 'all'
+        or ($2 = 'current' and s.id = (
+          select s2.id from subscriptions s2
+          where s2.user_id = s.user_id
+            and (s2.status in ('active', 'trialing', 'past_due') or (s2.status = 'canceled' and s2.current_period_end > now()))
+          order by case s2.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s2.created_at desc
+          limit 1
+        ))
+        or s.status::text = $2
+      )
+      and ($3 = '' or s.provider::text = $3)
+      and ($4 = '' or u.full_name ilike '%' || $4 || '%' or u.email ilike '%' || $4 || '%' or coalesce(g.name, '') ilike '%' || $4 || '%')
+  `, [scope.gymIds, input.status, input.provider, input.q]), query(`
+    with current_subscriptions as (
+      select distinct on (s.user_id) s.user_id, s.status
+      from subscriptions s
+      join users u on u.id = s.user_id
+      where ($1::uuid[] is null or u.gym_id = any($1))
+        and (s.status in ('active', 'trialing', 'past_due') or (s.status = 'canceled' and s.current_period_end > now()))
+      order by s.user_id, case s.plan when 'trainer_pro' then 2 when 'premium' then 1 else 0 end desc, s.created_at desc
+    )
+    select
+      count(*) as current,
+      count(*) filter (where status = 'trialing') as trials,
+      count(*) filter (where status = 'past_due') as past_due
+    from current_subscriptions
+  `, [scope.gymIds])]);
+  const total = Number(countResult.rows[0]?.total ?? 0);
+  res.json({
+    subscriptions: result.rows,
+    summary: {
+      current: Number(summaryResult.rows[0]?.current ?? 0),
+      trials: Number(summaryResult.rows[0]?.trials ?? 0),
+      pastDue: Number(summaryResult.rows[0]?.past_due ?? 0)
+    },
+    pagination: {
+      page: input.page,
+      pageSize: input.pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / input.pageSize))
+    }
+  });
 });

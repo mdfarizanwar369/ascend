@@ -9,8 +9,12 @@ import { Field, inputClass, selectClass } from "@/components/Field";
 type Referral = Awaited<ReturnType<typeof getAdminReferrals>>["referrals"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
 
-function money(cents: string | number) {
-  return `RM ${(Number(cents) / 100).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+function money(cents: string | number, currency: string) {
+  try {
+    return new Intl.NumberFormat("en-MY", { style: "currency", currency: currency.toUpperCase(), maximumFractionDigits: 0 }).format(Number(cents) / 100);
+  } catch {
+    return `${currency} ${(Number(cents) / 100).toLocaleString("en-MY")}`;
+  }
 }
 
 function trainerCode(name: string) {
@@ -44,8 +48,8 @@ function ReferralCard({ item, onCopy }: { item: Referral; onCopy: (code: string)
         </div>
         <div className="rounded-lg bg-ink p-3 md:bg-transparent md:p-0">
           <TrendingUp className="text-amber" size={18} />
-          <p className="mt-2 text-lg font-semibold">{money(item.active_revenue_cents)}</p>
-          <p className="text-xs text-zinc-400">Active revenue</p>
+          <p className="mt-2 text-lg font-semibold">{Number(item.currency_count) > 1 ? "Mixed currencies" : money(item.active_plan_value_cents, item.currency)}</p>
+          <p className="text-xs text-zinc-400">Current plan value</p>
         </div>
       </div>
     </article>
@@ -80,15 +84,20 @@ export function AdminReferralsClient() {
   }, []);
 
   async function copyCode(code: string) {
-    await navigator.clipboard?.writeText(code);
-    setStatus(`${code} copied.`);
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(code);
+      setStatus(`${code} copied.`);
+    } catch {
+      setStatus(`Could not copy ${code}. Press and hold the code to copy it manually.`);
+    }
   }
 
   const gymReferrals = useMemo(() => referrals.filter((referral) => referral.type === "gym"), [referrals]);
   const trainerReferrals = useMemo(() => referrals.filter((referral) => referral.type === "trainer"), [referrals]);
   const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.status === "active"), [trainers]);
-  const gymRevenue = gymReferrals.reduce((total, item) => total + Number(item.active_revenue_cents), 0);
-  const trainerRevenue = trainerReferrals.reduce((total, item) => total + Number(item.active_revenue_cents), 0);
+  const gymReferredUsers = gymReferrals.reduce((total, item) => total + Number(item.referred_users), 0);
+  const trainerReferredUsers = trainerReferrals.reduce((total, item) => total + Number(item.referred_users), 0);
   const selectedTrainer = activeTrainers.find((trainer) => trainer.id === selectedTrainerId);
 
   function chooseTrainer(trainerId: string) {
@@ -135,14 +144,14 @@ export function AdminReferralsClient() {
 
       <section className="mt-4 grid grid-cols-2 gap-3 lg:max-w-xl">
         <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Gym revenue</p>
-          <p className="mt-2 text-2xl font-semibold text-lime">{money(gymRevenue)}</p>
-          <p className="mt-1 text-xs text-zinc-400">{gymReferrals.length} codes</p>
+          <p className="text-xs uppercase text-zinc-400">Gym referrals</p>
+          <p className="mt-2 text-2xl font-semibold text-lime">{gymReferredUsers}</p>
+          <p className="mt-1 text-xs text-zinc-400">members across {gymReferrals.length} codes</p>
         </div>
         <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Trainer revenue</p>
-          <p className="mt-2 text-2xl font-semibold text-lime">{money(trainerRevenue)}</p>
-          <p className="mt-1 text-xs text-zinc-400">{trainerReferrals.length} codes</p>
+          <p className="text-xs uppercase text-zinc-400">Trainer referrals</p>
+          <p className="mt-2 text-2xl font-semibold text-lime">{trainerReferredUsers}</p>
+          <p className="mt-1 text-xs text-zinc-400">members across {trainerReferrals.length} codes</p>
         </div>
       </section>
 
@@ -191,7 +200,7 @@ export function AdminReferralsClient() {
         <div>
           <h2 className="text-base font-semibold">Gym referral codes</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">
-            Use these when the gym itself brings in a member. Revenue is credited to the gym.
+            Use these when the gym itself brings in a member. Current plan value is attributed to the gym; it is not recognized revenue.
           </p>
         </div>
         <div className="mt-4 space-y-3">
@@ -206,7 +215,7 @@ export function AdminReferralsClient() {
         <div>
           <h2 className="text-base font-semibold">Trainer referral codes</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">
-            Use these when a trainer brings in a member. Revenue is credited to that trainer.
+            Use these when a trainer brings in a member. Current plan value is attributed to that trainer; it is not recognized revenue.
           </p>
         </div>
         <div className="mt-4 space-y-3">
