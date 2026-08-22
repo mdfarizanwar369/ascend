@@ -20,6 +20,14 @@ export const todayPriorityRateLimit = rateLimit({
   keyGenerator: (req) => req.user?.id ?? "authenticated-user",
   message: { error: "Today's coaching is refreshing too often. Please wait a moment and try again." }
 });
+export const workoutDebriefRateLimit = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "authenticated-user",
+  message: { error: "Coach Zoe is reviewing several workouts. Please wait a moment before trying again." }
+});
 export const uploadRateLimit = createLimiter(60_000, 20, "Too many upload requests. Please wait a moment and try again.");
 export const introductoryBodyScanRateLimit = rateLimit({
   windowMs: 15 * 60_000,

@@ -19,7 +19,8 @@ import {
   WorkoutCaptureDraft,
   WorkoutProgressionSnapshot,
   WorkoutProgressionHistoryItem,
-  WorkoutProgressionIntelligenceV3
+  WorkoutProgressionIntelligenceV3,
+  WorkoutDebriefView
 } from "@ascend/shared";
 import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
@@ -862,6 +863,7 @@ export function saveBurnLog(input: {
       };
       created_at: string;
     };
+    debrief: WorkoutDebriefView | null;
   }>("/burn-logs", {
     method: "POST",
     body: JSON.stringify(input)
@@ -914,6 +916,7 @@ export function saveCompletedWorkout(input: {
       progression: WorkoutProgressionSnapshot | null;
       progressionV3: WorkoutProgressionIntelligenceV3 | null;
     };
+    debrief: WorkoutDebriefView | null;
   }>("/burn-logs/completed-workout", {
     method: "POST",
     body: JSON.stringify(input)
@@ -1165,10 +1168,21 @@ export function saveCapturedWorkout(input: {
       progression: WorkoutProgressionSnapshot | null;
       progressionV3: WorkoutProgressionIntelligenceV3 | null;
     } | null;
+    debrief: WorkoutDebriefView | null;
   }>("/burn-logs/captured-workout", {
     method: "POST",
     body: JSON.stringify(input)
   });
+}
+
+export function generateWorkoutDebrief(workoutEventId: string) {
+  return authed<{ debrief: WorkoutDebriefView }>(`/burn-logs/${encodeURIComponent(workoutEventId)}/debrief`, {
+    method: "POST"
+  });
+}
+
+export function getWorkoutDebrief(workoutEventId: string) {
+  return authed<{ debrief: WorkoutDebriefView }>(`/burn-logs/${encodeURIComponent(workoutEventId)}/debrief`);
 }
 
 export function getRecentDetailedWorkouts(limit = 5) {

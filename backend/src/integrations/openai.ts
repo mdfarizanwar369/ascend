@@ -48,6 +48,12 @@ type GeminiCallOptions = {
   performanceTrace?: FoodAiPerformanceTrace | null;
 };
 
+export type WorkoutDebriefProviderReply = {
+  text: string;
+  provider: "gemini" | "openai";
+  model: string;
+};
+
 class GeminiError extends Error {
   constructor(
     message: string,
@@ -1278,6 +1284,48 @@ async function createBodyScanCoachingReply(
   }
 
   return { text: fallback, source: "fallback", provider, model };
+}
+
+export async function createWorkoutDebriefProviderReply(
+  systemPrompt: string,
+  userPrompt: string
+): Promise<WorkoutDebriefProviderReply> {
+  if (!providerConfigured()) throw new Error("Workout debrief AI provider is not configured.");
+
+  if (env.AI_PROVIDER === "gemini") {
+    const response = await callGeminiWithOptions([{ text: `${systemPrompt}\n\n${userPrompt}` }], 360, {
+      models: [env.GEMINI_MODEL],
+      attemptsPerModel: 1,
+      timeoutMs: 10_000,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          accomplishment: { type: "STRING" },
+          observation: { type: "STRING" },
+          recoveryGuidance: { type: "STRING" },
+          nextConsideration: { type: "STRING" },
+          debrief: { type: "STRING" }
+        },
+        required: ["accomplishment", "observation", "recoveryGuidance", "nextConsideration", "debrief"]
+      }
+    });
+    return { text: response.text, provider: "gemini", model: env.GEMINI_MODEL };
+  }
+
+  if (env.AI_PROVIDER === "openai" && openaiClient) {
+    const response = await openaiClient.responses.create({
+      model: env.OPENAI_MODEL,
+      max_output_tokens: 360,
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ]
+    }, { timeout: 10_000 });
+    return { text: response.output_text, provider: "openai", model: env.OPENAI_MODEL };
+  }
+
+  throw new Error("Workout debrief AI provider is not supported.");
 }
 
 export function createBodyScanExplanationReply(facts: unknown, fallbackJson: string) {

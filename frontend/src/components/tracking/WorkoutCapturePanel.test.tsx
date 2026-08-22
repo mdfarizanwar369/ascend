@@ -2,18 +2,20 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkoutCaptureDraft } from "@ascend/shared";
 
-const { analyze, recent, progression, save } = vi.hoisted(() => ({
+const { analyze, recent, progression, save, debrief } = vi.hoisted(() => ({
   analyze: vi.fn(),
   recent: vi.fn(),
   progression: vi.fn(),
-  save: vi.fn()
+  save: vi.fn(),
+  debrief: vi.fn()
 }));
 
 vi.mock("@/lib/ascendApi", () => ({
   analyzeWorkoutCapture: analyze,
   getRecentDetailedWorkouts: recent,
   getWorkoutProgressionHistory: progression,
-  saveCapturedWorkout: save
+  saveCapturedWorkout: save,
+  generateWorkoutDebrief: debrief
 }));
 
 vi.mock("@/lib/workoutProgressionFlag", () => ({ workoutProgressionEnabled: () => false }));
@@ -110,6 +112,7 @@ describe("Detailed Workout receipt", () => {
     recent.mockReset().mockResolvedValue({ enabled: true, workouts: [], allowance: null });
     progression.mockReset().mockResolvedValue({ enabled: true, history: [] });
     save.mockReset();
+    debrief.mockReset();
     vi.stubGlobal("crypto", { randomUUID: () => "capture-key" });
   });
 

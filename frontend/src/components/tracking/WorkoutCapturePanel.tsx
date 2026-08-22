@@ -18,11 +18,13 @@ import type {
   WorkoutCaptureDraft,
   WorkoutCaptureExercise,
   WorkoutCaptureAllowance,
+  WorkoutDebriefView,
   WorkoutLoadBasis,
   WorkoutTrainingMethod
 } from "@ascend/shared";
-import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout } from "@/lib/ascendApi";
+import { analyzeWorkoutCapture, generateWorkoutDebrief, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
+import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import { workoutProgressionEnabled } from "@/lib/workoutProgressionFlag";
 import { workoutProgressionV3Enabled } from "@/lib/workoutProgressionV3Flag";
 
@@ -163,6 +165,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [savedSummary, setSavedSummary] = useState<SavedSummary | null>(null);
+  const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
   const saveLockRef = useRef(false);
 
   const busy = isAnalyzing || isSaving;
@@ -233,6 +236,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     setDraft(null);
     setCompletionKey(null);
     setSavedSummary(null);
+    setWorkoutDebrief(null);
     setStatus("");
   }
 
@@ -241,6 +245,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     setIsAnalyzing(true);
     setStatus("Reading your workout...");
     setSavedSummary(null);
+    setWorkoutDebrief(null);
     try {
       const response = await analyzeWorkoutCapture({ text: workoutText, sourceMode: "text" });
       if (!response.enabled || !response.draft) {
@@ -268,6 +273,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     setDraft(nextDraft);
     setCompletionKey(newCompletionKey());
     setSavedSummary(null);
+    setWorkoutDebrief(null);
     setStatus("");
   }
 
@@ -319,6 +325,17 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
       }
       onSaved(response.burnLog, response.summary.estimatedCaloriesBurned);
       setSavedSummary(response.summary);
+      setWorkoutDebrief(response.debrief);
+      if (response.debrief?.enabled && response.debrief.status === "pending") {
+        void generateWorkoutDebrief(response.burnLog.id)
+          .then(({ debrief }) => setWorkoutDebrief(debrief))
+          .catch(() => setWorkoutDebrief({
+            ...response.debrief!,
+            status: "fallback",
+            text: response.debrief!.fallbackText,
+            source: "deterministic"
+          }));
+      }
       setAllowance(response.allowance);
       setStatus("");
     } catch (error) {
@@ -346,7 +363,11 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           </div>
         </div>
         <div className="p-5">
-        <p className="ascend-inset mt-4 p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
+        {workoutDebrief?.enabled ? (
+          <CoachZoeWorkoutDebrief debrief={workoutDebrief} />
+        ) : (
+          <p className="ascend-inset mt-4 p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
+        )}
         {workoutProgressionV3Enabled() && savedSummary.progressionV3 ? (
           <div className="mt-3 rounded-lg border border-purple-400/35 bg-purple-400/10 p-3">
             <div className="flex items-center gap-2 text-purple-200">

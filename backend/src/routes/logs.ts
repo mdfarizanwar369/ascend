@@ -7,7 +7,7 @@ import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl, createUploadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
-import { aiRateLimit, uploadRateLimit } from "../middleware/rateLimits";
+import { aiRateLimit, uploadRateLimit, workoutDebriefRateLimit } from "../middleware/rateLimits";
 import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
 import { UnsafeOutboundUrlError, validatePublicHttpUrl } from "../utils/outboundUrl";
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
@@ -22,6 +22,7 @@ import {
 } from "../services/workoutProgressionV3Service";
 import { savedWorkoutCaptureExerciseSchema } from "../schemas/workoutCaptureSchemas";
 import { storageKeyBelongsToUser } from "../utils/storageOwnership";
+import { generateWorkoutDebrief, getWorkoutDebrief, initializeWorkoutDebrief } from "../services/workoutDebriefService";
 
 export const logsRouter = Router();
 
@@ -460,7 +461,24 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
       ]
     );
     void createCoachPresenceForEvent(req.user!.id, "workout_logged").catch(() => undefined);
-    res.status(201).json({ burnLog: result.rows[0] });
+    const burnLog = result.rows[0] as { id: string; metadata: Record<string, unknown>; created_at: string };
+    const debrief = await initializeWorkoutDebrief({
+      workoutEventId: burnLog.id,
+      userId: req.user!.id,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      source: "quick_activity",
+      metadata: burnLog.metadata,
+      createdAt: burnLog.created_at
+    }).catch((error) => {
+      console.warn("[workout-debrief]", {
+        feature: "coach_zoe_workout_debrief_v1",
+        event: "initialization_failed",
+        workoutEventId: burnLog.id,
+        reason: error instanceof Error ? error.name : "unknown"
+      });
+      return null;
+    });
+    res.status(201).json({ burnLog, debrief });
   } catch (error) {
     next(error);
   }
@@ -483,7 +501,24 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
       source: "coach_zoe_workout_planner"
     });
 
-    res.status(201).json(result);
+    const debrief = await initializeWorkoutDebrief({
+      workoutEventId: result.burnLog.id,
+      userId: req.user!.id,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      source: "coach_zoe_workout_planner",
+      metadata: result.burnLog.metadata,
+      createdAt: result.burnLog.created_at
+    }).catch((error) => {
+      console.warn("[workout-debrief]", {
+        feature: "coach_zoe_workout_debrief_v1",
+        event: "initialization_failed",
+        workoutEventId: result.burnLog.id,
+        reason: error instanceof Error ? error.name : "unknown"
+      });
+      return null;
+    });
+
+    res.status(201).json({ ...result, debrief });
   } catch (error) {
     next(error);
   }
@@ -543,7 +578,23 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       roles: req.user!.roles,
       isPlatformOwner: req.user!.isPlatformOwner
     });
-    res.status(201).json({ enabled: true, ...result, allowance: refreshedAccess.allowance });
+    const debrief = await initializeWorkoutDebrief({
+      workoutEventId: result.burnLog.id,
+      userId: req.user!.id,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      source: "ai_workout_capture",
+      metadata: result.burnLog.metadata,
+      createdAt: result.burnLog.created_at
+    }).catch((error) => {
+      console.warn("[workout-debrief]", {
+        feature: "coach_zoe_workout_debrief_v1",
+        event: "initialization_failed",
+        workoutEventId: result.burnLog.id,
+        reason: error instanceof Error ? error.name : "unknown"
+      });
+      return null;
+    });
+    res.status(201).json({ enabled: true, ...result, debrief, allowance: refreshedAccess.allowance });
   } catch (error) {
     next(error);
   }
@@ -586,6 +637,37 @@ logsRouter.get("/burn-logs/progression", requireAuth, async (req, res, next) => 
     if (!env.WORKOUT_PROGRESSION_INTELLIGENCE_V3) return res.json({ enabled: false, history: [] });
     const limit = z.coerce.number().int().min(1).max(25).default(10).parse(req.query.limit);
     res.json({ enabled: true, history: await getWorkoutProgressionHistory(req.user!.id, limit) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.post("/burn-logs/:burnLogId/debrief", requireAuth, workoutDebriefRateLimit, async (req, res, next) => {
+  try {
+    const workoutEventId = z.string().uuid().parse(req.params.burnLogId);
+    const debrief = await generateWorkoutDebrief({
+      workoutEventId,
+      userId: req.user!.id,
+      gymId: req.user!.gymId ?? null,
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+    if (!debrief) return res.status(404).json({ error: "Workout debrief not found." });
+    res.json({ debrief });
+  } catch (error) {
+    next(error);
+  }
+});
+
+logsRouter.get("/burn-logs/:burnLogId/debrief", requireAuth, async (req, res, next) => {
+  try {
+    const workoutEventId = z.string().uuid().parse(req.params.burnLogId);
+    const debrief = await getWorkoutDebrief({
+      workoutEventId,
+      userId: req.user!.id,
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+    if (!debrief) return res.status(404).json({ error: "Workout debrief not found." });
+    res.json({ debrief });
   } catch (error) {
     next(error);
   }

@@ -5,6 +5,8 @@ import Image from "next/image";
 import { Check, CheckCircle2, ChevronDown, ChevronUp, Dumbbell, MessageCircle, RotateCcw, Send, Sparkles, UtensilsCrossed, Zap } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
+import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
+import type { WorkoutDebriefView } from "@ascend/shared";
 import {
   CoachChatMode,
   GeneratedWorkout,
@@ -19,6 +21,7 @@ import {
   getHealthSyncStatus,
   getMyStreak,
   getTodayPriorityRecommendation,
+  generateWorkoutDebrief,
   saveCompletedWorkout,
   sendCoachMessage
 } from "@/lib/ascendApi";
@@ -459,6 +462,7 @@ export function CoachHubClient() {
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
+  const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
   const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
   const [todaysInsight, setTodaysInsight] = useState("One honest action is enough to keep today moving.");
   const saveWorkoutLockRef = useRef(false);
@@ -599,6 +603,7 @@ export function CoachHubClient() {
       setWorkout(response.workout);
       setCheckedExercises(new Set());
       setSavedWorkoutSummary(null);
+      setWorkoutDebrief(null);
       setWorkoutCompletionKey(nextWorkoutCompletionKey());
       setMessages((current) => [...current, { role: "assistant", text: response.workout.intro }]);
     } catch (error) {
@@ -627,6 +632,17 @@ export function CoachHubClient() {
 
       rememberDashboardRecord("burn", response.burnLog);
       setSavedWorkoutSummary(response.summary);
+      setWorkoutDebrief(response.debrief);
+      if (response.debrief?.enabled && response.debrief.status === "pending") {
+        void generateWorkoutDebrief(response.burnLog.id)
+          .then(({ debrief }) => setWorkoutDebrief(debrief))
+          .catch(() => setWorkoutDebrief({
+            ...response.debrief!,
+            status: "fallback",
+            text: response.debrief!.fallbackText,
+            source: "deterministic"
+          }));
+      }
       setStatus("");
     } catch (error) {
       setStatus(
@@ -745,6 +761,7 @@ export function CoachHubClient() {
                 setAnswers({});
                 setShowExistingChoice(false);
                 setSavedWorkoutSummary(null);
+                setWorkoutDebrief(null);
                 setWorkoutCompletionKey(null);
               }}
               onToggleExercise={(index) =>
@@ -813,7 +830,11 @@ export function CoachHubClient() {
                           <p className="mt-1 font-semibold">{savedWorkoutSummary.workoutType}</p>
                         </div>
                       </div>
-                      <div className="mt-4 flex items-start gap-2 rounded-xl border border-purple-300/15 bg-purple-400/8 p-3"><ZoeAvatar size="sm" /><p className="text-sm leading-6 text-zinc-200">{savedWorkoutSummary.coachMessage}</p></div>
+                      {workoutDebrief?.enabled ? (
+                        <CoachZoeWorkoutDebrief debrief={workoutDebrief} />
+                      ) : (
+                        <div className="mt-4 flex items-start gap-2 rounded-xl border border-purple-300/15 bg-purple-400/8 p-3"><ZoeAvatar size="sm" /><p className="text-sm leading-6 text-zinc-200">{savedWorkoutSummary.coachMessage}</p></div>
+                      )}
                   </div>
                 </div>
               ) : allExercisesCompleted ? (

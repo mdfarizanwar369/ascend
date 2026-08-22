@@ -21,7 +21,8 @@ vi.mock("../middleware/auth", () => ({
 vi.mock("../middleware/subscription", () => ({ requireActivePlan: () => (_req: any, _res: any, next: () => void) => next() }));
 vi.mock("../middleware/rateLimits", () => ({
   aiRateLimit: (_req: any, _res: any, next: () => void) => next(),
-  uploadRateLimit: (_req: any, _res: any, next: () => void) => next()
+  uploadRateLimit: (_req: any, _res: any, next: () => void) => next(),
+  workoutDebriefRateLimit: (_req: any, _res: any, next: () => void) => next()
 }));
 
 describe("food log deletion", () => {

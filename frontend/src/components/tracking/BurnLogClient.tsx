@@ -187,7 +187,9 @@ export function BurnLogClient() {
       rememberDashboardRecord("burn", saved.burnLog);
       setTodayLogs((current) => [saved.burnLog, ...current]);
       setTodayCalories((current) => current + estimatedCalories);
-      setStatus(`${activityType} saved. About ${estimatedCalories} kcal added to today's movement.`);
+      setStatus(saved.debrief?.enabled && saved.debrief.text
+        ? saved.debrief.text
+        : `${activityType} saved. About ${estimatedCalories} kcal added to today's movement.`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save activity. Please make sure you are logged in.");
     } finally {
