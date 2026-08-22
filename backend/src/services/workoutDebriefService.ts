@@ -17,7 +17,7 @@ import { createWorkoutDebriefProviderReply, WorkoutDebriefProviderReply } from "
 import { logAiUsage } from "./aiUsageService";
 import { buildWorkoutMemorySummary } from "./workoutMemoryService";
 
-export const WORKOUT_DEBRIEF_PROMPT_VERSION = "coach-zoe-workout-debrief-v1";
+export const WORKOUT_DEBRIEF_PROMPT_VERSION = "coach-zoe-workout-debrief-v1.1";
 
 type WorkoutEvent = {
   id: string;
@@ -510,8 +510,8 @@ export function validateWorkoutDebriefOutput(value: string): WorkoutDebriefOutpu
   return output;
 }
 
-const completionOnlyTrackingRequest = /\b(?:record(?:ing)?|log(?:ging)?|not(?:e|ing)|track(?:ing)?|add(?:ing)?|provid(?:e|ing)|captur(?:e|ing)|includ(?:e|ing)|rat(?:e|ing))\b/i;
-const genericPraise = /\b(?:good to see|keep up (?:the )?(?:good work|consistent effort)|great (?:work|job)|amazing job|solid effort)\b/i;
+const completionOnlyTrackingRequest = /(?:\b(?:ask|consider|remember|try|please|should|could|can)\b[^.!?]{0,80}\b(?:record|log|note|track|add|provide|capture|include|rate)\w*\b|\b(?:record|log|note|track|add|provide|capture|include|rate)\w*\b[^.!?]{0,60}\b(?:next time|next session)\b)/i;
+const genericPraise = /\b(?:good to see|it(?:'s|’s| is) great to see|keep up (?:the )?(?:good work|consistent effort)|great (?:work|job)|amazing job|solid effort|keep crushing it|you(?:'|’)ve got this)\b/i;
 
 function sentences(value: string) {
   return value.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map((sentence) => sentence.trim()).filter(Boolean) ?? [];
@@ -525,7 +525,7 @@ function enforceWorkoutSpecificOutput(output: WorkoutDebriefOutput, signal: Work
     .join(" ");
   const safeDebrief = debrief.split(/\s+/).filter(Boolean).length >= 20
     ? debrief
-    : `${debrief}${debrief ? " " : ""}This completed session is now part of your workout history and gives Zoe clearer context about the training you have recorded.`;
+    : `${debrief}${debrief ? " " : ""}Completing the planned session gives your recent training a clear reference point without overstating how each exercise went.`;
 
   return {
     ...output,
@@ -578,32 +578,37 @@ function aiContext(context: GenerationContext, signal: WorkoutSignalV1) {
 
 function workoutDebriefPrompts(context: ReturnType<typeof aiContext>) {
   const systemPrompt = [
-    "You are Coach Zoe giving one calm post-workout debrief inside Ascend.",
+    "You are Coach Zoe leaving one calm, thoughtful post-workout coach note inside Ascend.",
     "The supplied JSON is the complete source of truth. Interpret it but never add facts.",
     "Return strict JSON with exactly: accomplishment, observation, recoveryGuidance, nextConsideration, debrief.",
-    "The debrief must be one natural response of 45 to 80 words. Do not use markdown or numeric statistics.",
+    "The debrief must be one natural response with a hard maximum of 80 words. Aim for 45 to 70 words with strong evidence, 35 to 60 words with normal evidence, and 25 to 50 words with sparse evidence. Do not use markdown or numeric statistics.",
     "Every returned string must contain no digits. When evidence includes numbers, describe only the supported meaning, such as a verified load best, without repeating the value.",
-    "Do not repeat every logged fact. Use the debrief for the two or three most useful supported ideas rather than forcing every JSON field into the user-facing paragraph.",
+    "Choose the strongest grounded observation first: verified progression when present, otherwise a meaningful movement structure or dominant focus, otherwise an honest evidence limitation. Let the evidence create the opening rather than randomly rotating phrases.",
+    "The first sentence of debrief must contain that strongest observation. Do not routinely repeat the workout title or begin with 'You completed'; when focus, movement patterns, or progression are supplied, begin with what they mean instead.",
+    "Do not repeat every logged fact. Use the debrief for the one or two most useful supported ideas rather than forcing every JSON field into the user-facing paragraph.",
     "Never assess form or technique, diagnose injury or muscle damage, claim definite fatigue or recovery, or invent sets, reps, loads, calories, duration, progression, skipped work, substitutions, or muscle exposure.",
     "Treat limitations in the workout signal as hard boundaries. If evidence is limited, say less rather than guessing.",
-    "Only describe progression when currentWorkout.progression is present. Use only its supplied achievements and nextSessionFocus; do not infer strength, capacity, adaptation, a strong foundation, or execution quality from progression.",
+    "Only describe progression when currentWorkout.progression is present. When present, lead with its strongest supplied achievement and use only its supplied achievements and nextSessionFocus; do not infer strength, capacity, adaptation, a strong foundation, or execution quality from progression.",
     "Never call sparse or uncertain activity a baseline, verified progression, or effective performance.",
     "Never tell the user that a signal indicates or confirms something. Speak naturally about the workout evidence instead of exposing internal system language.",
-    "When recoveryLoad is unknown, recoveryGuidance must state that no specific recovery conclusion is supported by the record, and the debrief must omit generic sleep, hydration, protein, rest, soreness, and fatigue advice.",
+    "When recoveryLoad is unknown, recoveryGuidance must briefly state that no specific recovery conclusion is supported by the record, and the debrief must omit generic sleep, hydration, protein, rest, soreness, and fatigue advice. Do not force recovery guidance into the debrief merely because the JSON field is required.",
     "Only when recoveryLoad is known may recoveryGuidance mention one supported recovery action. Never turn ordinary post-workout advice into a claim about the user's physical state.",
-    "When progression_evidence_insufficient is listed, acknowledge only that the session was recorded, plainly explain that the details are too limited to assess focus or progression, and suggest one useful detail the user could record next time.",
-    "For completion-only evidence, interpret the supplied focus and movement patterns, then acknowledge completion without implying execution quality, training quality, or measured adaptation.",
+    "When progression_evidence_insufficient is listed, lead with the honest limitation, acknowledge only that the session was recorded, plainly explain that the details are too limited to assess focus or progression, and suggest one useful detail the user could record next time.",
+    "For completion-only evidence, write two concise debrief sentences: first interpret the strongest supported focus or movement-pattern coverage, then calmly acknowledge completion. Do not add a reflection question, goal claim, recovery advice, or next-session language. Only describe a structure as balanced or well distributed when the supplied movement patterns genuinely support that interpretation.",
     "For completion-only evidence, never ask the user to record loads, sets, reps, or other details that the Coach Zoe workout completion flow does not collect, and do not invent a progression step.",
+    "Do not force a next-session recommendation. Only use one in the debrief when supported by supplied progression, nextSessionBias, or relevant recent-workout context. Because every JSON field is required, use a brief neutral evidence-limit statement in unsupported recoveryGuidance or nextConsideration fields and do not copy those neutral fields into debrief.",
     "Do not open with generic phrases such as great work, good work, solid effort, successfully completed, or amazing job. Do not mention momentum unless it is explicitly supplied.",
-    "Be observant, supportive, concise, and adult. Prefer a concrete interpretation over praise. Avoid clichés and excessive enthusiasm."
+    "Use direct conversational language. Prefer covered, focused on, leaned toward, or brought together when supported; avoid database-like phrases such as provided coverage, as recorded, as planned, or the record indicates. Do not call a session good, solid, effective, or high quality without evidence.",
+    "Avoid empty coaching filler such as reflect on how it felt, listen to your body, stay consistent, keep up the effort, or keep progressing when the evidence does not support something more useful.",
+    "Be observant, warm, conversational, concise, and adult. Sound confident when evidence is strong and transparent when it is weak. Prefer a concrete interpretation over praise, and avoid corporate, clinical, preachy, or motivational-speaker language."
   ].join(" ");
   const signal = context.currentWorkout.signal;
   const responseBoundary = signal.prescribedComparison === "completion_only"
-    ? "This is completion-only evidence. Interpret the recorded focus and movement patterns, then end with a calm acknowledgement. Do not ask for loads, sets, reps, ratings, notes, or any additional tracking. Do not prescribe the next workout."
+    ? "This is completion-only evidence. The debrief must be two concise sentences and should usually be 30 to 50 words: lead with the strongest supported focus or movement-pattern interpretation, then state the useful completion takeaway without merely saying completed as recorded or as planned. Do not begin with the workout title or 'You completed'. Do not add advice, reflection, a goal claim, or next-session language. Do not ask for loads, sets, reps, ratings, notes, or any additional tracking."
     : signal.limitations.includes("progression_evidence_insufficient")
-      ? "This record is too sparse for progression or focus analysis. Say that plainly and suggest recording one specific exercise detail next time. Do not praise performance quality or prescribe training."
+      ? "This record is too sparse for progression or focus analysis. Lead with that limitation, keep the debrief short, and suggest recording one specific exercise detail next time. Do not praise performance quality or prescribe training."
       : context.currentWorkout.progression
-        ? "Verified progression evidence is available. Describe its supported achievement qualitatively and use only its supplied next-session focus. Do not repeat numeric values or infer strength, adaptation, or execution quality."
+        ? "Verified progression evidence is available. Lead with its strongest supported achievement, describe it qualitatively, and use only its supplied next-session focus. Do not repeat numeric values or infer strength, adaptation, or execution quality."
         : "Interpret only the recorded workout evidence. Do not infer progression, recovery state, execution quality, or a next-session prescription.";
   return {
     systemPrompt,

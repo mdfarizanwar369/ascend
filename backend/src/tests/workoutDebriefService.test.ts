@@ -8,6 +8,7 @@ import {
   GenerationContext,
   getWorkoutDebrief,
   initializeWorkoutDebrief,
+  WORKOUT_DEBRIEF_PROMPT_VERSION,
   validateWorkoutDebriefOutput,
   WorkoutDebriefDependencies,
   WorkoutDebriefRecord,
@@ -75,7 +76,7 @@ function createMemoryStore(options: { context?: GenerationContext | null } = {})
         fallbackText: input.fallbackText,
         provider: null,
         model: null,
-        promptVersion: "coach-zoe-workout-debrief-v1",
+        promptVersion: WORKOUT_DEBRIEF_PROMPT_VERSION,
         failureReason: null,
         generationStartedAt: null,
         generatedAt: null,
@@ -326,8 +327,19 @@ describe("Coach Zoe Workout Debrief V1", () => {
     }, deps);
     await generateWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
 
+    const systemPrompt = generate.mock.calls[0]?.[0] ?? "";
     const userPrompt = generate.mock.calls[0]?.[1] ?? "";
+    expect(WORKOUT_DEBRIEF_PROMPT_VERSION).toBe("coach-zoe-workout-debrief-v1.1");
+    expect(systemPrompt).toContain("Choose the strongest grounded observation first");
+    expect(systemPrompt).toContain("Do not routinely repeat the workout title or begin with 'You completed'");
+    expect(systemPrompt).toContain("hard maximum of 80 words");
+    expect(systemPrompt).toContain("25 to 50 words with sparse evidence");
+    expect(systemPrompt).toContain("Do not force a next-session recommendation");
+    expect(systemPrompt).toContain("avoid database-like phrases");
+    expect(systemPrompt).toContain("must omit generic sleep, hydration, protein, rest, soreness, and fatigue advice");
+    expect(systemPrompt).toContain("Never assess form or technique");
     expect(userPrompt).toContain("This is completion-only evidence");
+    expect(userPrompt).toContain("lead with the strongest supported focus or movement-pattern interpretation");
     expect(userPrompt).toContain("Do not ask for loads, sets, reps, ratings, notes, or any additional tracking");
   });
 
@@ -359,7 +371,7 @@ describe("Coach Zoe Workout Debrief V1", () => {
         observation: "The session included both movement patterns.",
         recoveryGuidance: "No specific recovery conclusion is supported by the record.",
         nextConsideration: "Next time, consider recording the duration of your workout.",
-        debrief: "You completed your upper body workout with both pushing and pulling movements represented. Good to see you following the planned session. Next time, consider recording the duration of your workout. Keep up the consistent effort."
+        debrief: "The session included both pushing and pulling movements, giving the planned upper-body work a balanced structure. It's great to see you completed the workout. Next time, consider recording the duration of your workout. Keep up the consistent effort."
       })
     }));
     const deps = dependencies(store, generate);
@@ -379,7 +391,7 @@ describe("Coach Zoe Workout Debrief V1", () => {
 
     expect(generate).toHaveBeenCalledTimes(1);
     expect(result?.status).toBe("generated");
-    expect(result?.text).toBe("You completed your upper body workout with both pushing and pulling movements represented. This completed session is now part of your workout history and gives Zoe clearer context about the training you have recorded.");
+    expect(result?.text).toBe("The session included both pushing and pulling movements, giving the planned upper-body work a balanced structure. Completing the planned session gives your recent training a clear reference point without overstating how each exercise went.");
     expect(result?.text).not.toMatch(/consider recording|record(?:ing)? (?:the )?(?:duration|loads|sets|reps)|keep up|good to see/i);
   });
 
