@@ -9,6 +9,7 @@ import {
   getWorkoutDebrief,
   initializeWorkoutDebrief,
   validateWorkoutDebriefOutput,
+  WorkoutDebriefDependencies,
   WorkoutDebriefRecord,
   WorkoutDebriefStore,
   workoutDebriefRolloutMode
@@ -153,7 +154,10 @@ function createMemoryStore(options: { context?: GenerationContext | null } = {})
   return { store, rows };
 }
 
-function dependencies(store: WorkoutDebriefStore, generate = vi.fn(async () => generatedReply())) {
+function dependencies(
+  store: WorkoutDebriefStore,
+  generate: WorkoutDebriefDependencies["generate"] = vi.fn(async () => generatedReply())
+) {
   return {
     store,
     generate,
@@ -216,7 +220,7 @@ describe("Coach Zoe Workout Debrief V1", () => {
       metadata: {
         workoutTitle: "Strength Session",
         workoutType: "Strength",
-        exercises: [{ name: "Dumbbell Press", movementPattern: "push" }],
+        exercises: [{ name: "Dumbbell Press", movementPattern: "push", sets: 3, reps: "8", load: 18, loadUnit: "kg" }],
         progressionV3: {
           version: "workout_progression_v3",
           evidenceType: "observed_performance",
@@ -235,6 +239,148 @@ describe("Coach Zoe Workout Debrief V1", () => {
     expect(signal.nextSessionBias).toEqual(["Keep the current load and confirm another clean observation."]);
     expect(signal.evidenceConfidence).toBe(0.91);
     expect(signal.volumeBand).toBe("unknown");
+  });
+
+  it("does not present sparse low-confidence capture as verified progression", async () => {
+    const sparseProgression = {
+      version: "workout_progression_v3" as const,
+      evidenceType: "observed_performance" as const,
+      overallStatus: "baseline" as const,
+      headline: "Your detailed performance baseline is saved.",
+      achievements: [],
+      reviewNotes: [],
+      nextSessionFocus: "Repeat this performance once before making a larger change.",
+      exerciseInsights: [],
+      confidence: 0.48
+    };
+    const metadata = {
+      workoutTitle: "Evening Training",
+      workoutType: "General Fitness",
+      captureConfidence: 0.48,
+      exercises: [{ name: "Some machine work", confidence: 0.48, needsConfirmation: true }],
+      progressionV3: sparseProgression
+    };
+    const signal = buildWorkoutSignalV1({ source: "ai_workout_capture", metadata });
+
+    expect(signal.notableSignals).not.toContain("progression_verified");
+    expect(signal.notableSignals).not.toContain("baseline_saved");
+    expect(signal.nextSessionBias).toEqual([]);
+    expect(signal.limitations).toContain("progression_evidence_insufficient");
+
+    const context: GenerationContext = {
+      current: { id: EVENT_ID, userId: USER_ID, gymId: null, metadata, createdAt: new Date().toISOString() },
+      goal: "general_fitness",
+      recent: []
+    };
+    const { store } = createMemoryStore({ context });
+    const generate = vi.fn(async (_systemPrompt: string, _userPrompt: string) => generatedReply());
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata
+    }, deps);
+    await generateWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+
+    const userPrompt = generate.mock.calls[0]?.[1] ?? "";
+    const systemPrompt = generate.mock.calls[0]?.[0] ?? "";
+    expect(userPrompt).toContain('"progression":null');
+    expect(userPrompt).toContain('"progression_evidence_insufficient"');
+    expect(userPrompt).toContain("This record is too sparse for progression or focus analysis");
+    expect(systemPrompt).toContain("When recoveryLoad is unknown");
+    expect(systemPrompt).toContain("details are too limited to assess focus or progression");
+    expect(systemPrompt).toContain("the Coach Zoe workout completion flow does not collect");
+  });
+
+  it("places the completion-only boundary beside the workout evidence", async () => {
+    const context: GenerationContext = {
+      current: {
+        id: EVENT_ID,
+        userId: USER_ID,
+        gymId: null,
+        metadata: {
+          source: "coach_zoe_workout_planner",
+          workoutTitle: "Upper Body Foundation",
+          workoutType: "Strength",
+          exercises: [
+            { name: "Dumbbell Press", movementPattern: "push" },
+            { name: "Cable Row", movementPattern: "pull" }
+          ]
+        },
+        createdAt: new Date().toISOString()
+      },
+      goal: "muscle_gain",
+      recent: []
+    };
+    const { store } = createMemoryStore({ context });
+    const generate = vi.fn(async (_systemPrompt: string, _userPrompt: string) => generatedReply());
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "coach_zoe_workout_planner",
+      metadata: context.current.metadata
+    }, deps);
+    await generateWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+
+    const userPrompt = generate.mock.calls[0]?.[1] ?? "";
+    expect(userPrompt).toContain("This is completion-only evidence");
+    expect(userPrompt).toContain("Do not ask for loads, sets, reps, ratings, notes, or any additional tracking");
+  });
+
+  it("removes impossible tracking requests from completion-only provider output without another AI call", async () => {
+    const context: GenerationContext = {
+      current: {
+        id: EVENT_ID,
+        userId: USER_ID,
+        gymId: null,
+        metadata: {
+          source: "coach_zoe_workout_planner",
+          workoutTitle: "Upper Body Foundation",
+          workoutType: "Strength",
+          exercises: [
+            { name: "Dumbbell Press", movementPattern: "push" },
+            { name: "Cable Row", movementPattern: "pull" }
+          ]
+        },
+        createdAt: new Date().toISOString()
+      },
+      goal: "muscle_gain",
+      recent: []
+    };
+    const { store } = createMemoryStore({ context });
+    const generate = vi.fn(async () => ({
+      ...generatedReply(),
+      text: JSON.stringify({
+        accomplishment: "You completed your upper body workout with pushing and pulling movements.",
+        observation: "The session included both movement patterns.",
+        recoveryGuidance: "No specific recovery conclusion is supported by the record.",
+        nextConsideration: "Next time, consider recording the duration of your workout.",
+        debrief: "You completed your upper body workout with both pushing and pulling movements represented. Good to see you following the planned session. Next time, consider recording the duration of your workout. Keep up the consistent effort."
+      })
+    }));
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "coach_zoe_workout_planner",
+      metadata: context.current.metadata
+    }, deps);
+
+    const result = await generateWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false
+    }, deps);
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(result?.status).toBe("generated");
+    expect(result?.text).toBe("You completed your upper body workout with both pushing and pulling movements represented. This completed session is now part of your workout history and gives Zoe clearer context about the training you have recorded.");
+    expect(result?.text).not.toMatch(/consider recording|record(?:ing)? (?:the )?(?:duration|loads|sets|reps)|keep up|good to see/i);
   });
 
   it("uses safe deterministic language for quick activity", () => {
