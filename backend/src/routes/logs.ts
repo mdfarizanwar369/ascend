@@ -126,6 +126,23 @@ const capturedWorkoutSchema = z.object({
   healthProviderCaloriesBurned: z.number().int().positive().optional().nullable()
 });
 
+function startWorkoutDebriefAfterSave(input: {
+  workoutEventId: string;
+  userId: string;
+  gymId: string | null;
+  isPlatformOwner: boolean;
+}, debrief: Awaited<ReturnType<typeof initializeWorkoutDebrief>> | null) {
+  if (!debrief?.enabled || debrief.status !== "pending") return;
+  void generateWorkoutDebrief(input).catch((error) => {
+    console.warn("[workout-debrief]", {
+      feature: "coach_zoe_workout_debrief_v1",
+      event: "generation_start_failed",
+      workoutEventId: input.workoutEventId,
+      reason: error instanceof Error ? error.name : "unknown"
+    });
+  });
+}
+
 logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) => {
   try {
     const input = aiAllowanceQuerySchema.parse(req.query);
@@ -519,6 +536,12 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
     });
 
     res.status(201).json({ ...result, debrief });
+    startWorkoutDebriefAfterSave({
+      workoutEventId: result.burnLog.id,
+      userId: req.user!.id,
+      gymId: req.user!.gymId ?? null,
+      isPlatformOwner: req.user!.isPlatformOwner
+    }, debrief);
   } catch (error) {
     next(error);
   }
@@ -595,6 +618,12 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       return null;
     });
     res.status(201).json({ enabled: true, ...result, debrief, allowance: refreshedAccess.allowance });
+    startWorkoutDebriefAfterSave({
+      workoutEventId: result.burnLog.id,
+      userId: req.user!.id,
+      gymId: req.user!.gymId ?? null,
+      isPlatformOwner: req.user!.isPlatformOwner
+    }, debrief);
   } catch (error) {
     next(error);
   }

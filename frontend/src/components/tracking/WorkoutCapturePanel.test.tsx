@@ -15,7 +15,7 @@ vi.mock("@/lib/ascendApi", () => ({
   getRecentDetailedWorkouts: recent,
   getWorkoutProgressionHistory: progression,
   saveCapturedWorkout: save,
-  generateWorkoutDebrief: debrief
+  waitForWorkoutDebrief: debrief
 }));
 
 vi.mock("@/lib/workoutProgressionFlag", () => ({ workoutProgressionEnabled: () => false }));

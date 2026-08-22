@@ -22,7 +22,7 @@ import type {
   WorkoutLoadBasis,
   WorkoutTrainingMethod
 } from "@ascend/shared";
-import { analyzeWorkoutCapture, generateWorkoutDebrief, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout } from "@/lib/ascendApi";
+import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout, waitForWorkoutDebrief } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import { workoutProgressionEnabled } from "@/lib/workoutProgressionFlag";
@@ -327,7 +327,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
       setSavedSummary(response.summary);
       setWorkoutDebrief(response.debrief);
       if (response.debrief?.enabled && response.debrief.status === "pending") {
-        void generateWorkoutDebrief(response.burnLog.id)
+        void waitForWorkoutDebrief(response.burnLog.id)
           .then(({ debrief }) => setWorkoutDebrief(debrief))
           .catch(() => setWorkoutDebrief({
             ...response.debrief!,

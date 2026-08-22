@@ -21,9 +21,9 @@ import {
   getHealthSyncStatus,
   getMyStreak,
   getTodayPriorityRecommendation,
-  generateWorkoutDebrief,
   saveCompletedWorkout,
-  sendCoachMessage
+  sendCoachMessage,
+  waitForWorkoutDebrief
 } from "@/lib/ascendApi";
 import { loadAccountProfile } from "@/lib/accountSession";
 import { rememberDashboardRecord } from "@/lib/dataSync";
@@ -634,7 +634,7 @@ export function CoachHubClient() {
       setSavedWorkoutSummary(response.summary);
       setWorkoutDebrief(response.debrief);
       if (response.debrief?.enabled && response.debrief.status === "pending") {
-        void generateWorkoutDebrief(response.burnLog.id)
+        void waitForWorkoutDebrief(response.burnLog.id)
           .then(({ debrief }) => setWorkoutDebrief(debrief))
           .catch(() => setWorkoutDebrief({
             ...response.debrief!,

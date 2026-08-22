@@ -1185,6 +1185,15 @@ export function getWorkoutDebrief(workoutEventId: string) {
   return authed<{ debrief: WorkoutDebriefView }>(`/burn-logs/${encodeURIComponent(workoutEventId)}/debrief`);
 }
 
+export async function waitForWorkoutDebrief(workoutEventId: string) {
+  let latest = await getWorkoutDebrief(workoutEventId);
+  for (let attempt = 0; attempt < 16 && (latest.debrief.status === "pending" || latest.debrief.status === "generating"); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    latest = await getWorkoutDebrief(workoutEventId);
+  }
+  return latest;
+}
+
 export function getRecentDetailedWorkouts(limit = 5) {
   return authed<{
     enabled: boolean;

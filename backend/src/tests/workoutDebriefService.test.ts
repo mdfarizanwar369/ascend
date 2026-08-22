@@ -122,8 +122,29 @@ function createMemoryStore(options: { context?: GenerationContext | null } = {})
       rows.set(key(input.workoutEventId, input.userId), fallback);
       return fallback;
     },
-    async markStaleGeneratingFallback() {
-      return null;
+    async markStalePendingFallback(eventId, userId) {
+      const row = rows.get(key(eventId, userId));
+      if (!row || row.status !== "pending" || Date.now() - new Date(row.createdAt).getTime() < 120_000) return null;
+      const fallback = {
+        ...row,
+        status: "fallback" as const,
+        failureReason: "generation_not_started",
+        generatedAt: new Date().toISOString()
+      };
+      rows.set(key(eventId, userId), fallback);
+      return fallback;
+    },
+    async markStaleGeneratingFallback(eventId, userId) {
+      const row = rows.get(key(eventId, userId));
+      if (!row || row.status !== "generating" || !row.generationStartedAt || Date.now() - new Date(row.generationStartedAt).getTime() < 120_000) return null;
+      const fallback = {
+        ...row,
+        status: "fallback" as const,
+        failureReason: "generation_interrupted",
+        generatedAt: new Date().toISOString()
+      };
+      rows.set(key(eventId, userId), fallback);
+      return fallback;
     },
     async loadGenerationContext(eventId, userId) {
       return eventId === EVENT_ID && userId === USER_ID ? context ?? null : null;
@@ -325,6 +346,78 @@ describe("Coach Zoe Workout Debrief V1", () => {
     expect(ownerRead?.status).toBe("pending");
     expect(otherRead).toBeNull();
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps a fresh pending row pending but resolves an abandoned stale row without AI", async () => {
+    const { store, rows } = createMemoryStore();
+    const generate = vi.fn(async () => generatedReply());
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata: { workoutTitle: "Strength Session", workoutType: "Strength" }
+    }, deps);
+
+    const fresh = await getWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+    const rowKey = `${EVENT_ID}:${USER_ID}`;
+    rows.set(rowKey, { ...rows.get(rowKey)!, createdAt: new Date(Date.now() - 121_000).toISOString() });
+    const stale = await getWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+
+    expect(fresh?.status).toBe("pending");
+    expect(stale).toMatchObject({ status: "fallback", source: "deterministic", cached: true });
+    expect(rows.get(rowKey)?.failureReason).toBe("generation_not_started");
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("resolves an interrupted stale generating row to fallback without a second provider attempt", async () => {
+    const { store, rows } = createMemoryStore();
+    const generate = vi.fn(async () => generatedReply());
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata: { workoutTitle: "Strength Session", workoutType: "Strength" }
+    }, deps);
+    const rowKey = `${EVENT_ID}:${USER_ID}`;
+    rows.set(rowKey, {
+      ...rows.get(rowKey)!,
+      status: "generating",
+      generationStartedAt: new Date(Date.now() - 121_000).toISOString()
+    });
+
+    const recovered = await getWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+
+    expect(recovered).toMatchObject({ status: "fallback", source: "deterministic", cached: true });
+    expect(rows.get(rowKey)?.failureReason).toBe("generation_interrupted");
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("turns a provider timeout into terminal fallback", async () => {
+    const { store } = createMemoryStore();
+    const generate = vi.fn(async () => {
+      const error = new Error("request timed out");
+      error.name = "AbortError";
+      throw error;
+    });
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata: { workoutTitle: "Strength Session", workoutType: "Strength" }
+    }, deps);
+
+    const timedOut = await generateWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+    const reopened = await getWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+
+    expect(timedOut).toMatchObject({ status: "fallback", source: "deterministic" });
+    expect(reopened).toMatchObject({ status: "fallback", source: "deterministic", cached: true });
+    expect(generate).toHaveBeenCalledTimes(1);
   });
 
   it("is inert when both server feature flags are disabled", async () => {

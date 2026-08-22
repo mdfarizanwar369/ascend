@@ -75,6 +75,7 @@ export interface WorkoutDebriefStore {
     provider?: string | null;
     model?: string | null;
   }): Promise<WorkoutDebriefRecord | null>;
+  markStalePendingFallback(workoutEventId: string, userId: string): Promise<WorkoutDebriefRecord | null>;
   markStaleGeneratingFallback(workoutEventId: string, userId: string): Promise<WorkoutDebriefRecord | null>;
   loadGenerationContext(workoutEventId: string, userId: string): Promise<GenerationContext | null>;
 }
@@ -200,6 +201,20 @@ export const databaseWorkoutDebriefStore: WorkoutDebriefStore = {
       returning ${recordColumns}
       `,
       [input.workoutEventId, input.userId, input.provider ?? null, input.model ?? null, input.failureReason]
+    );
+    return result.rows[0] ? mapRecord(result.rows[0]) : null;
+  },
+
+  async markStalePendingFallback(workoutEventId, userId) {
+    const result = await query<DbWorkoutDebriefRow>(
+      `
+      update workout_debriefs
+      set status = 'fallback', failure_reason = 'generation_not_started', generated_at = now(), updated_at = now()
+      where workout_event_id = $1 and user_id = $2 and status = 'pending'
+        and created_at < now() - interval '2 minutes'
+      returning ${recordColumns}
+      `,
+      [workoutEventId, userId]
     );
     return result.rows[0] ? mapRecord(result.rows[0]) : null;
   },
@@ -625,6 +640,18 @@ export async function getWorkoutDebrief(input: {
   if (workoutDebriefRolloutMode({ isPlatformOwner: input.isPlatformOwner }) !== "active") {
     return disabledView(input.workoutEventId);
   }
-  const record = await dependencies.store.findForUser(input.workoutEventId, input.userId);
+  let record = await dependencies.store.findForUser(input.workoutEventId, input.userId);
+  if (record?.status === "pending" || record?.status === "generating") {
+    const staleFallback = record.status === "pending"
+      ? await dependencies.store.markStalePendingFallback(input.workoutEventId, input.userId)
+      : await dependencies.store.markStaleGeneratingFallback(input.workoutEventId, input.userId);
+    record = staleFallback ?? await dependencies.store.findForUser(input.workoutEventId, input.userId);
+    if (staleFallback) {
+      debriefLog("stale_state_recovered", {
+        workoutEventId: input.workoutEventId,
+        previousStatus: staleFallback.failureReason === "generation_not_started" ? "pending" : "generating"
+      }, "warn");
+    }
+  }
   return record ? recordView(record, true) : null;
 }

@@ -2,9 +2,10 @@ import express from "express";
 import { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { persistCompletedWorkoutMock, initializeWorkoutDebriefMock } = vi.hoisted(() => ({
+const { persistCompletedWorkoutMock, initializeWorkoutDebriefMock, generateWorkoutDebriefMock } = vi.hoisted(() => ({
   persistCompletedWorkoutMock: vi.fn(),
-  initializeWorkoutDebriefMock: vi.fn()
+  initializeWorkoutDebriefMock: vi.fn(),
+  generateWorkoutDebriefMock: vi.fn()
 }));
 
 vi.mock("../middleware/auth", () => ({
@@ -32,7 +33,7 @@ vi.mock("../services/workoutCompletionService", () => ({
 }));
 vi.mock("../services/workoutDebriefService", () => ({
   initializeWorkoutDebrief: initializeWorkoutDebriefMock,
-  generateWorkoutDebrief: vi.fn(),
+  generateWorkoutDebrief: generateWorkoutDebriefMock,
   getWorkoutDebrief: vi.fn()
 }));
 
@@ -73,6 +74,7 @@ describe("workout debrief route isolation", () => {
       }
     });
     initializeWorkoutDebriefMock.mockReset().mockRejectedValue(new Error("Debrief storage unavailable"));
+    generateWorkoutDebriefMock.mockReset();
   });
 
   afterAll(async () => closeServer?.());
@@ -99,5 +101,43 @@ describe("workout debrief route isolation", () => {
     });
     expect(persistCompletedWorkoutMock).toHaveBeenCalledTimes(1);
     expect(initializeWorkoutDebriefMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts eligible generation on the server without delaying the saved-workout response", async () => {
+    initializeWorkoutDebriefMock.mockResolvedValue({
+      enabled: true,
+      workoutEventId: "33333333-3333-4333-8333-333333333333",
+      status: "pending",
+      text: null,
+      fallbackText: "Workout saved. Your session has been recorded.",
+      source: null,
+      cached: false
+    });
+    generateWorkoutDebriefMock.mockImplementation(() => new Promise(() => undefined));
+
+    const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workoutCompletionKey: "66666666-6666-4666-8666-666666666666",
+        workoutTitle: "Upper Body Strength",
+        workoutType: "Strength",
+        workoutDifficulty: "moderate",
+        durationMinutes: 40,
+        exercises: [{ name: "Dumbbell Press", sets: 3, reps: "10" }]
+      })
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      burnLog: { id: "33333333-3333-4333-8333-333333333333" },
+      debrief: { status: "pending" }
+    });
+    expect(generateWorkoutDebriefMock).toHaveBeenCalledWith({
+      workoutEventId: "33333333-3333-4333-8333-333333333333",
+      userId: "11111111-1111-4111-8111-111111111111",
+      gymId: null,
+      isPlatformOwner: false
+    });
   });
 });
