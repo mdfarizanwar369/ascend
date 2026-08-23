@@ -55,7 +55,7 @@ export interface WorkoutDebriefStore {
   initialize(input: {
     workoutEventId: string;
     userId: string;
-    status: Extract<WorkoutDebriefStatus, "pending" | "not_required">;
+    status: Extract<WorkoutDebriefStatus, "available" | "pending" | "not_required">;
     workoutSignal: WorkoutSignalV1;
     fallbackText: string;
   }): Promise<WorkoutDebriefRecord | null>;
@@ -168,7 +168,7 @@ export const databaseWorkoutDebriefStore: WorkoutDebriefStore = {
     const result = await query<DbWorkoutDebriefRow>(
       `
       update workout_debriefs
-      set status = 'generating', generation_started_at = now(), updated_at = now()
+      set status = 'generating', generation_started_at = coalesce(generation_started_at, now()), updated_at = now()
       where workout_event_id = $1 and user_id = $2 and status = 'pending'
       returning ${recordColumns}
       `,
@@ -460,7 +460,7 @@ export async function initializeWorkoutDebrief(input: {
   }
   const signal = buildWorkoutSignalV1({ source: input.source, metadata: input.metadata, createdAt: input.createdAt });
   const fallbackText = deterministicWorkoutAcknowledgement({ source: input.source, metadata: input.metadata });
-  const status = input.source === "quick_activity" ? "not_required" : "pending";
+  const status = input.source === "quick_activity" ? "not_required" : "available";
   const record = await dependencies.store.initialize({
     workoutEventId: input.workoutEventId,
     userId: input.userId,
@@ -469,7 +469,7 @@ export async function initializeWorkoutDebrief(input: {
     fallbackText
   });
   if (!record) throw new Error("Workout debrief could not be associated with this workout.");
-  debriefLog(status === "not_required" ? "generation_skipped" : "debrief_requested", {
+  debriefLog(status === "not_required" ? "generation_skipped" : "debrief_available", {
     workoutEventId: input.workoutEventId,
     source: input.source
   });

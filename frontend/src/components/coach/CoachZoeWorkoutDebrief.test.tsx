@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkoutDebriefView } from "@ascend/shared";
 import { CoachZoeWorkoutDebrief } from "./CoachZoeWorkoutDebrief";
 
@@ -44,6 +44,50 @@ describe("Coach Zoe workout debrief", () => {
       source: "deterministic"
     }} />);
     expect(screen.getByText(base.fallbackText!)).toBeInTheDocument();
+  });
+
+  it("lets a Free member deliberately spend the weekly review on this workout", () => {
+    const request = vi.fn();
+    render(<CoachZoeWorkoutDebrief debrief={{
+      ...base,
+      status: "available",
+      access: {
+        tier: "free",
+        mode: "select_one",
+        canGenerate: true,
+        dailyLimit: null,
+        weeklyLimit: 1,
+        dailyUsed: 0,
+        weeklyUsed: 0,
+        dailyRemaining: null,
+        weeklyRemaining: 1,
+        nextWeeklyReviewAt: null
+      }
+    }} onRequestReview={request} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Review this workout with Zoe" }));
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/weekly Coach Zoe review/i)).toBeInTheDocument();
+  });
+
+  it("keeps an automatic fair-use ceiling invisible", () => {
+    const { container } = render(<CoachZoeWorkoutDebrief debrief={{
+      ...base,
+      status: "available",
+      access: {
+        tier: "premium",
+        mode: "automatic",
+        canGenerate: false,
+        dailyLimit: 2,
+        weeklyLimit: 10,
+        dailyUsed: 2,
+        weeklyUsed: 2,
+        dailyRemaining: 0,
+        weeklyRemaining: 8,
+        nextWeeklyReviewAt: null
+      }
+    }} />);
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("renders nothing when the server-side feature is disabled", () => {

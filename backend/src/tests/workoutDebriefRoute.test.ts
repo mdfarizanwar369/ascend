@@ -2,12 +2,15 @@ import express from "express";
 import { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { persistCompletedWorkoutMock, initializeWorkoutDebriefMock, generateWorkoutDebriefMock, queryMock, workoutCaptureAccessMock } = vi.hoisted(() => ({
+const { persistCompletedWorkoutMock, initializeWorkoutDebriefMock, generateWorkoutDebriefMock, getWorkoutDebriefMock, queryMock, workoutCaptureAccessMock, debriefAccessMock, reserveDebriefMock } = vi.hoisted(() => ({
   persistCompletedWorkoutMock: vi.fn(),
   initializeWorkoutDebriefMock: vi.fn(),
   generateWorkoutDebriefMock: vi.fn(),
+  getWorkoutDebriefMock: vi.fn(),
   queryMock: vi.fn(),
-  workoutCaptureAccessMock: vi.fn()
+  workoutCaptureAccessMock: vi.fn(),
+  debriefAccessMock: vi.fn(),
+  reserveDebriefMock: vi.fn()
 }));
 
 vi.mock("../db/pool", () => ({ query: queryMock }));
@@ -41,7 +44,12 @@ vi.mock("../services/workoutCaptureAccess", () => ({
 vi.mock("../services/workoutDebriefService", () => ({
   initializeWorkoutDebrief: initializeWorkoutDebriefMock,
   generateWorkoutDebrief: generateWorkoutDebriefMock,
-  getWorkoutDebrief: vi.fn()
+  getWorkoutDebrief: getWorkoutDebriefMock
+}));
+vi.mock("../services/workoutDebriefAccessService", () => ({
+  getWorkoutDebriefAccess: debriefAccessMock,
+  reserveWorkoutDebriefGeneration: reserveDebriefMock,
+  workoutDebriefIdentity: (input: unknown) => input
 }));
 
 describe("workout debrief route isolation", () => {
@@ -82,8 +90,22 @@ describe("workout debrief route isolation", () => {
     });
     initializeWorkoutDebriefMock.mockReset().mockRejectedValue(new Error("Debrief storage unavailable"));
     generateWorkoutDebriefMock.mockReset();
+    getWorkoutDebriefMock.mockReset();
     queryMock.mockReset();
     workoutCaptureAccessMock.mockReset().mockResolvedValue({ enabled: true, allowance: null });
+    debriefAccessMock.mockReset().mockResolvedValue({
+      tier: "premium",
+      mode: "automatic",
+      canGenerate: true,
+      dailyLimit: 2,
+      weeklyLimit: 10,
+      dailyUsed: 0,
+      weeklyUsed: 0,
+      dailyRemaining: 2,
+      weeklyRemaining: 10,
+      nextWeeklyReviewAt: null
+    });
+    reserveDebriefMock.mockReset();
   });
 
   afterAll(async () => closeServer?.());
@@ -113,15 +135,20 @@ describe("workout debrief route isolation", () => {
   });
 
   it("starts eligible generation on the server without delaying the saved-workout response", async () => {
-    initializeWorkoutDebriefMock.mockResolvedValue({
+    const available = {
       enabled: true,
       workoutEventId: "33333333-3333-4333-8333-333333333333",
-      status: "pending",
+      status: "available",
       text: null,
       fallbackText: "Workout saved. Your session has been recorded.",
       source: null,
       cached: false
-    });
+    };
+    initializeWorkoutDebriefMock.mockResolvedValue(available);
+    const reservedAccess = { ...await debriefAccessMock(), dailyUsed: 1, weeklyUsed: 1, dailyRemaining: 1, weeklyRemaining: 9 };
+    debriefAccessMock.mockResolvedValue(reservedAccess);
+    reserveDebriefMock.mockResolvedValue({ outcome: "reserved", access: reservedAccess });
+    getWorkoutDebriefMock.mockResolvedValue({ ...available, status: "pending" });
     generateWorkoutDebriefMock.mockImplementation(() => new Promise(() => undefined));
 
     const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
@@ -148,6 +175,52 @@ describe("workout debrief route isolation", () => {
       gymId: null,
       isPlatformOwner: false
     });
+    expect(reserveDebriefMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a Free workout selectable and does not start AI until the member chooses it", async () => {
+    const freeAccess = {
+      tier: "free",
+      mode: "select_one",
+      canGenerate: true,
+      dailyLimit: null,
+      weeklyLimit: 1,
+      dailyUsed: 0,
+      weeklyUsed: 0,
+      dailyRemaining: null,
+      weeklyRemaining: 1,
+      nextWeeklyReviewAt: null
+    };
+    debriefAccessMock.mockResolvedValue(freeAccess);
+    initializeWorkoutDebriefMock.mockResolvedValue({
+      enabled: true,
+      workoutEventId: "33333333-3333-4333-8333-333333333333",
+      status: "available",
+      text: null,
+      fallbackText: "Workout saved.",
+      source: null,
+      cached: false
+    });
+
+    const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workoutCompletionKey: "77777777-7777-4777-8777-777777777777",
+        workoutTitle: "Upper Body Strength",
+        workoutType: "Strength",
+        workoutDifficulty: "moderate",
+        durationMinutes: 40,
+        exercises: [{ name: "Dumbbell Press", sets: 3, reps: "10" }]
+      })
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      debrief: { status: "available", access: { tier: "free", weeklyRemaining: 1 } }
+    });
+    expect(reserveDebriefMock).not.toHaveBeenCalled();
+    expect(generateWorkoutDebriefMock).not.toHaveBeenCalled();
   });
 
   it("exposes terminal debrief status on recent detailed workouts without generating", async () => {

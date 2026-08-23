@@ -18,11 +18,12 @@ import type {
   WorkoutCaptureDraft,
   WorkoutCaptureExercise,
   WorkoutCaptureAllowance,
+  WorkoutDebriefAccess,
   WorkoutDebriefView,
   WorkoutLoadBasis,
   WorkoutTrainingMethod
 } from "@ascend/shared";
-import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutDebrief, getWorkoutProgressionHistory, saveCapturedWorkout, waitForWorkoutDebrief } from "@/lib/ascendApi";
+import { analyzeWorkoutCapture, generateWorkoutDebrief, getRecentDetailedWorkouts, getWorkoutDebrief, getWorkoutProgressionHistory, saveCapturedWorkout, waitForWorkoutDebrief } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import { workoutProgressionEnabled } from "@/lib/workoutProgressionFlag";
@@ -166,9 +167,11 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   const [status, setStatus] = useState("");
   const [savedSummary, setSavedSummary] = useState<SavedSummary | null>(null);
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
+  const [debriefAccess, setDebriefAccess] = useState<WorkoutDebriefAccess | null>(null);
   const [savedDebriefs, setSavedDebriefs] = useState<Record<string, WorkoutDebriefView>>({});
   const [openDebriefId, setOpenDebriefId] = useState<string | null>(null);
   const [loadingDebriefId, setLoadingDebriefId] = useState<string | null>(null);
+  const [requestingDebriefId, setRequestingDebriefId] = useState<string | null>(null);
   const saveLockRef = useRef(false);
 
   const busy = isAnalyzing || isSaving;
@@ -183,6 +186,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         if (mounted && response.enabled) {
           setRecentWorkouts(response.workouts);
           setAllowance(response.allowance);
+          setDebriefAccess(response.debriefAccess ?? null);
         }
       })
       .catch(() => undefined)
@@ -303,6 +307,31 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     }
   }
 
+  async function requestSavedDebrief(workoutEventId: string, currentWorkout = false) {
+    if (requestingDebriefId) return;
+    setRequestingDebriefId(workoutEventId);
+    try {
+      let response = await generateWorkoutDebrief(workoutEventId);
+      if (response.debrief.status === "pending" || response.debrief.status === "generating") {
+        response = await waitForWorkoutDebrief(workoutEventId);
+      }
+      if (response.debrief.access) setDebriefAccess(response.debrief.access);
+      if (currentWorkout) {
+        setWorkoutDebrief(response.debrief);
+      } else {
+        setSavedDebriefs((current) => ({ ...current, [workoutEventId]: response.debrief }));
+        setRecentWorkouts((current) => current.map((workout) => workout.id === workoutEventId
+          ? { ...workout, debrief_status: response.debrief.status }
+          : workout));
+        setOpenDebriefId(workoutEventId);
+      }
+    } catch {
+      setStatus("Coach Zoe could not review this workout yet. Your saved workout is safe, so you can try again.");
+    } finally {
+      setRequestingDebriefId(null);
+    }
+  }
+
   function updateDraft(patch: Partial<WorkoutCaptureDraft>) {
     setDraft((current) => current ? { ...current, ...patch } : current);
   }
@@ -352,7 +381,8 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
       onSaved(response.burnLog, response.summary.estimatedCaloriesBurned);
       setSavedSummary(response.summary);
       setWorkoutDebrief(response.debrief);
-      if (response.debrief?.enabled && response.debrief.status === "pending") {
+      if (response.debrief?.access) setDebriefAccess(response.debrief.access);
+      if (response.debrief?.enabled && (response.debrief.status === "pending" || response.debrief.status === "generating")) {
         void waitForWorkoutDebrief(response.burnLog.id)
           .then(({ debrief }) => setWorkoutDebrief(debrief))
           .catch(() => setWorkoutDebrief({
@@ -389,8 +419,12 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           </div>
         </div>
         <div className="p-5">
-        {workoutDebrief?.enabled ? (
-          <CoachZoeWorkoutDebrief debrief={workoutDebrief} />
+        {workoutDebrief?.enabled && !(workoutDebrief.status === "available" && workoutDebrief.access?.mode === "automatic" && !workoutDebrief.access.canGenerate) ? (
+          <CoachZoeWorkoutDebrief
+            debrief={workoutDebrief}
+            onRequestReview={() => void requestSavedDebrief(workoutDebrief.workoutEventId, true)}
+            isRequesting={requestingDebriefId === workoutDebrief.workoutEventId}
+          />
         ) : (
           <p className="ascend-inset mt-4 p-3 text-sm leading-6 text-zinc-300">{savedSummary.coachMessage}</p>
         )}
@@ -523,16 +557,20 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
                     </span>
                     <ChevronRight size={18} className="shrink-0 text-zinc-400" />
                   </button>
-                  {workout.debrief_status === "generated" || workout.debrief_status === "fallback" ? (
+                  {workout.debrief_status === "generated" || workout.debrief_status === "fallback" || (workout.debrief_status === "available" && debriefAccess?.mode === "select_one") ? (
                     <>
                       <button
                         type="button"
-                        onClick={() => void toggleSavedDebrief(workout)}
-                        disabled={loadingDebriefId === workout.id}
+                        onClick={() => workout.debrief_status === "available"
+                          ? void requestSavedDebrief(workout.id)
+                          : void toggleSavedDebrief(workout)}
+                        disabled={loadingDebriefId === workout.id || requestingDebriefId === workout.id || (workout.debrief_status === "available" && !debriefAccess?.canGenerate)}
                         aria-expanded={openDebriefId === workout.id}
                         className="ascend-pressable flex min-h-11 w-full items-center border-t border-line px-3 text-left text-sm font-semibold text-purple-200 disabled:opacity-60"
                       >
-                        {openDebriefId === workout.id ? "Hide Zoe review" : "View Zoe review"}
+                        {workout.debrief_status === "available"
+                          ? debriefAccess?.canGenerate ? "Ask Zoe to review this workout" : "Weekly Zoe review used"
+                          : openDebriefId === workout.id ? "Hide Zoe review" : "View Zoe review"}
                       </button>
                       {openDebriefId === workout.id && savedDebriefs[workout.id] ? (
                         <div className="border-t border-line p-3">

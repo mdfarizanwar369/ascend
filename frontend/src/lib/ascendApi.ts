@@ -1198,6 +1198,7 @@ export function getRecentDetailedWorkouts(limit = 5) {
   return authed<{
     enabled: boolean;
     allowance: WorkoutCaptureAllowance | null;
+    debriefAccess: WorkoutDebriefView["access"] | null;
     workouts: Array<{
       id: string;
       metadata: Record<string, unknown>;

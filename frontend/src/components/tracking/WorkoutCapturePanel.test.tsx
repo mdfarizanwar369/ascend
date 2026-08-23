@@ -2,13 +2,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkoutCaptureDraft } from "@ascend/shared";
 
-const { analyze, recent, progression, save, debrief, getDebrief } = vi.hoisted(() => ({
+const { analyze, recent, progression, save, debrief, getDebrief, generateDebrief } = vi.hoisted(() => ({
   analyze: vi.fn(),
   recent: vi.fn(),
   progression: vi.fn(),
   save: vi.fn(),
   debrief: vi.fn(),
-  getDebrief: vi.fn()
+  getDebrief: vi.fn(),
+  generateDebrief: vi.fn()
 }));
 
 vi.mock("@/lib/ascendApi", () => ({
@@ -17,7 +18,8 @@ vi.mock("@/lib/ascendApi", () => ({
   getWorkoutProgressionHistory: progression,
   saveCapturedWorkout: save,
   waitForWorkoutDebrief: debrief,
-  getWorkoutDebrief: getDebrief
+  getWorkoutDebrief: getDebrief,
+  generateWorkoutDebrief: generateDebrief
 }));
 
 vi.mock("@/lib/workoutProgressionFlag", () => ({ workoutProgressionEnabled: () => false }));
@@ -116,6 +118,7 @@ describe("Detailed Workout receipt", () => {
     save.mockReset();
     debrief.mockReset();
     getDebrief.mockReset();
+    generateDebrief.mockReset();
     vi.stubGlobal("crypto", { randomUUID: () => "capture-key" });
   });
 
@@ -179,5 +182,49 @@ describe("Detailed Workout receipt", () => {
     fireEvent.click(screen.getByRole("button", { name: "View Zoe review" }));
     expect(await screen.findByRole("region", { name: "Coach Zoe workout debrief" })).toHaveAttribute("aria-busy", "false");
     expect(getDebrief).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a Free member choose one recent detailed workout for Zoe review", async () => {
+    const access = {
+      tier: "free" as const,
+      mode: "select_one" as const,
+      canGenerate: true,
+      dailyLimit: null,
+      weeklyLimit: 1,
+      dailyUsed: 0,
+      weeklyUsed: 0,
+      dailyRemaining: null,
+      weeklyRemaining: 1,
+      nextWeeklyReviewAt: null
+    };
+    recent.mockResolvedValue({
+      enabled: true,
+      allowance: null,
+      debriefAccess: access,
+      workouts: [{
+        id: "11111111-1111-4111-8111-111111111111",
+        metadata: { workoutTitle: "Upper Body Strength", exercises: [{ name: "Bench Press" }] },
+        created_at: new Date().toISOString(),
+        debrief_status: "available"
+      }]
+    });
+    generateDebrief.mockResolvedValue({
+      debrief: {
+        enabled: true,
+        workoutEventId: "11111111-1111-4111-8111-111111111111",
+        status: "generated",
+        text: "Your pushing work created a useful strength reference without overstating how the session felt.",
+        fallbackText: "Workout saved.",
+        source: "ai",
+        cached: false,
+        access: { ...access, canGenerate: false, weeklyUsed: 1, weeklyRemaining: 0 }
+      }
+    });
+
+    render(<WorkoutCapturePanel onSaved={() => undefined} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Ask Zoe to review this workout" }));
+
+    expect(await screen.findByText(/created a useful strength reference/i)).toBeInTheDocument();
+    expect(generateDebrief).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111");
   });
 });

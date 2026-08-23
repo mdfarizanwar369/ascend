@@ -21,6 +21,7 @@ import {
   getHealthSyncStatus,
   getMyStreak,
   getTodayPriorityRecommendation,
+  generateWorkoutDebrief,
   saveCompletedWorkout,
   sendCoachMessage,
   waitForWorkoutDebrief
@@ -463,6 +464,7 @@ export function CoachHubClient() {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
+  const [isRequestingDebrief, setIsRequestingDebrief] = useState(false);
   const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
   const [todaysInsight, setTodaysInsight] = useState("One honest action is enough to keep today moving.");
   const saveWorkoutLockRef = useRef(false);
@@ -633,7 +635,7 @@ export function CoachHubClient() {
       rememberDashboardRecord("burn", response.burnLog);
       setSavedWorkoutSummary(response.summary);
       setWorkoutDebrief(response.debrief);
-      if (response.debrief?.enabled && response.debrief.status === "pending") {
+      if (response.debrief?.enabled && (response.debrief.status === "pending" || response.debrief.status === "generating")) {
         void waitForWorkoutDebrief(response.burnLog.id)
           .then(({ debrief }) => setWorkoutDebrief(debrief))
           .catch(() => setWorkoutDebrief({
@@ -653,6 +655,23 @@ export function CoachHubClient() {
     } finally {
       saveWorkoutLockRef.current = false;
       setIsSavingWorkout(false);
+    }
+  }
+
+  async function requestWorkoutReview() {
+    if (!workoutDebrief?.workoutEventId || isRequestingDebrief) return;
+    setIsRequestingDebrief(true);
+    try {
+      const response = await generateWorkoutDebrief(workoutDebrief.workoutEventId);
+      setWorkoutDebrief(response.debrief);
+      if (response.debrief.status === "pending" || response.debrief.status === "generating") {
+        const terminal = await waitForWorkoutDebrief(workoutDebrief.workoutEventId);
+        setWorkoutDebrief(terminal.debrief);
+      }
+    } catch {
+      setStatus("Coach Zoe could not review this workout yet. Your saved workout is safe, so you can try again.");
+    } finally {
+      setIsRequestingDebrief(false);
     }
   }
 
@@ -830,8 +849,12 @@ export function CoachHubClient() {
                           <p className="mt-1 font-semibold">{savedWorkoutSummary.workoutType}</p>
                         </div>
                       </div>
-                      {workoutDebrief?.enabled ? (
-                        <CoachZoeWorkoutDebrief debrief={workoutDebrief} />
+                      {workoutDebrief?.enabled && !(workoutDebrief.status === "available" && workoutDebrief.access?.mode === "automatic" && !workoutDebrief.access.canGenerate) ? (
+                        <CoachZoeWorkoutDebrief
+                          debrief={workoutDebrief}
+                          onRequestReview={() => void requestWorkoutReview()}
+                          isRequesting={isRequestingDebrief}
+                        />
                       ) : (
                         <div className="mt-4 flex items-start gap-2 rounded-xl border border-purple-300/15 bg-purple-400/8 p-3"><ZoeAvatar size="sm" /><p className="text-sm leading-6 text-zinc-200">{savedWorkoutSummary.coachMessage}</p></div>
                       )}

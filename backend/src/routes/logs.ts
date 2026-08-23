@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
+import type { AuthUser } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { createReadUrl, createUploadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
@@ -23,6 +24,11 @@ import {
 import { savedWorkoutCaptureExerciseSchema } from "../schemas/workoutCaptureSchemas";
 import { storageKeyBelongsToUser } from "../utils/storageOwnership";
 import { generateWorkoutDebrief, getWorkoutDebrief, initializeWorkoutDebrief } from "../services/workoutDebriefService";
+import {
+  getWorkoutDebriefAccess,
+  reserveWorkoutDebriefGeneration,
+  workoutDebriefIdentity
+} from "../services/workoutDebriefAccessService";
 
 export const logsRouter = Router();
 
@@ -141,6 +147,36 @@ function startWorkoutDebriefAfterSave(input: {
       reason: error instanceof Error ? error.name : "unknown"
     });
   });
+}
+
+function debriefIdentity(user: AuthUser) {
+  return workoutDebriefIdentity({
+    userId: user.id,
+    primaryRole: user.primaryRole,
+    roles: user.roles,
+    isPlatformOwner: user.isPlatformOwner
+  });
+}
+
+async function prepareWorkoutDebriefForResponse(
+  user: AuthUser,
+  debrief: Awaited<ReturnType<typeof initializeWorkoutDebrief>> | null
+) {
+  if (!debrief?.enabled) return debrief;
+  if (debrief.status === "not_required") return debrief;
+  const identity = debriefIdentity(user);
+  let access = await getWorkoutDebriefAccess(identity);
+  if (debrief.status === "available" && access.mode === "automatic") {
+    const reservation = await reserveWorkoutDebriefGeneration(identity, debrief.workoutEventId);
+    access = reservation.access;
+    const prepared = await getWorkoutDebrief({
+      workoutEventId: debrief.workoutEventId,
+      userId: user.id,
+      isPlatformOwner: user.isPlatformOwner
+    });
+    return prepared ? { ...prepared, access } : { ...debrief, access };
+  }
+  return { ...debrief, access };
 }
 
 logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) => {
@@ -479,7 +515,7 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
     );
     void createCoachPresenceForEvent(req.user!.id, "workout_logged").catch(() => undefined);
     const burnLog = result.rows[0] as { id: string; metadata: Record<string, unknown>; created_at: string };
-    const debrief = await initializeWorkoutDebrief({
+    const initializedDebrief = await initializeWorkoutDebrief({
       workoutEventId: burnLog.id,
       userId: req.user!.id,
       isPlatformOwner: req.user!.isPlatformOwner,
@@ -495,6 +531,7 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
       });
       return null;
     });
+    const debrief = await prepareWorkoutDebriefForResponse(req.user!, initializedDebrief);
     res.status(201).json({ burnLog, debrief });
   } catch (error) {
     next(error);
@@ -518,7 +555,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
       source: "coach_zoe_workout_planner"
     });
 
-    const debrief = await initializeWorkoutDebrief({
+    const initializedDebrief = await initializeWorkoutDebrief({
       workoutEventId: result.burnLog.id,
       userId: req.user!.id,
       isPlatformOwner: req.user!.isPlatformOwner,
@@ -534,6 +571,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
       });
       return null;
     });
+    const debrief = await prepareWorkoutDebriefForResponse(req.user!, initializedDebrief);
 
     res.status(201).json({ ...result, debrief });
     startWorkoutDebriefAfterSave({
@@ -601,7 +639,7 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       roles: req.user!.roles,
       isPlatformOwner: req.user!.isPlatformOwner
     });
-    const debrief = await initializeWorkoutDebrief({
+    const initializedDebrief = await initializeWorkoutDebrief({
       workoutEventId: result.burnLog.id,
       userId: req.user!.id,
       isPlatformOwner: req.user!.isPlatformOwner,
@@ -617,6 +655,7 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       });
       return null;
     });
+    const debrief = await prepareWorkoutDebriefForResponse(req.user!, initializedDebrief);
     res.status(201).json({ enabled: true, ...result, debrief, allowance: refreshedAccess.allowance });
     startWorkoutDebriefAfterSave({
       workoutEventId: result.burnLog.id,
@@ -639,8 +678,10 @@ logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next)
       isPlatformOwner: req.user!.isPlatformOwner
     });
     if (!access.enabled) {
-      return res.json({ enabled: false, workouts: [], allowance: null });
+      return res.json({ enabled: false, workouts: [], allowance: null, debriefAccess: null });
     }
+
+    const debriefAccess = await getWorkoutDebriefAccess(debriefIdentity(req.user!));
 
     const limit = z.coerce.number().int().min(1).max(10).default(5).parse(req.query.limit);
     const result = await query(
@@ -658,7 +699,7 @@ logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next)
       `,
       [req.user!.id, limit]
     );
-    res.json({ enabled: true, workouts: result.rows, allowance: access.allowance });
+    res.json({ enabled: true, workouts: result.rows, allowance: access.allowance, debriefAccess });
   } catch (error) {
     next(error);
   }
@@ -677,6 +718,19 @@ logsRouter.get("/burn-logs/progression", requireAuth, async (req, res, next) => 
 logsRouter.post("/burn-logs/:burnLogId/debrief", requireAuth, workoutDebriefRateLimit, async (req, res, next) => {
   try {
     const workoutEventId = z.string().uuid().parse(req.params.burnLogId);
+    const existing = await getWorkoutDebrief({
+      workoutEventId,
+      userId: req.user!.id,
+      isPlatformOwner: req.user!.isPlatformOwner
+    });
+    if (!existing) return res.status(404).json({ error: "Workout debrief not found." });
+    if (!existing.enabled) return res.json({ debrief: existing });
+
+    const reservation = await reserveWorkoutDebriefGeneration(debriefIdentity(req.user!), workoutEventId);
+    if (reservation.outcome === "not_found") return res.status(404).json({ error: "Workout debrief not found." });
+    if (reservation.outcome === "limit_reached") {
+      return res.json({ debrief: { ...existing, access: reservation.access } });
+    }
     const debrief = await generateWorkoutDebrief({
       workoutEventId,
       userId: req.user!.id,
@@ -684,7 +738,7 @@ logsRouter.post("/burn-logs/:burnLogId/debrief", requireAuth, workoutDebriefRate
       isPlatformOwner: req.user!.isPlatformOwner
     });
     if (!debrief) return res.status(404).json({ error: "Workout debrief not found." });
-    res.json({ debrief });
+    res.json({ debrief: { ...debrief, access: reservation.access } });
   } catch (error) {
     next(error);
   }
@@ -699,7 +753,9 @@ logsRouter.get("/burn-logs/:burnLogId/debrief", requireAuth, async (req, res, ne
       isPlatformOwner: req.user!.isPlatformOwner
     });
     if (!debrief) return res.status(404).json({ error: "Workout debrief not found." });
-    res.json({ debrief });
+    if (!debrief.enabled) return res.json({ debrief });
+    const access = await getWorkoutDebriefAccess(debriefIdentity(req.user!));
+    res.json({ debrief: { ...debrief, access } });
   } catch (error) {
     next(error);
   }

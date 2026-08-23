@@ -3,6 +3,7 @@ import type { WorkoutMovementPattern } from "./workoutCapture";
 export const WORKOUT_SIGNAL_VERSION = "workout_signal_v1" as const;
 
 export const WORKOUT_DEBRIEF_STATUSES = [
+  "available",
   "pending",
   "generating",
   "generated",
@@ -11,6 +12,21 @@ export const WORKOUT_DEBRIEF_STATUSES = [
 ] as const;
 
 export type WorkoutDebriefStatus = (typeof WORKOUT_DEBRIEF_STATUSES)[number];
+
+export type WorkoutDebriefTier = "free" | "premium" | "athlete";
+
+export type WorkoutDebriefAccess = {
+  tier: WorkoutDebriefTier;
+  mode: "select_one" | "automatic";
+  canGenerate: boolean;
+  dailyLimit: number | null;
+  weeklyLimit: number;
+  dailyUsed: number;
+  weeklyUsed: number;
+  dailyRemaining: number | null;
+  weeklyRemaining: number;
+  nextWeeklyReviewAt: string | null;
+};
 
 export type WorkoutDebriefSource =
   | "coach_zoe_workout_planner"
@@ -49,4 +65,5 @@ export type WorkoutDebriefView = {
   fallbackText: string | null;
   source: "ai" | "deterministic" | null;
   cached: boolean;
+  access?: WorkoutDebriefAccess;
 };

@@ -36,7 +36,7 @@ function generatedReply(output = generatedOutput) {
   };
 }
 
-function createMemoryStore(options: { context?: GenerationContext | null } = {}) {
+function createMemoryStore(options: { context?: GenerationContext | null; reserveAvailable?: boolean } = {}) {
   const rows = new Map<string, WorkoutDebriefRecord>();
   const key = (eventId: string, userId: string) => `${eventId}:${userId}`;
   const now = new Date().toISOString();
@@ -70,7 +70,7 @@ function createMemoryStore(options: { context?: GenerationContext | null } = {})
         id: "44444444-4444-4444-8444-444444444444",
         workoutEventId: input.workoutEventId,
         userId: input.userId,
-        status: input.status,
+        status: input.status === "available" && options.reserveAvailable !== false ? "pending" : input.status,
         workoutSignal: input.workoutSignal,
         debriefOutput: null,
         fallbackText: input.fallbackText,
@@ -78,7 +78,7 @@ function createMemoryStore(options: { context?: GenerationContext | null } = {})
         model: null,
         promptVersion: WORKOUT_DEBRIEF_PROMPT_VERSION,
         failureReason: null,
-        generationStartedAt: null,
+        generationStartedAt: input.status === "available" && options.reserveAvailable !== false ? now : null,
         generatedAt: null,
         createdAt: now,
         updatedAt: now
@@ -506,6 +506,20 @@ describe("Coach Zoe Workout Debrief V1", () => {
     expect(generate).not.toHaveBeenCalled();
   });
 
+  it("leaves a newly saved detailed workout available until quota is deliberately reserved", async () => {
+    const { store } = createMemoryStore({ reserveAvailable: false });
+    const result = await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata: { workoutTitle: "Strength Session", workoutType: "Strength" }
+    }, { store });
+
+    expect(result.status).toBe("available");
+    expect(result.source).toBeNull();
+  });
+
   it("keeps a fresh pending row pending but resolves an abandoned stale row without AI", async () => {
     const { store, rows } = createMemoryStore();
     const generate = vi.fn(async () => generatedReply());
@@ -600,5 +614,12 @@ describe("Coach Zoe Workout Debrief V1", () => {
     const migration = readFileSync("migrations/033_workout_debriefs.sql", "utf8");
     expect(migration).toMatch(/workout_event_id uuid not null references analytics_events\(id\) on delete cascade/i);
     expect(migration).toMatch(/unique \(workout_event_id\)/i);
+  });
+
+  it("adds the selectable public-access state without weakening the canonical record", () => {
+    const migration = readFileSync("migrations/034_workout_debrief_public_access.sql", "utf8");
+    expect(migration).toMatch(/'available'/i);
+    expect(migration).toMatch(/generation_started_at is not null/i);
+    expect(migration).toMatch(/workout_debriefs_user_generation_started_idx/i);
   });
 });
