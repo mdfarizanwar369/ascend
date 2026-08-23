@@ -2,11 +2,15 @@ import express from "express";
 import { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { persistCompletedWorkoutMock, initializeWorkoutDebriefMock, generateWorkoutDebriefMock } = vi.hoisted(() => ({
+const { persistCompletedWorkoutMock, initializeWorkoutDebriefMock, generateWorkoutDebriefMock, queryMock, workoutCaptureAccessMock } = vi.hoisted(() => ({
   persistCompletedWorkoutMock: vi.fn(),
   initializeWorkoutDebriefMock: vi.fn(),
-  generateWorkoutDebriefMock: vi.fn()
+  generateWorkoutDebriefMock: vi.fn(),
+  queryMock: vi.fn(),
+  workoutCaptureAccessMock: vi.fn()
 }));
+
+vi.mock("../db/pool", () => ({ query: queryMock }));
 
 vi.mock("../middleware/auth", () => ({
   requireAuth: (req: any, _res: any, next: () => void) => {
@@ -30,6 +34,9 @@ vi.mock("../middleware/rateLimits", () => ({
 }));
 vi.mock("../services/workoutCompletionService", () => ({
   persistCompletedWorkout: persistCompletedWorkoutMock
+}));
+vi.mock("../services/workoutCaptureAccess", () => ({
+  getWorkoutCaptureAccess: workoutCaptureAccessMock
 }));
 vi.mock("../services/workoutDebriefService", () => ({
   initializeWorkoutDebrief: initializeWorkoutDebriefMock,
@@ -75,6 +82,8 @@ describe("workout debrief route isolation", () => {
     });
     initializeWorkoutDebriefMock.mockReset().mockRejectedValue(new Error("Debrief storage unavailable"));
     generateWorkoutDebriefMock.mockReset();
+    queryMock.mockReset();
+    workoutCaptureAccessMock.mockReset().mockResolvedValue({ enabled: true, allowance: null });
   });
 
   afterAll(async () => closeServer?.());
@@ -139,5 +148,26 @@ describe("workout debrief route isolation", () => {
       gymId: null,
       isPlatformOwner: false
     });
+  });
+
+  it("exposes terminal debrief status on recent detailed workouts without generating", async () => {
+    queryMock.mockResolvedValue({
+      rows: [{
+        id: "33333333-3333-4333-8333-333333333333",
+        metadata: { workoutTitle: "Upper Body Strength", exercises: [{ name: "Dumbbell Press" }] },
+        created_at: new Date().toISOString(),
+        debrief_status: "generated"
+      }]
+    });
+
+    const response = await fetch(`${baseUrl}/burn-logs/detailed/recent?limit=3`);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      enabled: true,
+      workouts: [{ debrief_status: "generated" }]
+    });
+    expect(String(queryMock.mock.calls[0]?.[0])).toContain("left join workout_debriefs");
+    expect(generateWorkoutDebriefMock).not.toHaveBeenCalled();
   });
 });

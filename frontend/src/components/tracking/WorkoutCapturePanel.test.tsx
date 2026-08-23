@@ -2,12 +2,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkoutCaptureDraft } from "@ascend/shared";
 
-const { analyze, recent, progression, save, debrief } = vi.hoisted(() => ({
+const { analyze, recent, progression, save, debrief, getDebrief } = vi.hoisted(() => ({
   analyze: vi.fn(),
   recent: vi.fn(),
   progression: vi.fn(),
   save: vi.fn(),
-  debrief: vi.fn()
+  debrief: vi.fn(),
+  getDebrief: vi.fn()
 }));
 
 vi.mock("@/lib/ascendApi", () => ({
@@ -15,7 +16,8 @@ vi.mock("@/lib/ascendApi", () => ({
   getRecentDetailedWorkouts: recent,
   getWorkoutProgressionHistory: progression,
   saveCapturedWorkout: save,
-  waitForWorkoutDebrief: debrief
+  waitForWorkoutDebrief: debrief,
+  getWorkoutDebrief: getDebrief
 }));
 
 vi.mock("@/lib/workoutProgressionFlag", () => ({ workoutProgressionEnabled: () => false }));
@@ -113,6 +115,7 @@ describe("Detailed Workout receipt", () => {
     progression.mockReset().mockResolvedValue({ enabled: true, history: [] });
     save.mockReset();
     debrief.mockReset();
+    getDebrief.mockReset();
     vi.stubGlobal("crypto", { randomUUID: () => "capture-key" });
   });
 
@@ -138,5 +141,43 @@ describe("Detailed Workout receipt", () => {
     expect(screen.getByText("Check")).toBeInTheDocument();
     expect(screen.getByText(/From your note:.*Additional chest isolation work/)).toBeInTheDocument();
     await waitFor(() => expect(analyze).toHaveBeenCalledWith({ text: "Chest workout", sourceMode: "text" }));
+  });
+
+  it("reopens a terminal saved debrief through GET and reuses it without another request", async () => {
+    recent.mockResolvedValue({
+      enabled: true,
+      allowance: null,
+      workouts: [{
+        id: "11111111-1111-4111-8111-111111111111",
+        metadata: { workoutTitle: "Upper Body Strength", workoutType: "Strength", exercises: [{ name: "Bench Press" }] },
+        created_at: new Date().toISOString(),
+        debrief_status: "generated"
+      }]
+    });
+    getDebrief.mockResolvedValue({
+      debrief: {
+        enabled: true,
+        workoutEventId: "11111111-1111-4111-8111-111111111111",
+        status: "generated",
+        text: "Your upper body push and pull work created a useful baseline for the next comparable session.",
+        fallbackText: "Workout saved.",
+        source: "ai",
+        cached: true
+      }
+    });
+
+    render(<WorkoutCapturePanel onSaved={() => undefined} />);
+
+    const open = await screen.findByRole("button", { name: "View Zoe review" });
+    fireEvent.click(open);
+    const region = await screen.findByRole("region", { name: "Coach Zoe workout debrief" });
+    expect(region).toHaveAttribute("aria-busy", "false");
+    expect(region).toHaveTextContent("useful baseline");
+    expect(getDebrief).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Zoe review" }));
+    fireEvent.click(screen.getByRole("button", { name: "View Zoe review" }));
+    expect(await screen.findByRole("region", { name: "Coach Zoe workout debrief" })).toHaveAttribute("aria-busy", "false");
+    expect(getDebrief).toHaveBeenCalledTimes(1);
   });
 });

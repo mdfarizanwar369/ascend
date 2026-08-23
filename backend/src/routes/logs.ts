@@ -645,12 +645,15 @@ logsRouter.get("/burn-logs/detailed/recent", requireAuth, async (req, res, next)
     const limit = z.coerce.number().int().min(1).max(10).default(5).parse(req.query.limit);
     const result = await query(
       `
-      select id, metadata, created_at
-      from analytics_events
-      where user_id = $1
-        and event_name = 'burn_log'
-        and jsonb_typeof(metadata->'exercises') = 'array'
-      order by created_at desc
+      select event.id, event.metadata, event.created_at, debrief.status as debrief_status
+      from analytics_events event
+      left join workout_debriefs debrief
+        on debrief.workout_event_id = event.id
+       and debrief.user_id = event.user_id
+      where event.user_id = $1
+        and event.event_name = 'burn_log'
+        and jsonb_typeof(event.metadata->'exercises') = 'array'
+      order by event.created_at desc
       limit $2
       `,
       [req.user!.id, limit]

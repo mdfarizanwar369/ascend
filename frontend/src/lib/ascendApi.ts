@@ -1198,7 +1198,12 @@ export function getRecentDetailedWorkouts(limit = 5) {
   return authed<{
     enabled: boolean;
     allowance: WorkoutCaptureAllowance | null;
-    workouts: Array<{ id: string; metadata: Record<string, unknown>; created_at: string }>;
+    workouts: Array<{
+      id: string;
+      metadata: Record<string, unknown>;
+      created_at: string;
+      debrief_status?: WorkoutDebriefView["status"] | null;
+    }>;
   }>(`/burn-logs/detailed/recent?limit=${Math.min(10, Math.max(1, Math.round(limit)))}`);
 }
 

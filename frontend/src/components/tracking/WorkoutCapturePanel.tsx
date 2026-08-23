@@ -22,7 +22,7 @@ import type {
   WorkoutLoadBasis,
   WorkoutTrainingMethod
 } from "@ascend/shared";
-import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutProgressionHistory, saveCapturedWorkout, waitForWorkoutDebrief } from "@/lib/ascendApi";
+import { analyzeWorkoutCapture, getRecentDetailedWorkouts, getWorkoutDebrief, getWorkoutProgressionHistory, saveCapturedWorkout, waitForWorkoutDebrief } from "@/lib/ascendApi";
 import { inputClass, selectClass } from "@/components/Field";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import { workoutProgressionEnabled } from "@/lib/workoutProgressionFlag";
@@ -166,6 +166,9 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
   const [status, setStatus] = useState("");
   const [savedSummary, setSavedSummary] = useState<SavedSummary | null>(null);
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
+  const [savedDebriefs, setSavedDebriefs] = useState<Record<string, WorkoutDebriefView>>({});
+  const [openDebriefId, setOpenDebriefId] = useState<string | null>(null);
+  const [loadingDebriefId, setLoadingDebriefId] = useState<string | null>(null);
   const saveLockRef = useRef(false);
 
   const busy = isAnalyzing || isSaving;
@@ -275,6 +278,29 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     setSavedSummary(null);
     setWorkoutDebrief(null);
     setStatus("");
+  }
+
+  async function toggleSavedDebrief(workout: RecentWorkout) {
+    if (openDebriefId === workout.id) {
+      setOpenDebriefId(null);
+      return;
+    }
+    if (savedDebriefs[workout.id]) {
+      setOpenDebriefId(workout.id);
+      return;
+    }
+
+    setLoadingDebriefId(workout.id);
+    try {
+      const response = await getWorkoutDebrief(workout.id);
+      if (response.debrief.status !== "generated" && response.debrief.status !== "fallback") return;
+      setSavedDebriefs((current) => ({ ...current, [workout.id]: response.debrief }));
+      setOpenDebriefId(workout.id);
+    } catch {
+      setStatus("Coach Zoe's saved review is not available right now.");
+    } finally {
+      setLoadingDebriefId(null);
+    }
   }
 
   function updateDraft(patch: Partial<WorkoutCaptureDraft>) {
@@ -484,19 +510,38 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
             <p className="text-sm font-semibold text-white">Repeat a recent workout</p>
             <div className="mt-2 space-y-2">
               {recentWorkouts.map((workout) => (
-                <button
-                  key={workout.id}
-                  type="button"
-                  onClick={() => chooseRecentWorkout(workout)}
-                  disabled={freeLimitReached}
-                  className="ascend-pressable ascend-inset flex min-h-12 w-full items-center justify-between px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span>
-                    <span className="block font-medium text-white">{metadataText(workout.metadata.workoutTitle) ?? "Saved workout"}</span>
-                    <span className="mt-0.5 block text-xs text-zinc-500">Use as today&apos;s starting point</span>
-                  </span>
-                  <ChevronRight size={18} className="shrink-0 text-zinc-400" />
-                </button>
+                <div key={workout.id} className="ascend-inset overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => chooseRecentWorkout(workout)}
+                    disabled={freeLimitReached}
+                    className="ascend-pressable flex min-h-12 w-full items-center justify-between px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <span>
+                      <span className="block font-medium text-white">{metadataText(workout.metadata.workoutTitle) ?? "Saved workout"}</span>
+                      <span className="mt-0.5 block text-xs text-zinc-500">Use as today&apos;s starting point</span>
+                    </span>
+                    <ChevronRight size={18} className="shrink-0 text-zinc-400" />
+                  </button>
+                  {workout.debrief_status === "generated" || workout.debrief_status === "fallback" ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void toggleSavedDebrief(workout)}
+                        disabled={loadingDebriefId === workout.id}
+                        aria-expanded={openDebriefId === workout.id}
+                        className="ascend-pressable flex min-h-11 w-full items-center border-t border-line px-3 text-left text-sm font-semibold text-purple-200 disabled:opacity-60"
+                      >
+                        {openDebriefId === workout.id ? "Hide Zoe review" : "View Zoe review"}
+                      </button>
+                      {openDebriefId === workout.id && savedDebriefs[workout.id] ? (
+                        <div className="border-t border-line p-3">
+                          <CoachZoeWorkoutDebrief debrief={savedDebriefs[workout.id]} />
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
               ))}
             </div>
           </div>
