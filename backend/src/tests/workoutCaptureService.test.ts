@@ -326,6 +326,45 @@ describe("Workout Capture V1", () => {
     expect(exercise).toMatchObject({ name: "Cable Converging Lower Chest Fly", load: 25, loadUnit: "kg" });
   });
 
+  it("normalizes provider numeric and array rep values without discarding meaning", () => {
+    const input = "bench 80kg 10 10 8\nlat pulldown 4 sets 12 reps";
+    const raw = JSON.stringify({
+      title: "Strength", workoutType: "Strength", difficulty: "moderate", durationMinutes: null, confidence: 0.94,
+      exercises: [
+        {
+          name: "Bench Press", originalText: "bench 80kg 10 10 8", sets: 3, reps: [10, 10, 8], load: 80, loadUnit: "kg",
+          movementPattern: "push", confidence: 0.95, needsConfirmation: false,
+          fieldConfidence: { name: 0.98, sets: 0.95, load: 0.95 }
+        },
+        {
+          name: "Lat Pulldown", originalText: "lat pulldown 4 sets 12 reps", sets: 4, reps: 12, load: null, loadUnit: null,
+          movementPattern: "pull", confidence: 0.95, needsConfirmation: false,
+          fieldConfidence: { name: 0.98, sets: 0.95 }
+        }
+      ]
+    });
+
+    const exercises = normalizeWorkoutCaptureResponse(raw, input, "text").exercises;
+    expect(exercises[0]).toMatchObject({ sets: 3, reps: "10,10,8", load: 80, needsConfirmation: false });
+    expect(exercises[1]).toMatchObject({ sets: 4, reps: "12", needsConfirmation: false });
+  });
+
+  it("does not ask users to confirm an absent unknown load meaning", () => {
+    const input = "squat 3x5 tempo 3-1-1";
+    const raw = JSON.stringify({
+      title: "Legs", workoutType: "Strength", difficulty: "moderate", durationMinutes: null, confidence: 0.92,
+      exercises: [{
+        name: "Squat", originalText: input, sets: 3, reps: "5", load: null, loadUnit: null, loadBasis: "unknown",
+        note: "Tempo: 3-1-1", movementPattern: "squat", confidence: 0.92, needsConfirmation: false,
+        fieldConfidence: { name: 0.98, sets: 0.95, reps: 0.95, note: 0.95, loadBasis: 0.4 }
+      }]
+    });
+
+    const exercise = normalizeWorkoutCaptureResponse(raw, input, "text").exercises[0];
+    expect(exercise.needsConfirmation).toBe(false);
+    expect(exercise.uncertainFields).toEqual([]);
+  });
+
   it("converts saved structured workout metadata into a safe repeat draft", () => {
     const draft = createRepeatWorkoutCaptureDraft({
       workoutTitle: "Pull Day",

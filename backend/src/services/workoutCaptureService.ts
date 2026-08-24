@@ -44,6 +44,19 @@ function text(value: unknown, maxLength: number) {
   return typeof value === "string" && value.trim() ? value.trim().slice(0, maxLength) : null;
 }
 
+function repsText(value: unknown, maxLength = 80) {
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) return String(value).slice(0, maxLength);
+  if (Array.isArray(value)) {
+    const values = value.flatMap((item) => {
+      if (typeof item === "number" && Number.isFinite(item) && item >= 0) return [String(item)];
+      if (typeof item === "string" && /^\s*\d+(?:\.\d+)?\s*$/.test(item)) return [item.trim()];
+      return [];
+    });
+    return values.length === value.length && values.length ? values.join(",").slice(0, maxLength) : null;
+  }
+  return text(value, maxLength);
+}
+
 function number(value: unknown, min: number, max: number) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -315,7 +328,7 @@ function normalizedLoadSteps(value: unknown): WorkoutCaptureLoadStep[] {
     const unit: "kg" | "lb" | null = rawUnit === "kg" || rawUnit === "lb" ? rawUnit : null;
     const rawRole = text(row.role, 20)?.toLowerCase();
     const role: WorkoutLoadRole = rawRole === "starting" || rawRole === "working" || rawRole === "top" || rawRole === "backoff" || rawRole === "drop" || rawRole === "correction" ? rawRole : "unknown";
-    const reps = text(row.reps, 80);
+    const reps = repsText(row.reps);
     return [{
       value: stepValue,
       unit,
@@ -334,7 +347,7 @@ function normalizedSetDetails(value: unknown): WorkoutCaptureSetDetail[] {
   return value.flatMap((item, index) => {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
-    const reps = text(row.reps, 80);
+    const reps = repsText(row.reps);
     const load = number(row.load, 0, 2_000);
     const durationValue = number(row.durationValue, 0, 3_600);
     const rpe = number(row.rpe, 1, 10);
@@ -397,6 +410,7 @@ function ambiguousSetRepFields(evidence: string, sets: number | null, reps: stri
 
 function fieldIsPresent(field: WorkoutCaptureConfidenceField, exercise: WorkoutCaptureExercise) {
   const value = exercise[field as keyof WorkoutCaptureExercise];
+  if (field === "loadBasis" && value === "unknown") return false;
   return Array.isArray(value) ? value.length > 0 : value !== null && value !== undefined && value !== "";
 }
 
@@ -450,26 +464,26 @@ export function normalizeWorkoutCaptureResponse(
       const name = proposedName;
       const exerciseConfidence = confidence(row.confidence);
       const suppliedFieldConfidence = normalizedFieldConfidence(row.fieldConfidence);
-      const hasFieldConfidence = (field: WorkoutCaptureConfidenceField) => suppliedFieldConfidence[field] !== undefined;
+      const isFieldAwareResponse = Object.keys(suppliedFieldConfidence).length > 0;
       const proposedSets = integer(row.sets, 1, 100);
-      const proposedReps = text(row.reps, 80);
+      const proposedReps = repsText(row.reps);
       const proposedDuration = integer(row.durationMinutes, 1, 300);
       const proposedLoad = number(row.load, 0, 2_000);
       const hasExplicitZeroLoad = /\b0(?:\.0+)?\s*(?:kg|kgs|kilos?|lb|lbs|pounds?)\b/i.test(evidence);
-      const sets = hasFieldConfidence("sets") || supportsSets(evidence, proposedSets) ? proposedSets : null;
-      const reps = hasFieldConfidence("reps") || supportsReps(evidence, proposedReps) ? proposedReps : null;
-      const durationMinutes = hasFieldConfidence("durationMinutes") || supportsDuration(evidence, proposedDuration) ? proposedDuration : null;
+      const sets = isFieldAwareResponse || supportsSets(evidence, proposedSets) ? proposedSets : null;
+      const reps = isFieldAwareResponse || supportsReps(evidence, proposedReps) ? proposedReps : null;
+      const durationMinutes = isFieldAwareResponse || supportsDuration(evidence, proposedDuration) ? proposedDuration : null;
       const load = proposedLoad === 0 && !hasExplicitZeroLoad
         ? null
-        : hasFieldConfidence("load") || supportsLoad(evidence, proposedLoad) ? proposedLoad : null;
+        : isFieldAwareResponse || supportsLoad(evidence, proposedLoad) ? proposedLoad : null;
       const rawUnit = text(row.loadUnit, 8)?.toLowerCase();
       const loadUnit = load !== null && (rawUnit === "kg" || rawUnit === "lb") ? rawUnit : null;
       const proposedRpe = number(row.rpe, 1, 10);
       const proposedRir = number(row.rir, 0, 10);
-      const methods = hasFieldConfidence("trainingMethods") ? normalizedMethods(row.trainingMethods) : [];
-      const loadSteps = (hasFieldConfidence("loadSteps") ? normalizedLoadSteps(row.loadSteps) : [])
+      const methods = isFieldAwareResponse ? normalizedMethods(row.trainingMethods) : [];
+      const loadSteps = (isFieldAwareResponse ? normalizedLoadSteps(row.loadSteps) : [])
         .filter((step, stepIndex, all) => !all.slice(0, stepIndex).some((candidate) => candidate.value === step.value && candidate.unit === step.unit && candidate.role === step.role));
-      const setDetails = (hasFieldConfidence("setDetails") ? normalizedSetDetails(row.setDetails) : [])
+      const setDetails = (isFieldAwareResponse ? normalizedSetDetails(row.setDetails) : [])
         .filter((detail, detailIndex, all) => !all.slice(0, detailIndex).some((candidate) => candidate.order === detail.order && candidate.load === detail.load && candidate.reps === detail.reps));
       const section = text(row.section, 80);
       const loadBasis = loadBasisValue(row.loadBasis);
@@ -486,8 +500,8 @@ export function normalizeWorkoutCaptureResponse(
         durationMinutes,
         restSeconds: /\b(?:rest\s*(?:for\s*)?\d+\s*(?:sec|secs|seconds?)|\d+\s*(?:sec|secs|seconds?)\s*(?:rest|between rounds))\b/i.test(evidence)
           ? integer(row.restSeconds, 0, 3_600)
-          : hasFieldConfidence("restSeconds") ? integer(row.restSeconds, 0, 3_600) : null,
-        note: hasFieldConfidence("note") ? text(row.note, 500) : verifiedEvidence(row.note, evidence),
+          : suppliedFieldConfidence.restSeconds !== undefined ? integer(row.restSeconds, 0, 3_600) : null,
+        note: isFieldAwareResponse ? text(row.note, 500) : verifiedEvidence(row.note, evidence),
         movementPattern: movementPattern(row.movementPattern, name),
         confidence: exerciseConfidence,
         needsConfirmation: false,
@@ -540,7 +554,9 @@ export function normalizeWorkoutCaptureResponse(
           .sort((a, b) => a.value - b.value)[0]?.field;
         if (leastCertain) uncertainFields.add(leastCertain);
       }
-      exercise.uncertainFields = [...uncertainFields].filter((field) => fieldIsPresent(field, exercise));
+      exercise.uncertainFields = [...uncertainFields].filter((field) =>
+        fieldIsPresent(field, exercise) || (field === "sets" || field === "reps") && ambiguousSetRepFields(evidence, sets, reps).includes(field)
+      );
       exercise.needsConfirmation = exercise.uncertainFields.length > 0;
       exercise.fieldConfidence = finalFieldConfidence;
       return exercise;
@@ -584,7 +600,8 @@ export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: st
     "Extract only details the member actually supplied. Never invent weights, sets, reps, duration, or exercise names.",
     "For every exercise, originalText must be a verbatim excerpt from the member input that supports the extracted fields.",
     "When a value is missing, return null. When it is ambiguous or approximate, preserve that uncertainty, set needsConfirmation to true, lower only that field's confidence, and name only that field in uncertainFields.",
-    "Return fieldConfidence on every exercise. It is an object keyed by the extracted fields, with a 0-to-1 confidence for each non-null field. Confidence must be field-specific: a clear exercise name can be 0.98 while ambiguous sets and reps are 0.55.",
+    "Return fieldConfidence on every exercise. It is an object keyed by every non-null extracted field, with a 0-to-1 confidence for each field. Confidence must be field-specific: a clear exercise name can be 0.98 while ambiguous sets and reps are 0.55.",
+    "The reps field must always be a JSON string, even for one number or a per-set sequence. Examples: 8 becomes \"8\" and [10, 10, 8] becomes \"10,10,8\". Never return reps as a JSON number or array. Also populate setDetails for per-set performance when useful.",
     "Understand normal human shorthand and derived meaning. Examples: '80kg 10 10 8' means one 80kg load with per-set reps 10,10,8; 'first two sets 10 last set 8' means 3 sets with reps 10,10,8; '22.5 each hand x10 x9 x8' means 3 sets, per-hand load, and per-set reps; A1/A2 with rounds is grouped alternating work.",
     "Keep the member's original unit. Preserve whether load is total, per side, per hand/dumbbell, assistance, bodyweight, bodyweight plus load, a machine setting, a band, or unknown.",
     "Preserve section headings such as Warm-up, Chest, Back, Conditioning, Finisher, and Cooldown when supplied.",
