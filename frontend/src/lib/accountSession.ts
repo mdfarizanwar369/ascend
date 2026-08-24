@@ -18,6 +18,7 @@ let profileRequest: Promise<AccountProfileSnapshot> | null = null;
 
 function accountTimingEnabled() {
   if (process.env.NEXT_PUBLIC_ACCOUNT_TIMING === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem("ascend:account-timing") === "1";
 }

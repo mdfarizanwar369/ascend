@@ -1,8 +1,13 @@
 import crypto from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const { dbQuery } = vi.hoisted(() => ({ dbQuery: vi.fn() }));
+
+vi.mock("../db/pool", () => ({ query: dbQuery }));
+
 describe("Google Play billing verification", () => {
   beforeEach(() => {
+    dbQuery.mockReset();
     const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 1024 });
     vi.resetModules();
     vi.stubEnv("DATABASE_URL", "postgres://test:test@localhost:5432/test");
@@ -72,6 +77,52 @@ describe("Google Play billing verification", () => {
       basePlanId: "monthly",
       rawState: "SUBSCRIPTION_STATE_ACTIVE",
     });
+  });
+
+  it("rejects verification requests for a different Android package", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { verifyGooglePlaySubscriptionPurchase } = await import("../services/googlePlayBillingService");
+
+    await expect(verifyGooglePlaySubscriptionPurchase({
+      purchaseToken: "token-123",
+      productId: "ascend_premium_monthly",
+      packageName: "com.attacker.app"
+    })).rejects.toMatchObject({ status: 400 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("never reassigns a purchase token that belongs to another Ascend user", async () => {
+    dbQuery
+      .mockResolvedValueOnce({ rows: [{ referred_by_gym_id: null, referred_by_trainer_id: null }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const { applyVerifiedGooglePlaySubscription } = await import("../services/googlePlayBillingService");
+
+    await expect(applyVerifiedGooglePlaySubscription("second-user", {
+      purchaseToken: "already-linked-token",
+      packageName: "fit.getascend.app",
+      plan: "premium",
+      productId: "ascend_premium_monthly",
+      amountCents: 1999,
+      status: "active",
+      currentPeriodStart: "2026-08-01T00:00:00Z",
+      currentPeriodEnd: "2026-09-01T00:00:00Z",
+      latestOrderId: "GPA.1234",
+      acknowledgementState: "acknowledged",
+      autoRenewEnabled: true,
+      basePlanId: "monthly",
+      offerId: null,
+      rawState: "SUBSCRIPTION_STATE_ACTIVE",
+      rawResponse: {}
+    })).rejects.toMatchObject({
+      status: 409,
+      message: "This Google Play purchase is already linked to another Ascend account."
+    });
+
+    const upsertSql = String(dbQuery.mock.calls[1]?.[0]);
+    expect(upsertSql).not.toMatch(/do update set\s+user_id\s*=\s*excluded\.user_id/i);
+    expect(upsertSql).toContain("where subscriptions.user_id = excluded.user_id");
+    expect(dbQuery).toHaveBeenCalledTimes(2);
   });
 
   it("decodes the official Pub/Sub RTDN envelope data without logging raw records", async () => {

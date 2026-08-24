@@ -19,7 +19,8 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
   }
 
   if (error.name === "PaymentProviderError") {
-    return res.status(400).json({
+    const providerStatus = (error as Error & { status?: number }).status;
+    return res.status(providerStatus && providerStatus >= 400 && providerStatus < 500 ? providerStatus : 400).json({
       error: error.message
     });
   }

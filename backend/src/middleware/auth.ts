@@ -20,6 +20,7 @@ export interface AuthUser {
 export interface FirebaseTokenUser {
   firebaseUid: string;
   email?: string;
+  emailVerified: boolean;
   name?: string;
 }
 
@@ -121,6 +122,7 @@ export async function requireFirebaseToken(req: Request, res: Response, next: Ne
     req.firebaseUser = {
       firebaseUid: decoded.uid,
       email: decoded.email,
+      emailVerified: decoded.email_verified === true,
       name: decoded.name
     };
     next();
@@ -154,7 +156,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     if (!dbUser) return res.status(403).json({ error: "User profile has not been provisioned" });
     if (dbUser.status !== "active") return res.status(403).json({ error: "This account has been deactivated" });
 
-    const isPlatformOwner = isPlatformOwnerEmail(dbUser.email);
+    const dbEmail = dbUser.email.trim().toLowerCase();
+    const identityMatchesDatabase = Boolean(decodedEmail && decodedEmail === dbEmail);
+    const configuredOwnerAccount = isPlatformOwnerEmail(dbUser.email);
+    if (configuredOwnerAccount && (decoded.email_verified !== true || !identityMatchesDatabase)) {
+      return res.status(403).json({ error: "Verify the configured owner email before accessing this account" });
+    }
+    const isPlatformOwner = configuredOwnerAccount && decoded.email_verified === true && identityMatchesDatabase;
     let roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
 
     if (isPlatformOwner) {

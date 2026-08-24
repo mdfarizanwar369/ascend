@@ -25,6 +25,7 @@ export async function upsertProvisionedUser(options: {
   firebaseUid: string;
   fullName: string;
   gymId: string | null;
+  emailVerified: boolean;
   isBootstrapOwner: boolean;
   primaryRole: "client" | "trainer" | "owner";
   referredByGymId: string | null;
@@ -43,7 +44,14 @@ export async function upsertProvisionedUser(options: {
         )
       : { rows: [] as ProvisionUserRow[] };
 
-  const matchedExistingUser = existingByFirebaseUid.rows[0] ?? existingByEmail.rows[0] ?? null;
+  const existingUidUser = existingByFirebaseUid.rows[0] ?? null;
+  const existingEmailUser = existingByEmail.rows[0] ?? null;
+  if (!existingUidUser && existingEmailUser && !options.emailVerified) {
+    const error = new Error("Verify this email before linking it to an existing Ascend account");
+    (error as Error & { status?: number }).status = 403;
+    throw error;
+  }
+  const matchedExistingUser = existingUidUser ?? existingEmailUser;
 
   if (matchedExistingUser) {
     const updatedUser = await query(
@@ -111,7 +119,11 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
     const firebaseUser = req.firebaseUser!;
     const allowedOwnerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
     const currentEmail = firebaseUser.email?.trim().toLowerCase();
-    const isBootstrapOwner = Boolean(allowedOwnerEmail && currentEmail && allowedOwnerEmail === currentEmail);
+    const matchesBootstrapOwner = Boolean(allowedOwnerEmail && currentEmail && allowedOwnerEmail === currentEmail);
+    if (matchesBootstrapOwner && !firebaseUser.emailVerified) {
+      return res.status(403).json({ error: "Verify the configured owner email before provisioning owner access" });
+    }
+    const isBootstrapOwner = matchesBootstrapOwner && firebaseUser.emailVerified;
     const primaryRole = isBootstrapOwner ? "owner" : input.primaryRole;
     const referral = input.referralCode
       ? await query<{ id: string; gym_id: string | null; trainer_id: string | null }>(
@@ -137,6 +149,7 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
       firebaseUid: firebaseUser.firebaseUid,
       fullName: input.fullName ?? firebaseUser.name ?? firebaseUser.email ?? "Ascend Member",
       gymId,
+      emailVerified: firebaseUser.emailVerified,
       isBootstrapOwner,
       primaryRole,
       referredByGymId: referralRow?.gym_id ?? null,
@@ -180,6 +193,9 @@ authRouter.post("/auth/bootstrap-owner", authRateLimit, requireFirebaseToken, as
 
     if (!currentEmail || currentEmail !== allowedEmail) {
       return res.status(403).json({ error: "This email is not allowed to bootstrap owner access" });
+    }
+    if (!firebaseUser.emailVerified) {
+      return res.status(403).json({ error: "Verify the configured owner email before bootstrapping owner access" });
     }
 
     const gym = await query<{ id: string }>("select id from gyms order by created_at asc limit 1");

@@ -9,25 +9,6 @@ const s3 = new S3Client({
   forcePathStyle: Boolean(env.AWS_S3_ENDPOINT)
 });
 
-export async function createUploadUrl(key: string, contentType: string) {
-  if (!env.AWS_S3_BUCKET) {
-    return { uploadUrl: "", key, storageConfigured: false };
-  }
-
-  const safeContentType = imageContentTypeSchema.parse(contentType);
-  const command = new PutObjectCommand({
-    Bucket: env.AWS_S3_BUCKET,
-    Key: key,
-    ContentType: safeContentType
-  });
-
-  return {
-    uploadUrl: await getSignedUrl(s3, command, { expiresIn: 300 }),
-    key,
-    storageConfigured: true
-  };
-}
-
 export async function uploadDataUrl(key: string, imageDataUrl: string) {
   if (!env.AWS_S3_BUCKET) {
     return { key, storageConfigured: false };

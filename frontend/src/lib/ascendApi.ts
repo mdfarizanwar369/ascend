@@ -74,12 +74,14 @@ const inflightRequests = new Map<string, Promise<unknown>>();
 
 function perfLogsEnabled() {
   if (process.env.NEXT_PUBLIC_API_TIMING === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem("ascend:api-timing") === "1";
 }
 
 function bodyCompositionSaveDebugEnabled() {
   if (process.env.NEXT_PUBLIC_BODY_COMPOSITION_SAVE_DEBUG === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem("ascend:body-composition-save-debug") === "1";
 }
@@ -923,24 +925,10 @@ export function saveCompletedWorkout(input: {
   });
 }
 
-export function requestFoodUploadUrl(contentType: string) {
-  return authed<{ uploadUrl: string; key: string; storageConfigured?: boolean }>("/food-logs/photo-upload-url", {
-    method: "POST",
-    body: JSON.stringify({ contentType })
-  });
-}
-
 export function uploadFoodPhotoDataUrl(imageDataUrl: string) {
   return authed<{ key: string; storageConfigured?: boolean }>("/food-logs/photo-upload-data-url", {
     method: "POST",
     body: JSON.stringify({ imageDataUrl })
-  });
-}
-
-export function requestProgressUploadUrl(contentType: string) {
-  return authed<{ uploadUrl: string; key: string; storageConfigured?: boolean }>("/progress-photos/upload-url", {
-    method: "POST",
-    body: JSON.stringify({ contentType })
   });
 }
 

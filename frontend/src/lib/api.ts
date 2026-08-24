@@ -2,12 +2,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1
 
 function apiTimingEnabled() {
   if (process.env.NEXT_PUBLIC_API_TIMING === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem("ascend:api-timing") === "1";
 }
 
 function bodyCompositionSaveDebugEnabled() {
   if (process.env.NEXT_PUBLIC_BODY_COMPOSITION_SAVE_DEBUG === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem("ascend:body-composition-save-debug") === "1";
 }

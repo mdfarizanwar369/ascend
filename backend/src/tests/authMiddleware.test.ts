@@ -63,7 +63,7 @@ describe("authentication error boundaries", () => {
   });
 
   it("does not rewrite roles on every request for an established owner", async () => {
-    verifyIdToken.mockResolvedValue({ uid: "owner-firebase-user" });
+    verifyIdToken.mockResolvedValue({ uid: "owner-firebase-user", email: "owner@example.com", email_verified: true });
     dbQuery.mockResolvedValue({
       rows: [{
         id: "owner-user",
@@ -83,6 +83,30 @@ describe("authentication error boundaries", () => {
     expect(dbQuery).toHaveBeenCalledTimes(1);
     expect(req.user?.roles).toEqual(expect.arrayContaining(["owner", "admin"]));
     expect(next).toHaveBeenCalledWith();
+  });
+
+  it("never grants configured owner access to an unverified identity", async () => {
+    verifyIdToken.mockResolvedValue({ uid: "owner-firebase-user", email: "owner@example.com", email_verified: false });
+    dbQuery.mockResolvedValue({
+      rows: [{
+        id: "owner-user",
+        firebase_uid: "owner-firebase-user",
+        email: "owner@example.com",
+        primary_role: "owner",
+        status: "active",
+        roles: ["owner", "admin"]
+      }]
+    });
+    const req = request() as { user?: { roles: string[] } };
+    const res = response();
+    const next = vi.fn();
+
+    await requireAuth(req as never, res.value, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: "Verify the configured owner email before accessing this account" });
+    expect(req.user).toBeUndefined();
+    expect(next).not.toHaveBeenCalled();
   });
 
   it("deduplicates concurrent token verification and user lookup work", async () => {

@@ -40,6 +40,7 @@ describe("Google auth provisioning", () => {
       firebaseUid: "new-firebase-uid",
       fullName: "Member Name",
       gymId: null,
+      emailVerified: true,
       isBootstrapOwner: false,
       primaryRole: "client",
       referredByGymId: null,
@@ -86,6 +87,7 @@ describe("Google auth provisioning", () => {
       firebaseUid: "firebase-uid",
       fullName: "New Member",
       gymId: null,
+      emailVerified: false,
       isBootstrapOwner: false,
       primaryRole: "client",
       referredByGymId: null,
@@ -95,5 +97,31 @@ describe("Google auth provisioning", () => {
     expect(result.isExistingUser).toBe(false);
     expect(result.user.id).toBe("user-2");
     expect(dbQuery.mock.calls[2]?.[0]).toContain("insert into users");
+  });
+
+  it("does not relink an existing email until Firebase has verified it", async () => {
+    dbQuery
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [{ id: "user-1", firebase_uid: "existing-firebase-uid", email: "member@example.com" }]
+      });
+
+    await expect(upsertProvisionedUser({
+      assignedTrainerId: null,
+      currentEmail: "member@example.com",
+      firebaseUid: "unverified-firebase-uid",
+      fullName: "Member Name",
+      gymId: null,
+      emailVerified: false,
+      isBootstrapOwner: false,
+      primaryRole: "client",
+      referredByGymId: null,
+      referredByTrainerId: null
+    })).rejects.toMatchObject({
+      message: "Verify this email before linking it to an existing Ascend account",
+      status: 403
+    });
+
+    expect(dbQuery).toHaveBeenCalledTimes(2);
   });
 });

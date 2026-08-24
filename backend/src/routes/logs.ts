@@ -5,11 +5,11 @@ import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import type { AuthUser } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { createReadUrl, createUploadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
+import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
 import { aiRateLimit, uploadRateLimit, workoutDebriefRateLimit } from "../middleware/rateLimits";
-import { imageContentTypeSchema, imageDataUrlSchema } from "../utils/images";
+import { imageDataUrlSchema } from "../utils/images";
 import { UnsafeOutboundUrlError, validatePublicHttpUrl } from "../utils/outboundUrl";
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
@@ -188,10 +188,8 @@ logsRouter.get("/food-logs/ai-allowance", requireAuth, async (req, res, next) =>
   }
 });
 
-logsRouter.post("/food-logs/photo-upload-url", requireAuth, uploadRateLimit, async (req, res) => {
-  const contentType = imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
-  const key = `food/${req.user!.id}/${randomUUID()}.jpg`;
-  res.json(await createUploadUrl(key, contentType));
+logsRouter.post("/food-logs/photo-upload-url", requireAuth, uploadRateLimit, (_req, res) => {
+  res.status(410).json({ error: "Direct photo uploads are no longer supported. Update Ascend and try again." });
 });
 
 logsRouter.post("/food-logs/photo-upload-data-url", requireAuth, uploadRateLimit, async (req, res, next) => {
@@ -824,10 +822,8 @@ logsRouter.delete("/burn-logs/:burnLogId", requireAuth, async (req, res, next) =
   }
 });
 
-logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res) => {
-  const contentType = imageContentTypeSchema.parse(req.body.contentType ?? "image/jpeg");
-  const key = `progress/${req.user!.id}/${randomUUID()}.jpg`;
-  res.json(await createUploadUrl(key, contentType));
+logsRouter.post("/progress-photos/upload-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, (_req, res) => {
+  res.status(410).json({ error: "Direct photo uploads are no longer supported. Update Ascend and try again." });
 });
 
 logsRouter.post("/progress-photos/upload-data-url", requireAuth, requireActivePlan("premium"), uploadRateLimit, async (req, res, next) => {

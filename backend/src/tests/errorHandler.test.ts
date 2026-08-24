@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { errorHandler } from "../middleware/errors";
+import { PaymentProviderError } from "../integrations/payments";
 
 describe("production API error logging", () => {
   afterEach(() => {
@@ -29,5 +30,22 @@ describe("production API error logging", () => {
     });
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({ error: "Internal server error", detail: undefined });
+  });
+
+  it("preserves an explicit safe status for billing ownership conflicts", () => {
+    const status = vi.fn().mockReturnThis();
+    const json = vi.fn().mockReturnThis();
+    const error = new PaymentProviderError("This purchase is already linked.");
+    (error as Error & { status?: number }).status = 409;
+
+    errorHandler(
+      error,
+      { method: "POST", path: "/subscriptions/google-play/verify" } as never,
+      { status, json } as never,
+      vi.fn()
+    );
+
+    expect(status).toHaveBeenCalledWith(409);
+    expect(json).toHaveBeenCalledWith({ error: "This purchase is already linked." });
   });
 });

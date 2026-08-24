@@ -254,7 +254,13 @@ export async function verifyGooglePlaySubscriptionPurchase(input: {
   productId?: string | null;
   packageName?: string | null;
 }) {
-  const packageName = input.packageName?.trim() || configuredGooglePlayPackageName();
+  const configuredPackageName = configuredGooglePlayPackageName();
+  const packageName = input.packageName?.trim() || configuredPackageName;
+  if (packageName !== configuredPackageName) {
+    const error = new PaymentProviderError("Google Play package name does not match Ascend.");
+    (error as Error & { status?: number }).status = 400;
+    throw error;
+  }
   const token = input.purchaseToken.trim();
   if (!token) {
     throw new PaymentProviderError("Google Play purchase token is missing.");
@@ -322,7 +328,6 @@ export async function applyVerifiedGooglePlaySubscription(userId: string, purcha
     )
     values ($1, $2, 'google_play', $3, $4, $5, $6, 'MYR', $7::timestamptz, $8::timestamptz, $9, $10)
     on conflict (provider, provider_subscription_id) do update set
-      user_id = excluded.user_id,
       plan = excluded.plan,
       provider_customer_id = excluded.provider_customer_id,
       status = excluded.status,
@@ -332,6 +337,7 @@ export async function applyVerifiedGooglePlaySubscription(userId: string, purcha
       referred_by_gym_id = excluded.referred_by_gym_id,
       referred_by_trainer_id = excluded.referred_by_trainer_id,
       updated_at = now()
+    where subscriptions.user_id = excluded.user_id
     returning id, plan, provider, status, current_period_end
     `,
     [
@@ -349,6 +355,11 @@ export async function applyVerifiedGooglePlaySubscription(userId: string, purcha
   );
 
   const subscription = result.rows[0];
+  if (!subscription) {
+    const error = new PaymentProviderError("This Google Play purchase is already linked to another Ascend account.");
+    (error as Error & { status?: number }).status = 409;
+    throw error;
+  }
   if (subscription && (purchase.status === "active" || purchase.status === "trialing" || purchase.status === "canceled")) {
     await query(
       `

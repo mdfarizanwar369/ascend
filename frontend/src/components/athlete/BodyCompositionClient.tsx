@@ -130,6 +130,7 @@ function missingCoreFields(scan: BodyCompositionScan) {
 
 function bodyCompositionSaveDebugEnabled() {
   if (process.env.NEXT_PUBLIC_BODY_COMPOSITION_SAVE_DEBUG === "1") return true;
+  if (process.env.NODE_ENV === "production") return false;
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem("ascend:body-composition-save-debug") === "1";
 }
