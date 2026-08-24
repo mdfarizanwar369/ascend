@@ -280,6 +280,7 @@ function text(value: unknown) {
 }
 
 function finiteNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }

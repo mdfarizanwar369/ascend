@@ -1,5 +1,6 @@
 import {
   WORKOUT_LOAD_BASES,
+  WORKOUT_CAPTURE_CONFIDENCE_FIELDS,
   WORKOUT_CAPTURE_VERSION,
   WORKOUT_MOVEMENT_PATTERNS,
   WORKOUT_SET_TYPES,
@@ -7,6 +8,8 @@ import {
   WorkoutCaptureDifficulty,
   WorkoutCaptureDraft,
   WorkoutCaptureExercise,
+  WorkoutCaptureConfidenceField,
+  WorkoutCaptureFieldConfidence,
   WorkoutCaptureLoadStep,
   WorkoutCaptureSetDetail,
   WorkoutCaptureSourceMode,
@@ -20,6 +23,8 @@ import {
 import { parseWorkoutCaptureExercises } from "./workoutCaptureParser";
 
 const DEFAULT_TITLE = "My Workout";
+const FIELD_CONFIDENCE_THRESHOLD = 0.75;
+const WORKOUT_CAPTURE_CONFIDENCE_FIELD_SET = new Set<string>(WORKOUT_CAPTURE_CONFIDENCE_FIELDS);
 
 export function normalizeWorkoutCaptureInput(value: string) {
   return value
@@ -51,7 +56,9 @@ function integer(value: unknown, min: number, max: number) {
 }
 
 function confidence(value: unknown, fallback = 0.5) {
-  return Math.round(clamp(Number(value ?? fallback) || fallback, 0, 1) * 100) / 100;
+  const parsed = Number(value ?? fallback);
+  const safeValue = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.round(clamp(safeValue, 0, 1) * 100) / 100;
 }
 
 function inferMovementPattern(value: string): WorkoutMovementPattern {
@@ -102,6 +109,34 @@ function cleanExerciseName(value: string) {
     .trim();
 }
 
+function fallbackFieldConfidence(exercise: WorkoutCaptureExercise): WorkoutCaptureFieldConfidence {
+  const uncertain = new Set(exercise.uncertainFields ?? []);
+  const values: Partial<Record<WorkoutCaptureConfidenceField, unknown>> = {
+    name: exercise.name,
+    sets: exercise.sets,
+    reps: exercise.reps,
+    load: exercise.load,
+    loadUnit: exercise.loadUnit,
+    durationMinutes: exercise.durationMinutes,
+    restSeconds: exercise.restSeconds,
+    note: exercise.note,
+    movementPattern: exercise.movementPattern,
+    section: exercise.section,
+    loadBasis: exercise.loadBasis,
+    rpe: exercise.rpe,
+    rir: exercise.rir,
+    trainingMethods: exercise.trainingMethods?.length ? exercise.trainingMethods : null,
+    groupRounds: exercise.groupRounds,
+    loadSteps: exercise.loadSteps?.length ? exercise.loadSteps : null,
+    setDetails: exercise.setDetails?.length ? exercise.setDetails : null
+  };
+  return Object.fromEntries(
+    WORKOUT_CAPTURE_CONFIDENCE_FIELDS.flatMap((field) => values[field] === null || values[field] === undefined
+      ? []
+      : [[field, uncertain.has(field) ? 0.55 : exercise.confidence]])
+  ) as WorkoutCaptureFieldConfidence;
+}
+
 function parseFallbackExercise(segment: string): WorkoutCaptureExercise | null {
   const originalText = segment.trim().slice(0, 240);
   if (!originalText) return null;
@@ -144,9 +179,13 @@ export function createFallbackWorkoutCapture(
   const cleanedInput = normalizeWorkoutCaptureInput(originalInput).replace(/\r/g, "");
   const segments = cleanedInput.split(/\n|;|,(?=\s*[A-Za-z])/).map((item) => item.trim()).filter(Boolean);
   const richExercises = parseWorkoutCaptureExercises(cleanedInput);
-  const exercises = richExercises.length
+  const parsedExercises = richExercises.length
     ? richExercises
     : segments.map(parseFallbackExercise).filter((item): item is WorkoutCaptureExercise => Boolean(item)).slice(0, 30);
+  const exercises = parsedExercises.map((exercise) => ({
+    ...exercise,
+    fieldConfidence: fallbackFieldConfidence(exercise)
+  }));
   const durationMatch = cleanedInput.match(/(?:total(?:\s+time)?|workout(?:\s+was)?|session(?:\s+was)?)\s*[:=-]?\s*(\d+)\s*(?:min|mins|minutes?)\b/i);
   const durationMinutes = integer(durationMatch?.[1], 5, 300);
   const uncertainties: string[] = [];
@@ -250,14 +289,6 @@ function supportsTotalDuration(evidence: string, value: number | null) {
   return new RegExp(`(?:total(?:\\s+time)?|workout(?:\\s+was)?|session(?:\\s+was)?)\\s*[:=-]?\\s*${token}\\s*(?:min|mins|minutes?)\\b`, "i").test(evidence);
 }
 
-function supportsRating(evidence: string, value: number | null, label: "rpe" | "rir") {
-  if (value === null) return false;
-  const token = numberToken(value).replace(".", "\\.");
-  return label === "rpe"
-    ? new RegExp(`\\brpe\\s*${token}\\b`, "i").test(evidence)
-    : new RegExp(`\\b${token}\\s*rir\\b`, "i").test(evidence);
-}
-
 function loadBasisValue(value: unknown): WorkoutLoadBasis {
   return WORKOUT_LOAD_BASES.includes(value as WorkoutLoadBasis) ? value as WorkoutLoadBasis : "unknown";
 }
@@ -266,48 +297,20 @@ function setTypeValue(value: unknown): WorkoutSetType {
   return WORKOUT_SET_TYPES.includes(value as WorkoutSetType) ? value as WorkoutSetType : "unknown";
 }
 
-function supportedSetType(value: unknown, evidence: string) {
-  const candidate = setTypeValue(value);
-  if (candidate === "warmup") return /warm[ -]?up|ramp[ -]?up/i.test(evidence) ? candidate : "unknown";
-  if (candidate === "top") return /worked up|top set|top load/i.test(evidence) ? candidate : "unknown";
-  if (candidate === "backoff") return /back[ -]?off|reduced/i.test(evidence) ? candidate : "unknown";
-  if (candidate === "drop") return /drop set/i.test(evidence) ? candidate : "unknown";
-  if (candidate === "finisher") return /finisher|to finish|finishing work/i.test(evidence) ? candidate : "unknown";
-  if (candidate === "working") return /working sets?|finished .* there/i.test(evidence) ? candidate : "unknown";
-  return candidate;
-}
-
-function methodHasEvidence(method: WorkoutTrainingMethod, evidence: string) {
-  const patterns: Record<WorkoutTrainingMethod, RegExp> = {
-    fst_7: /fst[ -]?7/i,
-    drop_set: /drop set/i,
-    back_off: /back[ -]?off/i,
-    ramp_up: /ramp[ -]?up/i,
-    rest_pause: /rest[ -]?pause/i,
-    amrap: /\bamrap\b/i,
-    superset: /superset/i,
-    alternating_set: /alternat/i,
-    giant_set: /giant set/i,
-    circuit: /\bcircuit\b|\d+\s+rounds/i,
-    short_rest: /short[ -]?rest/i
-  };
-  return patterns[method].test(evidence);
-}
-
-function normalizedMethods(value: unknown, evidence: string): WorkoutTrainingMethod[] {
+function normalizedMethods(value: unknown): WorkoutTrainingMethod[] {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter((method): method is WorkoutTrainingMethod =>
-    WORKOUT_TRAINING_METHODS.includes(method as WorkoutTrainingMethod) && methodHasEvidence(method as WorkoutTrainingMethod, evidence)
+    WORKOUT_TRAINING_METHODS.includes(method as WorkoutTrainingMethod)
   ))];
 }
 
-function normalizedLoadSteps(value: unknown, evidence: string): WorkoutCaptureLoadStep[] {
+function normalizedLoadSteps(value: unknown): WorkoutCaptureLoadStep[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const row = item as Record<string, unknown>;
     const stepValue = number(row.value, 0, 2_000);
-    if (!supportsLoad(evidence, stepValue)) return [];
+    if (stepValue === null) return [];
     const rawUnit = text(row.unit, 8)?.toLowerCase();
     const unit: "kg" | "lb" | null = rawUnit === "kg" || rawUnit === "lb" ? rawUnit : null;
     const rawRole = text(row.role, 20)?.toLowerCase();
@@ -318,7 +321,7 @@ function normalizedLoadSteps(value: unknown, evidence: string): WorkoutCaptureLo
       unit,
       basis: loadBasisValue(row.basis),
       role,
-      reps: supportsReps(evidence, reps) ? reps : null,
+      reps,
       approximate: row.approximate === true,
       note: text(row.note, 300),
       confidence: confidence(row.confidence)
@@ -326,7 +329,7 @@ function normalizedLoadSteps(value: unknown, evidence: string): WorkoutCaptureLo
   }).slice(0, 30);
 }
 
-function normalizedSetDetails(value: unknown, evidence: string): WorkoutCaptureSetDetail[] {
+function normalizedSetDetails(value: unknown): WorkoutCaptureSetDetail[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item, index) => {
     if (!item || typeof item !== "object") return [];
@@ -342,32 +345,82 @@ function normalizedSetDetails(value: unknown, evidence: string): WorkoutCaptureS
     const durationUnit: WorkoutDurationUnit | null = rawDurationUnit === "seconds" || rawDurationUnit === "minutes" ? rawDurationUnit : null;
     return [{
       order: integer(row.order, 1, 100) ?? index + 1,
-      reps: supportsReps(evidence, reps) ? reps : null,
-      repRangeMin: supportsReps(evidence, row.repRangeMin === null || row.repRangeMin === undefined ? null : String(row.repRangeMin)) ? number(row.repRangeMin, 0, 1_000) : null,
-      repRangeMax: supportsReps(evidence, row.repRangeMax === null || row.repRangeMax === undefined ? null : String(row.repRangeMax)) ? number(row.repRangeMax, 0, 1_000) : null,
-      load: supportsLoad(evidence, load) ? load : null,
+      reps,
+      repRangeMin: number(row.repRangeMin, 0, 1_000),
+      repRangeMax: number(row.repRangeMax, 0, 1_000),
+      load,
       loadUnit,
       loadBasis: loadBasisValue(row.loadBasis),
-      durationValue: supportsDuration(evidence, durationValue) ? durationValue : null,
+      durationValue,
       durationUnit,
-      setType: supportedSetType(row.setType, evidence),
-      rpe: supportsRating(evidence, rpe, "rpe") ? rpe : null,
-      rir: supportsRating(evidence, rir, "rir") ? rir : null,
+      setType: setTypeValue(row.setType),
+      rpe,
+      rir,
       approximate: row.approximate === true,
       note: text(row.note, 300)
     }];
   }).filter((detail) => detail.reps !== null || detail.load !== null || detail.durationValue !== null || detail.rpe !== null || detail.rir !== null).slice(0, 100);
 }
 
-function fallbackMatch(fallback: WorkoutCaptureDraft, evidence: string | null, name: string) {
-  const normalizedName = normalizedEvidence(name);
-  return fallback.exercises.find((exercise) => {
-    const source = normalizedEvidence(exercise.originalText ?? "");
-    const candidate = normalizedEvidence(evidence ?? "");
-    const existingName = normalizedEvidence(exercise.name);
-    return Boolean(candidate && source && (candidate.includes(source) || source.includes(candidate)))
-      || Boolean(normalizedName && existingName && (normalizedName.includes(existingName) || existingName.includes(normalizedName)));
-  }) ?? null;
+function normalizedConfidenceField(value: unknown): WorkoutCaptureConfidenceField | null {
+  if (typeof value !== "string") return null;
+  const compact = value.trim().replace(/[\s_-]+/g, "").toLowerCase();
+  return WORKOUT_CAPTURE_CONFIDENCE_FIELDS.find((field) => field.toLowerCase() === compact) ?? null;
+}
+
+function normalizedFieldConfidence(value: unknown): WorkoutCaptureFieldConfidence {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const row = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(row).flatMap(([rawField, rawConfidence]) => {
+      const field = normalizedConfidenceField(rawField);
+      return field ? [[field, confidence(rawConfidence)]] : [];
+    })
+  ) as WorkoutCaptureFieldConfidence;
+}
+
+function normalizedUncertainFields(value: unknown) {
+  if (!Array.isArray(value)) return [] as WorkoutCaptureConfidenceField[];
+  return [...new Set(value.map(normalizedConfidenceField).filter((field): field is WorkoutCaptureConfidenceField => Boolean(field)))];
+}
+
+function ambiguousSetRepFields(evidence: string, sets: number | null, reps: string | null) {
+  const fields: WorkoutCaptureConfidenceField[] = [];
+  const barePair = evidence.match(/\b(\d+)\s*[x×]\s*(\d+)\b/i);
+  if (barePair && Number(barePair[1]) > 8 && Number(barePair[2]) <= 8 && !/\b(?:sets?|reps?)\b/i.test(evidence)) {
+    fields.push("sets", "reps");
+  }
+  const repSequence = reps?.match(/\d+(?:\.\d+)?/g) ?? [];
+  if (sets !== null && repSequence.length > 1 && repSequence.length !== sets) fields.push("sets", "reps");
+  return fields;
+}
+
+function fieldIsPresent(field: WorkoutCaptureConfidenceField, exercise: WorkoutCaptureExercise) {
+  const value = exercise[field as keyof WorkoutCaptureExercise];
+  return Array.isArray(value) ? value.length > 0 : value !== null && value !== undefined && value !== "";
+}
+
+function fieldLabel(field: WorkoutCaptureConfidenceField) {
+  const labels: Partial<Record<WorkoutCaptureConfidenceField, string>> = {
+    name: "exercise name",
+    sets: "sets",
+    reps: "reps",
+    load: "load",
+    loadUnit: "load unit",
+    durationMinutes: "duration",
+    restSeconds: "rest time",
+    note: "note",
+    movementPattern: "movement type",
+    section: "section",
+    loadBasis: "load meaning",
+    rpe: "RPE",
+    rir: "RIR",
+    trainingMethods: "training method",
+    groupRounds: "rounds",
+    loadSteps: "load sequence",
+    setDetails: "set details"
+  };
+  return labels[field] ?? field;
 }
 
 export function normalizeWorkoutCaptureResponse(
@@ -392,51 +445,38 @@ export function normalizeWorkoutCaptureResponse(
       const proposedName = text(row.name, 120);
       if (!proposedName) return null;
       const exactEvidence = verifiedEvidence(row.originalText, cleanedInput);
-      const baseline = fallbackMatch(fallback, exactEvidence, proposedName);
-      if (!exactEvidence && !baseline) return null;
-      const evidence = exactEvidence ?? baseline?.originalText ?? "";
-      const name = baseline?.name ?? proposedName;
+      if (!exactEvidence) return null;
+      const evidence = exactEvidence;
+      const name = proposedName;
       const exerciseConfidence = confidence(row.confidence);
+      const suppliedFieldConfidence = normalizedFieldConfidence(row.fieldConfidence);
+      const hasFieldConfidence = (field: WorkoutCaptureConfidenceField) => suppliedFieldConfidence[field] !== undefined;
       const proposedSets = integer(row.sets, 1, 100);
       const proposedReps = text(row.reps, 80);
       const proposedDuration = integer(row.durationMinutes, 1, 300);
       const proposedLoad = number(row.load, 0, 2_000);
-      const proposedLoadSupported = supportsLoad(evidence, proposedLoad);
-      const sets = supportsSets(evidence, proposedSets) ? proposedSets : baseline?.sets ?? null;
-      const reps = supportsReps(evidence, proposedReps) ? proposedReps : baseline?.reps ?? null;
-      const durationMinutes = supportsDuration(evidence, proposedDuration) ? proposedDuration : baseline?.durationMinutes ?? null;
-      const load = proposedLoadSupported ? proposedLoad : baseline?.load ?? null;
+      const hasExplicitZeroLoad = /\b0(?:\.0+)?\s*(?:kg|kgs|kilos?|lb|lbs|pounds?)\b/i.test(evidence);
+      const sets = hasFieldConfidence("sets") || supportsSets(evidence, proposedSets) ? proposedSets : null;
+      const reps = hasFieldConfidence("reps") || supportsReps(evidence, proposedReps) ? proposedReps : null;
+      const durationMinutes = hasFieldConfidence("durationMinutes") || supportsDuration(evidence, proposedDuration) ? proposedDuration : null;
+      const load = proposedLoad === 0 && !hasExplicitZeroLoad
+        ? null
+        : hasFieldConfidence("load") || supportsLoad(evidence, proposedLoad) ? proposedLoad : null;
       const rawUnit = text(row.loadUnit, 8)?.toLowerCase();
-      const loadUnit = proposedLoadSupported && (rawUnit === "kg" || rawUnit === "lb") ? rawUnit : baseline?.loadUnit ?? null;
+      const loadUnit = load !== null && (rawUnit === "kg" || rawUnit === "lb") ? rawUnit : null;
       const proposedRpe = number(row.rpe, 1, 10);
       const proposedRir = number(row.rir, 0, 10);
-      const methods = [...new Set([...(baseline?.trainingMethods ?? []), ...normalizedMethods(row.trainingMethods, evidence)])];
-      const loadSteps = [...(baseline?.loadSteps ?? []), ...normalizedLoadSteps(row.loadSteps, evidence)]
+      const methods = hasFieldConfidence("trainingMethods") ? normalizedMethods(row.trainingMethods) : [];
+      const loadSteps = (hasFieldConfidence("loadSteps") ? normalizedLoadSteps(row.loadSteps) : [])
         .filter((step, stepIndex, all) => !all.slice(0, stepIndex).some((candidate) => candidate.value === step.value && candidate.unit === step.unit && candidate.role === step.role));
-      const setDetails = [...(baseline?.setDetails ?? []), ...normalizedSetDetails(row.setDetails, evidence)]
+      const setDetails = (hasFieldConfidence("setDetails") ? normalizedSetDetails(row.setDetails) : [])
         .filter((detail, detailIndex, all) => !all.slice(0, detailIndex).some((candidate) => candidate.order === detail.order && candidate.load === detail.load && candidate.reps === detail.reps));
-      const rawSection = text(row.section, 80);
-      const section = rawSection && new RegExp(`(?:^|\\n)\\s*${rawSection.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:?(?:\\n|$)`, "i").test(cleanedInput)
-        ? rawSection
-        : baseline?.section ?? null;
-      const rawBasis = loadBasisValue(row.loadBasis);
-      const loadBasis = rawBasis !== "unknown" && (
-        rawBasis === "per_side" && /per side|each side/i.test(evidence)
-        || rawBasis === "per_hand" && /each hand|dumbbells?|\bdb\b|\d+(?:\.\d+)?s\s*[x×]/i.test(evidence)
-        || rawBasis === "assistance" && /assistance|assisted/i.test(evidence)
-        || rawBasis === "bodyweight" && /bodyweight/i.test(evidence)
-        || rawBasis === "bodyweight_plus" && /bodyweight\s*\+/i.test(evidence)
-        || rawBasis === "machine_setting" && /machine setting/i.test(evidence)
-        || rawBasis === "band" && /resistance band|banded/i.test(evidence)
-        || rawBasis === "total" && /\b(?:kg|lb|kilos?|pounds?)\b/i.test(evidence)
-      ) ? rawBasis : baseline?.loadBasis ?? "unknown";
+      const section = text(row.section, 80);
+      const loadBasis = loadBasisValue(row.loadBasis);
       const proposedCompletedSets = integer(row.completedSets, 1, 100);
       const proposedRangeMin = integer(row.repRangeMin, 0, 1_000);
       const proposedRangeMax = integer(row.repRangeMax, 0, 1_000);
-      const uncertainFields = Array.isArray(row.uncertainFields)
-        ? row.uncertainFields.map((field) => text(field, 40)).filter((field): field is string => Boolean(field)).slice(0, 20)
-        : [];
-      return {
+      const exercise: WorkoutCaptureExercise = {
         name,
         originalText: evidence.slice(0, 1_000),
         sets,
@@ -446,44 +486,64 @@ export function normalizeWorkoutCaptureResponse(
         durationMinutes,
         restSeconds: /\b(?:rest\s*(?:for\s*)?\d+\s*(?:sec|secs|seconds?)|\d+\s*(?:sec|secs|seconds?)\s*(?:rest|between rounds))\b/i.test(evidence)
           ? integer(row.restSeconds, 0, 3_600)
-          : baseline?.restSeconds ?? null,
-        note: baseline?.note?.startsWith("Tempo:")
-          ? baseline.note
-          : verifiedEvidence(row.note, evidence) ?? baseline?.note ?? null,
+          : hasFieldConfidence("restSeconds") ? integer(row.restSeconds, 0, 3_600) : null,
+        note: hasFieldConfidence("note") ? text(row.note, 500) : verifiedEvidence(row.note, evidence),
         movementPattern: movementPattern(row.movementPattern, name),
         confidence: exerciseConfidence,
-        needsConfirmation: row.needsConfirmation === true || exerciseConfidence < 0.75 || uncertainFields.length > 0 || baseline?.needsConfirmation === true,
+        needsConfirmation: false,
         section,
-        exerciseOrder: integer(row.exerciseOrder, 1, 100) ?? baseline?.exerciseOrder ?? index + 1,
-        completedSets: supportsSets(evidence, proposedCompletedSets) ? proposedCompletedSets : baseline?.completedSets ?? sets,
-        repRangeMin: supportsReps(evidence, proposedRangeMin === null ? null : String(proposedRangeMin)) ? proposedRangeMin : baseline?.repRangeMin ?? null,
-        repRangeMax: supportsReps(evidence, proposedRangeMax === null ? null : String(proposedRangeMax)) ? proposedRangeMax : baseline?.repRangeMax ?? null,
-        approximateReps: row.approximateReps === true && /around|about|maybe|~|i think/i.test(evidence) || baseline?.approximateReps === true,
-        durationValue: supportsDuration(evidence, number(row.durationValue, 0, 3_600)) ? number(row.durationValue, 0, 3_600) : baseline?.durationValue ?? null,
-        durationUnit: row.durationUnit === "seconds" || row.durationUnit === "minutes" ? row.durationUnit : baseline?.durationUnit ?? null,
+        exerciseOrder: integer(row.exerciseOrder, 1, 100) ?? index + 1,
+        completedSets: proposedCompletedSets ?? sets,
+        repRangeMin: proposedRangeMin,
+        repRangeMax: proposedRangeMax,
+        approximateReps: row.approximateReps === true,
+        durationValue: number(row.durationValue, 0, 3_600),
+        durationUnit: row.durationUnit === "seconds" || row.durationUnit === "minutes" ? row.durationUnit : null,
         loadBasis,
-        loadText: verifiedEvidence(row.loadText, evidence) ?? baseline?.loadText ?? null,
-        startingLoad: supportsLoad(evidence, number(row.startingLoad, 0, 2_000)) ? number(row.startingLoad, 0, 2_000) : baseline?.startingLoad ?? null,
-        workingLoad: supportsLoad(evidence, number(row.workingLoad, 0, 2_000)) ? number(row.workingLoad, 0, 2_000) : baseline?.workingLoad ?? null,
-        topLoad: supportsLoad(evidence, number(row.topLoad, 0, 2_000)) ? number(row.topLoad, 0, 2_000) : baseline?.topLoad ?? null,
-        backoffLoad: supportsLoad(evidence, number(row.backoffLoad, 0, 2_000)) ? number(row.backoffLoad, 0, 2_000) : baseline?.backoffLoad ?? null,
-        rpe: supportsRating(evidence, proposedRpe, "rpe") ? proposedRpe : baseline?.rpe ?? null,
-        rir: supportsRating(evidence, proposedRir, "rir") ? proposedRir : baseline?.rir ?? null,
-        restStyle: verifiedEvidence(row.restStyle, evidence) ?? baseline?.restStyle ?? null,
-        setType: supportedSetType(row.setType, evidence) !== "unknown" ? supportedSetType(row.setType, evidence) : baseline?.setType ?? "unknown",
+        loadText: text(row.loadText, 300),
+        startingLoad: number(row.startingLoad, 0, 2_000),
+        workingLoad: number(row.workingLoad, 0, 2_000),
+        topLoad: number(row.topLoad, 0, 2_000),
+        backoffLoad: number(row.backoffLoad, 0, 2_000),
+        rpe: proposedRpe,
+        rir: proposedRir,
+        restStyle: text(row.restStyle, 80),
+        setType: setTypeValue(row.setType),
         trainingMethods: methods,
         supersetGroup: methods.some((method) => method === "superset" || method === "alternating_set" || method === "circuit" || method === "amrap")
-          ? text(row.supersetGroup, 80) ?? baseline?.supersetGroup ?? null
-          : baseline?.supersetGroup ?? null,
-        groupRounds: /\b\d+\s+rounds?\b/i.test(evidence) ? integer(row.groupRounds, 1, 100) : baseline?.groupRounds ?? null,
-        warmup: row.warmup === true && /warm[ -]?up|ramp[ -]?up/i.test(evidence) || baseline?.warmup === true,
-        workingSet: row.workingSet === true && /working sets?/i.test(evidence) || baseline?.workingSet === true,
-        backoffSet: row.backoffSet === true && /back[ -]?off|reduced/i.test(evidence) || baseline?.backoffSet === true,
-        dropSet: row.dropSet === true && /drop set/i.test(evidence) || baseline?.dropSet === true,
+          ? text(row.supersetGroup, 80)
+          : null,
+        groupRounds: integer(row.groupRounds, 1, 100),
+        warmup: row.warmup === true,
+        workingSet: row.workingSet === true,
+        backoffSet: row.backoffSet === true,
+        dropSet: row.dropSet === true,
         loadSteps,
         setDetails,
-        uncertainFields: [...new Set([...(baseline?.uncertainFields ?? []), ...uncertainFields])]
+        uncertainFields: [],
+        fieldConfidence: suppliedFieldConfidence
       };
+
+      const populatedFields = WORKOUT_CAPTURE_CONFIDENCE_FIELDS.filter((field) => fieldIsPresent(field, exercise));
+      const finalFieldConfidence = Object.fromEntries(populatedFields.map((field) => [
+        field,
+        suppliedFieldConfidence[field] ?? exerciseConfidence
+      ])) as WorkoutCaptureFieldConfidence;
+      const uncertainFields = new Set<WorkoutCaptureConfidenceField>(normalizedUncertainFields(row.uncertainFields));
+      populatedFields.forEach((field) => {
+        if ((finalFieldConfidence[field] ?? exerciseConfidence) < FIELD_CONFIDENCE_THRESHOLD) uncertainFields.add(field);
+      });
+      ambiguousSetRepFields(evidence, sets, reps).forEach((field) => uncertainFields.add(field));
+      if (row.needsConfirmation === true && uncertainFields.size === 0) {
+        const leastCertain = populatedFields
+          .map((field) => ({ field, value: finalFieldConfidence[field] ?? exerciseConfidence }))
+          .sort((a, b) => a.value - b.value)[0]?.field;
+        if (leastCertain) uncertainFields.add(leastCertain);
+      }
+      exercise.uncertainFields = [...uncertainFields].filter((field) => fieldIsPresent(field, exercise));
+      exercise.needsConfirmation = exercise.uncertainFields.length > 0;
+      exercise.fieldConfidence = finalFieldConfidence;
+      return exercise;
     })
     .filter((item): item is WorkoutCaptureExercise => Boolean(item))
     .slice(0, 30);
@@ -492,11 +552,12 @@ export function normalizeWorkoutCaptureResponse(
 
   const rawDifficulty = text(parsed.difficulty, 20)?.toLowerCase();
   const difficulty: WorkoutCaptureDifficulty = rawDifficulty === "easy" || rawDifficulty === "challenging" ? rawDifficulty : "moderate";
-  const uncertainties = Array.isArray(parsed.uncertainties)
-    ? parsed.uncertainties.map((item) => text(item, 160)).filter((item): item is string => Boolean(item)).slice(0, 12)
-    : [];
+  const uncertainties: string[] = [];
   exercises.forEach((exercise) => {
-    if (exercise.needsConfirmation) uncertainties.push(`Please confirm the details for ${exercise.name}.`);
+    if (exercise.needsConfirmation) {
+      const fields = (exercise.uncertainFields ?? []).map((field) => fieldLabel(field as WorkoutCaptureConfidenceField));
+      uncertainties.push(`Confirm ${fields.join(" and ")} for ${exercise.name}.`);
+    }
   });
 
   return {
@@ -522,7 +583,9 @@ export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: st
     "Convert the member's rough workout notes into a trustworthy structured workout receipt. Extract aggressively, but invent nothing.",
     "Extract only details the member actually supplied. Never invent weights, sets, reps, duration, or exercise names.",
     "For every exercise, originalText must be a verbatim excerpt from the member input that supports the extracted fields.",
-    "When a value is missing, return null. When it is ambiguous or approximate, preserve that uncertainty, set needsConfirmation to true, lower confidence, and name the field in uncertainFields.",
+    "When a value is missing, return null. When it is ambiguous or approximate, preserve that uncertainty, set needsConfirmation to true, lower only that field's confidence, and name only that field in uncertainFields.",
+    "Return fieldConfidence on every exercise. It is an object keyed by the extracted fields, with a 0-to-1 confidence for each non-null field. Confidence must be field-specific: a clear exercise name can be 0.98 while ambiguous sets and reps are 0.55.",
+    "Understand normal human shorthand and derived meaning. Examples: '80kg 10 10 8' means one 80kg load with per-set reps 10,10,8; 'first two sets 10 last set 8' means 3 sets with reps 10,10,8; '22.5 each hand x10 x9 x8' means 3 sets, per-hand load, and per-set reps; A1/A2 with rounds is grouped alternating work.",
     "Keep the member's original unit. Preserve whether load is total, per side, per hand/dumbbell, assistance, bodyweight, bodyweight plus load, a machine setting, a band, or unknown.",
     "Preserve section headings such as Warm-up, Chest, Back, Conditioning, Finisher, and Cooldown when supplied.",
     "Preserve progressive loads and corrections in loadSteps. Distinguish starting, working, top, backoff, drop, correction, and unknown load roles.",
@@ -532,7 +595,7 @@ export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: st
     "Preserve meaningful exercise modifiers such as cable, machine, incline, converging, upper, or lower; never collapse distinct movements into a generic name such as Flyes.",
     "Correct only obvious spelling or dictation mistakes when the intended exercise is clear. Preserve the verbatim source in originalText.",
     "Tempo such as '1 sec up 3 sec down' belongs in note and must never become restSeconds or exercise duration.",
-    "Interpret A x B as sets x reps by convention. If A is unusually high and B unusually low, keep the supplied values but mark sets and reps uncertain for confirmation.",
+    "Interpret A x B as sets x reps by convention. If A is unusually high and B unusually low, keep the most likely interpretation but mark only sets and reps uncertain for confirmation because the order materially changes the record.",
     "Exercises in the same superset/circuit must share a stable supersetGroup. Preserve circuit rounds in groupRounds.",
     `Movement pattern must be one of: ${WORKOUT_MOVEMENT_PATTERNS.join(", ")}.`,
     `Load basis must be one of: ${WORKOUT_LOAD_BASES.join(", ")}.`,
@@ -540,7 +603,7 @@ export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: st
     `Training methods may only contain: ${WORKOUT_TRAINING_METHODS.join(", ")}.`,
     "Difficulty must be easy, moderate, or challenging. Use moderate only as a neutral label when intensity is not stated.",
     "Return strict JSON only with: title, workoutType, difficulty, durationMinutes, confidence, uncertainties, exercises.",
-    "Each exercise must contain the existing fields name, originalText, sets, reps, load, loadUnit, durationMinutes, restSeconds, note, movementPattern, confidence, needsConfirmation, plus section, exerciseOrder, completedSets, repRangeMin, repRangeMax, approximateReps, durationValue, durationUnit, loadBasis, loadText, startingLoad, workingLoad, topLoad, backoffLoad, rpe, rir, restStyle, setType, trainingMethods, supersetGroup, groupRounds, warmup, workingSet, backoffSet, dropSet, loadSteps, setDetails, uncertainFields.",
+    "Each exercise must contain the existing fields name, originalText, sets, reps, load, loadUnit, durationMinutes, restSeconds, note, movementPattern, confidence, needsConfirmation, plus section, exerciseOrder, completedSets, repRangeMin, repRangeMax, approximateReps, durationValue, durationUnit, loadBasis, loadText, startingLoad, workingLoad, topLoad, backoffLoad, rpe, rir, restStyle, setType, trainingMethods, supersetGroup, groupRounds, warmup, workingSet, backoffSet, dropSet, loadSteps, setDetails, uncertainFields, fieldConfidence.",
     "Each loadSteps item contains value, unit, basis, role, reps, approximate, note, confidence. Each setDetails item contains order, reps, repRangeMin, repRangeMax, load, loadUnit, loadBasis, durationValue, durationUnit, setType, rpe, rir, approximate, note.",
     recentExerciseNames.length
       ? `Use these previously confirmed names only to normalize obvious aliases: ${recentExerciseNames.slice(0, 30).join(", ")}.`

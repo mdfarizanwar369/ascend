@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { createRepeatWorkoutCaptureDraft } from "@ascend/shared";
 import type {
+  WorkoutCaptureConfidenceField,
   WorkoutCaptureDifficulty,
   WorkoutCaptureDraft,
   WorkoutCaptureExercise,
@@ -146,7 +147,8 @@ function blankExercise(): WorkoutCaptureExercise {
     trainingMethods: [],
     loadSteps: [],
     setDetails: [],
-    uncertainFields: []
+    uncertainFields: [],
+    fieldConfidence: {}
   };
 }
 
@@ -221,21 +223,26 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         (exercise.sets === null || (exercise.sets >= 1 && exercise.sets <= 100)) &&
         (exercise.load === null || (exercise.load >= 0 && exercise.load <= 2_000)) &&
         (exercise.durationMinutes === null || (exercise.durationMinutes >= 1 && exercise.durationMinutes <= 300)) &&
-        (exercise.restSeconds === null || (exercise.restSeconds >= 0 && exercise.restSeconds <= 3_600))
+        (exercise.restSeconds === null || (exercise.restSeconds >= 0 && exercise.restSeconds <= 3_600)) &&
+        !exercise.needsConfirmation
       )
     );
   }, [draft]);
 
   const activeUncertainties = useMemo(() => {
     if (!draft) return [];
-    return draft.uncertainties.filter((uncertainty) => {
+    const workoutUncertainties = draft.uncertainties.filter((uncertainty) => {
       const lower = uncertainty.toLowerCase();
       if (lower.includes("duration") && Number(draft.durationMinutes) >= 5) return false;
-      if (lower.includes("confirm the details")) {
-        return draft.exercises.some((exercise) => exercise.needsConfirmation && lower.includes(exercise.name.toLowerCase()));
-      }
-      return true;
+      return !lower.startsWith("confirm ") && !lower.includes("confirm the details");
     });
+    const fieldUncertainties = draft.exercises.flatMap((exercise) => {
+      const fields = exercise.uncertainFields ?? [];
+      return exercise.needsConfirmation && fields.length
+        ? [`Confirm ${fields.map((field) => field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()).join(" and ")} for ${exercise.name}.`]
+        : [];
+    });
+    return [...new Set([...workoutUncertainties, ...fieldUncertainties])];
   }, [draft]);
 
   function resetCapture() {
@@ -336,16 +343,32 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
     setDraft((current) => current ? { ...current, ...patch } : current);
   }
 
-  function updateExercise(index: number, patch: Partial<WorkoutCaptureExercise>) {
+  function updateExercise(index: number, patch: Partial<WorkoutCaptureExercise>, resolvedFields: WorkoutCaptureConfidenceField[] = []) {
     setDraft((current) => {
       if (!current) return current;
       return {
         ...current,
-        exercises: current.exercises.map((exercise, exerciseIndex) => exerciseIndex === index
-          ? { ...exercise, ...patch, needsConfirmation: false, confidence: 1, uncertainFields: [] }
-          : exercise)
+        exercises: current.exercises.map((exercise, exerciseIndex) => {
+          if (exerciseIndex !== index) return exercise;
+          const remainingUncertainFields = (exercise.uncertainFields ?? []).filter((field) => !resolvedFields.includes(field as WorkoutCaptureConfidenceField));
+          const fieldConfidence = { ...exercise.fieldConfidence };
+          resolvedFields.forEach((field) => { fieldConfidence[field] = 1; });
+          return {
+            ...exercise,
+            ...patch,
+            needsConfirmation: remainingUncertainFields.length > 0,
+            confidence: remainingUncertainFields.length ? exercise.confidence : Math.max(exercise.confidence, 0.9),
+            uncertainFields: remainingUncertainFields,
+            fieldConfidence
+          };
+        })
       };
     });
+  }
+
+  function confirmExerciseFields(index: number) {
+    const fields = (draft?.exercises[index]?.uncertainFields ?? []) as WorkoutCaptureConfidenceField[];
+    updateExercise(index, {}, fields);
   }
 
   function removeExercise(index: number) {
@@ -683,16 +706,22 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
               const facts = exerciseFacts(exercise);
               const progressions = progressionFacts(exercise);
               const methods = exercise.trainingMethods ?? [];
+              const uncertainFields = (exercise.uncertainFields ?? []) as WorkoutCaptureConfidenceField[];
+              const uncertainFieldSet = new Set(uncertainFields);
+              const fieldClass = (field: WorkoutCaptureConfidenceField, baseClass: string) => uncertainFieldSet.has(field)
+                ? `${baseClass} border-amber-300/70 bg-amber-300/5 ring-1 ring-amber-300/20`
+                : baseClass;
+              const uncertaintyLabel = uncertainFields.map((field) => field.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()).join(" and ");
               return (
                 <article
                   key={`${index}-${exercise.originalText ?? "exercise"}`}
-                  className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber-400/40 bg-amber-400/5" : "border-line bg-ink"}`}
+                  className="rounded-xl border border-line bg-ink p-3"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-white">{exercise.name}</h3>
-                        {exercise.needsConfirmation ? <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-200">Check</span> : null}
+                        {exercise.needsConfirmation ? <span className="rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-amber-200">Check {uncertaintyLabel}</span> : null}
                       </div>
                       {facts.length ? (
                         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -732,30 +761,36 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
                   ) : null}
                   {exercise.note ? <p className="mt-3 text-sm leading-6 text-zinc-400">{exercise.note}</p> : null}
                   {exercise.needsConfirmation && exercise.originalText ? (
-                    <p className="mt-3 border-l-2 border-amber-300/40 pl-3 text-xs leading-5 text-amber-100/75">From your note: &quot;{exercise.originalText}&quot;</p>
+                    <div className="mt-3 rounded-lg border border-amber-300/30 bg-amber-300/5 p-3">
+                      <p className="text-xs font-semibold text-amber-100">Only {uncertaintyLabel} {uncertainFields.length === 1 ? "needs" : "need"} confirmation.</p>
+                      <p className="mt-1 border-l-2 border-amber-300/40 pl-3 text-xs leading-5 text-amber-100/75">From your note: &quot;{exercise.originalText}&quot;</p>
+                      <button type="button" onClick={() => confirmExerciseFields(index)} className="ascend-pressable mt-3 min-h-10 rounded-lg border border-amber-200/35 px-3 text-sm font-semibold text-amber-100">
+                        Use the values shown
+                      </button>
+                    </div>
                   ) : null}
 
-                  <details className="mt-3 border-t border-line pt-3">
-                    <summary className="cursor-pointer list-none text-sm font-semibold text-lime">Review or edit details</summary>
+                  <details className="mt-3 border-t border-line pt-3" open={exercise.needsConfirmation || undefined}>
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-lime">{exercise.needsConfirmation ? `Check ${uncertaintyLabel}` : "Review or edit details"}</summary>
                     <div className="mt-3 space-y-3">
-                      <input aria-label={`Exercise ${index + 1} name`} className={inputClass} value={exercise.name} onChange={(event) => updateExercise(index, { name: event.target.value })} placeholder="Exercise name" maxLength={120} />
+                      <input aria-label={`Exercise ${index + 1} name`} className={fieldClass("name", inputClass)} value={exercise.name} onChange={(event) => updateExercise(index, { name: event.target.value }, ["name"])} placeholder="Exercise name" maxLength={120} />
                       <label className="block">
                         <span className="text-xs text-zinc-500">Section</span>
-                        <input className={`${inputClass} mt-1`} value={exercise.section ?? ""} onChange={(event) => updateExercise(index, { section: event.target.value || null })} placeholder="Optional" maxLength={80} />
+                        <input className={`${fieldClass("section", inputClass)} mt-1`} value={exercise.section ?? ""} onChange={(event) => updateExercise(index, { section: event.target.value || null }, ["section"])} placeholder="Optional" maxLength={80} />
                       </label>
                       <div className="grid grid-cols-2 gap-3">
-                        <label><span className="text-xs text-zinc-500">Sets</span><input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.sets ?? ""} onChange={(event) => updateExercise(index, { sets: optionalInteger(event.target.value), completedSets: optionalInteger(event.target.value) })} placeholder="3" /></label>
-                        <label><span className="text-xs text-zinc-500">Reps</span><input className={`${inputClass} mt-1`} value={exercise.reps ?? ""} onChange={(event) => updateExercise(index, { reps: event.target.value || null })} placeholder="10 or 8-10" maxLength={80} /></label>
-                        <label><span className="text-xs text-zinc-500">Load</span><input className={`${inputClass} mt-1`} inputMode="decimal" value={exercise.load ?? ""} onChange={(event) => { const load = optionalNumber(event.target.value); updateExercise(index, { load, loadUnit: load !== null ? exercise.loadUnit ?? "kg" : exercise.loadUnit }); }} placeholder="Optional" /></label>
-                        <label><span className="text-xs text-zinc-500">Unit</span><select className={`${selectClass} mt-1`} value={exercise.loadUnit ?? ""} onChange={(event) => updateExercise(index, { loadUnit: event.target.value ? event.target.value as "kg" | "lb" : null })}><option value="">Not stated</option><option value="kg">kg</option><option value="lb">lb</option></select></label>
-                        <label className="col-span-2"><span className="text-xs text-zinc-500">Load meaning</span><select className={`${selectClass} mt-1`} value={exercise.loadBasis ?? "unknown"} onChange={(event) => updateExercise(index, { loadBasis: event.target.value as WorkoutLoadBasis })}>{Object.entries(LOAD_BASIS_LABELS).map(([value, label]) => <option key={value} value={value}>{label || "Not stated"}</option>)}</select></label>
-                        <label><span className="text-xs text-zinc-500">Minutes</span><input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.durationMinutes ?? ""} onChange={(event) => updateExercise(index, { durationMinutes: optionalInteger(event.target.value) })} placeholder="Optional" /></label>
-                        <label><span className="text-xs text-zinc-500">Rest seconds</span><input className={`${inputClass} mt-1`} inputMode="numeric" value={exercise.restSeconds ?? ""} onChange={(event) => updateExercise(index, { restSeconds: optionalInteger(event.target.value) })} placeholder="Optional" /></label>
-                        <label><span className="text-xs text-zinc-500">RPE</span><input className={`${inputClass} mt-1`} inputMode="decimal" value={exercise.rpe ?? ""} onChange={(event) => updateExercise(index, { rpe: optionalNumber(event.target.value) })} placeholder="Optional" /></label>
-                        <label><span className="text-xs text-zinc-500">RIR</span><input className={`${inputClass} mt-1`} inputMode="decimal" value={exercise.rir ?? ""} onChange={(event) => updateExercise(index, { rir: optionalNumber(event.target.value) })} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">Sets</span><input aria-label={`Sets for ${exercise.name}`} className={`${fieldClass("sets", inputClass)} mt-1`} inputMode="numeric" value={exercise.sets ?? ""} onChange={(event) => updateExercise(index, { sets: optionalInteger(event.target.value), completedSets: optionalInteger(event.target.value) }, ["sets"])} placeholder="3" /></label>
+                        <label><span className="text-xs text-zinc-500">Reps</span><input aria-label={`Reps for ${exercise.name}`} className={`${fieldClass("reps", inputClass)} mt-1`} value={exercise.reps ?? ""} onChange={(event) => updateExercise(index, { reps: event.target.value || null }, ["reps"])} placeholder="10 or 8-10" maxLength={80} /></label>
+                        <label><span className="text-xs text-zinc-500">Load</span><input className={`${fieldClass("load", inputClass)} mt-1`} inputMode="decimal" value={exercise.load ?? ""} onChange={(event) => { const load = optionalNumber(event.target.value); updateExercise(index, { load, loadUnit: load !== null ? exercise.loadUnit ?? "kg" : exercise.loadUnit }, ["load"]); }} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">Unit</span><select className={`${fieldClass("loadUnit", selectClass)} mt-1`} value={exercise.loadUnit ?? ""} onChange={(event) => updateExercise(index, { loadUnit: event.target.value ? event.target.value as "kg" | "lb" : null }, ["loadUnit"])}><option value="">Not stated</option><option value="kg">kg</option><option value="lb">lb</option></select></label>
+                        <label className="col-span-2"><span className="text-xs text-zinc-500">Load meaning</span><select className={`${fieldClass("loadBasis", selectClass)} mt-1`} value={exercise.loadBasis ?? "unknown"} onChange={(event) => updateExercise(index, { loadBasis: event.target.value as WorkoutLoadBasis }, ["loadBasis"])}>{Object.entries(LOAD_BASIS_LABELS).map(([value, label]) => <option key={value} value={value}>{label || "Not stated"}</option>)}</select></label>
+                        <label><span className="text-xs text-zinc-500">Minutes</span><input className={`${fieldClass("durationMinutes", inputClass)} mt-1`} inputMode="numeric" value={exercise.durationMinutes ?? ""} onChange={(event) => updateExercise(index, { durationMinutes: optionalInteger(event.target.value) }, ["durationMinutes"])} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">Rest seconds</span><input className={`${fieldClass("restSeconds", inputClass)} mt-1`} inputMode="numeric" value={exercise.restSeconds ?? ""} onChange={(event) => updateExercise(index, { restSeconds: optionalInteger(event.target.value) }, ["restSeconds"])} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">RPE</span><input className={`${fieldClass("rpe", inputClass)} mt-1`} inputMode="decimal" value={exercise.rpe ?? ""} onChange={(event) => updateExercise(index, { rpe: optionalNumber(event.target.value) }, ["rpe"])} placeholder="Optional" /></label>
+                        <label><span className="text-xs text-zinc-500">RIR</span><input className={`${fieldClass("rir", inputClass)} mt-1`} inputMode="decimal" value={exercise.rir ?? ""} onChange={(event) => updateExercise(index, { rir: optionalNumber(event.target.value) }, ["rir"])} placeholder="Optional" /></label>
                       </div>
-                      <label className="block"><span className="text-xs text-zinc-500">Methods</span><input className={`${inputClass} mt-1`} value={methods.map((method) => METHOD_LABELS[method]).join(", ")} onChange={(event) => updateExercise(index, { trainingMethods: parseMethodInput(event.target.value) })} placeholder="Superset, drop set, FST-7" maxLength={160} /></label>
-                      <label className="block"><span className="text-xs text-zinc-500">Note</span><input className={`${inputClass} mt-1`} value={exercise.note ?? ""} onChange={(event) => updateExercise(index, { note: event.target.value || null })} placeholder="Optional" maxLength={500} /></label>
+                      <label className="block"><span className="text-xs text-zinc-500">Methods</span><input className={`${fieldClass("trainingMethods", inputClass)} mt-1`} value={methods.map((method) => METHOD_LABELS[method]).join(", ")} onChange={(event) => updateExercise(index, { trainingMethods: parseMethodInput(event.target.value) }, ["trainingMethods"])} placeholder="Superset, drop set, FST-7" maxLength={160} /></label>
+                      <label className="block"><span className="text-xs text-zinc-500">Note</span><input className={`${fieldClass("note", inputClass)} mt-1`} value={exercise.note ?? ""} onChange={(event) => updateExercise(index, { note: event.target.value || null }, ["note"])} placeholder="Optional" maxLength={500} /></label>
                     </div>
                   </details>
                 </article>
@@ -775,7 +810,13 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         Add exercise
       </button>
 
-      {!canSave ? <p className="text-sm text-amber-200">Add the workout name, total time, and at least one exercise to save.</p> : null}
+      {!canSave ? (
+        <p className="text-sm text-amber-200">
+          {draft.exercises.some((exercise) => exercise.needsConfirmation)
+            ? "Confirm the highlighted details before saving. Everything else is ready."
+            : "Add the workout name, total time, and at least one exercise to save."}
+        </p>
+      ) : null}
       {status ? <p className="ascend-inset p-3 text-sm text-zinc-300" role="status">{status}</p> : null}
 
       <button

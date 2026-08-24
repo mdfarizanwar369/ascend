@@ -1,5 +1,6 @@
 import {
   WORKOUT_CAPTURE_SOURCE_MODES,
+  WORKOUT_CAPTURE_CONFIDENCE_FIELDS,
   WORKOUT_LOAD_BASES,
   WORKOUT_MOVEMENT_PATTERNS,
   WORKOUT_SET_TYPES,
@@ -13,6 +14,12 @@ const nullableInteger = (min: number, max: number) => z.number().int().min(min).
 const requiredNullableText = (max: number) => z.string().trim().max(max).nullable();
 const requiredNullableNumber = (min: number, max: number) => z.number().min(min).max(max).nullable();
 const requiredNullableInteger = (min: number, max: number) => z.number().int().min(min).max(max).nullable();
+const fieldConfidenceSchema = z.record(z.number().min(0).max(1)).optional().transform((value) => {
+  if (!value) return undefined;
+  return Object.fromEntries(
+    WORKOUT_CAPTURE_CONFIDENCE_FIELDS.flatMap((field) => value[field] === undefined ? [] : [[field, value[field]]])
+  );
+});
 
 export const workoutCaptureLoadStepSchema = z.object({
   value: requiredNullableNumber(0, 2_000),
@@ -82,7 +89,8 @@ export const workoutCaptureExerciseSchema = z.object({
   dropSet: z.boolean().optional(),
   loadSteps: z.array(workoutCaptureLoadStepSchema).max(30).optional(),
   setDetails: z.array(workoutCaptureSetDetailSchema).max(100).optional(),
-  uncertainFields: z.array(z.string().trim().min(1).max(40)).max(20).optional()
+  uncertainFields: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  fieldConfidence: fieldConfidenceSchema
 });
 
 export const savedWorkoutCaptureExerciseSchema = workoutCaptureExerciseSchema.extend({

@@ -70,6 +70,29 @@ export type WorkoutTrainingMethod = (typeof WORKOUT_TRAINING_METHODS)[number];
 export type WorkoutDurationUnit = "seconds" | "minutes";
 export type WorkoutLoadRole = "starting" | "working" | "top" | "backoff" | "drop" | "correction" | "unknown";
 
+export const WORKOUT_CAPTURE_CONFIDENCE_FIELDS = [
+  "name",
+  "sets",
+  "reps",
+  "load",
+  "loadUnit",
+  "durationMinutes",
+  "restSeconds",
+  "note",
+  "movementPattern",
+  "section",
+  "loadBasis",
+  "rpe",
+  "rir",
+  "trainingMethods",
+  "groupRounds",
+  "loadSteps",
+  "setDetails"
+] as const;
+
+export type WorkoutCaptureConfidenceField = (typeof WORKOUT_CAPTURE_CONFIDENCE_FIELDS)[number];
+export type WorkoutCaptureFieldConfidence = Partial<Record<WorkoutCaptureConfidenceField, number>>;
+
 export type WorkoutCaptureLoadStep = {
   value: number | null;
   unit: "kg" | "lb" | null;
@@ -139,6 +162,7 @@ export type WorkoutCaptureExercise = {
   loadSteps?: WorkoutCaptureLoadStep[];
   setDetails?: WorkoutCaptureSetDetail[];
   uncertainFields?: string[];
+  fieldConfidence?: WorkoutCaptureFieldConfidence;
 };
 
 export type WorkoutCaptureDraft = {
@@ -316,7 +340,15 @@ function exerciseFromMetadata(value: unknown): WorkoutCaptureExercise | null {
     setDetails: metadataSetDetails(exercise.setDetails),
     uncertainFields: Array.isArray(exercise.uncertainFields)
       ? exercise.uncertainFields.map(metadataText).filter((item): item is string => Boolean(item)).slice(0, 20)
-      : []
+      : [],
+    fieldConfidence: exercise.fieldConfidence && typeof exercise.fieldConfidence === "object" && !Array.isArray(exercise.fieldConfidence)
+      ? Object.fromEntries(
+          WORKOUT_CAPTURE_CONFIDENCE_FIELDS.flatMap((field) => {
+            const value = metadataNumber((exercise.fieldConfidence as Record<string, unknown>)[field]);
+            return value === null ? [] : [[field, Math.min(1, Math.max(0, value))]];
+          })
+        )
+      : undefined
   };
 }
 

@@ -2,6 +2,7 @@ import { query } from "../db/pool";
 import { createCoachPresenceForEvent } from "./coachPresenceService";
 import {
   WORKOUT_LOAD_BASES,
+  WORKOUT_CAPTURE_CONFIDENCE_FIELDS,
   WORKOUT_SET_TYPES,
   WORKOUT_TRAINING_METHODS,
   WorkoutCaptureExercise,
@@ -208,7 +209,13 @@ function cleanExerciseList(exercises: WorkoutExerciseInput[]) {
         setDetails,
         uncertainFields: Array.isArray(exercise.uncertainFields)
           ? exercise.uncertainFields.filter((field): field is string => typeof field === "string").map((field) => field.trim().slice(0, 40)).slice(0, 20)
-          : []
+          : [],
+        fieldConfidence: exercise.fieldConfidence && typeof exercise.fieldConfidence === "object"
+          ? Object.fromEntries(WORKOUT_CAPTURE_CONFIDENCE_FIELDS.flatMap((field) => {
+              const value = exercise.fieldConfidence?.[field];
+              return typeof value === "number" && Number.isFinite(value) ? [[field, clamp(value, 0, 1)]] : [];
+            }))
+          : undefined
       };
     })
     .filter((exercise) => exercise.name.length > 0);

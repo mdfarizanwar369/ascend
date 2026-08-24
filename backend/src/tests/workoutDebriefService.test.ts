@@ -541,6 +541,28 @@ describe("Coach Zoe Workout Debrief V1", () => {
     })).toContain(expected);
   });
 
+  it("does not turn missing load into a zero-load coaching claim", () => {
+    const acknowledgement = deterministicWorkoutAcknowledgement({
+      source: "ai_workout_capture",
+      metadata: {
+        workoutType: "Strength",
+        exercises: [{
+          name: "Cable Converging Lower Chest Fly",
+          sets: 10,
+          reps: "3",
+          load: null,
+          loadUnit: null,
+          confidence: 0.58,
+          needsConfirmation: true,
+          uncertainFields: ["sets", "reps"]
+        }]
+      }
+    });
+
+    expect(acknowledgement).toContain("10 sets of 3 reps");
+    expect(acknowledgement).not.toContain("at 0");
+  });
+
   it("supports global and platform-owner pilot rollout without a frontend flag", () => {
     expect(workoutDebriefRolloutMode({ isPlatformOwner: false, enabledForAll: false, ownerPilotEnabled: false })).toBe("disabled");
     expect(workoutDebriefRolloutMode({ isPlatformOwner: true, enabledForAll: false, ownerPilotEnabled: true })).toBe("active");

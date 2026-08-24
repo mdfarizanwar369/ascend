@@ -1811,7 +1811,7 @@ export async function createWorkoutCaptureDraft(input: {
   const prompt = buildWorkoutCapturePrompt(input.text, input.recentExerciseNames);
   try {
     const reply = await createTextReply(
-      "You parse workout notes for Ascend. Accuracy matters more than completeness. Never guess missing numbers. Return strict JSON only.",
+      "You are Coach Zoe's workout understanding layer for Ascend. Understand natural human workout notes, shorthand, dictation, supersets, per-set performance, tempo, and mixed conditioning. Convert meaning into structured data without inventing missing facts. Report confidence per extracted field so only materially ambiguous fields require confirmation. Return strict JSON only.",
       prompt,
       fallbackJson,
       4_000

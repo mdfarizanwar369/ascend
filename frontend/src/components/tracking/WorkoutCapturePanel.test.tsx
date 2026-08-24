@@ -89,14 +89,14 @@ const receipt: WorkoutCaptureDraft = {
     },
     {
       name: "Cable Flyes",
-      originalText: "Additional chest isolation work",
-      sets: null,
-      reps: null,
+      originalText: "Cable flyes 10 x 3",
+      sets: 10,
+      reps: "3",
       load: null,
       loadUnit: null,
       durationMinutes: null,
       restSeconds: null,
-      note: "Additional chest isolation work",
+      note: null,
       movementPattern: "push",
       confidence: 0.62,
       needsConfirmation: true,
@@ -105,7 +105,8 @@ const receipt: WorkoutCaptureDraft = {
       trainingMethods: [],
       loadSteps: [],
       setDetails: [],
-      uncertainFields: ["sets", "reps", "load"]
+      uncertainFields: ["sets", "reps"],
+      fieldConfidence: { name: 0.98, sets: 0.52, reps: 0.55 }
     }
   ]
 };
@@ -140,9 +141,14 @@ describe("Detailed Workout receipt", () => {
     expect(screen.getByText("Back-off: 20 kg per side x 8")).toBeInTheDocument();
     expect(screen.getByText("FST-7")).toBeInTheDocument();
     expect(screen.getByText("Short rest")).toBeInTheDocument();
-    expect(screen.getByText("No sets, reps, or load were stated.")).toBeInTheDocument();
-    expect(screen.getByText("Check")).toBeInTheDocument();
-    expect(screen.getByText(/From your note:.*Additional chest isolation work/)).toBeInTheDocument();
+    expect(screen.getAllByText("Check sets and reps").length).toBeGreaterThan(0);
+    expect(screen.getByText(/From your note:.*Cable flyes 10 x 3/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm & Save Workout" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Sets for Cable Flyes"), { target: { value: "3" } });
+    expect(screen.getAllByText("Check reps").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Confirm & Save Workout" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Use the values shown" }));
+    expect(screen.getByRole("button", { name: "Confirm & Save Workout" })).toBeEnabled();
     await waitFor(() => expect(analyze).toHaveBeenCalledWith({ text: "Chest workout", sourceMode: "text" }));
   });
 

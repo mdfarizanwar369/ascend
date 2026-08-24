@@ -83,7 +83,7 @@ describe("Workout Capture V1", () => {
     });
   });
 
-  it("uses the evidence parser to correct an inaccurate AI interpretation", () => {
+  it("preserves a field-aware AI interpretation without merging regex fallback guesses", () => {
     const input = [
       "Cable incline chest fly",
       "4 x 10",
@@ -99,24 +99,26 @@ describe("Workout Capture V1", () => {
       uncertainties: [],
       exercises: [
         {
-          name: "Flyes",
+          name: "Cable Incline Chest Fly",
           originalText: "Cable incline chest fly\n4 x 10",
           sets: 4,
           reps: "10",
           restSeconds: null,
           note: null,
           confidence: 0.9,
-          needsConfirmation: false
+          needsConfirmation: false,
+          fieldConfidence: { name: 0.98, sets: 0.98, reps: 0.98, note: 0.95 }
         },
         {
-          name: "Flyes",
+          name: "Machine Chest Press",
           originalText: "Machine chest press\n4 x 6 : 1 sec up 3 sec down",
           sets: 4,
           reps: "6",
           restSeconds: 1,
-          note: "1 sec up 3 sec down",
+          note: "Tempo: 1 sec up / 3 sec down",
           confidence: 0.9,
-          needsConfirmation: false
+          needsConfirmation: false,
+          fieldConfidence: { name: 0.98, sets: 0.98, reps: 0.98, note: 0.95 }
         }
       ]
     });
@@ -162,7 +164,7 @@ describe("Workout Capture V1", () => {
         "confidence": 0.92,
         "uncertainties": [],
         "exercises": [{
-          "name": "Dumbbell bench press",
+          "name": "Dumbbell Bench Press",
           "originalText": "DB bench 25kg 4x8",
           "sets": 4,
           "reps": "8",
@@ -173,7 +175,8 @@ describe("Workout Capture V1", () => {
           "note": null,
           "movementPattern": "push",
           "confidence": 0.96,
-          "needsConfirmation": false
+          "needsConfirmation": false,
+          "fieldConfidence": { "name": 0.98, "sets": 0.98, "reps": 0.98, "load": 0.98, "loadUnit": 0.98 }
         }]
       }
     \`\`\``;
@@ -196,10 +199,131 @@ describe("Workout Capture V1", () => {
 
     expect(prompt).toContain("Never invent weights, sets, reps, duration, or exercise names.");
     expect(prompt).toContain("Tempo such as '1 sec up 3 sec down' belongs in note");
+    expect(prompt).toContain("Return fieldConfidence on every exercise");
+    expect(prompt).toContain("first two sets 10 last set 8");
     expect(prompt).toContain("Treat an exercise-name line followed by a sets/reps line as one exercise.");
     expect(prompt).toContain("Dumbbell Bench Press");
     expect(prompt).toContain("Cable Row");
     expect(prompt).toContain("Member input:\nDB bench 3x10");
+  });
+
+  it.each([
+    ["bench 80kg 10 10 8", { name: "Bench Press", sets: 3, reps: "10,10,8", load: 80, loadUnit: "kg", loadBasis: "total" }],
+    ["bench press 3x8 @80kg", { name: "Bench Press", sets: 3, reps: "8", load: 80, loadUnit: "kg", loadBasis: "total" }],
+    ["did bench 80 kilos first two sets 10 last set 8", { name: "Bench Press", sets: 3, reps: "10,10,8", load: 80, loadUnit: "kg", loadBasis: "total" }],
+    ["bench 80kg, 10 reps twice then only got 8", { name: "Bench Press", sets: 3, reps: "10,10,8", load: 80, loadUnit: "kg", loadBasis: "total" }],
+    ["bench press, 3 sets, 80, reps 10/10/8", { name: "Bench Press", sets: 3, reps: "10/10/8", load: 80, loadUnit: null, loadBasis: "unknown" }],
+    ["BP 80kg 10,10,8", { name: "Bench Press", sets: 3, reps: "10,10,8", load: 80, loadUnit: "kg", loadBasis: "total" }],
+    ["incline db 22.5 each hand x10 x9 x8", { name: "Incline Dumbbell Press", sets: 3, reps: "10,9,8", load: 22.5, loadUnit: "kg", loadBasis: "per_hand" }]
+  ])("keeps Zoe's field-aware meaning for natural input: %s", (input, expected) => {
+    const raw = JSON.stringify({
+      title: "Strength Workout",
+      workoutType: "Strength",
+      difficulty: "moderate",
+      durationMinutes: null,
+      confidence: 0.96,
+      exercises: [{
+        ...expected,
+        originalText: input,
+        durationMinutes: null,
+        restSeconds: null,
+        note: null,
+        movementPattern: "push",
+        confidence: 0.96,
+        needsConfirmation: false,
+        uncertainFields: [],
+        fieldConfidence: { name: 0.98, sets: 0.96, reps: 0.96, load: 0.96, loadUnit: 0.96, loadBasis: 0.94 }
+      }]
+    });
+
+    expect(normalizeWorkoutCaptureResponse(raw, input, "text").exercises[0]).toMatchObject({
+      ...expected,
+      needsConfirmation: false,
+      uncertainFields: []
+    });
+  });
+
+  it("keeps drop-set load changes and tempo as structured AI meaning", () => {
+    const input = "lat pulldown 4 sets 12 reps last set drop 55→40\nsquat 3x5 tempo 3-1-1";
+    const raw = JSON.stringify({
+      title: "Pull and Legs",
+      workoutType: "Strength",
+      difficulty: "moderate",
+      durationMinutes: null,
+      confidence: 0.95,
+      exercises: [
+        {
+          name: "Lat Pulldown", originalText: "lat pulldown 4 sets 12 reps last set drop 55→40", sets: 4, reps: "12", load: 55, loadUnit: null,
+          movementPattern: "pull", confidence: 0.96, needsConfirmation: false, trainingMethods: ["drop_set"], dropSet: true,
+          loadSteps: [{ value: 55, unit: null, basis: "machine_setting", role: "top", reps: "12", approximate: false, note: null, confidence: 0.95 }, { value: 40, unit: null, basis: "machine_setting", role: "drop", reps: null, approximate: false, note: null, confidence: 0.95 }],
+          fieldConfidence: { name: 0.99, sets: 0.98, reps: 0.98, load: 0.9, trainingMethods: 0.98, loadSteps: 0.95 }
+        },
+        {
+          name: "Back Squat", originalText: "squat 3x5 tempo 3-1-1", sets: 3, reps: "5", load: null, loadUnit: null,
+          note: "Tempo: 3-1-1", movementPattern: "squat", confidence: 0.97, needsConfirmation: false,
+          fieldConfidence: { name: 0.98, sets: 0.98, reps: 0.98, note: 0.97 }
+        }
+      ]
+    });
+
+    const draft = normalizeWorkoutCaptureResponse(raw, input, "text");
+    expect(draft.exercises[0].trainingMethods).toContain("drop_set");
+    expect(draft.exercises[0].loadSteps?.map((step) => step.value)).toEqual([55, 40]);
+    expect(draft.exercises[1]).toMatchObject({ sets: 3, reps: "5", note: "Tempo: 3-1-1" });
+  });
+
+  it("preserves alternating sets and mixed cardio circuits without keyword splitting", () => {
+    const input = "A1 bench 10 reps A2 rows 12 reps x4 rounds\nrun 5km 28min then 4 rounds pushups 15 / lunges 20";
+    const confidence = { name: 0.98, reps: 0.97, groupRounds: 0.96, trainingMethods: 0.96 };
+    const raw = JSON.stringify({
+      title: "Mixed Session", workoutType: "General Fitness", difficulty: "moderate", durationMinutes: null, confidence: 0.94,
+      exercises: [
+        { name: "Bench Press", originalText: "A1 bench 10 reps A2 rows 12 reps x4 rounds", sets: 4, reps: "10", movementPattern: "push", confidence: 0.95, needsConfirmation: false, trainingMethods: ["alternating_set"], supersetGroup: "A", groupRounds: 4, fieldConfidence: { ...confidence, sets: 0.96 } },
+        { name: "Row", originalText: "A1 bench 10 reps A2 rows 12 reps x4 rounds", sets: 4, reps: "12", movementPattern: "pull", confidence: 0.95, needsConfirmation: false, trainingMethods: ["alternating_set"], supersetGroup: "A", groupRounds: 4, fieldConfidence: { ...confidence, sets: 0.96 } },
+        { name: "Run", originalText: "run 5km 28min then 4 rounds pushups 15 / lunges 20", sets: null, reps: null, durationMinutes: 28, movementPattern: "cardio", confidence: 0.97, needsConfirmation: false, fieldConfidence: { name: 0.99, durationMinutes: 0.99 } },
+        { name: "Push-Ups", originalText: "run 5km 28min then 4 rounds pushups 15 / lunges 20", sets: 4, reps: "15", movementPattern: "push", confidence: 0.96, needsConfirmation: false, trainingMethods: ["circuit"], supersetGroup: "Circuit 1", groupRounds: 4, fieldConfidence: { ...confidence, sets: 0.97 } },
+        { name: "Lunges", originalText: "run 5km 28min then 4 rounds pushups 15 / lunges 20", sets: 4, reps: "20", movementPattern: "squat", confidence: 0.96, needsConfirmation: false, trainingMethods: ["circuit"], supersetGroup: "Circuit 1", groupRounds: 4, fieldConfidence: { ...confidence, sets: 0.97 } }
+      ]
+    });
+
+    const exercises = normalizeWorkoutCaptureResponse(raw, input, "text").exercises;
+    expect(exercises.map((exercise) => exercise.name)).toEqual(["Bench Press", "Row", "Run", "Push-Ups", "Lunges"]);
+    expect(exercises[0]).toMatchObject({ sets: 4, reps: "10", supersetGroup: "A" });
+    expect(exercises[2]).toMatchObject({ durationMinutes: 28, sets: null });
+    expect(exercises[3]).toMatchObject({ groupRounds: 4, reps: "15" });
+  });
+
+  it("asks only about sets and reps when 10 x 3 is materially ambiguous", () => {
+    const input = "Cable converging lower chest fly 10 x 3";
+    const raw = JSON.stringify({
+      title: "Chest", workoutType: "Strength", difficulty: "moderate", durationMinutes: null, confidence: 0.9,
+      exercises: [{
+        name: "Cable Converging Lower Chest Fly", originalText: input, sets: 10, reps: "3", load: null, loadUnit: null,
+        movementPattern: "push", confidence: 0.9, needsConfirmation: false, uncertainFields: [],
+        fieldConfidence: { name: 0.99, sets: 0.9, reps: 0.9 }
+      }]
+    });
+
+    const exercise = normalizeWorkoutCaptureResponse(raw, input, "text").exercises[0];
+    expect(exercise).toMatchObject({ name: "Cable Converging Lower Chest Fly", sets: 10, reps: "3", needsConfirmation: true });
+    expect(exercise.uncertainFields).toEqual(["sets", "reps"]);
+    expect(exercise.fieldConfidence?.name).toBe(0.99);
+  });
+
+  it("uses field confidence so a clear name and load survive uncertain sets and reps", () => {
+    const input = "Cable converging lower chest fly maybe 10 x 3 at 25kg";
+    const raw = JSON.stringify({
+      title: "Chest", workoutType: "Strength", difficulty: "moderate", durationMinutes: null, confidence: 0.8,
+      exercises: [{
+        name: "Cable Converging Lower Chest Fly", originalText: input, sets: 10, reps: "3", load: 25, loadUnit: "kg",
+        movementPattern: "push", confidence: 0.8, needsConfirmation: true, uncertainFields: ["sets", "reps"],
+        fieldConfidence: { name: 0.99, sets: 0.52, reps: 0.55, load: 0.97, loadUnit: 0.98 }
+      }]
+    });
+
+    const exercise = normalizeWorkoutCaptureResponse(raw, input, "text").exercises[0];
+    expect(exercise.uncertainFields).toEqual(["sets", "reps"]);
+    expect(exercise).toMatchObject({ name: "Cable Converging Lower Chest Fly", load: 25, loadUnit: "kg" });
   });
 
   it("converts saved structured workout metadata into a safe repeat draft", () => {
