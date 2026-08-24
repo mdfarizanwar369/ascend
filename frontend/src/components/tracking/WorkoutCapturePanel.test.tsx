@@ -152,6 +152,62 @@ describe("Detailed Workout receipt", () => {
     await waitFor(() => expect(analyze).toHaveBeenCalledWith({ text: "Chest workout", sourceMode: "text" }));
   });
 
+  it("shows timed-set duration in the workout receipt", async () => {
+    const timedReceipt: WorkoutCaptureDraft = {
+      ...receipt,
+      originalInput: "plank 3 x 45 sec",
+      title: "Core",
+      confidence: 0.97,
+      uncertainties: [],
+      requiresReview: true,
+      exercises: [{
+        name: "Plank",
+        originalText: "plank 3 x 45 sec",
+        sets: 3,
+        reps: null,
+        load: null,
+        loadUnit: null,
+        durationMinutes: null,
+        restSeconds: null,
+        note: null,
+        movementPattern: "core",
+        confidence: 0.97,
+        needsConfirmation: false,
+        loadBasis: "unknown",
+        trainingMethods: [],
+        loadSteps: [],
+        setDetails: [1, 2, 3].map((order) => ({
+          order,
+          reps: null,
+          repRangeMin: null,
+          repRangeMax: null,
+          load: null,
+          loadUnit: null,
+          loadBasis: "unknown" as const,
+          durationValue: 45,
+          durationUnit: "seconds" as const,
+          setType: "working" as const,
+          rpe: null,
+          rir: null,
+          approximate: false,
+          note: null
+        })),
+        uncertainFields: []
+      }]
+    };
+    analyze.mockResolvedValueOnce({ enabled: true, draft: timedReceipt, allowance: null });
+
+    render(<WorkoutCapturePanel onSaved={() => undefined} />);
+
+    fireEvent.change(screen.getByLabelText("What did you do?"), { target: { value: "plank 3 x 45 sec" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create Workout Receipt" }));
+
+    expect(await screen.findByRole("heading", { name: "Plank" })).toBeInTheDocument();
+    expect(screen.getByText("45 sec each set")).toBeInTheDocument();
+    expect(screen.getByText("Set 1: 45 sec")).toBeInTheDocument();
+    expect(screen.queryByText("Details not stated")).not.toBeInTheDocument();
+  });
+
   it("reopens a terminal saved debrief through GET and reuses it without another request", async () => {
     recent.mockResolvedValue({
       enabled: true,

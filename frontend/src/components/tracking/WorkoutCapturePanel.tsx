@@ -89,12 +89,22 @@ function formatLoad(value: number | null | undefined, unit: "kg" | "lb" | null |
   return `${value}${suffix}${basisLabel ? ` ${basisLabel}` : ""}`;
 }
 
+function formatDuration(value: number | null | undefined, unit: "seconds" | "minutes" | null | undefined) {
+  if (value === null || value === undefined || !unit) return null;
+  return unit === "seconds" ? `${value} sec` : `${value} min`;
+}
+
 function exerciseFacts(exercise: WorkoutCaptureExercise) {
+  const setDurations = [...new Set((exercise.setDetails ?? [])
+    .map((set) => formatDuration(set.durationValue, set.durationUnit))
+    .filter((value): value is string => Boolean(value)))];
   const facts = [
     exercise.sets ? `${exercise.sets} ${exercise.sets === 1 ? "set" : "sets"}` : null,
     exercise.reps ? `${exercise.approximateReps ? "~" : ""}${exercise.reps} reps` : null,
     formatLoad(exercise.load, exercise.loadUnit, exercise.loadBasis),
+    exercise.loadText,
     exercise.durationValue && exercise.durationUnit ? `${exercise.durationValue} ${exercise.durationUnit}` : exercise.durationMinutes ? `${exercise.durationMinutes} min` : null,
+    setDurations.length === 1 ? `${setDurations[0]} each set` : null,
     exercise.rpe ? `RPE ${exercise.rpe}` : null,
     exercise.rir !== null && exercise.rir !== undefined ? `${exercise.rir} RIR` : null,
     exercise.restSeconds !== null && exercise.restSeconds !== undefined ? `${exercise.restSeconds}s rest` : null,
@@ -754,7 +764,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
                     <div className="mt-3 grid gap-1.5 sm:grid-cols-2">
                       {exercise.setDetails.slice(0, 8).map((set) => (
                         <p key={`${set.order}-${set.load}-${set.reps}`} className="rounded-lg bg-surface px-2.5 py-2 text-xs text-zinc-400">
-                          Set {set.order}: {[formatLoad(set.load, set.loadUnit, set.loadBasis), set.reps ? `${set.reps} reps` : null, set.rpe ? `RPE ${set.rpe}` : null].filter(Boolean).join(" / ") || "Details not stated"}
+                          Set {set.order}: {[formatLoad(set.load, set.loadUnit, set.loadBasis), set.reps ? `${set.reps} reps` : null, formatDuration(set.durationValue, set.durationUnit), set.rpe ? `RPE ${set.rpe}` : null].filter(Boolean).join(" / ") || "Details not stated"}
                         </p>
                       ))}
                     </div>

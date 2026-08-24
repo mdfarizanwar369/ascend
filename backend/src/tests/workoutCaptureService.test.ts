@@ -201,6 +201,7 @@ describe("Workout Capture V1", () => {
     expect(prompt).toContain("Tempo such as '1 sec up 3 sec down' belongs in note");
     expect(prompt).toContain("Return fieldConfidence on every exercise");
     expect(prompt).toContain("first two sets 10 last set 8");
+    expect(prompt).toContain("A plate count is not a weight");
     expect(prompt).toContain("Treat an exercise-name line followed by a sets/reps line as one exercise.");
     expect(prompt).toContain("Dumbbell Bench Press");
     expect(prompt).toContain("Cable Row");
@@ -363,6 +364,41 @@ describe("Workout Capture V1", () => {
     const exercise = normalizeWorkoutCaptureResponse(raw, input, "text").exercises[0];
     expect(exercise.needsConfirmation).toBe(false);
     expect(exercise.uncertainFields).toEqual([]);
+  });
+
+  it("preserves plate counts as text instead of inventing a numeric weight", () => {
+    const input = "leg press 4x10 with 2 plates each side";
+    const raw = JSON.stringify({
+      title: "Legs", workoutType: "Strength", difficulty: "moderate", durationMinutes: null, confidence: 0.93,
+      exercises: [{
+        name: "Leg Press", originalText: input, sets: 4, reps: "10", load: 2, loadUnit: null, loadBasis: "per_side",
+        loadText: null, movementPattern: "squat", confidence: 0.93, needsConfirmation: false,
+        loadSteps: [{ value: 2, unit: null, basis: "per_side", role: "working", reps: null, approximate: false, note: null, confidence: 0.93 }],
+        setDetails: [{ order: 1, reps: "10", load: 2, loadUnit: null, loadBasis: "per_side", durationValue: null, durationUnit: null, setType: "working", rpe: null, rir: null, approximate: false, note: null }],
+        fieldConfidence: { name: 0.98, sets: 0.95, reps: 0.95, load: 0.95, loadBasis: 0.95, loadSteps: 0.95, setDetails: 0.95 }
+      }]
+    });
+
+    const exercise = normalizeWorkoutCaptureResponse(raw, input, "text").exercises[0];
+    expect(exercise).toMatchObject({ load: null, loadUnit: null, loadBasis: "per_side", loadText: "2 plates each side" });
+    expect(exercise.loadSteps).toEqual([]);
+    expect(exercise.setDetails?.[0]).toMatchObject({ load: null, loadUnit: null, reps: "10" });
+  });
+
+  it("counts a rep range as one set entry and keeps explicit sets trusted", () => {
+    const input = "shoulder press 20kg 3 sets, 10, 9, last set maybe 7 or 8";
+    const raw = JSON.stringify({
+      title: "Shoulders", workoutType: "Strength", difficulty: "moderate", durationMinutes: null, confidence: 0.9,
+      exercises: [{
+        name: "Shoulder Press", originalText: input, sets: 3, reps: "10,9,7-8", load: 20, loadUnit: "kg",
+        movementPattern: "push", confidence: 0.9, needsConfirmation: true, uncertainFields: ["reps"],
+        fieldConfidence: { name: 0.98, sets: 0.95, reps: 0.55, load: 0.95, loadUnit: 0.95 }
+      }]
+    });
+
+    const exercise = normalizeWorkoutCaptureResponse(raw, input, "text").exercises[0];
+    expect(exercise).toMatchObject({ sets: 3, reps: "10,9,7-8", needsConfirmation: true });
+    expect(exercise.uncertainFields).toEqual(["reps"]);
   });
 
   it("converts saved structured workout metadata into a safe repeat draft", () => {

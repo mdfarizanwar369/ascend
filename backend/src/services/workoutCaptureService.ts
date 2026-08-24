@@ -57,6 +57,23 @@ function repsText(value: unknown, maxLength = 80) {
   return text(value, maxLength);
 }
 
+function plateCountText(evidence: string) {
+  const match = evidence.match(/\b\d+(?:\.\d+)?\s*plates?\s*(?:(?:on|per|each|a)\s*)?(?:each\s*)?side\b/i);
+  return match?.[0]?.trim() ?? null;
+}
+
+function repEntryCount(value: string | null) {
+  if (!value) return 0;
+  const entries = value
+    .split(/\s*(?:,|\/)\s*/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (entries.length > 1) return entries.length;
+  return /^\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?$/.test(value.trim())
+    ? 1
+    : value.match(/\d+(?:\.\d+)?/g)?.length ?? 0;
+}
+
 function number(value: unknown, min: number, max: number) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
@@ -403,8 +420,8 @@ function ambiguousSetRepFields(evidence: string, sets: number | null, reps: stri
   if (barePair && Number(barePair[1]) > 8 && Number(barePair[2]) <= 8 && !/\b(?:sets?|reps?)\b/i.test(evidence)) {
     fields.push("sets", "reps");
   }
-  const repSequence = reps?.match(/\d+(?:\.\d+)?/g) ?? [];
-  if (sets !== null && repSequence.length > 1 && repSequence.length !== sets) fields.push("sets", "reps");
+  const repEntries = repEntryCount(reps);
+  if (sets !== null && repEntries > 1 && repEntries !== sets) fields.push("sets", "reps");
   return fields;
 }
 
@@ -469,11 +486,13 @@ export function normalizeWorkoutCaptureResponse(
       const proposedReps = repsText(row.reps);
       const proposedDuration = integer(row.durationMinutes, 1, 300);
       const proposedLoad = number(row.load, 0, 2_000);
+      const plateCount = plateCountText(evidence);
+      const plateCountWithoutMass = Boolean(plateCount) && !/\b\d+(?:\.\d+)?\s*(?:kg|kgs|kilos?|lb|lbs|pounds?)\b/i.test(evidence);
       const hasExplicitZeroLoad = /\b0(?:\.0+)?\s*(?:kg|kgs|kilos?|lb|lbs|pounds?)\b/i.test(evidence);
       const sets = isFieldAwareResponse || supportsSets(evidence, proposedSets) ? proposedSets : null;
       const reps = isFieldAwareResponse || supportsReps(evidence, proposedReps) ? proposedReps : null;
       const durationMinutes = isFieldAwareResponse || supportsDuration(evidence, proposedDuration) ? proposedDuration : null;
-      const load = proposedLoad === 0 && !hasExplicitZeroLoad
+      const load = plateCountWithoutMass || proposedLoad === 0 && !hasExplicitZeroLoad
         ? null
         : isFieldAwareResponse || supportsLoad(evidence, proposedLoad) ? proposedLoad : null;
       const rawUnit = text(row.loadUnit, 8)?.toLowerCase();
@@ -481,9 +500,10 @@ export function normalizeWorkoutCaptureResponse(
       const proposedRpe = number(row.rpe, 1, 10);
       const proposedRir = number(row.rir, 0, 10);
       const methods = isFieldAwareResponse ? normalizedMethods(row.trainingMethods) : [];
-      const loadSteps = (isFieldAwareResponse ? normalizedLoadSteps(row.loadSteps) : [])
+      const loadSteps = (plateCountWithoutMass ? [] : isFieldAwareResponse ? normalizedLoadSteps(row.loadSteps) : [])
         .filter((step, stepIndex, all) => !all.slice(0, stepIndex).some((candidate) => candidate.value === step.value && candidate.unit === step.unit && candidate.role === step.role));
       const setDetails = (isFieldAwareResponse ? normalizedSetDetails(row.setDetails) : [])
+        .map((detail) => plateCountWithoutMass ? { ...detail, load: null, loadUnit: null } : detail)
         .filter((detail, detailIndex, all) => !all.slice(0, detailIndex).some((candidate) => candidate.order === detail.order && candidate.load === detail.load && candidate.reps === detail.reps));
       const section = text(row.section, 80);
       const loadBasis = loadBasisValue(row.loadBasis);
@@ -514,11 +534,11 @@ export function normalizeWorkoutCaptureResponse(
         durationValue: number(row.durationValue, 0, 3_600),
         durationUnit: row.durationUnit === "seconds" || row.durationUnit === "minutes" ? row.durationUnit : null,
         loadBasis,
-        loadText: text(row.loadText, 300),
-        startingLoad: number(row.startingLoad, 0, 2_000),
-        workingLoad: number(row.workingLoad, 0, 2_000),
-        topLoad: number(row.topLoad, 0, 2_000),
-        backoffLoad: number(row.backoffLoad, 0, 2_000),
+        loadText: plateCount ?? text(row.loadText, 300),
+        startingLoad: plateCountWithoutMass ? null : number(row.startingLoad, 0, 2_000),
+        workingLoad: plateCountWithoutMass ? null : number(row.workingLoad, 0, 2_000),
+        topLoad: plateCountWithoutMass ? null : number(row.topLoad, 0, 2_000),
+        backoffLoad: plateCountWithoutMass ? null : number(row.backoffLoad, 0, 2_000),
         rpe: proposedRpe,
         rir: proposedRir,
         restStyle: text(row.restStyle, 80),
@@ -604,6 +624,7 @@ export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: st
     "The reps field must always be a JSON string, even for one number or a per-set sequence. Examples: 8 becomes \"8\" and [10, 10, 8] becomes \"10,10,8\". Never return reps as a JSON number or array. Also populate setDetails for per-set performance when useful.",
     "Understand normal human shorthand and derived meaning. Examples: '80kg 10 10 8' means one 80kg load with per-set reps 10,10,8; 'first two sets 10 last set 8' means 3 sets with reps 10,10,8; '22.5 each hand x10 x9 x8' means 3 sets, per-hand load, and per-set reps; A1/A2 with rounds is grouped alternating work.",
     "Keep the member's original unit. Preserve whether load is total, per side, per hand/dumbbell, assistance, bodyweight, bodyweight plus load, a machine setting, a band, or unknown.",
+    "A plate count is not a weight. For wording such as '2 plates each side' with no plate mass, set load and loadUnit to null, preserve the wording in loadText, and use per_side as loadBasis.",
     "Preserve section headings such as Warm-up, Chest, Back, Conditioning, Finisher, and Cooldown when supplied.",
     "Preserve progressive loads and corrections in loadSteps. Distinguish starting, working, top, backoff, drop, correction, and unknown load roles.",
     "Recognize explicitly stated ramp-up, back-off, drop set, FST-7, rest-pause, AMRAP, superset, alternating set, giant set, circuit, and short-rest work. Never infer a method that was not stated.",
