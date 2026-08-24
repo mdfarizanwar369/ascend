@@ -3,11 +3,11 @@ import { AscendDemoExperience } from "@/components/demo/AscendDemoExperience";
 
 export const metadata: Metadata = {
   title: "Ascend Live Product Tour | The Other 166 Hours",
-  description: "See a slower, screenshot-led walkthrough of how Ascend supports members, Coach Zoe, trainers, Athlete Mode, and gym owners between sessions.",
+  description: "See the current Ascend experience across Today's Essentials, meal logging, Coach Zoe, workouts, Journey, Body Scan, trainers, and gym owners.",
   alternates: { canonical: "https://www.getascend.fit/demo" },
   openGraph: {
     title: "Ascend Live Product Tour",
-    description: "A real-product walkthrough of how Ascend covers the other 166 hours between sessions.",
+    description: "A current product walkthrough of how Ascend turns daily actions into better coaching between sessions.",
     url: "https://www.getascend.fit/demo",
     siteName: "Ascend"
   }
