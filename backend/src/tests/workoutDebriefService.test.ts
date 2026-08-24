@@ -21,11 +21,11 @@ const OTHER_USER_ID = "22222222-2222-4222-8222-222222222222";
 const EVENT_ID = "33333333-3333-4333-8333-333333333333";
 
 const generatedOutput = {
-  accomplishment: "You completed an upper body strength session.",
-  observation: "Both pushing and pulling work were recorded.",
-  recoveryGuidance: "Prioritise hydration, protein, and sleep as you recover.",
-  nextConsideration: "Use the stored progression guidance or choose a different focus next time.",
-  debrief: "Your upper body strength session is complete, with both pushing and pulling work recorded. The balanced pattern gives Ascend a useful training reference without assuming how each exercise felt. Prioritise hydration, protein, and sleep as you recover. Next time, follow the stored progression guidance or choose a different focus if that better suits your day."
+  accomplishment: "Dumbbell Press and Cable Row were both recorded.",
+  observation: "The session paired a push with a pull movement.",
+  recoveryGuidance: "No specific recovery conclusion is supported by the workout record.",
+  nextConsideration: "Repeat Dumbbell Press next time and record the load or effort.",
+  debrief: "Dumbbell Press and Cable Row gave this upper-body session a clear push-pull structure. Next time, repeat Dumbbell Press and record the load or effort so Ascend has one measurable comparison."
 };
 
 function generatedReply(output = generatedOutput) {
@@ -329,18 +329,109 @@ describe("Coach Zoe Workout Debrief V1", () => {
 
     const systemPrompt = generate.mock.calls[0]?.[0] ?? "";
     const userPrompt = generate.mock.calls[0]?.[1] ?? "";
-    expect(WORKOUT_DEBRIEF_PROMPT_VERSION).toBe("coach-zoe-workout-debrief-v1.1");
+    expect(WORKOUT_DEBRIEF_PROMPT_VERSION).toBe("coach-zoe-workout-debrief-v1.2");
     expect(systemPrompt).toContain("Choose the strongest grounded observation first");
     expect(systemPrompt).toContain("Do not routinely repeat the workout title or begin with 'You completed'");
     expect(systemPrompt).toContain("hard maximum of 80 words");
-    expect(systemPrompt).toContain("25 to 50 words with sparse evidence");
-    expect(systemPrompt).toContain("Do not force a next-session recommendation");
+    expect(systemPrompt).toContain("25 to 45 words with sparse evidence");
+    expect(systemPrompt).toContain("single most useful action");
+    expect(systemPrompt).toContain("only when that exact value is supplied in currentWorkout");
     expect(systemPrompt).toContain("avoid database-like phrases");
     expect(systemPrompt).toContain("must omit generic sleep, hydration, protein, rest, soreness, and fatigue advice");
     expect(systemPrompt).toContain("Never assess form or technique");
     expect(userPrompt).toContain("This is completion-only evidence");
     expect(userPrompt).toContain("lead with the strongest supported focus or movement-pattern interpretation");
     expect(userPrompt).toContain("Do not ask for loads, sets, reps, ratings, notes, or any additional tracking");
+  });
+
+  it("supplies exact confirmed details and ambiguities for an evidence-led custom-workout review", async () => {
+    const metadata = {
+      source: "ai_workout_capture",
+      workoutTitle: "My Workout",
+      workoutType: "Strength",
+      exercises: [
+        { name: "Plate-Loaded Chest Press", movementPattern: "push", sets: 4, reps: "10", confidence: 0.98, needsConfirmation: false },
+        { name: "Cable Incline Chest Fly", movementPattern: "push", sets: 4, reps: "10", confidence: 0.96, needsConfirmation: false },
+        { name: "Machine Chest Press", movementPattern: "push", sets: 4, reps: "6", note: "1 sec up 3 sec down", confidence: 0.97, needsConfirmation: false },
+        { name: "Cable Converging Lower Chest Fly", movementPattern: "push", sets: 10, reps: "3", confidence: 0.58, needsConfirmation: true, uncertainFields: ["sets", "reps"] }
+      ]
+    };
+    const context: GenerationContext = {
+      current: { id: EVENT_ID, userId: USER_ID, gymId: null, metadata, createdAt: new Date().toISOString() },
+      goal: "muscle_gain",
+      recent: []
+    };
+    const { store } = createMemoryStore({ context });
+    const generate = vi.fn(async (_systemPrompt: string, _userPrompt: string) => generatedReply({
+      accomplishment: "Three confirmed chest exercises were recorded.",
+      observation: "Machine Chest Press used 4 sets of 6 reps with a 1-up, 3-down tempo.",
+      recoveryGuidance: "No specific recovery conclusion is supported by the workout record.",
+      nextConsideration: "Confirm the final cable fly details before comparing progress.",
+      debrief: "Machine Chest Press was recorded for 4 sets of 6 reps with a 1-up, 3-down tempo. Confirm whether Cable Converging Lower Chest Fly was 10 sets of 3 reps before using this workout as a progress comparison."
+    }));
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata
+    }, deps);
+
+    const result = await generateWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+    const systemPrompt = generate.mock.calls[0]?.[0] ?? "";
+    const userPrompt = generate.mock.calls[0]?.[1] ?? "";
+
+    expect(result).toMatchObject({ status: "generated", source: "ai" });
+    expect(result?.text).toContain("4 sets of 6 reps");
+    expect(result?.text).toContain("Confirm whether Cable Converging Lower Chest Fly");
+    expect(systemPrompt).toContain("mention at least one exercise by name");
+    expect(userPrompt).toContain('"needsConfirmation":true');
+    expect(userPrompt).toContain('"note":"1 sec up 3 sec down"');
+    expect(userPrompt).toContain('"confirmedExerciseCount":3');
+  });
+
+  it("rejects a vague custom-workout review and uses one specific fallback without retrying AI", async () => {
+    const metadata = {
+      source: "ai_workout_capture",
+      workoutTitle: "My Workout",
+      workoutType: "Strength",
+      exercises: [
+        { name: "Plate-Loaded Chest Press", movementPattern: "push", sets: 4, reps: "10", confidence: 0.98, needsConfirmation: false },
+        { name: "Cable Incline Chest Fly", movementPattern: "push", sets: 4, reps: "10", confidence: 0.96, needsConfirmation: false },
+        { name: "Machine Chest Press", movementPattern: "push", sets: 4, reps: "6", confidence: 0.97, needsConfirmation: false },
+        { name: "Cable Converging Lower Chest Fly", movementPattern: "push", sets: 10, reps: "3", confidence: 0.58, needsConfirmation: true, uncertainFields: ["sets", "reps"] }
+      ]
+    };
+    const context: GenerationContext = {
+      current: { id: EVENT_ID, userId: USER_ID, gymId: null, metadata, createdAt: new Date().toISOString() },
+      goal: "muscle_gain",
+      recent: []
+    };
+    const { store } = createMemoryStore({ context });
+    const generate = vi.fn(async () => generatedReply({
+      accomplishment: "A detailed performance baseline was saved.",
+      observation: "This session brought together several push movements.",
+      recoveryGuidance: "No specific recovery conclusion is supported by the record.",
+      nextConsideration: "Repeat this performance before making a larger change.",
+      debrief: "A detailed performance baseline was saved for your push-focused strength workout. This session brought together several push movements. Consider repeating this performance once before making a larger change."
+    }));
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata
+    }, deps);
+
+    const result = await generateWorkoutDebrief({ workoutEventId: EVENT_ID, userId: USER_ID, isPlatformOwner: false }, deps);
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "fallback", source: "deterministic" });
+    expect(result?.text).toContain("3 confirmed exercises");
+    expect(result?.text).toContain("1 exercise still needs review");
+    expect(result?.text).toContain("Confirm whether Cable Converging Lower Chest Fly was 10 sets of 3 reps");
   });
 
   it("removes impossible tracking requests from completion-only provider output without another AI call", async () => {
@@ -406,6 +497,50 @@ describe("Coach Zoe Workout Debrief V1", () => {
     })).toBe("Your 30-minute running has been recorded and added to today's activity.");
   });
 
+  it.each([
+    {
+      label: "cardio",
+      metadata: {
+        workoutTitle: "Treadmill Session",
+        workoutType: "Cardio",
+        exercises: [{ name: "Treadmill Run", movementPattern: "cardio", durationValue: 30, durationUnit: "minutes", confidence: 0.95 }]
+      },
+      expected: "repeat Treadmill Run for 30 minutes as the comparison point"
+    },
+    {
+      label: "recovery",
+      metadata: {
+        workoutTitle: "Mobility Reset",
+        workoutType: "Mobility",
+        exercises: [{ name: "Hip Mobility Flow", movementPattern: "mobility", durationValue: 12, durationUnit: "minutes", confidence: 0.93 }]
+      },
+      expected: "repeat Hip Mobility Flow for 12 minutes as the comparison point"
+    },
+    {
+      label: "sparse",
+      metadata: {
+        workoutTitle: "Core Session",
+        workoutType: "Strength",
+        exercises: [{ name: "Plank", movementPattern: "core", confidence: 0.9 }]
+      },
+      expected: "Record one measurable detail for Plank next time"
+    },
+    {
+      label: "repeated strength",
+      metadata: {
+        workoutTitle: "Lower Strength",
+        workoutType: "Strength",
+        exercises: [{ name: "Deadlift", movementPattern: "hinge", sets: 3, reps: "5", load: 80, loadUnit: "kg", confidence: 0.98 }]
+      },
+      expected: "repeat Deadlift for 3 sets of 5 reps at 80 kg as the comparison point"
+    }
+  ])("keeps the $label fallback specific and measurable", ({ metadata, expected }) => {
+    expect(deterministicWorkoutAcknowledgement({
+      source: "ai_workout_capture",
+      metadata
+    })).toContain(expected);
+  });
+
   it("supports global and platform-owner pilot rollout without a frontend flag", () => {
     expect(workoutDebriefRolloutMode({ isPlatformOwner: false, enabledForAll: false, ownerPilotEnabled: false })).toBe("disabled");
     expect(workoutDebriefRolloutMode({ isPlatformOwner: true, enabledForAll: false, ownerPilotEnabled: true })).toBe("active");
@@ -418,6 +553,11 @@ describe("Coach Zoe Workout Debrief V1", () => {
       ...generatedOutput,
       accomplishment: "You completed 4 exercises."
     }))).toThrow("numeric claims");
+    expect(validateWorkoutDebriefOutput(JSON.stringify({
+      ...generatedOutput,
+      accomplishment: "You completed 4 recorded exercises.",
+      debrief: "Dumbbell Press was recorded for 4 sets of 10 reps, giving this session one clear comparison point. Next time, repeat that prescription and record the load or effort so Ascend can compare progress."
+    }), { allowedNumbers: [4, 10] }).debrief).toContain("4 sets of 10 reps");
     expect(() => validateWorkoutDebriefOutput(JSON.stringify({
       ...generatedOutput,
       observation: "Your technique looked perfect."

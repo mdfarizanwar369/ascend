@@ -17,7 +17,7 @@ import { createWorkoutDebriefProviderReply, WorkoutDebriefProviderReply } from "
 import { logAiUsage } from "./aiUsageService";
 import { buildWorkoutMemorySummary } from "./workoutMemoryService";
 
-export const WORKOUT_DEBRIEF_PROMPT_VERSION = "coach-zoe-workout-debrief-v1.1";
+export const WORKOUT_DEBRIEF_PROMPT_VERSION = "coach-zoe-workout-debrief-v1.2";
 
 type WorkoutEvent = {
   id: string;
@@ -346,6 +346,103 @@ function stableUnique(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+type DebriefExerciseEvidence = {
+  name: string;
+  sets: number | null;
+  reps: string | null;
+  load: number | null;
+  loadUnit: string | null;
+  durationMinutes: number | null;
+  durationValue: number | null;
+  durationUnit: string | null;
+  restSeconds: number | null;
+  note: string | null;
+  movementPattern: string | null;
+  confidence: number;
+  needsConfirmation: boolean;
+  uncertainFields: string[];
+};
+
+function debriefExerciseEvidence(metadata: Record<string, unknown>): DebriefExerciseEvidence[] {
+  return exercisesFromMetadata(metadata).map((exercise) => ({
+    name: text(exercise.name) ?? "Exercise",
+    sets: finiteNumber(exercise.sets),
+    reps: text(exercise.reps),
+    load: finiteNumber(exercise.load),
+    loadUnit: text(exercise.loadUnit),
+    durationMinutes: finiteNumber(exercise.durationMinutes)
+      ?? (text(exercise.durationUnit) === "minutes" ? finiteNumber(exercise.durationValue) : null),
+    durationValue: finiteNumber(exercise.durationValue),
+    durationUnit: text(exercise.durationUnit),
+    restSeconds: finiteNumber(exercise.restSeconds),
+    note: text(exercise.note),
+    movementPattern: text(exercise.movementPattern),
+    confidence: clamp(finiteNumber(exercise.confidence) ?? 1, 0, 1),
+    needsConfirmation: exercise.needsConfirmation === true,
+    uncertainFields: Array.isArray(exercise.uncertainFields)
+      ? exercise.uncertainFields.map(text).filter((item): item is string => Boolean(item)).slice(0, 10)
+      : []
+  }));
+}
+
+function exercisePrescription(exercise: DebriefExerciseEvidence) {
+  let prescription = "";
+  if (exercise.sets !== null && exercise.reps) {
+    prescription = `${Math.round(exercise.sets)} sets of ${exercise.reps} reps`;
+  } else if (exercise.sets !== null) {
+    prescription = `${Math.round(exercise.sets)} sets`;
+  } else if (exercise.reps) {
+    prescription = `${exercise.reps} reps`;
+  }
+  if (exercise.load !== null) {
+    prescription += `${prescription ? " at " : ""}${exercise.load}${exercise.loadUnit ? ` ${exercise.loadUnit}` : ""}`;
+  }
+  if (!prescription && exercise.durationValue !== null && exercise.durationUnit) {
+    prescription = `${exercise.durationValue} ${exercise.durationUnit}`;
+  } else if (!prescription && exercise.durationMinutes !== null) {
+    prescription = `${Math.round(exercise.durationMinutes)} minutes`;
+  }
+  return prescription;
+}
+
+function measurableNextStep(exercises: DebriefExerciseEvidence[]) {
+  const uncertain = exercises.find((exercise) => exercise.needsConfirmation);
+  if (uncertain) {
+    const prescription = exercisePrescription(uncertain);
+    return `Confirm${prescription ? ` whether ${uncertain.name} was ${prescription}` : ` the details for ${uncertain.name}`} before using it as a progress comparison.`;
+  }
+
+  const comparable = exercises.find((exercise) => (
+    !exercise.needsConfirmation
+    && exercise.confidence >= 0.7
+    && (exercise.sets !== null || exercise.reps !== null || exercise.load !== null || exercise.durationMinutes !== null || exercise.durationValue !== null)
+  ));
+  if (!comparable) {
+    const named = exercises.find((exercise) => !exercise.needsConfirmation && exercise.name !== "Exercise");
+    return named
+      ? `Record one measurable detail for ${named.name} next time so Ascend can compare it.`
+      : "Record one exercise with its sets and reps next time so Ascend can make a useful comparison.";
+  }
+
+  const prescription = exercisePrescription(comparable);
+  if (comparable.load === null && comparable.durationMinutes === null && comparable.durationValue === null) {
+    return `Next time, repeat ${comparable.name}${prescription ? ` for ${prescription}` : ""} and record the load or effort so Ascend can compare progress.`;
+  }
+  return `Next time, repeat ${comparable.name}${prescription ? ` for ${prescription}` : ""} as the comparison point and change only one variable.`;
+}
+
+function coachingEvidence(metadata: Record<string, unknown>) {
+  const exercises = debriefExerciseEvidence(metadata);
+  const confirmed = exercises.filter((exercise) => !exercise.needsConfirmation && exercise.confidence >= 0.7);
+  const uncertain = exercises.filter((exercise) => exercise.needsConfirmation);
+  return {
+    exerciseCount: exercises.length,
+    confirmedExerciseCount: confirmed.length,
+    uncertainExerciseCount: uncertain.length,
+    measurableNextStep: measurableNextStep(exercises)
+  };
+}
+
 export function buildWorkoutSignalV1(input: {
   source: WorkoutDebriefSource;
   metadata: Record<string, unknown>;
@@ -408,6 +505,22 @@ export function deterministicWorkoutAcknowledgement(input: {
       return `${prefix} has been recorded. It adds useful low-intensity movement to your day.`;
     }
     return `${prefix} has been recorded and added to today's activity.`;
+  }
+  const exercises = debriefExerciseEvidence(input.metadata);
+  if (input.source === "ai_workout_capture" && exercises.length) {
+    const signal = buildWorkoutSignalV1({ source: input.source, metadata: input.metadata });
+    const focus = signal.trainingFocus[0]
+      ? `${signal.trainingFocus[0].replace(/_/g, " ")}-focused `
+      : "";
+    const confirmedCount = exercises.filter((exercise) => !exercise.needsConfirmation && exercise.confidence >= 0.7).length;
+    const uncertainCount = exercises.filter((exercise) => exercise.needsConfirmation).length;
+    const evidence = confirmedCount
+      ? `${confirmedCount} confirmed exercise${confirmedCount === 1 ? "" : "s"}`
+      : `${exercises.length} recorded exercise${exercises.length === 1 ? "" : "s"}`;
+    const uncertainty = uncertainCount
+      ? ` ${uncertainCount} exercise${uncertainCount === 1 ? "" : "s"} still need${uncertainCount === 1 ? "s" : ""} review.`
+      : "";
+    return `Your ${focus}${activity?.toLowerCase() ?? "workout"} is saved with ${evidence}.${uncertainty} ${measurableNextStep(exercises)}`;
   }
   if (title) return `Workout saved. ${title} has been added to your training history.`;
   return "Workout saved. Your session has been recorded and your training history has been updated.";
@@ -498,12 +611,27 @@ function parseJsonObject(value: string) {
   return JSON.parse(cleaned) as unknown;
 }
 
-export function validateWorkoutDebriefOutput(value: string): WorkoutDebriefOutput {
+function numericTokens(value: unknown): string[] {
+  if (typeof value === "number" && Number.isFinite(value)) return [String(Number(value))];
+  if (typeof value === "string") {
+    return (value.match(/\d+(?:\.\d+)?/g) ?? []).map((token) => String(Number(token)));
+  }
+  if (Array.isArray(value)) return value.flatMap(numericTokens);
+  if (value && typeof value === "object") return Object.values(value).flatMap(numericTokens);
+  return [];
+}
+
+export function validateWorkoutDebriefOutput(
+  value: string,
+  options: { allowedNumbers?: Iterable<string | number> } = {}
+): WorkoutDebriefOutput {
   const output = outputSchema.parse(parseJsonObject(value));
   const wordCount = output.debrief.split(/\s+/).filter(Boolean).length;
   if (wordCount < 20 || wordCount > 80) throw new Error("Workout debrief length is outside the allowed range.");
   const combined = Object.values(output).join(" ");
-  if (/\d/.test(combined)) throw new Error("Workout debrief introduced numeric claims.");
+  const allowedNumbers = new Set(Array.from(options.allowedNumbers ?? [], (number) => String(Number(number))));
+  const unsupportedNumber = numericTokens(combined).find((number) => !allowedNumbers.has(number));
+  if (unsupportedNumber !== undefined) throw new Error("Workout debrief introduced unsupported numeric claims.");
   if (prohibitedOutput.some((pattern) => pattern.test(combined))) {
     throw new Error("Workout debrief violated the safety language contract.");
   }
@@ -535,14 +663,7 @@ function enforceWorkoutSpecificOutput(output: WorkoutDebriefOutput, signal: Work
 }
 
 function aiContext(context: GenerationContext, signal: WorkoutSignalV1) {
-  const currentExercises = exercisesFromMetadata(context.current.metadata).map((exercise) => ({
-    name: text(exercise.name),
-    sets: finiteNumber(exercise.sets),
-    reps: text(exercise.reps),
-    load: finiteNumber(exercise.load),
-    loadUnit: text(exercise.loadUnit),
-    movementPattern: text(exercise.movementPattern)
-  }));
+  const currentExercises = debriefExerciseEvidence(context.current.metadata);
   const progressionV3 = signal.notableSignals.includes("progression_verified")
     ? progressionV3FromMetadata(context.current.metadata)
     : null;
@@ -553,6 +674,7 @@ function aiContext(context: GenerationContext, signal: WorkoutSignalV1) {
       difficulty: text(context.current.metadata.workoutDifficultyLabel) ?? text(context.current.metadata.workoutDifficulty),
       durationMinutes: finiteNumber(context.current.metadata.durationMinutes),
       exercises: currentExercises,
+      coachingEvidence: coachingEvidence(context.current.metadata),
       signal,
       progression: progressionV3 ? {
         status: progressionV3.overallStatus,
@@ -576,13 +698,71 @@ function aiContext(context: GenerationContext, signal: WorkoutSignalV1) {
   };
 }
 
+function allowedDebriefNumbers(context: ReturnType<typeof aiContext>) {
+  return numericTokens({
+    durationMinutes: context.currentWorkout.durationMinutes,
+    exercises: context.currentWorkout.exercises.map((exercise) => ({
+      sets: exercise.sets,
+      reps: exercise.reps,
+      load: exercise.load,
+      durationMinutes: exercise.durationMinutes,
+      durationValue: exercise.durationValue,
+      restSeconds: exercise.restSeconds,
+      note: exercise.note
+    })),
+    coachingEvidence: {
+      exerciseCount: context.currentWorkout.coachingEvidence.exerciseCount,
+      confirmedExerciseCount: context.currentWorkout.coachingEvidence.confirmedExerciseCount,
+      uncertainExerciseCount: context.currentWorkout.coachingEvidence.uncertainExerciseCount
+    },
+    progression: context.currentWorkout.progression ? {
+      headline: context.currentWorkout.progression.headline,
+      achievements: context.currentWorkout.progression.achievements,
+      reviewNotes: context.currentWorkout.progression.reviewNotes,
+      nextSessionFocus: context.currentWorkout.progression.nextSessionFocus
+    } : null
+  });
+}
+
+function assertEvidenceLedDebrief(output: WorkoutDebriefOutput, context: ReturnType<typeof aiContext>) {
+  const signal = context.currentWorkout.signal;
+  if (signal.prescribedComparison === "completion_only") return;
+
+  const debrief = output.debrief.toLowerCase();
+  const exercises = context.currentWorkout.exercises;
+  const hasDetailedEvidence = exercises.some((exercise) => (
+    exercise.sets !== null
+    || exercise.reps !== null
+    || exercise.load !== null
+    || exercise.durationMinutes !== null
+    || exercise.durationValue !== null
+    || exercise.note !== null
+  ));
+  const citesExercise = exercises.some((exercise) => debrief.includes(exercise.name.toLowerCase()));
+  const hasProgression = context.currentWorkout.progression !== null;
+  if (hasDetailedEvidence && !hasProgression && !citesExercise) {
+    throw new Error("Workout debrief ignored the available workout evidence.");
+  }
+
+  const hasUncertainty = exercises.some((exercise) => exercise.needsConfirmation);
+  if (hasUncertainty && !/\b(confirm|check|clarify|review)\b/i.test(output.debrief)) {
+    throw new Error("Workout debrief omitted an important workout uncertainty.");
+  }
+  if (!/\b(next time|next session|confirm|repeat|record|compare|use as|keep)\b/i.test(output.debrief)) {
+    throw new Error("Workout debrief omitted one useful next action.");
+  }
+}
+
 function workoutDebriefPrompts(context: ReturnType<typeof aiContext>) {
   const systemPrompt = [
     "You are Coach Zoe leaving one calm, thoughtful post-workout coach note inside Ascend.",
     "The supplied JSON is the complete source of truth. Interpret it but never add facts.",
     "Return strict JSON with exactly: accomplishment, observation, recoveryGuidance, nextConsideration, debrief.",
-    "The debrief must be one natural response with a hard maximum of 80 words. Aim for 45 to 70 words with strong evidence, 35 to 60 words with normal evidence, and 25 to 50 words with sparse evidence. Do not use markdown or numeric statistics.",
-    "Every returned string must contain no digits. When evidence includes numbers, describe only the supported meaning, such as a verified load best, without repeating the value.",
+    "The debrief must be one natural response with a hard maximum of 80 words. Aim for 40 to 65 words with strong evidence, 30 to 55 words with normal evidence, and 25 to 45 words with sparse evidence. Do not use markdown.",
+    "A useful debrief answers three things: what specifically happened, what uncertainty matters if any, and the single most useful action for the next comparable session.",
+    "You may quote exact sets, reps, load, tempo, duration, exercise counts, or other numbers only when that exact value is supplied in currentWorkout. Never calculate, transform, round, total, or invent a number.",
+    "When currentWorkout contains detailed exercise evidence, mention at least one exercise by name and one supported measurable detail when available. Do not produce a generic workout summary when precise evidence exists.",
+    "When any exercise has needsConfirmation=true, make that uncertainty the next action. Ask the user to confirm the saved interpretation rather than treating it as verified progress.",
     "Choose the strongest grounded observation first: verified progression when present, otherwise a meaningful movement structure or dominant focus, otherwise an honest evidence limitation. Let the evidence create the opening rather than randomly rotating phrases.",
     "The first sentence of debrief must contain that strongest observation. Do not routinely repeat the workout title or begin with 'You completed'; when focus, movement patterns, or progression are supplied, begin with what they mean instead.",
     "Do not repeat every logged fact. Use the debrief for the one or two most useful supported ideas rather than forcing every JSON field into the user-facing paragraph.",
@@ -593,10 +773,11 @@ function workoutDebriefPrompts(context: ReturnType<typeof aiContext>) {
     "Never tell the user that a signal indicates or confirms something. Speak naturally about the workout evidence instead of exposing internal system language.",
     "When recoveryLoad is unknown, recoveryGuidance must briefly state that no specific recovery conclusion is supported by the record, and the debrief must omit generic sleep, hydration, protein, rest, soreness, and fatigue advice. Do not force recovery guidance into the debrief merely because the JSON field is required.",
     "Only when recoveryLoad is known may recoveryGuidance mention one supported recovery action. Never turn ordinary post-workout advice into a claim about the user's physical state.",
-    "When progression_evidence_insufficient is listed, lead with the honest limitation, acknowledge only that the session was recorded, plainly explain that the details are too limited to assess focus or progression, and suggest one useful detail the user could record next time.",
+    "When progression_evidence_insufficient is listed, lead with the honest limitation, acknowledge only that the session was recorded, plainly explain that the details are too limited to assess focus or progression, and suggest one useful measurable detail the user could record next time.",
     "For completion-only evidence, write two concise debrief sentences: first interpret the strongest supported focus or movement-pattern coverage, then calmly acknowledge completion. Do not add a reflection question, goal claim, recovery advice, or next-session language. Only describe a structure as balanced or well distributed when the supplied movement patterns genuinely support that interpretation.",
     "For completion-only evidence, never ask the user to record loads, sets, reps, or other details that the Coach Zoe workout completion flow does not collect, and do not invent a progression step.",
-    "Do not force a next-session recommendation. Only use one in the debrief when supported by supplied progression, nextSessionBias, or relevant recent-workout context. Because every JSON field is required, use a brief neutral evidence-limit statement in unsupported recoveryGuidance or nextConsideration fields and do not copy those neutral fields into debrief.",
+    "For user-recorded detailed workouts, end with exactly one practical next action grounded in coachingEvidence.measurableNextStep or supplied progression. Do not offer a list. For completion-only Coach Zoe workouts, do not invent a progression step.",
+    "Because every JSON field is required, use a brief neutral evidence-limit statement in unsupported recoveryGuidance and do not copy it into debrief.",
     "Do not open with generic phrases such as great work, good work, solid effort, successfully completed, or amazing job. Do not mention momentum unless it is explicitly supplied.",
     "Use direct conversational language. Prefer covered, focused on, leaned toward, or brought together when supported; avoid database-like phrases such as provided coverage, as recorded, as planned, or the record indicates. Do not call a session good, solid, effective, or high quality without evidence.",
     "Avoid empty coaching filler such as reflect on how it felt, listen to your body, stay consistent, keep up the effort, or keep progressing when the evidence does not support something more useful.",
@@ -608,8 +789,8 @@ function workoutDebriefPrompts(context: ReturnType<typeof aiContext>) {
     : signal.limitations.includes("progression_evidence_insufficient")
       ? "This record is too sparse for progression or focus analysis. Lead with that limitation, keep the debrief short, and suggest recording one specific exercise detail next time. Do not praise performance quality or prescribe training."
       : context.currentWorkout.progression
-        ? "Verified progression evidence is available. Lead with its strongest supported achievement, describe it qualitatively, and use only its supplied next-session focus. Do not repeat numeric values or infer strength, adaptation, or execution quality."
-        : "Interpret only the recorded workout evidence. Do not infer progression, recovery state, execution quality, or a next-session prescription.";
+        ? "Verified progression evidence is available. Lead with its strongest supported achievement and end with its supplied next-session focus. Exact recorded values may be quoted only when they appear in currentWorkout. Do not infer strength, adaptation, or execution quality."
+        : "This is a user-recorded detailed workout. Cite at least one named exercise and one exact supported detail when available. If anything needs confirmation, ask for that confirmation; otherwise end with coachingEvidence.measurableNextStep. Do not infer recovery state or execution quality.";
   return {
     systemPrompt,
     userPrompt: `Workout evidence:\n${JSON.stringify(context)}\n\nWorkout-specific response boundary:\n${responseBoundary}`
@@ -655,14 +836,18 @@ export async function generateWorkoutDebrief(input: {
   try {
     const context = await dependencies.store.loadGenerationContext(input.workoutEventId, input.userId);
     if (!context) throw new Error("Workout context is unavailable.");
-    const prompts = workoutDebriefPrompts(aiContext(context, claimed.workoutSignal));
+    const promptContext = aiContext(context, claimed.workoutSignal);
+    const prompts = workoutDebriefPrompts(promptContext);
     const reply = await dependencies.generate(prompts.systemPrompt, prompts.userPrompt);
     provider = reply.provider;
     model = reply.model;
     const output = enforceWorkoutSpecificOutput(
-      validateWorkoutDebriefOutput(reply.text),
+      validateWorkoutDebriefOutput(reply.text, {
+        allowedNumbers: allowedDebriefNumbers(promptContext)
+      }),
       claimed.workoutSignal
     );
+    assertEvidenceLedDebrief(output, promptContext);
     const generated = await dependencies.store.markGenerated({
       workoutEventId: input.workoutEventId,
       userId: input.userId,
