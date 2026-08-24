@@ -3,6 +3,7 @@ import { createRepeatWorkoutCaptureDraft } from "@ascend/shared";
 import {
   buildWorkoutCapturePrompt,
   createFallbackWorkoutCapture,
+  normalizeWorkoutCaptureInput,
   normalizeWorkoutCaptureResponse
 } from "../services/workoutCaptureService";
 
@@ -33,6 +34,108 @@ describe("Workout Capture V1", () => {
       loadUnit: "kg",
       movementPattern: "pull"
     });
+  });
+
+  it("keeps line-paired chest exercises distinct and treats tempo as tempo", () => {
+    const input = [
+      "Plated chest lress",
+      "4 serts x 10",
+      "Cable incline chest fly",
+      "4 x 10",
+      "Machine chest press",
+      "4 x 6 : 1 sec up 3 sec down&#x20;",
+      "Cable converging lower chest fly&#x20;",
+      "10 x 3"
+    ].join("\n");
+
+    const draft = createFallbackWorkoutCapture(input, "dictation");
+
+    expect(draft.originalInput).not.toContain("&#x20;");
+    expect(draft.exercises).toHaveLength(4);
+    expect(draft.exercises[0]).toMatchObject({
+      name: "Plate-Loaded Chest Press",
+      sets: 4,
+      reps: "10",
+      restSeconds: null,
+      note: null,
+      needsConfirmation: false
+    });
+    expect(draft.exercises[1]).toMatchObject({
+      name: "Cable Incline Chest Fly",
+      sets: 4,
+      reps: "10"
+    });
+    expect(draft.exercises[2]).toMatchObject({
+      name: "Machine Chest Press",
+      sets: 4,
+      reps: "6",
+      restSeconds: null,
+      durationMinutes: null,
+      durationValue: null,
+      note: "Tempo: 1 sec up / 3 sec down"
+    });
+    expect(draft.exercises[3]).toMatchObject({
+      name: "Cable Converging Lower Chest Fly",
+      sets: 10,
+      reps: "3",
+      needsConfirmation: true,
+      uncertainFields: expect.arrayContaining(["sets", "reps"])
+    });
+  });
+
+  it("uses the evidence parser to correct an inaccurate AI interpretation", () => {
+    const input = [
+      "Cable incline chest fly",
+      "4 x 10",
+      "Machine chest press",
+      "4 x 6 : 1 sec up 3 sec down"
+    ].join("\n");
+    const raw = JSON.stringify({
+      title: "Chest",
+      workoutType: "Strength",
+      difficulty: "moderate",
+      durationMinutes: null,
+      confidence: 0.9,
+      uncertainties: [],
+      exercises: [
+        {
+          name: "Flyes",
+          originalText: "Cable incline chest fly\n4 x 10",
+          sets: 4,
+          reps: "10",
+          restSeconds: null,
+          note: null,
+          confidence: 0.9,
+          needsConfirmation: false
+        },
+        {
+          name: "Flyes",
+          originalText: "Machine chest press\n4 x 6 : 1 sec up 3 sec down",
+          sets: 4,
+          reps: "6",
+          restSeconds: 1,
+          note: "1 sec up 3 sec down",
+          confidence: 0.9,
+          needsConfirmation: false
+        }
+      ]
+    });
+
+    const draft = normalizeWorkoutCaptureResponse(raw, input, "text");
+
+    expect(draft.exercises.map((item) => item.name)).toEqual([
+      "Cable Incline Chest Fly",
+      "Machine Chest Press"
+    ]);
+    expect(draft.exercises[1]).toMatchObject({
+      restSeconds: null,
+      durationValue: null,
+      note: "Tempo: 1 sec up / 3 sec down"
+    });
+  });
+
+  it("cleans pasted whitespace entities without changing workout wording", () => {
+    expect(normalizeWorkoutCaptureInput("Machine row&#x20;\n3 x 12&nbsp; ")).toBe("Machine row\n3 x 12");
   });
 
   it("keeps missing values blank and marks ambiguous notes for confirmation", () => {
@@ -92,6 +195,8 @@ describe("Workout Capture V1", () => {
     const prompt = buildWorkoutCapturePrompt("DB bench 3x10", ["Dumbbell Bench Press", "Cable Row"]);
 
     expect(prompt).toContain("Never invent weights, sets, reps, duration, or exercise names.");
+    expect(prompt).toContain("Tempo such as '1 sec up 3 sec down' belongs in note");
+    expect(prompt).toContain("Treat an exercise-name line followed by a sets/reps line as one exercise.");
     expect(prompt).toContain("Dumbbell Bench Press");
     expect(prompt).toContain("Cable Row");
     expect(prompt).toContain("Member input:\nDB bench 3x10");

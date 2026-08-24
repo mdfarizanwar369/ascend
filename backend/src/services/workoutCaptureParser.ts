@@ -28,6 +28,10 @@ const NUMBER_WORDS: Record<string, number> = {
 };
 
 const EXERCISE_ALIASES: Array<{ pattern: RegExp; display: string }> = [
+  { pattern: /plat(?:e[ -]?loaded|ed)\s+chest\s+(?:press|lress)/i, display: "Plate-Loaded Chest Press" },
+  { pattern: /cable\s+converging\s+lower\s+chest\s+fly(?:es)?/i, display: "Cable Converging Lower Chest Fly" },
+  { pattern: /cable\s+incline\s+chest\s+fly(?:es)?/i, display: "Cable Incline Chest Fly" },
+  { pattern: /machine\s+chest\s+press/i, display: "Machine Chest Press" },
   { pattern: /incline smith machine press/i, display: "Incline Smith Machine Press" },
   { pattern: /incline smith press/i, display: "Incline Smith Press" },
   { pattern: /incline dumbbell press/i, display: "Incline Dumbbell Press" },
@@ -90,7 +94,10 @@ function parseNumber(value: string | undefined) {
 }
 
 function replaceNumberWords(value: string) {
-  return value.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/gi, (word) => String(NUMBER_WORDS[word.toLowerCase()]));
+  return value
+    .replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/gi, (word) => String(NUMBER_WORDS[word.toLowerCase()]))
+    .replace(/\bsert\b/gi, "set")
+    .replace(/\bserts\b/gi, "sets");
 }
 
 function cleanLine(value: string) {
@@ -222,7 +229,11 @@ function buildBlocks(input: string) {
     if (looksLikeGlobalProse(line) && !exerciseMatch(line)) continue;
 
     const detailCandidate = createBlock(line, section, activeGroupMethod, activeGroupId, activeGroupRounds);
-    if (current && looksLikeDetail(line) && !(detailCandidate && /^(?:after that i did|finished with)\b/i.test(line))) {
+    if (
+      current
+      && looksLikeDetail(line)
+      && (!detailCandidate || (DETAIL_PREFIX.test(line) && !/^(?:after that i did|finished with)\b/i.test(line)))
+    ) {
       current.detailLines.push(line);
       continue;
     }
@@ -433,7 +444,7 @@ function summaryReps(text: string, setDetails: WorkoutCaptureSetDetail[]) {
   if (listed) return listed;
   const range = repRange(text);
   if (range.min !== null && range.max !== null) return `${range.min}-${range.max}`;
-  const setRep = text.match(/\b\d+\s*[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)\b/i);
+  const setRep = text.match(/\b\d+\s*(?:sets?\s*)?[x×]\s*(\d+(?:\s*[-–]\s*\d+)?)\b/i);
   if (setRep) return setRep[1].replace(/\s+/g, "");
   const setsOf = text.match(/\b\d+\s+sets?\s+of\s+(\d+(?:\s*[-–]\s*\d+)?)\b/i);
   if (setsOf) return setsOf[1].replace(/\s+/g, "");
@@ -549,18 +560,23 @@ function parseBlock(block: ExerciseBlock, index: number): WorkoutCaptureExercise
   const reps = summaryReps(metricSource, provisionalDetails);
   const rpe = parseNumber(metricSource.match(/\brpe\s*(\d+(?:\.\d+)?)/i)?.[1]);
   const rir = parseNumber(metricSource.match(/\b(\d+(?:\.\d+)?)\s*rir\b/i)?.[1]);
+  const tempo = metricSource.match(/\b(\d+(?:\.\d+)?)\s*(?:sec|secs|seconds?)\s*(up|down|eccentric|concentric|pause|hold)\b(?:\s*[/,:-]?\s*(\d+(?:\.\d+)?)\s*(?:sec|secs|seconds?)\s*(up|down|eccentric|concentric|pause|hold)\b)?/i);
   const duration = metricSource.match(/\b(\d+(?:\.\d+)?)\s*[- ]?(min|mins|minutes?|sec|secs|seconds?)\b/i);
   const durationIsRest = duration
-    ? new RegExp(`${duration[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*(?:rest|between rounds)`, "i").test(metricSource)
+    ? new RegExp(`(?:rest\\s*(?:for\\s*)?)?${duration[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*(?:rest|between rounds)?`, "i").test(metricSource)
+      && /\brest\b|between rounds/i.test(metricSource)
     : false;
-  const durationValue = durationIsRest ? null : parseNumber(duration?.[1]);
+  const durationValue = durationIsRest || tempo ? null : parseNumber(duration?.[1]);
   const durationUnit = durationValue === null ? null : duration?.[2]?.toLowerCase().startsWith("s") ? "seconds" as const : duration ? "minutes" as const : null;
-  const rest = metricSource.match(/\b(\d+)\s*(?:sec|secs|seconds?)\s*(?:rest|between rounds)?\b/i);
-  const restSeconds = rest && !/minute amrap/i.test(rest[0]) ? Number(rest[1]) : null;
+  const rest = metricSource.match(/\brest\s*(?:for\s*)?(\d+)\s*(?:sec|secs|seconds?)\b|\b(\d+)\s*(?:sec|secs|seconds?)\s*(?:rest|between rounds)\b/i);
+  const restSeconds = rest && !/minute amrap/i.test(rest[0]) ? Number(rest[1] ?? rest[2]) : null;
   const ambiguousSets = /\b\d+\s+or\s+\d+\s+sets?\b/i.test(source);
+  const shorthandOrder = metricSource.match(/\b(\d+)\s*(?:sets?\s*)?[x×]\s*(\d+)\b/i);
+  const ambiguousSetRepOrder = Boolean(shorthandOrder && Number(shorthandOrder[1]) > 6 && Number(shorthandOrder[2]) <= 6);
   const approximate = /\b(?:around|about|maybe|i think)\b|~/.test(lower);
   const uncertainFields: string[] = [];
   if (ambiguousSets) uncertainFields.push("sets");
+  if (ambiguousSetRepOrder) uncertainFields.push("sets", "reps");
   if (/\bmaybe\s+\d+\s+sets?/.test(lower) && !uncertainFields.includes("sets")) uncertainFields.push("sets");
   if (/\bmaybe\s+\d+\s+reps?/.test(lower)) uncertainFields.push("reps");
   if (/\b(?:i think|maybe)\b/.test(lower) && loadSteps.length) uncertainFields.push("load");
@@ -572,10 +588,15 @@ function parseBlock(block: ExerciseBlock, index: number): WorkoutCaptureExercise
   const primaryLoad = machineSetting ? Number(machineSetting[1]) : bodyweightPlus ? Number(bodyweightPlus[1]) : representative?.value ?? null;
   const primaryUnit = machineSetting ? null : bodyweightPlus ? unitFor(bodyweightPlus[2]) : representative?.unit ?? null;
   const confidence = uncertainFields.length ? 0.68 : (sets !== null || reps !== null || primaryLoad !== null || durationValue !== null) ? 0.92 : 0.82;
+  const tempoNote = tempo
+    ? `Tempo: ${tempo[1]} sec ${tempo[2].toLowerCase()}${tempo[3] && tempo[4] ? ` / ${tempo[3]} sec ${tempo[4].toLowerCase()}` : ""}`
+    : null;
   const descriptiveNotes = block.detailLines
-    .filter((line) => /[A-Za-z]/.test(line) && !/^\d+(?:\.\d+)?\s*(?:kg|lb|sets?|reps?|mins?|minutes?)?\s*[x×]?\s*\d*$/i.test(line))
+    .filter((line) => /[A-Za-z]/.test(line) && !/^\d+(?:\.\d+)?\s*(?:kg|lb|sets?|reps?|mins?|minutes?)?\s*[x×]?\s*\d*$/i.test(replaceNumberWords(line)))
+    .filter((line) => !tempo || !/(?:sec|secs|seconds?)\s*(?:up|down|eccentric|concentric|pause|hold)/i.test(line))
     .join(". ")
     .slice(0, 500) || null;
+  const note = [tempoNote, descriptiveNotes].filter(Boolean).join(". ") || null;
 
   return {
     name: block.name,
@@ -586,7 +607,7 @@ function parseBlock(block: ExerciseBlock, index: number): WorkoutCaptureExercise
     loadUnit: explicitBodyweight && !bodyweightPlus ? null : primaryUnit,
     durationMinutes: durationUnit === "minutes" ? Math.round(durationValue ?? 0) || null : null,
     restSeconds,
-    note: descriptiveNotes,
+    note,
     movementPattern: movementPatternFor(block.name),
     confidence,
     needsConfirmation: uncertainFields.length > 0,

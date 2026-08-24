@@ -21,6 +21,16 @@ import { parseWorkoutCaptureExercises } from "./workoutCaptureParser";
 
 const DEFAULT_TITLE = "My Workout";
 
+export function normalizeWorkoutCaptureInput(value: string) {
+  return value
+    .replace(/(?:&#x20;|&#32;|&nbsp;)/gi, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 5_000);
+}
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -131,7 +141,7 @@ export function createFallbackWorkoutCapture(
   originalInput: string,
   sourceMode: WorkoutCaptureSourceMode = "text"
 ): WorkoutCaptureDraft {
-  const cleanedInput = originalInput.trim().replace(/\r/g, "").slice(0, 5_000);
+  const cleanedInput = normalizeWorkoutCaptureInput(originalInput).replace(/\r/g, "");
   const segments = cleanedInput.split(/\n|;|,(?=\s*[A-Za-z])/).map((item) => item.trim()).filter(Boolean);
   const richExercises = parseWorkoutCaptureExercises(cleanedInput);
   const exercises = richExercises.length
@@ -230,6 +240,7 @@ function supportsDuration(evidence: string, value: number | null) {
   if (value === null) return false;
   const token = numberToken(value).replace(".", "\\.");
   if (new RegExp(`\\b${token}\\s*[- ]?(?:sec|secs|seconds?)\\s+(?:rest|between rounds)\\b`, "i").test(evidence)) return false;
+  if (new RegExp(`\\b${token}\\s*(?:sec|secs|seconds?)\\s*(?:up|down|eccentric|concentric|pause|hold)\\b`, "i").test(evidence)) return false;
   return new RegExp(`\\b${token}\\s*[- ]?(?:min|mins|minutes?|sec|secs|seconds?)\\b`, "i").test(evidence);
 }
 
@@ -364,7 +375,8 @@ export function normalizeWorkoutCaptureResponse(
   originalInput: string,
   sourceMode: WorkoutCaptureSourceMode = "text"
 ): WorkoutCaptureDraft {
-  const fallback = createFallbackWorkoutCapture(originalInput, sourceMode);
+  const cleanedInput = normalizeWorkoutCaptureInput(originalInput);
+  const fallback = createFallbackWorkoutCapture(cleanedInput, sourceMode);
   let parsed: Record<string, unknown>;
   try {
     parsed = extractJsonObject(rawResponse);
@@ -379,7 +391,7 @@ export function normalizeWorkoutCaptureResponse(
       const row = item as Record<string, unknown>;
       const proposedName = text(row.name, 120);
       if (!proposedName) return null;
-      const exactEvidence = verifiedEvidence(row.originalText, originalInput);
+      const exactEvidence = verifiedEvidence(row.originalText, cleanedInput);
       const baseline = fallbackMatch(fallback, exactEvidence, proposedName);
       if (!exactEvidence && !baseline) return null;
       const evidence = exactEvidence ?? baseline?.originalText ?? "";
@@ -404,7 +416,7 @@ export function normalizeWorkoutCaptureResponse(
       const setDetails = [...(baseline?.setDetails ?? []), ...normalizedSetDetails(row.setDetails, evidence)]
         .filter((detail, detailIndex, all) => !all.slice(0, detailIndex).some((candidate) => candidate.order === detail.order && candidate.load === detail.load && candidate.reps === detail.reps));
       const rawSection = text(row.section, 80);
-      const section = rawSection && new RegExp(`(?:^|\\n)\\s*${rawSection.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:?(?:\\n|$)`, "i").test(originalInput)
+      const section = rawSection && new RegExp(`(?:^|\\n)\\s*${rawSection.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*:?(?:\\n|$)`, "i").test(cleanedInput)
         ? rawSection
         : baseline?.section ?? null;
       const rawBasis = loadBasisValue(row.loadBasis);
@@ -432,10 +444,12 @@ export function normalizeWorkoutCaptureResponse(
         load,
         loadUnit,
         durationMinutes,
-        restSeconds: /\b\d+\s*(?:sec|secs|seconds?)\s*(?:rest|between rounds)?\b/i.test(evidence)
+        restSeconds: /\b(?:rest\s*(?:for\s*)?\d+\s*(?:sec|secs|seconds?)|\d+\s*(?:sec|secs|seconds?)\s*(?:rest|between rounds))\b/i.test(evidence)
           ? integer(row.restSeconds, 0, 3_600)
           : baseline?.restSeconds ?? null,
-        note: verifiedEvidence(row.note, evidence) ?? baseline?.note ?? null,
+        note: baseline?.note?.startsWith("Tempo:")
+          ? baseline.note
+          : verifiedEvidence(row.note, evidence) ?? baseline?.note ?? null,
         movementPattern: movementPattern(row.movementPattern, name),
         confidence: exerciseConfidence,
         needsConfirmation: row.needsConfirmation === true || exerciseConfidence < 0.75 || uncertainFields.length > 0 || baseline?.needsConfirmation === true,
@@ -488,11 +502,11 @@ export function normalizeWorkoutCaptureResponse(
   return {
     version: WORKOUT_CAPTURE_VERSION,
     sourceMode,
-    originalInput: originalInput.trim().slice(0, 5_000),
+    originalInput: cleanedInput,
     title: text(parsed.title, 120) ?? fallback.title,
     workoutType: text(parsed.workoutType, 80) ?? fallback.workoutType,
     difficulty,
-    durationMinutes: supportsTotalDuration(originalInput, integer(parsed.durationMinutes, 5, 300))
+    durationMinutes: supportsTotalDuration(cleanedInput, integer(parsed.durationMinutes, 5, 300))
       ? integer(parsed.durationMinutes, 5, 300)
       : fallback.durationMinutes,
     exercises,
@@ -503,6 +517,7 @@ export function normalizeWorkoutCaptureResponse(
 }
 
 export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: string[] = []) {
+  const cleanedInput = normalizeWorkoutCaptureInput(input);
   return [
     "Convert the member's rough workout notes into a trustworthy structured workout receipt. Extract aggressively, but invent nothing.",
     "Extract only details the member actually supplied. Never invent weights, sets, reps, duration, or exercise names.",
@@ -513,6 +528,11 @@ export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: st
     "Preserve progressive loads and corrections in loadSteps. Distinguish starting, working, top, backoff, drop, correction, and unknown load roles.",
     "Recognize explicitly stated ramp-up, back-off, drop set, FST-7, rest-pause, AMRAP, superset, alternating set, giant set, circuit, and short-rest work. Never infer a method that was not stated.",
     "Preserve RPE and RIR independently. Do not confuse time, clock times, wait times, rounds, calories, sets, reps, or load.",
+    "Treat an exercise-name line followed by a sets/reps line as one exercise. Do not attach that prescription to the next exercise.",
+    "Preserve meaningful exercise modifiers such as cable, machine, incline, converging, upper, or lower; never collapse distinct movements into a generic name such as Flyes.",
+    "Correct only obvious spelling or dictation mistakes when the intended exercise is clear. Preserve the verbatim source in originalText.",
+    "Tempo such as '1 sec up 3 sec down' belongs in note and must never become restSeconds or exercise duration.",
+    "Interpret A x B as sets x reps by convention. If A is unusually high and B unusually low, keep the supplied values but mark sets and reps uncertain for confirmation.",
     "Exercises in the same superset/circuit must share a stable supersetGroup. Preserve circuit rounds in groupRounds.",
     `Movement pattern must be one of: ${WORKOUT_MOVEMENT_PATTERNS.join(", ")}.`,
     `Load basis must be one of: ${WORKOUT_LOAD_BASES.join(", ")}.`,
@@ -525,6 +545,6 @@ export function buildWorkoutCapturePrompt(input: string, recentExerciseNames: st
     recentExerciseNames.length
       ? `Use these previously confirmed names only to normalize obvious aliases: ${recentExerciseNames.slice(0, 30).join(", ")}.`
       : "No confirmed exercise-name history is available.",
-    `Member input:\n${input.trim().slice(0, 5_000)}`
+    `Member input:\n${cleanedInput}`
   ].join("\n");
 }

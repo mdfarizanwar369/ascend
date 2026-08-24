@@ -205,6 +205,48 @@ describe("Detailed Workout rich capture regression suite", () => {
   });
 
   it.each([
+    {
+      label: "compact full-body notes",
+      input: "Bench press 70kg 3x8; Lat pulldown 50kg 3x10; Squat 80kg 4x6",
+      expected: [
+        ["Bench Press", 3, "8"],
+        ["Lat Pulldown", 3, "10"],
+        ["Squat", 4, "6"]
+      ]
+    },
+    {
+      label: "line-paired machine workout",
+      input: "Machine chest press\n3 x 12\nSeated cable row\n3 x 10\nLeg press\n4 x 8",
+      expected: [
+        ["Machine Chest Press", 3, "12"],
+        ["Seated Cable Row", 3, "10"],
+        ["Leg Press", 4, "8"]
+      ]
+    },
+    {
+      label: "bodyweight notes",
+      input: "Push ups 4 x 15\nBodyweight squats 3 x 20\nWalking 20 minutes",
+      expected: [
+        ["Push-Ups", 4, "15"],
+        ["Bodyweight Squats", 3, "20"],
+        ["Walking", null, null]
+      ]
+    },
+    {
+      label: "mixed cardio and strength",
+      input: "Treadmill incline walk 12 minutes\nDumbbell shoulder press 15kg 3x10\nCable curls 12.5kg 3x12",
+      expected: [
+        ["Treadmill Incline Walk", null, null],
+        ["Dumbbell Shoulder Press", 3, "10"],
+        ["Cable Curl", 3, "12"]
+      ]
+    }
+  ])("parses $label without merging exercises", ({ input, expected }) => {
+    const draft = parse(input);
+    expect(draft.exercises.map((item) => [item.name, item.sets, item.reps])).toEqual(expected);
+  });
+
+  it.each([
     ["Cable flyes\nfelt good", { sets: 3, reps: "12", load: 10, loadUnit: "kg" }],
     ["Squats\nheavy today", { sets: 4, reps: "8", load: 100, loadUnit: "kg" }],
     ["Bench\n3 sets", { sets: 3, reps: "10", load: 60, loadUnit: "kg" }]
