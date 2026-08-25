@@ -17,8 +17,8 @@
   --color-field-disabled-bg: 30 41 55;
   --color-field-disabled-text: 123 135 151;
   --surface-raised: 27 37 51;
-  --surface-inset: 18 27 38;
-  --surface-soft: 23 33 46;
+  --surface-inset: 8 12 18;
+  --surface-soft: 11 16 24;
   --shadow-raised: 0 18px 48px rgba(0, 0, 0, 0.22);
   color-scheme: dark;
 }
@@ -852,6 +852,25 @@ main.min-h-screen {
   border: 1px solid rgb(var(--color-line));
   border-radius: 0.75rem;
   background: rgb(var(--surface-inset));
+}
+
+html:not([data-theme="light"]) .ascend-evidence-card {
+  border-color: rgba(91, 108, 132, 0.34);
+  background: rgb(var(--surface-inset));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+html:not([data-theme="light"]) .ascend-timeline-evidence-card {
+  margin-bottom: 0.75rem;
+  border: 1px solid rgba(91, 108, 132, 0.34);
+  border-radius: 0.75rem;
+  background: rgb(var(--surface-inset));
+  padding: 0.75rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+html:not([data-theme="light"]) .ascend-timeline-evidence-body {
+  padding-bottom: 0.125rem;
 }
 
 .ascend-today-canvas {

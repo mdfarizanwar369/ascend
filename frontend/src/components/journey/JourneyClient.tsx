@@ -573,14 +573,14 @@ function formatTimelineGroupLabel(dateKey: string) {
 
 function CompactTimelineRow({ item, showConnector }: { item: TimelineItem; showConnector: boolean }) {
   return (
-    <div className="relative flex gap-3">
+    <div className="ascend-timeline-evidence-card relative flex gap-3">
       <div className="flex w-10 shrink-0 flex-col items-center">
         <span className={`grid h-10 w-10 place-items-center rounded-2xl border text-zinc-200 ${toneClasses(item.tone)}`}>
           {timelineIcon(item)}
         </span>
         {showConnector ? <span className="mt-2 h-full min-h-6 w-px bg-white/10" /> : null}
       </div>
-      <div className="min-w-0 flex-1 pb-4">
+      <div className="ascend-timeline-evidence-body min-w-0 flex-1 pb-4">
         <div className="flex items-start justify-between gap-3">
           <p className="text-sm font-semibold text-white">{item.title}</p>
           <p className="shrink-0 text-xs text-zinc-500">{formatShortDate(item.occurredAt)}</p>
@@ -1175,10 +1175,10 @@ export function JourneyClient() {
                   index === 0
                     ? "border-amber/20 bg-[linear-gradient(180deg,rgba(248,184,78,0.1),rgba(18,23,33,0.98))]"
                     : item.tone === "purple"
-                      ? "border-purple-400/20 bg-purple-400/8"
+                      ? "ascend-evidence-card border-purple-400/20 bg-purple-400/8"
                       : item.tone === "lime"
-                        ? "border-calm/20 bg-calm/8"
-                        : "border-line bg-ink/80"
+                        ? "ascend-evidence-card border-calm/20 bg-calm/8"
+                        : "ascend-evidence-card border-line bg-ink/80"
                 }`}
               >
                 <div className="flex items-start gap-3">
