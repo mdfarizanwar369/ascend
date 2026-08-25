@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity,
   Award,
   CalendarDays,
   Camera,
@@ -774,6 +773,8 @@ export function JourneyClient() {
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionSummary | null>(null);
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>("all");
   const [timelineExpanded, setTimelineExpanded] = useState(false);
+  const [progressExpanded, setProgressExpanded] = useState(false);
+  const [memoriesExpanded, setMemoriesExpanded] = useState(false);
   const [hasOlderHistory, setHasOlderHistory] = useState(false);
   const [fullHistoryLoaded, setFullHistoryLoaded] = useState(false);
   const [loadingFullTimeline, setLoadingFullTimeline] = useState(false);
@@ -916,6 +917,7 @@ export function JourneyClient() {
   async function toggleFullTimeline() {
     if (timelineExpanded) {
       setTimelineExpanded(false);
+      setTimelineFilter("all");
       return;
     }
 
@@ -967,7 +969,7 @@ export function JourneyClient() {
     () => (timelineFilter === "all" ? timeline : timeline.filter((item) => item.category === timelineFilter)),
     [timeline, timelineFilter]
   );
-  const recentTimeline = useMemo(() => filteredTimeline.slice(0, 3), [filteredTimeline]);
+  const recentTimeline = useMemo(() => timeline.slice(0, 3), [timeline]);
   const isFirstJourneyDay =
     !foodLogs.length &&
     !waterLogs.length &&
@@ -975,7 +977,7 @@ export function JourneyClient() {
     !burnLogs.length &&
     !progressPhotos.length &&
     !ascendMemory?.timeline.some((item) => item.type !== "started_journey");
-  const fullTimelineGroups = useMemo(() => groupTimelineByDate(filteredTimeline.slice(3)), [filteredTimeline]);
+  const fullTimelineGroups = useMemo(() => groupTimelineByDate(filteredTimeline), [filteredTimeline]);
   const coachMoments = useMemo(
     () =>
       buildCoachMoments({
@@ -1168,7 +1170,7 @@ export function JourneyClient() {
             </div>
           </div>
           <div className="mt-4 space-y-3">
-            {timelineHighlights.map((item, index) => (
+            {timelineHighlights.slice(0, 1).map((item, index) => (
               <article
                 key={item.key}
                 className={`rounded-xl border p-4 ${
@@ -1202,49 +1204,12 @@ export function JourneyClient() {
           <div className="flex items-center gap-2">
             <CalendarDays className="text-calm" size={18} />
             <div>
-              <p className="text-sm font-semibold text-white">Timeline</p>
-              <p className="text-xs text-zinc-400">A lighter view of how your story is unfolding.</p>
+              <p className="text-sm font-semibold text-white">Recent Story</p>
+              <p className="text-xs text-zinc-400">Your latest three meaningful moments.</p>
             </div>
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            {(["all", "workout", "weight", "meal", "photo", "coach", "milestone"] as TimelineFilter[]).map((filter) => {
-              const active = timelineFilter === filter;
-              const label =
-                filter === "all" ? "All" :
-                filter === "workout" ? "Workouts" :
-                filter === "weight" ? "Weight" :
-                filter === "meal" ? "Meals" :
-                filter === "photo" ? "Photos" :
-                filter === "coach" ? "Coach" :
-                "Milestones";
-
-              return (
-                <button
-                  key={filter}
-                  type="button"
-                  onClick={() => setTimelineFilter(filter)}
-                className={`ascend-pressable shrink-0 rounded-full border px-3 py-2 text-sm font-semibold transition ${
-                    active ? "border-calm/40 bg-calm/12 text-calm" : "border-line bg-ink/70 text-zinc-300"
-                  }`}
-                >
-                  <span className="mr-2">{filterIcon(filter)}</span>
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-5">
-            <div className="flex items-center gap-2">
-              <Activity className="text-calm" size={16} />
-              <div>
-                <p className="text-sm font-semibold text-white">Recent Moments</p>
-                <p className="text-xs text-zinc-400">The latest few chapters, kept easy to scan.</p>
-              </div>
-            </div>
-
-            <div className="mt-4">
+          <div className="mt-4">
               {recentTimeline.length ? (
                 recentTimeline.map((item, index) => (
                   <CompactTimelineRow
@@ -1255,17 +1220,18 @@ export function JourneyClient() {
                 ))
               ) : (
                 <p className="rounded-2xl border border-line bg-ink/80 p-4 text-sm leading-6 text-zinc-400">
-                  No moments yet for this filter. Try another view or keep logging so your story can grow.
+                  Your recent story will appear as you log meals, movement, weight, or progress photos.
                 </p>
               )}
-            </div>
           </div>
 
-          {filteredTimeline.length > 3 || hasOlderHistory ? (
+          {timeline.length > 3 || hasOlderHistory ? (
             <div className="mt-4 border-t border-white/6 pt-4">
               <button
                 type="button"
                 onClick={() => void toggleFullTimeline()}
+                aria-expanded={timelineExpanded}
+                aria-controls="journey-full-timeline"
                 className="ascend-pressable flex w-full items-center justify-between rounded-xl border border-line bg-ink/70 px-4 py-3 text-left transition hover:border-calm/25"
               >
                 <span className="text-sm font-semibold text-white">
@@ -1275,12 +1241,41 @@ export function JourneyClient() {
               </button>
 
               <div
-                className={`grid transition-all duration-300 ease-out ${
-                  timelineExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                id="journey-full-timeline"
+                aria-hidden={!timelineExpanded}
+                className={`ascend-journey-disclosure grid transition-all duration-300 ease-out ${
+                  timelineExpanded ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"
                 }`}
               >
                 <div className="overflow-hidden">
                   <div className="mt-4 space-y-5">
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {(["all", "workout", "weight", "meal", "photo", "coach", "milestone"] as TimelineFilter[]).map((filter) => {
+                        const active = timelineFilter === filter;
+                        const label =
+                          filter === "all" ? "All" :
+                          filter === "workout" ? "Workouts" :
+                          filter === "weight" ? "Weight" :
+                          filter === "meal" ? "Meals" :
+                          filter === "photo" ? "Photos" :
+                          filter === "coach" ? "Coach" :
+                          "Milestones";
+
+                        return (
+                          <button
+                            key={filter}
+                            type="button"
+                            onClick={() => setTimelineFilter(filter)}
+                            className={`ascend-pressable shrink-0 rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                              active ? "border-calm/40 bg-calm/12 text-calm" : "border-line bg-ink/70 text-zinc-300"
+                            }`}
+                          >
+                            <span className="mr-2">{filterIcon(filter)}</span>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
                     {loadingFullTimeline ? <p className="text-sm text-zinc-400">Loading older moments...</p> : null}
                     {fullTimelineGroups.map((group) => (
                       <div key={group.dateKey}>
@@ -1324,17 +1319,58 @@ export function JourneyClient() {
           ) : null}
         </section>
 
-        <section className="mt-7 border-t border-line pt-5">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="text-calm" size={18} />
-            <div>
-              <p className="text-sm font-semibold text-white">Progress</p>
-              <p className="text-xs text-zinc-400">Everything in one story.</p>
+        <section className="mt-7 border-t border-calm/20 pt-5">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-calm/12 text-calm">
+              <Target size={19} />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-calm">Next Milestone</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">{nextMilestone.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">{nextMilestone.detail}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link href="/food-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Log meal</Link>
+                <Link href="/coach" className="rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">Open Coach</Link>
+              </div>
             </div>
           </div>
+        </section>
 
-          {weightBars.length ? (
-            <div className="ascend-surface-subtle mt-4 p-4">
+        <div className="mt-7 border-t border-line pt-5">
+          <p className="ascend-eyebrow text-purple-200">Explore your journey</p>
+          <p className="mt-1 text-sm text-zinc-400">Open the detail you want, when you want it.</p>
+        </div>
+
+        <section className="mt-4 border-t border-line">
+          <button
+            type="button"
+            aria-expanded={progressExpanded}
+            aria-controls="journey-progress-details"
+            onClick={() => setProgressExpanded((current) => !current)}
+            className="ascend-pressable flex min-h-16 w-full items-center justify-between gap-3 py-4 text-left"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-calm/10 text-calm"><TrendingUp size={18} /></span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-white">Progress</span>
+                <span className="mt-1 block truncate text-xs text-zinc-400">
+                  {progressPhotos.length ? `${progressPhotos.length} progress ${progressPhotos.length === 1 ? "photo" : "photos"}` : "Photos and weight"}
+                  {weeklyReport ? " · Reflection ready" : ""}
+                </span>
+              </span>
+            </span>
+            {progressExpanded ? <ChevronUp className="shrink-0 text-zinc-400" size={19} /> : <ChevronDown className="shrink-0 text-zinc-400" size={19} />}
+          </button>
+
+          <div
+            id="journey-progress-details"
+            aria-hidden={!progressExpanded}
+            className={`ascend-journey-disclosure grid transition-all duration-300 ease-out ${progressExpanded ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"}`}
+          >
+            <div className="overflow-hidden">
+              <div className="pb-5">
+                {weightBars.length ? (
+                  <div className="ascend-surface-subtle mt-4 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-white">Weight trend</p>
@@ -1353,8 +1389,8 @@ export function JourneyClient() {
                   </div>
                 ))}
               </div>
-            </div>
-          ) : null}
+                  </div>
+                ) : null}
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             <Link href="/progress" className="ascend-pressable ascend-surface-subtle p-4">
@@ -1402,28 +1438,6 @@ export function JourneyClient() {
             </div>
           ) : null}
 
-          {ascendMemory ? (
-            <div className="mt-4">
-              <AscendMemoryCard memory={ascendMemory} compact />
-            </div>
-          ) : premiumLocked ? (
-            <div className="mt-4 rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
-              <p className="text-sm font-semibold text-white">Ascend Memory</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Premium unlocks milestone reflections so your journey feels remembered, not just logged.
-              </p>
-            </div>
-          ) : null}
-
-          {showPremiumJourneyNote ? (
-            <div className="mt-4 rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
-              <p className="text-sm font-semibold text-white">Journey gets deeper with Premium</p>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Free shows your recent milestones and memories. Premium adds long-term reflections, pattern recognition, and richer monthly progress insight.
-              </p>
-            </div>
-          ) : null}
-
           {user?.athlete_mode_enabled && bodyComposition ? (
             <Link href="/athlete" className="mt-4 block rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
               <div className="flex items-center justify-between gap-3">
@@ -1451,67 +1465,104 @@ export function JourneyClient() {
               </div>
             </Link>
           ) : null}
-        </section>
-
-        <section className="mt-7 border-t border-line pt-5">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="text-calm" size={18} />
-            <div>
-              <p className="text-sm font-semibold text-white">Coach Moments</p>
-              <p className="text-xs text-zinc-400">
-                {user?.assigned_trainer_name ? "The moments your coach has shaped." : "The moments Coach Zoe noticed."}
-              </p>
+              </div>
             </div>
           </div>
-          <div className="mt-4 space-y-3">
-            {coachMoments.length ? (
-              coachMoments.map((item) => (
-                <article key={item.key} className="ascend-surface-subtle p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-white">{item.title}</p>
-                    <p className="text-xs text-zinc-500">{formatShortDate(item.date)}</p>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-zinc-300">{item.body}</p>
-                </article>
-              ))
-            ) : (
-              <p className="rounded-2xl border border-line bg-ink/80 p-4 text-sm leading-6 text-zinc-400">
-                Coach moments will appear here as Zoe or your trainer leave signals worth remembering.
-              </p>
-            )}
-          </div>
         </section>
 
-        <section className="mt-7 border-t border-line pt-5">
-          <div className="flex items-center gap-2">
-            <Sparkles className="text-purple-200" size={18} />
-            <div>
-              <p className="text-sm font-semibold text-white">Memories</p>
-              <p className="text-xs text-zinc-400">The emotional proof that something is changing.</p>
-            </div>
-          </div>
-          <div className="mt-4 space-y-3">
-            {memoryMoments.map((item) => (
-              <article key={item.key} className="rounded-xl border border-purple-400/20 bg-purple-400/8 p-4">
-                <p className="text-sm font-semibold text-white">{item.title}</p>
-                <p className="mt-2 text-sm leading-6 text-zinc-300">{item.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-7 border-t border-calm/20 pt-5">
-          <div className="flex items-start gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-calm/12 text-calm">
-              <Target size={19} />
+        <section className="border-t border-line">
+          <button
+            type="button"
+            aria-expanded={memoriesExpanded}
+            aria-controls="journey-memory-details"
+            onClick={() => setMemoriesExpanded((current) => !current)}
+            className="ascend-pressable flex min-h-16 w-full items-center justify-between gap-3 py-4 text-left"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-purple-400/10 text-purple-200"><Sparkles size={18} /></span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-white">Memories &amp; Coaching</span>
+                <span className="mt-1 block truncate text-xs text-zinc-400">
+                  {coachMoments.length} coach {coachMoments.length === 1 ? "moment" : "moments"} · {memoryMoments.length} {memoryMoments.length === 1 ? "memory" : "memories"}
+                </span>
+              </span>
             </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-calm">Next Milestone</p>
-              <h2 className="mt-2 text-xl font-semibold text-white">{nextMilestone.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-300">{nextMilestone.detail}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Link href="/food-log" className="rounded-full border border-line bg-ink px-4 py-2 text-sm font-semibold text-zinc-200">Log meal</Link>
-                <Link href="/coach" className="rounded-full border border-calm/30 bg-ink px-4 py-2 text-sm font-semibold text-calm">Open Coach</Link>
+            {memoriesExpanded ? <ChevronUp className="shrink-0 text-zinc-400" size={19} /> : <ChevronDown className="shrink-0 text-zinc-400" size={19} />}
+          </button>
+
+          <div
+            id="journey-memory-details"
+            aria-hidden={!memoriesExpanded}
+            className={`ascend-journey-disclosure grid transition-all duration-300 ease-out ${memoriesExpanded ? "visible grid-rows-[1fr] opacity-100" : "invisible grid-rows-[0fr] opacity-0"}`}
+          >
+            <div className="overflow-hidden">
+              <div className="space-y-6 pb-5">
+                {ascendMemory ? (
+                  <AscendMemoryCard memory={ascendMemory} compact />
+                ) : premiumLocked ? (
+                  <div className="rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
+                    <p className="text-sm font-semibold text-white">Ascend Memory</p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-400">
+                      Premium unlocks milestone reflections so your journey feels remembered, not just logged.
+                    </p>
+                  </div>
+                ) : null}
+
+                {showPremiumJourneyNote ? (
+                  <div className="rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
+                    <p className="text-sm font-semibold text-white">Journey gets deeper with Premium</p>
+                    <p className="mt-2 text-sm leading-6 text-zinc-400">
+                      Free shows your recent milestones and memories. Premium adds long-term reflections, pattern recognition, and richer monthly progress insight.
+                    </p>
+                  </div>
+                ) : null}
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="text-calm" size={18} />
+                    <div>
+                      <p className="text-sm font-semibold text-white">Coach Moments</p>
+                      <p className="text-xs text-zinc-400">
+                        {user?.assigned_trainer_name ? "The moments your coach has shaped." : "The moments Coach Zoe noticed."}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {coachMoments.length ? (
+                      coachMoments.map((item) => (
+                        <article key={item.key} className="ascend-surface-subtle p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-white">{item.title}</p>
+                            <p className="text-xs text-zinc-500">{formatShortDate(item.date)}</p>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-zinc-300">{item.body}</p>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="rounded-2xl border border-line bg-ink/80 p-4 text-sm leading-6 text-zinc-400">
+                        Coach moments will appear here as Zoe or your trainer leave signals worth remembering.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="text-purple-200" size={18} />
+                    <div>
+                      <p className="text-sm font-semibold text-white">Memories</p>
+                      <p className="text-xs text-zinc-400">The emotional proof that something is changing.</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {memoryMoments.map((item) => (
+                      <article key={item.key} className="rounded-xl border border-purple-400/20 bg-purple-400/8 p-4">
+                        <p className="text-sm font-semibold text-white">{item.title}</p>
+                        <p className="mt-2 text-sm leading-6 text-zinc-300">{item.body}</p>
+                      </article>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -1849,6 +1849,10 @@ html[data-theme="light"] .ascend-skeleton::after {
     transition: none;
   }
 
+  .ascend-journey-disclosure {
+    transition: none !important;
+  }
+
   .ascend-rise-progress {
     transition: none !important;
   }
