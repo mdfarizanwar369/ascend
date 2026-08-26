@@ -26,6 +26,7 @@ import java.util.Locale
 class MealSpeechPlugin : Plugin(), RecognitionListener {
     companion object {
         private const val PERMISSION_TIMEOUT_MS = 20_000L
+        private const val PERMISSION_SETTLE_DELAY_MS = 300L
         private const val LISTENING_TIMEOUT_MS = 15_000L
         private const val RESULT_TIMEOUT_MS = 2_500L
     }
@@ -93,10 +94,10 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
             call.reject("Microphone permission was not granted.", "permission_denied")
             return
         }
-        beginListening(call)
+        beginListening(call, PERMISSION_SETTLE_DELAY_MS)
     }
 
-    private fun beginListening(call: PluginCall) {
+    private fun beginListening(call: PluginCall, startDelayMs: Long = 0L) {
         bridge.executeOnMainThread {
             if (pendingCall != null) {
                 call.reject("The microphone is already listening.", "busy")
@@ -123,12 +124,16 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
                 putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
             }
 
-            try {
-                speechRecognizer?.startListening(intent)
-                mainHandler.postDelayed(listeningTimeout, LISTENING_TIMEOUT_MS)
-            } catch (error: Exception) {
-                rejectPending("Voice entry could not start.", "recognition_failed", error)
+            val startRecognizer = Runnable {
+                if (pendingCall !== call) return@Runnable
+                try {
+                    speechRecognizer?.startListening(intent)
+                    mainHandler.postDelayed(listeningTimeout, LISTENING_TIMEOUT_MS)
+                } catch (error: Exception) {
+                    rejectPending("Voice entry could not start.", "recognition_failed", error)
+                }
             }
+            if (startDelayMs > 0) mainHandler.postDelayed(startRecognizer, startDelayMs) else startRecognizer.run()
         }
     }
 

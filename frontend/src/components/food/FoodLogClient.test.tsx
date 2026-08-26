@@ -73,10 +73,10 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Food Log voice entry", () => {
-  it("captures repeated speech, keeps it editable, and reuses text meal analysis", async () => {
+  it("replaces a previous voice transcript when recording again and reuses text meal analysis", async () => {
     speech.startMealSpeechRecognition
       .mockResolvedValueOnce({ transcript: "chicken rice", confidence: 0.9, alternatives: ["chicken rice"], source: "browser" })
-      .mockResolvedValueOnce({ transcript: "teh tarik kurang manis", confidence: 0.86, alternatives: ["teh tarik kurang manis"], source: "browser" });
+      .mockResolvedValueOnce({ transcript: "oats and honey", confidence: 0.86, alternatives: ["oats and honey"], source: "browser" });
 
     render(<FoodLogClient />);
     const speakButton = await screen.findByRole("button", { name: "Speak meal" });
@@ -85,14 +85,14 @@ describe("Food Log voice entry", () => {
     const description = await screen.findByLabelText("What did you eat?");
     await waitFor(() => expect(description).toHaveValue("chicken rice"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Speak meal" }));
-    await waitFor(() => expect(description).toHaveValue("chicken rice, teh tarik kurang manis"));
+    fireEvent.click(screen.getByRole("button", { name: "Speak again" }));
+    await waitFor(() => expect(description).toHaveValue("oats and honey"));
     expect(screen.getByText("Voice is used only while listening. Ascend keeps the text, not the recording.")).toBeInTheDocument();
 
-    fireEvent.change(description, { target: { value: "chicken rice and teh tarik" } });
+    fireEvent.change(description, { target: { value: "oats, honey and milk" } });
     fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
 
-    await waitFor(() => expect(api.estimateFoodFromText).toHaveBeenCalledWith("chicken rice and teh tarik"));
+    await waitFor(() => expect(api.estimateFoodFromText).toHaveBeenCalledWith("oats, honey and milk"));
     expect(await screen.findByText("Chicken rice and teh tarik")).toBeInTheDocument();
   });
 

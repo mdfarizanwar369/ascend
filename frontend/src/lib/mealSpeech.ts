@@ -237,6 +237,11 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
       settled = true;
       const confidence = result?.[0]?.confidence;
       cleanup();
+      try {
+        recognition.abort();
+      } catch {
+        // The service may already be closing after its final result.
+      }
       resolve({
         transcript,
         confidence: Number.isFinite(confidence) && confidence >= 0 ? confidence : null,

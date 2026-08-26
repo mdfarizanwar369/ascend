@@ -16,6 +16,7 @@ type FakeRecognitionInstance = {
   onresult: ((event: unknown) => void) | null;
   onerror: ((event: unknown) => void) | null;
   onend: (() => void) | null;
+  abortCount: number;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -41,6 +42,7 @@ function installSpeechRecognition(options: {
     onresult: ((event: unknown) => void) | null = null;
     onerror: ((event: unknown) => void) | null = null;
     onend: (() => void) | null = null;
+    abortCount = 0;
 
     constructor() {
       instances.push(this);
@@ -68,6 +70,7 @@ function installSpeechRecognition(options: {
     }
 
     abort() {
+      this.abortCount += 1;
       queueMicrotask(() => this.onerror?.({ error: "aborted" }));
     }
   }
@@ -91,7 +94,7 @@ describe("meal speech recognition", () => {
   });
 
   it("recognises several natural meal descriptions in consecutive sessions", async () => {
-    installSpeechRecognition({
+    const instances = installSpeechRecognition({
       transcripts: [
         "chicken rice and iced coffee",
         "nasi lemak with fried chicken and teh tarik kurang manis",
@@ -106,6 +109,7 @@ describe("meal speech recognition", () => {
     expect(first).toMatchObject({ transcript: "chicken rice and iced coffee", confidence: 0.91, source: "browser" });
     expect(second.transcript).toContain("nasi lemak");
     expect(third.transcript).toBe("two eggs toast and a protein shake");
+    expect(instances.map((instance) => instance.abortCount)).toEqual([1, 1, 1]);
   });
 
   it("lets the user finish listening without creating a second recognition request", async () => {

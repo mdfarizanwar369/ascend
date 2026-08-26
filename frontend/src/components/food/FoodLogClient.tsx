@@ -845,7 +845,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       const result = await startMealSpeechRecognition();
       if (mealSpeechRequestRef.current !== requestId) return;
       const transcript = result.transcript.trim();
-      setManualMealText((current) => current.trim() ? `${current.trim()}, ${transcript}` : transcript);
+      setManualMealText(transcript);
       setMealSpeechMessage(`I heard: “${transcript}” Review it, then analyse your meal.`);
       setStatus("Voice description ready. Review it, then analyse your meal.");
     } catch (error) {
@@ -1393,7 +1393,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     }`}
                   >
                     {isListeningForMeal ? <Square size={15} fill="currentColor" /> : <Mic size={17} />}
-                    {isListeningForMeal ? "Finish" : "Speak meal"}
+                    {isListeningForMeal ? "Finish" : manualMealText.trim() ? "Speak again" : "Speak meal"}
                   </button>
                 ) : null}
               </div>
