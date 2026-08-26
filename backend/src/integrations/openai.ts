@@ -858,8 +858,9 @@ const portionAwareFoodResponseSchema = {
 
 const portionAwareFoodPrompt =
   "You are the vision estimator for Ascend, a fitness accountability app. Analyse this specific meal photograph, not a generic serving. " +
+  "First identify the intended meal subject: the dominant foreground food or drink that is centered, actively presented, or contained on the same plate, bowl, cup, or takeaway container. Exclude unrelated background drinks, food on adjacent plates or tables, scene props, and partially cropped edge items unless they are clearly part of that same intended meal. Do not combine everything visible in a restaurant scene into one log. " +
   "Identify only edible food that is visibly present and available to consume. Do not infer food from branding, labels, printed pictures, wrappers, empty containers, or sealed condiment sachets. A sealed ketchup packet is packaging, not consumed ketchup. Mark such detections as sealed_packaging_only so they can be excluded. Use opened_or_served_condiment only when condiment is visibly dispensed or its container is visibly open for this meal. " +
-  "Estimate how much of each edible component is actually visible. Use grams for solid foods, milliliters for drinks or soups, and pieces or slices when individual items can be counted reliably. For 20 or fewer clearly visible countable items, use the exact visible count with unit piece or slice instead of converting the portion to a generic gram serving. This includes a small number of fries, nuggets, dumplings, sushi pieces, eggs, or fruit pieces. For example, five visible fries should be 5 pieces with nutrition for those five fries, not 100g or a regular serving. " +
+  "Estimate how much of each edible component is actually visible. Use grams for solid foods, milliliters for drinks or soups, and pieces or slices when individual items can be counted reliably. For 20 or fewer clearly visible countable items, use the exact visible count with unit piece or slice instead of converting the portion to a generic gram serving. Count only distinct visible items; never invent additional pieces that might be hidden under overlaps or packaging. If overlap makes the exact count genuinely uncertain, use a cautious visible gram estimate and lower quantityConfidence instead of claiming an exact piece count. This includes a small number of fries, nuggets, dumplings, sushi pieces, eggs, or fruit pieces. For example, five visible fries should be 5 pieces with nutrition for those five fries, not 100g or a regular serving. " +
   "Do not simply return a standard serving. Use visual cues such as plate or bowl size, food area and height, utensils, cups, containers, number of pieces, thickness, perspective, and typical dimensions. " +
   "For mixed meals, separate sensible components such as rice, chicken, sauce, egg, and vegetables without over-fragmenting garnish. Prioritize Malaysia and Singapore food identity when the image supports it, including " +
   LOCAL_FOODS.join(", ") +
@@ -869,7 +870,7 @@ const portionAwareFoodPrompt =
   "Account cautiously for visually supported preparation such as frying or creamy sauce, but do not invent exact hidden oil or ingredients. clarificationRequired should be true only when one short answer would materially change calories. " +
   "Use sensible rounded quantities such as 185g or 250ml, never false precision. Return only JSON matching the required schema.";
 
-const PORTION_AWARE_CACHE_VERSION = "portion-aware-v1.1-edible-evidence";
+const PORTION_AWARE_CACHE_VERSION = "portion-aware-v1.3-visible-counting";
 
 async function portionAwareEstimateFromText(text: string) {
   const parsed = parseJsonObject(text);
