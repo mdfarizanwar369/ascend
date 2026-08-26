@@ -76,7 +76,7 @@ const SPEECH_PERMISSION_TIMEOUT_MS = 20_000;
 const SPEECH_LISTENING_TIMEOUT_MS = 15_000;
 const SPEECH_STOP_TIMEOUT_MS = 2_500;
 const SPEECH_RESULT_RELEASE_TIMEOUT_MS = 750;
-const SPEECH_ABORT_RELEASE_GRACE_MS = 50;
+const SPEECH_BROWSER_RELEASE_SETTLE_MS = 350;
 const NATIVE_SPEECH_SAFETY_TIMEOUT_MS = 20_000;
 
 let activeBrowserRecognition: BrowserSpeechRecognition | null = null;
@@ -159,7 +159,7 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
   const recognition = new SpeechRecognition();
   recognition.lang = localePreference(locale);
   recognition.continuous = false;
-  recognition.interimResults = false;
+  recognition.interimResults = true;
   recognition.maxAlternatives = 3;
   activeBrowserRecognition = recognition;
   activeSource = "browser";
@@ -170,17 +170,23 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
     let listeningTimer: ReturnType<typeof setTimeout> | null = null;
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
     let resultReleaseTimer: ReturnType<typeof setTimeout> | null = null;
+    let releaseSettleTimer: ReturnType<typeof setTimeout> | null = null;
     let capturedResult: MealSpeechResult | null = null;
+    let recognitionEnded = false;
+    let stopRequested = false;
+    let terminalError: Error | null = null;
 
     const clearTimers = () => {
       if (permissionTimer) clearTimeout(permissionTimer);
       if (listeningTimer) clearTimeout(listeningTimer);
       if (stopTimer) clearTimeout(stopTimer);
       if (resultReleaseTimer) clearTimeout(resultReleaseTimer);
+      if (releaseSettleTimer) clearTimeout(releaseSettleTimer);
       permissionTimer = null;
       listeningTimer = null;
       stopTimer = null;
       resultReleaseTimer = null;
+      releaseSettleTimer = null;
     };
 
     const cleanup = () => {
@@ -198,10 +204,12 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
       if (settled) return;
       settled = true;
       cleanup();
-      try {
-        recognition.abort();
-      } catch {
-        // The recognition service may already have stopped itself.
+      if (!recognitionEnded) {
+        try {
+          recognition.abort();
+        } catch {
+          // The recognition service may already have stopped itself.
+        }
       }
       reject(error);
     };
@@ -214,21 +222,35 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
       resolve(result);
     };
 
+    const settleAfterBrowserRelease = () => {
+      if (settled) return;
+      if (releaseSettleTimer) clearTimeout(releaseSettleTimer);
+      releaseSettleTimer = setTimeout(() => {
+        releaseSettleTimer = null;
+        if (capturedResult) {
+          resolveCapturedResult();
+          return;
+        }
+        fail(terminalError ?? speechError("no_speech", "I did not hear a meal. Try again and speak close to your phone."));
+      }, SPEECH_BROWSER_RELEASE_SETTLE_MS);
+    };
+
     const forceReleaseCapturedResult = () => {
       if (settled || !capturedResult) return;
-      const result = capturedResult;
-      settled = true;
-      cleanup();
-      try {
-        recognition.abort();
-      } catch {
-        // A completed recognition service may already be closed.
+      if (!recognitionEnded) {
+        recognitionEnded = true;
+        try {
+          recognition.abort();
+        } catch {
+          // A completed recognition service may already be closed.
+        }
       }
-      setTimeout(() => resolve(result), SPEECH_ABORT_RELEASE_GRACE_MS);
+      settleAfterBrowserRelease();
     };
 
     const finishRecognition = () => {
-      if (settled) return;
+      if (settled || recognitionEnded || stopRequested) return;
+      stopRequested = true;
       try {
         recognition.stop();
       } catch {
@@ -255,7 +277,7 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
     };
 
     recognition.onresult = (event) => {
-      const result = event.results[event.resultIndex] ?? event.results[0];
+      const result = event.results[event.resultIndex] ?? event.results[event.results.length - 1] ?? event.results[0];
       const alternatives = result
         ? Array.from({ length: result.length }, (_, index) => result[index]?.transcript?.trim()).filter((value): value is string => Boolean(value))
         : [];
@@ -270,32 +292,41 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
       };
       if (listeningTimer) clearTimeout(listeningTimer);
       listeningTimer = null;
-      try {
-        recognition.stop();
-      } catch {
-        forceReleaseCapturedResult();
-        return;
+      if (result.isFinal && !recognitionEnded) {
+        finishRecognition();
+        if (!recognitionEnded && !settled) {
+          resultReleaseTimer = setTimeout(forceReleaseCapturedResult, SPEECH_RESULT_RELEASE_TIMEOUT_MS);
+        }
       }
-      resultReleaseTimer = setTimeout(forceReleaseCapturedResult, SPEECH_RESULT_RELEASE_TIMEOUT_MS);
     };
 
     recognition.onerror = (event) => {
       if (capturedResult) {
-        resolveCapturedResult();
+        terminalError = browserErrorMessage(event.error);
+        forceReleaseCapturedResult();
         return;
       }
-      fail(browserErrorMessage(event.error));
+      const error = browserErrorMessage(event.error);
+      if (event.error === "no-speech" || event.error === "aborted") {
+        terminalError = error;
+        settleAfterBrowserRelease();
+        return;
+      }
+      fail(error);
     };
 
     recognition.onend = () => {
       if (settled) return;
-      if (capturedResult) {
-        resolveCapturedResult();
-        return;
-      }
-      settled = true;
-      cleanup();
-      reject(speechError("no_speech", "I did not hear a meal. Try again and speak close to your phone."));
+      recognitionEnded = true;
+      if (permissionTimer) clearTimeout(permissionTimer);
+      if (listeningTimer) clearTimeout(listeningTimer);
+      if (stopTimer) clearTimeout(stopTimer);
+      if (resultReleaseTimer) clearTimeout(resultReleaseTimer);
+      permissionTimer = null;
+      listeningTimer = null;
+      stopTimer = null;
+      resultReleaseTimer = null;
+      settleAfterBrowserRelease();
     };
 
     try {

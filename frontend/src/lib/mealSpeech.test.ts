@@ -29,6 +29,8 @@ function installSpeechRecognition(options: {
   neverStarts?: boolean;
   neverSettles?: boolean;
   stallOnStop?: boolean;
+  resultAfterEnd?: boolean;
+  serviceReleaseDelayMs?: number;
 }) {
   const queued = [...(options.transcripts ?? [])];
   const instances: FakeRecognitionInstance[] = [];
@@ -76,11 +78,25 @@ function installSpeechRecognition(options: {
       if (options.stallOnStop) return;
       queueMicrotask(() => {
         if (!this.emittedResult) {
+          if (options.resultAfterEnd) {
+            this.onend?.();
+            setTimeout(() => {
+              this.emitResult();
+              serviceActive = false;
+            }, 100);
+            return;
+          }
           this.emitResult();
           return;
         }
-        serviceActive = false;
         this.onend?.();
+        if (options.serviceReleaseDelayMs) {
+          setTimeout(() => {
+            serviceActive = false;
+          }, options.serviceReleaseDelayMs);
+        } else {
+          serviceActive = false;
+        }
       });
     }
 
@@ -109,23 +125,46 @@ describe("meal speech recognition", () => {
     expect(await getMealSpeechAvailability()).toEqual({ available: true, source: "browser" });
   });
 
-  it("recognises several natural meal descriptions in consecutive sessions", async () => {
-    const instances = installSpeechRecognition({
-      transcripts: [
-        "chicken rice and iced coffee",
-        "nasi lemak with fried chicken and teh tarik kurang manis",
-        "two eggs toast and a protein shake"
-      ]
-    });
+  it("recognises ten natural meal descriptions in consecutive sessions", async () => {
+    vi.useFakeTimers();
+    const transcripts = [
+      "chicken rice and iced coffee",
+      "nasi lemak with fried chicken and teh tarik kurang manis",
+      "two eggs toast and a protein shake",
+      "oats banana and honey",
+      "beef noodles and green tea",
+      "salmon rice and vegetables",
+      "apple and greek yogurt",
+      "McChicken meal with Coke Zero",
+      "eight pieces of sushi and miso soup",
+      "laksa with one boiled egg"
+    ];
+    const instances = installSpeechRecognition({ transcripts, serviceReleaseDelayMs: 250 });
 
-    const first = await startMealSpeechRecognition({ locale: "en-MY" });
-    const second = await startMealSpeechRecognition({ locale: "en-MY" });
-    const third = await startMealSpeechRecognition({ locale: "en-MY" });
+    const results = [];
+    for (const transcript of transcripts) {
+      const pending = startMealSpeechRecognition({ locale: "en-MY" });
+      await vi.advanceTimersByTimeAsync(351);
+      const result = await pending;
+      expect(result).toMatchObject({ transcript, confidence: 0.91, source: "browser" });
+      results.push(result);
+    }
 
-    expect(first).toMatchObject({ transcript: "chicken rice and iced coffee", confidence: 0.91, source: "browser" });
-    expect(second.transcript).toContain("nasi lemak");
-    expect(third.transcript).toBe("two eggs toast and a protein shake");
-    expect(instances.map((instance) => instance.abortCount)).toEqual([0, 0, 0]);
+    expect(results).toHaveLength(10);
+    expect(instances).toHaveLength(10);
+    expect(instances.map((instance) => instance.abortCount)).toEqual(Array(10).fill(0));
+  });
+
+  it("keeps Safari listeners alive when the final transcript arrives after onend", async () => {
+    vi.useFakeTimers();
+    installSpeechRecognition({ transcripts: ["oats and honey"], waitForStop: true, resultAfterEnd: true });
+
+    const pending = startMealSpeechRecognition({ locale: "en-MY" });
+    await vi.runAllTicks();
+    await stopMealSpeechRecognition();
+    await vi.advanceTimersByTimeAsync(351);
+
+    await expect(pending).resolves.toMatchObject({ transcript: "oats and honey", source: "browser" });
   });
 
   it("lets the user finish listening without creating a second recognition request", async () => {
@@ -195,7 +234,7 @@ describe("meal speech recognition", () => {
 
     const pending = startMealSpeechRecognition();
     const result = expect(pending).resolves.toMatchObject({ transcript: "oats and honey" });
-    await vi.advanceTimersByTimeAsync(801);
+    await vi.advanceTimersByTimeAsync(1_151);
 
     await result;
     vi.useRealTimers();

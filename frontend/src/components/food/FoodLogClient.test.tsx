@@ -48,6 +48,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ back: vi.fn(), push: vi.
 
 beforeEach(() => {
   vi.clearAllMocks();
+  speech.startMealSpeechRecognition.mockReset();
   api.getFoodLogs.mockResolvedValue({ foodLogs: [], nextOffset: null });
   api.getFoodAiAllowance.mockResolvedValue({ allowance: null });
   api.getMe.mockResolvedValue({ user: { id: "member-1", goal_type: "fat_loss" } });
@@ -73,26 +74,44 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Food Log voice entry", () => {
-  it("replaces a previous voice transcript when recording again and reuses text meal analysis", async () => {
-    speech.startMealSpeechRecognition
-      .mockResolvedValueOnce({ transcript: "chicken rice", confidence: 0.9, alternatives: ["chicken rice"], source: "browser" })
-      .mockResolvedValueOnce({ transcript: "oats and honey", confidence: 0.86, alternatives: ["oats and honey"], source: "browser" });
+  it("replaces the transcript across ten consecutive voice meal sessions", async () => {
+    const transcripts = [
+      "chicken rice",
+      "oats and honey",
+      "banana and milk",
+      "nasi lemak",
+      "protein shake",
+      "two eggs and toast",
+      "sushi eight pieces",
+      "beef noodles",
+      "apple and yogurt",
+      "laksa with boiled egg"
+    ];
+    for (const transcript of transcripts) {
+      speech.startMealSpeechRecognition.mockResolvedValueOnce({
+        transcript,
+        confidence: 0.9,
+        alternatives: [transcript],
+        source: "browser"
+      });
+    }
 
     render(<FoodLogClient />);
-    const speakButton = await screen.findByRole("button", { name: "Speak meal" });
+    await screen.findByRole("button", { name: "Speak meal" });
+    let description: HTMLElement | null = null;
 
-    fireEvent.click(speakButton);
-    const description = await screen.findByLabelText("What did you eat?");
-    await waitFor(() => expect(description).toHaveValue("chicken rice"));
-
-    fireEvent.click(screen.getByRole("button", { name: "Speak again" }));
-    await waitFor(() => expect(description).toHaveValue("oats and honey"));
+    for (const [index, transcript] of transcripts.entries()) {
+      fireEvent.click(screen.getByRole("button", { name: index === 0 ? "Speak meal" : "Speak again" }));
+      description ??= await screen.findByLabelText("What did you eat?");
+      await waitFor(() => expect(description).toHaveValue(transcript));
+    }
+    expect(speech.startMealSpeechRecognition).toHaveBeenCalledTimes(10);
     expect(screen.getByText("Voice is used only while listening. Ascend keeps the text, not the recording.")).toBeInTheDocument();
 
-    fireEvent.change(description, { target: { value: "oats, honey and milk" } });
+    fireEvent.change(description!, { target: { value: "laksa, boiled egg and tofu" } });
     fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
 
-    await waitFor(() => expect(api.estimateFoodFromText).toHaveBeenCalledWith("oats, honey and milk"));
+    await waitFor(() => expect(api.estimateFoodFromText).toHaveBeenCalledWith("laksa, boiled egg and tofu"));
     expect(await screen.findByText("Chicken rice and teh tarik")).toBeInTheDocument();
   });
 
