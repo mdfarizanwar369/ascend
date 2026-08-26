@@ -75,6 +75,8 @@ const NativeMealSpeech = registerPlugin<NativeMealSpeechPlugin>("MealSpeech");
 const SPEECH_PERMISSION_TIMEOUT_MS = 20_000;
 const SPEECH_LISTENING_TIMEOUT_MS = 15_000;
 const SPEECH_STOP_TIMEOUT_MS = 2_500;
+const SPEECH_RESULT_RELEASE_TIMEOUT_MS = 750;
+const SPEECH_ABORT_RELEASE_GRACE_MS = 50;
 const NATIVE_SPEECH_SAFETY_TIMEOUT_MS = 20_000;
 
 let activeBrowserRecognition: BrowserSpeechRecognition | null = null;
@@ -167,14 +169,18 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
     let permissionTimer: ReturnType<typeof setTimeout> | null = null;
     let listeningTimer: ReturnType<typeof setTimeout> | null = null;
     let stopTimer: ReturnType<typeof setTimeout> | null = null;
+    let resultReleaseTimer: ReturnType<typeof setTimeout> | null = null;
+    let capturedResult: MealSpeechResult | null = null;
 
     const clearTimers = () => {
       if (permissionTimer) clearTimeout(permissionTimer);
       if (listeningTimer) clearTimeout(listeningTimer);
       if (stopTimer) clearTimeout(stopTimer);
+      if (resultReleaseTimer) clearTimeout(resultReleaseTimer);
       permissionTimer = null;
       listeningTimer = null;
       stopTimer = null;
+      resultReleaseTimer = null;
     };
 
     const cleanup = () => {
@@ -198,6 +204,27 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
         // The recognition service may already have stopped itself.
       }
       reject(error);
+    };
+
+    const resolveCapturedResult = () => {
+      if (settled || !capturedResult) return;
+      const result = capturedResult;
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+
+    const forceReleaseCapturedResult = () => {
+      if (settled || !capturedResult) return;
+      const result = capturedResult;
+      settled = true;
+      cleanup();
+      try {
+        recognition.abort();
+      } catch {
+        // A completed recognition service may already be closed.
+      }
+      setTimeout(() => resolve(result), SPEECH_ABORT_RELEASE_GRACE_MS);
     };
 
     const finishRecognition = () => {
@@ -234,28 +261,38 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
         : [];
       const transcript = alternatives[0] ?? "";
       if (!transcript) return;
-      settled = true;
       const confidence = result?.[0]?.confidence;
-      cleanup();
-      try {
-        recognition.abort();
-      } catch {
-        // The service may already be closing after its final result.
-      }
-      resolve({
+      capturedResult = {
         transcript,
         confidence: Number.isFinite(confidence) && confidence >= 0 ? confidence : null,
         alternatives,
         source: "browser"
-      });
+      };
+      if (listeningTimer) clearTimeout(listeningTimer);
+      listeningTimer = null;
+      try {
+        recognition.stop();
+      } catch {
+        forceReleaseCapturedResult();
+        return;
+      }
+      resultReleaseTimer = setTimeout(forceReleaseCapturedResult, SPEECH_RESULT_RELEASE_TIMEOUT_MS);
     };
 
     recognition.onerror = (event) => {
+      if (capturedResult) {
+        resolveCapturedResult();
+        return;
+      }
       fail(browserErrorMessage(event.error));
     };
 
     recognition.onend = () => {
       if (settled) return;
+      if (capturedResult) {
+        resolveCapturedResult();
+        return;
+      }
       settled = true;
       cleanup();
       reject(speechError("no_speech", "I did not hear a meal. Try again and speak close to your phone."));

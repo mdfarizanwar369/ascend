@@ -106,9 +106,10 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
 
             cancelledByClient = false
             pendingCall = call
-            releaseRecognizer()
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).also {
-                it.setRecognitionListener(this)
+            if (speechRecognizer == null) {
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).also {
+                    it.setRecognitionListener(this)
+                }
             }
 
             val locale = call.getString("locale")?.trim().takeUnless { it.isNullOrBlank() }
@@ -208,7 +209,6 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
         val call = pendingCall ?: return
         pendingCall = null
         clearRecognitionTimeouts()
-        releaseRecognizer()
         call.resolve(payload)
     }
 

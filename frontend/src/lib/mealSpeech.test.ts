@@ -32,6 +32,7 @@ function installSpeechRecognition(options: {
 }) {
   const queued = [...(options.transcripts ?? [])];
   const instances: FakeRecognitionInstance[] = [];
+  let serviceActive = false;
 
   class FakeRecognition implements FakeRecognitionInstance {
     lang = "";
@@ -43,12 +44,14 @@ function installSpeechRecognition(options: {
     onerror: ((event: unknown) => void) | null = null;
     onend: (() => void) | null = null;
     abortCount = 0;
+    private emittedResult = false;
 
     constructor() {
       instances.push(this);
     }
 
     emitResult() {
+      this.emittedResult = true;
       const transcript = queued.shift() ?? "";
       const result = Object.assign([{ transcript, confidence: 0.91 }], { isFinal: true });
       this.onresult?.({ resultIndex: 0, results: [result] });
@@ -57,6 +60,11 @@ function installSpeechRecognition(options: {
     start() {
       if (options.neverStarts) return;
       queueMicrotask(() => {
+        if (serviceActive) {
+          this.onerror?.({ error: "audio-capture" });
+          return;
+        }
+        serviceActive = true;
         this.onstart?.();
         if (options.waitForStop || options.neverSettles) return;
         if (options.error) this.onerror?.({ error: options.error });
@@ -66,11 +74,19 @@ function installSpeechRecognition(options: {
 
     stop() {
       if (options.stallOnStop) return;
-      queueMicrotask(() => this.emitResult());
+      queueMicrotask(() => {
+        if (!this.emittedResult) {
+          this.emitResult();
+          return;
+        }
+        serviceActive = false;
+        this.onend?.();
+      });
     }
 
     abort() {
       this.abortCount += 1;
+      serviceActive = false;
       queueMicrotask(() => this.onerror?.({ error: "aborted" }));
     }
   }
@@ -109,7 +125,7 @@ describe("meal speech recognition", () => {
     expect(first).toMatchObject({ transcript: "chicken rice and iced coffee", confidence: 0.91, source: "browser" });
     expect(second.transcript).toContain("nasi lemak");
     expect(third.transcript).toBe("two eggs toast and a protein shake");
-    expect(instances.map((instance) => instance.abortCount)).toEqual([1, 1, 1]);
+    expect(instances.map((instance) => instance.abortCount)).toEqual([0, 0, 0]);
   });
 
   it("lets the user finish listening without creating a second recognition request", async () => {
@@ -171,5 +187,19 @@ describe("meal speech recognition", () => {
     await vi.advanceTimersByTimeAsync(2_501);
 
     await rejection;
+  });
+
+  it("returns a valid transcript and releases the service when the browser omits its final end event", async () => {
+    vi.useFakeTimers();
+    installSpeechRecognition({ transcripts: ["oats and honey"], stallOnStop: true });
+
+    const pending = startMealSpeechRecognition();
+    const result = expect(pending).resolves.toMatchObject({ transcript: "oats and honey" });
+    await vi.advanceTimersByTimeAsync(801);
+
+    await result;
+    vi.useRealTimers();
+    installSpeechRecognition({ transcripts: ["banana and milk"] });
+    await expect(startMealSpeechRecognition()).resolves.toMatchObject({ transcript: "banana and milk" });
   });
 });
