@@ -160,7 +160,8 @@ describe("meal speech recognition", () => {
     installSpeechRecognition({ transcripts: ["oats and honey"], waitForStop: true, resultAfterEnd: true });
 
     const pending = startMealSpeechRecognition({ locale: "en-MY" });
-    await vi.runAllTicks();
+    await Promise.resolve();
+    await Promise.resolve();
     await stopMealSpeechRecognition();
     await vi.advanceTimersByTimeAsync(351);
 
@@ -170,6 +171,8 @@ describe("meal speech recognition", () => {
   it("lets the user finish listening without creating a second recognition request", async () => {
     const instances = installSpeechRecognition({ transcripts: ["sushi eight pieces and miso soup"], waitForStop: true });
     const pending = startMealSpeechRecognition();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(instances).toHaveLength(1);
 
     await stopMealSpeechRecognition();
@@ -240,5 +243,54 @@ describe("meal speech recognition", () => {
     vi.useRealTimers();
     installSpeechRecognition({ transcripts: ["banana and milk"] });
     await expect(startMealSpeechRecognition()).resolves.toMatchObject({ transcript: "banana and milk" });
+  });
+
+  it("returns a useful error when first-use browser microphone permission is denied", async () => {
+    const originalMediaDevices = navigator.mediaDevices;
+    const instances = installSpeechRecognition({ transcripts: ["chicken rice"] });
+    const denied = Object.assign(new Error("denied"), { name: "NotAllowedError" });
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockRejectedValue(denied) }
+    });
+
+    try {
+      await expect(startMealSpeechRecognition()).rejects.toMatchObject({ code: "permission_denied" });
+      expect(instances).toHaveLength(0);
+    } finally {
+      Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: originalMediaDevices });
+    }
+  });
+
+  it("continues the first recording automatically after iPhone microphone permission is granted", async () => {
+    vi.useFakeTimers();
+    const originalMediaDevices = navigator.mediaDevices;
+    const instances = installSpeechRecognition({ transcripts: ["oats and honey"] });
+    const stopTrack = vi.fn();
+    let grantPermission!: (stream: MediaStream) => void;
+    const permission = new Promise<MediaStream>((resolve) => {
+      grantPermission = resolve;
+    });
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockReturnValue(permission) }
+    });
+
+    try {
+      const pending = startMealSpeechRecognition({ locale: "en-MY" });
+      await vi.runAllTicks();
+      expect(instances).toHaveLength(0);
+
+      grantPermission({ getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(stopTrack).toHaveBeenCalledOnce();
+
+      await vi.advanceTimersByTimeAsync(301);
+      expect(instances).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(351);
+      await expect(pending).resolves.toMatchObject({ transcript: "oats and honey", source: "browser" });
+    } finally {
+      Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: originalMediaDevices });
+    }
   });
 });

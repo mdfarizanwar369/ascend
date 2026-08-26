@@ -77,11 +77,14 @@ const SPEECH_LISTENING_TIMEOUT_MS = 15_000;
 const SPEECH_STOP_TIMEOUT_MS = 2_500;
 const SPEECH_RESULT_RELEASE_TIMEOUT_MS = 750;
 const SPEECH_BROWSER_RELEASE_SETTLE_MS = 350;
+const SPEECH_BROWSER_PERMISSION_SETTLE_MS = 300;
 const NATIVE_SPEECH_SAFETY_TIMEOUT_MS = 20_000;
 
 let activeBrowserRecognition: BrowserSpeechRecognition | null = null;
 let finishActiveBrowserRecognition: (() => void) | null = null;
 let activeSource: "android" | "browser" | null = null;
+let browserMicrophonePrepared = false;
+let browserMicrophonePreparation: Promise<void> | null = null;
 
 function browserSpeechConstructor() {
   if (typeof window === "undefined") return null;
@@ -115,6 +118,63 @@ function browserErrorMessage(code: string) {
     return speechError("network", "Speech recognition needs a connection right now. Check your internet and try again.");
   }
   return speechError("recognition_failed", "I could not understand that meal. Try again or type it instead.");
+}
+
+function browserMicrophoneError(error: unknown) {
+  const name = error instanceof DOMException
+    ? error.name
+    : typeof error === "object" && error && "name" in error
+      ? String((error as { name?: unknown }).name ?? "")
+      : "";
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return speechError("permission_denied", "Microphone access is off. Allow it in your device settings, then try again.");
+  }
+  if (name === "NotFoundError" || name === "NotReadableError" || name === "AbortError") {
+    return speechError("audio_error", "Your microphone is unavailable right now. Check whether another app is using it.");
+  }
+  return error instanceof Error
+    ? error
+    : speechError("recognition_failed", "Voice entry could not prepare the microphone.");
+}
+
+async function prepareBrowserMicrophone() {
+  if (browserMicrophonePrepared || typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+  if (browserMicrophonePreparation) return browserMicrophonePreparation;
+
+  browserMicrophonePreparation = (async () => {
+    const mediaRequest = navigator.mediaDevices.getUserMedia({ audio: true });
+    let permissionTimer: ReturnType<typeof setTimeout> | null = null;
+    let stream: MediaStream;
+    try {
+      stream = await Promise.race([
+        mediaRequest,
+        new Promise<never>((_, reject) => {
+          permissionTimer = setTimeout(
+            () => reject(speechError("speech_timeout", "Microphone permission took too long. Nothing was saved.")),
+            SPEECH_PERMISSION_TIMEOUT_MS
+          );
+        })
+      ]);
+    } catch (error) {
+      mediaRequest.then(
+        (lateStream) => lateStream.getTracks().forEach((track) => track.stop()),
+        () => undefined
+      );
+      throw browserMicrophoneError(error);
+    } finally {
+      if (permissionTimer) clearTimeout(permissionTimer);
+    }
+
+    for (const track of stream.getTracks()) track.stop();
+    browserMicrophonePrepared = true;
+    await new Promise<void>((resolve) => setTimeout(resolve, SPEECH_BROWSER_PERMISSION_SETTLE_MS));
+  })();
+
+  try {
+    await browserMicrophonePreparation;
+  } finally {
+    browserMicrophonePreparation = null;
+  }
 }
 
 export function mealSpeechErrorMessage(error: unknown) {
@@ -384,6 +444,7 @@ export async function startMealSpeechRecognition(options?: { locale?: string }):
     }
   }
 
+  await prepareBrowserMicrophone();
   return startBrowserRecognition(options?.locale);
 }
 
