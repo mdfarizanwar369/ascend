@@ -15,6 +15,7 @@ import { findLocalFoodForPortion, LocalFoodPortionMatch } from "./localFoodServi
 
 const portionUnitSchema = z.enum(["g", "ml", "piece", "slice", "serving"]);
 const portionLabelSchema = z.enum(["small", "regular", "large", "unknown"]);
+const consumptionEvidenceSchema = z.enum(["visible_food", "opened_or_served_condiment", "sealed_packaging_only"]);
 const nutritionValueSchema = z.number().finite().min(0).max(5000);
 const savedNutritionSchema = z.object({
   calories: nutritionValueSchema,
@@ -35,6 +36,7 @@ export const portionAwareVisionResponseSchema = z.object({
     quantityConfidence: z.number().finite().min(0).max(1),
     foodConfidence: z.number().finite().min(0).max(1),
     visiblePortionLabel: portionLabelSchema,
+    consumptionEvidence: consumptionEvidenceSchema.default("visible_food"),
     preparation: z.string().trim().max(120).nullable(),
     notes: z.string().trim().max(240).nullable(),
     nutritionForVisibleQuantity: savedNutritionSchema
@@ -242,13 +244,15 @@ export async function buildPortionAwareEstimate(
   raw: PortionAwareVisionResponse,
   deps: PortionNutritionDependencies = defaultDependencies
 ): Promise<FoodEstimate> {
-  const items = await Promise.all(raw.items.map((item, index) => normalizeItem(item, index, deps)));
+  const edibleItems = raw.items.filter((item) => item.consumptionEvidence !== "sealed_packaging_only");
+  if (!edibleItems.length) throw new Error("Portion-aware response did not identify visible edible food.");
+  const items = await Promise.all(edibleItems.map((item, index) => normalizeItem(item, index, deps)));
   const totals = aggregatePortionNutrition(items);
   if (totals.calories <= 0) throw new Error("Portion-aware response did not contain usable nutrition.");
   const portionFallback = items.some((item) => item.portionSource === "standard_serving_fallback");
 
   return {
-    foodName: raw.mealName,
+    foodName: edibleItems.length === raw.items.length ? raw.mealName : items.map((item) => item.name).join(" and "),
     confidence: raw.overallConfidence,
     recognitionConfidence: raw.overallConfidence,
     portionConfidence: raw.portionEstimationConfidence,

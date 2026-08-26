@@ -827,6 +827,10 @@ const portionAwareFoodResponseSchema = {
           quantityConfidence: { type: "NUMBER" },
           foodConfidence: { type: "NUMBER" },
           visiblePortionLabel: { type: "STRING", enum: ["small", "regular", "large", "unknown"] },
+          consumptionEvidence: {
+            type: "STRING",
+            enum: ["visible_food", "opened_or_served_condiment", "sealed_packaging_only"]
+          },
           preparation: { type: "STRING", nullable: true },
           notes: { type: "STRING", nullable: true },
           nutritionForVisibleQuantity: {
@@ -842,7 +846,7 @@ const portionAwareFoodResponseSchema = {
         },
         required: [
           "name", "normalizedHint", "estimatedQuantity", "unit", "quantityConfidence", "foodConfidence",
-          "visiblePortionLabel", "preparation", "notes", "nutritionForVisibleQuantity"
+          "visiblePortionLabel", "consumptionEvidence", "preparation", "notes", "nutritionForVisibleQuantity"
         ]
       }
     },
@@ -854,14 +858,18 @@ const portionAwareFoodResponseSchema = {
 
 const portionAwareFoodPrompt =
   "You are the vision estimator for Ascend, a fitness accountability app. Analyse this specific meal photograph, not a generic serving. " +
-  "Identify the nutrition-relevant visible components and estimate how much of each component is actually visible. Use grams for solid foods, milliliters for drinks or soups, and pieces or slices only when that is the natural unit. " +
+  "Identify only edible food that is visibly present and available to consume. Do not infer food from branding, labels, printed pictures, wrappers, empty containers, or sealed condiment sachets. A sealed ketchup packet is packaging, not consumed ketchup. Mark such detections as sealed_packaging_only so they can be excluded. Use opened_or_served_condiment only when condiment is visibly dispensed or its container is visibly open for this meal. " +
+  "Estimate how much of each edible component is actually visible. Use grams for solid foods, milliliters for drinks or soups, and pieces or slices when individual items can be counted reliably. For 20 or fewer clearly visible countable items, use the exact visible count with unit piece or slice instead of converting the portion to a generic gram serving. This includes a small number of fries, nuggets, dumplings, sushi pieces, eggs, or fruit pieces. For example, five visible fries should be 5 pieces with nutrition for those five fries, not 100g or a regular serving. " +
   "Do not simply return a standard serving. Use visual cues such as plate or bowl size, food area and height, utensils, cups, containers, number of pieces, thickness, perspective, and typical dimensions. " +
   "For mixed meals, separate sensible components such as rice, chicken, sauce, egg, and vegetables without over-fragmenting garnish. Prioritize Malaysia and Singapore food identity when the image supports it, including " +
   LOCAL_FOODS.join(", ") +
   ". For every item, nutritionForVisibleQuantity must contain calories, protein, carbs, and fat for exactly that item's estimatedQuantity and unit, not for a generic serving. If estimatedQuantity is null, nutritionForVisibleQuantity may represent one honest standard-serving fallback. " +
+  "mealName must describe only the edible visible food, not the restaurant category or surrounding packaging. " +
   "Food identity confidence and quantity confidence are separate values from 0 to 1. If an amount cannot be inferred safely, set estimatedQuantity to null, unit to serving, visiblePortionLabel to unknown, and lower quantityConfidence. " +
   "Account cautiously for visually supported preparation such as frying or creamy sauce, but do not invent exact hidden oil or ingredients. clarificationRequired should be true only when one short answer would materially change calories. " +
   "Use sensible rounded quantities such as 185g or 250ml, never false precision. Return only JSON matching the required schema.";
+
+const PORTION_AWARE_CACHE_VERSION = "portion-aware-v1.1-edible-evidence";
 
 async function portionAwareEstimateFromText(text: string) {
   const parsed = parseJsonObject(text);
@@ -1081,7 +1089,7 @@ export async function estimateFoodFromImage(
     imageUrl.startsWith("data:image/") ? imageHashFromDataUrl(imageUrl) : null
   );
   const cacheHash = imageHash && context.portionAware
-    ? createHash("sha256").update(`${imageHash}:portion-aware-v1`).digest("hex")
+    ? createHash("sha256").update(`${imageHash}:${PORTION_AWARE_CACHE_VERSION}`).digest("hex")
     : imageHash;
   if (cacheHash) {
     const cached = await timeFoodAiStage(context.performanceTrace, "Cache lookup", () => getCachedFoodEstimate(cacheHash));

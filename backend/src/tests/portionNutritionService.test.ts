@@ -17,6 +17,7 @@ function rawItem(overrides: Partial<PortionAwareVisionResponse["items"][number]>
     quantityConfidence: 0.78,
     foodConfidence: 0.94,
     visiblePortionLabel: "regular" as const,
+    consumptionEvidence: "visible_food" as const,
     preparation: "grilled",
     notes: null,
     nutritionForVisibleQuantity: {
@@ -115,6 +116,45 @@ describe("Portion-Aware Nutrition V1", () => {
     expect(estimate.items).toHaveLength(4);
     expect(estimate.calories).toBe(603);
     expect(estimate.items?.reduce((total, item) => total + item.nutrition.calories, 0)).toBe(estimate.calories);
+  });
+
+  it("keeps a small visible fry count and excludes sealed condiment packets", async () => {
+    const noLocal = vi.fn(async () => null);
+    const estimate = await buildPortionAwareEstimate(rawResponse([
+      rawItem({
+        name: "French Fries",
+        normalizedHint: "fried potato fries",
+        estimatedQuantity: 5,
+        unit: "piece",
+        quantityConfidence: 0.88,
+        foodConfidence: 0.98,
+        visiblePortionLabel: "small",
+        nutritionForVisibleQuantity: { calories: 155, proteinG: 2, carbsG: 21, fatG: 7 }
+      }),
+      rawItem({
+        name: "Ketchup",
+        normalizedHint: "ketchup sachet",
+        estimatedQuantity: 30,
+        unit: "g",
+        consumptionEvidence: "sealed_packaging_only",
+        nutritionForVisibleQuantity: { calories: 34, proteinG: 0, carbsG: 8, fatG: 0 }
+      })
+    ], { mealName: "Fast Food Meal" }), { findLocalFood: noLocal });
+
+    expect(estimate.foodName).toBe("French Fries");
+    expect(estimate.items).toHaveLength(1);
+    expect(estimate.items?.[0]).toMatchObject({ name: "French Fries", estimatedQuantity: 5, unit: "piece" });
+    expect(estimate.calories).toBe(155);
+  });
+
+  it("rejects packaging-only images rather than counting packaged condiments as food", async () => {
+    await expect(buildPortionAwareEstimate(rawResponse([
+      rawItem({
+        name: "Ketchup",
+        normalizedHint: "sealed ketchup sachet",
+        consumptionEvidence: "sealed_packaging_only"
+      })
+    ]), { findLocalFood: vi.fn(async () => null) })).rejects.toThrow("did not identify visible edible food");
   });
 
   it("recalculates a user-adjusted quantity while preserving the original AI quantity", async () => {
