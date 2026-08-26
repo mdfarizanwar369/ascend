@@ -3,6 +3,8 @@ package fit.getascend.app
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -22,9 +24,34 @@ import java.util.Locale
     permissions = [Permission(strings = [Manifest.permission.RECORD_AUDIO], alias = "microphone")]
 )
 class MealSpeechPlugin : Plugin(), RecognitionListener {
+    companion object {
+        private const val PERMISSION_TIMEOUT_MS = 20_000L
+        private const val LISTENING_TIMEOUT_MS = 15_000L
+        private const val RESULT_TIMEOUT_MS = 2_500L
+    }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var speechRecognizer: SpeechRecognizer? = null
     private var pendingCall: PluginCall? = null
+    private var permissionCall: PluginCall? = null
     private var cancelledByClient = false
+    private val permissionTimeout = Runnable {
+        val call = permissionCall ?: return@Runnable
+        permissionCall = null
+        call.reject("Microphone permission took too long. Nothing was saved.", "speech_timeout")
+    }
+    private val listeningTimeout = Runnable {
+        if (pendingCall == null) return@Runnable
+        cancelledByClient = true
+        speechRecognizer?.cancel()
+        rejectPending("Listening took too long. Nothing was saved.", "speech_timeout")
+    }
+    private val resultTimeout = Runnable {
+        if (pendingCall == null) return@Runnable
+        cancelledByClient = true
+        speechRecognizer?.cancel()
+        rejectPending("Speech recognition did not return a meal. Nothing was saved.", "speech_timeout")
+    }
 
     @PluginMethod
     fun isAvailable(call: PluginCall) {
@@ -40,7 +67,7 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
 
     @PluginMethod
     fun startListening(call: PluginCall) {
-        if (pendingCall != null) {
+        if (pendingCall != null || permissionCall != null) {
             call.reject("The microphone is already listening.", "busy")
             return
         }
@@ -49,6 +76,8 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
             return
         }
         if (getPermissionState("microphone") != PermissionState.GRANTED) {
+            permissionCall = call
+            mainHandler.postDelayed(permissionTimeout, PERMISSION_TIMEOUT_MS)
             requestPermissionForAlias("microphone", call, "microphonePermissionCallback")
             return
         }
@@ -57,6 +86,9 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
 
     @PermissionCallback
     private fun microphonePermissionCallback(call: PluginCall) {
+        if (permissionCall !== call) return
+        mainHandler.removeCallbacks(permissionTimeout)
+        permissionCall = null
         if (getPermissionState("microphone") != PermissionState.GRANTED) {
             call.reject("Microphone permission was not granted.", "permission_denied")
             return
@@ -93,6 +125,7 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
 
             try {
                 speechRecognizer?.startListening(intent)
+                mainHandler.postDelayed(listeningTimeout, LISTENING_TIMEOUT_MS)
             } catch (error: Exception) {
                 rejectPending("Voice entry could not start.", "recognition_failed", error)
             }
@@ -106,7 +139,9 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
                 call.resolve(JSObject().put("stopped", false))
                 return@executeOnMainThread
             }
+            mainHandler.removeCallbacks(listeningTimeout)
             speechRecognizer?.stopListening()
+            mainHandler.postDelayed(resultTimeout, RESULT_TIMEOUT_MS)
             call.resolve(JSObject().put("stopped", true))
         }
     }
@@ -114,8 +149,13 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
     @PluginMethod
     fun cancelListening(call: PluginCall) {
         bridge.executeOnMainThread {
-            val wasListening = pendingCall != null
+            val wasListening = pendingCall != null || permissionCall != null
             cancelledByClient = true
+            mainHandler.removeCallbacks(permissionTimeout)
+            permissionCall?.let {
+                permissionCall = null
+                it.reject("Listening was cancelled.", "cancelled")
+            }
             speechRecognizer?.cancel()
             rejectPending("Listening was cancelled.", "cancelled")
             call.resolve(JSObject().put("cancelled", wasListening))
@@ -162,6 +202,7 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
     private fun resolvePending(payload: JSObject) {
         val call = pendingCall ?: return
         pendingCall = null
+        clearRecognitionTimeouts()
         releaseRecognizer()
         call.resolve(payload)
     }
@@ -169,6 +210,7 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
     private fun rejectPending(message: String, code: String, error: Exception? = null) {
         val call = pendingCall ?: return
         pendingCall = null
+        clearRecognitionTimeouts()
         releaseRecognizer()
         if (error != null) call.reject(message, code, error) else call.reject(message, code)
     }
@@ -178,11 +220,21 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
         speechRecognizer = null
     }
 
+    private fun clearRecognitionTimeouts() {
+        mainHandler.removeCallbacks(listeningTimeout)
+        mainHandler.removeCallbacks(resultTimeout)
+    }
+
     override fun handleOnDestroy() {
         bridge.executeOnMainThread {
             cancelledByClient = true
+            mainHandler.removeCallbacks(permissionTimeout)
+            permissionCall?.reject("Voice entry closed before permission completed.", "cancelled")
+            permissionCall = null
             speechRecognizer?.cancel()
+            pendingCall?.reject("Voice entry closed before recognition completed.", "cancelled")
             pendingCall = null
+            clearRecognitionTimeouts()
             releaseRecognizer()
         }
         super.handleOnDestroy()
@@ -192,7 +244,10 @@ class MealSpeechPlugin : Plugin(), RecognitionListener {
     override fun onBeginningOfSpeech() = Unit
     override fun onRmsChanged(rmsdB: Float) = Unit
     override fun onBufferReceived(buffer: ByteArray?) = Unit
-    override fun onEndOfSpeech() = Unit
+    override fun onEndOfSpeech() {
+        mainHandler.removeCallbacks(listeningTimeout)
+        mainHandler.postDelayed(resultTimeout, RESULT_TIMEOUT_MS)
+    }
     override fun onPartialResults(partialResults: Bundle?) = Unit
     override fun onEvent(eventType: Int, params: Bundle?) = Unit
 }

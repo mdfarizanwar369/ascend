@@ -114,4 +114,18 @@ describe("Food Log voice entry", () => {
     expect(await screen.findByText("I did not catch that meal. Try again and speak naturally.")).toBeInTheDocument();
     expect(screen.getByLabelText("What did you eat?")).toHaveValue("");
   });
+
+  it("restores every meal-entry control after speech recognition times out", async () => {
+    speech.startMealSpeechRecognition.mockRejectedValue(
+      Object.assign(new Error("Listening took too long. Nothing was saved, so you can try again or type the meal."), { code: "speech_timeout" })
+    );
+    render(<FoodLogClient />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Speak meal" }));
+
+    expect(await screen.findByText("Listening took too long. Nothing was saved, so you can try again or type the meal.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speak meal" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Type meal" })).toBeEnabled();
+    expect(screen.getByLabelText("What did you eat?")).toBeEnabled();
+  });
 });

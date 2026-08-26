@@ -55,6 +55,7 @@ type BrowserSpeechRecognition = {
   continuous: boolean;
   interimResults: boolean;
   maxAlternatives: number;
+  onstart: (() => void) | null;
   onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
   onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -71,8 +72,13 @@ type SpeechWindow = Window & {
 };
 
 const NativeMealSpeech = registerPlugin<NativeMealSpeechPlugin>("MealSpeech");
+const SPEECH_PERMISSION_TIMEOUT_MS = 20_000;
+const SPEECH_LISTENING_TIMEOUT_MS = 15_000;
+const SPEECH_STOP_TIMEOUT_MS = 2_500;
+const NATIVE_SPEECH_SAFETY_TIMEOUT_MS = 20_000;
 
 let activeBrowserRecognition: BrowserSpeechRecognition | null = null;
+let finishActiveBrowserRecognition: (() => void) | null = null;
 let activeSource: "android" | "browser" | null = null;
 
 function browserSpeechConstructor() {
@@ -115,6 +121,7 @@ export function mealSpeechErrorMessage(error: unknown) {
   if (code === "no_speech" || code === "no_match") return "I did not catch that meal. Try again and speak naturally.";
   if (code === "audio_error") return "Your microphone is unavailable right now. Type the meal or try again.";
   if (code === "network" || code === "network_timeout") return "Speech recognition needs a connection right now. Type the meal or try again.";
+  if (code === "speech_timeout") return "Listening took too long. Nothing was saved, so you can try again or type the meal.";
   if (code === "busy") return "The microphone is already listening. Wait a moment and try again.";
   if (error instanceof Error && error.message) return error.message;
   return "I could not understand that meal. Try again or type it instead.";
@@ -157,13 +164,67 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let permissionTimer: ReturnType<typeof setTimeout> | null = null;
+    let listeningTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearTimers = () => {
+      if (permissionTimer) clearTimeout(permissionTimer);
+      if (listeningTimer) clearTimeout(listeningTimer);
+      if (stopTimer) clearTimeout(stopTimer);
+      permissionTimer = null;
+      listeningTimer = null;
+      stopTimer = null;
+    };
 
     const cleanup = () => {
+      clearTimers();
+      recognition.onstart = null;
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
       if (activeBrowserRecognition === recognition) activeBrowserRecognition = null;
+      if (finishActiveBrowserRecognition === finishRecognition) finishActiveBrowserRecognition = null;
       if (activeSource === "browser") activeSource = null;
+    };
+
+    const fail = (error: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      try {
+        recognition.abort();
+      } catch {
+        // The recognition service may already have stopped itself.
+      }
+      reject(error);
+    };
+
+    const finishRecognition = () => {
+      if (settled) return;
+      try {
+        recognition.stop();
+      } catch {
+        fail(speechError("recognition_failed", "Voice entry could not finish listening."));
+        return;
+      }
+      if (stopTimer) clearTimeout(stopTimer);
+      stopTimer = setTimeout(() => {
+        fail(speechError("speech_timeout", "Speech recognition did not return a result after listening stopped."));
+      }, SPEECH_STOP_TIMEOUT_MS);
+    };
+
+    finishActiveBrowserRecognition = finishRecognition;
+    permissionTimer = setTimeout(() => {
+      fail(speechError("speech_timeout", "Speech recognition did not start after microphone permission."));
+    }, SPEECH_PERMISSION_TIMEOUT_MS);
+
+    recognition.onstart = () => {
+      if (permissionTimer) clearTimeout(permissionTimer);
+      permissionTimer = null;
+      listeningTimer = setTimeout(() => {
+        fail(speechError("speech_timeout", "Speech recognition remained open without returning a meal."));
+      }, SPEECH_LISTENING_TIMEOUT_MS);
     };
 
     recognition.onresult = (event) => {
@@ -185,10 +246,7 @@ function startBrowserRecognition(locale?: string): Promise<MealSpeechResult> {
     };
 
     recognition.onerror = (event) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(browserErrorMessage(event.error));
+      fail(browserErrorMessage(event.error));
     };
 
     recognition.onend = () => {
@@ -213,9 +271,32 @@ export async function startMealSpeechRecognition(options?: { locale?: string }):
     if (activeSource) throw speechError("busy", "The microphone is already listening.");
     activeSource = "android";
     try {
-      const result = await NativeMealSpeech.startListening({
+      const nativeRequest = NativeMealSpeech.startListening({
         locale: localePreference(options?.locale),
         prompt: "Describe what you ate"
+      });
+      const result = await new Promise<Awaited<typeof nativeRequest>>((resolve, reject) => {
+        let finished = false;
+        const timer = setTimeout(() => {
+          if (finished) return;
+          finished = true;
+          NativeMealSpeech.cancelListening().catch(() => undefined);
+          reject(speechError("speech_timeout", "Speech recognition did not return a meal."));
+        }, NATIVE_SPEECH_SAFETY_TIMEOUT_MS);
+        nativeRequest.then(
+          (value) => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            resolve(value);
+          },
+          (error) => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            reject(error);
+          }
+        );
       });
       const transcript = result.transcript?.trim();
       if (!transcript) throw speechError("no_speech", "I did not hear a meal. Try again and speak close to your phone.");
@@ -238,7 +319,7 @@ export async function stopMealSpeechRecognition() {
     await NativeMealSpeech.stopListening();
     return;
   }
-  activeBrowserRecognition?.stop();
+  finishActiveBrowserRecognition?.();
 }
 
 export async function cancelMealSpeechRecognition() {
@@ -249,6 +330,7 @@ export async function cancelMealSpeechRecognition() {
   }
   const recognition = activeBrowserRecognition;
   activeBrowserRecognition = null;
+  finishActiveBrowserRecognition = null;
   activeSource = null;
   recognition?.abort();
 }

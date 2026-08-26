@@ -12,6 +12,7 @@ type FakeRecognitionInstance = {
   continuous: boolean;
   interimResults: boolean;
   maxAlternatives: number;
+  onstart: (() => void) | null;
   onresult: ((event: unknown) => void) | null;
   onerror: ((event: unknown) => void) | null;
   onend: (() => void) | null;
@@ -24,6 +25,9 @@ function installSpeechRecognition(options: {
   transcripts?: string[];
   error?: string;
   waitForStop?: boolean;
+  neverStarts?: boolean;
+  neverSettles?: boolean;
+  stallOnStop?: boolean;
 }) {
   const queued = [...(options.transcripts ?? [])];
   const instances: FakeRecognitionInstance[] = [];
@@ -33,6 +37,7 @@ function installSpeechRecognition(options: {
     continuous = false;
     interimResults = false;
     maxAlternatives = 1;
+    onstart: (() => void) | null = null;
     onresult: ((event: unknown) => void) | null = null;
     onerror: ((event: unknown) => void) | null = null;
     onend: (() => void) | null = null;
@@ -48,14 +53,17 @@ function installSpeechRecognition(options: {
     }
 
     start() {
-      if (options.waitForStop) return;
+      if (options.neverStarts) return;
       queueMicrotask(() => {
+        this.onstart?.();
+        if (options.waitForStop || options.neverSettles) return;
         if (options.error) this.onerror?.({ error: options.error });
         else this.emitResult();
       });
     }
 
     stop() {
+      if (options.stallOnStop) return;
       queueMicrotask(() => this.emitResult());
     }
 
@@ -70,6 +78,7 @@ function installSpeechRecognition(options: {
 
 afterEach(async () => {
   await cancelMealSpeechRecognition();
+  vi.useRealTimers();
   Reflect.deleteProperty(window, "SpeechRecognition");
   Reflect.deleteProperty(window, "webkitSpeechRecognition");
 });
@@ -118,5 +127,45 @@ describe("meal speech recognition", () => {
     installSpeechRecognition({ error: "no-speech" });
     await expect(startMealSpeechRecognition()).rejects.toMatchObject({ code: "no_speech" });
     expect(mealSpeechErrorMessage(Object.assign(new Error("silent"), { code: "no_speech" }))).toContain("did not catch");
+  });
+
+  it("recovers when microphone access succeeds but the browser never returns a callback", async () => {
+    vi.useFakeTimers();
+    installSpeechRecognition({ neverSettles: true });
+
+    const pending = startMealSpeechRecognition();
+    const rejection = expect(pending).rejects.toMatchObject({ code: "speech_timeout" });
+    await vi.advanceTimersByTimeAsync(15_001);
+
+    await rejection;
+    expect(mealSpeechErrorMessage(Object.assign(new Error("stalled"), { code: "speech_timeout" }))).toContain("Nothing was saved");
+
+    vi.useRealTimers();
+    installSpeechRecognition({ transcripts: ["banana and protein shake"] });
+    await expect(startMealSpeechRecognition()).resolves.toMatchObject({ transcript: "banana and protein shake" });
+  });
+
+  it("recovers when the browser never reports that recognition started after permission", async () => {
+    vi.useFakeTimers();
+    installSpeechRecognition({ neverStarts: true });
+
+    const pending = startMealSpeechRecognition();
+    const rejection = expect(pending).rejects.toMatchObject({ code: "speech_timeout" });
+    await vi.advanceTimersByTimeAsync(20_001);
+
+    await rejection;
+  });
+
+  it("recovers when finishing speech produces no result or end event", async () => {
+    vi.useFakeTimers();
+    installSpeechRecognition({ transcripts: ["chicken rice"], waitForStop: true, stallOnStop: true });
+
+    const pending = startMealSpeechRecognition();
+    await vi.runAllTicks();
+    await stopMealSpeechRecognition();
+    const rejection = expect(pending).rejects.toMatchObject({ code: "speech_timeout" });
+    await vi.advanceTimersByTimeAsync(2_501);
+
+    await rejection;
   });
 });
