@@ -208,6 +208,9 @@ Ascend collects or processes the following categories:
   - AI usage tracking
   - notification activity
   - engagement analytics
+- Optional voice input
+  - microphone audio is processed ephemerally by the Android speech-recognition service only after the member taps `Speak meal`
+  - Ascend stores the resulting editable meal text, not the audio recording
 - Payment information
   - subscription metadata
   - billing status
@@ -226,6 +229,7 @@ Before submission:
 - Confirm whether body scan images and progress photos are user-provided content.
 - Confirm Health Connect data is declared as optional health/fitness data collected only when the user connects Health Connect.
 - Confirm trainer/gym visibility is explained for coached users.
+- Review the Play Data Safety audio category for optional, ephemeral speech processing. Ascend does not retain voice recordings, but the Android speech provider may process audio under the device's speech-service settings.
 
 ## 8. Permissions explanation
 
@@ -238,12 +242,12 @@ Required or expected permissions:
   - exercise sessions
   - active calories burned
 - Notifications: optional, only if coach notifications are enabled in the Android release
+- Microphone: optional, requested only when the member taps `Speak meal`; used for transient speech-to-text and never for background recording
 
 Do not request:
 
 - contacts
 - location
-- microphone
 - SMS
 - phone state
 

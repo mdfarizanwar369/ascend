@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(HealthConnectPlugin.class);
         registerPlugin(PlayBillingPlugin.class);
+        registerPlugin(MealSpeechPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Pencil, Save, Sparkles, Trash2, Utensils } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Mic, Pencil, Save, Sparkles, Square, Trash2, Utensils } from "lucide-react";
 import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
@@ -25,6 +25,15 @@ import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { DelightEmptyState } from "@/components/Delight";
 import { pickNativeImage } from "@/lib/nativeImagePicker";
+import {
+  cancelMealSpeechRecognition,
+  getMealSpeechAvailability,
+  isMealSpeechCancellation,
+  isMealSpeechPotentiallyAvailable,
+  mealSpeechErrorMessage,
+  startMealSpeechRecognition,
+  stopMealSpeechRecognition
+} from "@/lib/mealSpeech";
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -425,12 +434,17 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [showEstimateEditor, setShowEstimateEditor] = useState(false);
   const [savedMeal, setSavedMeal] = useState<SavedMealSummary | null>(null);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
+  const [mealSpeechAvailable, setMealSpeechAvailable] = useState(isMealSpeechPotentiallyAvailable);
+  const [isListeningForMeal, setIsListeningForMeal] = useState(false);
+  const [mealSpeechMessage, setMealSpeechMessage] = useState("");
   const [view, setView] = useState<"log" | "history">(initialView);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
   const foodNameInputRef = useRef<HTMLInputElement | null>(null);
   const foodLogsRequestRef = useRef(0);
   const saveLockRef = useRef(false);
+  const mealSpeechRequestRef = useRef(0);
+  const mealSpeechLockRef = useRef(false);
 
   async function loadFoodLogs() {
     const requestId = ++foodLogsRequestRef.current;
@@ -464,6 +478,18 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     Promise.allSettled([loadFoodLogs(), loadAllowance(), loadUser()]).catch(() => {
       setStatus("Upload a food photo to estimate calories and macros.");
     });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getMealSpeechAvailability().then((availability) => {
+      if (active) setMealSpeechAvailable(availability.available);
+    });
+    return () => {
+      active = false;
+      mealSpeechRequestRef.current += 1;
+      cancelMealSpeechRecognition().catch(() => undefined);
+    };
   }, []);
 
   useEffect(() => {
@@ -622,6 +648,12 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     const trace = createFrontendFoodAiTrace(traceSource, user);
     if (!file) return;
     markFrontendStage(trace, "Image selected", { sizeBytes: file.size, type: file.type });
+
+    mealSpeechRequestRef.current += 1;
+    cancelMealSpeechRecognition().catch(() => undefined);
+    mealSpeechLockRef.current = false;
+    setIsListeningForMeal(false);
+    setMealSpeechMessage("");
 
     setPreviewUrl(URL.createObjectURL(file));
     setSelectedFile(file);
@@ -793,6 +825,40 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     }
   }
 
+  async function handleMealSpeech() {
+    if (isListeningForMeal) {
+      setMealSpeechMessage("Finishing your meal description...");
+      await stopMealSpeechRecognition().catch(() => {
+        setMealSpeechMessage("I could not finish listening. Try again or type the meal instead.");
+      });
+      return;
+    }
+    if (mealSpeechLockRef.current || isEstimating || isSaving) return;
+
+    mealSpeechLockRef.current = true;
+    const requestId = ++mealSpeechRequestRef.current;
+    setShowManualEntry(true);
+    setIsListeningForMeal(true);
+    setMealSpeechMessage("Listening... say everything you ate, then pause.");
+
+    try {
+      const result = await startMealSpeechRecognition();
+      if (mealSpeechRequestRef.current !== requestId) return;
+      const transcript = result.transcript.trim();
+      setManualMealText((current) => current.trim() ? `${current.trim()}, ${transcript}` : transcript);
+      setMealSpeechMessage(`I heard: “${transcript}” Review it, then analyse your meal.`);
+      setStatus("Voice description ready. Review it, then analyse your meal.");
+    } catch (error) {
+      if (mealSpeechRequestRef.current !== requestId || isMealSpeechCancellation(error)) return;
+      setMealSpeechMessage(mealSpeechErrorMessage(error));
+    } finally {
+      if (mealSpeechRequestRef.current === requestId) {
+        setIsListeningForMeal(false);
+        mealSpeechLockRef.current = false;
+      }
+    }
+  }
+
   function updateEstimate<K extends keyof FoodEstimate>(key: K, value: FoodEstimate[K]) {
     if (!estimate) return;
     setEstimate({ ...estimate, [key]: value });
@@ -880,6 +946,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setWasEdited(false);
       setAiFailed(false);
       setShowManualEntry(false);
+      setManualMealText("");
+      setMealSpeechMessage("");
       setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
       markInstallEligible("first_action");
     } catch (error) {
@@ -1255,7 +1323,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={previewUrl} alt="Selected meal" className="h-full w-full object-cover" />
               ) : (
-                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving} className="grid h-full w-full place-items-center p-6 text-center disabled:opacity-60">
+                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving || isListeningForMeal} className="grid h-full w-full place-items-center p-6 text-center disabled:opacity-60">
                   <span>
                     <span className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-lime/30 bg-lime/10 text-lime shadow-[0_0_32px_rgba(53,242,208,0.12)]">
                       <Camera size={30} />
@@ -1293,21 +1361,42 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-60">
+                <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving || isListeningForMeal} className="ascend-pressable flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-60">
                   <Camera className="mr-2" size={18} />
                   {previewUrl ? "Retake" : "Take photo"}
                 </button>
-                <button type="button" onClick={openGalleryPicker} disabled={isEstimating || isSaving} className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-line bg-ink font-semibold text-white disabled:opacity-60">
+                <button type="button" onClick={openGalleryPicker} disabled={isEstimating || isSaving || isListeningForMeal} className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-line bg-ink font-semibold text-white disabled:opacity-60">
                   <ImagePlus className="mr-2" size={18} />
                   Gallery
                 </button>
               </div>
 
-              <button type="button" onClick={() => setShowManualEntry((current) => !current)} className="ascend-pressable mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-zinc-300">
-                <Utensils size={17} />
-                Type meal instead
-                {showManualEntry ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-              </button>
+              <div className={`mt-3 grid gap-2 ${mealSpeechAvailable ? "grid-cols-2" : "grid-cols-1"}`}>
+                <button
+                  type="button"
+                  disabled={isListeningForMeal}
+                  onClick={() => setShowManualEntry((current) => !current)}
+                  className="ascend-pressable flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-zinc-300 disabled:opacity-50"
+                >
+                  <Utensils size={17} />
+                  Type meal
+                  {showManualEntry ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                {mealSpeechAvailable ? (
+                  <button
+                    type="button"
+                    aria-pressed={isListeningForMeal}
+                    disabled={isEstimating || isSaving}
+                    onClick={() => void handleMealSpeech()}
+                    className={`ascend-pressable flex h-11 items-center justify-center gap-2 rounded-xl border text-sm font-semibold transition disabled:opacity-50 ${
+                      isListeningForMeal ? "border-lime/50 bg-lime/15 text-lime" : "border-line bg-ink text-zinc-200"
+                    }`}
+                  >
+                    {isListeningForMeal ? <Square size={15} fill="currentColor" /> : <Mic size={17} />}
+                    {isListeningForMeal ? "Finish" : "Speak meal"}
+                  </button>
+                ) : null}
+              </div>
 
               {showManualEntry ? (
                 <div className="ascend-inset ascend-soft-enter mt-2 p-3">
@@ -1321,7 +1410,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     className="mt-3 w-full resize-none rounded-xl border border-line bg-surface px-4 py-3 text-base text-white outline-none transition focus:border-lime disabled:opacity-60"
                     placeholder="Chicken rice, protein shake..."
                   />
-                  <button type="button" disabled={isEstimating || manualMealText.trim().length < 2} onClick={handleTextEstimate} className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-50">
+                  {mealSpeechMessage ? (
+                    <div className="mt-2" aria-live="polite">
+                      <p className={`text-xs leading-5 ${isListeningForMeal ? "text-lime" : "text-zinc-400"}`}>{mealSpeechMessage}</p>
+                      <p className="mt-1 text-[11px] leading-5 text-zinc-500">Voice is used only while listening. Ascend keeps the text, not the recording.</p>
+                    </div>
+                  ) : null}
+                  <button type="button" disabled={isEstimating || isListeningForMeal || manualMealText.trim().length < 2} onClick={handleTextEstimate} className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-50">
                     <Sparkles className="mr-2" size={18} />
                     {isEstimating ? "Analysing..." : "Analyse meal"}
                   </button>

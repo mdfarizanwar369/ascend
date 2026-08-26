@@ -16,6 +16,7 @@ export default function PrivacyPage() {
             "Account information such as your name, email address, authentication identifier, role, gym, trainer assignment, and referral source.",
             "Fitness profile information such as your goals, age, sex selection, height, weight, target weight, activity level, and coaching preference.",
             "Information you choose to log, including food, water, activity, habits, progress photos, messages, AI coach conversations, and weekly check-ins.",
+            "If you choose Speak meal, your microphone is used only while you are speaking. Your device or browser speech-recognition service converts the audio into editable text; Ascend does not store the audio recording.",
             "If you connect Android Health Connect, Ascend imports only daily steps, exercise sessions, and active calories burned so your activity summary and Coach Zoe guidance can be more useful.",
             "Subscription metadata such as plan, payment status, renewal period, and provider references. Ascend does not store complete payment card details.",
             "Technical and usage information needed for security, troubleshooting, service performance, and aggregate product analytics."
@@ -48,7 +49,8 @@ export default function PrivacyPage() {
           title: "AI and service providers",
           paragraphs: [
             "Ascend uses specialist providers to operate the service, including Firebase for authentication and Android crash diagnostics, Railway and PostgreSQL infrastructure, Cloudflare R2 or compatible storage, Google Gemini for configured AI features, Stripe for web subscription payment processing, and Google Play for eligible Android subscription processing. Relevant data is shared only as needed to provide these services.",
-            "Food photos and AI coach messages may be processed by the configured AI provider. AI estimates can be inaccurate and should be reviewed before you rely on or save them."
+            "Food photos and AI coach messages may be processed by the configured AI provider. AI estimates can be inaccurate and should be reviewed before you rely on or save them.",
+            "When you use Speak meal, speech recognition may be provided by your device platform or browser and may require a network connection under that provider's settings. Ascend receives the resulting text and does not retain the microphone recording."
           ]
         },
         {
