@@ -119,7 +119,9 @@ function recordPortionAnalysisCompleted(user: AuthUser, estimate: Awaited<Return
       itemCount: estimate.items.length,
       recognitionConfidence: estimate.recognitionConfidence,
       portionConfidence: estimate.portionConfidence,
-      portionFallback: estimate.portionFallback === true
+      portionFallback: estimate.portionFallback === true,
+      nutritionSources: Array.from(new Set(estimate.items.map((item) => item.nutritionSource))),
+      fallbackReasons: estimate.items.flatMap((item) => item.fallbackReason ? [item.fallbackReason] : [])
     }
   });
 }
@@ -411,7 +413,9 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
           portionConfidence: portionAnalysis.portionConfidence,
           portionFallback: portionAnalysis.portionFallback === true,
           userAdjustedPortion: portionAdjustedByUser,
-          averageCorrectionMagnitude: portionAdjustmentMagnitude(portionAnalysis.items)
+          averageCorrectionMagnitude: portionAdjustmentMagnitude(portionAnalysis.items),
+          nutritionSources: Array.from(new Set(portionAnalysis.items.map((item) => item.nutritionSource))),
+          fallbackReasons: portionAnalysis.items.flatMap((item) => item.fallbackReason ? [item.fallbackReason] : [])
         }
       });
     }

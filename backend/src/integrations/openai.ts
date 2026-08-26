@@ -829,14 +829,20 @@ const portionAwareFoodResponseSchema = {
           visiblePortionLabel: { type: "STRING", enum: ["small", "regular", "large", "unknown"] },
           preparation: { type: "STRING", nullable: true },
           notes: { type: "STRING", nullable: true },
-          calories: { type: "NUMBER" },
-          proteinG: { type: "NUMBER" },
-          carbsG: { type: "NUMBER" },
-          fatG: { type: "NUMBER" }
+          nutritionForVisibleQuantity: {
+            type: "OBJECT",
+            properties: {
+              calories: { type: "NUMBER" },
+              proteinG: { type: "NUMBER" },
+              carbsG: { type: "NUMBER" },
+              fatG: { type: "NUMBER" }
+            },
+            required: ["calories", "proteinG", "carbsG", "fatG"]
+          }
         },
         required: [
           "name", "normalizedHint", "estimatedQuantity", "unit", "quantityConfidence", "foodConfidence",
-          "visiblePortionLabel", "preparation", "notes", "calories", "proteinG", "carbsG", "fatG"
+          "visiblePortionLabel", "preparation", "notes", "nutritionForVisibleQuantity"
         ]
       }
     },
@@ -852,7 +858,7 @@ const portionAwareFoodPrompt =
   "Do not simply return a standard serving. Use visual cues such as plate or bowl size, food area and height, utensils, cups, containers, number of pieces, thickness, perspective, and typical dimensions. " +
   "For mixed meals, separate sensible components such as rice, chicken, sauce, egg, and vegetables without over-fragmenting garnish. Prioritize Malaysia and Singapore food identity when the image supports it, including " +
   LOCAL_FOODS.join(", ") +
-  ". Estimate calories, protein, carbs, and fat for each component at the visible amount as a fallback for foods without a trusted database density. " +
+  ". For every item, nutritionForVisibleQuantity must contain calories, protein, carbs, and fat for exactly that item's estimatedQuantity and unit, not for a generic serving. If estimatedQuantity is null, nutritionForVisibleQuantity may represent one honest standard-serving fallback. " +
   "Food identity confidence and quantity confidence are separate values from 0 to 1. If an amount cannot be inferred safely, set estimatedQuantity to null, unit to serving, visiblePortionLabel to unknown, and lower quantityConfidence. " +
   "Account cautiously for visually supported preparation such as frying or creamy sauce, but do not invent exact hidden oil or ingredients. clarificationRequired should be true only when one short answer would materially change calories. " +
   "Use sensible rounded quantities such as 185g or 250ml, never false precision. Return only JSON matching the required schema.";

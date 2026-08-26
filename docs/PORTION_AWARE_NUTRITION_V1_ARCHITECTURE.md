@@ -21,7 +21,7 @@ The existing `local_food_items` rows contain per-serving totals only. They do no
 
 When `PORTION_AWARE_NUTRITION_V1` is active, or the owner pilot flag is active for the platform owner:
 
-1. The existing single vision request returns a validated item-level response: identity, visible quantity, unit, preparation, recognition confidence, portion confidence, and item nutrition fallback.
+1. The existing single vision request returns a validated item-level response: identity, visible quantity, unit, preparation, recognition confidence, portion confidence, and `nutritionForVisibleQuantity`. That nutrition object is contractually tied to the same estimated quantity, not a generic serving.
 2. Each item is normalized independently against `local_food_items`.
 3. A local row supplies authoritative nutrition only when it explicitly contains a compatible, scalable nutrition basis.
 4. Otherwise, Ascend preserves the provider's item-level visible-portion nutrition. If quantity is unavailable, the existing local standard-serving totals may be used as an honest fallback.
@@ -57,5 +57,6 @@ Recommended rollout: platform owner, internal accounts, selected members, then p
 - A single 2D photo cannot measure hidden oil, sauces, density, or occluded ingredients exactly.
 - Existing regional rows remain serving fallbacks until a trusted scalable basis and provenance are added.
 - Item nutrition falls back to the model when no reliable database density exists.
+- `nutritionForVisibleQuantity` is the provider fallback basis for the stated visible quantity. It must never be interpreted as an unrelated standard serving while a valid quantity is present.
 - V1 records corrections for future analysis but does not personalize future portion estimates.
 - V1 does not add a second image, LiDAR, menu lookup, or another AI call.

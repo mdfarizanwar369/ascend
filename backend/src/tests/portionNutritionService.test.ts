@@ -19,10 +19,12 @@ function rawItem(overrides: Partial<PortionAwareVisionResponse["items"][number]>
     visiblePortionLabel: "regular" as const,
     preparation: "grilled",
     notes: null,
-    calories: 190,
-    proteinG: 31,
-    carbsG: 0,
-    fatG: 5,
+    nutritionForVisibleQuantity: {
+      calories: 190,
+      proteinG: 31,
+      carbsG: 0,
+      fatG: 5
+    },
     ...overrides
   };
 }
@@ -87,10 +89,7 @@ describe("Portion-Aware Nutrition V1", () => {
         name: "Nasi Lemak",
         normalizedHint: "nasi lemak",
         estimatedQuantity: 180,
-        calories: 390,
-        proteinG: 12,
-        carbsG: 55,
-        fatG: 14
+        nutritionForVisibleQuantity: { calories: 390, proteinG: 12, carbsG: 55, fatG: 14 }
       })
     ]), { findLocalFood: servingOnlyMatch });
 
@@ -107,10 +106,10 @@ describe("Portion-Aware Nutrition V1", () => {
   it("independently scales mixed-meal components and makes the meal total equal the item sum", async () => {
     const noLocal = vi.fn(async () => null);
     const estimate = await buildPortionAwareEstimate(rawResponse([
-      rawItem({ name: "Rice", normalizedHint: "cooked white rice", estimatedQuantity: 200, calories: 260, proteinG: 5, carbsG: 57, fatG: 0.6 }),
-      rawItem({ name: "Chicken", normalizedHint: "grilled chicken", estimatedQuantity: 150, calories: 248, proteinG: 46, carbsG: 0, fatG: 5.4 }),
-      rawItem({ name: "Vegetables", normalizedHint: "mixed vegetables", estimatedQuantity: 80, calories: 35, proteinG: 2, carbsG: 7, fatG: 0.2 }),
-      rawItem({ name: "Sauce", normalizedHint: "brown sauce", estimatedQuantity: 30, calories: 60, proteinG: 0, carbsG: 8, fatG: 3 })
+      rawItem({ name: "Rice", normalizedHint: "cooked white rice", estimatedQuantity: 200, nutritionForVisibleQuantity: { calories: 260, proteinG: 5, carbsG: 57, fatG: 0.6 } }),
+      rawItem({ name: "Chicken", normalizedHint: "grilled chicken", estimatedQuantity: 150, nutritionForVisibleQuantity: { calories: 248, proteinG: 46, carbsG: 0, fatG: 5.4 } }),
+      rawItem({ name: "Vegetables", normalizedHint: "mixed vegetables", estimatedQuantity: 80, nutritionForVisibleQuantity: { calories: 35, proteinG: 2, carbsG: 7, fatG: 0.2 } }),
+      rawItem({ name: "Sauce", normalizedHint: "brown sauce", estimatedQuantity: 30, nutritionForVisibleQuantity: { calories: 60, proteinG: 0, carbsG: 8, fatG: 3 } })
     ]), { findLocalFood: noLocal });
 
     expect(estimate.items).toHaveLength(4);
@@ -141,6 +140,32 @@ describe("Portion-Aware Nutrition V1", () => {
     expect(estimate.items?.[0].portionConfidence).toBe(0.42);
   });
 
+  it("binds AI fallback nutrition to the same visible quantity and rescales from that basis", async () => {
+    const estimate = await buildPortionAwareEstimate(rawResponse([
+      rawItem({
+        estimatedQuantity: 140,
+        nutritionForVisibleQuantity: { calories: 230, proteinG: 43, carbsG: 0, fatG: 5 }
+      })
+    ]), { findLocalFood: vi.fn(async () => null) });
+
+    expect(estimate.items?.[0]).toMatchObject({
+      estimatedQuantity: 140,
+      finalQuantity: 140,
+      nutritionSource: "ai_estimate",
+      nutritionBasis: {
+        amount: 140,
+        unit: "g",
+        nutrition: { calories: 230, proteinG: 43, carbsG: 0, fatG: 5 }
+      }
+    });
+
+    const adjusted = parsePortionAwareEstimateForSave({
+      ...estimate,
+      items: estimate.items?.map((item) => ({ ...item, finalQuantity: 70, userAdjusted: true }))
+    });
+    expect(adjusted.calories).toBe(115);
+  });
+
   it("uses an honest standard-serving fallback when quantity is unavailable", async () => {
     const estimate = await buildPortionAwareEstimate(rawResponse([rawItem({ estimatedQuantity: null, quantityConfidence: 0.1 })]), { findLocalFood: densityMatch });
     expect(estimate.portionFallback).toBe(true);
@@ -159,6 +184,15 @@ describe("Portion-Aware Nutrition V1", () => {
     const base = rawResponse([rawItem()]);
     expect(() => parsePortionAwareVisionResponse({ ...base, items: [{ ...base.items[0], estimatedQuantity: -400 }] })).toThrow();
     expect(() => parsePortionAwareVisionResponse({ ...base, items: [{ ...base.items[0], estimatedQuantity: 200000 }] })).toThrow();
+  });
+
+  it("rejects a legacy flat nutrition payload that is not explicitly tied to the visible quantity", () => {
+    const base = rawResponse([rawItem()]);
+    const item = { ...base.items[0] } as Record<string, unknown>;
+    delete item.nutritionForVisibleQuantity;
+    Object.assign(item, { calories: 190, proteinG: 31, carbsG: 0, fatG: 5 });
+
+    expect(() => parsePortionAwareVisionResponse({ ...base, items: [item] })).toThrow();
   });
 
   it("falls back rather than saving a category-level quantity outlier", async () => {

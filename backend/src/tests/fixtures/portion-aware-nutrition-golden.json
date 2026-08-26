@@ -1,0 +1,189 @@
+[
+  {
+    "id": "rice-100g",
+    "localSource": "scalable",
+    "response": {
+      "mealName": "Rice",
+      "overallConfidence": 0.96,
+      "portionEstimationConfidence": 0.86,
+      "items": [{
+        "name": "Cooked rice",
+        "normalizedHint": "cooked rice",
+        "estimatedQuantity": 100,
+        "unit": "g",
+        "quantityConfidence": 0.86,
+        "foodConfidence": 0.96,
+        "visiblePortionLabel": "small",
+        "preparation": "steamed",
+        "notes": null,
+        "nutritionForVisibleQuantity": { "calories": 130, "proteinG": 2.7, "carbsG": 28, "fatG": 0.3 }
+      }],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 130, "quantity": 100, "nutritionSource": "ascend_database" }
+  },
+  {
+    "id": "rice-250g",
+    "localSource": "scalable",
+    "response": {
+      "mealName": "Rice",
+      "overallConfidence": 0.96,
+      "portionEstimationConfidence": 0.8,
+      "items": [{
+        "name": "Cooked rice",
+        "normalizedHint": "cooked rice",
+        "estimatedQuantity": 250,
+        "unit": "g",
+        "quantityConfidence": 0.8,
+        "foodConfidence": 0.96,
+        "visiblePortionLabel": "large",
+        "preparation": "steamed",
+        "notes": null,
+        "nutritionForVisibleQuantity": { "calories": 325, "proteinG": 6.8, "carbsG": 70, "fatG": 0.8 }
+      }],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 325, "quantity": 250, "nutritionSource": "ascend_database" }
+  },
+  {
+    "id": "high-food-low-portion-confidence",
+    "localSource": "none",
+    "response": {
+      "mealName": "Grilled chicken",
+      "overallConfidence": 0.97,
+      "portionEstimationConfidence": 0.38,
+      "items": [{
+        "name": "Chicken breast",
+        "normalizedHint": "grilled chicken breast",
+        "estimatedQuantity": 140,
+        "unit": "g",
+        "quantityConfidence": 0.35,
+        "foodConfidence": 0.98,
+        "visiblePortionLabel": "regular",
+        "preparation": "grilled",
+        "notes": "partially occluded",
+        "nutritionForVisibleQuantity": { "calories": 230, "proteinG": 43, "carbsG": 0, "fatG": 5 }
+      }],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 230, "quantity": 140, "nutritionSource": "ai_estimate", "portionConfidence": 0.38 }
+  },
+  {
+    "id": "unscalable-local-match",
+    "localSource": "serving_only",
+    "response": {
+      "mealName": "Nasi Lemak",
+      "overallConfidence": 0.94,
+      "portionEstimationConfidence": 0.7,
+      "items": [{
+        "name": "Nasi Lemak",
+        "normalizedHint": "nasi lemak",
+        "estimatedQuantity": 180,
+        "unit": "g",
+        "quantityConfidence": 0.7,
+        "foodConfidence": 0.94,
+        "visiblePortionLabel": "regular",
+        "preparation": null,
+        "notes": null,
+        "nutritionForVisibleQuantity": { "calories": 390, "proteinG": 12, "carbsG": 55, "fatG": 14 }
+      }],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 390, "quantity": 180, "nutritionSource": "ai_estimate" }
+  },
+  {
+    "id": "verified-density",
+    "localSource": "scalable",
+    "response": {
+      "mealName": "Cooked rice",
+      "overallConfidence": 0.95,
+      "portionEstimationConfidence": 0.82,
+      "items": [{
+        "name": "Cooked rice",
+        "normalizedHint": "cooked rice",
+        "estimatedQuantity": 180,
+        "unit": "g",
+        "quantityConfidence": 0.82,
+        "foodConfidence": 0.95,
+        "visiblePortionLabel": "regular",
+        "preparation": "steamed",
+        "notes": null,
+        "nutritionForVisibleQuantity": { "calories": 300, "proteinG": 6, "carbsG": 65, "fatG": 1 }
+      }],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 234, "quantity": 180, "nutritionSource": "ascend_database" }
+  },
+  {
+    "id": "standard-serving-fallback",
+    "localSource": "serving_only",
+    "response": {
+      "mealName": "Banana",
+      "overallConfidence": 0.96,
+      "portionEstimationConfidence": 0.12,
+      "items": [{
+        "name": "Banana",
+        "normalizedHint": "banana",
+        "estimatedQuantity": null,
+        "unit": "serving",
+        "quantityConfidence": 0.12,
+        "foodConfidence": 0.98,
+        "visiblePortionLabel": "unknown",
+        "preparation": null,
+        "notes": "size not visible",
+        "nutritionForVisibleQuantity": { "calories": 105, "proteinG": 1.3, "carbsG": 27, "fatG": 0.4 }
+      }],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 105, "quantity": null, "nutritionSource": "standard_serving_fallback", "portionFallback": true }
+  },
+  {
+    "id": "mixed-four-components",
+    "localSource": "none",
+    "response": {
+      "mealName": "Rice chicken vegetables and sauce",
+      "overallConfidence": 0.9,
+      "portionEstimationConfidence": 0.7,
+      "items": [
+        { "name": "Rice", "normalizedHint": "cooked rice", "estimatedQuantity": 200, "unit": "g", "quantityConfidence": 0.8, "foodConfidence": 0.96, "visiblePortionLabel": "regular", "preparation": "steamed", "notes": null, "nutritionForVisibleQuantity": { "calories": 260, "proteinG": 5, "carbsG": 57, "fatG": 0.6 } },
+        { "name": "Chicken", "normalizedHint": "grilled chicken", "estimatedQuantity": 150, "unit": "g", "quantityConfidence": 0.72, "foodConfidence": 0.94, "visiblePortionLabel": "regular", "preparation": "grilled", "notes": null, "nutritionForVisibleQuantity": { "calories": 248, "proteinG": 46, "carbsG": 0, "fatG": 5.4 } },
+        { "name": "Vegetables", "normalizedHint": "mixed vegetables", "estimatedQuantity": 80, "unit": "g", "quantityConfidence": 0.65, "foodConfidence": 0.87, "visiblePortionLabel": "small", "preparation": "steamed", "notes": null, "nutritionForVisibleQuantity": { "calories": 35, "proteinG": 2, "carbsG": 7, "fatG": 0.2 } },
+        { "name": "Sauce", "normalizedHint": "brown sauce", "estimatedQuantity": 30, "unit": "g", "quantityConfidence": 0.42, "foodConfidence": 0.7, "visiblePortionLabel": "small", "preparation": null, "notes": "some may be hidden", "nutritionForVisibleQuantity": { "calories": 60, "proteinG": 0, "carbsG": 8, "fatG": 3 } }
+      ],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 603, "itemCount": 4 }
+  },
+  {
+    "id": "single-item-adjustment",
+    "localSource": "scalable",
+    "adjustQuantity": 150,
+    "response": {
+      "mealName": "Rice",
+      "overallConfidence": 0.95,
+      "portionEstimationConfidence": 0.8,
+      "items": [{
+        "name": "Cooked rice",
+        "normalizedHint": "cooked rice",
+        "estimatedQuantity": 200,
+        "unit": "g",
+        "quantityConfidence": 0.8,
+        "foodConfidence": 0.95,
+        "visiblePortionLabel": "regular",
+        "preparation": "steamed",
+        "notes": null,
+        "nutritionForVisibleQuantity": { "calories": 260, "proteinG": 5.4, "carbsG": 56, "fatG": 0.6 }
+      }],
+      "clarificationRequired": false,
+      "clarification": null
+    },
+    "expected": { "calories": 195, "quantity": 200, "finalQuantity": 150, "nutritionSource": "ascend_database" }
+  }
+]

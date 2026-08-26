@@ -218,6 +218,7 @@ describe("Portion-aware meal review", () => {
 
     expect(await screen.findByText("Estimated portion: Regular")).toBeInTheDocument();
     expect(screen.getByText("~200g")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Owner pilot diagnostics" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Adjust portions" }));
     fireEvent.click(screen.getByRole("button", { name: "Larger" }));
 
@@ -234,5 +235,64 @@ describe("Portion-aware meal review", () => {
       finalQuantity: 250,
       userAdjusted: true
     });
+  });
+
+  it("shows source diagnostics only to the verified Platform Owner", async () => {
+    api.getMe.mockResolvedValueOnce({
+      user: { id: "owner-1", goal_type: "fat_loss", is_platform_owner: true }
+    });
+    api.estimateFoodFromText.mockResolvedValueOnce({
+      estimate: {
+        foodName: "Nasi Lemak",
+        confidence: 0.94,
+        recognitionConfidence: 0.94,
+        portionConfidence: 0.7,
+        visiblePortionLabel: "regular",
+        calories: 390,
+        proteinG: 12,
+        carbsG: 55,
+        fatG: 14,
+        notes: "Estimated from the visible portions in this photo.",
+        analysisVersion: "portion_aware_v1",
+        portionFallback: false,
+        items: [{
+          id: "portion-1-nasi-lemak",
+          name: "Nasi Lemak",
+          normalizedName: "nasi lemak",
+          estimatedQuantity: 180,
+          finalQuantity: 180,
+          unit: "g",
+          foodConfidence: 0.94,
+          portionConfidence: 0.7,
+          visiblePortionLabel: "regular",
+          nutritionSource: "ai_estimate",
+          portionSource: "ai_vision",
+          nutritionBasis: {
+            amount: 180,
+            unit: "g",
+            nutrition: { calories: 390, proteinG: 12, carbsG: 55, fatG: 14 },
+            source: "ai_estimate",
+            sourceDetail: "Visible photo estimate"
+          },
+          nutrition: { calories: 390, proteinG: 12, carbsG: 55, fatG: 14 },
+          userAdjusted: false,
+          fallbackReason: "Local match has no compatible verified scalable basis."
+        }]
+      },
+      allowance: null
+    });
+
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "nasi lemak" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+
+    const diagnosticsButton = await screen.findByRole("button", { name: "Owner pilot diagnostics" });
+    fireEvent.click(diagnosticsButton);
+
+    expect(screen.getByTestId("owner-portion-diagnostics")).toHaveTextContent("Analysis version: portion_aware_v1");
+    expect(screen.getByTestId("owner-portion-diagnostics")).toHaveTextContent("AI quantity: 180 g");
+    expect(screen.getByTestId("owner-portion-diagnostics")).toHaveTextContent("Scalable database density: Unavailable");
+    expect(screen.getByTestId("owner-portion-diagnostics")).toHaveTextContent("AI nutrition fallback: Yes");
   });
 });

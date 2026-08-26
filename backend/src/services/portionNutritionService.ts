@@ -37,10 +37,7 @@ export const portionAwareVisionResponseSchema = z.object({
     visiblePortionLabel: portionLabelSchema,
     preparation: z.string().trim().max(120).nullable(),
     notes: z.string().trim().max(240).nullable(),
-    calories: nutritionValueSchema,
-    proteinG: nutritionValueSchema,
-    carbsG: nutritionValueSchema,
-    fatG: nutritionValueSchema
+    nutritionForVisibleQuantity: savedNutritionSchema
   })).min(1).max(12),
   clarificationRequired: z.boolean().default(false),
   clarification: z.string().trim().max(240).nullable().default(null)
@@ -103,12 +100,7 @@ const defaultDependencies: PortionNutritionDependencies = {
 };
 
 function nutritionFromRaw(item: PortionAwareVisionResponse["items"][number]): FoodNutritionValues {
-  return {
-    calories: item.calories,
-    proteinG: item.proteinG,
-    carbsG: item.carbsG,
-    fatG: item.fatG
-  };
+  return item.nutritionForVisibleQuantity;
 }
 
 function localNutrition(localFood: LocalFoodPortionMatch): FoodNutritionValues {

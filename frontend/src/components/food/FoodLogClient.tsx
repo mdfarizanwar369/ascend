@@ -497,6 +497,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showEstimateEditor, setShowEstimateEditor] = useState(false);
   const [showPortionEditor, setShowPortionEditor] = useState(false);
+  const [showPortionDiagnostics, setShowPortionDiagnostics] = useState(false);
   const [savedMeal, setSavedMeal] = useState<SavedMealSummary | null>(null);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
   const [mealSpeechAvailable, setMealSpeechAvailable] = useState(isMealSpeechPotentiallyAvailable);
@@ -732,6 +733,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setSavedMeal(null);
     setShowEstimateEditor(false);
     setShowPortionEditor(false);
+    setShowPortionDiagnostics(false);
     setShowManualEntry(false);
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
@@ -829,6 +831,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setAiFailed(false);
       setShowEstimateEditor(false);
       setShowPortionEditor(false);
+      setShowPortionDiagnostics(false);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
       window.setTimeout(() => {
         markFrontendStage(trace, "Result rendered to user");
@@ -868,6 +871,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setSavedMeal(null);
     setShowEstimateEditor(false);
     setShowPortionEditor(false);
+    setShowPortionDiagnostics(false);
     setStatus("Analysing your meal description...");
 
     try {
@@ -876,6 +880,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       if (response.allowance) setAllowance(response.allowance);
       setShowEstimateEditor(false);
       setShowPortionEditor(false);
+      setShowPortionDiagnostics(false);
       setStatus("Meal estimate ready. Review, edit if needed, then save.");
     } catch (error) {
       setEstimate({
@@ -1044,6 +1049,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setAiFailed(false);
       setShowManualEntry(false);
       setShowPortionEditor(false);
+      setShowPortionDiagnostics(false);
       setManualMealText("");
       setMealSpeechMessage("");
       setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
@@ -1657,6 +1663,37 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         );
                       })}
                       <p className="text-xs leading-5 text-zinc-500">Nutrition updates immediately. Adjusting a portion does not run AI again.</p>
+                    </div>
+                  ) : null}
+
+                  {user?.is_platform_owner ? (
+                    <div className="mt-3 border-t border-line/70 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowPortionDiagnostics((current) => !current)}
+                        className="ascend-pressable flex min-h-10 w-full items-center justify-between rounded-lg px-1 text-left text-xs font-semibold text-zinc-500"
+                      >
+                        <span>Owner pilot diagnostics</span>
+                        {showPortionDiagnostics ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                      </button>
+                      {showPortionDiagnostics ? (
+                        <div className="ascend-soft-enter mt-2 space-y-2" data-testid="owner-portion-diagnostics">
+                          <p className="text-[11px] text-zinc-500">Analysis version: {portionAwareEstimate.analysisVersion}</p>
+                          {portionAwareEstimate.items!.map((item) => (
+                            <div key={item.id} className="rounded-lg border border-dashed border-line bg-ink/45 p-3 text-[11px] leading-5 text-zinc-400">
+                              <p className="font-semibold text-zinc-200">{item.name}</p>
+                              <p>AI quantity: {item.estimatedQuantity === null ? "Unavailable" : `${item.estimatedQuantity} ${item.unit}`}</p>
+                              <p>Final quantity: {item.finalQuantity === null ? "Unavailable" : `${item.finalQuantity} ${item.unit}`}</p>
+                              <p>Food confidence: {Math.round(item.foodConfidence * 100)}% · Portion confidence: {Math.round(item.portionConfidence * 100)}%</p>
+                              <p>Nutrition source: {item.nutritionSource}</p>
+                              <p>Scalable database density: {item.nutritionSource === "ascend_database" ? "Available" : "Unavailable"}</p>
+                              <p>AI nutrition fallback: {item.nutritionSource === "ai_estimate" ? "Yes" : "No"} · Standard-serving fallback: {item.portionSource === "standard_serving_fallback" ? "Yes" : "No"}</p>
+                              <p>Basis: {item.nutritionBasis.amount} {item.nutritionBasis.unit} · Final: {Math.round(item.nutrition.calories)} kcal / P {Math.round(item.nutrition.proteinG)}g / C {Math.round(item.nutrition.carbsG)}g / F {Math.round(item.nutrition.fatG)}g</p>
+                              {item.fallbackReason ? <p>Fallback reason: {item.fallbackReason}</p> : null}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </section>
