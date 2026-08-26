@@ -3,12 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FoodLogClient } from "./FoodLogClient";
 
 const api = vi.hoisted(() => ({
+  estimateFoodFromDataUrl: vi.fn(),
   estimateFoodFromText: vi.fn(),
   getFoodLogs: vi.fn(),
   getFoodAiAllowance: vi.fn(),
   getMe: vi.fn(),
   getMyNutritionTargets: vi.fn(),
-  getWeightLogs: vi.fn()
+  getWeightLogs: vi.fn(),
+  saveFoodLog: vi.fn(),
+  uploadFoodPhotoDataUrl: vi.fn()
 }));
 
 const speech = vi.hoisted(() => ({
@@ -19,7 +22,7 @@ const speech = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/ascendApi", () => ({
-  estimateFoodFromDataUrl: vi.fn(),
+  estimateFoodFromDataUrl: api.estimateFoodFromDataUrl,
   estimateFoodFromText: api.estimateFoodFromText,
   deleteFoodLog: vi.fn(),
   getFoodAiAllowance: api.getFoodAiAllowance,
@@ -27,8 +30,8 @@ vi.mock("@/lib/ascendApi", () => ({
   getMe: api.getMe,
   getMyNutritionTargets: api.getMyNutritionTargets,
   getWeightLogs: api.getWeightLogs,
-  saveFoodLog: vi.fn(),
-  uploadFoodPhotoDataUrl: vi.fn()
+  saveFoodLog: api.saveFoodLog,
+  uploadFoodPhotoDataUrl: api.uploadFoodPhotoDataUrl
 }));
 
 vi.mock("@/lib/mealSpeech", () => ({
@@ -54,6 +57,19 @@ beforeEach(() => {
   api.getMe.mockResolvedValue({ user: { id: "member-1", goal_type: "fat_loss" } });
   api.getMyNutritionTargets.mockResolvedValue({ targets: null });
   api.getWeightLogs.mockResolvedValue({ weightLogs: [] });
+  api.saveFoodLog.mockResolvedValue({
+    foodLog: {
+      id: "meal-1",
+      image_s3_key: null,
+      meal_type: "lunch",
+      estimated_food_name: "Chicken rice",
+      calories: 325,
+      protein_g: 7,
+      carbs_g: 71,
+      fat_g: 1
+    }
+  });
+  api.uploadFoodPhotoDataUrl.mockResolvedValue({ key: "food/member-1/photo.jpg" });
   api.estimateFoodFromText.mockResolvedValue({
     estimate: {
       foodName: "Chicken rice and teh tarik",
@@ -146,5 +162,77 @@ describe("Food Log voice entry", () => {
     expect(screen.getByRole("button", { name: "Speak meal" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Type meal" })).toBeEnabled();
     expect(screen.getByLabelText("What did you eat?")).toBeEnabled();
+  });
+});
+
+describe("Portion-aware meal review", () => {
+  it("recalculates an item adjustment without another AI request and preserves original and final quantities on save", async () => {
+    api.estimateFoodFromText.mockResolvedValueOnce({
+      estimate: {
+        foodName: "Chicken rice",
+        confidence: 0.92,
+        recognitionConfidence: 0.92,
+        portionConfidence: 0.7,
+        visiblePortionLabel: "regular",
+        calories: 260,
+        proteinG: 5,
+        carbsG: 57,
+        fatG: 0.6,
+        notes: "Estimated from the visible portions in this photo.",
+        analysisVersion: "portion_aware_v1",
+        clarificationRequired: false,
+        clarification: null,
+        portionFallback: false,
+        items: [{
+          id: "portion-1-rice",
+          name: "Rice",
+          normalizedName: "cooked white rice",
+          preparation: "steamed",
+          estimatedQuantity: 200,
+          finalQuantity: 200,
+          unit: "g",
+          foodConfidence: 0.95,
+          portionConfidence: 0.72,
+          visiblePortionLabel: "regular",
+          notes: null,
+          nutritionSource: "ai_estimate",
+          portionSource: "ai_vision",
+          nutritionBasis: {
+            amount: 200,
+            unit: "g",
+            nutrition: { calories: 260, proteinG: 5, carbsG: 57, fatG: 0.6 },
+            source: "ai_estimate",
+            sourceDetail: "Visible photo estimate"
+          },
+          nutrition: { calories: 260, proteinG: 5, carbsG: 57, fatG: 0.6 },
+          userAdjusted: false
+        }]
+      },
+      allowance: null
+    });
+
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "chicken rice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+
+    expect(await screen.findByText("Estimated portion: Regular")).toBeInTheDocument();
+    expect(screen.getByText("~200g")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Adjust portions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Larger" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Rice quantity")).toHaveValue(250));
+    expect(screen.getByText("~250g")).toBeInTheDocument();
+    expect(api.estimateFoodFromText).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Save meal" }));
+    await waitFor(() => expect(api.saveFoodLog).toHaveBeenCalledTimes(1));
+    const saved = api.saveFoodLog.mock.calls[0][0];
+    expect(saved.calories).toBe(325);
+    expect(saved.portionAnalysis.items[0]).toMatchObject({
+      estimatedQuantity: 200,
+      finalQuantity: 250,
+      userAdjusted: true
+    });
   });
 });

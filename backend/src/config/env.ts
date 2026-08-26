@@ -33,6 +33,8 @@ const schema = z.object({
   AI_CHAT_ESTIMATED_COST_CENTS: z.coerce.number().nonnegative().default(1),
   AI_WEEKLY_REPORT_ESTIMATED_COST_CENTS: z.coerce.number().nonnegative().default(2),
   FOOD_AI_PERFORMANCE_LOGS: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  PORTION_AWARE_NUTRITION_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  PORTION_AWARE_NUTRITION_OWNER_PILOT: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   BODY_COMPOSITION_AI_DEBUG_LOGS: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   BODY_SCAN_UNIVERSAL_OWNER_PREVIEW: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   BODY_SCAN_UNIVERSAL_PUBLIC: z.string().default("false").transform((value) => value.toLowerCase() === "true"),

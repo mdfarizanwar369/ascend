@@ -1081,6 +1081,7 @@ export function saveFoodLog(input: {
   carbsG: number;
   fatG: number;
   aiEstimateRaw?: FoodEstimate;
+  portionAnalysis?: FoodEstimate;
   wasEditedByUser: boolean;
 }) {
   invalidateDashboardReadCaches();

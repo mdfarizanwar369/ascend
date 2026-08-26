@@ -15,6 +15,12 @@ import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncSta
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
 import { env } from "../config/env";
+import { portionAdjustmentMagnitude } from "@ascend/shared";
+import {
+  isPortionAwareEstimate,
+  parsePortionAwareEstimateForSave,
+  portionAwareNutritionRollout
+} from "../services/portionNutritionService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import {
   backfillWorkoutExerciseObservations,
@@ -42,6 +48,7 @@ const foodLogSchema = z.object({
   carbsG: z.number().nonnegative(),
   fatG: z.number().nonnegative(),
   aiEstimateRaw: z.unknown().optional(),
+  portionAnalysis: z.unknown().optional(),
   wasEditedByUser: z.boolean().default(false),
   loggedAt: z.string().datetime().optional()
 });
@@ -80,6 +87,42 @@ const aiAllowanceQuerySchema = z.object({
 const photoUploadDataSchema = z.object({
   imageDataUrl: imageDataUrlSchema
 });
+
+function portionAwareNutritionEnabled(user: AuthUser) {
+  return portionAwareNutritionRollout({
+    globallyEnabled: env.PORTION_AWARE_NUTRITION_V1,
+    ownerPilotEnabled: env.PORTION_AWARE_NUTRITION_OWNER_PILOT,
+    isPlatformOwner: user.isPlatformOwner
+  });
+}
+
+function recordPortionAnalytics(input: {
+  userId: string;
+  gymId?: string | null;
+  eventName: "meal_photo_analysis_completed" | "photo_meal_saved";
+  metadata: Record<string, unknown>;
+}) {
+  void query(
+    "insert into analytics_events (user_id, gym_id, event_name, metadata) values ($1, $2, $3, $4)",
+    [input.userId, input.gymId ?? null, input.eventName, input.metadata]
+  ).catch(() => undefined);
+}
+
+function recordPortionAnalysisCompleted(user: AuthUser, estimate: Awaited<ReturnType<typeof estimateFoodFromImage>>) {
+  if (!isPortionAwareEstimate(estimate)) return;
+  recordPortionAnalytics({
+    userId: user.id,
+    gymId: user.gymId,
+    eventName: "meal_photo_analysis_completed",
+    metadata: {
+      analysisVersion: estimate.analysisVersion,
+      itemCount: estimate.items.length,
+      recognitionConfidence: estimate.recognitionConfidence,
+      portionConfidence: estimate.portionConfidence,
+      portionFallback: estimate.portionFallback === true
+    }
+  });
+}
 
 const weightLogSchema = z.object({
   weightKg: z.number().positive(),
@@ -217,8 +260,15 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
     const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodUrlEstimateSchema.parse(req.body));
     const safeImageUrl = await validatePublicHttpUrl(input.imageUrl);
     const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
-      estimateFoodFromImage(safeImageUrl.toString(), { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf, timezoneOffsetMinutes: input.timezoneOffsetMinutes })
+      estimateFoodFromImage(safeImageUrl.toString(), {
+        userId: req.user!.id,
+        gymId: req.user!.gymId,
+        performanceTrace: req.foodAiPerf,
+        timezoneOffsetMinutes: input.timezoneOffsetMinutes,
+        portionAware: portionAwareNutritionEnabled(req.user!)
+      })
     );
+    recordPortionAnalysisCompleted(req.user!, estimate);
     const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes));
     const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
       estimate,
@@ -252,8 +302,15 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
     const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodImageDataSchema.parse(req.body));
     const estimate = await timeFoodAiStage(req.foodAiPerf, "Food analysis orchestration", () =>
-      estimateFoodFromImage(input.imageDataUrl, { userId: req.user!.id, gymId: req.user!.gymId, performanceTrace: req.foodAiPerf, timezoneOffsetMinutes: input.timezoneOffsetMinutes })
+      estimateFoodFromImage(input.imageDataUrl, {
+        userId: req.user!.id,
+        gymId: req.user!.gymId,
+        performanceTrace: req.foodAiPerf,
+        timezoneOffsetMinutes: input.timezoneOffsetMinutes,
+        portionAware: portionAwareNutritionEnabled(req.user!)
+      })
     );
+    recordPortionAnalysisCompleted(req.user!, estimate);
     const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes));
     const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
       estimate,
@@ -303,13 +360,25 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
     if (input.imageS3Key && !storageKeyBelongsToUser(input.imageS3Key, "food", req.user!.id)) {
       return res.status(400).json({ error: "Meal photo is invalid." });
     }
+    const portionAnalysis = input.portionAnalysis === undefined || !portionAwareNutritionEnabled(req.user!)
+      ? null
+      : parsePortionAwareEstimateForSave(input.portionAnalysis);
+    const finalEstimate = portionAnalysis ?? {
+      foodName: input.estimatedFoodName,
+      calories: input.calories,
+      proteinG: input.proteinG,
+      carbsG: input.carbsG,
+      fatG: input.fatG
+    };
+    const portionAdjustedByUser = portionAnalysis?.items?.some((item) => item.userAdjusted) ?? false;
     const result = await query(
       `
       insert into food_logs (
         user_id, image_s3_key, meal_type, description, estimated_food_name, calories,
-        protein_g, carbs_g, fat_g, ai_estimate_raw, was_edited_by_user, logged_at
+        protein_g, carbs_g, fat_g, ai_estimate_raw, was_edited_by_user, logged_at,
+        portion_analysis, photo_analysis_version, portion_adjusted_by_user
       )
-      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,coalesce($12, now()))
+      values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,coalesce($12, now()),$13,$14,$15)
       returning *
       `,
       [
@@ -317,16 +386,35 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
         input.imageS3Key ?? null,
         input.mealType,
         input.description ?? null,
-        input.estimatedFoodName,
-        input.calories,
-        input.proteinG,
-        input.carbsG,
-        input.fatG,
+        finalEstimate.foodName,
+        Math.round(finalEstimate.calories),
+        finalEstimate.proteinG,
+        finalEstimate.carbsG,
+        finalEstimate.fatG,
         input.aiEstimateRaw ?? null,
-        input.wasEditedByUser,
-        input.loggedAt ?? null
+        input.wasEditedByUser || portionAdjustedByUser,
+        input.loggedAt ?? null,
+        portionAnalysis,
+        portionAnalysis?.analysisVersion ?? null,
+        portionAdjustedByUser
       ]
     );
+    if (portionAnalysis && isPortionAwareEstimate(portionAnalysis)) {
+      recordPortionAnalytics({
+        userId: req.user!.id,
+        gymId: req.user!.gymId,
+        eventName: "photo_meal_saved",
+        metadata: {
+          analysisVersion: portionAnalysis.analysisVersion,
+          itemCount: portionAnalysis.items.length,
+          recognitionConfidence: portionAnalysis.recognitionConfidence,
+          portionConfidence: portionAnalysis.portionConfidence,
+          portionFallback: portionAnalysis.portionFallback === true,
+          userAdjustedPortion: portionAdjustedByUser,
+          averageCorrectionMagnitude: portionAdjustmentMagnitude(portionAnalysis.items)
+        }
+      });
+    }
     void createCoachPresenceForEvent(req.user!.id, "food_logged").catch(() => undefined);
     res.status(201).json({ foodLog: result.rows[0] });
   } catch (error) {

@@ -18,6 +18,8 @@ export type SubscriptionProvider = "lemonsqueezy" | "toyyibpay" | "stripe" | "ma
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired";
 export type InstallPlatform = "ios" | "android" | "desktop";
 
+import type { FoodPortionItem, FoodPortionLabel } from "./portionNutrition";
+
 export * from "./ascendDna";
 export * from "./coachZoeProactive";
 export * from "./notificationEngine";
@@ -29,6 +31,7 @@ export * from "./workoutDebrief";
 export * from "./trainerSession";
 export * from "./todayExperience";
 export * from "./returnMode";
+export * from "./portionNutrition";
 
 export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {
   const isIpadOs = platform === "MacIntel" && maxTouchPoints > 1;
@@ -107,6 +110,14 @@ export interface FoodEstimate {
   carbsG: number;
   fatG: number;
   notes: string;
+  analysisVersion?: "portion_aware_v1";
+  recognitionConfidence?: number;
+  portionConfidence?: number;
+  visiblePortionLabel?: FoodPortionLabel;
+  items?: FoodPortionItem[];
+  clarificationRequired?: boolean;
+  clarification?: string | null;
+  portionFallback?: boolean;
 }
 
 export interface ComplianceBreakdown {

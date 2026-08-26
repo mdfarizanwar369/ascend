@@ -2,8 +2,15 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Mic, Pencil, Save, Sparkles, Square, Trash2, Utensils } from "lucide-react";
-import { calculateAdaptiveNutritionTargets, FoodEstimate } from "@ascend/shared";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Mic, Pencil, Save, SlidersHorizontal, Sparkles, Square, Trash2, Utensils } from "lucide-react";
+import {
+  aggregatePortionNutrition,
+  calculateAdaptiveNutritionTargets,
+  FoodEstimate,
+  FoodPortionItem,
+  PORTION_QUANTITY_MAXIMUMS,
+  recalculatePortionItem
+} from "@ascend/shared";
 import {
   estimateFoodFromDataUrl,
   estimateFoodFromText,
@@ -247,6 +254,63 @@ function allowanceHint(allowance: FoodAiAllowance | null) {
   return `${allowance.remaining} AI ${allowance.remaining === 1 ? "scan" : "scans"} remaining.`;
 }
 
+function confidenceLabel(value: number | undefined) {
+  if (value === undefined) return "Unknown";
+  if (value >= 0.8) return "High";
+  if (value >= 0.55) return "Moderate";
+  return "Low";
+}
+
+function portionLabel(value: FoodEstimate["visiblePortionLabel"]) {
+  if (!value || value === "unknown") return "Standard estimate";
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function formatPortionItemQuantity(item: FoodPortionItem) {
+  if (item.estimatedQuantity === null && item.portionSource === "standard_serving_fallback") return "standard serving";
+  const quantity = item.finalQuantity ?? item.estimatedQuantity;
+  if (quantity === null) return "amount unclear";
+  const unit = item.unit === "piece" || item.unit === "slice" || item.unit === "serving"
+    ? `${item.unit}${quantity === 1 ? "" : "s"}`
+    : item.unit;
+  return `${quantity}${item.unit === "g" || item.unit === "ml" ? "" : " "}${unit}`;
+}
+
+function PortionQuantityInput({ item, onCommit }: { item: FoodPortionItem; onCommit: (quantity: number) => void }) {
+  const quantity = item.finalQuantity ?? item.estimatedQuantity ?? item.nutritionBasis.amount;
+  const [draft, setDraft] = useState(String(quantity));
+
+  useEffect(() => setDraft(String(quantity)), [quantity]);
+
+  function commit(value: string) {
+    setDraft(value);
+    if (!value.trim()) return;
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0 && number <= PORTION_QUANTITY_MAXIMUMS[item.unit]) onCommit(number);
+  }
+
+  return (
+    <input
+      id={`portion-${item.id}`}
+      aria-label={`${item.name} quantity`}
+      className="h-10 w-24 rounded-lg border border-line bg-ink px-3 text-right text-sm text-white outline-none focus:border-lime"
+      inputMode="decimal"
+      min="0.5"
+      max={PORTION_QUANTITY_MAXIMUMS[item.unit]}
+      step={item.unit === "g" || item.unit === "ml" ? 5 : 0.5}
+      type="number"
+      value={draft}
+      onChange={(event) => commit(event.target.value)}
+      onBlur={() => {
+        const number = Number(draft);
+        if (!draft.trim() || !Number.isFinite(number) || number <= 0 || number > PORTION_QUANTITY_MAXIMUMS[item.unit]) {
+          setDraft(String(quantity));
+        }
+      }}
+    />
+  );
+}
+
 function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>) {
   const calorieShare = estimate.calories / targets.calorieTarget;
   const proteinCalories = estimate.proteinG * 4;
@@ -432,6 +496,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   const [aiFailed, setAiFailed] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showEstimateEditor, setShowEstimateEditor] = useState(false);
+  const [showPortionEditor, setShowPortionEditor] = useState(false);
   const [savedMeal, setSavedMeal] = useState<SavedMealSummary | null>(null);
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
   const [mealSpeechAvailable, setMealSpeechAvailable] = useState(isMealSpeechPotentiallyAvailable);
@@ -559,6 +624,9 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   }, [estimate]);
 
   const currentMealInsight = estimate ? mealInsight(estimate, effectiveNutritionTargets) : null;
+  const portionAwareEstimate = estimate?.analysisVersion === "portion_aware_v1" && estimate.items?.length
+    ? estimate
+    : null;
   const groupedHistoryDays = useMemo(() => {
     const map = new Map<string, FoodLog[]>();
     for (const log of historyLogs) {
@@ -663,6 +731,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setAiFailed(false);
     setSavedMeal(null);
     setShowEstimateEditor(false);
+    setShowPortionEditor(false);
     setShowManualEntry(false);
     setStatus("Photo selected. Estimating calories and macros...");
     setIsEstimating(true);
@@ -759,6 +828,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setEstimate(response.estimate);
       setAiFailed(false);
       setShowEstimateEditor(false);
+      setShowPortionEditor(false);
       setStatus("AI estimate ready. Review, edit if needed, then save.");
       window.setTimeout(() => {
         markFrontendStage(trace, "Result rendered to user");
@@ -797,6 +867,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setWasEdited(false);
     setSavedMeal(null);
     setShowEstimateEditor(false);
+    setShowPortionEditor(false);
     setStatus("Analysing your meal description...");
 
     try {
@@ -804,6 +875,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setEstimate(response.estimate);
       if (response.allowance) setAllowance(response.allowance);
       setShowEstimateEditor(false);
+      setShowPortionEditor(false);
       setStatus("Meal estimate ready. Review, edit if needed, then save.");
     } catch (error) {
       setEstimate({
@@ -861,7 +933,31 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
   function updateEstimate<K extends keyof FoodEstimate>(key: K, value: FoodEstimate[K]) {
     if (!estimate) return;
-    setEstimate({ ...estimate, [key]: value });
+    const next = { ...estimate, [key]: value };
+    if (estimate.analysisVersion === "portion_aware_v1" && ["calories", "proteinG", "carbsG", "fatG"].includes(String(key))) {
+      next.analysisVersion = undefined;
+      next.items = undefined;
+      next.portionFallback = undefined;
+    }
+    setEstimate(next);
+    setWasEdited(true);
+  }
+
+  function updatePortionItemQuantity(itemId: string, quantity: number) {
+    if (!Number.isFinite(quantity) || quantity <= 0) return;
+    setEstimate((current) => {
+      if (current?.analysisVersion !== "portion_aware_v1" || !current.items?.length) return current;
+      const items = current.items.map((item) => item.id === itemId ? recalculatePortionItem(item, quantity) : item);
+      const totals = aggregatePortionNutrition(items);
+      return {
+        ...current,
+        items,
+        calories: Math.round(totals.calories),
+        proteinG: Math.round(totals.proteinG * 10) / 10,
+        carbsG: Math.round(totals.carbsG * 10) / 10,
+        fatG: Math.round(totals.fatG * 10) / 10
+      };
+    });
     setWasEdited(true);
   }
 
@@ -911,6 +1007,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         carbsG: savedLog.carbsG,
         fatG: savedLog.fatG,
         aiEstimateRaw: estimate,
+        portionAnalysis: estimate.analysisVersion === "portion_aware_v1" ? estimate : undefined,
         wasEditedByUser: wasEdited
       });
       foodLogsRequestRef.current += 1;
@@ -946,6 +1043,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setWasEdited(false);
       setAiFailed(false);
       setShowManualEntry(false);
+      setShowPortionEditor(false);
       setManualMealText("");
       setMealSpeechMessage("");
       setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
@@ -1469,7 +1567,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Estimated nutrition</p>
                   <p className="mt-2 text-sm leading-6 text-zinc-300">Review the estimate, then save it to today.</p>
-                  <p className="mt-2 text-xs text-zinc-500">{Math.round(estimate.confidence * 100)}% AI confidence</p>
+                  {portionAwareEstimate ? (
+                    <p className="mt-2 text-xs leading-5 text-zinc-500">
+                      Food match: {confidenceLabel(estimate.recognitionConfidence)}<br />
+                      Portion estimate: {confidenceLabel(estimate.portionConfidence)}
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-zinc-500">{Math.round(estimate.confidence * 100)}% AI confidence</p>
+                  )}
                 </div>
               </div>
 
@@ -1478,6 +1583,84 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 <MacroProgress label="Carbohydrates" value={estimate.carbsG} target={effectiveNutritionTargets.carbsTargetG} />
                 <MacroProgress label="Fat" value={estimate.fatG} target={effectiveNutritionTargets.fatTargetG} />
               </div>
+
+              {portionAwareEstimate ? (
+                <section className="ascend-inset mt-4 p-4" aria-label="Estimated meal portions">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Zoe analysed your meal</p>
+                      <p className="mt-2 text-sm font-semibold text-white">Estimated portion: {portionLabel(portionAwareEstimate.visiblePortionLabel)}</p>
+                      <p className="mt-1 text-xs text-zinc-500">Estimated from your photo, not measured.</p>
+                    </div>
+                    {portionAwareEstimate.portionFallback ? (
+                      <span className="rounded-full border border-amber/30 bg-amber/10 px-2.5 py-1 text-[11px] font-semibold text-amber">Some amounts unclear</span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 divide-y divide-line/70">
+                    {portionAwareEstimate.items!.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-zinc-100">{item.name}</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {item.nutritionSource === "ascend_database" ? "Ascend nutrition data" : item.nutritionSource === "standard_serving_fallback" ? "Standard-serving fallback" : "AI nutrition estimate"}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold text-zinc-200">~{formatPortionItemQuantity(item)}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {portionAwareEstimate.clarificationRequired && portionAwareEstimate.clarification ? (
+                    <p className="mt-3 rounded-lg border border-amber/25 bg-amber/10 px-3 py-2 text-xs leading-5 text-amber">{portionAwareEstimate.clarification}</p>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPortionEditor((current) => !current)}
+                    className="ascend-pressable mt-4 flex h-11 w-full items-center justify-between rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-zinc-200"
+                  >
+                    <span className="flex items-center gap-2"><SlidersHorizontal size={17} /> Adjust portions</span>
+                    {showPortionEditor ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+                  </button>
+
+                  {showPortionEditor ? (
+                    <div className="ascend-soft-enter mt-3 space-y-3">
+                      {portionAwareEstimate.items!.map((item) => {
+                        const estimatedBase = item.estimatedQuantity ?? item.nutritionBasis.amount;
+                        return (
+                          <div key={item.id} className="rounded-xl border border-line bg-surface p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <label className="min-w-0 truncate text-sm font-semibold text-zinc-100" htmlFor={`portion-${item.id}`}>{item.name}</label>
+                              <div className="flex items-center gap-2">
+                                <PortionQuantityInput item={item} onCommit={(quantity) => updatePortionItemQuantity(item.id, quantity)} />
+                                <span className="w-12 text-xs text-zinc-500">{item.unit}</span>
+                              </div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-3 gap-2">
+                              {[
+                                { label: "Smaller", multiplier: 0.75 },
+                                { label: "Estimated", multiplier: 1 },
+                                { label: "Larger", multiplier: 1.25 }
+                              ].map((option) => (
+                                <button
+                                  key={option.label}
+                                  type="button"
+                                  onClick={() => updatePortionItemQuantity(item.id, estimatedBase * option.multiplier)}
+                                  className="ascend-pressable h-9 rounded-lg border border-line bg-ink text-xs font-semibold text-zinc-300"
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <p className="text-xs leading-5 text-zinc-500">Nutrition updates immediately. Adjusting a portion does not run AI again.</p>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
 
               {currentMealInsight ? (
                 <div className="mt-4 rounded-lg border border-lime/25 bg-lime/10 p-3">

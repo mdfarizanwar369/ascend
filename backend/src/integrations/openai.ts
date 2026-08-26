@@ -1,8 +1,14 @@
 import OpenAI from "openai";
+import { createHash } from "crypto";
 import { FoodEstimate, LOCAL_FOODS, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
 import { env } from "../config/env";
 import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
+import {
+  buildPortionAwareEstimate,
+  parsePortionAwareVisionResponse,
+  runPortionAnalysisSingleFlight
+} from "../services/portionNutritionService";
 import { buildBodyCompositionAiPrompt, mergeBodyCompositionDrafts, normalizeBodyCompositionScan } from "../services/bodyCompositionService";
 import {
   annotateLatestGeminiParse,
@@ -803,6 +809,112 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
   }
 }
 
+const portionAwareFoodResponseSchema = {
+  type: "OBJECT",
+  properties: {
+    mealName: { type: "STRING" },
+    overallConfidence: { type: "NUMBER" },
+    portionEstimationConfidence: { type: "NUMBER" },
+    items: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          name: { type: "STRING" },
+          normalizedHint: { type: "STRING" },
+          estimatedQuantity: { type: "NUMBER", nullable: true },
+          unit: { type: "STRING", enum: ["g", "ml", "piece", "slice", "serving"] },
+          quantityConfidence: { type: "NUMBER" },
+          foodConfidence: { type: "NUMBER" },
+          visiblePortionLabel: { type: "STRING", enum: ["small", "regular", "large", "unknown"] },
+          preparation: { type: "STRING", nullable: true },
+          notes: { type: "STRING", nullable: true },
+          calories: { type: "NUMBER" },
+          proteinG: { type: "NUMBER" },
+          carbsG: { type: "NUMBER" },
+          fatG: { type: "NUMBER" }
+        },
+        required: [
+          "name", "normalizedHint", "estimatedQuantity", "unit", "quantityConfidence", "foodConfidence",
+          "visiblePortionLabel", "preparation", "notes", "calories", "proteinG", "carbsG", "fatG"
+        ]
+      }
+    },
+    clarificationRequired: { type: "BOOLEAN" },
+    clarification: { type: "STRING", nullable: true }
+  },
+  required: ["mealName", "overallConfidence", "portionEstimationConfidence", "items", "clarificationRequired", "clarification"]
+};
+
+const portionAwareFoodPrompt =
+  "You are the vision estimator for Ascend, a fitness accountability app. Analyse this specific meal photograph, not a generic serving. " +
+  "Identify the nutrition-relevant visible components and estimate how much of each component is actually visible. Use grams for solid foods, milliliters for drinks or soups, and pieces or slices only when that is the natural unit. " +
+  "Do not simply return a standard serving. Use visual cues such as plate or bowl size, food area and height, utensils, cups, containers, number of pieces, thickness, perspective, and typical dimensions. " +
+  "For mixed meals, separate sensible components such as rice, chicken, sauce, egg, and vegetables without over-fragmenting garnish. Prioritize Malaysia and Singapore food identity when the image supports it, including " +
+  LOCAL_FOODS.join(", ") +
+  ". Estimate calories, protein, carbs, and fat for each component at the visible amount as a fallback for foods without a trusted database density. " +
+  "Food identity confidence and quantity confidence are separate values from 0 to 1. If an amount cannot be inferred safely, set estimatedQuantity to null, unit to serving, visiblePortionLabel to unknown, and lower quantityConfidence. " +
+  "Account cautiously for visually supported preparation such as frying or creamy sauce, but do not invent exact hidden oil or ingredients. clarificationRequired should be true only when one short answer would materially change calories. " +
+  "Use sensible rounded quantities such as 185g or 250ml, never false precision. Return only JSON matching the required schema.";
+
+async function portionAwareEstimateFromText(text: string) {
+  const parsed = parseJsonObject(text);
+  return buildPortionAwareEstimate(parsePortionAwareVisionResponse(parsed));
+}
+
+async function estimateFoodWithGeminiPortionAware(imageUrl: string, performanceTrace?: FoodAiPerformanceTrace | null) {
+  const imagePart = await urlToGeminiPart(imageUrl);
+  const parts: GeminiPart[] = [imagePart, { text: portionAwareFoodPrompt }];
+  const strongerModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"]);
+
+  async function generateEstimate(models: string[], responseMimeType?: "application/json") {
+    const result = await callGeminiWithOptions(parts, 1500, {
+      models,
+      attemptsPerModel: 1,
+      timeoutMs: 22_000,
+      responseMimeType,
+      responseSchema: responseMimeType === "application/json" ? portionAwareFoodResponseSchema : undefined,
+      performanceTrace
+    });
+    try {
+      const estimate = await timeFoodAiStage(performanceTrace, "Portion response validation and scaling", () => portionAwareEstimateFromText(result.text), {
+        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible",
+        finishReason: result.finishReason,
+        blockReason: result.blockReason
+      });
+      annotateLatestGeminiParse(performanceTrace, { success: true });
+      return estimate;
+    } catch (error) {
+      annotateLatestGeminiParse(performanceTrace, { success: false, failureReason: geminiFailureReason(error) });
+      foodAiErrorLog("portion_food_estimate_parse_failed", {
+        model: models.join(","),
+        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible",
+        responsePreview: result.text.slice(0, 500),
+        error: error instanceof Error ? error.message : "Unknown parse failure"
+      });
+      throw error;
+    }
+  }
+
+  try {
+    return await generateEstimate([env.GEMINI_MODEL], "application/json");
+  } catch (error) {
+    foodAiErrorLog("portion_primary_json_attempt_failed", {
+      model: env.GEMINI_MODEL,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+  try {
+    return await generateEstimate([env.GEMINI_MODEL]);
+  } catch (error) {
+    foodAiErrorLog("portion_primary_flexible_attempt_failed", {
+      model: env.GEMINI_MODEL,
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+  return generateEstimate(strongerModels, "application/json");
+}
+
 async function estimateFoodWithOpenAI(imageUrl: string) {
   if (!openaiClient) return demoFoodEstimate();
   const preparedImageUrl = await prepareFoodImageDataUrl(imageUrl);
@@ -827,6 +939,22 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
   });
 
   return parseFoodEstimate(response.output_text);
+}
+
+async function estimateFoodWithOpenAIPortionAware(imageUrl: string) {
+  if (!openaiClient) return demoFoodEstimate();
+  const preparedImageUrl = await prepareFoodImageDataUrl(imageUrl);
+  const response = await openaiClient.responses.create({
+    model: env.OPENAI_MODEL,
+    input: [{
+      role: "user",
+      content: [
+        { type: "input_text", text: `${portionAwareFoodPrompt} Use camelCase property names exactly.` },
+        { type: "input_image", image_url: preparedImageUrl, detail: "auto" }
+      ]
+    }]
+  });
+  return portionAwareEstimateFromText(response.output_text);
 }
 
 async function estimateFoodTextWithGemini(description: string) {
@@ -929,18 +1057,28 @@ function classifyFoodAiError(error: unknown): FoodAiError {
 }
 
 function shouldUseFoodFallback(estimate: FoodEstimate) {
+  if (estimate.analysisVersion === "portion_aware_v1" && estimate.items?.length && estimate.calories > 0) return false;
   return estimate.confidence <= 0.35 && /mixed|snack plate|meal or snack plate|food item/i.test(estimate.foodName);
 }
 
 export async function estimateFoodFromImage(
   imageUrl: string,
-  context: { userId?: string | null; gymId?: string | null; performanceTrace?: FoodAiPerformanceTrace | null; timezoneOffsetMinutes?: number } = {}
+  context: {
+    userId?: string | null;
+    gymId?: string | null;
+    performanceTrace?: FoodAiPerformanceTrace | null;
+    timezoneOffsetMinutes?: number;
+    portionAware?: boolean;
+  } = {}
 ): Promise<FoodEstimate> {
   const imageHash = timeFoodAiSyncStage(context.performanceTrace, "Image hash calculation", () =>
     imageUrl.startsWith("data:image/") ? imageHashFromDataUrl(imageUrl) : null
   );
-  if (imageHash) {
-    const cached = await timeFoodAiStage(context.performanceTrace, "Cache lookup", () => getCachedFoodEstimate(imageHash));
+  const cacheHash = imageHash && context.portionAware
+    ? createHash("sha256").update(`${imageHash}:portion-aware-v1`).digest("hex")
+    : imageHash;
+  if (cacheHash) {
+    const cached = await timeFoodAiStage(context.performanceTrace, "Cache lookup", () => getCachedFoodEstimate(cacheHash));
     if (cached) {
       await timeFoodAiStage(context.performanceTrace, "AI usage logging", () => logAiUsage({
         ...context,
@@ -972,16 +1110,24 @@ export async function estimateFoodFromImage(
   }
 
   try {
-    const rawEstimate =
-      env.AI_PROVIDER === "gemini"
-        ? await estimateFoodWithGemini(imageUrl, context.performanceTrace)
-        : env.AI_PROVIDER === "openai"
-          ? await estimateFoodWithOpenAI(imageUrl)
-          : {
-              ...demoFoodEstimate(),
-              notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
-            };
-    const estimate = await timeFoodAiStage(context.performanceTrace, "Local food normalization", () => normalizeWithLocalFoodDatabase(rawEstimate));
+    const analyzeWithProvider = async () => env.AI_PROVIDER === "gemini"
+      ? context.portionAware
+        ? estimateFoodWithGeminiPortionAware(imageUrl, context.performanceTrace)
+        : estimateFoodWithGemini(imageUrl, context.performanceTrace)
+      : env.AI_PROVIDER === "openai"
+        ? context.portionAware
+          ? estimateFoodWithOpenAIPortionAware(imageUrl)
+          : estimateFoodWithOpenAI(imageUrl)
+        : Promise.resolve({
+            ...demoFoodEstimate(),
+            notes: "Starter estimate. Live AI image analysis is temporarily unavailable."
+          });
+    const rawEstimate = context.portionAware && cacheHash
+      ? await runPortionAnalysisSingleFlight(cacheHash, analyzeWithProvider)
+      : await analyzeWithProvider();
+    const estimate = context.portionAware
+      ? rawEstimate
+      : await timeFoodAiStage(context.performanceTrace, "Local food normalization", () => normalizeWithLocalFoodDatabase(rawEstimate));
 
     if (shouldUseFoodFallback(estimate)) {
       const fallbackEstimate = starterFoodEstimate(estimate.notes || "The AI could not classify this photo confidently.");
@@ -996,13 +1142,15 @@ export async function estimateFoodFromImage(
       return fallbackEstimate;
     }
 
-    if (imageHash && estimate.confidence >= 0.5 && estimate.calories > 0) {
+    if (cacheHash && estimate.confidence >= 0.5 && estimate.calories > 0) {
       await timeFoodAiStage(context.performanceTrace, "Cache write", () => saveFoodEstimateCache({
-        imageHash,
+        imageHash: cacheHash,
         estimate,
         provider: env.AI_PROVIDER,
         model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-        source: estimate.notes.includes("local food database") ? "local_food_match" : "ai"
+        source: estimate.analysisVersion === "portion_aware_v1"
+          ? "portion_aware_v1"
+          : estimate.notes.includes("local food database") ? "local_food_match" : "ai"
       }));
     }
 
@@ -1012,7 +1160,15 @@ export async function estimateFoodFromImage(
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       status: "success",
-      metadata: { imageHash, confidence: estimate.confidence, foodName: estimate.foodName }
+      metadata: {
+        imageHash,
+        confidence: estimate.confidence,
+        foodName: estimate.foodName,
+        analysisVersion: estimate.analysisVersion,
+        itemCount: estimate.items?.length,
+        portionConfidence: estimate.portionConfidence,
+        portionFallback: estimate.portionFallback
+      }
     }));
 
     return estimate;
