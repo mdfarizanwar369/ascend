@@ -217,6 +217,9 @@ describe("Portion-aware meal review", () => {
     fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
 
     expect(await screen.findByText("Estimated portion: Regular")).toBeInTheDocument();
+    expect(screen.getAllByText("Estimated from your photo, not measured.").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Food match:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Portion estimate:/i)).not.toBeInTheDocument();
     expect(screen.getByText("~200g")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Owner pilot diagnostics" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Adjust portions" }));
@@ -235,6 +238,65 @@ describe("Portion-aware meal review", () => {
       finalQuantity: 250,
       userAdjusted: true
     });
+  });
+
+  it("does not offer generic smaller or larger shortcuts for countable whole-piece foods", async () => {
+    api.estimateFoodFromText.mockResolvedValueOnce({
+      estimate: {
+        foodName: "French Fries",
+        confidence: 0.95,
+        recognitionConfidence: 0.95,
+        portionConfidence: 0.86,
+        visiblePortionLabel: "small",
+        calories: 155,
+        proteinG: 2,
+        carbsG: 21,
+        fatG: 7,
+        notes: "Estimated from the visible portions in this photo.",
+        analysisVersion: "portion_aware_v1",
+        clarificationRequired: false,
+        clarification: null,
+        portionFallback: false,
+        items: [{
+          id: "portion-1-fries",
+          name: "French Fries",
+          normalizedName: "fried potato fries",
+          preparation: "fried",
+          estimatedQuantity: 5,
+          finalQuantity: 5,
+          unit: "piece",
+          foodConfidence: 0.95,
+          portionConfidence: 0.86,
+          visiblePortionLabel: "small",
+          notes: null,
+          nutritionSource: "ai_estimate",
+          portionSource: "ai_vision",
+          nutritionBasis: {
+            amount: 5,
+            unit: "piece",
+            nutrition: { calories: 155, proteinG: 2, carbsG: 21, fatG: 7 },
+            source: "ai_estimate",
+            sourceDetail: "Visible photo estimate"
+          },
+          nutrition: { calories: 155, proteinG: 2, carbsG: 21, fatG: 7 },
+          userAdjusted: false
+        }]
+      },
+      allowance: null
+    });
+
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "five fries" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+
+    expect(await screen.findByText("~5 pieces")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Adjust portions" }));
+
+    expect(screen.getByText("Use the quantity field for countable foods so whole pieces stay clear.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Smaller" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Larger" })).not.toBeInTheDocument();
+    expect(api.estimateFoodFromText).toHaveBeenCalledTimes(1);
   });
 
   it("shows source diagnostics only to the verified Platform Owner", async () => {

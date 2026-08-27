@@ -104,6 +104,54 @@ describe("Portion-Aware Nutrition V1", () => {
     expect(estimate.items?.[0].fallbackReason).toContain("no compatible verified scalable basis");
   });
 
+  it("keeps an ordinary plausible AI gram estimate when no trusted hard evidence contradicts it", async () => {
+    const noLocal = vi.fn(async () => null);
+    const estimate = await buildPortionAwareEstimate(rawResponse([
+      rawItem({
+        name: "Rice",
+        normalizedHint: "cooked white rice",
+        estimatedQuantity: 185,
+        unit: "g",
+        nutritionForVisibleQuantity: { calories: 241, proteinG: 5, carbsG: 53, fatG: 0.5 }
+      })
+    ]), { findLocalFood: noLocal });
+
+    expect(estimate.items?.[0]).toMatchObject({
+      estimatedQuantity: 185,
+      finalQuantity: 185,
+      nutritionSource: "ai_estimate",
+      portionSource: "ai_vision"
+    });
+    expect(estimate.calories).toBe(241);
+  });
+
+  it("preserves trusted visible packaged volume as a scalable millilitre estimate", async () => {
+    const noLocal = vi.fn(async () => null);
+    const estimate = await buildPortionAwareEstimate(rawResponse([
+      rawItem({
+        name: "Bottled isotonic drink",
+        normalizedHint: "isotonic drink",
+        estimatedQuantity: 330,
+        unit: "ml",
+        quantityConfidence: 0.9,
+        foodConfidence: 0.95,
+        visiblePortionLabel: "regular",
+        nutritionForVisibleQuantity: { calories: 92, proteinG: 0, carbsG: 23, fatG: 0 }
+      })
+    ]), { findLocalFood: noLocal });
+
+    expect(estimate.items?.[0]).toMatchObject({
+      estimatedQuantity: 330,
+      finalQuantity: 330,
+      unit: "ml",
+      nutritionBasis: {
+        amount: 330,
+        unit: "ml"
+      }
+    });
+    expect(estimate.calories).toBe(92);
+  });
+
   it("independently scales mixed-meal components and makes the meal total equal the item sum", async () => {
     const noLocal = vi.fn(async () => null);
     const estimate = await buildPortionAwareEstimate(rawResponse([

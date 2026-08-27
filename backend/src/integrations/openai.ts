@@ -861,7 +861,7 @@ const portionAwareFoodPrompt =
   "First identify the intended meal subject: the dominant foreground food or drink that is centered, actively presented, or contained on the same plate, bowl, cup, or takeaway container. Exclude unrelated background drinks, food on adjacent plates or tables, scene props, and partially cropped edge items unless they are clearly part of that same intended meal. Do not combine everything visible in a restaurant scene into one log. " +
   "Identify only edible food that is visibly present and available to consume. Do not infer food from branding, labels, printed pictures, wrappers, empty containers, or sealed condiment sachets. A sealed ketchup packet is packaging, not consumed ketchup. Mark such detections as sealed_packaging_only so they can be excluded. Use opened_or_served_condiment only when condiment is visibly dispensed or its container is visibly open for this meal. " +
   "Estimate how much of each edible component is actually visible. Use grams for solid foods, milliliters for drinks or soups, and pieces or slices when individual items can be counted reliably. For 20 or fewer clearly visible countable items, use the exact visible count with unit piece or slice instead of converting the portion to a generic gram serving. Count only distinct visible items; never invent additional pieces that might be hidden under overlaps or packaging. If overlap makes the exact count genuinely uncertain, use a cautious visible gram estimate and lower quantityConfidence instead of claiming an exact piece count. This includes a small number of fries, nuggets, dumplings, sushi pieces, eggs, or fruit pieces. For example, five visible fries should be 5 pieces with nutrition for those five fries, not 100g or a regular serving. " +
-  "Do not simply return a standard serving. Use visual cues such as plate or bowl size, food area and height, utensils, cups, containers, number of pieces, thickness, perspective, and typical dimensions. " +
+  "Do not simply return a standard serving. Use only visible portion cues such as countable pieces, cups, containers, plate or bowl context, thickness, perspective, and typical edible dimensions. Do not claim the food was measured. " +
   "For mixed meals, separate sensible components such as rice, chicken, sauce, egg, and vegetables without over-fragmenting garnish. Prioritize Malaysia and Singapore food identity when the image supports it, including " +
   LOCAL_FOODS.join(", ") +
   ". For every item, nutritionForVisibleQuantity must contain calories, protein, carbs, and fat for exactly that item's estimatedQuantity and unit, not for a generic serving. If estimatedQuantity is null, nutritionForVisibleQuantity may represent one honest standard-serving fallback. " +
@@ -870,7 +870,7 @@ const portionAwareFoodPrompt =
   "Account cautiously for visually supported preparation such as frying or creamy sauce, but do not invent exact hidden oil or ingredients. clarificationRequired should be true only when one short answer would materially change calories. " +
   "Use sensible rounded quantities such as 185g or 250ml, never false precision. Return only JSON matching the required schema.";
 
-const PORTION_AWARE_CACHE_VERSION = "portion-aware-v1.3-visible-counting";
+const PORTION_AWARE_CACHE_VERSION = "portion-aware-production-v1";
 
 async function portionAwareEstimateFromText(text: string) {
   const parsed = parseJsonObject(text);
@@ -880,54 +880,33 @@ async function portionAwareEstimateFromText(text: string) {
 async function estimateFoodWithGeminiPortionAware(imageUrl: string, performanceTrace?: FoodAiPerformanceTrace | null) {
   const imagePart = await urlToGeminiPart(imageUrl);
   const parts: GeminiPart[] = [imagePart, { text: portionAwareFoodPrompt }];
-  const strongerModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"]);
 
-  async function generateEstimate(models: string[], responseMimeType?: "application/json") {
-    const result = await callGeminiWithOptions(parts, 1500, {
-      models,
-      attemptsPerModel: 1,
-      timeoutMs: 22_000,
-      responseMimeType,
-      responseSchema: responseMimeType === "application/json" ? portionAwareFoodResponseSchema : undefined,
-      performanceTrace
-    });
-    try {
-      const estimate = await timeFoodAiStage(performanceTrace, "Portion response validation and scaling", () => portionAwareEstimateFromText(result.text), {
-        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible",
-        finishReason: result.finishReason,
-        blockReason: result.blockReason
-      });
-      annotateLatestGeminiParse(performanceTrace, { success: true });
-      return estimate;
-    } catch (error) {
-      annotateLatestGeminiParse(performanceTrace, { success: false, failureReason: geminiFailureReason(error) });
-      foodAiErrorLog("portion_food_estimate_parse_failed", {
-        model: models.join(","),
-        responseMode: responseMimeType === "application/json" ? "JSON" : "Flexible",
-        responsePreview: result.text.slice(0, 500),
-        error: error instanceof Error ? error.message : "Unknown parse failure"
-      });
-      throw error;
-    }
-  }
-
+  const result = await callGeminiWithOptions(parts, 1500, {
+    models: [env.GEMINI_MODEL],
+    attemptsPerModel: 1,
+    timeoutMs: 22_000,
+    responseMimeType: "application/json",
+    responseSchema: portionAwareFoodResponseSchema,
+    performanceTrace
+  });
   try {
-    return await generateEstimate([env.GEMINI_MODEL], "application/json");
-  } catch (error) {
-    foodAiErrorLog("portion_primary_json_attempt_failed", {
-      model: env.GEMINI_MODEL,
-      error: error instanceof Error ? error.message : "Unknown error"
+    const estimate = await timeFoodAiStage(performanceTrace, "Portion response validation and scaling", () => portionAwareEstimateFromText(result.text), {
+      responseMode: "JSON",
+      finishReason: result.finishReason,
+      blockReason: result.blockReason
     });
-  }
-  try {
-    return await generateEstimate([env.GEMINI_MODEL]);
+    annotateLatestGeminiParse(performanceTrace, { success: true });
+    return estimate;
   } catch (error) {
-    foodAiErrorLog("portion_primary_flexible_attempt_failed", {
+    annotateLatestGeminiParse(performanceTrace, { success: false, failureReason: geminiFailureReason(error) });
+    foodAiErrorLog("portion_food_estimate_parse_failed", {
       model: env.GEMINI_MODEL,
-      error: error instanceof Error ? error.message : "Unknown error"
+      responseMode: "JSON",
+      responsePreview: result.text.slice(0, 500),
+      error: error instanceof Error ? error.message : "Unknown parse failure"
     });
+    throw error;
   }
-  return generateEstimate(strongerModels, "application/json");
 }
 
 async function estimateFoodWithOpenAI(imageUrl: string) {

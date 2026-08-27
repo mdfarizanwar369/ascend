@@ -235,9 +235,9 @@ function estimateFailureMessage(error: unknown) {
     return error.message;
   }
   if (error instanceof Error && /quota|billing|AI provider|temporarily unavailable|timed out|malformed response|empty result|request was rejected/i.test(error.message)) {
-    return "Food AI is temporarily unavailable. You can enter this meal manually now, then try AI again later.";
+    return "Zoe couldn't estimate this meal reliably from that photo. Try another photo or log it manually.";
   }
-  return "AI could not estimate this photo reliably. Please edit the fields before saving, or try AI again.";
+  return "Zoe couldn't estimate this meal reliably from that photo. Try another photo or log it manually.";
 }
 
 function allowanceText(allowance: FoodAiAllowance | null) {
@@ -252,13 +252,6 @@ function allowanceHint(allowance: FoodAiAllowance | null) {
   if (allowance.limit === null) return "Your scans are still tracked in the owner AI dashboard.";
   if ((allowance.remaining ?? 0) <= 0) return "You can still save food manually until this allowance resets.";
   return `${allowance.remaining} AI ${allowance.remaining === 1 ? "scan" : "scans"} remaining.`;
-}
-
-function confidenceLabel(value: number | undefined) {
-  if (value === undefined) return "Unknown";
-  if (value >= 0.8) return "High";
-  if (value >= 0.55) return "Moderate";
-  return "Low";
 }
 
 function portionLabel(value: FoodEstimate["visiblePortionLabel"]) {
@@ -1574,10 +1567,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Estimated nutrition</p>
                   <p className="mt-2 text-sm leading-6 text-zinc-300">Review the estimate, then save it to today.</p>
                   {portionAwareEstimate ? (
-                    <p className="mt-2 text-xs leading-5 text-zinc-500">
-                      Food match: {confidenceLabel(estimate.recognitionConfidence)}<br />
-                      Portion estimate: {confidenceLabel(estimate.portionConfidence)}
-                    </p>
+                    <p className="mt-2 text-xs leading-5 text-zinc-500">Estimated from your photo, not measured.</p>
                   ) : (
                     <p className="mt-2 text-xs text-zinc-500">{Math.round(estimate.confidence * 100)}% AI confidence</p>
                   )}
@@ -1643,22 +1633,26 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                                 <span className="w-12 text-xs text-zinc-500">{item.unit}</span>
                               </div>
                             </div>
-                            <div className="mt-3 grid grid-cols-3 gap-2">
-                              {[
-                                { label: "Smaller", multiplier: 0.75 },
-                                { label: "Estimated", multiplier: 1 },
-                                { label: "Larger", multiplier: 1.25 }
-                              ].map((option) => (
-                                <button
-                                  key={option.label}
-                                  type="button"
-                                  onClick={() => updatePortionItemQuantity(item.id, estimatedBase * option.multiplier)}
-                                  className="ascend-pressable h-9 rounded-lg border border-line bg-ink text-xs font-semibold text-zinc-300"
-                                >
-                                  {option.label}
-                                </button>
-                              ))}
-                            </div>
+                            {item.unit === "piece" || item.unit === "slice" ? (
+                              <p className="mt-3 text-xs leading-5 text-zinc-500">Use the quantity field for countable foods so whole pieces stay clear.</p>
+                            ) : (
+                              <div className="mt-3 grid grid-cols-3 gap-2">
+                                {[
+                                  { label: "Smaller", multiplier: 0.75 },
+                                  { label: "Estimated", multiplier: 1 },
+                                  { label: "Larger", multiplier: 1.25 }
+                                ].map((option) => (
+                                  <button
+                                    key={option.label}
+                                    type="button"
+                                    onClick={() => updatePortionItemQuantity(item.id, estimatedBase * option.multiplier)}
+                                    className="ascend-pressable h-9 rounded-lg border border-line bg-ink text-xs font-semibold text-zinc-300"
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
