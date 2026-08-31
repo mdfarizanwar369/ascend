@@ -15,6 +15,7 @@ import { getProgressComparison } from "../services/progressComparisonService";
 import { notifyHumanCoachEvent } from "../services/notificationService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
+import { canUseAscendCoachWorkspace } from "../services/ascendCoachPolicyService";
 
 export const trainerRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -148,6 +149,9 @@ async function createPraiseMessage(clientId: string) {
 
 trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (env.ASCEND_COACH_V1 && !await canUseAscendCoachWorkspace(req.user!)) {
+      return res.status(403).json({ error: "Active Ascend Coach trainer access is required" });
+    }
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
@@ -219,11 +223,34 @@ trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_
           and status = 'open'
           and due_date < current_date
       ) missions on true
-      where u.primary_role = 'client'
+      where (
+        ($6::boolean = false and u.primary_role = 'client')
+        or (
+          $6::boolean = true
+          and (u.primary_role = 'client' or exists (
+            select 1 from user_roles client_role where client_role.user_id = u.id and client_role.role = 'client'
+          ))
+        )
+      )
         and u.status = 'active'
-        and (u.assigned_trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or u.gym_id = any($5))))
+        and (
+          (
+            $6::boolean = false
+            and (u.assigned_trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or u.gym_id = any($5))))
+          )
+          or (
+            $6::boolean = true
+            and exists (
+              select 1 from trainer_client_relationships relationship
+              where relationship.trainer_id = $1
+                and relationship.client_user_id = u.id
+                and relationship.status = 'active'
+                and relationship.data_scopes @> array['profile', 'training', 'nutrition', 'body', 'recovery', 'progress_photos']::text[]
+            )
+          )
+        )
       `,
-      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds, env.ASCEND_COACH_V1]
     );
 
     const attention = result.rows
@@ -348,6 +375,9 @@ trainerRouter.post("/trainer/clients/:clientId/praise", requireAuth, requireActi
 
 trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (env.ASCEND_COACH_V1 && !await canUseAscendCoachWorkspace(req.user!)) {
+      return res.status(403).json({ error: "Active Ascend Coach trainer access is required" });
+    }
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
@@ -455,12 +485,35 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
               and not exists (select 1 from activity_days a where a.activity_date = earlier_day.activity_date)
           )
       ) streak on true
-      where u.primary_role = 'client'
+      where (
+        ($7::boolean = false and u.primary_role = 'client')
+        or (
+          $7::boolean = true
+          and (u.primary_role = 'client' or exists (
+            select 1 from user_roles client_role where client_role.user_id = u.id and client_role.role = 'client'
+          ))
+        )
+      )
         and u.status = 'active'
-        and (u.assigned_trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or u.gym_id = any($5))))
+        and (
+          (
+            $7::boolean = false
+            and (u.assigned_trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or u.gym_id = any($5))))
+          )
+          or (
+            $7::boolean = true
+            and exists (
+              select 1 from trainer_client_relationships relationship
+              where relationship.trainer_id = $1
+                and relationship.client_user_id = u.id
+                and relationship.status = 'active'
+                and relationship.data_scopes @> array['profile', 'training', 'nutrition', 'body', 'recovery', 'progress_photos']::text[]
+            )
+          )
+        )
       order by risk.open_alerts desc nulls last, cs.score asc nulls last, food.last_food_logged_at asc nulls first
       `,
-      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds, req.user!.id]
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds, req.user!.id, env.ASCEND_COACH_V1]
     );
     const clients = await withProfilePhotoUrls(result.rows);
     const athleteClientIds = clients.filter((client) => client.athlete_mode_enabled === true).map((client) => client.id);
@@ -770,17 +823,29 @@ trainerRouter.get("/trainer/clients/:clientId/weekly-report", requireAuth, requi
 
 trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (env.ASCEND_COACH_V1 && !await canUseAscendCoachWorkspace(req.user!)) {
+      return res.status(403).json({ error: "Active Ascend Coach trainer access is required" });
+    }
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
       select ra.*, u.full_name, u.profile_photo_s3_key
       from risk_alerts ra
       join users u on u.id = ra.user_id
-      where (ra.trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or ra.gym_id = any($5))))
+      where (
+          ($6::boolean = false and (ra.trainer_id = $1 or (($2 = any($3::text[]) or $4 = any($3::text[])) and ($5::uuid[] is null or ra.gym_id = any($5)))))
+          or ($6::boolean = true and exists (
+            select 1 from trainer_client_relationships relationship
+            where relationship.trainer_id = $1
+              and relationship.client_user_id = ra.user_id
+              and relationship.status = 'active'
+              and relationship.data_scopes @> array['profile', 'training', 'nutrition', 'body', 'recovery', 'progress_photos']::text[]
+          ))
+        )
         and ra.status = 'open'
       order by ra.severity desc, ra.created_at desc
       `,
-      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
+      [req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds, env.ASCEND_COACH_V1]
     );
     res.json({ alerts: await withProfilePhotoUrls(result.rows) });
   } catch (error) {
@@ -790,16 +855,28 @@ trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("traine
 
 trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
+    if (env.ASCEND_COACH_V1 && !await canUseAscendCoachWorkspace(req.user!)) {
+      return res.status(403).json({ error: "Active Ascend Coach trainer access is required" });
+    }
     const status = z.enum(["acknowledged", "resolved"]).default("acknowledged").parse(req.body.status);
     const scope = await getAdminGymScope(req.user!);
     const result = await query(
       `
       update risk_alerts
       set status = $2, resolved_at = case when $2 = 'resolved' then now() else resolved_at end
-      where id = $1 and (trainer_id = $3 or (($4 = any($5::text[]) or $6 = any($5::text[])) and ($7::uuid[] is null or gym_id = any($7))))
+      where id = $1 and (
+        ($8::boolean = false and (trainer_id = $3 or (($4 = any($5::text[]) or $6 = any($5::text[])) and ($7::uuid[] is null or gym_id = any($7)))))
+        or ($8::boolean = true and exists (
+          select 1 from trainer_client_relationships relationship
+          where relationship.trainer_id = $3
+            and relationship.client_user_id = risk_alerts.user_id
+            and relationship.status = 'active'
+            and relationship.data_scopes @> array['profile', 'training', 'nutrition', 'body', 'recovery', 'progress_photos']::text[]
+        ))
+      )
       returning *
       `,
-      [req.params.id, status, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds]
+      [req.params.id, status, req.user!.trainerId ?? null, "admin", req.user!.roles, "owner", scope.gymIds, env.ASCEND_COACH_V1]
     );
     if (!result.rows[0]) return res.status(404).json({ error: "Risk alert not found" });
     res.json({ alert: result.rows[0] });

@@ -9,6 +9,8 @@ import { deleteStoredObjects } from "../integrations/s3";
 import { permanentDeletionBlock } from "../services/userDeletionService";
 import { getAdminGymScope, getTrainerGymId, getUserGymId, scopeAllowsGym } from "../services/adminScopeService";
 import { getDailyCoachingRolloutMetrics } from "../services/dailyCoachingDecisionService";
+import { ascendCoachV1Enabled } from "../services/ascendCoachPolicyService";
+import { setLegacyAdminCoachAssignment } from "../services/ascendCoachRelationshipService";
 
 export const adminRouter = Router();
 
@@ -628,6 +630,12 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
 
 adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
   try {
+    if (ascendCoachV1Enabled()) {
+      return res.status(409).json({
+        error: "Use the consent-based Ascend Coach invitation flow while Ascend Coach V1 is enabled.",
+        code: "coach_relationship_required"
+      });
+    }
     const input = assignClientSchema.parse(req.body);
     const scope = await getAdminGymScope(req.user!);
     const clientGymId = await getUserGymId(input.clientId);
@@ -644,26 +652,12 @@ adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "own
         code: "trainer_assignment_requires_premium"
       });
     }
-    const result = await query(
-      `
-      update users
-      set assigned_trainer_id = $2,
-          gym_id = case
-            when $2::uuid is null then gym_id
-            else coalesce(gym_id, (select gym_id from trainers where id = $2))
-          end,
-          coaching_mode = case
-            when $2::uuid is null then coaching_mode
-            else 'human_coach'
-          end,
-          updated_at = now()
-      where id = $1 and primary_role = 'client'
-      returning *
-      `,
-      [input.clientId, input.trainerId]
-    );
-    if (!result.rows[0]) return res.status(404).json({ error: "Client not found" });
-    res.json({ user: result.rows[0] });
+    const user = await setLegacyAdminCoachAssignment({
+      actor: req.user!,
+      clientUserId: input.clientId,
+      trainerId: input.trainerId
+    });
+    res.json({ user });
   } catch (error) {
     next(error);
   }
