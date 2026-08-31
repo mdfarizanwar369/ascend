@@ -188,3 +188,38 @@ export type AscendCoachClientListItem = {
   goal?: "fat_loss" | "muscle_gain" | "maintenance" | null;
   lastWorkoutAt?: string | null;
 };
+
+export const COACH_INSIGHT_PROMPT_VERSION = "coach-insight-v1" as const;
+
+export type CoachInsightPriority = {
+  title: string;
+  reason: string;
+  signalCodes: Client360SignalCode[];
+};
+
+export type CoachInsight = {
+  summary: string;
+  priorities: CoachInsightPriority[];
+  dataCaveats: string[];
+};
+
+export type CoachInsightAvailability =
+  | {
+      status: "available";
+      source: "cache" | "generated";
+      insight: CoachInsight;
+      generatedAt: string;
+      expiresAt: string;
+      promptVersion: typeof COACH_INSIGHT_PROMPT_VERSION;
+      provider: string;
+      model: string;
+    }
+  | {
+      status: "not_available";
+      reason: "not_generated" | "access_required" | "elevated_access" | "provider_unavailable" | "generation_failed" | "quota_reached";
+    };
+
+export type Client360View = {
+  snapshot: Client360Snapshot;
+  coachInsight: CoachInsightAvailability;
+};

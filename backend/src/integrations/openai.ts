@@ -60,6 +60,20 @@ export type WorkoutDebriefProviderReply = {
   model: string;
 };
 
+export type CoachInsightProviderReply = {
+  text: string;
+  provider: "gemini" | "openai";
+  model: string;
+};
+
+export function getAiProviderIdentity() {
+  return {
+    provider: env.AI_PROVIDER,
+    model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.AI_PROVIDER === "openai" ? env.OPENAI_MODEL : "unsupported",
+    configured: providerConfigured()
+  };
+}
+
 class GeminiError extends Error {
   constructor(
     message: string,
@@ -1476,6 +1490,90 @@ export async function createWorkoutDebriefProviderReply(
   }
 
   throw new Error("Workout debrief AI provider is not supported.");
+}
+
+export async function createCoachInsightProviderReply(
+  systemPrompt: string,
+  userPrompt: string
+): Promise<CoachInsightProviderReply> {
+  if (!providerConfigured()) throw new Error("Coach Insight AI provider is not configured.");
+
+  if (env.AI_PROVIDER === "gemini") {
+    const response = await callGeminiWithOptions([{ text: `${systemPrompt}\n\n${userPrompt}` }], 700, {
+      models: [env.GEMINI_MODEL],
+      attemptsPerModel: 1,
+      timeoutMs: 12_000,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: {
+          summary: { type: "STRING" },
+          priorities: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                title: { type: "STRING" },
+                reason: { type: "STRING" },
+                signalCodes: { type: "ARRAY", items: { type: "STRING" } }
+              },
+              required: ["title", "reason", "signalCodes"]
+            }
+          },
+          dataCaveats: { type: "ARRAY", items: { type: "STRING" } }
+        },
+        required: ["summary", "priorities", "dataCaveats"]
+      }
+    });
+    return { text: response.text, provider: "gemini", model: env.GEMINI_MODEL };
+  }
+
+  if (env.AI_PROVIDER === "openai" && openaiClient) {
+    const response = await openaiClient.responses.create({
+      model: env.OPENAI_MODEL,
+      store: false,
+      max_output_tokens: 700,
+      text: {
+        format: {
+          type: "json_schema",
+          name: "coach_insight",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              summary: { type: "string" },
+              priorities: {
+                type: "array",
+                minItems: 1,
+                maxItems: 3,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {
+                    title: { type: "string" },
+                    reason: { type: "string" },
+                    signalCodes: { type: "array", items: { type: "string" } }
+                  },
+                  required: ["title", "reason", "signalCodes"]
+                }
+              },
+              dataCaveats: { type: "array", maxItems: 3, items: { type: "string" } }
+            },
+            required: ["summary", "priorities", "dataCaveats"]
+          }
+        }
+      },
+      input: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ]
+    }, { timeout: 12_000 });
+    if (!response.output_text) throw new Error("Coach Insight provider returned no structured output.");
+    return { text: response.output_text, provider: "openai", model: env.OPENAI_MODEL };
+  }
+
+  throw new Error("Coach Insight AI provider is not supported.");
 }
 
 export function createBodyScanExplanationReply(facts: unknown, fallbackJson: string) {

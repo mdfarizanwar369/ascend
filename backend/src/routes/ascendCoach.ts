@@ -18,6 +18,7 @@ import {
   revokeCoachRelationship
 } from "../services/ascendCoachRelationshipService";
 import { ascendCoachClient360Service, Client360AccessError } from "../services/ascendCoachClient360Service";
+import { ascendCoachInsightService } from "../services/ascendCoachInsightService";
 
 export const ascendCoachRouter = Router();
 
@@ -63,7 +64,16 @@ ascendCoachRouter.get("/ascend-coach/clients", requireAuth, async (req, res, nex
 ascendCoachRouter.get("/ascend-coach/clients/:clientId/360", requireAuth, async (req, res, next) => {
   try {
     const { clientId } = z.object({ clientId: z.string().uuid() }).parse(req.params);
-    res.json({ snapshot: await ascendCoachClient360Service.getSnapshot(req.user!, clientId) });
+    res.json(await ascendCoachInsightService.getClient360View(req.user!, clientId));
+  } catch (error) {
+    if (!sendCoachError(res, error)) next(error);
+  }
+});
+
+ascendCoachRouter.post("/ascend-coach/clients/:clientId/coach-insight/refresh", requireAuth, async (req, res, next) => {
+  try {
+    const { clientId } = z.object({ clientId: z.string().uuid() }).parse(req.params);
+    res.json({ coachInsight: await ascendCoachInsightService.refreshCoachInsight(req.user!, clientId) });
   } catch (error) {
     if (!sendCoachError(res, error)) next(error);
   }

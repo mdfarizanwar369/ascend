@@ -5,7 +5,7 @@ import { query } from "../db/pool";
 import { Role, SubscriptionPlan } from "@ascend/shared";
 import { localDayStartUtc, localWeekStartUtc, normalizeTimezoneOffsetMinutes } from "./memberTimeService";
 
-export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection" | "workout_capture_analysis" | "workout_debrief_generation" | "today_priority_analysis" | "body_scan_explanation" | "body_scan_followup";
+export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection" | "workout_capture_analysis" | "workout_debrief_generation" | "today_priority_analysis" | "body_scan_explanation" | "body_scan_followup" | "coach_insight_generation";
 export type AiStatus = "success" | "error" | "cache_hit" | "fallback";
 export type FoodAiAllowance = {
   period: "week" | "day" | "unlimited";
@@ -43,6 +43,15 @@ export class CoachZoeLimitError extends Error {
   }
 }
 
+export class CoachInsightLimitError extends Error {
+  status = 429;
+  code = "coach_insight_limit_reached";
+  constructor() {
+    super("Coach Insight generation is temporarily unavailable because the configured AI limit has been reached.");
+    this.name = "CoachInsightLimitError";
+  }
+}
+
 const eventCostCents: Record<AiEventType, number> = {
   food_image_analysis: env.AI_FOOD_ANALYSIS_ESTIMATED_COST_CENTS,
   ai_chat_message: env.AI_CHAT_ESTIMATED_COST_CENTS,
@@ -52,8 +61,30 @@ const eventCostCents: Record<AiEventType, number> = {
   workout_debrief_generation: env.AI_CHAT_ESTIMATED_COST_CENTS,
   today_priority_analysis: env.AI_CHAT_ESTIMATED_COST_CENTS,
   body_scan_explanation: env.AI_CHAT_ESTIMATED_COST_CENTS,
-  body_scan_followup: env.AI_CHAT_ESTIMATED_COST_CENTS
+  body_scan_followup: env.AI_CHAT_ESTIMATED_COST_CENTS,
+  coach_insight_generation: env.AI_CHAT_ESTIMATED_COST_CENTS
 };
+
+export async function assertCoachInsightAllowance(userId: string) {
+  const result = await query<{ user_generations: string; global_spend_cents: string }>(
+    `
+    select
+      count(*) filter (
+        where user_id = $1 and event_type = 'coach_insight_generation'
+          and cache_hit = false and status = 'success'
+      ) as user_generations,
+      coalesce(sum(estimated_cost_cents) filter (where cache_hit = false and status = 'success'), 0) as global_spend_cents
+    from ai_usage_events
+    where created_at >= date_trunc('month', now())
+    `,
+    [userId]
+  );
+  const usage = result.rows[0];
+  if (Number(usage?.user_generations ?? 0) >= env.AI_MONTHLY_CHAT_LIMIT) throw new CoachInsightLimitError();
+  if (Number(usage?.global_spend_cents ?? 0) + env.AI_CHAT_ESTIMATED_COST_CENTS > env.AI_MONTHLY_SPEND_LIMIT_CENTS) {
+    throw new CoachInsightLimitError();
+  }
+}
 
 export function imageHashFromDataUrl(imageUrl: string) {
   return createHash("sha256").update(imageUrl).digest("hex");
