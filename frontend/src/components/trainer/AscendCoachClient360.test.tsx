@@ -53,7 +53,7 @@ const fullSnapshot: Client360Snapshot = {
 const cachedInsight = {
   status: "available" as const, source: "cache" as const,
   insight: { summary: "Training is being recorded consistently, while protein target frequency is the clearest current area for trainer review. Weight is trending downward across sufficient recent measurements, and activity data is current. Consider discussing repeatable protein choices with the client before making broader changes, while continuing to monitor how training and body-weight evidence develop.", priorities: [{ title: "Review protein consistency", reason: "Protein target was met on 40% of logged days.", signalCodes: ["PROTEIN_TARGET_FREQUENTLY_MISSED" as const] }], dataCaveats: ["Body composition change is provisional."] },
-  generatedAt: "2026-09-01T00:00:00.000Z", expiresAt: "2026-09-08T00:00:00.000Z", promptVersion: "coach-insight-v1" as const, provider: "openai", model: "gpt-test"
+  generatedAt: "2026-09-01T00:00:00.000Z", expiresAt: "2026-09-08T00:00:00.000Z", promptVersion: "coach-insight-v2" as const, provider: "openai", model: "gpt-test"
 };
 
 beforeEach(() => {
@@ -78,6 +78,21 @@ describe("Ascend Coach client list", () => {
     render(<AscendCoachClientList />);
     expect(await screen.findByText("No active clients")).toBeInTheDocument();
   });
+
+  it("wraps long names and distinguishes profile-only from training-only visibility", async () => {
+    const longName = "Synthetic Client With A Deliberately Long Display Name For Mobile Review";
+    api.getAscendCoachClients.mockResolvedValue({ clients: [
+      { clientId: "10000000-0000-4000-8000-000000000010", relationshipId: "r-profile", relationshipStatus: "active", authorizationVersion: 1, grantedScopes: ["profile"], displayName: longName, goal: "maintenance" },
+      { clientId: "10000000-0000-4000-8000-000000000011", relationshipId: "r-training", relationshipStatus: "active", authorizationVersion: 1, grantedScopes: ["training"], lastWorkoutAt: new Date().toISOString() }
+    ] });
+    render(<AscendCoachClientList />);
+    expect(await screen.findByText(longName)).toHaveClass("break-words");
+    expect(screen.getByText("Training data not shared")).toBeInTheDocument();
+    expect(screen.getByText("Client profile not shared")).toBeInTheDocument();
+    expect(screen.getByText("Last workout today")).toBeInTheDocument();
+    expect(api.getAscendCoachClients).toHaveBeenCalledTimes(1);
+    expect(api.getClient360).not.toHaveBeenCalled();
+  });
 });
 
 describe("Client 360 UI", () => {
@@ -85,6 +100,9 @@ describe("Client 360 UI", () => {
     render(<Client360Client clientId={fullSnapshot.clientId} />);
     expect(await screen.findByText(fullSnapshot.profile!.displayName)).toBeInTheDocument();
     expect(screen.getAllByText(/Protein target was met on 40%/i)).toHaveLength(2);
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Positive")).toBeInTheDocument();
+    expect(screen.getAllByText("Protein target rate")).toHaveLength(2);
     expect(screen.getByText(/Training is being recorded consistently/i)).toBeInTheDocument();
     expect(screen.getByText("Training logging consistency")).toBeInTheDocument();
     expect(screen.queryByText(/program adherence/i)).not.toBeInTheDocument();
@@ -121,7 +139,7 @@ describe("Client 360 UI", () => {
     expect(screen.getByText("Current state")).toBeInTheDocument();
   });
 
-  it.each([320, 375, 768, 1280])("keeps the card layout responsive at %ipx", async (width) => {
+  it.each([320, 375, 390, 430, 768, 1024, 1280])("keeps the card layout responsive at %ipx", async (width) => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
     render(<Client360Client clientId={fullSnapshot.clientId} />);
     const heading = await screen.findByRole("heading", { name: fullSnapshot.profile!.displayName });

@@ -89,6 +89,22 @@ describe("Coach Insight structured output", () => {
   ])("rejects %s", (_name, output) => {
     expect(() => parseCoachInsight(output, buildCoachIntelligenceContext(coachSnapshot()))).toThrow();
   });
+
+  it.each([
+    ["unsupported program language", "The client is adhering to the training program."],
+    ["imprecise nutrition adherence", "Nutrition adherence is improving."],
+    ["unsupported motivation", "The pattern suggests client disengagement."],
+    ["unsupported goal causality", "This provides a foundation for continued progress and supports the client's goal."],
+    ["medical guidance", "A diagnosis and medical treatment should be considered."],
+    ["unsafe weight-loss guidance", "Consider rapid weight loss through a crash diet."]
+  ])("rejects %s before persistence", (_name, reason) => {
+    const output = JSON.stringify({
+      summary: `Training evidence is available for trainer review. ${reason} The remaining authorized snapshot should be interpreted conservatively, with attention to freshness, sufficiency, and the client's stated goal before any coaching decision is made. Ascend provides deterministic observations while the trainer remains responsible for judgment and follow-up.`,
+      priorities: [{ title: "Review evidence", reason: "Use the authorized deterministic evidence for review.", signalCodes: [] }],
+      dataCaveats: []
+    });
+    expect(() => parseCoachInsight(output, buildCoachIntelligenceContext(coachSnapshot()))).toThrow();
+  });
 });
 
 export { validInsight };

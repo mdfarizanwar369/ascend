@@ -67,6 +67,12 @@ function signalCopy(signal: Client360CoachingSignal) {
   }
 }
 
+function signalSeverityLabel(signal: Client360CoachingSignal) {
+  if (signal.severity === "attention") return "Needs attention";
+  if (signal.severity === "positive") return "Positive";
+  return "Information";
+}
+
 function Stat({ title, value, detail }: { title: string; value: string; detail: string }) {
   return (
     <div className="min-w-0 rounded-xl border border-line bg-ink/35 p-3">
@@ -104,7 +110,8 @@ function Signals({ signals }: { signals: Client360CoachingSignal[] }) {
     <div className="grid gap-3 sm:grid-cols-2">
       {signals.slice(0, 4).map((signal) => (
         <div key={signal.code} className={`rounded-xl border p-3 ${signal.severity === "attention" ? "border-amber/35 bg-amber/10" : signal.severity === "positive" ? "border-lime/30 bg-lime/10" : "border-calm/30 bg-calm/10"}`}>
-          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-zinc-300">{label(signal.code)}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">{signalSeverityLabel(signal)}</p>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-300">{label(signal.code)}</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">{signalCopy(signal)}</p>
         </div>
       ))}
@@ -248,7 +255,7 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
               {(["last7Days", "last30Days"] as const).map((period) => {
                 const value = nutrition[period];
                 const days = period === "last7Days" ? 7 : 30;
-                return <div key={period}><h3 className="font-semibold">Last {days} days</h3><div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat title="Days logged" value={`${value.daysLogged} of ${days}`} detail="Logging coverage" /><Stat title="Calories" value={metricValue(value.averageCaloriesPerLoggedDay, (entry) => `${Math.round(entry)} kcal`)} detail="Average per logged day" /><Stat title="Protein" value={metricValue(value.averageProteinGPerLoggedDay, (entry) => `${entry} g`)} detail="Average per logged day" /><Stat title="Target days" value={metricValue(value.proteinTargetMetDays, percentage)} detail="Protein target met on logged days" /></div></div>;
+                return <div key={period}><h3 className="font-semibold">Last {days} days</h3><div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat title="Days logged" value={`${value.daysLogged} of ${days}`} detail="Nutrition logging coverage" /><Stat title="Calories" value={metricValue(value.averageCaloriesPerLoggedDay, (entry) => `${Math.round(entry)} kcal`)} detail="Average per logged day" /><Stat title="Protein" value={metricValue(value.averageProteinGPerLoggedDay, (entry) => `${entry} g`)} detail="Average per logged day" /><Stat title="Protein target rate" value={metricValue(value.proteinTargetMetDays, percentage)} detail="Target met on logged days" /></div></div>;
               })}
               <p className="text-xs leading-5 text-zinc-500">Target rates evaluate logged days only. Unlogged days are represented separately by logging coverage.</p>
             </div>

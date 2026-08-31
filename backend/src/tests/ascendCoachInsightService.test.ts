@@ -1,14 +1,17 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AuthUser } from "../middleware/auth";
 import { Client360AccessError } from "../services/ascendCoachClient360Service";
 import { createAscendCoachInsightService } from "../services/ascendCoachInsightService";
+import { CoachInsightLimitError } from "../services/aiUsageService";
 import * as repository from "../services/coachInsightRepository";
 import { coachSnapshot, validInsight } from "./coachIntelligence.test";
 
 const actor: AuthUser = { id: "trainer-a", firebaseUid: "fb", email: "trainer@example.com", roles: ["trainer"], primaryRole: "trainer", trainerId: "trainer-id", isPlatformOwner: false };
 const cacheRow = {
-  insight: JSON.parse(validInsight), created_at: "2026-09-01T00:00:00.000Z", expires_at: "2026-09-08T00:00:00.000Z", provider: "openai", model: "gpt-test", prompt_version: "coach-insight-v1"
+  insight: JSON.parse(validInsight), created_at: "2026-09-01T00:00:00.000Z", expires_at: "2026-09-08T00:00:00.000Z", provider: "openai", model: "gpt-test", prompt_version: "coach-insight-v2"
 };
+
+afterEach(() => vi.restoreAllMocks());
 
 function dependencies(snapshot = coachSnapshot()) {
   return {
@@ -63,7 +66,7 @@ describe("Ascend Coach Insight cache and authorization", () => {
     expect(deps.repo.findCoachInsight).toHaveBeenCalledWith(expect.objectContaining({
       actorUserId: "trainer-a", clientUserId: coachSnapshot().clientId,
       relationshipId: coachSnapshot().access.relationshipId,
-      authorizationVersion: 3, promptVersion: "coach-insight-v1", provider: "openai", model: "gpt-test"
+      authorizationVersion: 3, promptVersion: "coach-insight-v2", provider: "openai", model: "gpt-test"
     }));
     const identity = deps.repo.findCoachInsight.mock.calls[0][0];
     expect(identity.scopeFingerprint).toMatch(/^[a-f0-9]{64}$/);
@@ -111,5 +114,33 @@ describe("Ascend Coach Insight cache and authorization", () => {
     const result = await createAscendCoachInsightService(deps as never).refreshCoachInsight(actor, coachSnapshot().clientId);
     expect(result).toEqual({ status: "not_available", reason: "generation_failed" });
     expect(deps.generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("enforces the existing Coach Insight quota before calling Gemini", async () => {
+    const deps = dependencies();
+    deps.assertAllowance.mockRejectedValue(new CoachInsightLimitError());
+    const result = await createAscendCoachInsightService(deps as never).refreshCoachInsight(actor, coachSnapshot().clientId);
+    expect(result).toEqual({ status: "not_available", reason: "quota_reached" });
+    expect(deps.generate).not.toHaveBeenCalled();
+    expect(deps.logUsage).not.toHaveBeenCalled();
+  });
+
+  it("emits pilot telemetry without client or trainer identifiers", async () => {
+    const telemetry = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const deps = dependencies();
+    await createAscendCoachInsightService(deps as never).getClient360View(actor, coachSnapshot().clientId);
+    await createAscendCoachInsightService(deps as never).refreshCoachInsight(actor, coachSnapshot().clientId);
+    const events = telemetry.mock.calls.map((call) => call[1]);
+    expect(events).toEqual(expect.arrayContaining([
+      "client360_opened",
+      "client360_snapshot_latency_ms",
+      "coach_insight_cache_hit",
+      "coach_insight_refresh_requested",
+      "coach_insight_provider_call",
+      "coach_insight_generation_latency"
+    ]));
+    const serialized = JSON.stringify(telemetry.mock.calls);
+    expect(serialized).not.toContain(actor.id);
+    expect(serialized).not.toContain(coachSnapshot().clientId);
   });
 });

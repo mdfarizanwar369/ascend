@@ -125,6 +125,22 @@ export function coachScopeFingerprint(snapshot: Client360Snapshot) {
 
 export function parseCoachInsight(text: string, context: CoachIntelligenceContext): CoachInsight {
   const parsed = coachInsightSchema.parse(JSON.parse(text));
+  const prose = JSON.stringify(parsed);
+  if (/\b(training program|training plan|program adherence|plan adherence|workout adherence|program compliance)\b/i.test(prose)) {
+    throw new Error("Coach Insight used unsupported program or adherence terminology.");
+  }
+  if (/\b(nutrition logging consistency|nutrition adherence|protein adherence|calorie adherence)\b/i.test(prose)) {
+    throw new Error("Coach Insight used imprecise nutrition terminology.");
+  }
+  if (/\b(disengag(?:e|ed|ement)|unmotivated|motivation|psychological cause)\b/i.test(prose)) {
+    throw new Error("Coach Insight inferred unsupported motivation or psychology.");
+  }
+  if (/\b(goal is supported by|supports? (?:the )?(?:client'?s )?(?:stated )?goal|aligns with (?:supporting|achieving)|foundation for (?:continued )?progress|positive adaptation|barrier to (?:achieving|the) goal)\b/i.test(prose)) {
+    throw new Error("Coach Insight inferred an unsupported causal outcome.");
+  }
+  if (/\b(diagnos(?:e|ed|is)|medication advice|medical treatment|eating disorder|crash diet|rapid weight loss)\b/i.test(prose)) {
+    throw new Error("Coach Insight contained prohibited medical or unsafe guidance.");
+  }
   const availableSignals = new Set(context.coachingSignals.map((signal) => signal.code));
   for (const priority of parsed.priorities) {
     if (priority.signalCodes.some((code) => !availableSignals.has(code))) {
@@ -141,6 +157,12 @@ export function coachInsightPrompts(context: CoachIntelligenceContext) {
     "You are Zoe, an intelligence assistant for a professional fitness trainer. The trainer is the decision-maker.",
     "Use only the supplied deterministic Ascend coaching context. Do not infer motives or facts that are absent.",
     "Summarize observations, connect supported patterns, identify missing or stale data, and suggest considerations for trainer review.",
+    "Use precise evidence language: recorded workouts, training logging consistency, nutrition logging coverage, calorie target rate, protein target rate, and recorded progression. Never call nutrition logging consistency or adherence.",
+    "Nutrition logging coverage and calorie/protein target rates are proportions of logged days. Express them as percentages; never call a calorie or protein target amount a target rate.",
+    "There is no assigned training program or training plan in this context. Never use program adherence, plan adherence, workout adherence, compliance, disengagement, motivation, or psychological explanations.",
+    "Do not describe a metric as increasing, decreasing, or stable unless the supplied context contains that deterministic trend or a matching signal.",
+    "Do not turn recorded activity into claims about unobserved behavior, goal achievement, or causal outcomes.",
+    "Never say an observation supports, hinders, or aligns with the goal, proves adaptation, or provides a foundation for progress. State the observation and suggest trainer review only.",
     "Do not diagnose, prescribe medical treatment, provide medication advice, recommend unsafe rapid weight loss, or create a training program.",
     "Use neutral professional language and calibrated uncertainty. Target 80 to 150 words in summary, 1 to 3 priorities, and 0 to 3 caveats.",
     "Only cite signalCodes present in the input. Return only the required JSON object."

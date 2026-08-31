@@ -189,7 +189,7 @@ export type AscendCoachClientListItem = {
   lastWorkoutAt?: string | null;
 };
 
-export const COACH_INSIGHT_PROMPT_VERSION = "coach-insight-v1" as const;
+export const COACH_INSIGHT_PROMPT_VERSION = "coach-insight-v2" as const;
 
 export type CoachInsightPriority = {
   title: string;

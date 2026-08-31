@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/db/migrate.js && node dist/src/server.js",
     "test": "vitest run src/tests",
+    "qa:coach-insight-gemini": "tsx src/scripts/coachInsightGeminiPilotQa.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx seeds/seed.ts"

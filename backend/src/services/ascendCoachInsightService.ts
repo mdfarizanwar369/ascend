@@ -117,9 +117,14 @@ export function createAscendCoachInsightService(dependencies: Dependencies = def
     async getClient360View(actor: AuthUser, clientId: string): Promise<Client360View> {
       const started = Date.now();
       const snapshot = await dependencies.getSnapshot(actor, clientId);
+      const sectionsAuthorized = Object.values(snapshot.access.sections).filter((section) => section.state !== "not_granted").length;
+      telemetry("client360_opened", {
+        accessMode: snapshot.access.mode,
+        sectionsAuthorized
+      });
       telemetry("client360_snapshot_latency_ms", {
         latencyMs: Date.now() - started,
-        sectionsAuthorized: Object.values(snapshot.access.sections).filter((section) => section.state !== "not_granted").length
+        sectionsAuthorized
       });
       return { snapshot, coachInsight: await cachedInsight(actor, snapshot) };
     },
@@ -127,6 +132,7 @@ export function createAscendCoachInsightService(dependencies: Dependencies = def
     async refreshCoachInsight(actor: AuthUser, clientId: string): Promise<CoachInsightAvailability> {
       const decision = await dependencies.authorizeInsight(actor, clientId, "view_ai_insight");
       if (!decision.allowed) throw new Client360AccessError();
+      telemetry("coach_insight_refresh_requested", { authorized: true });
       const snapshot = await dependencies.getSnapshot(actor, clientId);
       const blocked = unavailableFor(snapshot);
       if (blocked) return blocked;
@@ -155,11 +161,21 @@ export function createAscendCoachInsightService(dependencies: Dependencies = def
             status: "success",
             metadata: { promptVersion: COACH_INSIGHT_PROMPT_VERSION, contextBytes: Buffer.byteLength(prompts.user), sourceKey: identity.sourceFingerprint.slice(0, 12) }
           });
-          telemetry("coach_insight_generation_latency", { latencyMs: Date.now() - started, success: true });
+          telemetry("coach_insight_generation_latency", {
+            provider: reply.provider,
+            model: reply.model,
+            latencyMs: Date.now() - started,
+            success: true
+          });
           return available(row, "generated");
         } catch (error) {
           const quotaReached = error instanceof CoachInsightLimitError;
-          telemetry("coach_insight_generation_latency", { latencyMs: Date.now() - started, success: false });
+          telemetry("coach_insight_generation_latency", {
+            provider: provider.provider,
+            model: provider.model,
+            latencyMs: Date.now() - started,
+            success: false
+          });
           if (!quotaReached) {
             await dependencies.logUsage({
               userId: actor.id,
