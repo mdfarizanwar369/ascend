@@ -26,6 +26,12 @@ export type MomentumV2Input = {
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
 
+export function momentumCalorieTargetRange(goal: GoalType | null) {
+  if (goal === "fat_loss") return { minimum: 0.65, maximum: 1.1 };
+  if (goal === "muscle_gain") return { minimum: 0.8, maximum: 1.2 };
+  return { minimum: 0.75, maximum: 1.15 };
+}
+
 function status(value: number | null): MomentumPillarStatus {
   if (value === null) return "not_available";
   if (value >= 0.75) return "strong";
@@ -44,10 +50,10 @@ function fuelRatio(day: MomentumDay, input: MomentumV2Input) {
   const logging = clamp(day.meals / 3);
   const protein = clamp(day.proteinG / Math.max(input.proteinTargetG, 1));
   const calorieRatio = day.calories / Math.max(input.calorieTarget, 1);
-  const range = input.goal === "fat_loss" ? [0.65, 1.1] : input.goal === "muscle_gain" ? [0.8, 1.2] : [0.75, 1.15];
-  const calories = calorieRatio >= range[0] && calorieRatio <= range[1]
+  const range = momentumCalorieTargetRange(input.goal);
+  const calories = calorieRatio >= range.minimum && calorieRatio <= range.maximum
     ? 1
-    : clamp(1 - Math.min(Math.abs(calorieRatio - range[0]), Math.abs(calorieRatio - range[1])));
+    : clamp(1 - Math.min(Math.abs(calorieRatio - range.minimum), Math.abs(calorieRatio - range.maximum)));
   return logging * 0.55 + protein * 0.3 + calories * 0.15;
 }
 

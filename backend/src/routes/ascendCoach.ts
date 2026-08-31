@@ -17,6 +17,7 @@ import {
   revokeCoachPilotAccess,
   revokeCoachRelationship
 } from "../services/ascendCoachRelationshipService";
+import { ascendCoachClient360Service, Client360AccessError } from "../services/ascendCoachClient360Service";
 
 export const ascendCoachRouter = Router();
 
@@ -42,10 +43,31 @@ const breakGlassSchema = z.object({
 });
 
 function sendCoachError(res: Response, error: unknown) {
+  if (error instanceof Client360AccessError) {
+    res.status(error.status).json({ error: error.message, code: error.code });
+    return true;
+  }
   if (!(error instanceof CoachFoundationError)) return false;
   res.status(error.status).json({ error: error.message, code: error.code });
   return true;
 }
+
+ascendCoachRouter.get("/ascend-coach/clients", requireAuth, async (req, res, next) => {
+  try {
+    res.json({ clients: await ascendCoachClient360Service.listClients(req.user!) });
+  } catch (error) {
+    if (!sendCoachError(res, error)) next(error);
+  }
+});
+
+ascendCoachRouter.get("/ascend-coach/clients/:clientId/360", requireAuth, async (req, res, next) => {
+  try {
+    const { clientId } = z.object({ clientId: z.string().uuid() }).parse(req.params);
+    res.json({ snapshot: await ascendCoachClient360Service.getSnapshot(req.user!, clientId) });
+  } catch (error) {
+    if (!sendCoachError(res, error)) next(error);
+  }
+});
 
 ascendCoachRouter.post("/coach/relationships/invitations", requireAuth, async (req, res, next) => {
   try {

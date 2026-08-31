@@ -22,6 +22,7 @@ import type { FoodPortionItem, FoodPortionLabel } from "./portionNutrition";
 
 export * from "./ascendDna";
 export * from "./coachZoeProactive";
+export * from "./client360";
 export * from "./notificationEngine";
 export * from "./bodyScanImage";
 export * from "./workoutCapture";

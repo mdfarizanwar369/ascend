@@ -203,13 +203,15 @@ type PolicyRow = {
   break_glass_grant_id: string | null;
 };
 
-export async function authorizeAscendCoachAction(
-  actor: AuthUser,
-  clientUserId: string,
-  action: AscendCoachAction
-): Promise<AscendCoachPolicyDecision> {
-  if (!ascendCoachV1Enabled()) return { allowed: false, reason: "feature_disabled" };
+export type AscendCoachAuthorizationBatch = {
+  decisions: Record<AscendCoachAction, AscendCoachPolicyDecision | undefined>;
+  relationshipId: string | null;
+  relationshipStatus: string | null;
+  authorizationVersion: number | null;
+  breakGlassGrantId: string | null;
+};
 
+async function loadAscendCoachPolicyContext(actor: AuthUser, clientUserId: string): Promise<AscendCoachPolicyContext> {
   const [result, entitled] = await Promise.all([
     query<PolicyRow>(
       `
@@ -258,7 +260,7 @@ export async function authorizeAscendCoachAction(
   ]);
 
   const row = result.rows[0];
-  const decision = evaluateAscendCoachPolicy({
+  return {
     featureEnabled: true,
     actor,
     client: row?.client_id ? {
@@ -279,20 +281,68 @@ export async function authorizeAscendCoachAction(
       authorizationVersion: Number(row.authorization_version ?? 0)
     } : null,
     breakGlassGrant: row?.break_glass_grant_id ? { id: row.break_glass_grant_id } : null
-  }, action);
+  };
+}
 
-  if (decision.allowed && decision.breakGlassGrantId) {
+export async function authorizeAscendCoachActions(
+  actor: AuthUser,
+  clientUserId: string,
+  actions: readonly AscendCoachAction[]
+): Promise<AscendCoachAuthorizationBatch> {
+  const uniqueActions = [...new Set(actions)];
+  if (!ascendCoachV1Enabled()) {
+    return {
+      decisions: Object.fromEntries(uniqueActions.map((action) => [action, { allowed: false, reason: "feature_disabled" }])) as AscendCoachAuthorizationBatch["decisions"],
+      relationshipId: null,
+      relationshipStatus: null,
+      authorizationVersion: null,
+      breakGlassGrantId: null
+    };
+  }
+
+  const context = await loadAscendCoachPolicyContext(actor, clientUserId);
+  const decisions = Object.fromEntries(
+    uniqueActions.map((action) => [action, evaluateAscendCoachPolicy(context, action)])
+  ) as AscendCoachAuthorizationBatch["decisions"];
+  const allowedBreakGlassActions = uniqueActions.filter((action) => decisions[action]?.allowed && decisions[action]?.breakGlassGrantId);
+
+  if (allowedBreakGlassActions.length && context.breakGlassGrant) {
     await query(
       `
       insert into ascend_coach_access_audit_events
         (actor_user_id, client_user_id, event_type, metadata)
-      values ($1, $2, 'break_glass_used', jsonb_build_object('action', $3::text, 'grantId', $4::text))
+      values ($1, $2, 'break_glass_used', jsonb_build_object(
+        'action', $3::text,
+        'actions', $4::jsonb,
+        'grantId', $5::text
+      ))
       `,
-      [actor.id, clientUserId, action, decision.breakGlassGrantId]
+      [
+        actor.id,
+        clientUserId,
+        allowedBreakGlassActions.length === 1 ? allowedBreakGlassActions[0] : null,
+        JSON.stringify(allowedBreakGlassActions),
+        context.breakGlassGrant.id
+      ]
     );
   }
 
-  return decision;
+  return {
+    decisions,
+    relationshipId: context.relationship?.id ?? null,
+    relationshipStatus: context.relationship?.status ?? null,
+    authorizationVersion: context.relationship?.authorizationVersion ?? null,
+    breakGlassGrantId: context.breakGlassGrant?.id ?? null
+  };
+}
+
+export async function authorizeAscendCoachAction(
+  actor: AuthUser,
+  clientUserId: string,
+  action: AscendCoachAction
+): Promise<AscendCoachPolicyDecision> {
+  const batch = await authorizeAscendCoachActions(actor, clientUserId, [action]);
+  return batch.decisions[action] ?? { allowed: false, reason: "client_not_found" };
 }
 
 export async function canAccessAscendCoachClient(actor: AuthUser, clientUserId: string, action: AscendCoachAction) {

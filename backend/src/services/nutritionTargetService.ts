@@ -131,7 +131,10 @@ export function selectBodyCompositionForNutrition(athleteModeEnabled: boolean, s
   return athleteModeEnabled ? bodyCompositionForNutrition(scans) : undefined;
 }
 
-export async function resolveNutritionTargets(userId: string): Promise<ResolvedNutritionTargets> {
+export async function resolveNutritionTargets(
+  userId: string,
+  options: { includeBodyComposition?: boolean; includeWeightHistory?: boolean } = {}
+): Promise<ResolvedNutritionTargets> {
   const [profileResult, weightsResult, coachPlanResult, preferenceResult] = await Promise.all([
     query<{
       goal_type: "fat_loss" | "muscle_gain" | "maintenance" | null;
@@ -149,10 +152,12 @@ export async function resolveNutritionTargets(userId: string): Promise<ResolvedN
       left join athlete_profiles ap on ap.user_id = u.id
       where u.id = $1
     `, [userId]),
-    query<{ weight_kg: number | string; logged_at: string }>(`
-      select weight_kg, logged_at from weight_logs
-      where user_id = $1 order by logged_at desc limit 20
-    `, [userId]),
+    options.includeWeightHistory === false
+      ? Promise.resolve({ rows: [] as Array<{ weight_kg: number | string; logged_at: string }> })
+      : query<{ weight_kg: number | string; logged_at: string }>(`
+          select weight_kg, logged_at from weight_logs
+          where user_id = $1 order by logged_at desc limit 20
+        `, [userId]),
     query<StoredTargets>(`
       select calories, protein_g, carbs_g, fat_g, updated_at
       from coach_nutrition_plans
@@ -172,7 +177,7 @@ export async function resolveNutritionTargets(userId: string): Promise<ResolvedN
     throw error;
   }
 
-  const scans = profile.athlete_mode_enabled
+  const scans = profile.athlete_mode_enabled && options.includeBodyComposition !== false
     ? await query(`
         select * from body_composition_scans
         where user_id = $1 and user_confirmed = true
