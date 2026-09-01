@@ -4,7 +4,7 @@ vi.mock("../config/env", () => ({
   env: {
     AI_PROVIDER: "gemini",
     GEMINI_API_KEY: "synthetic-test-key",
-    GEMINI_MODEL: "gemini-2.5-flash",
+    GEMINI_MODEL: "gemini-3.6-flash",
     OPENAI_API_KEY: undefined,
     OPENAI_MODEL: "unused-openai-model",
     NODE_ENV: "test",
@@ -41,19 +41,19 @@ describe("Gemini Coach Insight provider contract", () => {
   });
 
   it("uses the configured Gemini model once with JSON schema output", async () => {
-    expect(getAiProviderIdentity()).toEqual({ provider: "gemini", model: "gemini-2.5-flash", configured: true });
+    expect(getAiProviderIdentity()).toEqual({ provider: "gemini", model: "gemini-3.6-flash", configured: true });
 
     const reply = await createCoachInsightProviderReply("system", "synthetic authorized context");
 
-    expect(reply).toEqual({ text: providerInsight, provider: "gemini", model: "gemini-2.5-flash" });
+    expect(reply).toEqual({ text: providerInsight, provider: "gemini", model: "gemini-3.6-flash" });
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, request] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toContain("/models/gemini-2.5-flash:generateContent");
+    expect(String(url)).toContain("/models/gemini-3.6-flash:generateContent");
     const body = JSON.parse(String(request?.body));
     expect(body.generationConfig).toMatchObject({
       maxOutputTokens: 700,
       responseMimeType: "application/json",
-      thinkingConfig: { thinkingBudget: 0 }
+      thinkingConfig: { thinkingLevel: "minimal" }
     });
     expect(body.generationConfig.responseSchema.required).toEqual(["summary", "priorities", "dataCaveats"]);
   });

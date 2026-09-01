@@ -125,7 +125,9 @@ function buildTraining(
 ): { training: Client360Training; accountAgeDays: number } {
   const row = raw.aggregate;
   const count30 = number(row?.count_30d);
-  const activeWeeks8 = number(row?.active_weeks_8);
+  // A sliding 56-day window can touch nine calendar weeks. The metric is an
+  // eight-week coverage ratio, so it must never exceed its denominator.
+  const activeWeeks8 = Math.min(8, number(row?.active_weeks_8));
   const accountAgeDays = row?.client_created_at ? Math.floor(client360DaysBetween(now, new Date(row.client_created_at))) : 0;
   const durationSample = number(row?.duration_count_30d);
   const items = compactExerciseProgression(progression);

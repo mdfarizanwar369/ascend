@@ -551,6 +551,8 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
 
   if (model.includes("2.5")) {
     generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  } else if (model === "gemini-3.6-flash") {
+    generationConfig.thinkingConfig = { thinkingLevel: "minimal" };
   }
 
   if (options.responseMimeType) {

@@ -57,6 +57,29 @@ describe("Client 360 service authorization fixtures", () => {
     expect(deps.authorize.mock.invocationCallOrder[0]).toBeLessThan(deps.repo.loadClient360Profile.mock.invocationCallOrder[0]);
   });
 
+  it("caps eight-week logging consistency when a 56-day window touches nine calendar weeks", async () => {
+    const deps = dependencies();
+    deps.repo.loadClient360Training.mockResolvedValue({
+      aggregate: {
+        client_created_at: "2026-01-01T00:00:00.000Z",
+        count_7d: 2,
+        count_30d: 9,
+        count_90d: 16,
+        current_28d: 8,
+        previous_28d: 8,
+        active_weeks_8: 9,
+        last_workout_at: "2026-08-30T00:00:00.000Z",
+        duration_count_30d: 9,
+        average_duration_30d: 52
+      },
+      recent: []
+    });
+    const snapshot = await createAscendCoachClient360Service(deps as never).getSnapshot(actor, CLIENT_ID, NOW);
+    expect(snapshot.training?.activeWeeks8).toBe(8);
+    expect(snapshot.training?.loggingConsistency8w.value).toBe(1);
+    expect(snapshot.coachingSignals.find((signal) => signal.code === "TRAINING_LOGGING_CONSISTENT")?.evidence.activeWeeks).toBe(8);
+  });
+
   it("Client B with training-only consent causes no profile, nutrition, body, or recovery fetch", async () => {
     const deps = dependencies(authorization(["training"]));
     const snapshot = await createAscendCoachClient360Service(deps as never).getSnapshot(actor, CLIENT_ID, NOW);

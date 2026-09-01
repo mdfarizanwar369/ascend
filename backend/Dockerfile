@@ -23,4 +23,4 @@ COPY --from=build /app/backend/migrations backend/dist/migrations
 COPY --from=build /app/backend/package.json backend/package.json
 WORKDIR /app/backend
 EXPOSE 4000
-CMD ["node", "dist/src/server.js"]
+CMD ["sh", "-c", "node dist/src/db/migrate.js && node dist/src/server.js"]
