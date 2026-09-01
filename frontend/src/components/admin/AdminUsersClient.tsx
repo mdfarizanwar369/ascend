@@ -1,129 +1,94 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ChevronRight, Search } from "lucide-react";
 import {
   assignAdminClient,
-  assignOwnerGym,
   createAdminReferral,
-  deleteAdminUser,
   getAdminTrainers,
   getAdminUsers,
   getGyms,
-  grantAdminSubscription,
-  removeOwnerGym,
-  setAdminAthleteMode,
-  updateAdminUserDetails,
-  updateAdminUserStatus,
   updateAdminUserRole
 } from "@/lib/ascendApi";
-import { CoachingMode, SubscriptionPlan } from "@ascend/shared";
-import { ChevronDown, ChevronUp, Search, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
+import {
+  AdminTrainer,
+  AdminUser,
+  Gym,
+  Role,
+  assignmentLabel,
+  assignmentTone,
+  formatCoachingMode,
+  formatPlan,
+  formatRole,
+  referralLabel,
+  trainerCode,
+  trainersForUser
+} from "./adminUsersModel";
 
-type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
-type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
-type Gym = Awaited<ReturnType<typeof getGyms>>["gyms"][number];
-type Role = AdminUser["primary_role"];
-type AccountDetailsDraft = { fullName: string; gymId: string };
+export { accountDetailsChanged, adminUserDetailsDraft, trainersForUser } from "./adminUsersModel";
 
-export function adminUserDetailsDraft(user: Pick<AdminUser, "full_name" | "gym_id">): AccountDetailsDraft {
-  return { fullName: user.full_name, gymId: user.gym_id ?? "" };
-}
+type WorkspaceView = "people" | "assignments" | "trainers";
 
-export function accountDetailsChanged(user: Pick<AdminUser, "full_name" | "gym_id">, draft: AccountDetailsDraft) {
-  return draft.fullName.trim() !== user.full_name || (draft.gymId || null) !== user.gym_id;
-}
-
-function formatRole(role: string) {
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
-
-function formatPlan(plan?: string | null) {
-  if (plan === "trainer_pro") return "Trainer Pro";
-  if (plan === "premium") return "Premium";
-  return "Free";
-}
-
-function formatCoachingMode(mode?: CoachingMode | string | null, assignedTrainerName?: string | null) {
-  if (assignedTrainerName) return "Human Coach";
-  if (mode === "human_coach") return "Human Coach";
-  if (mode === "ai_coach") return "AI Coach";
-  return "Self-Coached";
-}
-
-function trainerCode(name: string) {
-  return `TRAINER-${name.split(/\s+/)[0]?.replace(/[^a-z0-9]/gi, "").toUpperCase() || "NEW"}`;
-}
-
-function referralLabel(user: AdminUser) {
-  if (user.referral_source === "trainer") return `Trainer referral / ${user.referred_trainer_name ?? "Unknown trainer"}`;
-  if (user.referral_source === "gym") return `Gym referral / ${user.referred_gym_name ?? user.gym_name ?? "Unknown gym"}`;
-  return "No referral / Needs review";
-}
-
-function assignmentLabel(user: AdminUser) {
-  if (user.assigned_trainer_name) return `Assigned to ${user.assigned_trainer_name}`;
-  if (user.referral_source === "gym") return "Needs trainer";
-  if (user.referral_source === "trainer") return "Trainer referral missing assignment";
-  return "Needs review";
-}
-
-function assignmentTone(user: AdminUser) {
-  if (user.assigned_trainer_name) return "bg-lime text-ink";
-  if (user.referral_source === "gym") return "bg-amber text-ink";
-  return "bg-surface text-zinc-300";
-}
-
-export function trainersForUser(user: AdminUser, trainers: AdminTrainer[]) {
-  if (!user.gym_id) return [];
-  return trainers.filter((trainer) => trainer.gym_id === user.gym_id && trainer.user_status === "active" && trainer.status === "active");
-}
+const workspaceViews: Array<{ id: WorkspaceView; label: string }> = [
+  { id: "people", label: "People" },
+  { id: "assignments", label: "Assignments" },
+  { id: "trainers", label: "Trainers" }
+];
 
 export function AdminUsersClient() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [gyms, setGyms] = useState<Gym[]>([]);
-  const [status, setStatus] = useState("Loading users...");
-  const [savingUserId, setSavingUserId] = useState("");
+  const [status, setStatus] = useState("Loading people...");
   const [referralStatus, setReferralStatus] = useState("");
+  const [savingUserId, setSavingUserId] = useState("");
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("people");
   const [userView, setUserView] = useState<"active" | "inactive">("active");
-  const [canManageOwnerGyms, setCanManageOwnerGyms] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [gymFilter, setGymFilter] = useState("all");
-  const [expandedUserId, setExpandedUserId] = useState("");
-  const [accountDetailsDrafts, setAccountDetailsDrafts] = useState<Record<string, AccountDetailsDraft>>({});
 
   async function load() {
-    const userResponse = await getAdminUsers();
-    setUsers(Array.isArray(userResponse.users) ? userResponse.users : []);
-    setCanManageOwnerGyms(Boolean(userResponse.canManageOwnerGyms));
-    setStatus("");
+    const [userResult, trainerResult, gymResult] = await Promise.allSettled([
+      getAdminUsers(),
+      getAdminTrainers(),
+      getGyms()
+    ]);
 
-    try {
-      const trainerResponse = await getAdminTrainers();
-      setTrainers(Array.isArray(trainerResponse.trainers) ? trainerResponse.trainers : []);
-    } catch {
-      setReferralStatus("Users loaded, but trainers could not load yet.");
-    }
+    if (userResult.status === "rejected") throw userResult.reason;
+    setUsers(Array.isArray(userResult.value.users) ? userResult.value.users : []);
+    setTrainers(trainerResult.status === "fulfilled" && Array.isArray(trainerResult.value.trainers) ? trainerResult.value.trainers : []);
+    setGyms(gymResult.status === "fulfilled" && Array.isArray(gymResult.value.gyms) ? gymResult.value.gyms : []);
 
-    try {
-      const gymResponse = await getGyms();
-      setGyms(Array.isArray(gymResponse.gyms) ? gymResponse.gyms : []);
-    } catch {
-      setReferralStatus("Users loaded, but gyms could not load yet.");
-    }
+    const partialFailures = [
+      trainerResult.status === "rejected" ? "trainers" : "",
+      gymResult.status === "rejected" ? "gyms" : ""
+    ].filter(Boolean);
+    setStatus(partialFailures.length ? `People loaded, but ${partialFailures.join(" and ")} could not load yet.` : "");
   }
 
   useEffect(() => {
     load().catch((error) =>
-      setStatus(error instanceof Error ? `Could not load users: ${error.message}` : "Could not load users. Use an owner or admin account.")
+      setStatus(error instanceof Error ? `Could not load people: ${error.message}` : "Could not load people. Use an owner or admin account.")
     );
   }, []);
 
   const activeUsers = useMemo(() => users.filter((user) => user.status === "active"), [users]);
   const inactiveUsers = useMemo(() => users.filter((user) => user.status !== "active"), [users]);
+  const clients = useMemo(() => activeUsers.filter((user) => user.primary_role === "client"), [activeUsers]);
+  const pendingTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status !== "active"), [trainers]);
+  const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status === "active"), [trainers]);
+  const unassignedClients = useMemo(() => clients.filter((client) => !client.assigned_trainer_id), [clients]);
+  const trainerClientCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    clients.forEach((client) => {
+      if (client.assigned_trainer_id) counts.set(client.assigned_trainer_id, (counts.get(client.assigned_trainer_id) ?? 0) + 1);
+    });
+    return counts;
+  }, [clients]);
   const visibleUsers = useMemo(() => {
     const source = userView === "active" ? activeUsers : inactiveUsers;
     const normalizedSearch = search.trim().toLowerCase();
@@ -134,80 +99,16 @@ export function AdminUsersClient() {
       return `${user.full_name} ${user.email} ${user.gym_name ?? ""}`.toLowerCase().includes(normalizedSearch);
     });
   }, [activeUsers, gymFilter, inactiveUsers, roleFilter, search, userView]);
-  const clients = useMemo(() => activeUsers.filter((user) => user.primary_role === "client"), [activeUsers]);
-  const pendingTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status !== "active"), [trainers]);
-  const activeTrainers = useMemo(() => trainers.filter((trainer) => trainer.user_status === "active" && trainer.status === "active"), [trainers]);
-  const unassignedClients = useMemo(() => clients.filter((client) => !client.assigned_trainer_id), [clients]);
-  const assignedClients = useMemo(() => clients.filter((client) => client.assigned_trainer_id), [clients]);
-  const trainerClientCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    clients.forEach((client) => {
-      if (client.assigned_trainer_id) counts.set(client.assigned_trainer_id, (counts.get(client.assigned_trainer_id) ?? 0) + 1);
-    });
-    return counts;
-  }, [clients]);
 
-  async function changeRole(user: AdminUser, role: Role) {
-    if (role === user.primary_role) return;
-    if ((role === "trainer" || role === "owner") && !user.gym_id) {
-      setStatus(`Choose a gym for ${user.full_name} before granting ${formatRole(role)} access.`);
-      return;
-    }
-    if (!window.confirm(`Change ${user.full_name}'s role from ${formatRole(user.primary_role)} to ${formatRole(role)}?`)) return;
-    setSavingUserId(user.id);
-    setStatus("");
-
-    try {
-      await updateAdminUserRole({ userId: user.id, role, gymId: role === "trainer" || role === "owner" ? user.gym_id ?? undefined : undefined });
-      await load();
-      setStatus(`${user.full_name} is now ${formatRole(role)}.`);
-    } catch {
-      setStatus("Could not update role. Make sure trainer accounts have a gym.");
-    } finally {
-      setSavingUserId("");
-    }
-  }
-
-  function accountDetailsFor(user: AdminUser) {
-    return accountDetailsDrafts[user.id] ?? adminUserDetailsDraft(user);
-  }
-
-  function updateAccountDetailsDraft(user: AdminUser, update: Partial<AccountDetailsDraft>) {
-    setAccountDetailsDrafts((current) => ({
-      ...current,
-      [user.id]: { ...(current[user.id] ?? adminUserDetailsDraft(user)), ...update }
-    }));
-  }
-
-  async function saveAccountDetails(user: AdminUser) {
-    const draft = accountDetailsFor(user);
-    if (!accountDetailsChanged(user, draft) || draft.fullName.trim().length < 2) return;
-    setSavingUserId(user.id);
-    setStatus("");
-    try {
-      await updateAdminUserDetails({
-        userId: user.id,
-        fullName: draft.fullName.trim(),
-        gymId: draft.gymId || null
-      });
-      setAccountDetailsDrafts((current) => {
-        const next = { ...current };
-        delete next[user.id];
-        return next;
-      });
-      await load();
-      setStatus(`${draft.fullName.trim()}'s account details were updated.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update account details.");
-    } finally {
-      setSavingUserId("");
-    }
-  }
+  const viewCounts: Record<WorkspaceView, string> = {
+    people: `${activeUsers.length} active`,
+    assignments: `${unassignedClients.length} open`,
+    trainers: pendingTrainers.length ? `${pendingTrainers.length} pending` : `${activeTrainers.length} active`
+  };
 
   async function assignTrainer(clientId: string, trainerId: string) {
     setSavingUserId(clientId);
     setStatus("");
-
     try {
       await assignAdminClient({ clientId, trainerId: trainerId || null });
       await load();
@@ -219,43 +120,9 @@ export function AdminUsersClient() {
     }
   }
 
-  async function toggleOwnerGym(user: AdminUser, gymId: string) {
-    setSavingUserId(user.id);
-    setStatus("");
-    try {
-      if ((user.owner_gym_ids ?? []).includes(gymId)) await removeOwnerGym(user.id, gymId);
-      else await assignOwnerGym(user.id, gymId);
-      await load();
-      setStatus(`${user.full_name}'s gym access was updated.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update owner gym access.");
-    } finally {
-      setSavingUserId("");
-    }
-  }
-
-  async function createTrainerReferral(trainer: AdminTrainer) {
-    setSavingUserId(trainer.user_id);
-    setReferralStatus("");
-
-    try {
-      await createAdminReferral({
-        code: trainerCode(trainer.full_name),
-        type: "trainer",
-        trainerId: trainer.id
-      });
-      setReferralStatus(`Referral code ready: ${trainerCode(trainer.full_name)}`);
-    } catch {
-      setReferralStatus("Could not create referral code. It may already exist.");
-    } finally {
-      setSavingUserId("");
-    }
-  }
-
   async function approveTrainer(trainer: AdminTrainer) {
     setSavingUserId(trainer.user_id);
     setStatus("");
-
     try {
       await updateAdminUserRole({ userId: trainer.user_id, role: "trainer", gymId: trainer.gym_id });
       await load();
@@ -267,71 +134,14 @@ export function AdminUsersClient() {
     }
   }
 
-  async function grantPlan(user: AdminUser, plan: SubscriptionPlan) {
-    if (user.subscription_provider && user.subscription_provider !== "manual") {
-      setStatus(`${user.full_name}'s access is managed by ${user.subscription_provider}. Update it through that billing provider.`);
-      return;
-    }
-    if (plan === user.current_plan) return;
-    if (!window.confirm(`Manually change ${user.full_name} from ${formatPlan(user.current_plan)} to ${formatPlan(plan)}?`)) return;
-    setSavingUserId(user.id);
-    setStatus("");
-
+  async function createTrainerReferral(trainer: AdminTrainer) {
+    setSavingUserId(trainer.user_id);
+    setReferralStatus("");
     try {
-      await grantAdminSubscription({ userId: user.id, plan });
-      await load();
-      setStatus(`${user.full_name} is now on ${formatPlan(plan)}.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update plan access.");
-    } finally {
-      setSavingUserId("");
-    }
-  }
-
-  async function changeUserStatus(user: AdminUser, status: "active" | "inactive") {
-    if (status === "inactive" && !window.confirm(`Deactivate ${user.full_name}? They will lose access until reactivated.`)) return;
-    setSavingUserId(user.id);
-    setStatus("");
-
-    try {
-      await updateAdminUserStatus({ userId: user.id, status });
-      await load();
-      setStatus(status === "active" ? `${user.full_name} can access Ascend again.` : `${user.full_name} has been deactivated.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update user access.");
-    } finally {
-      setSavingUserId("");
-    }
-  }
-
-  async function toggleAthleteMode(user: AdminUser) {
-    setSavingUserId(user.id);
-    setStatus("");
-    try {
-      await setAdminAthleteMode(user.id, !user.athlete_mode_enabled);
-      await load();
-      setStatus(`Athlete Mode ${user.athlete_mode_enabled ? "disabled" : "enabled"} for ${user.full_name}.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update Athlete Mode.");
-    } finally {
-      setSavingUserId("");
-    }
-  }
-
-  async function permanentlyDeleteUser(user: AdminUser) {
-    const confirmation = window.prompt(
-      `Permanently delete ${user.full_name} (${user.email})?\n\nThis removes their login, logs, messages, photos, and subscription history. Live paid access must be cancelled first.\n\nType DELETE to continue.`
-    );
-    if (confirmation !== "DELETE") return;
-
-    setSavingUserId(user.id);
-    setStatus("");
-    try {
-      await deleteAdminUser(user.id);
-      await load();
-      setStatus(`${user.full_name} was permanently deleted.`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not permanently delete this user.");
+      await createAdminReferral({ code: trainerCode(trainer.full_name), type: "trainer", trainerId: trainer.id });
+      setReferralStatus(`Referral code ready: ${trainerCode(trainer.full_name)}`);
+    } catch {
+      setReferralStatus("Could not create referral code. It may already exist.");
     } finally {
       setSavingUserId("");
     }
@@ -341,459 +151,244 @@ export function AdminUsersClient() {
     <>
       <section className="mt-3 flex items-start gap-3">
         <BackButton fallbackHref="/admin" />
-        <div>
+        <div className="min-w-0">
           <p className="text-sm text-zinc-400">Owner tools</p>
-          <h1 className="mt-1 text-2xl font-semibold">Users</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Approve trainers, assign clients, and create referral codes.</p>
+          <h1 className="mt-1 text-2xl font-semibold">Business</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Manage one business task at a time.</p>
         </div>
       </section>
 
-      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
-      {referralStatus ? <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm text-lime">{referralStatus}</p> : null}
+      {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300" role="status">{status}</p> : null}
+      {referralStatus ? <p className="mt-3 rounded-lg border border-lime/40 bg-lime/10 p-3 text-sm text-lime" role="status">{referralStatus}</p> : null}
 
-      <section className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Users</p>
-          <p className="mt-2 text-2xl font-semibold">{activeUsers.length}</p>
-        </div>
-        <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Unassigned</p>
-          <p className="mt-2 text-2xl font-semibold">{unassignedClients.length}</p>
-        </div>
-        <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Pending trainers</p>
-          <p className="mt-2 text-2xl font-semibold">{pendingTrainers.length}</p>
-        </div>
-        <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Active trainers</p>
-          <p className="mt-2 text-2xl font-semibold">{activeTrainers.length}</p>
-        </div>
-      </section>
+      <nav aria-label="Business sections" className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-line bg-ink p-1">
+        {workspaceViews.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            aria-pressed={workspaceView === view.id}
+            onClick={() => setWorkspaceView(view.id)}
+            className={`min-h-12 rounded-lg px-2 py-2 text-xs font-semibold sm:text-sm ${
+              workspaceView === view.id ? "bg-lime text-ink" : "text-zinc-300"
+            }`}
+          >
+            <span className="block">{view.label}</span>
+            <span className={`mt-0.5 block text-[11px] ${workspaceView === view.id ? "text-ink/70" : "text-zinc-500"}`}>
+              {viewCounts[view.id]}
+            </span>
+          </button>
+        ))}
+      </nav>
 
-      <section className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-4">
-        <h2 className="text-base font-semibold text-amber">Staff access</h2>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">
-          Deactivate users when a trainer resigns or a test account should stop accessing the app. Their history stays saved for reports.
-        </p>
-        <p className="mt-2 text-sm text-zinc-400">
-          Inactive accounts are hidden from the normal user list. {inactiveUsers.length} inactive account{inactiveUsers.length === 1 ? "" : "s"} saved.
-        </p>
-      </section>
-
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold">Pending trainers</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">Approve trainers before assigning clients.</p>
-          </div>
-          <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{pendingTrainers.length}</span>
-        </div>
-        <div className="mt-3 divide-y divide-line overflow-hidden rounded-lg border border-line md:rounded-xl">
-          {pendingTrainers.map((trainer) => (
-            <article key={trainer.id} className="rounded-lg bg-ink p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{trainer.full_name}</p>
-                  <p className="mt-1 truncate text-xs text-zinc-400">{trainer.gym_name}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={savingUserId === trainer.user_id}
-                  onClick={() => approveTrainer(trainer)}
-                  className="h-11 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
-                >
-                  Approve
-                </button>
-              </div>
-            </article>
-          ))}
-          {!pendingTrainers.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No trainer approvals waiting.</p> : null}
-        </div>
-      </section>
-
-      <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold text-lime">Trainer assignment</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-300">
-              Assign clients to a trainer before they start messaging.
-            </p>
-          </div>
-          <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{assignedClients.length}/{clients.length}</span>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          {unassignedClients.map((client) => (
-            <article key={client.id} className="rounded-lg bg-ink p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{client.full_name}</p>
-                  <p className="mt-1 truncate text-xs text-zinc-400">{client.email}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{referralLabel(client)}</p>
-                </div>
-                <span className={`rounded px-2 py-1 text-xs ${assignmentTone(client)}`}>{assignmentLabel(client)}</span>
-              </div>
-              <div className="mt-3">
-                <Field label="Assign trainer">
-                  <select
-                    className={selectClass}
-                    disabled={savingUserId === client.id}
-                    value=""
-                    onChange={(event) => assignTrainer(client.id, event.target.value)}
-                  >
-                    <option value="">Choose trainer</option>
-                    {trainersForUser(client, activeTrainers).map((trainer) => (
-                      <option key={trainer.id} value={trainer.id}>
-                        {trainer.full_name} / {trainer.gym_name} ({trainerClientCounts.get(trainer.id) ?? 0} clients)
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                {!client.gym_id ? <p className="mt-2 text-xs text-amber">Assign this client to a gym before choosing a trainer.</p> : trainersForUser(client, activeTrainers).length === 0 ? <p className="mt-2 text-xs text-zinc-500">No active trainers are available in this client&apos;s gym.</p> : null}
-              </div>
-            </article>
-          ))}
-          {!unassignedClients.length ? (
-            <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">All clients are assigned to trainers.</p>
-          ) : null}
-        </div>
-      </section>
-
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
-        <h2 className="text-base font-semibold">Trainer workload</h2>
-        <div className="mt-3 space-y-2">
-          {activeTrainers.map((trainer) => (
-            <div key={trainer.id} className="flex items-center justify-between rounded-lg bg-ink px-3 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{trainer.full_name}</p>
-                <p className="mt-1 truncate text-xs text-zinc-400">{trainer.gym_name}</p>
-              </div>
-              <span className="rounded bg-surface px-3 py-1 text-sm font-semibold text-lime">{trainerClientCounts.get(trainer.id) ?? 0}</span>
+      {workspaceView === "people" ? (
+        <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">People</h2>
+              <p className="mt-1 text-sm text-zinc-400">Open one account to make changes.</p>
             </div>
-          ))}
-          {!activeTrainers.length ? <p className="rounded-lg bg-ink p-3 text-sm text-zinc-400">No active trainers yet.</p> : null}
-        </div>
-      </section>
-
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-base font-semibold">{userView === "active" ? "Active users" : "Deactivated users"}</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">
-              {userView === "active"
-                ? "Manage people who can currently access Ascend."
-                : "Reactivate an account only when that person should use Ascend again."}
-            </p>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-ink p-1">
+              <button
+                type="button"
+                onClick={() => setUserView("active")}
+                className={`min-h-10 rounded-md px-2 text-xs font-semibold ${userView === "active" ? "bg-lime text-ink" : "text-zinc-300"}`}
+              >
+                Active {activeUsers.length}
+              </button>
+              <button
+                type="button"
+                onClick={() => setUserView("inactive")}
+                className={`min-h-10 rounded-md px-2 text-xs font-semibold ${userView === "inactive" ? "bg-lime text-ink" : "text-zinc-300"}`}
+              >
+                Inactive {inactiveUsers.length}
+              </button>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 rounded-lg bg-ink p-1">
-            <button
-              type="button"
-              onClick={() => setUserView("active")}
-              className={`h-11 rounded-md px-3 text-sm font-semibold ${userView === "active" ? "bg-lime text-ink" : "text-zinc-300"}`}
-            >
-              Active {activeUsers.length}
-            </button>
-            <button
-              type="button"
-              onClick={() => setUserView("inactive")}
-              className={`h-11 rounded-md px-3 text-sm font-semibold ${userView === "inactive" ? "bg-lime text-ink" : "text-zinc-300"}`}
-            >
-              Inactive {inactiveUsers.length}
-            </button>
-          </div>
-        </div>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_220px]">
-          <label className="relative block">
-            <span className="sr-only">Search users</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-            <input
-              className={`${inputClass} pl-10`}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name, email, or gym"
-            />
-          </label>
-          <label>
-            <span className="sr-only">Filter by role</span>
-            <select className={selectClass} value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}>
-              <option value="all">All roles</option>
-              <option value="client">Clients</option>
-              <option value="trainer">Trainers</option>
-              <option value="owner">Owners</option>
-              <option value="admin">Admins</option>
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">Filter by gym</span>
-            <select className={selectClass} value={gymFilter} onChange={(event) => setGymFilter(event.target.value)}>
-              <option value="all">All gyms</option>
-              {gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
-            </select>
-          </label>
-        </div>
-        <div className="mt-3 space-y-3">
-          {visibleUsers.map((user) => (
-            <article key={user.id} className="bg-ink p-3 md:p-4">
-              <div className="flex items-start justify-between gap-3">
+          <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_220px]">
+            <label className="relative block">
+              <span className="sr-only">Search people</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <input
+                className={`${inputClass} pl-10`}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search name, email, or gym"
+              />
+            </label>
+            <label>
+              <span className="sr-only">Filter by role</span>
+              <select className={selectClass} value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}>
+                <option value="all">All roles</option>
+                <option value="client">Clients</option>
+                <option value="trainer">Trainers</option>
+                <option value="owner">Owners</option>
+                <option value="admin">Admins</option>
+              </select>
+            </label>
+            <label>
+              <span className="sr-only">Filter by gym</span>
+              <select className={selectClass} value={gymFilter} onChange={(event) => setGymFilter(event.target.value)}>
+                <option value="all">All gyms</option>
+                {gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line">
+            {visibleUsers.map((user) => (
+              <Link
+                key={user.id}
+                href={`/admin/users/${encodeURIComponent(user.id)}`}
+                className="ascend-pressable flex min-h-20 items-center justify-between gap-3 bg-ink p-3 hover:bg-surface/50"
+              >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{user.full_name}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="truncate text-sm font-medium">{user.full_name}</p>
+                    {user.is_platform_owner_account ? <span className="rounded bg-calm/15 px-2 py-0.5 text-[10px] font-semibold text-calm">Platform Owner</span> : null}
+                  </div>
                   <p className="mt-1 truncate text-xs text-zinc-400">{user.email}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{user.primary_role === "client" ? referralLabel(user) : user.gym_name ?? "No gym"}</p>
-                  {user.primary_role === "client" ? <p className="mt-1 text-xs text-zinc-500">{assignmentLabel(user)}</p> : null}
-                  <p className="mt-1 text-xs text-zinc-500">Plan: {formatPlan(user.current_plan)}</p>
+                  <p className="mt-1 truncate text-xs text-zinc-500">
+                    {formatRole(user.primary_role)} · {user.gym_name ?? "No gym"} · {formatPlan(user.current_plan)}
+                  </p>
                   {user.primary_role === "client" ? (
-                    <p className="mt-1 text-xs text-zinc-500">Mode: {formatCoachingMode(user.coaching_mode, user.assigned_trainer_name)}</p>
+                    <p className="mt-1 truncate text-xs text-zinc-500">{formatCoachingMode(user.coaching_mode, user.assigned_trainer_name)}</p>
                   ) : null}
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <span className="rounded bg-surface px-2 py-1 text-xs text-zinc-300">{formatRole(user.primary_role)}</span>
-                  <span className={`rounded px-2 py-1 text-xs ${user.status === "active" ? "bg-lime text-ink" : "bg-amber text-ink"}`}>
-                    {user.status === "active" ? "Active" : "Inactive"}
-                  </span>
-                  <button
-                    type="button"
-                    className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-zinc-200"
-                    aria-expanded={expandedUserId === user.id}
-                    onClick={() => setExpandedUserId((current) => current === user.id ? "" : user.id)}
-                  >
-                    {expandedUserId === user.id ? "Close" : "Manage"}
-                    {expandedUserId === user.id ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
-                  </button>
-                </div>
-              </div>
+                <span className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-lime">
+                  Manage <ChevronRight size={17} />
+                </span>
+              </Link>
+            ))}
+            {!visibleUsers.length ? (
+              <p className="bg-ink p-4 text-sm leading-6 text-zinc-400">
+                {userView === "active" ? "No active people match these filters." : "No deactivated people match these filters."}
+              </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
-              {expandedUserId === user.id ? user.status !== "active" ? (
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    disabled={savingUserId === user.id}
-                    onClick={() => changeUserStatus(user, "active")}
-                    className="h-11 rounded-lg bg-lime text-sm font-semibold text-ink disabled:opacity-60"
-                  >
-                    Reactivate access
-                  </button>
-                  <button
-                    type="button"
-                    disabled={savingUserId === user.id || user.primary_role === "owner" || user.primary_role === "admin"}
-                    onClick={() => permanentlyDeleteUser(user)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-400/10 text-sm font-semibold text-red-300 disabled:opacity-40"
-                  >
-                    <Trash2 size={16} />
-                    Delete permanently
-                  </button>
-                  <p className="text-xs leading-5 text-zinc-500 sm:col-span-2">
-                    Permanent deletion removes this account and its Ascend history. Live paid subscriptions must be cancelled first.
-                  </p>
-                </div>
-              ) : (
-                <>
-              <div className="ascend-workspace-inset mt-3 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-semibold uppercase text-zinc-400">Account details</p>
-                  {user.trainer_profile_status === "active" ? (
-                    <span className="rounded bg-calm/15 px-2 py-1 text-xs font-semibold text-calm">Coach enabled</span>
-                  ) : null}
-                </div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <Field label="Full name">
-                    <input
-                      className={inputClass}
-                      disabled={savingUserId === user.id}
-                      value={accountDetailsFor(user).fullName}
-                      onChange={(event) => updateAccountDetailsDraft(user, { fullName: event.target.value })}
-                    />
-                  </Field>
-                  <Field label="Gym">
-                    <select
-                      className={selectClass}
-                      disabled={savingUserId === user.id}
-                      value={accountDetailsFor(user).gymId}
-                      onChange={(event) => updateAccountDetailsDraft(user, { gymId: event.target.value })}
-                    >
-                      <option value="">No gym</option>
-                      {gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
-                    </select>
-                  </Field>
-                </div>
-                <button
-                  type="button"
-                  disabled={
-                    savingUserId === user.id
-                    || accountDetailsFor(user).fullName.trim().length < 2
-                    || !accountDetailsChanged(user, accountDetailsFor(user))
-                  }
-                  onClick={() => saveAccountDetails(user)}
-                  className="ascend-pressable mt-2 h-11 w-full rounded-lg bg-lime text-sm font-semibold text-ink disabled:opacity-40"
-                >
-                  Save account details
-                </button>
-                <p className="mt-2 text-xs leading-5 text-zinc-500">
-                  Sign-in email is identity-managed. Assign a gym here before choosing a trainer for a client.
-                </p>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Field label="Role">
-                  <select
-                    className={selectClass}
-                    disabled={savingUserId === user.id || user.is_platform_owner_account}
-                    value={user.primary_role}
-                    onChange={(event) => changeRole(user, event.target.value as Role)}
-                  >
-                    <option value="client">Client</option>
-                    <option value="trainer">Trainer</option>
-                    <option value="admin">Admin</option>
-                    {canManageOwnerGyms || user.primary_role === "owner" ? <option value="owner">Owner</option> : null}
-                  </select>
-                  {user.is_platform_owner_account ? (
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">Owner remains the protected primary role; Coach access is added separately.</p>
-                  ) : null}
-                </Field>
-                <Field label="Trainer">
-                  <select
-                    className={selectClass}
-                    disabled={user.primary_role !== "client" || savingUserId === user.id || (!user.trainer_assignment_eligible && !user.assigned_trainer_id)}
-                    value={user.assigned_trainer_id ?? ""}
-                    onChange={(event) => assignTrainer(user.id, event.target.value)}
-                  >
-                    <option value="">Unassigned</option>
-                    {trainersForUser(user, activeTrainers).map((trainer) => (
-                      <option key={trainer.id} value={trainer.id}>
-                        {trainer.full_name} / {trainer.gym_name}
-                      </option>
-                    ))}
-                  </select>
-                  {user.primary_role === "client" && !user.trainer_assignment_eligible && !user.assigned_trainer_id ? (
-                    <p className="mt-1 text-xs leading-5 text-zinc-500">Upgrade to Premium before assigning a trainer.</p>
-                  ) : null}
-                </Field>
-              </div>
-              {user.primary_role === "client" && !user.gym_id ? <p className="mt-2 text-xs text-amber">Assign a gym before assigning a trainer.</p> : null}
+      {workspaceView === "assignments" ? (
+        <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Clients needing a trainer</h2>
+              <p className="mt-1 text-sm leading-6 text-zinc-400">Only unassigned clients appear here.</p>
+            </div>
+            <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{clients.length - unassignedClients.length}/{clients.length}</span>
+          </div>
 
-              <div className="ascend-workspace-inset mt-3 p-3">
-                <p className="text-xs font-semibold uppercase text-zinc-400">Plan access</p>
-                {user.subscription_provider && user.subscription_provider !== "manual" ? (
-                  <p className="mt-2 rounded-lg border border-calm/30 bg-calm/10 p-3 text-xs leading-5 text-zinc-300">
-                    Managed by {user.subscription_provider}. Billing changes must be made through that provider; manual controls are disabled to protect paid access.
-                  </p>
-                ) : null}
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {(["free", "premium", "trainer_pro"] as SubscriptionPlan[]).map((plan) => {
-                    const isCurrent = user.current_plan === plan;
-                    return (
-                      <button
-                        key={plan}
-                        type="button"
-                        disabled={savingUserId === user.id || isCurrent || Boolean(user.subscription_provider && user.subscription_provider !== "manual")}
-                        onClick={() => grantPlan(user, plan)}
-                        className={`h-11 rounded-lg text-xs font-semibold disabled:opacity-60 ${
-                          isCurrent ? "border border-lime bg-lime/10 text-lime" : "border border-line bg-ink text-zinc-200"
-                        }`}
+          <div className="mt-4 space-y-3">
+            {unassignedClients.map((client) => {
+              const availableTrainers = trainersForUser(client, activeTrainers);
+              return (
+                <article key={client.id} className="rounded-xl border border-line bg-ink p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{client.full_name}</p>
+                      <p className="mt-1 truncate text-xs text-zinc-400">{client.email}</p>
+                      <p className="mt-1 text-xs text-zinc-500">{referralLabel(client)}</p>
+                    </div>
+                    <span className={`shrink-0 rounded px-2 py-1 text-xs ${assignmentTone(client)}`}>{assignmentLabel(client)}</span>
+                  </div>
+                  <div className="mt-3">
+                    <Field label="Assign trainer">
+                      <select
+                        className={selectClass}
+                        disabled={savingUserId === client.id || !client.trainer_assignment_eligible}
+                        value=""
+                        onChange={(event) => assignTrainer(client.id, event.target.value)}
                       >
-                        {formatPlan(plan)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+                        <option value="">Choose trainer</option>
+                        {availableTrainers.map((trainer) => (
+                          <option key={trainer.id} value={trainer.id}>
+                            {trainer.full_name} · {trainerClientCounts.get(trainer.id) ?? 0} clients
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    {!client.trainer_assignment_eligible ? (
+                      <p className="mt-2 text-xs text-zinc-500">Upgrade to Premium before assigning a trainer.</p>
+                    ) : !client.gym_id ? (
+                      <p className="mt-2 text-xs text-amber">Open this account and assign a gym first.</p>
+                    ) : !availableTrainers.length ? (
+                      <p className="mt-2 text-xs text-zinc-500">No active trainers are available in this client&apos;s gym.</p>
+                    ) : null}
+                    <Link href={`/admin/users/${encodeURIComponent(client.id)}`} className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-lime">
+                      Manage account <ChevronRight size={17} />
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
+            {!unassignedClients.length ? <p className="rounded-xl bg-ink p-4 text-sm text-zinc-400">All eligible clients are assigned.</p> : null}
+          </div>
+        </section>
+      ) : null}
 
-              {user.primary_role === "client" ? (
-                <div className="mt-3 rounded-lg border border-purple-400/30 bg-purple-400/10 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase text-purple-300">Athlete Mode</p>
-                      <p className="mt-1 text-xs leading-5 text-zinc-400">Owner-controlled pilot access for event preparation and readiness.</p>
+      {workspaceView === "trainers" ? (
+        <div className="mt-4 space-y-4">
+          {pendingTrainers.length ? (
+            <section className="rounded-xl border border-amber/40 bg-amber/10 p-4">
+              <h2 className="text-base font-semibold text-amber">Pending approval</h2>
+              <div className="mt-3 space-y-2">
+                {pendingTrainers.map((trainer) => (
+                  <article key={trainer.id} className="flex items-center justify-between gap-3 rounded-lg bg-ink p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{trainer.full_name}</p>
+                      <p className="mt-1 truncate text-xs text-zinc-400">{trainer.gym_name}</p>
                     </div>
                     <button
                       type="button"
-                      disabled={savingUserId === user.id}
-                      onClick={() => toggleAthleteMode(user)}
-                      className={`h-11 shrink-0 rounded-lg px-3 text-xs font-semibold disabled:opacity-60 ${
-                        user.athlete_mode_enabled ? "bg-purple-400 text-ink" : "border border-purple-400/40 text-purple-300"
-                      }`}
+                      disabled={savingUserId === trainer.user_id}
+                      onClick={() => approveTrainer(trainer)}
+                      className="h-11 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
                     >
-                      {user.athlete_mode_enabled ? "Enabled" : "Enable"}
+                      Approve
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <section className="ascend-workspace-section p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Active trainers</h2>
+                <p className="mt-1 text-sm text-zinc-400">Workload and referral tools together.</p>
+              </div>
+              <span className="rounded-lg bg-ink px-3 py-2 text-sm font-semibold text-lime">{activeTrainers.length}</span>
+            </div>
+            <div className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line">
+              {activeTrainers.map((trainer) => (
+                <article key={trainer.id} className="bg-ink p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{trainer.full_name}</p>
+                      <p className="mt-1 truncate text-xs text-zinc-400">{trainer.gym_name}</p>
+                    </div>
+                    <span className="rounded bg-surface px-3 py-1 text-sm font-semibold text-lime">{trainerClientCounts.get(trainer.id) ?? 0} clients</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <p className="truncate text-xs text-zinc-500">{trainerCode(trainer.full_name)}</p>
+                    <button
+                      type="button"
+                      disabled={savingUserId === trainer.user_id}
+                      onClick={() => createTrainerReferral(trainer)}
+                      className="ascend-pressable h-11 rounded-lg border border-lime/40 px-3 text-sm font-semibold text-lime disabled:opacity-60"
+                    >
+                      Create code
                     </button>
                   </div>
-                </div>
-              ) : null}
-
-              {user.primary_role === "owner" && canManageOwnerGyms ? (
-                <div className="ascend-workspace-inset mt-3 p-3">
-                  <p className="text-xs font-semibold uppercase text-zinc-400">Owner gym access</p>
-                  <div className="mt-2 grid gap-2">
-                    {gyms.map((gym) => {
-                      const assigned = (user.owner_gym_ids ?? []).includes(gym.id);
-                      return (
-                        <button
-                          key={gym.id}
-                          type="button"
-                          disabled={savingUserId === user.id}
-                          onClick={() => toggleOwnerGym(user, gym.id)}
-                          className={`h-11 rounded-lg border text-sm font-semibold disabled:opacity-60 ${assigned ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-zinc-300"}`}
-                        >
-                          {assigned ? "Assigned: " : "Add: "}{gym.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="ascend-workspace-inset mt-3 p-3">
-                <p className="text-xs font-semibold uppercase text-zinc-400">Account access</p>
-                {user.primary_role === "owner" ? (
-                  <p className="mt-2 rounded-lg bg-ink p-3 text-sm text-zinc-400">Owner accounts are protected from this screen.</p>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={savingUserId === user.id}
-                    onClick={() => changeUserStatus(user, user.status === "active" ? "inactive" : "active")}
-                    className={`ascend-pressable mt-2 h-11 w-full rounded-lg text-sm font-semibold disabled:opacity-60 ${
-                      user.status === "active" ? "border border-amber/40 bg-amber/10 text-amber" : "bg-lime text-ink"
-                    }`}
-                  >
-                    {user.status === "active" ? "Deactivate access" : "Reactivate access"}
-                  </button>
-                )}
-              </div>
-                </>
-              ) : null}
-            </article>
-          ))}
-          {!visibleUsers.length ? (
-            <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">
-              {userView === "active" ? "Active users will appear here as members, trainers, and owners join Ascend." : "Deactivated users will appear here when access is paused."}
-            </p>
-          ) : null}
+                </article>
+              ))}
+              {!activeTrainers.length ? <p className="bg-ink p-4 text-sm text-zinc-400">No active trainers yet.</p> : null}
+            </div>
+          </section>
         </div>
-      </section>
-
-      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
-        <h2 className="text-base font-semibold">Trainer referral codes</h2>
-        <div className="mt-3 space-y-3">
-          {activeTrainers.map((trainer) => (
-            <article key={trainer.id} className="rounded-lg bg-ink p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium">{trainer.full_name}</p>
-                  <p className="mt-1 text-xs text-zinc-400">{trainer.gym_name}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={savingUserId === trainer.user_id}
-                  onClick={() => createTrainerReferral(trainer)}
-                  className="ascend-pressable h-11 rounded-lg bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-60"
-                >
-                  Create
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-zinc-500">Suggested code: {trainerCode(trainer.full_name)}</p>
-            </article>
-          ))}
-          {!activeTrainers.length ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Active trainers will appear here once their access is approved.</p> : null}
-        </div>
-      </section>
+      ) : null}
     </>
   );
 }

@@ -1,19 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
   assignAdminClient: vi.fn(),
-  assignOwnerGym: vi.fn(),
   createAdminReferral: vi.fn(),
-  deleteAdminUser: vi.fn(),
   getAdminTrainers: vi.fn(),
   getAdminUsers: vi.fn(),
   getGyms: vi.fn(),
-  grantAdminSubscription: vi.fn(),
-  removeOwnerGym: vi.fn(),
-  setAdminAthleteMode: vi.fn(),
-  updateAdminUserDetails: vi.fn(),
-  updateAdminUserStatus: vi.fn(),
   updateAdminUserRole: vi.fn()
 }));
 
@@ -52,36 +45,67 @@ const client = {
   created_at: "2026-09-01T00:00:00.000Z"
 };
 
-describe("Business user editing", () => {
+const trainer = {
+  id: "trainer-1",
+  user_id: "trainer-user-1",
+  gym_id: "gym-central",
+  full_name: "Coach Fariz",
+  email: "coach@example.com",
+  user_status: "active" as const,
+  gym_name: "Central",
+  specialties: [],
+  status: "active"
+};
+
+describe("Business workspace information architecture", () => {
+  afterEach(cleanup);
+
   beforeEach(() => {
     vi.clearAllMocks();
     api.getAdminUsers.mockResolvedValue({ canManageOwnerGyms: true, users: [client] });
-    api.getAdminTrainers.mockResolvedValue({ trainers: [] });
+    api.getAdminTrainers.mockResolvedValue({ trainers: [trainer] });
     api.getGyms.mockResolvedValue({
       gyms: [{ id: "gym-central", name: "Central", slug: "central", location: "City", country: "Malaysia", timezone: "Asia/Kuala_Lumpur" }]
     });
-    api.updateAdminUserDetails.mockResolvedValue({ user: { ...client, gym_id: "gym-central" } });
   });
 
-  it("lets the owner edit a member name and assign the missing gym", async () => {
+  it("defaults to a compact people list and links to focused account management", async () => {
     render(<AdminUsersClient />);
 
-    expect((await screen.findAllByText("No Gym Member")).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /manage/i }));
+    expect(await screen.findByRole("heading", { name: "People" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Clients needing a trainer" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Active trainers" })).not.toBeInTheDocument();
 
-    const fullName = screen.getByLabelText("Full name");
-    const gym = screen.getByLabelText("Gym");
-    expect(gym).toHaveValue("");
-    expect(within(gym).getByRole("option", { name: "Central" })).toBeInTheDocument();
+    const manageLink = screen.getByRole("link", { name: /No Gym Member.*Manage/i });
+    expect(manageLink).toHaveAttribute("href", "/admin/users/client-1");
+  });
 
-    fireEvent.change(fullName, { target: { value: "Updated Member" } });
-    fireEvent.change(gym, { target: { value: "gym-central" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save account details" }));
+  it("shows assignment work only after the owner chooses Assignments", async () => {
+    render(<AdminUsersClient />);
+    await screen.findByText("No Gym Member");
 
-    await waitFor(() => expect(api.updateAdminUserDetails).toHaveBeenCalledWith({
-      userId: "client-1",
-      fullName: "Updated Member",
-      gymId: "gym-central"
+    fireEvent.click(screen.getByRole("button", { name: /Assignments/ }));
+
+    expect(screen.getByRole("heading", { name: "Clients needing a trainer" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "People" })).not.toBeInTheDocument();
+    expect(screen.getByText("Open this account and assign a gym first.")).toBeInTheDocument();
+  });
+
+  it("combines trainer workload and referral tools in the Trainers view", async () => {
+    render(<AdminUsersClient />);
+    await screen.findByText("No Gym Member");
+
+    fireEvent.click(screen.getByRole("button", { name: /Trainers/ }));
+
+    const trainerSection = screen.getByRole("heading", { name: "Active trainers" }).closest("section");
+    expect(trainerSection).not.toBeNull();
+    expect(within(trainerSection!).getByText("Coach Fariz")).toBeInTheDocument();
+    expect(within(trainerSection!).getByText("0 clients")).toBeInTheDocument();
+    fireEvent.click(within(trainerSection!).getByRole("button", { name: "Create code" }));
+    await waitFor(() => expect(api.createAdminReferral).toHaveBeenCalledWith({
+      code: "TRAINER-COACH",
+      type: "trainer",
+      trainerId: "trainer-1"
     }));
   });
 });
