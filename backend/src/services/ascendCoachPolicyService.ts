@@ -65,6 +65,7 @@ export interface AscendCoachPolicyDecision {
   relationshipId?: string;
   authorizationVersion?: number;
   breakGlassGrantId?: string;
+  platformOwnerAccess?: boolean;
   dataScopes?: AscendCoachDataScope[];
 }
 
@@ -91,6 +92,7 @@ const breakGlassActions = new Set<AscendCoachAction>([
   "view_recovery",
   "view_progress_photos"
 ]);
+const platformOwnerReadActions = new Set(breakGlassActions);
 
 export function ascendCoachV1Enabled() {
   return env.ASCEND_COACH_V1 === true;
@@ -112,6 +114,14 @@ export function evaluateAscendCoachPolicy(
   if (!context.client) return { allowed: false, reason: "client_not_found" };
   if (context.client.status !== "active") return { allowed: false, reason: "client_inactive" };
   if (!context.client.hasClientCapability) return { allowed: false, reason: "client_capability_missing" };
+
+  if (context.actor.isPlatformOwner && platformOwnerReadActions.has(action)) {
+    return {
+      allowed: true,
+      platformOwnerAccess: true,
+      dataScopes: [...ASCEND_COACH_DATA_SCOPES]
+    };
+  }
 
   if (context.actor.isPlatformOwner && context.breakGlassGrant && breakGlassActions.has(action)) {
     return { allowed: true, breakGlassGrantId: context.breakGlassGrant.id };
@@ -217,6 +227,7 @@ export type AscendCoachAuthorizationBatch = {
   relationshipStatus: string | null;
   authorizationVersion: number | null;
   breakGlassGrantId: string | null;
+  platformOwnerAccess: boolean;
 };
 
 async function loadAscendCoachPolicyContext(actor: AuthUser, clientUserId: string): Promise<AscendCoachPolicyContext> {
@@ -304,7 +315,8 @@ export async function authorizeAscendCoachActions(
       relationshipId: null,
       relationshipStatus: null,
       authorizationVersion: null,
-      breakGlassGrantId: null
+      breakGlassGrantId: null,
+      platformOwnerAccess: false
     };
   }
 
@@ -313,6 +325,7 @@ export async function authorizeAscendCoachActions(
     uniqueActions.map((action) => [action, evaluateAscendCoachPolicy(context, action)])
   ) as AscendCoachAuthorizationBatch["decisions"];
   const allowedBreakGlassActions = uniqueActions.filter((action) => decisions[action]?.allowed && decisions[action]?.breakGlassGrantId);
+  const allowedPlatformOwnerActions = uniqueActions.filter((action) => decisions[action]?.allowed && decisions[action]?.platformOwnerAccess);
 
   if (allowedBreakGlassActions.length && context.breakGlassGrant) {
     await query(
@@ -335,12 +348,26 @@ export async function authorizeAscendCoachActions(
     );
   }
 
+  if (allowedPlatformOwnerActions.length) {
+    await query(
+      `
+      insert into ascend_coach_access_audit_events
+        (actor_user_id, client_user_id, event_type, metadata)
+      values ($1, $2, 'platform_owner_client_read', jsonb_build_object(
+        'actions', $3::jsonb
+      ))
+      `,
+      [actor.id, clientUserId, JSON.stringify(allowedPlatformOwnerActions)]
+    );
+  }
+
   return {
     decisions,
     relationshipId: context.relationship?.id ?? null,
     relationshipStatus: context.relationship?.status ?? null,
     authorizationVersion: context.relationship?.authorizationVersion ?? null,
-    breakGlassGrantId: context.breakGlassGrant?.id ?? null
+    breakGlassGrantId: context.breakGlassGrant?.id ?? null,
+    platformOwnerAccess: allowedPlatformOwnerActions.length > 0
   };
 }
 

@@ -66,7 +66,7 @@ afterEach(cleanup);
 
 describe("Ascend Coach client list", () => {
   it("loads one bounded list and links an authorized client to Client 360", async () => {
-    api.getAscendCoachClients.mockResolvedValue({ clients: [{ clientId: fullSnapshot.clientId, relationshipId: "relationship", relationshipStatus: "active", authorizationVersion: 3, grantedScopes: ["profile", "training"], displayName: "Client A", goal: "fat_loss", lastWorkoutAt: "2026-08-31T00:00:00.000Z" }] });
+    api.getAscendCoachClients.mockResolvedValue({ clients: [{ clientId: fullSnapshot.clientId, accessMode: "relationship", relationshipId: "relationship", relationshipStatus: "active", authorizationVersion: 3, grantedScopes: ["profile", "training"], displayName: "Client A", goal: "fat_loss", lastWorkoutAt: "2026-08-31T00:00:00.000Z" }] });
     render(<AscendCoachClientList />);
     const link = await screen.findByRole("link", { name: /Client A/i });
     expect(link).toHaveAttribute("href", `/trainer/clients/${fullSnapshot.clientId}/360`);
@@ -79,11 +79,29 @@ describe("Ascend Coach client list", () => {
     expect(await screen.findByText("No active clients")).toBeInTheDocument();
   });
 
+  it("labels the global directory for Platform Owner access", async () => {
+    api.getAscendCoachClients.mockResolvedValue({ clients: [{
+      clientId: fullSnapshot.clientId,
+      accessMode: "platform_owner",
+      relationshipId: null,
+      relationshipStatus: null,
+      authorizationVersion: null,
+      grantedScopes: ["profile", "training", "nutrition", "body", "recovery", "progress_photos"],
+      displayName: "Client A",
+      goal: "fat_loss",
+      lastWorkoutAt: null
+    }] });
+    render(<AscendCoachClientList />);
+    expect(await screen.findByRole("heading", { name: "All active clients" })).toBeInTheDocument();
+    expect(screen.getByText(/Platform Owner access to every active Ascend client/i)).toBeInTheDocument();
+    expect(screen.getByText(/Platform Owner access$/i)).toBeInTheDocument();
+  });
+
   it("wraps long names and distinguishes profile-only from training-only visibility", async () => {
     const longName = "Synthetic Client With A Deliberately Long Display Name For Mobile Review";
     api.getAscendCoachClients.mockResolvedValue({ clients: [
-      { clientId: "10000000-0000-4000-8000-000000000010", relationshipId: "r-profile", relationshipStatus: "active", authorizationVersion: 1, grantedScopes: ["profile"], displayName: longName, goal: "maintenance" },
-      { clientId: "10000000-0000-4000-8000-000000000011", relationshipId: "r-training", relationshipStatus: "active", authorizationVersion: 1, grantedScopes: ["training"], lastWorkoutAt: new Date().toISOString() }
+      { clientId: "10000000-0000-4000-8000-000000000010", accessMode: "relationship", relationshipId: "r-profile", relationshipStatus: "active", authorizationVersion: 1, grantedScopes: ["profile"], displayName: longName, goal: "maintenance" },
+      { clientId: "10000000-0000-4000-8000-000000000011", accessMode: "relationship", relationshipId: "r-training", relationshipStatus: "active", authorizationVersion: 1, grantedScopes: ["training"], lastWorkoutAt: new Date().toISOString() }
     ] });
     render(<AscendCoachClientList />);
     expect(await screen.findByText(longName)).toHaveClass("break-words");
@@ -164,5 +182,23 @@ describe("Client 360 UI", () => {
     render(<Client360Client clientId={elevated.clientId} />);
     expect(await screen.findByText(/Elevated access is active and audited/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Zoe insight/i })).not.toBeInTheDocument();
+  });
+
+  it("labels audited Platform Owner access and keeps Zoe generation unavailable", async () => {
+    const ownerSnapshot: Client360Snapshot = {
+      ...fullSnapshot,
+      access: {
+        ...fullSnapshot.access,
+        mode: "platform_owner",
+        relationshipId: null,
+        relationshipStatus: null,
+        authorizationVersion: null
+      }
+    };
+    api.getClient360.mockResolvedValue({ snapshot: ownerSnapshot, coachInsight: { status: "not_available", reason: "elevated_access" } });
+    render(<Client360Client clientId={ownerSnapshot.clientId} />);
+    expect(await screen.findByText("Platform Owner read access is active and audited.")).toBeInTheDocument();
+    expect(screen.getByText("Zoe insight is not generated during elevated read access.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Generate Zoe insight/i })).not.toBeInTheDocument();
   });
 });

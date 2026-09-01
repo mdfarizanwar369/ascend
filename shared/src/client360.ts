@@ -10,7 +10,7 @@ export type Client360SectionAccess = {
 };
 
 export type Client360Access = {
-  mode: "relationship" | "break_glass";
+  mode: "relationship" | "break_glass" | "platform_owner";
   relationshipId: string | null;
   relationshipStatus: "active" | null;
   authorizationVersion: number | null;
@@ -180,9 +180,10 @@ export type Client360Snapshot = {
 
 export type AscendCoachClientListItem = {
   clientId: string;
-  relationshipId: string;
-  relationshipStatus: "active";
-  authorizationVersion: number;
+  accessMode: "relationship" | "platform_owner";
+  relationshipId: string | null;
+  relationshipStatus: "active" | null;
+  authorizationVersion: number | null;
   grantedScopes: string[];
   displayName?: string;
   goal?: "fat_loss" | "muscle_gain" | "maintenance" | null;

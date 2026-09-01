@@ -53,7 +53,7 @@ function canUseInsight(snapshot: Client360Snapshot) {
 }
 
 function unavailableFor(snapshot: Client360Snapshot): CoachInsightAvailability | null {
-  if (snapshot.access.mode === "break_glass") return { status: "not_available", reason: "elevated_access" };
+  if (snapshot.access.mode !== "relationship") return { status: "not_available", reason: "elevated_access" };
   if (!canUseInsight(snapshot)) return { status: "not_available", reason: "access_required" };
   return null;
 }

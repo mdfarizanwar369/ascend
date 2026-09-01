@@ -25,6 +25,7 @@ export function AscendCoachClientList() {
   const [clients, setClients] = useState<AscendCoachClientListItem[] | null>(null);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
+  const platformOwnerMode = clients?.some((client) => client.accessMode === "platform_owner") === true;
 
   useEffect(() => {
     let mounted = true;
@@ -41,7 +42,7 @@ export function AscendCoachClientList() {
       <AscendHeroPanel
         eyebrow="Ascend Coach"
         title="Clients"
-        body="Open a client to see the coaching evidence Ascend can currently support."
+        body={platformOwnerMode ? "Platform Owner access to every active Ascend client. All opens are audited." : "Open a client to see the coaching evidence Ascend can currently support."}
         tone="trainer"
         visual={<BusinessSigil status={clients ? `${clients.length} active` : "Coach"} />}
       />
@@ -50,7 +51,7 @@ export function AscendCoachClientList() {
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="ascend-eyebrow text-calm">Client 360</p>
-            <h2 id="coach-client-list-title" className="mt-1 text-xl font-semibold">Authorized clients</h2>
+            <h2 id="coach-client-list-title" className="mt-1 text-xl font-semibold">{platformOwnerMode ? "All active clients" : "Authorized clients"}</h2>
           </div>
         </div>
 
@@ -85,12 +86,12 @@ export function AscendCoachClientList() {
               const visibleName = client.displayName ?? "Client profile not shared";
               const hasTraining = Object.prototype.hasOwnProperty.call(client, "lastWorkoutAt");
               return (
-                <Link key={client.relationshipId} href={`/trainer/clients/${client.clientId}/360`} className="ascend-pressable flex min-h-20 items-center gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft hover:border-calm/45">
+                <Link key={`${client.accessMode}:${client.clientId}`} href={`/trainer/clients/${client.clientId}/360`} className="ascend-pressable flex min-h-20 items-center gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft hover:border-calm/45">
                   <ProfileAvatar name={client.displayName} />
                   <div className="min-w-0 flex-1">
                     <p className="break-words font-semibold text-white">{visibleName}</p>
                     <p className="mt-1 text-sm capitalize text-zinc-400">{goalLabel(client.goal) ?? "Goal not shared"}</p>
-                    <p className="mt-2 text-xs text-zinc-500">{hasTraining ? relativeTime(client.lastWorkoutAt) : "Training data not shared"}</p>
+                    <p className="mt-2 text-xs text-zinc-500">{hasTraining ? relativeTime(client.lastWorkoutAt) : "Training data not shared"}{client.accessMode === "platform_owner" ? " · Platform Owner access" : ""}</p>
                   </div>
                   <ChevronRight className="shrink-0 text-zinc-500" size={20} aria-hidden="true" />
                 </Link>

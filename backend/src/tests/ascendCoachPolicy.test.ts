@@ -106,15 +106,12 @@ describe("Ascend Coach authorization matrix", () => {
     });
   });
 
-  it("does not grant admin or Platform Owner content access by role or owner identity alone", () => {
+  it("does not grant an ordinary admin content access", () => {
     const admin = { ...context().actor, primaryRole: "admin" as const, roles: ["admin" as const], trainerId: undefined };
     expect(evaluateAscendCoachPolicy(context({ actor: admin, trainerProfile: null, relationship: null }), "view_body").allowed).toBe(false);
-
-    const owner = { ...admin, primaryRole: "owner" as const, roles: ["owner" as const, "admin" as const], isPlatformOwner: true };
-    expect(evaluateAscendCoachPolicy(context({ actor: owner, trainerProfile: null, relationship: null }), "view_body").allowed).toBe(false);
   });
 
-  it("allows a Platform Owner only through a live break-glass grant and only for reads", () => {
+  it("gives the true Platform Owner audited read-only access without a trainer relationship", () => {
     const owner = {
       ...context().actor,
       primaryRole: "owner" as const,
@@ -122,10 +119,15 @@ describe("Ascend Coach authorization matrix", () => {
       trainerId: undefined,
       isPlatformOwner: true
     };
-    const withGrant = context({ actor: owner, trainerProfile: null, relationship: null, breakGlassGrant: { id: "grant-1" } });
-    expect(evaluateAscendCoachPolicy(withGrant, "view_nutrition")).toEqual({ allowed: true, breakGlassGrantId: "grant-1" });
-    expect(evaluateAscendCoachPolicy(withGrant, "manage_notes").allowed).toBe(false);
-    expect(evaluateAscendCoachPolicy(withGrant, "assign_program").allowed).toBe(false);
+    const ownerContext = context({ actor: owner, trainerProfile: null, relationship: null, breakGlassGrant: null });
+    expect(evaluateAscendCoachPolicy(ownerContext, "view_nutrition")).toMatchObject({
+      allowed: true,
+      platformOwnerAccess: true,
+      dataScopes: [...ASCEND_COACH_DATA_SCOPES]
+    });
+    expect(evaluateAscendCoachPolicy(ownerContext, "view_ai_insight").allowed).toBe(false);
+    expect(evaluateAscendCoachPolicy(ownerContext, "manage_notes").allowed).toBe(false);
+    expect(evaluateAscendCoachPolicy(ownerContext, "assign_program").allowed).toBe(false);
   });
 
   it("blocks inactive clients and accounts without client capability", () => {

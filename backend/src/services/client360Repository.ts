@@ -190,6 +190,47 @@ export async function loadActiveClient360Relationships(trainerId: string) {
   return result.rows;
 }
 
+export async function loadAllPlatformOwnerClients() {
+  const result = await query<{
+    id: string;
+    full_name: string;
+    goal_type: Client360ProfileRow["goal_type"];
+    last_workout_at: string | null;
+  }>(`
+    select client.id, client.full_name, client.goal_type,
+      latest_workout.last_workout_at
+    from users client
+    left join lateral (
+      select max(event.created_at) as last_workout_at
+      from analytics_events event
+      where event.user_id = client.id and event.event_name = 'burn_log'
+    ) latest_workout on true
+    where client.status = 'active'
+      and (
+        client.primary_role = 'client'
+        or exists (
+          select 1 from user_roles role
+          where role.user_id = client.id and role.role = 'client'
+        )
+      )
+    order by client.updated_at desc, client.id
+  `);
+  return result.rows;
+}
+
+export async function auditPlatformOwnerClientList(actorUserId: string, clientCount: number) {
+  await query(
+    `
+    insert into ascend_coach_access_audit_events
+      (actor_user_id, event_type, metadata)
+    values ($1, 'platform_owner_client_list_viewed', jsonb_build_object(
+      'clientCount', $2::integer
+    ))
+    `,
+    [actorUserId, clientCount]
+  );
+}
+
 export async function loadClient360ListProfiles(clientIds: string[]) {
   if (!clientIds.length) return [];
   const result = await query<{ id: string; full_name: string; goal_type: Client360ProfileRow["goal_type"] }>(

@@ -82,6 +82,16 @@ describe("Ascend Coach Insight cache and authorization", () => {
     expect(deps.generate).not.toHaveBeenCalled();
   });
 
+  it("does not read or create persistent insight during Platform Owner access", async () => {
+    const snapshot = coachSnapshot({ access: { ...coachSnapshot().access, mode: "platform_owner", relationshipId: null, authorizationVersion: null, relationshipStatus: null } });
+    const deps = dependencies(snapshot);
+    const view = await createAscendCoachInsightService(deps as never).getClient360View({ ...actor, isPlatformOwner: true }, snapshot.clientId);
+    expect(view.coachInsight).toEqual({ status: "not_available", reason: "elevated_access" });
+    expect(deps.authorizeInsight).not.toHaveBeenCalled();
+    expect(deps.repo.findCoachInsight).not.toHaveBeenCalled();
+    expect(deps.generate).not.toHaveBeenCalled();
+  });
+
   it("denies ended/revoked/unrelated access before any cache operation", async () => {
     const deps = dependencies();
     deps.getSnapshot.mockRejectedValue(new Client360AccessError());

@@ -4,7 +4,9 @@
 
 Ascend Coach is available only when both production flags are enabled and the authenticated backend identity is either a trainer or the configured Platform Owner. A normal member, ordinary admin, or non-platform `owner` role receives no Coach navigation and is denied by the Coach API middleware. Trainer data access still requires the active trainer profile, entitlement, active relationship, consented scopes, and Phase 0 policy decision.
 
-Platform Owner shell visibility is not client-directory access. An owner without a trainer workspace receives an empty authorized-client list. Direct Client 360 reads still require a live, scoped break-glass grant. Break-glass reads remain audited, expire normally, and cannot read or generate persistent Zoe Coach Insight.
+The true configured Platform Owner has audited read-only access to every active Ascend account with client capability. This is represented explicitly as `platform_owner` access rather than a trainer relationship or break-glass grant. Ordinary owners and administrators do not receive this access. Trainer access still requires an active relationship, entitlement, and consented scopes.
+
+Platform Owner access includes the deterministic Client 360 profile, training, nutrition, body-progress, and activity sections. It does not grant trainer mutations, notes, program actions, or persistent Zoe Coach Insight generation/cache access. Client-list opens and individual Client 360 reads are recorded in the Ascend Coach audit trail.
 
 ## Operational configuration
 

@@ -163,7 +163,7 @@ function ZoeInsightCard({ clientId, value, onChange }: { clientId: string; value
         </div>
       ) : (
         <p className="mt-4 text-sm leading-6 text-zinc-400">
-          {elevated ? "Zoe insight is not generated during temporary elevated access." : accessRequired ? "Profile and training access are required for Zoe insight." : failed || value.reason === "generation_failed" ? "Zoe insight isn't available right now. Client 360 data is unaffected." : value.reason === "quota_reached" ? "The configured Coach Insight limit has been reached." : "No Zoe insight has been generated for this evidence yet."}
+          {elevated ? "Zoe insight is not generated during elevated read access." : accessRequired ? "Profile and training access are required for Zoe insight." : failed || value.reason === "generation_failed" ? "Zoe insight isn't available right now. Client 360 data is unaffected." : value.reason === "quota_reached" ? "The configured Coach Insight limit has been reached." : "No Zoe insight has been generated for this evidence yet."}
         </p>
       )}
       {failed && value.status === "available" ? <p className="mt-3 text-sm text-amber" role="status">Zoe insight isn't available right now. The cached insight and Client 360 data are unaffected.</p> : null}
@@ -195,12 +195,15 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
       <AscendHeroPanel
         eyebrow="Client 360"
         title={snapshot.profile?.displayName ?? "Authorized client"}
-        body={`${snapshot.profile?.goal ? `${label(snapshot.profile.goal)} goal · ` : ""}${snapshot.access.mode === "break_glass" ? "Temporary elevated access" : "Active coaching relationship"}`}
+        body={`${snapshot.profile?.goal ? `${label(snapshot.profile.goal)} goal · ` : ""}${snapshot.access.mode === "platform_owner" ? "Platform Owner read access" : snapshot.access.mode === "break_glass" ? "Temporary elevated access" : "Active coaching relationship"}`}
         tone="trainer"
         visual={<PrioritySigil count={topSignals.filter((signal) => signal.severity === "attention").length} />}
       >
         {snapshot.access.mode === "break_glass" ? (
           <div className="flex items-center gap-2 rounded-xl border border-amber/35 bg-amber/10 p-3 text-sm text-amber"><ShieldAlert size={18} /> Elevated access is active and audited.</div>
+        ) : null}
+        {snapshot.access.mode === "platform_owner" ? (
+          <div className="flex items-center gap-2 rounded-xl border border-calm/35 bg-calm/10 p-3 text-sm text-calm"><ShieldAlert size={18} /> Platform Owner read access is active and audited.</div>
         ) : null}
       </AscendHeroPanel>
 

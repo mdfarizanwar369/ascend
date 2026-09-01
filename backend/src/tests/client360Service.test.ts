@@ -18,6 +18,7 @@ function authorization(scopes: string[], overrides: Record<string, unknown> = {}
     relationshipStatus: "active",
     authorizationVersion: 3,
     breakGlassGrantId: null,
+    platformOwnerAccess: false,
     ...overrides
   };
 }
@@ -32,6 +33,8 @@ function dependencies(auth = authorization(["profile", "training", "nutrition", 
     loadClient360BodyScans: vi.fn().mockResolvedValue([]),
     loadClient360Activity: vi.fn().mockResolvedValue({ connected: true, last_synced_at: "2026-08-31T10:00:00.000Z", today_steps: 5000, steps_days_7d: 7, average_steps_7d: 7000, exercise_sessions_7d: 2, last_exercise_session_at: "2026-08-30T10:00:00.000Z" }),
     loadActiveClient360Relationships: vi.fn().mockResolvedValue([]),
+    loadAllPlatformOwnerClients: vi.fn().mockResolvedValue([]),
+    auditPlatformOwnerClientList: vi.fn().mockResolvedValue(undefined),
     loadClient360ListProfiles: vi.fn().mockResolvedValue([]),
     loadClient360ListWorkoutDates: vi.fn().mockResolvedValue([])
   };
@@ -131,6 +134,27 @@ describe("Client 360 service authorization fixtures", () => {
     expect(deps.authorize).toHaveBeenCalledTimes(1);
   });
 
+  it("gives the Platform Owner all deterministic sections without a relationship", async () => {
+    const decisions = Object.fromEntries(actions.map((action) => [action, { allowed: true, platformOwnerAccess: true }]));
+    const deps = dependencies(authorization([], {
+      decisions,
+      relationshipId: null,
+      relationshipStatus: null,
+      authorizationVersion: null,
+      platformOwnerAccess: true,
+      breakGlassGrantId: "older-grant"
+    }));
+    const owner = { ...actor, primaryRole: "owner" as const, roles: ["owner" as const], trainerId: undefined, isPlatformOwner: true };
+    const snapshot = await createAscendCoachClient360Service(deps as never).getSnapshot(owner, CLIENT_ID, NOW);
+    expect(snapshot.access).toMatchObject({ mode: "platform_owner", relationshipId: null, authorizationVersion: null });
+    expect(Object.values(snapshot.access.sections).every((section) => section.state === "granted")).toBe(true);
+    expect(snapshot.profile).toBeDefined();
+    expect(snapshot.training).toBeDefined();
+    expect(snapshot.nutrition).toBeDefined();
+    expect(snapshot.bodyProgress).toBeDefined();
+    expect(snapshot.activity).toBeDefined();
+  });
+
   it("Client G and unrelated/normal users without a relationship or live break-glass grant are denied", async () => {
     const denied = authorization([], { relationshipId: null, relationshipStatus: null, authorizationVersion: null });
     for (const requestActor of [actor, { ...actor, primaryRole: "client" as const, roles: ["client" as const], trainerId: undefined }]) {
@@ -159,11 +183,24 @@ describe("Client 360 architecture boundaries", () => {
     expect(clients[1]).not.toHaveProperty("displayName");
   });
 
-  it("gives a Platform Owner shell-safe empty list without a list-all-clients capability", async () => {
+  it("gives the Platform Owner the audited active-client directory", async () => {
     const deps = dependencies();
-    deps.canUseWorkspace.mockResolvedValue(false);
+    deps.repo.loadAllPlatformOwnerClients.mockResolvedValue([
+      { id: CLIENT_ID, full_name: "Client A", goal_type: "fat_loss", last_workout_at: "2026-08-30T00:00:00.000Z" }
+    ]);
     const owner = { ...actor, primaryRole: "owner" as const, roles: ["owner" as const, "admin" as const], trainerId: undefined, isPlatformOwner: true };
-    await expect(createAscendCoachClient360Service(deps as never).listClients(owner)).resolves.toEqual([]);
+    await expect(createAscendCoachClient360Service(deps as never).listClients(owner)).resolves.toEqual([
+      expect.objectContaining({
+        clientId: CLIENT_ID,
+        accessMode: "platform_owner",
+        relationshipId: null,
+        authorizationVersion: null,
+        displayName: "Client A",
+        lastWorkoutAt: "2026-08-30T00:00:00.000Z"
+      })
+    ]);
+    expect(deps.repo.auditPlatformOwnerClientList).toHaveBeenCalledWith(owner.id, 1);
+    expect(deps.canUseWorkspace).not.toHaveBeenCalled();
     expect(deps.repo.loadActiveClient360Relationships).not.toHaveBeenCalled();
   });
 

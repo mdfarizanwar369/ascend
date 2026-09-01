@@ -27,6 +27,7 @@ import { buildBodyCompositionComparison } from "./bodyCompositionComparisonServi
 import { resolveNutritionTargets } from "./nutritionTargetService";
 import { getWorkoutProgressionHistory } from "./workoutProgressionV3Service";
 import {
+  ASCEND_COACH_DATA_SCOPES,
   AscendCoachAction,
   ascendCoachV1Enabled,
   authorizeAscendCoachActions,
@@ -104,16 +105,17 @@ function compactExerciseProgression(history: WorkoutProgressionHistoryItem[]): C
 }
 
 function accessFromBatch(batch: Awaited<ReturnType<typeof authorizeAscendCoachActions>>): Client360Access {
-  const breakGlass = Boolean(batch.breakGlassGrantId && ALL_ACTIONS.some((action) => batch.decisions[action]?.allowed));
+  const breakGlass = ALL_ACTIONS.some((action) => Boolean(batch.decisions[action]?.allowed && batch.decisions[action]?.breakGlassGrantId));
+  const platformOwner = batch.platformOwnerAccess === true;
   const entries = Object.entries(SECTION_ACTIONS).map(([section, action]) => [section, {
     state: batch.decisions[action]?.allowed ? (breakGlass ? "break_glass" : "granted") : "not_granted",
     requiredScope: SECTION_SCOPES[section as Client360Section]
   }]);
   return {
-    mode: breakGlass ? "break_glass" : "relationship",
-    relationshipId: breakGlass ? null : batch.relationshipId,
-    relationshipStatus: breakGlass ? null : "active",
-    authorizationVersion: breakGlass ? null : batch.authorizationVersion,
+    mode: platformOwner ? "platform_owner" : breakGlass ? "break_glass" : "relationship",
+    relationshipId: breakGlass || platformOwner ? null : batch.relationshipId,
+    relationshipStatus: breakGlass || platformOwner ? null : "active",
+    authorizationVersion: breakGlass || platformOwner ? null : batch.authorizationVersion,
     sections: Object.fromEntries(entries) as Client360Access["sections"]
   };
 }
@@ -202,8 +204,9 @@ export function createAscendCoachClient360Service(dependencies: Dependencies = d
   return {
     async getSnapshot(actor: AuthUser, clientId: string, now = new Date()): Promise<Client360Snapshot> {
       const batch = await dependencies.authorize(actor, clientId, ALL_ACTIONS);
-      const isBreakGlass = Boolean(batch.breakGlassGrantId && ALL_ACTIONS.some((action) => batch.decisions[action]?.allowed));
-      if (!isBreakGlass && batch.relationshipStatus !== "active") throw new Client360AccessError();
+      const isBreakGlass = ALL_ACTIONS.some((action) => Boolean(batch.decisions[action]?.allowed && batch.decisions[action]?.breakGlassGrantId));
+      const isPlatformOwnerAccess = batch.platformOwnerAccess === true;
+      if (!isBreakGlass && !isPlatformOwnerAccess && batch.relationshipStatus !== "active") throw new Client360AccessError();
       if (!ALL_ACTIONS.some((action) => batch.decisions[action]?.allowed)) throw new Client360AccessError();
 
       const allowed = (section: Client360Section) => batch.decisions[SECTION_ACTIONS[section]]?.allowed === true;
@@ -300,8 +303,22 @@ export function createAscendCoachClient360Service(dependencies: Dependencies = d
 
     async listClients(actor: AuthUser): Promise<AscendCoachClientListItem[]> {
       if (!dependencies.featureEnabled()) throw new Client360AccessError();
+      if (actor.isPlatformOwner) {
+        const clients = await dependencies.repo.loadAllPlatformOwnerClients();
+        await dependencies.repo.auditPlatformOwnerClientList(actor.id, clients.length);
+        return clients.map((client) => ({
+          clientId: client.id,
+          accessMode: "platform_owner",
+          relationshipId: null,
+          relationshipStatus: null,
+          authorizationVersion: null,
+          grantedScopes: [...ASCEND_COACH_DATA_SCOPES],
+          displayName: client.full_name,
+          goal: client.goal_type,
+          lastWorkoutAt: client.last_workout_at
+        }));
+      }
       const canUseTrainerWorkspace = await dependencies.canUseWorkspace(actor);
-      if (actor.isPlatformOwner && !canUseTrainerWorkspace) return [];
       if (!actor.trainerId || !canUseTrainerWorkspace) throw new Client360AccessError();
       const relationships = await dependencies.repo.loadActiveClient360Relationships(actor.trainerId);
       const profileIds = relationships.filter((row) => row.data_scopes.includes("profile")).map((row) => row.client_id);
@@ -316,6 +333,7 @@ export function createAscendCoachClient360Service(dependencies: Dependencies = d
         const profile = profileMap.get(relationship.client_id);
         return {
           clientId: relationship.client_id,
+          accessMode: "relationship",
           relationshipId: relationship.relationship_id,
           relationshipStatus: "active",
           authorizationVersion: number(relationship.authorization_version),
