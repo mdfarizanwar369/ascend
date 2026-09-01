@@ -4,6 +4,7 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { requireFirebaseToken } from "../middleware/auth";
 import { authRateLimit } from "../middleware/rateLimits";
+import { ensurePlatformOwnerCoachAccess } from "../services/platformOwnerService";
 
 export const authRouter = Router();
 
@@ -157,8 +158,7 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
     });
 
     if (isBootstrapOwner) {
-      await query("delete from user_roles where user_id = $1", [user.id]);
-      await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [user.id]);
+      await ensurePlatformOwnerCoachAccess(user.id, user.gym_id);
     } else if (!isExistingUser) {
       await query("insert into user_roles (user_id, role) values ($1, $2) on conflict do nothing", [user.id, input.primaryRole]);
     }
@@ -216,14 +216,13 @@ authRouter.post("/auth/bootstrap-owner", authRateLimit, requireFirebaseToken, as
       [firebaseUser.firebaseUid, firebaseUser.email ?? "", firebaseUser.name ?? firebaseUser.email ?? "Ascend Owner", gymId]
     );
 
-    await query("delete from user_roles where user_id = $1", [result.rows[0].id]);
-    await query("insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin')", [result.rows[0].id]);
+    const trainerId = await ensurePlatformOwnerCoachAccess(result.rows[0].id, result.rows[0].gym_id);
 
     if (gymId) {
       await query("update gyms set owner_user_id = $1 where id = $2 and owner_user_id is null", [result.rows[0].id, gymId]);
     }
 
-    res.json({ user: result.rows[0], roles: ["owner", "admin"] });
+    res.json({ user: result.rows[0], roles: ["owner", "admin", ...(trainerId ? ["trainer"] : [])] });
   } catch (error) {
     next(error);
   }

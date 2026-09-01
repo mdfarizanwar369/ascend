@@ -115,6 +115,28 @@ export function evaluateAscendCoachPolicy(
   if (context.client.status !== "active") return { allowed: false, reason: "client_inactive" };
   if (!context.client.hasClientCapability) return { allowed: false, reason: "client_capability_missing" };
 
+  const hasTrainerRole = context.actor.primaryRole === "trainer" || context.actor.roles.includes("trainer");
+  const hasActiveCoachRelationship = Boolean(
+    hasTrainerRole
+    && context.actor.trainerId
+    && context.trainerProfile?.status === "active"
+    && context.entitled
+    && context.relationship?.status === "active"
+  );
+  if (hasActiveCoachRelationship && context.relationship) {
+    const scopes = new Set(context.relationship.dataScopes);
+    const hasRequiredScopes = requiredScopes[action].every((scope) => scopes.has(scope));
+    const hasProgrammingAuthority = !programmingActions.has(action) || context.relationship.isPrimaryProgrammingAuthority;
+    if (hasRequiredScopes && hasProgrammingAuthority) {
+      return {
+        allowed: true,
+        relationshipId: context.relationship.id,
+        authorizationVersion: context.relationship.authorizationVersion,
+        dataScopes: context.relationship.dataScopes
+      };
+    }
+  }
+
   if (context.actor.isPlatformOwner && platformOwnerReadActions.has(action)) {
     return {
       allowed: true,
@@ -127,7 +149,6 @@ export function evaluateAscendCoachPolicy(
     return { allowed: true, breakGlassGrantId: context.breakGlassGrant.id };
   }
 
-  const hasTrainerRole = context.actor.primaryRole === "trainer" || context.actor.roles.includes("trainer");
   if (!hasTrainerRole) return { allowed: false, reason: "trainer_role_required" };
   if (!context.trainerProfile || !context.actor.trainerId) return { allowed: false, reason: "trainer_profile_required" };
   if (context.trainerProfile.status !== "active") return { allowed: false, reason: "trainer_inactive" };
@@ -202,7 +223,7 @@ export async function canUseAscendCoachWorkspace(actor: AuthUser) {
       "select exists (select 1 from trainers where id = $1 and user_id = $2 and status = 'active') as active",
       [actor.trainerId, actor.id]
     ),
-    hasAscendCoachEntitlement(actor.id)
+    actor.isPlatformOwner ? Promise.resolve(true) : hasAscendCoachEntitlement(actor.id)
   ]);
   return trainer.rows[0]?.active === true && entitled;
 }
@@ -275,7 +296,7 @@ async function loadAscendCoachPolicyContext(actor: AuthUser, clientUserId: strin
       `,
       [clientUserId, actor.trainerId ?? null, actor.id, actor.isPlatformOwner]
     ),
-    hasAscendCoachEntitlement(actor.id)
+    actor.isPlatformOwner ? Promise.resolve(true) : hasAscendCoachEntitlement(actor.id)
   ]);
 
   const row = result.rows[0];

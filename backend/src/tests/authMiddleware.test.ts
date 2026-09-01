@@ -71,7 +71,11 @@ describe("authentication error boundaries", () => {
         email: "owner@example.com",
         primary_role: "owner",
         status: "active",
-        roles: ["owner", "admin"]
+        gym_id: "gym-central",
+        trainer_id: "trainer-profile",
+        trainer_status: "active",
+        trainer_gym_id: "gym-central",
+        roles: ["owner", "admin", "trainer"]
       }]
     });
     const req = request() as { user?: { roles: string[] } };
@@ -81,7 +85,40 @@ describe("authentication error boundaries", () => {
     await requireAuth(req as never, res.value, next);
 
     expect(dbQuery).toHaveBeenCalledTimes(1);
-    expect(req.user?.roles).toEqual(expect.arrayContaining(["owner", "admin"]));
+    expect(req.user?.roles).toEqual(expect.arrayContaining(["owner", "admin", "trainer"]));
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("repairs the verified Platform Owner into an active trainer without replacing Owner", async () => {
+    verifyIdToken.mockResolvedValue({ uid: "owner-firebase-user", email: "owner@example.com", email_verified: true });
+    dbQuery
+      .mockResolvedValueOnce({
+        rows: [{
+          id: "owner-user",
+          firebase_uid: "owner-firebase-user",
+          email: "owner@example.com",
+          primary_role: "owner",
+          status: "active",
+          gym_id: "gym-central",
+          roles: ["owner", "admin"]
+        }]
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ id: "trainer-profile" }] });
+    const req = request() as { user?: { primaryRole: string; roles: string[]; trainerId?: string } };
+    const res = response();
+    const next = vi.fn();
+
+    await requireAuth(req as never, res.value, next);
+
+    expect(req.user).toMatchObject({
+      primaryRole: "owner",
+      trainerId: "trainer-profile",
+      roles: expect.arrayContaining(["owner", "admin", "trainer"])
+    });
+    expect(String(dbQuery.mock.calls[4]?.[0])).toContain("insert into trainers");
     expect(next).toHaveBeenCalledWith();
   });
 

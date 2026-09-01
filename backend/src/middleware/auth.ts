@@ -4,7 +4,7 @@ import { query } from "../db/pool";
 import { getFirebaseAuth } from "../integrations/firebase";
 import { env } from "../config/env";
 import { createFoodAiTrace, timeFoodAiStage } from "../services/foodAiPerformance";
-import { isPlatformOwnerEmail } from "../services/platformOwnerService";
+import { ensurePlatformOwnerCoachAccess, isPlatformOwnerEmail } from "../services/platformOwnerService";
 
 export interface AuthUser {
   id: string;
@@ -33,6 +33,8 @@ type AuthUserRow = {
   status: string;
   gym_id?: string;
   trainer_id?: string;
+  trainer_status?: string;
+  trainer_gym_id?: string;
   roles: Role[];
 };
 
@@ -57,7 +59,8 @@ function loadAuthUserOnce(firebaseUid: string) {
   if (existing) return existing;
   const request = query<AuthUserRow>(
     `
-    select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id, t.id as trainer_id,
+    select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id,
+      t.id as trainer_id, t.status as trainer_status, t.gym_id as trainer_gym_id,
       coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles
     from users u
     left join user_roles ur on ur.user_id = u.id
@@ -166,18 +169,28 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     let roles = normalizeRoles(dbUser.primary_role, dbUser.roles);
 
     if (isPlatformOwner) {
-      const needsRoleRepair = dbUser.primary_role !== "owner" || !roles.includes("owner") || !roles.includes("admin");
-      if (needsRoleRepair) {
-        await timeFoodAiStage(req.foodAiPerf, "Authentication: owner role repair", async () => {
+      const needsOwnerRoleRepair = dbUser.primary_role !== "owner" || !roles.includes("owner") || !roles.includes("admin");
+      const needsCoachRepair = Boolean(dbUser.gym_id) && (
+        !roles.includes("trainer")
+        || !dbUser.trainer_id
+        || dbUser.trainer_status !== "active"
+        || dbUser.trainer_gym_id !== dbUser.gym_id
+      );
+      if (needsOwnerRoleRepair || needsCoachRepair) {
+        await timeFoodAiStage(req.foodAiPerf, "Authentication: owner capability repair", async () => {
           await query("update users set primary_role = 'owner', updated_at = now() where id = $1 and primary_role <> 'owner'", [dbUser.id]);
-          await query(
-            "insert into user_roles (user_id, role) values ($1, 'owner'), ($1, 'admin') on conflict (user_id, role) do nothing",
-            [dbUser.id]
-          );
+          dbUser.trainer_id = await ensurePlatformOwnerCoachAccess(dbUser.id, dbUser.gym_id) ?? undefined;
+          dbUser.trainer_status = dbUser.trainer_id ? "active" : undefined;
+          dbUser.trainer_gym_id = dbUser.trainer_id ? dbUser.gym_id : undefined;
         });
       }
       dbUser.primary_role = "owner";
-      roles = normalizeRoles("owner", [...roles, "owner", "admin"]);
+      roles = normalizeRoles("owner", [
+        ...roles,
+        "owner",
+        "admin",
+        ...(dbUser.trainer_id ? ["trainer" as const] : [])
+      ]);
     }
 
     req.user = {

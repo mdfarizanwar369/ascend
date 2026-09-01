@@ -130,6 +130,26 @@ describe("Ascend Coach authorization matrix", () => {
     expect(evaluateAscendCoachPolicy(ownerContext, "assign_program").allowed).toBe(false);
   });
 
+  it("uses normal scoped coach authority when the Platform Owner is the assigned trainer", () => {
+    const ownerCoachContext = context({
+      actor: {
+        ...context().actor,
+        primaryRole: "owner",
+        roles: ["owner", "admin", "trainer"],
+        isPlatformOwner: true
+      }
+    });
+
+    expect(evaluateAscendCoachPolicy(ownerCoachContext, "view_training")).toMatchObject({
+      allowed: true,
+      relationshipId: "relationship-1",
+      authorizationVersion: 4
+    });
+    expect(evaluateAscendCoachPolicy(ownerCoachContext, "view_ai_insight").allowed).toBe(true);
+    expect(evaluateAscendCoachPolicy(ownerCoachContext, "manage_notes").allowed).toBe(true);
+    expect(evaluateAscendCoachPolicy(ownerCoachContext, "assign_program").allowed).toBe(true);
+  });
+
   it("blocks inactive clients and accounts without client capability", () => {
     expect(evaluateAscendCoachPolicy(context({ client: { id: "client-user", status: "inactive", hasClientCapability: true } }), "view_profile").reason).toBe("client_inactive");
     expect(evaluateAscendCoachPolicy(context({ client: { id: "client-user", status: "active", hasClientCapability: false } }), "view_profile").reason).toBe("client_capability_missing");

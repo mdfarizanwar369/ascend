@@ -9,7 +9,6 @@ import { deleteStoredObjects } from "../integrations/s3";
 import { permanentDeletionBlock } from "../services/userDeletionService";
 import { getAdminGymScope, getTrainerGymId, getUserGymId, scopeAllowsGym } from "../services/adminScopeService";
 import { getDailyCoachingRolloutMetrics } from "../services/dailyCoachingDecisionService";
-import { ascendCoachV1Enabled } from "../services/ascendCoachPolicyService";
 import { setLegacyAdminCoachAssignment } from "../services/ascendCoachRelationshipService";
 
 export const adminRouter = Router();
@@ -37,6 +36,11 @@ const grantSubscriptionSchema = z.object({
 
 const userStatusSchema = z.object({
   status: z.enum(["active", "inactive"])
+});
+
+const userDetailsSchema = z.object({
+  fullName: z.string().trim().min(2).max(120),
+  gymId: z.string().uuid().nullable()
 });
 
 const ownerGymSchema = z.object({ gymId: z.string().uuid() });
@@ -630,12 +634,6 @@ adminRouter.get("/admin/notifications", requireAuth, requireRole(["admin", "owne
 
 adminRouter.post("/admin/assign-client", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
   try {
-    if (ascendCoachV1Enabled()) {
-      return res.status(409).json({
-        error: "Use the consent-based Ascend Coach invitation flow while Ascend Coach V1 is enabled.",
-        code: "coach_relationship_required"
-      });
-    }
     const input = assignClientSchema.parse(req.body);
     const scope = await getAdminGymScope(req.user!);
     const clientGymId = await getUserGymId(input.clientId);
@@ -667,6 +665,8 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
   const scope = await getAdminGymScope(req.user!);
   const result = await query(`
     select u.id, u.full_name, u.email, u.primary_role::text as primary_role, u.gym_id, g.name as gym_name,
+      own_trainer.id as trainer_profile_id, own_trainer.status as trainer_profile_status,
+      (u.id = $2::uuid and $3::boolean) as is_platform_owner_account,
       u.assigned_trainer_id, trainer_user.full_name as assigned_trainer_name,
       u.referred_by_gym_id, referred_gym.name as referred_gym_name,
       u.referred_by_trainer_id, referred_trainer_user.full_name as referred_trainer_name,
@@ -695,6 +695,7 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
       u.created_at
     from users u
     left join gyms g on g.id = u.gym_id
+    left join trainers own_trainer on own_trainer.user_id = u.id
     left join trainers assigned_trainer on assigned_trainer.id = u.assigned_trainer_id
     left join users trainer_user on trainer_user.id = assigned_trainer.user_id
     left join gyms referred_gym on referred_gym.id = u.referred_by_gym_id
@@ -711,8 +712,109 @@ adminRouter.get("/admin/users", requireAuth, requireRole(["admin", "owner"]), as
     ) active_subscription on true
     where ($1::uuid[] is null or u.gym_id = any($1))
     order by u.created_at desc
-  `, [scope.gymIds]);
+  `, [scope.gymIds, req.user!.id, req.user!.isPlatformOwner]);
   res.json({ users: result.rows, canManageOwnerGyms: req.user!.isPlatformOwner });
+});
+
+adminRouter.patch("/admin/users/:userId", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
+  const db = await pool.connect();
+  try {
+    const input = userDetailsSchema.parse(req.body);
+    const scope = await getAdminGymScope(req.user!);
+    await db.query("begin");
+
+    const currentResult = await db.query<{
+      id: string;
+      gym_id: string | null;
+      trainer_id: string | null;
+      primary_role: string;
+    }>(
+      `
+      select user_row.id, user_row.gym_id, user_row.primary_role::text as primary_role, trainer.id as trainer_id
+      from users user_row
+      left join trainers trainer on trainer.user_id = user_row.id
+      where user_row.id = $1
+      for update of user_row
+      `,
+      [req.params.userId]
+    );
+    const current = currentResult.rows[0];
+    if (!current) {
+      await db.query("rollback");
+      return res.status(404).json({ error: "User not found" });
+    }
+    if (current.primary_role === "owner" && !scope.isPlatformOwner) {
+      await db.query("rollback");
+      return res.status(403).json({ error: "Only the Ascend platform owner can edit owner accounts" });
+    }
+    if (!scopeAllowsGym(scope, current.gym_id) || !scopeAllowsGym(scope, input.gymId)) {
+      await db.query("rollback");
+      return res.status(403).json({ error: "This account cannot manage that gym" });
+    }
+
+    const gymChanged = current.gym_id !== input.gymId;
+    if (gymChanged) {
+      const clientConflict = await db.query<{ conflicting: boolean }>(
+        `
+        select exists (
+          select 1
+          from trainer_client_relationships relationship
+          join trainers trainer on trainer.id = relationship.trainer_id
+          where relationship.client_user_id = $1
+            and relationship.status in ('invited', 'active', 'suspended')
+            and trainer.gym_id is distinct from $2::uuid
+        ) as conflicting
+        `,
+        [req.params.userId, input.gymId]
+      );
+      if (clientConflict.rows[0]?.conflicting) {
+        await db.query("rollback");
+        return res.status(409).json({ error: "End or remove this client's current coach relationship before changing gyms." });
+      }
+
+      if (current.trainer_id) {
+        if (!input.gymId) {
+          await db.query("rollback");
+          return res.status(409).json({ error: "Coach accounts must belong to a gym." });
+        }
+        const trainerConflict = await db.query<{ conflicting: boolean }>(
+          `
+          select exists (
+            select 1
+            from trainer_client_relationships relationship
+            join users client on client.id = relationship.client_user_id
+            where relationship.trainer_id = $1
+              and relationship.status in ('invited', 'active', 'suspended')
+              and client.gym_id is distinct from $2::uuid
+          ) as conflicting
+          `,
+          [current.trainer_id, input.gymId]
+        );
+        if (trainerConflict.rows[0]?.conflicting) {
+          await db.query("rollback");
+          return res.status(409).json({ error: "Reassign this coach's clients before changing gyms." });
+        }
+        await db.query("update trainers set gym_id = $2 where id = $1", [current.trainer_id, input.gymId]);
+      }
+    }
+
+    const updated = await db.query(
+      `
+      update users
+      set full_name = $2, gym_id = $3, updated_at = now()
+      where id = $1
+      returning id, full_name, email, primary_role, gym_id, status
+      `,
+      [req.params.userId, input.fullName, input.gymId]
+    );
+    await db.query("commit");
+    res.json({ user: updated.rows[0] });
+  } catch (error) {
+    await db.query("rollback").catch(() => undefined);
+    next(error);
+  } finally {
+    db.release();
+  }
 });
 
 adminRouter.patch("/admin/users/:userId/status", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
@@ -754,8 +856,16 @@ adminRouter.patch("/admin/users/:userId/status", requireAuth, requireRole(["admi
         `,
         [req.params.userId]
       );
-    } else if (user.primary_role === "trainer") {
-      await db.query("update trainers set status = 'active' where user_id = $1", [req.params.userId]);
+    } else {
+      await db.query(
+        `
+        update trainers
+        set status = 'active'
+        where user_id = $1
+          and exists (select 1 from user_roles role where role.user_id = $1 and role.role = 'trainer')
+        `,
+        [req.params.userId]
+      );
     }
 
     await db.query("commit");
@@ -980,6 +1090,9 @@ adminRouter.patch("/admin/users/:userId/role", requireAuth, requireRole(["admin"
   const db = await pool.connect();
   try {
     const input = roleSchema.parse(req.body);
+    if (req.user!.isPlatformOwner && req.params.userId === req.user!.id && input.role !== "owner") {
+      return res.status(400).json({ error: "Platform Owner is a protected primary role. Coach access is additive." });
+    }
     const scope = await getAdminGymScope(req.user!);
     const currentTarget = await query<{ gym_id: string | null; primary_role: string }>(
       "select gym_id, primary_role::text from users where id = $1",

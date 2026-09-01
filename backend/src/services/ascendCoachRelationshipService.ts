@@ -68,7 +68,7 @@ async function requireTrainerCapability(actor: AuthUser) {
   if (!result.rows[0] || result.rows[0].status !== "active") {
     throw new CoachFoundationError(403, "trainer_inactive", "Active trainer access is required");
   }
-  if (!await hasAscendCoachEntitlement(actor.id)) {
+  if (!actor.isPlatformOwner && !await hasAscendCoachEntitlement(actor.id)) {
     throw new CoachFoundationError(402, "coach_entitlement_required", "Trainer Pro or pilot access is required");
   }
   return { trainerId: actor.trainerId, gymId: result.rows[0].gym_id };

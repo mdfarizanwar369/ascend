@@ -2318,6 +2318,9 @@ export function getAdminUsers() {
       email: string;
       primary_role: "client" | "trainer" | "admin" | "owner";
       roles: string[];
+      trainer_profile_id: string | null;
+      trainer_profile_status: string | null;
+      is_platform_owner_account: boolean;
       gym_id: string | null;
       gym_name: string | null;
       assigned_trainer_id: string | null;
@@ -2362,6 +2365,24 @@ export function updateAdminUserRole(input: { userId: string; role: "client" | "t
   return authed<{ user: unknown }>(`/admin/users/${input.userId}/role`, {
     method: "PATCH",
     body: JSON.stringify({ role: input.role, gymId: input.gymId })
+  });
+}
+
+export function updateAdminUserDetails(input: { userId: string; fullName: string; gymId: string | null }) {
+  invalidateCached("admin:");
+  invalidateCached("trainer:");
+  return authed<{
+    user: {
+      id: string;
+      full_name: string;
+      email: string;
+      primary_role: "client" | "trainer" | "admin" | "owner";
+      gym_id: string | null;
+      status: "active" | "inactive";
+    };
+  }>(`/admin/users/${input.userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ fullName: input.fullName, gymId: input.gymId })
   });
 }
 

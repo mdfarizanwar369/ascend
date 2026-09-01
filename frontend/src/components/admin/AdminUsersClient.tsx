@@ -12,6 +12,7 @@ import {
   grantAdminSubscription,
   removeOwnerGym,
   setAdminAthleteMode,
+  updateAdminUserDetails,
   updateAdminUserStatus,
   updateAdminUserRole
 } from "@/lib/ascendApi";
@@ -24,6 +25,15 @@ type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
 type Gym = Awaited<ReturnType<typeof getGyms>>["gyms"][number];
 type Role = AdminUser["primary_role"];
+type AccountDetailsDraft = { fullName: string; gymId: string };
+
+export function adminUserDetailsDraft(user: Pick<AdminUser, "full_name" | "gym_id">): AccountDetailsDraft {
+  return { fullName: user.full_name, gymId: user.gym_id ?? "" };
+}
+
+export function accountDetailsChanged(user: Pick<AdminUser, "full_name" | "gym_id">, draft: AccountDetailsDraft) {
+  return draft.fullName.trim() !== user.full_name || (draft.gymId || null) !== user.gym_id;
+}
 
 function formatRole(role: string) {
   return role.charAt(0).toUpperCase() + role.slice(1);
@@ -83,6 +93,7 @@ export function AdminUsersClient() {
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [gymFilter, setGymFilter] = useState("all");
   const [expandedUserId, setExpandedUserId] = useState("");
+  const [accountDetailsDrafts, setAccountDetailsDrafts] = useState<Record<string, AccountDetailsDraft>>({});
 
   async function load() {
     const userResponse = await getAdminUsers();
@@ -152,6 +163,42 @@ export function AdminUsersClient() {
       setStatus(`${user.full_name} is now ${formatRole(role)}.`);
     } catch {
       setStatus("Could not update role. Make sure trainer accounts have a gym.");
+    } finally {
+      setSavingUserId("");
+    }
+  }
+
+  function accountDetailsFor(user: AdminUser) {
+    return accountDetailsDrafts[user.id] ?? adminUserDetailsDraft(user);
+  }
+
+  function updateAccountDetailsDraft(user: AdminUser, update: Partial<AccountDetailsDraft>) {
+    setAccountDetailsDrafts((current) => ({
+      ...current,
+      [user.id]: { ...(current[user.id] ?? adminUserDetailsDraft(user)), ...update }
+    }));
+  }
+
+  async function saveAccountDetails(user: AdminUser) {
+    const draft = accountDetailsFor(user);
+    if (!accountDetailsChanged(user, draft) || draft.fullName.trim().length < 2) return;
+    setSavingUserId(user.id);
+    setStatus("");
+    try {
+      await updateAdminUserDetails({
+        userId: user.id,
+        fullName: draft.fullName.trim(),
+        gymId: draft.gymId || null
+      });
+      setAccountDetailsDrafts((current) => {
+        const next = { ...current };
+        delete next[user.id];
+        return next;
+      });
+      await load();
+      setStatus(`${draft.fullName.trim()}'s account details were updated.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update account details.");
     } finally {
       setSavingUserId("");
     }
@@ -541,11 +588,55 @@ export function AdminUsersClient() {
                 </div>
               ) : (
                 <>
+              <div className="ascend-workspace-inset mt-3 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase text-zinc-400">Account details</p>
+                  {user.trainer_profile_status === "active" ? (
+                    <span className="rounded bg-calm/15 px-2 py-1 text-xs font-semibold text-calm">Coach enabled</span>
+                  ) : null}
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <Field label="Full name">
+                    <input
+                      className={inputClass}
+                      disabled={savingUserId === user.id}
+                      value={accountDetailsFor(user).fullName}
+                      onChange={(event) => updateAccountDetailsDraft(user, { fullName: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Gym">
+                    <select
+                      className={selectClass}
+                      disabled={savingUserId === user.id}
+                      value={accountDetailsFor(user).gymId}
+                      onChange={(event) => updateAccountDetailsDraft(user, { gymId: event.target.value })}
+                    >
+                      <option value="">No gym</option>
+                      {gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
+                    </select>
+                  </Field>
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    savingUserId === user.id
+                    || accountDetailsFor(user).fullName.trim().length < 2
+                    || !accountDetailsChanged(user, accountDetailsFor(user))
+                  }
+                  onClick={() => saveAccountDetails(user)}
+                  className="ascend-pressable mt-2 h-11 w-full rounded-lg bg-lime text-sm font-semibold text-ink disabled:opacity-40"
+                >
+                  Save account details
+                </button>
+                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                  Sign-in email is identity-managed. Assign a gym here before choosing a trainer for a client.
+                </p>
+              </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Field label="Role">
                   <select
                     className={selectClass}
-                    disabled={savingUserId === user.id}
+                    disabled={savingUserId === user.id || user.is_platform_owner_account}
                     value={user.primary_role}
                     onChange={(event) => changeRole(user, event.target.value as Role)}
                   >
@@ -554,6 +645,9 @@ export function AdminUsersClient() {
                     <option value="admin">Admin</option>
                     {canManageOwnerGyms || user.primary_role === "owner" ? <option value="owner">Owner</option> : null}
                   </select>
+                  {user.is_platform_owner_account ? (
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">Owner remains the protected primary role; Coach access is added separately.</p>
+                  ) : null}
                 </Field>
                 <Field label="Trainer">
                   <select

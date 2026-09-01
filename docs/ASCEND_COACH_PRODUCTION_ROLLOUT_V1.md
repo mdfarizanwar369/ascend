@@ -4,9 +4,11 @@
 
 Ascend Coach is available only when both production flags are enabled and the authenticated backend identity is either a trainer or the configured Platform Owner. A normal member, ordinary admin, or non-platform `owner` role receives no Coach navigation and is denied by the Coach API middleware. Trainer data access still requires the active trainer profile, entitlement, active relationship, consented scopes, and Phase 0 policy decision.
 
-The true configured Platform Owner has audited read-only access to every active Ascend account with client capability. This is represented explicitly as `platform_owner` access rather than a trainer relationship or break-glass grant. Ordinary owners and administrators do not receive this access. Trainer access still requires an active relationship, entitlement, and consented scopes.
+The true configured Platform Owner has audited read-only access to every active Ascend account with client capability. This is represented explicitly as `platform_owner` access rather than a trainer relationship or break-glass grant. Ordinary owners and administrators do not receive this access. The Platform Owner also retains Owner/Admin as protected roles while receiving an active secondary Trainer capability in the owner account's primary gym. For clients actually assigned to that trainer profile, normal relationship-scoped coach authority takes precedence over global read-only access.
 
-Platform Owner access includes the deterministic Client 360 profile, training, nutrition, body-progress, and activity sections. It does not grant trainer mutations, notes, program actions, or persistent Zoe Coach Insight generation/cache access. Client-list opens and individual Client 360 reads are recorded in the Ascend Coach audit trail.
+Global Platform Owner access includes the deterministic Client 360 profile, training, nutrition, body-progress, and activity sections. It does not grant trainer mutations, notes, program actions, or persistent Zoe Coach Insight generation/cache access. Those capabilities require the owner's active trainer relationship with that client. Client-list opens and global individual Client 360 reads are recorded in the Ascend Coach audit trail.
+
+The Business user screen can edit an account's display name and gym. Trainer choices remain restricted to active trainers in the client's gym, so a client without a gym must be assigned one before a trainer can be selected. Owner/admin assignments use the existing audited `legacy_admin_assignment` relationship path and preserve the relationship-to-`assigned_trainer_id` projection.
 
 ## Operational configuration
 
@@ -34,4 +36,4 @@ If code rollback is required, redeploy the production commit immediately before 
 
 ## Production pilot
 
-The intended cohort is the configured Platform Owner plus the small set of existing authorized trainer accounts. Do not create public trainer signup or broaden account roles for rollout convenience. Observe Client 360 opens, deterministic latency, authorized-section counts, cache hits, deliberate refreshes, Gemini outcome/latency, validation rejections, and privacy incidents for one to two weeks before selecting another Coach feature.
+The intended cohort is the configured Platform Owner, acting as an Owner/Admin and optional assigned coach, plus the small set of existing authorized trainer accounts. Do not create public trainer signup or broaden other account roles for rollout convenience. Observe Client 360 opens, deterministic latency, authorized-section counts, cache hits, deliberate refreshes, Gemini outcome/latency, validation rejections, and privacy incidents for one to two weeks before selecting another Coach feature.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { summarizeCurrentPlanValue, uniquePriorities } from "./AdminDashboardClient";
-import { trainersForUser } from "./AdminUsersClient";
+import { accountDetailsChanged, adminUserDetailsDraft, trainersForUser } from "./AdminUsersClient";
 
 describe("owner experience trust safeguards", () => {
   it("labels current plan value without presenting it as revenue", () => {
@@ -50,5 +50,12 @@ describe("owner experience trust safeguards", () => {
     ] as Parameters<typeof trainersForUser>[1];
 
     expect(trainersForUser(user, trainers).map((trainer) => trainer.id)).toEqual(["eligible"]);
+  });
+
+  it("treats assigning a missing gym as an account edit", () => {
+    const user = { full_name: "Member", gym_id: null };
+    const draft = { ...adminUserDetailsDraft(user), gymId: "gym-1" };
+
+    expect(accountDetailsChanged(user, draft)).toBe(true);
   });
 });

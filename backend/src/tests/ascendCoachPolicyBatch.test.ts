@@ -48,7 +48,7 @@ describe("Ascend Coach batched authorization", () => {
     expect(result.platformOwnerAccess).toBe(true);
     const audit = mocks.query.mock.calls.find(([sql]) => String(sql).includes("platform_owner_client_read"));
     expect(audit?.[1]).toEqual(["owner-user", "client-user", JSON.stringify(actions)]);
-    expect(mocks.query).toHaveBeenCalledTimes(3);
+    expect(mocks.query).toHaveBeenCalledTimes(2);
   });
 
   it("does not require a break-glass grant for the true Platform Owner", async () => {
@@ -60,7 +60,7 @@ describe("Ascend Coach batched authorization", () => {
     });
     const result = await authorizeAscendCoachActions(owner, "client-user", ["view_body"]);
     expect(result.decisions.view_body).toMatchObject({ allowed: true, platformOwnerAccess: true });
-    expect(mocks.query).toHaveBeenCalledTimes(3);
+    expect(mocks.query).toHaveBeenCalledTimes(2);
   });
 
   it("writes the exact single owner action and does not grant mutations", async () => {
