@@ -42,6 +42,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
 import { clearDashboardRecord, DASHBOARD_RECORD_EVENT, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
+import { canSeeAscendCoachShell } from "@/lib/ascendCoachFlag";
 import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
@@ -384,6 +385,7 @@ export function ClientDashboard() {
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [dailyDecisionInsight, setDailyDecisionInsight] = useState<DailyCoachingDecisionInsight | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
+  const [identityVerified, setIdentityVerified] = useState(false);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [sectionLoading, setSectionLoading] = useState({ core: true, secondary: true });
@@ -552,6 +554,7 @@ export function ClientDashboard() {
   const loadDashboard = useCallback(async () => {
     if (dashboardLoadInFlightRef.current) return;
     dashboardLoadInFlightRef.current = true;
+    setIdentityVerified(false);
     if (!hasLoadedDashboardRef.current) setSectionLoading({ core: true, secondary: true });
     const requestId = ++dashboardRequestRef.current;
     const comparisonRequest = getMyProgressComparison();
@@ -614,10 +617,12 @@ export function ClientDashboard() {
 
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);
+      setIdentityVerified(true);
       cacheAccountProfile({
         email: me.user.email,
         fullName: me.user.full_name,
         roles: Array.isArray(me.roles) ? me.roles : [],
+        isPlatformOwner: me.user.is_platform_owner === true,
         profilePhotoUrl: me.user.profile_photo_url
       });
       setStatus("");
@@ -919,8 +924,16 @@ export function ClientDashboard() {
           ? "One check-in today counts. Come back tomorrow to build the streak."
           : "Log one thing today to get moving again.";
   const safeRoles = Array.isArray(roles) ? roles : [];
-  const canTrain = safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role));
-  const canAdmin = safeRoles.some((role) => ["admin", "owner"].includes(role));
+  const canTrain = identityVerified && (
+    user?.is_platform_owner === true
+    || safeRoles.some((role) => ["trainer", "admin", "owner"].includes(role))
+  );
+  const canAdmin = identityVerified && safeRoles.some((role) => ["admin", "owner"].includes(role));
+  const canSeeCoach = identityVerified && canSeeAscendCoachShell({
+    roles: safeRoles,
+    primaryRole: user?.primary_role,
+    isPlatformOwner: user?.is_platform_owner === true
+  });
   const hasPremiumAccess = plan === "premium" || plan === "trainer_pro" || canAdmin;
   const coachingMode = effectiveCoachingMode(user);
 
@@ -969,7 +982,7 @@ export function ClientDashboard() {
   const navItems = canTrain || canAdmin
     ? [
         { href: "/dashboard", label: "Home", icon: Home, selected: true, show: true },
-        { href: "/trainer", label: "Trainer", icon: UserRound, selected: false, show: canTrain },
+        { href: "/trainer", label: canSeeCoach ? "Coach" : "Trainer", icon: UserRound, selected: false, show: canTrain },
         { href: "/admin", label: "Admin", icon: Target, selected: false, show: canAdmin }
       ].filter((item) => item.show)
     : [

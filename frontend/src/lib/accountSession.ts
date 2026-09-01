@@ -81,10 +81,10 @@ export function getCachedAccountProfile() {
   return null;
 }
 
-export async function loadAccountProfile() {
+export async function loadAccountProfile(options: { forceRefresh?: boolean } = {}) {
   const startedAt = performance.now();
   const cached = getCachedAccountProfile();
-  if (cached) {
+  if (cached && !options.forceRefresh) {
     timing("/me cache hit", startedAt, { roles: cached.roles });
     return cached;
   }
@@ -94,7 +94,7 @@ export async function loadAccountProfile() {
       .then((response) => {
         const profile = normalizeProfile(response);
         cacheAccountProfile(profile);
-        timing("/me network", startedAt, { roles: profile.roles });
+        timing(options.forceRefresh ? "/me verified network" : "/me network", startedAt, { roles: profile.roles });
         return profile;
       })
       .finally(() => {

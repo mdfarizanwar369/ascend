@@ -299,7 +299,10 @@ export function createAscendCoachClient360Service(dependencies: Dependencies = d
     },
 
     async listClients(actor: AuthUser): Promise<AscendCoachClientListItem[]> {
-      if (!dependencies.featureEnabled() || !actor.trainerId || !(await dependencies.canUseWorkspace(actor))) throw new Client360AccessError();
+      if (!dependencies.featureEnabled()) throw new Client360AccessError();
+      const canUseTrainerWorkspace = await dependencies.canUseWorkspace(actor);
+      if (actor.isPlatformOwner && !canUseTrainerWorkspace) return [];
+      if (!actor.trainerId || !canUseTrainerWorkspace) throw new Client360AccessError();
       const relationships = await dependencies.repo.loadActiveClient360Relationships(actor.trainerId);
       const profileIds = relationships.filter((row) => row.data_scopes.includes("profile")).map((row) => row.client_id);
       const trainingIds = relationships.filter((row) => row.data_scopes.includes("training")).map((row) => row.client_id);

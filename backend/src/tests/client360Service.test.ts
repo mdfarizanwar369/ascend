@@ -159,11 +159,11 @@ describe("Client 360 architecture boundaries", () => {
     expect(clients[1]).not.toHaveProperty("displayName");
   });
 
-  it("does not use Platform Owner break-glass as a list-all-clients capability", async () => {
+  it("gives a Platform Owner shell-safe empty list without a list-all-clients capability", async () => {
     const deps = dependencies();
     deps.canUseWorkspace.mockResolvedValue(false);
     const owner = { ...actor, primaryRole: "owner" as const, roles: ["owner" as const, "admin" as const], trainerId: undefined, isPlatformOwner: true };
-    await expect(createAscendCoachClient360Service(deps as never).listClients(owner)).rejects.toBeInstanceOf(Client360AccessError);
+    await expect(createAscendCoachClient360Service(deps as never).listClients(owner)).resolves.toEqual([]);
     expect(deps.repo.loadActiveClient360Relationships).not.toHaveBeenCalled();
   });
 

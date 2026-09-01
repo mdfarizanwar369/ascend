@@ -8,6 +8,7 @@ import { BackButton } from "@/components/BackButton";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getCachedAccountProfile, loadAccountPlan, loadAccountProfile } from "@/lib/accountSession";
+import { canSeeAscendCoachShell } from "@/lib/ascendCoachFlag";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" | "founder" }) {
   const [account, setAccount] = useState<{
@@ -18,13 +19,18 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     plan?: "free" | "premium" | "trainer_pro";
     profilePhotoUrl?: string | null;
   }>({});
+  const [identityVerified, setIdentityVerified] = useState(false);
   const roles = account.roles ?? [];
-  const canTrain = roles.some((role) => ["trainer", "admin", "owner"].includes(role));
-  const canAdmin = roles.some((role) => ["admin", "owner"].includes(role));
-  const canFounder = account.isPlatformOwner === true;
+  const canTrain = identityVerified && (
+    account.isPlatformOwner === true
+    || roles.some((role) => ["trainer", "admin", "owner"].includes(role))
+  );
+  const canAdmin = identityVerified && roles.some((role) => ["admin", "owner"].includes(role));
+  const canFounder = identityVerified && account.isPlatformOwner === true;
+  const canSeeCoach = identityVerified && canSeeAscendCoachShell({ roles, isPlatformOwner: account.isPlatformOwner });
   const items = [
     { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
-    { href: "/trainer", label: "Trainer", icon: Users, key: "trainer", show: canTrain },
+    { href: "/trainer", label: canSeeCoach ? "Coach" : "Trainer", icon: Users, key: "trainer", show: canTrain },
     { href: "/admin", label: roles.includes("owner") ? "Business" : "Admin", icon: Shield, key: "admin", show: canAdmin },
     { href: "/founder", label: "Founder", icon: Crown, key: "founder", show: canFounder }
   ].filter((item) => item.show);
@@ -35,21 +41,26 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
     let isMounted = true;
 
     async function loadAccount() {
+      setIdentityVerified(false);
       try {
         const cached = getCachedAccountProfile();
         if (cached && isMounted) {
           setAccount((current) => ({ ...current, ...cached }));
         }
 
-        const profile = await loadAccountProfile();
+        const profile = await loadAccountProfile({ forceRefresh: true });
         if (!isMounted) return;
         setAccount((current) => ({ ...current, ...profile }));
+        setIdentityVerified(true);
 
         const plan = await loadAccountPlan().catch(() => "free" as const);
         if (!isMounted) return;
         setAccount((current) => ({ ...current, plan }));
       } catch {
-        if (isMounted) setAccount({});
+        if (isMounted) {
+          setAccount({});
+          setIdentityVerified(false);
+        }
       }
     }
 

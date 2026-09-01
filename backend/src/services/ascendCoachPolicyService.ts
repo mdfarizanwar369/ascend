@@ -96,6 +96,14 @@ export function ascendCoachV1Enabled() {
   return env.ASCEND_COACH_V1 === true;
 }
 
+export function isAscendCoachShellEligible(
+  actor: Pick<AuthUser, "roles" | "primaryRole" | "isPlatformOwner">
+) {
+  return actor.isPlatformOwner
+    || actor.primaryRole === "trainer"
+    || actor.roles.includes("trainer");
+}
+
 export function evaluateAscendCoachPolicy(
   context: AscendCoachPolicyContext,
   action: AscendCoachAction

@@ -3,7 +3,8 @@ import {
   ASCEND_COACH_DATA_SCOPES,
   AscendCoachPolicyContext,
   authorizationCacheKey,
-  evaluateAscendCoachPolicy
+  evaluateAscendCoachPolicy,
+  isAscendCoachShellEligible
 } from "../services/ascendCoachPolicyService";
 import { isEligibleCoachInviteTarget } from "../services/ascendCoachRelationshipService";
 
@@ -33,6 +34,14 @@ function context(overrides: Partial<AscendCoachPolicyContext> = {}): AscendCoach
 }
 
 describe("Ascend Coach authorization matrix", () => {
+  it("limits shell eligibility to trainers and the authenticated Platform Owner", () => {
+    expect(isAscendCoachShellEligible(context().actor)).toBe(true);
+    expect(isAscendCoachShellEligible({ primaryRole: "client", roles: ["client"], isPlatformOwner: false })).toBe(false);
+    expect(isAscendCoachShellEligible({ primaryRole: "admin", roles: ["admin"], isPlatformOwner: false })).toBe(false);
+    expect(isAscendCoachShellEligible({ primaryRole: "owner", roles: ["owner", "admin"], isPlatformOwner: false })).toBe(false);
+    expect(isAscendCoachShellEligible({ primaryRole: "owner", roles: ["owner", "admin"], isPlatformOwner: true })).toBe(true);
+  });
+
   it("allows an entitled active trainer only through an active scoped relationship", () => {
     expect(evaluateAscendCoachPolicy(context(), "view_training")).toMatchObject({
       allowed: true,

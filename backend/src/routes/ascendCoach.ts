@@ -1,6 +1,7 @@
 import { Response, Router } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
+import { requireAscendCoachShellAccess } from "../middleware/ascendCoachAccess";
 import { ASCEND_COACH_DATA_SCOPES } from "../services/ascendCoachPolicyService";
 import {
   CoachFoundationError,
@@ -53,7 +54,7 @@ function sendCoachError(res: Response, error: unknown) {
   return true;
 }
 
-ascendCoachRouter.get("/ascend-coach/clients", requireAuth, async (req, res, next) => {
+ascendCoachRouter.get("/ascend-coach/clients", requireAuth, requireAscendCoachShellAccess, async (req, res, next) => {
   try {
     res.json({ clients: await ascendCoachClient360Service.listClients(req.user!) });
   } catch (error) {
@@ -61,7 +62,7 @@ ascendCoachRouter.get("/ascend-coach/clients", requireAuth, async (req, res, nex
   }
 });
 
-ascendCoachRouter.get("/ascend-coach/clients/:clientId/360", requireAuth, async (req, res, next) => {
+ascendCoachRouter.get("/ascend-coach/clients/:clientId/360", requireAuth, requireAscendCoachShellAccess, async (req, res, next) => {
   try {
     const { clientId } = z.object({ clientId: z.string().uuid() }).parse(req.params);
     res.json(await ascendCoachInsightService.getClient360View(req.user!, clientId));
@@ -70,7 +71,7 @@ ascendCoachRouter.get("/ascend-coach/clients/:clientId/360", requireAuth, async 
   }
 });
 
-ascendCoachRouter.post("/ascend-coach/clients/:clientId/coach-insight/refresh", requireAuth, async (req, res, next) => {
+ascendCoachRouter.post("/ascend-coach/clients/:clientId/coach-insight/refresh", requireAuth, requireAscendCoachShellAccess, async (req, res, next) => {
   try {
     const { clientId } = z.object({ clientId: z.string().uuid() }).parse(req.params);
     res.json({ coachInsight: await ascendCoachInsightService.refreshCoachInsight(req.user!, clientId) });

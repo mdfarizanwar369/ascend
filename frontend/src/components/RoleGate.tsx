@@ -31,7 +31,9 @@ export function RoleGate({
   fallbackMessage,
   requiredPlan,
   planFeature,
-  requirePlatformOwner = false
+  requirePlatformOwner = false,
+  allowPlatformOwner = false,
+  hideWhenDenied = false
 }: {
   allowedRoles: string[];
   children: React.ReactNode;
@@ -40,6 +42,8 @@ export function RoleGate({
   requiredPlan?: Exclude<SubscriptionPlan, "free">;
   planFeature?: string;
   requirePlatformOwner?: boolean;
+  allowPlatformOwner?: boolean;
+  hideWhenDenied?: boolean;
 }) {
   const [state, setState] = useState<"loading" | "allowed" | "role-blocked" | "plan-blocked" | "error">("loading");
   const [retryKey, setRetryKey] = useState(0);
@@ -53,8 +57,13 @@ export function RoleGate({
       const me = await withTimeout(getMe());
       const roles = Array.isArray(me.roles) ? me.roles : [];
       const primaryRole = me.user.primary_role;
-      const hasRole = roles.some((role) => allowedRoleSet.has(role)) || Boolean(primaryRole && allowedRoleSet.has(primaryRole));
-      const isOwnerOrAdmin = roles.some((role) => role === "owner" || role === "admin") || primaryRole === "owner" || primaryRole === "admin";
+      const hasRole = roles.some((role) => allowedRoleSet.has(role))
+        || Boolean(primaryRole && allowedRoleSet.has(primaryRole))
+        || (allowPlatformOwner && me.user.is_platform_owner === true);
+      const isOwnerOrAdmin = me.user.is_platform_owner === true
+        || roles.some((role) => role === "owner" || role === "admin")
+        || primaryRole === "owner"
+        || primaryRole === "admin";
 
       if (!hasRole) return "role-blocked";
       if (requirePlatformOwner && me.user.is_platform_owner !== true) return "role-blocked";
@@ -105,13 +114,15 @@ export function RoleGate({
       isMounted = false;
       window.removeEventListener("pageshow", refreshAfterBack);
     };
-  }, [allowedRoleKey, requirePlatformOwner, requiredPlan, retryKey]);
+  }, [allowedRoleKey, allowPlatformOwner, requirePlatformOwner, requiredPlan, retryKey]);
 
   if (state === "loading") {
+    if (hideWhenDenied) return null;
     return <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">Checking account access...</p>;
   }
 
   if (state === "role-blocked") {
+    if (hideWhenDenied) return null;
     return (
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
         <h1 className="text-xl font-semibold">{fallbackTitle}</h1>
@@ -124,6 +135,7 @@ export function RoleGate({
   }
 
   if (state === "error") {
+    if (hideWhenDenied) return null;
     return (
       <section className="mt-4 rounded-lg border border-amber/35 bg-amber/10 p-4">
         <h1 className="text-xl font-semibold">Ascend could not check access</h1>
@@ -141,6 +153,7 @@ export function RoleGate({
   }
 
   if (state === "plan-blocked" && requiredPlan) {
+    if (hideWhenDenied) return null;
     return (
       <section className="mt-4 rounded-lg border border-lime/40 bg-lime/10 p-4">
         <div className="flex items-start gap-3">
