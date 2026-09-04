@@ -49,6 +49,12 @@ Go to **Google Cloud Console > APIs & Services > Credentials**.
 
 Open the OAuth 2.0 Web Client used by Firebase Authentication.
 
+Under **Authorized JavaScript origins**, confirm this is present:
+
+```text
+https://www.getascend.fit
+```
+
 Under **Authorized redirect URIs**, confirm these are present:
 
 ```text
@@ -75,6 +81,14 @@ to:
 ```text
 https://ascend-b2850.firebaseapp.com/__/auth/*
 ```
+
+The production Content Security Policy must allow Firebase Authentication to load:
+
+```text
+https://apis.google.com/js/api.js
+```
+
+Keep this permission limited to `https://apis.google.com` in `script-src`; do not allow all HTTPS scripts.
 
 After deployment, verify these URLs do not return 404:
 
