@@ -7,7 +7,7 @@ import * as repository from "../services/client360Repository";
 
 const NOW = new Date("2026-08-31T12:00:00.000Z");
 const CLIENT_ID = "10000000-0000-4000-8000-000000000001";
-const actor: AuthUser = { id: "trainer-user", firebaseUid: "fb", email: "trainer@example.com", roles: ["trainer"], primaryRole: "trainer", trainerId: "trainer-id", isPlatformOwner: false };
+const actor: AuthUser = { id: "trainer-user", firebaseUid: "fb", email: "trainer@example.com", roles: ["trainer"], primaryRole: "trainer", trainerId: "trainer-id", isPlatformOwner: false, preferredLocale: "en" };
 const actions = ["view_profile", "view_training", "view_nutrition", "view_body", "view_recovery"] as const;
 
 function authorization(scopes: string[], overrides: Record<string, unknown> = {}) {

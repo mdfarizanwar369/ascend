@@ -6,6 +6,14 @@ let tokenRequest: Promise<string> | null = null;
 let forcedTokenRequest: Promise<string> | null = null;
 let cachedToken: { token: string; expiresAt: number; uid: string } | null = null;
 
+function localE2EAuthToken() {
+  if (process.env.NODE_ENV === "production") return null;
+  const token = process.env.NEXT_PUBLIC_ASCEND_E2E_AUTH_TOKEN;
+  if (!token || typeof window === "undefined") return null;
+  const hostname = window.location.hostname.toLowerCase();
+  return hostname === "localhost" || hostname === "127.0.0.1" ? token : null;
+}
+
 function parseTokenExpiry(token: string) {
   try {
     const [, payload] = token.split(".");
@@ -35,6 +43,9 @@ async function resolveFirebaseToken(forceRefresh: boolean) {
 }
 
 export function getFirebaseToken(forceRefresh = false) {
+  const e2eToken = localE2EAuthToken();
+  if (e2eToken) return Promise.resolve(e2eToken);
+
   if (forceRefresh) {
     if (!forcedTokenRequest) {
       const request = resolveFirebaseToken(true).finally(() => {

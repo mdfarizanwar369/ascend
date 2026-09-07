@@ -3,8 +3,10 @@ import { z } from "zod";
 import {
   CLIENT_360_SCHEMA_VERSION,
   COACH_INSIGHT_PROMPT_VERSION,
+  normalizeAscendLocale,
   type Client360SignalCode,
   type Client360Snapshot,
+  type AscendLocale,
   type CoachInsight
 } from "@ascend/shared";
 
@@ -30,6 +32,17 @@ const coachInsightSchema = z.object({
 
 export type CoachIntelligenceContext = ReturnType<typeof buildCoachIntelligenceContext>;
 
+export function localeInstruction(localeInput?: AscendLocale | string | null) {
+  const locale = normalizeAscendLocale(localeInput);
+  if (locale === "ms-MY") {
+    return "Language: Write the trainer insight in natural Malaysian Bahasa Melayu. Keep common fitness terms such as workout, reps, sets, protein, calories, RPE, and named exercises in English when that is clearer for Malaysian trainers.";
+  }
+  if (locale === "zh-Hans") {
+    return "Language: Write the trainer insight in natural Simplified Chinese suitable for Malaysian and Singaporean Chinese-speaking trainers. Keep internationally recognised fitness terms, abbreviations, and exercise names in English when that preserves meaning.";
+  }
+  return "Language: Write the trainer insight in English.";
+}
+
 function metric<T>(value: { value: T | null; sampleSize: number; windowDays: number | null; sufficientData: boolean }) {
   return {
     value: value.sufficientData ? value.value : null,
@@ -39,7 +52,7 @@ function metric<T>(value: { value: T | null; sampleSize: number; windowDays: num
   };
 }
 
-export function buildCoachIntelligenceContext(snapshot: Client360Snapshot) {
+export function buildCoachIntelligenceContext(snapshot: Client360Snapshot, locale?: AscendLocale | string | null) {
   const authorizedSections = Object.entries(snapshot.access.sections)
     .filter(([, access]) => access.state === "granted")
     .map(([section]) => section)
@@ -89,6 +102,7 @@ export function buildCoachIntelligenceContext(snapshot: Client360Snapshot) {
   return {
     schemaVersion: CLIENT_360_SCHEMA_VERSION,
     promptVersion: COACH_INSIGHT_PROMPT_VERSION,
+    responseLocale: normalizeAscendLocale(locale),
     goal: snapshot.profile?.goal ?? null,
     authorizedSections,
     ...(training ? { training } : {}),
@@ -155,6 +169,7 @@ export function parseCoachInsight(text: string, context: CoachIntelligenceContex
 export function coachInsightPrompts(context: CoachIntelligenceContext) {
   const system = [
     "You are Zoe, an intelligence assistant for a professional fitness trainer. The trainer is the decision-maker.",
+    localeInstruction(context.responseLocale),
     "Use only the supplied deterministic Ascend coaching context. Do not infer motives or facts that are absent.",
     "Summarize observations, connect supported patterns, identify missing or stale data, and suggest considerations for trainer review.",
     "Use precise evidence language: recorded workouts, training logging consistency, nutrition logging coverage, calorie target rate, protein target rate, and recorded progression. Never call nutrition logging consistency or adherence.",

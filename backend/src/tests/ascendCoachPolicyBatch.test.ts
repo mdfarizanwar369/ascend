@@ -13,7 +13,8 @@ const owner: AuthUser = {
   email: "owner@example.com",
   primaryRole: "owner",
   roles: ["owner", "admin"],
-  isPlatformOwner: true
+  isPlatformOwner: true,
+  preferredLocale: "en"
 };
 
 function policyRow(grantId: string | null) {

@@ -6,7 +6,7 @@ import { CoachInsightLimitError } from "../services/aiUsageService";
 import * as repository from "../services/coachInsightRepository";
 import { coachSnapshot, validInsight } from "./coachIntelligence.test";
 
-const actor: AuthUser = { id: "trainer-a", firebaseUid: "fb", email: "trainer@example.com", roles: ["trainer"], primaryRole: "trainer", trainerId: "trainer-id", isPlatformOwner: false };
+const actor: AuthUser = { id: "trainer-a", firebaseUid: "fb", email: "trainer@example.com", roles: ["trainer"], primaryRole: "trainer", trainerId: "trainer-id", isPlatformOwner: false, preferredLocale: "en" };
 const cacheRow = {
   insight: JSON.parse(validInsight), created_at: "2026-09-01T00:00:00.000Z", expires_at: "2026-09-08T00:00:00.000Z", provider: "openai", model: "gpt-test", prompt_version: "coach-insight-v2"
 };

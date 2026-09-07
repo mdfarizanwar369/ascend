@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { Role } from "@ascend/shared";
+import { normalizeAscendLocale, Role, type AscendLocale } from "@ascend/shared";
 import { query } from "../db/pool";
 import { getFirebaseAuth } from "../integrations/firebase";
 import { env } from "../config/env";
@@ -15,6 +15,7 @@ export interface AuthUser {
   gymId?: string;
   trainerId?: string;
   isPlatformOwner: boolean;
+  preferredLocale: AscendLocale;
 }
 
 export interface FirebaseTokenUser {
@@ -35,6 +36,7 @@ type AuthUserRow = {
   trainer_id?: string;
   trainer_status?: string;
   trainer_gym_id?: string;
+  preferred_locale?: string | null;
   roles: Role[];
 };
 
@@ -59,7 +61,7 @@ function loadAuthUserOnce(firebaseUid: string) {
   if (existing) return existing;
   const request = query<AuthUserRow>(
     `
-    select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id,
+    select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id, u.preferred_locale,
       t.id as trainer_id, t.status as trainer_status, t.gym_id as trainer_gym_id,
       coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles
     from users u
@@ -201,7 +203,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       roles,
       gymId: dbUser.gym_id,
       trainerId: dbUser.trainer_id,
-      isPlatformOwner
+      isPlatformOwner,
+      preferredLocale: normalizeAscendLocale(dbUser.preferred_locale)
     };
 
     next();

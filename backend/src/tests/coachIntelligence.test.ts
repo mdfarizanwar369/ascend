@@ -3,6 +3,7 @@ import type { Client360Snapshot } from "@ascend/shared";
 import {
   buildCoachIntelligenceContext,
   coachIntelligenceFingerprint,
+  coachInsightPrompts,
   coachScopeFingerprint,
   parseCoachInsight
 } from "../domain/coachIntelligence";
@@ -72,6 +73,21 @@ describe("Coach Intelligence context", () => {
     const trainingOnly = coachSnapshot();
     const nutritionGranted = coachSnapshot({ access: { ...trainingOnly.access, sections: { ...trainingOnly.access.sections, nutrition: { state: "granted", requiredScope: "nutrition" } } } });
     expect(coachScopeFingerprint(trainingOnly)).not.toBe(coachScopeFingerprint(nutritionGranted));
+  });
+
+  it.each([
+    ["en", "Language: Write the trainer insight in English."],
+    ["ms-MY", "Language: Write the trainer insight in natural Malaysian Bahasa Melayu."],
+    ["zh-Hans", "Language: Write the trainer insight in natural Simplified Chinese"]
+  ])("carries the trainer response locale into the final Coach Insight prompt for %s", (locale, expectedInstruction) => {
+    const context = buildCoachIntelligenceContext(coachSnapshot(), locale);
+    const prompts = coachInsightPrompts(context);
+    expect(context.responseLocale).toBe(locale);
+    expect(prompts.system).toContain(expectedInstruction);
+    expect(prompts.system).toContain("The trainer is the decision-maker.");
+    expect(prompts.system).toContain("Do not diagnose");
+    expect(prompts.system).toContain("Only cite signalCodes present in the input.");
+    expect(prompts.user).toContain(`"responseLocale":"${locale}"`);
   });
 });
 

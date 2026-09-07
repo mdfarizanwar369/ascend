@@ -34,6 +34,13 @@ export function authStateAction(
   return null;
 }
 
+export function localE2EAuthBypassEnabled(hostname: string, nodeEnv = process.env.NODE_ENV, token = process.env.NEXT_PUBLIC_ASCEND_E2E_AUTH_TOKEN) {
+  if (nodeEnv === "production") return false;
+  if (!token) return false;
+  const normalizedHostname = hostname.toLowerCase();
+  return normalizedHostname === "localhost" || normalizedHostname === "127.0.0.1";
+}
+
 export function AuthStateGuard() {
   const lastUidRef = useRef<string | null | undefined>(undefined);
 
@@ -41,6 +48,7 @@ export function AuthStateGuard() {
     let cancelled = false;
     let unsubscribe: () => void = () => {};
     if (isPublicPath(window.location.pathname)) return;
+    if (localE2EAuthBypassEnabled(window.location.hostname)) return;
 
     async function observeAuth() {
       try {

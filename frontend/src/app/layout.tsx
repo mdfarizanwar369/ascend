@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { AuthStateGuard } from "@/components/AuthStateGuard";
 import { CapacitorAppUrlRouter } from "@/components/CapacitorAppUrlRouter";
 import { CanonicalDomainGuard } from "@/components/CanonicalDomainGuard";
@@ -74,7 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <Script id="ascend-theme-boot" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
         <I18nProvider>

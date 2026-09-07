@@ -60,7 +60,7 @@ function unavailableFor(snapshot: Client360Snapshot): CoachInsightAvailability |
 
 function identityFor(actor: AuthUser, snapshot: Client360Snapshot, provider: string, model: string) {
   if (!snapshot.access.relationshipId || snapshot.access.authorizationVersion === null) throw new Client360AccessError();
-  const context = buildCoachIntelligenceContext(snapshot);
+  const context = buildCoachIntelligenceContext(snapshot, actor.preferredLocale);
   const identity: repository.CoachInsightCacheIdentity = {
     actorUserId: actor.id,
     clientUserId: snapshot.clientId,

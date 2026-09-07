@@ -9,7 +9,8 @@ const trainer: AuthUser = {
   roles: ["trainer"],
   primaryRole: "trainer",
   trainerId: "trainer-profile",
-  isPlatformOwner: false
+  isPlatformOwner: false,
+  preferredLocale: "en"
 };
 
 function invoke(actor: AuthUser | undefined, featureEnabled = true) {

@@ -29,7 +29,8 @@ const actor: AuthUser = {
   roles: ["trainer"],
   primaryRole: "trainer",
   trainerId: "90000000-0000-4000-8000-000000000002",
-  isPlatformOwner: false
+  isPlatformOwner: false,
+  preferredLocale: "en"
 };
 
 function metric<T>(value: T | null, sampleSize: number, windowDays: number | null, sufficientData = true): Client360Metric<T> {

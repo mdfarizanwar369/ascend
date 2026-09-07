@@ -27,7 +27,8 @@ const trainer = {
   primaryRole: "trainer" as const,
   roles: ["trainer" as const],
   trainerId: "trainer-profile",
-  isPlatformOwner: false
+  isPlatformOwner: false,
+  preferredLocale: "en" as const
 };
 
 describe("legacy assigned-client compatibility", () => {
