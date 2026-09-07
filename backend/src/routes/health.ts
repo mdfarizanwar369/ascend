@@ -1,10 +1,29 @@
 import { Router } from "express";
 import { env } from "../config/env";
+import { query } from "../db/pool";
 
 export const healthRouter = Router();
 
 healthRouter.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "ascend-api" });
+});
+
+export async function databaseReadiness(check: () => Promise<unknown> = () => query("select 1")) {
+  try {
+    await check();
+    return { ready: true as const, status: 200 as const };
+  } catch {
+    return { ready: false as const, status: 503 as const };
+  }
+}
+
+healthRouter.get("/ready", async (_req, res) => {
+  const readiness = await databaseReadiness();
+  res.status(readiness.status).json({
+    status: readiness.ready ? "ready" : "not_ready",
+    service: "ascend-api",
+    database: readiness.ready ? "ready" : "unavailable"
+  });
 });
 
 function storageHealth() {
