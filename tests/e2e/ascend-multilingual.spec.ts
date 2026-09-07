@@ -419,7 +419,8 @@ const unexpectedRenderedEnglish = [
   /Photograph your meal/i,
   /Ascend reads the food and prepares an estimate/i,
   /Your recent progress is starting to feel like a real story/i,
-  /Talk to Zoe/i
+  /Talk to Zoe/i,
+  /Platform Owner/i
 ] as const;
 
 async function assertNoUnexpectedRenderedEnglish(page: Page, locale: Locale) {

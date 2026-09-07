@@ -15,4 +15,17 @@ describe("i18n messages", () => {
     expect(messages["ms-MY"]["common.language"]).toBe("Bahasa");
     expect(messages["zh-Hans"]["common.language"]).toBe("语言");
   });
+
+  it.each(["ms-MY", "zh-Hans"] as const)("does not leak the English Platform Owner role into %s coaching access copy", (locale) => {
+    const keys = [
+      "access.trainerOrOwnerOnly",
+      "access.founderDenied",
+      "trainer.platformOwnerClientList",
+      "trainer.platformOwnerAccess",
+      "client360.platformOwnerRead",
+      "client360.platformOwnerActive"
+    ] as const;
+
+    for (const key of keys) expect(messages[locale][key]).not.toMatch(/Platform Owner/i);
+  });
 });
