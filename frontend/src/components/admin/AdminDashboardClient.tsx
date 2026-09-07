@@ -25,6 +25,7 @@ import { DelightBadge, DelightEmptyState } from "@/components/Delight";
 import { AscendHeroPanel, BusinessSigil } from "@/components/AscendVisualIdentity";
 import { DashboardHeroSkeleton, SectionShell, SkeletonCardList, SkeletonStatGrid } from "@/components/PerceivedLoading";
 import { messages } from "@/lib/i18n/messages";
+import { renderedMessages } from "@/lib/i18n/renderedMessages";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
@@ -39,7 +40,7 @@ type Notification = AdminNotifications["notifications"][number];
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 function english(key: string, values?: Record<string, string | number>) {
-  let value = messages.en[key] ?? key;
+  let value = renderedMessages.en[key] ?? messages.en[key] ?? key;
   for (const [name, replacement] of Object.entries(values ?? {})) {
     value = value.replaceAll(`{${name}}`, String(replacement));
   }
@@ -72,7 +73,7 @@ export function summarizeCurrentPlanValue(rows: RevenueGym[], t: Translate = eng
   const subscriptions = rows.reduce((total, row) => total + asNumber(row.active_subscriptions), 0);
   if (currencies.size !== 1 || currencies.has("mixed")) {
     return {
-      value: `${subscriptions} active`,
+      value: t("admin.countActive", { count: subscriptions }),
       detail: t("admin.multipleCurrenciesDetail")
     };
   }
@@ -350,14 +351,14 @@ export function AdminDashboardClient() {
       </section>
 
       <details id="ai-business-monitor" className="ascend-workspace-section mt-5 p-4 sm:p-5">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="flex items-center gap-2"><Bot className="text-calm" size={20} /><span className="font-semibold">AI Operations</span></span><span className="text-sm text-zinc-400">{aiUsage ? "Technical details" : "Unavailable"}</span></summary>
-        {aiUsage ? <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-ink p-3"><p className="text-zinc-400">Projected spend</p><p className="mt-1 text-lg font-semibold">{formatCurrency(aiUsage.summary.projected_monthly_cost_cents)}</p></div><div className="rounded-xl bg-ink p-3"><p className="text-zinc-400">Recorded failures</p><p className="mt-1 text-lg font-semibold">{asNumber(aiUsage.summary.monthly_errors)}</p></div></div> : <p className="mt-3 text-sm text-zinc-300">AI operation data could not be loaded. Other owner tools remain available.</p>}
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3"><span className="flex items-center gap-2"><Bot className="text-calm" size={20} /><span className="font-semibold">{t("admin.aiOperationsTitle")}</span></span><span className="text-sm text-zinc-400">{aiUsage ? t("admin.technicalDetails") : t("admin.unavailable")}</span></summary>
+        {aiUsage ? <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl bg-ink p-3"><p className="text-zinc-400">{t("admin.projectedSpend")}</p><p className="mt-1 text-lg font-semibold">{formatCurrency(aiUsage.summary.projected_monthly_cost_cents)}</p></div><div className="rounded-xl bg-ink p-3"><p className="text-zinc-400">{t("admin.recordedFailures")}</p><p className="mt-1 text-lg font-semibold">{asNumber(aiUsage.summary.monthly_errors)}</p></div></div> : <p className="mt-3 text-sm text-zinc-300">{t("admin.aiDataUnavailable")}</p>}
       </details>
 
-      <nav aria-label="Owner tools" className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Link href="/admin/users" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><Users className="text-lime" size={20} /><span className="font-medium">Users and assignments</span></Link>
-        <Link href="/admin/subscriptions" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><BadgeDollarSign className="text-calm" size={20} /><span className="font-medium">Subscriptions</span></Link>
-        <Link href="/admin/referrals" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><QrCode className="text-lime" size={20} /><span className="font-medium">Referral codes</span></Link>
+      <nav aria-label={t("admin.ownerTools")} className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Link href="/admin/users" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><Users className="text-lime" size={20} /><span className="font-medium">{t("admin.usersAssignments")}</span></Link>
+        <Link href="/admin/subscriptions" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><BadgeDollarSign className="text-calm" size={20} /><span className="font-medium">{t("admin.subscriptions")}</span></Link>
+        <Link href="/admin/referrals" className="ascend-pressable ascend-workspace-action flex min-h-16 items-center gap-3 p-4"><QrCode className="text-lime" size={20} /><span className="font-medium">{t("admin.referralCodes")}</span></Link>
       </nav>
     </>
   );

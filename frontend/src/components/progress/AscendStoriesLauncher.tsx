@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Share2, Sparkles } from "lucide-react";
 import { getProgressPhotos } from "@/lib/ascendApi";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 
@@ -16,6 +17,7 @@ const LazyAscendStoriesComposer = dynamic(
 );
 
 export function AscendStoriesLauncher({ photos }: { photos: ProgressPhoto[] }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const hasPhoto = photos.some((photo) => Boolean(photo.image_url));
 
@@ -25,13 +27,13 @@ export function AscendStoriesLauncher({ photos }: { photos: ProgressPhoto[] }) {
         <div className="flex items-start gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-purple-400/30 bg-purple-500/10 text-purple-200"><Sparkles size={21} /></span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-purple-300">Ascend Stories</p>
-            <h2 className="mt-1 text-lg font-semibold">Turn progress into something worth sharing.</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Your photos stay private until you choose to export.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-purple-300">{t("progress.storiesLabel")}</p>
+            <h2 className="mt-1 text-lg font-semibold">{t("progressPhotos.storyTitle")}</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">{t("progressPhotos.storyPrivacy")}</p>
           </div>
         </div>
-        <button type="button" disabled={!hasPhoto} onClick={() => setOpen(true)} className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-45"><Share2 className="mr-2" size={18} />Share Your Ascent</button>
-        {!hasPhoto ? <p className="mt-2 text-center text-xs text-zinc-500">Add your first progress photo to begin.</p> : null}
+        <button type="button" disabled={!hasPhoto} onClick={() => setOpen(true)} className="ascend-pressable mt-4 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-45"><Share2 className="mr-2" size={18} />{t("progressPhotos.shareAscent")}</button>
+        {!hasPhoto ? <p className="mt-2 text-center text-xs text-zinc-500">{t("progressPhotos.storyStart")}</p> : null}
       </section>
       {open ? <LazyAscendStoriesComposer photos={photos} onClose={() => setOpen(false)} /> : null}
     </>

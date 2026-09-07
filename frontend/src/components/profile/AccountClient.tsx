@@ -113,7 +113,7 @@ export function AccountClient() {
             {isSubmitting ? t("common.processing") : t("account.deleteButton")}
           </button>
           <p className="mt-3 text-xs leading-5 text-zinc-500">
-            {t("account.needHelp")} Email <a className="text-calm hover:underline" href="mailto:support@getascend.fit?subject=Ascend%20Account%20Deletion%20Help">support@getascend.fit</a>.
+            {t("account.needHelp")} {t("account.email")} <a className="text-calm hover:underline" href="mailto:support@getascend.fit?subject=Ascend%20Account%20Deletion%20Help">support@getascend.fit</a>.
           </p>
           <Link href="/delete-account" className="mt-3 block text-sm font-medium text-calm hover:underline">
             {t("account.publicDeletion")}

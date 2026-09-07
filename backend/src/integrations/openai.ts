@@ -1579,9 +1579,9 @@ export async function createCoachInsightProviderReply(
   throw new Error("Coach Insight AI provider is not supported.");
 }
 
-export function createBodyScanExplanationReply(facts: unknown, fallbackJson: string) {
+export function createBodyScanExplanationReply(facts: unknown, fallbackJson: string, locale: AscendLocale = "en") {
   const systemPrompt = [
-    "You are Coach Zoe inside Ascend. Translate one confirmed body-composition scan into plain, calm fitness coaching for an everyday person.",
+    `You are Coach Zoe inside Ascend. ${localeInstruction(locale)} Translate one confirmed body-composition scan into plain, calm fitness coaching for an everyday person.`,
     "The supplied JSON is the only source of truth. Never invent, recalculate, diagnose, or introduce a number that is not supplied.",
     "This is a first-scan baseline, so do not claim progress, decline, trends, comparisons, or that a reading is medically healthy or unhealthy.",
     "Explain what the available readings mean in context of the member's stated goal without using clinical jargon.",
@@ -1596,9 +1596,9 @@ export function createBodyScanExplanationReply(facts: unknown, fallbackJson: str
   return createBodyScanCoachingReply(systemPrompt, `Confirmed scan facts:\n${JSON.stringify(facts)}`, fallbackJson, 900);
 }
 
-export function createBodyScanFollowUpReply(input: { facts: unknown; explanation: unknown; question: string; fallbackJson: string }) {
+export function createBodyScanFollowUpReply(input: { facts: unknown; explanation: unknown; question: string; fallbackJson: string; locale?: AscendLocale }) {
   const systemPrompt = [
-    "You are Coach Zoe answering one follow-up question about a confirmed first body-composition scan.",
+    `You are Coach Zoe answering one follow-up question about a confirmed first body-composition scan. ${localeInstruction(input.locale)}`,
     "Use only the supplied scan facts and cached explanation. Never invent numbers, trends, diagnoses, or comparisons.",
     "Answer the actual question in warm, plain language in no more than 120 words.",
     "If the scan cannot support the requested conclusion, say so clearly and explain what can be concluded.",

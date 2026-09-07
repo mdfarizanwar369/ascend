@@ -10,6 +10,7 @@ import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { AscendLaunchMorphV22Provider } from "@/components/dashboard/AscendLaunchMorphV22";
 import { ClientErrorReporter } from "@/components/ClientErrorReporter";
+import { NativeSafeAreaCoordinator } from "@/components/NativeSafeAreaCoordinator";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import "./globals.css";
 
@@ -89,6 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <HealthSyncCoordinator />
             <OfflineIndicator />
             <ClientErrorReporter />
+            <NativeSafeAreaCoordinator />
             {children}
           </AscendLaunchMorphV22Provider>
         </I18nProvider>

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { ASCEND_LOCALES } from "../shared/src/locale";
 import { messages } from "../frontend/src/lib/i18n/messages";
+import { renderedMessages } from "../frontend/src/lib/i18n/renderedMessages";
 
 const root = process.cwd();
 const frontendSrc = join(root, "frontend", "src");
@@ -46,11 +47,12 @@ function walk(dir: string): string[] {
 }
 
 function auditMissingKeys() {
-  const englishKeys = new Set(Object.keys(messages.en));
+  const effectiveMessages = Object.fromEntries(ASCEND_LOCALES.map((locale) => [locale, { ...messages[locale], ...renderedMessages[locale] }]));
+  const englishKeys = new Set(Object.keys(effectiveMessages.en));
   const results: Record<string, string[]> = {};
 
   for (const locale of ASCEND_LOCALES) {
-    const keys = new Set(Object.keys(messages[locale]));
+    const keys = new Set(Object.keys(effectiveMessages[locale]));
     results[locale] = [...englishKeys].filter((key) => !keys.has(key)).sort();
   }
 

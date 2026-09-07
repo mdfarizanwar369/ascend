@@ -148,12 +148,14 @@ export function SignalProgressRing({
   done,
   priority,
   tone,
+  doneLabel,
   children
 }: {
   progress: number;
   done: boolean;
   priority: boolean;
   tone: MomentumSignalKey;
+  doneLabel: string;
   children: ReactNode;
 }) {
   const radius = 36;
@@ -189,7 +191,7 @@ export function SignalProgressRing({
       <span className="ascend-signal-ring-core relative flex h-[4.25rem] w-[4.25rem] flex-col items-center justify-center rounded-full border">
         <span className="ascend-signal-ring-icon grid h-7 place-items-center">{children}</span>
         <span className="ascend-signal-ring-value mt-0.5 text-[10px] font-bold tracking-[0.08em]">
-          {done ? "DONE" : `${Math.round(visibleProgress)}%`}
+          {done ? doneLabel : `${Math.round(visibleProgress)}%`}
         </span>
       </span>
     </span>
@@ -911,23 +913,23 @@ export function ClientDashboard() {
   const currentStreak = Number(streak?.current ?? 0);
   const scoreLabel =
     currentStreak >= 7
-      ? `${currentStreak}-day streak`
+      ? t("dashboard.dayStreak", { count: currentStreak })
       : currentStreak >= 2
-        ? `${currentStreak}-day rhythm`
+        ? t("dashboard.dayRhythm", { count: currentStreak })
         : score >= 80
-          ? "Best this month"
+          ? t("dashboard.scoreBestMonth")
           : score >= 60
-            ? "Building momentum"
-            : "Start today";
-  const streakTitle = currentStreak >= 2 ? `${currentStreak}-day consistency streak` : currentStreak === 1 ? "You checked in today" : "Start a streak today";
+            ? t("dashboard.scoreBuilding")
+            : t("dashboard.scoreStart");
+  const streakTitle = currentStreak >= 2 ? t("dashboard.consistencyStreak", { count: currentStreak }) : currentStreak === 1 ? t("dashboard.checkedInToday") : t("dashboard.startStreak");
   const streakCopy =
     currentStreak >= 5
-      ? "You are building a strong rhythm between sessions."
+      ? t("dashboard.streakStrong")
       : currentStreak >= 2
-        ? "Keep showing up. Small check-ins are adding up."
+        ? t("dashboard.streakGrowing")
         : streak?.checkedInToday
-          ? "One check-in today counts. Come back tomorrow to build the streak."
-          : "Log one thing today to get moving again.";
+          ? t("dashboard.streakOne")
+          : t("dashboard.streakEmpty");
   const safeRoles = Array.isArray(roles) ? roles : [];
   const canTrain = identityVerified && (
     user?.is_platform_owner === true
@@ -986,16 +988,16 @@ export function ClientDashboard() {
 
   const navItems = canTrain || canAdmin
     ? [
-        { href: "/dashboard", label: "Home", icon: Home, selected: true, show: true },
-        { href: "/trainer", label: canSeeCoach ? "Coach" : "Trainer", icon: UserRound, selected: false, show: canTrain },
-        { href: "/admin", label: "Admin", icon: Target, selected: false, show: canAdmin }
+        { href: "/dashboard", label: t("common.home"), icon: Home, selected: true, show: true },
+        { href: "/trainer", label: canSeeCoach ? t("common.coach") : t("common.trainer"), icon: UserRound, selected: false, show: canTrain },
+        { href: "/admin", label: t("nav.admin"), icon: Target, selected: false, show: canAdmin }
       ].filter((item) => item.show)
     : [
-        { href: "/dashboard", label: "Today", icon: Home, selected: true, show: true },
-        { href: "/food-log", label: "Meals", icon: Beef, selected: false, show: true },
-        { href: "/coach", label: "Zoe", icon: Sparkles, selected: false, show: true },
-        { href: "/journey", label: "Journey", icon: Activity, selected: false, show: true },
-        { href: "/profile", label: "Profile", icon: UserRound, selected: false, show: true }
+        { href: "/dashboard", label: t("nav.today"), icon: Home, selected: true, show: true },
+        { href: "/food-log", label: t("nav.meals"), icon: Beef, selected: false, show: true },
+        { href: "/coach", label: t("nav.zoe"), icon: Sparkles, selected: false, show: true },
+        { href: "/journey", label: t("nav.journey"), icon: Activity, selected: false, show: true },
+        { href: "/profile", label: t("nav.profile"), icon: UserRound, selected: false, show: true }
       ];
   const dnaProfile = useMemo(
     () =>
@@ -1032,25 +1034,25 @@ export function ClientDashboard() {
   const todayPriority = todayPriorityRecommendation
     ? {
         key: todayPriorityRecommendation.key,
-        hero: todayPriorityRecommendation.title,
-        reason: todayPriorityRecommendation.reason,
+        hero: t(`dashboard.priority.${todayPriorityRecommendation.key?.toLowerCase() ?? "default"}.title`),
+        reason: t(`dashboard.priority.${todayPriorityRecommendation.key?.toLowerCase() ?? "default"}.reason`),
         href: todayPriorityRecommendation.href,
-        cta: todayPriorityRecommendation.cta
+        cta: t(`dashboard.priority.${todayPriorityRecommendation.key?.toLowerCase() ?? "default"}.cta`)
       }
     : isFirstDayState
       ? {
           key: "Meal" as const,
-          hero: "Start with your first meal",
-          reason: "One honest check-in is enough to help Ascend begin learning your routine.",
+          hero: t("dashboard.priority.meal.title"),
+          reason: t("dashboard.priority.meal.reason"),
           href: "/food-log",
-          cta: "Log Meal"
+          cta: t("dashboard.priority.meal.cta")
         }
       : {
           key: null,
-          hero: "Keep today simple",
-          reason: "Your recent progress is still here. Choose one useful action when you are ready.",
+          hero: t("dashboard.priority.default.title"),
+          reason: t("dashboard.priority.default.reason"),
           href: "/progress",
-          cta: "View Progress"
+          cta: t("dashboard.priority.default.cta")
         };
   const highlightedTaskKey = recentAction
     ? recentAction.type === "food"
@@ -1176,11 +1178,17 @@ export function ClientDashboard() {
     todaysWaterMl > 0 ||
     syncedSteps > 0 ||
     todayActivityCalories > 0;
+  const translatedProactiveInsight = t(`coach.proactive.${proactiveCoachInsight.key}`, {
+    workout: latestWorkoutTitle ?? t("workout.today"),
+    streak: currentStreak,
+    milestone: latestMemoryMilestone?.title ?? ""
+  });
   const dailyCoachingMessage = (() => {
     if (dailyDecisionInsight) {
+      const insightKey = todayPriority.key?.toLowerCase() ?? "default";
       return {
-        label: dailyDecisionInsight.title,
-        message: dailyDecisionInsight.body,
+        label: t("coach.insightTitle"),
+        message: t(`dashboard.priority.${insightKey}.reason`),
         detail: t("dashboard.oneClearDirection")
       };
     }
@@ -1206,8 +1214,8 @@ export function ClientDashboard() {
       };
     }
     return {
-      label: proactiveCoachInsight.title,
-      message: proactiveCoachInsight.body,
+      label: t("coach.insightTitle"),
+      message: translatedProactiveInsight,
       detail:
         proactiveCoachInsight.key === "steady"
           ? t("dashboard.smallSteadyActions")
@@ -1253,50 +1261,50 @@ export function ClientDashboard() {
   const progressPreview = (() => {
     if (weightLostFromStart >= 0.1) {
       return {
-        title: "You're lighter than when you started.",
-        detail: `${weightLostFromStart.toFixed(1)}kg down. Every small decision is adding up.`
+        title: t("progress.lighterThanStart"),
+        detail: t("progress.weightDownDetail", { value: weightLostFromStart.toFixed(1) })
       };
     }
     if (goalCompletedToday) {
       return {
-        title: "You hit your goal today.",
-        detail: "Take the win in. This came from repetition, not luck."
+        title: t("dashboard.goalAchieved"),
+        detail: t("dashboard.takeTheWin")
       };
     }
     if (currentStreak >= 7) {
       return {
-        title: "This is one of your best recent stretches.",
-        detail: `${currentStreak} steady days. The routine is starting to feel more natural.`
+        title: t("progress.bestRecentStretch"),
+        detail: t("progress.steadyDaysDetail", { count: currentStreak })
       };
     }
     if (currentStreak >= 2) {
       return {
-        title: "Consistency is starting to show up.",
-        detail: `${currentStreak} steady days in a row. Keep the chain feeling easy.`
+        title: t("progress.consistencyShowing"),
+        detail: t("progress.steadyDaysDetail", { count: currentStreak })
       };
     }
     if (latestMemoryMilestone?.title) {
       return {
         title: latestMemoryMilestone.title,
-        detail: "Your recent progress is starting to feel like a real story."
+        detail: t("progress.storyStarting")
       };
     }
     if (goalProgress !== null) {
       return {
-        title: "You're moving closer to your goal.",
-        detail: `${goalProgress}% there. Small check-ins are still doing the heavy lifting.`
+        title: t("progress.closerToGoal"),
+        detail: t("progress.goalPercentDetail", { value: goalProgress })
       };
     }
     return {
-      title: "Your journey starts here.",
-      detail: "Ascend will remember the small wins that follow."
+      title: t("progress.journeyStarts"),
+      detail: t("progress.rememberWins")
     };
   })();
   const athleteTodaySummary = (() => {
     if (!user?.athlete_mode_enabled) return null;
     if (!athleteDashboard) return t("dashboard.openAthleteModeToday");
     const parts = [
-      athleteDashboard.readiness.status,
+      t(`athlete.readinessStatus.${athleteDashboard.readiness.band}`),
       athleteDashboard.countdown ? `${athleteDashboard.countdown.days} days out` : null,
       athleteTrainingFocus
     ].filter((item): item is string => Boolean(item));
@@ -1304,35 +1312,35 @@ export function ClientDashboard() {
   })();
   const hasHumanCoachSignal = Boolean(dailyMission?.title || latestRecognition?.message);
   const coachCardTitle = hasHumanCoachSignal
-    ? dailyMission?.trainer_name ?? latestRecognition?.trainer_name ?? "Your coach"
-    : "Coach Zoe";
+    ? dailyMission?.trainer_name ?? latestRecognition?.trainer_name ?? t("dashboard.yourCoach")
+    : t("coach.zoe");
   const coachCardMessage = hasHumanCoachSignal ? coachedFocusMessage.message : dailyCoachingMessage.message;
   const coachCardDetail = hasHumanCoachSignal ? coachedFocusMessage.detail : dailyCoachingMessage.detail;
   const completeCoachSentences = coachCardMessage.match(/[^.!?]+[.!?]+/g)?.slice(0, 2).join(" ").trim();
   const coachCardSnippet = isFirstDayState
-    ? "I'll learn what helps you as you check in. For now, keep today simple."
+    ? t("coach.proactive.first_time_user")
     : completeCoachSentences ?? coachCardMessage;
   const fuelDetail = todaysFood.length
     ? proteinTarget > 0 && protein < proteinTarget
-      ? `${Math.max(proteinTarget - protein, 0)}g protein left today`
+      ? t("dashboard.proteinRemaining", { value: Math.max(proteinTarget - protein, 0) })
       : proteinTarget > 0
-        ? "Protein guide reached"
-        : "Meal activity recorded"
+        ? t("dashboard.proteinReached")
+        : t("dashboard.mealRecorded")
     : weeklyFoodDays.size
-      ? `Meals logged on ${weeklyFoodDays.size} of 7 days`
-      : "Your first meal starts the picture";
+      ? t("dashboard.mealsLoggedWeek", { count: weeklyFoodDays.size })
+      : t("dashboard.firstMealPicture");
   const moveDetail = todaysBurnCalories > 0 || syncedSteps > 0 || syncedWorkoutCompleted
-    ? "Movement recorded today"
+    ? t("dashboard.movementRecorded")
     : weeklyBurnDays.size
-      ? `${weeklyBurnDays.size} active ${weeklyBurnDays.size === 1 ? "day" : "days"} this week`
-      : "Nothing recorded today";
+      ? t(weeklyBurnDays.size === 1 ? "dashboard.activeDay" : "dashboard.activeDays", { count: weeklyBurnDays.size })
+      : t("dashboard.nothingRecorded");
   const recoverDetail = todaysWaterMl > 0
     ? sleepQuality
-      ? `${(Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0) / 1000).toFixed(1)}L water left · ${sleepQuality} sleep`
-      : `${(Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0) / 1000).toFixed(1)}L water left · sleep optional`
+      ? t("dashboard.waterRemainingSleep", { value: (Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0) / 1000).toFixed(1), quality: t(`dashboard.sleep.${sleepQuality}`) })
+      : t("dashboard.waterRemainingOptional", { value: (Math.max(nutritionTargets.waterTargetMl - todaysWaterMl, 0) / 1000).toFixed(1) })
     : sleepQuality
-      ? `No water yet · ${sleepQuality} sleep`
-      : "No water or sleep check-in yet";
+      ? t("dashboard.noWaterSleep", { quality: t(`dashboard.sleep.${sleepQuality}`) })
+      : t("dashboard.noRecoveryLog");
   const recoverySignal = calculateTodayRecoverySignal({
     waterMl: todaysWaterMl,
     waterTargetMl: nutritionTargets.waterTargetMl,
@@ -1341,9 +1349,9 @@ export function ClientDashboard() {
   const momentumSignals: MomentumSignal[] = [
     {
       key: "fuel",
-      label: "Fuel",
+      label: t("dashboard.fuel"),
       icon: Beef,
-      summary: todaysFood.length ? `${todaysFood.length} ${todaysFood.length === 1 ? "meal" : "meals"}` : "No log yet",
+      summary: todaysFood.length ? t(todaysFood.length === 1 ? "dashboard.mealCount" : "dashboard.mealCountPlural", { count: todaysFood.length }) : t("dashboard.noLogYet"),
       detail: fuelDetail,
       done: todaysFood.length > 0,
       progress: calorieProgress,
@@ -1351,15 +1359,15 @@ export function ClientDashboard() {
     },
     {
       key: "move",
-      label: "Move",
+      label: t("dashboard.move"),
       icon: Activity,
       summary: todayActivityCalories > 0
         ? `${todayActivityCalories.toLocaleString()} kcal`
         : syncedSteps > 0
-          ? `${syncedSteps.toLocaleString()} steps`
+          ? t("dashboard.steps", { count: syncedSteps.toLocaleString() })
           : syncedWorkoutCompleted
-            ? "Workout synced"
-            : "No log yet",
+            ? t("dashboard.workoutSynced")
+            : t("dashboard.noLogYet"),
       detail: moveDetail,
       done: manualMovementLogged || syncedMovementUnderway,
       progress: manualMovementLogged || syncedWorkoutCompleted
@@ -1372,13 +1380,13 @@ export function ClientDashboard() {
     },
     {
       key: "recover",
-      label: "Recover",
+      label: t("dashboard.recover"),
       icon: HeartPulse,
       summary: todaysWaterMl > 0
-        ? `${(todaysWaterMl / 1000).toFixed(1)}L water`
+        ? t("dashboard.waterAmount", { value: (todaysWaterMl / 1000).toFixed(1) })
         : sleepQuality
-          ? `${sleepQuality.charAt(0).toUpperCase()}${sleepQuality.slice(1)} sleep`
-          : "Water + sleep",
+          ? t("dashboard.sleepQuality", { quality: t(`dashboard.sleep.${sleepQuality}`) })
+          : t("dashboard.waterAndSleep"),
       detail: recoverDetail,
       done: recoverySignal.done,
       progress: recoverySignal.progress,
@@ -1542,11 +1550,11 @@ export function ClientDashboard() {
     });
   }, [momentumSignalOrder]);
   const optionalLogActions = [
-    { label: "Meal", href: "/food-log", icon: Beef },
-    { label: "Water", href: "/water-log", icon: Droplets },
-    { label: "Movement", href: "/burn-log", icon: Activity },
-    { label: "Weight", href: "/weight-log", icon: Scale },
-    { label: "Habits", href: "/habits", icon: Target }
+    { label: t("dashboard.meal"), href: "/food-log", icon: Beef },
+    { label: t("dashboard.water"), href: "/water-log", icon: Droplets },
+    { label: t("dashboard.movement"), href: "/burn-log", icon: Activity },
+    { label: t("dashboard.weight"), href: "/weight-log", icon: Scale },
+    { label: t("dashboard.habits"), href: "/habits", icon: Target }
   ];
 
   function setSectionOpen(key: CollapsibleKey, isOpen: boolean) {
@@ -1697,7 +1705,7 @@ export function ClientDashboard() {
           <div className="ascend-essentials-heading">
             <p className="ascend-eyebrow">{t("dashboard.todaysEssentials")}</p>
             <h1 id="today-essentials-title" className="mt-1.5 text-[1.65rem] font-semibold leading-tight text-white">
-              Your three. Build your momentum.
+              {t("dashboard.essentialsHeadline")}
             </h1>
           </div>
           <div className="ascend-essentials-completion mt-3 flex items-center gap-2" aria-label={t("dashboard.essentialsCompleteAria", { completed: completedMomentumSignals, total: activeMomentumSignals.length })}>
@@ -1707,7 +1715,7 @@ export function ClientDashboard() {
                 style={{ width: `${momentumSignalProgress}%` }}
               />
             </div>
-            <p className="text-[11px] font-semibold text-zinc-400">{completedMomentumSignals} of {activeMomentumSignals.length}</p>
+            <p className="text-[11px] font-semibold text-zinc-400">{t("dashboard.essentialsCompleteAria", { completed: completedMomentumSignals, total: activeMomentumSignals.length })}</p>
           </div>
           <nav className="mt-4 grid gap-3" aria-label={t("dashboard.todayActivityShortcuts")}>
             {activeMomentumSignals.map((item, index) => {
@@ -1724,7 +1732,7 @@ export function ClientDashboard() {
               } as CSSProperties;
               const content = (
                 <>
-                  <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority} tone={item.key}>
+                  <SignalProgressRing progress={item.progress} done={item.done} priority={isPriority} tone={item.key} doneLabel={t("common.done").toUpperCase()}>
                     {item.done ? <Check size={27} strokeWidth={2.7} /> : <Icon size={29} strokeWidth={2} />}
                   </SignalProgressRing>
                   <span className="ascend-essential-copy min-w-0">
@@ -1805,8 +1813,8 @@ export function ClientDashboard() {
               <UserRound size={17} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-white">Make coaching more personal</span>
-              <span className="mt-0.5 block text-xs leading-5 text-zinc-500">Finish your profile when you&apos;re ready.</span>
+              <span className="block text-sm font-semibold text-white">{t("dashboard.profileReminderTitle")}</span>
+              <span className="mt-0.5 block text-xs leading-5 text-zinc-500">{t("dashboard.profileReminderBody")}</span>
             </span>
             <ArrowRight className="shrink-0 text-calm" size={17} />
           </Link>
@@ -1821,7 +1829,7 @@ export function ClientDashboard() {
             className="ascend-pressable ascend-today-secondary-action mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 text-sm font-semibold text-zinc-300 hover:border-calm/40 hover:text-calm"
           >
             <Plus size={16} className={`transition-transform duration-200 ${logMenuOpen ? "rotate-45" : ""}`} />
-            Log something else
+            {t("dashboard.logSomethingElse")}
           </button>
           <div aria-hidden={!logMenuOpen} className={`grid overflow-hidden transition-[grid-template-rows,opacity,margin] duration-300 ${logMenuOpen ? "visible mt-3 grid-rows-[1fr] opacity-100" : "invisible mt-0 grid-rows-[0fr] opacity-0"}`}>
               <div className="min-h-0">
@@ -1840,19 +1848,19 @@ export function ClientDashboard() {
                 {!sleepQuality ? (
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
                     <div>
-                      <p className="text-xs font-semibold text-white">Optional recovery check-in</p>
-                      <p className="mt-0.5 text-[10px] text-zinc-500">How did you sleep?</p>
+                      <p className="text-xs font-semibold text-white">{t("dashboard.optionalRecovery")}</p>
+                      <p className="mt-0.5 text-[10px] text-zinc-500">{t("dashboard.howSleep")}</p>
                     </div>
                     <div className="flex gap-1.5">
                       {(["poor", "okay", "good"] as const).map((quality) => (
                         <button key={quality} type="button" disabled={savingSleep} onClick={() => void recordSleepQuality(quality)} className="min-h-11 rounded-full border border-white/10 px-2.5 text-[10px] font-semibold capitalize text-zinc-200 hover:border-calm/50 hover:text-calm disabled:opacity-50">
-                          {quality}
+                          {t(`dashboard.sleep.${quality}`)}
                         </button>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-3 border-t border-white/[0.06] pt-3 text-center text-[11px] text-zinc-500">Sleep recorded as {sleepQuality}.</p>
+                  <p className="mt-3 border-t border-white/[0.06] pt-3 text-center text-[11px] text-zinc-500">{t("dashboard.sleepRecorded", { quality: t(`dashboard.sleep.${sleepQuality}`) })}</p>
                 )}
               </div>
             </div>
@@ -1957,7 +1965,7 @@ export function ClientDashboard() {
               ) : (
                 <div className="rounded-xl border border-line bg-ink px-4 py-4">
                   <p className="text-sm leading-6 text-zinc-400">
-                    We&apos;ll start building your daily numbers as you log meals, workouts and progress.
+                    {t("dashboard.numbersEmpty")}
                   </p>
                 </div>
               )}
@@ -1972,23 +1980,23 @@ export function ClientDashboard() {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-semibold text-white">{coachCardTitle}</p>
                     <span className="h-1 w-1 rounded-full bg-purple-300" />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-purple-200">Noticed today</p>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-purple-200">{t("dashboard.noticedToday")}</p>
                   </div>
                   <p className="mt-3 text-lg font-semibold leading-7 text-white">{coachCardSnippet}</p>
                   <p className="mt-1 text-sm leading-6 text-zinc-500">{coachCardDetail}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {hasHumanCoachSignal ? (
                       <Link href="/messages" className="ascend-pressable inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-purple-200">
-                        View Coach Note <ArrowRight size={15} />
+                        {t("dashboard.viewCoachNote")} <ArrowRight size={15} />
                       </Link>
                     ) : (
                       <Link href="/coach" className="ascend-pressable inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-purple-200">
-                        Talk to Zoe <ArrowRight size={15} />
+                        {t("dashboard.talkToZoe")} <ArrowRight size={15} />
                       </Link>
                     )}
                     {user?.athlete_mode_enabled ? (
                       <Link href="/athlete" className="ascend-pressable inline-flex min-h-11 items-center justify-center rounded-full border border-sky-400/20 bg-sky-400/5 px-4 text-sm font-semibold text-sky-100">
-                        {athleteTodaySummary ?? "Athlete Mode"}
+                        {athleteTodaySummary ?? t("dashboard.athleteMode")}
                       </Link>
                     ) : null}
                   </div>
@@ -2002,7 +2010,7 @@ export function ClientDashboard() {
                   <Sparkles size={18} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>Your story</p>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>{t("dashboard.yourStory")}</p>
                   <h2 className="mt-1 text-lg font-semibold leading-7 text-white">{progressPreview.title}</h2>
                   <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{progressPreview.detail}</p>
                 </div>
@@ -2065,10 +2073,10 @@ export function ClientDashboard() {
             <div className="mt-3 rounded-2xl border border-white/[0.08] bg-black/20 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-white">How did you sleep?</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">One tap. You can update it later.</p>
+                  <p className="text-sm font-semibold text-white">{t("dashboard.howSleep")}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{t("dashboard.oneTapSleep")}</p>
                 </div>
-                {savingSleep ? <span className="text-xs font-semibold text-sky-300">Saving...</span> : null}
+                {savingSleep ? <span className="text-xs font-semibold text-sky-300">{t("dashboard.saving")}</span> : null}
               </div>
               <div className="mt-3 grid grid-cols-3 gap-2">
                 {(["poor", "okay", "good"] as const).map((quality) => {
@@ -2086,7 +2094,7 @@ export function ClientDashboard() {
                           : "border-white/10 bg-white/[0.025] text-zinc-300 hover:border-sky-300/35 hover:text-white"
                       }`}
                     >
-                      {quality}
+                      {t(`dashboard.sleep.${quality}`)}
                     </button>
                   );
                 })}
@@ -2096,7 +2104,7 @@ export function ClientDashboard() {
         </div>
       ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ink/95 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur" aria-label="Primary navigation">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-ink/95 px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur" aria-label={t("nav.aria.primary")}>
         <div className={`mx-auto grid max-w-md gap-1 ${navItems.length === 5 ? "grid-cols-5" : navItems.length === 1 ? "grid-cols-1" : navItems.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
           {navItems.map((item) => {
             const Icon = item.icon;

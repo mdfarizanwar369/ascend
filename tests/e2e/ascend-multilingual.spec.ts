@@ -18,14 +18,14 @@ const localeAnchors: Record<Locale, { login: string; settings: string; dashboard
     settings: "Bahasa aplikasi",
     dashboard: "Keperluan hari ini",
     admin: "Command Center Owner",
-    zoeResponse: "Kurangkan intensity workout hari ini"
+    zoeResponse: "Kurangkan intensiti latihan hari ini"
   },
   "zh-Hans": {
     login: "开始你的 Ascend 旅程。",
     settings: "应用语言",
-    dashboard: "今日 essentials",
+    dashboard: "今日要点",
     admin: "Owner Command Center",
-    zoeResponse: "今天训练可以降低强度"
+    zoeResponse: "今天可以适当降低训练强度"
   }
 };
 
@@ -132,7 +132,27 @@ function nutritionTargets() {
   };
 }
 
-function client360View() {
+function client360View(locale: Locale) {
+  const localizedInsight = locale === "ms-MY"
+    ? {
+        summary: "Rekod latihan konsisten, manakala kadar pencapaian protein ialah perkara utama untuk disemak. Trend berat 28 hari menurun dan latihan terkini masih baharu. Anggap imbasan tunggal sebagai data sementara sehingga ada imbasan seterusnya untuk perbandingan.",
+        title: "Semak kadar pencapaian protein",
+        reason: "Sasaran protein dicapai pada 45% hari yang direkodkan.",
+        caveat: "Perubahan komposisi badan masih sementara."
+      }
+    : locale === "zh-Hans"
+      ? {
+          summary: "训练记录稳定，目前最值得关注的是蛋白质目标达成率。近 28 天体重趋势下降，最近一次训练记录也很新。只有一次扫描时，身体成分变化仍需视为暂定结果。",
+          title: "查看蛋白质目标达成率",
+          reason: "已记录日期中，蛋白质目标达成率为 45%。",
+          caveat: "身体成分变化仍是暂定结果。"
+        }
+      : {
+          summary: "Training logging is consistent, while protein target rate is the clearest current coaching review point. Weight has a supported downward 28-day trend and the latest workout is fresh. Keep interpreting the single scan as provisional until another comparable scan is available.",
+          title: "Review protein target rate",
+          reason: "Protein target was met on 45% of logged days.",
+          caveat: "Body composition change is provisional."
+        };
   return {
     snapshot: {
       version: "client_360_snapshot_v1",
@@ -205,9 +225,9 @@ function client360View() {
       status: "available",
       source: "cache",
       insight: {
-        summary: "Training logging is consistent, while protein target rate is the clearest current coaching review point. Weight has a supported downward 28-day trend and the latest workout is fresh. Keep interpreting the single scan as provisional until another comparable scan is available.",
-        priorities: [{ title: "Review protein target rate", reason: "Protein target was met on 45% of logged days.", signalCodes: ["PROTEIN_TARGET_FREQUENTLY_MISSED"] }],
-        dataCaveats: ["Body composition change is provisional."]
+        summary: localizedInsight.summary,
+        priorities: [{ title: localizedInsight.title, reason: localizedInsight.reason, signalCodes: ["PROTEIN_TARGET_FREQUENTLY_MISSED"] }],
+        dataCaveats: [localizedInsight.caveat]
       },
       generatedAt: now,
       expiresAt: "2026-09-14T08:00:00.000Z",
@@ -301,7 +321,7 @@ async function installApiMocks(page: Page, initialLocale: Locale) {
     if (path === "/trainer/attention") return json({ attention: [], summary: { totalClients: 1, needsAttention: 0, allClear: true } });
     if (path === "/trainer/risk-alerts") return json({ alerts: [] });
     if (path === "/ascend-coach/clients") return json({ clients: [{ clientId, accessMode: "relationship", relationshipId: "relationship-1", relationshipStatus: "active", authorizationVersion: 3, grantedScopes: ["profile", "training", "nutrition", "body", "recovery"], displayName: "Sarah Lim", goal: "fat_loss", lastWorkoutAt: now }] });
-    if (path === `/ascend-coach/clients/${clientId}/360`) return json(client360View());
+    if (path === `/ascend-coach/clients/${clientId}/360`) return json(client360View(preferredLocale));
     if (path === `/trainer/clients/${clientId}`) return json({ client: { id: clientId, full_name: "Sarah Lim", email: "sarah@example.test", goal_type: "fat_loss", compliance_score: 82, gym_name: "Ascend Test Gym", nutrition_targets: nutritionTargets().targets } });
     if (path.startsWith(`/trainer/clients/${clientId}/food-logs`)) return json({ foodLogs: [], nextOffset: null });
     if (path === `/trainer/clients/${clientId}/messages`) return json({ messages: [] });
@@ -374,6 +394,57 @@ async function assertPageHealthy(page: Page) {
   expect(horizontalOverflow).toBeLessThanOrEqual(2);
 }
 
+const unexpectedRenderedEnglish = [
+  /Today's essentials/i,
+  /Your three\. Build your momentum\./i,
+  /Start sipping water/i,
+  /Log Water/i,
+  /Log Movement/i,
+  /Log Recovery/i,
+  /No log yet/i,
+  /Nothing recorded today/i,
+  /Start today/i,
+  /Building momentum/i,
+  /Quick Coach Actions/i,
+  /Practical help without the guesswork/i,
+  /Today's Insight/i,
+  /Zoe noticed something useful/i,
+  /One useful observation, based on what you've logged/i,
+  /Generate Today's Workout/i,
+  /Explain my progress/i,
+  /Help me stay consistent/i,
+  /Meal History/i,
+  /Log Food/i,
+  /Daily guide, not a strict limit/i,
+  /Photograph your meal/i,
+  /Ascend reads the food and prepares an estimate/i,
+  /Your recent progress is starting to feel like a real story/i,
+  /Talk to Zoe/i
+] as const;
+
+async function assertNoUnexpectedRenderedEnglish(page: Page, locale: Locale) {
+  if (locale === "en") return;
+  const visibleText = await page.locator("body").evaluate((element) => (element as HTMLElement).innerText);
+  const phraseLeaks = unexpectedRenderedEnglish
+    .filter((pattern) => pattern.test(visibleText))
+    .map((pattern) => pattern.source);
+  const intentionalTerms = /\b(?:ASCEND DNA|Ascend Coach|Ascend|Client 360|Coach Zoe|Zoe|RPE|RIR|FFMI|kcal|BMI|VO2|PT|English|Bahasa Melayu|Trainer Pro|Premium|Athlete|Stripe|Google Play|Lemon Squeezy|DELETE)\b/gi;
+  const syntheticUserContent = /\b(?:Ascend Owner|Sarah Lim|Ascend Test Gym|Chicken rice|Lower Strength|Log one meal|Synthetic|Fitness|owner@ascend\.test|sarah@example\.test)\b/gi;
+  const lines = visibleText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lexicalLeaks = lines.filter((line) => {
+    const candidate = line
+      .replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "")
+      .replace(syntheticUserContent, "")
+      .replace(intentionalTerms, "")
+      .trim();
+    if (!candidate) return false;
+    if (locale === "zh-Hans") return /\b[A-Za-z]{3,}\b/.test(candidate);
+    return /\b(?:Home|Admin|Trainer|Profile|Progress|Snapshot|Insight|Workout|Recover|Move|Fuel|Start|Continue|Settings|Guide|Calories|Carbs|Fat|Meal|Food|History|Photograph|Tools|Mission|Follow[ -]?up|Handover|Timeline|Intake|Logged|Logging|Ready|Building|Today|Water|Sleep)\b/i.test(candidate);
+  });
+  const leaks = [...new Set([...phraseLeaks, ...lexicalLeaks])];
+  expect(leaks, `Unexpected English UI rendered for ${locale}:\n${visibleText}`).toEqual([]);
+}
+
 test.describe("Ascend multilingual browser validation", () => {
   test.beforeEach(async ({ page }) => {
     page.on("console", (message) => {
@@ -390,19 +461,22 @@ test.describe("Ascend multilingual browser validation", () => {
 
   for (const locale of ["en", "ms-MY", "zh-Hans"] as const) {
     test(`athlete, trainer, owner and Zoe paths render in ${locale}`, async ({ page }, testInfo) => {
+      test.setTimeout(180_000);
       const mocks = await installApiMocks(page, locale);
       await page.goto("/login");
       await expect(page.getByText(localeAnchors[locale].login)).toBeVisible();
       await assertPageHealthy(page);
+      await assertNoUnexpectedRenderedEnglish(page, locale);
 
       await page.goto("/dashboard");
-      await expect(page.getByText(localeAnchors[locale].dashboard)).toBeVisible();
+      await expect(page.getByText(localeAnchors[locale].dashboard, { exact: true }).first()).toBeVisible();
       await assertPageHealthy(page);
+      await assertNoUnexpectedRenderedEnglish(page, locale);
       await testInfo.attach(`home-${locale}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
 
       const athleteRoutes = [
         ["/onboarding", /Ascend|Goal|目标|Matlamat|目标/i],
-        ["/burn-log", /workout|Workout|训练|senaman|Log Movement/i],
+        ["/burn-log", /workout|训练|活动|senaman|latihan|aktiviti/i],
         ["/food-log", /meal|food|makanan|食物|Nutrition/i],
         ["/coach", /Zoe|Coach/i],
         ["/progress", /Progress|Kemajuan|进展/i],
@@ -415,12 +489,19 @@ test.describe("Ascend multilingual browser validation", () => {
         await page.goto(route);
         await expect(page.locator("body")).toContainText(anchor);
         await assertPageHealthy(page);
+        await assertNoUnexpectedRenderedEnglish(page, locale);
       }
 
       await page.goto("/coach");
-      await page.getByRole("textbox").first().fill("How should I adjust today's workout if I feel tired?");
+      const question = locale === "en"
+        ? "How should I adjust today's workout if I feel tired?"
+        : locale === "ms-MY"
+          ? "Bagaimana saya patut melaraskan latihan hari ini jika berasa letih?"
+          : "如果今天感觉疲劳，我应该怎样调整训练？";
+      await page.getByRole("textbox").first().fill(question);
       await page.getByRole("button", { name: locale === "en" ? /send message/i : locale === "ms-MY" ? /hantar mesej/i : /发送消息/i }).click();
       await expect(page.getByText(localeAnchors[locale].zoeResponse)).toBeVisible();
+      await assertNoUnexpectedRenderedEnglish(page, locale);
       expect(mocks.zoeRequests.at(-1)).toMatchObject({ locale, mode: expect.any(String) });
       await testInfo.attach(`zoe-${locale}`, { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
 
@@ -435,6 +516,7 @@ test.describe("Ascend multilingual browser validation", () => {
         await page.goto(route);
         await expect(page.locator("body")).toContainText(/Sarah Lim|Client 360|Coach|Trainer|Klien|客户/i);
         await assertPageHealthy(page);
+        await assertNoUnexpectedRenderedEnglish(page, locale);
       }
 
       const adminRoutes = ["/admin", "/admin/users", "/admin/referrals", "/admin/subscriptions"];
@@ -442,6 +524,7 @@ test.describe("Ascend multilingual browser validation", () => {
         await page.goto(route);
         await expect(page.locator("body")).toContainText(/Owner|Admin|Business|用户|Pengguna|Subscription|Langganan/i);
         await assertPageHealthy(page);
+        await assertNoUnexpectedRenderedEnglish(page, locale);
       }
       await expect(page.getByText(localeAnchors[locale].admin)).toBeVisible({ timeout: 12_000 }).catch(() => undefined);
 
@@ -463,18 +546,18 @@ test.describe("Ascend multilingual browser validation", () => {
 
     await page.goto("/login");
     await chooseLanguage(page, "ms-MY");
-    await expect(page.getByText(localeAnchors["ms-MY"].login)).toBeVisible();
+    await expect(page.getByText(localeAnchors["ms-MY"].login, { exact: true })).toBeVisible();
     await page.reload();
-    await expect(page.getByText(localeAnchors["ms-MY"].login)).toBeVisible();
+    await expect(page.getByText(localeAnchors["ms-MY"].login, { exact: true })).toBeVisible();
 
     await page.goto("/dashboard");
-    await expect(page.getByText(localeAnchors["ms-MY"].dashboard)).toBeVisible();
+    await expect(page.getByText(localeAnchors["ms-MY"].dashboard, { exact: true })).toBeVisible();
     await page.goto("/profile/account");
     await chooseLanguage(page, "zh-Hans");
     await page.goto("/dashboard");
-    await expect(page.getByText(localeAnchors["zh-Hans"].dashboard)).toBeVisible();
+    await expect(page.getByText(localeAnchors["zh-Hans"].dashboard, { exact: true })).toBeVisible();
     await page.reload();
-    await expect(page.getByText(localeAnchors["zh-Hans"].dashboard)).toBeVisible();
+    await expect(page.getByText(localeAnchors["zh-Hans"].dashboard, { exact: true })).toBeVisible();
 
     await page.goto("/profile/account");
     await chooseLanguage(page, "en");
@@ -493,9 +576,9 @@ test.describe("Ascend multilingual browser validation", () => {
     await page.goto("/profile/account");
     await chooseLanguage(page, "en");
     await page.goto("/profile/account");
-    await expect(page.getByText(localeAnchors.en.settings)).toBeVisible();
+    await expect(page.getByText(localeAnchors.en.settings, { exact: true })).toBeVisible();
     await chooseLanguage(page, "ms-MY");
-    await expect(page.getByText(localeAnchors["ms-MY"].settings)).toBeVisible();
+    await expect(page.getByText(localeAnchors["ms-MY"].settings, { exact: true })).toBeVisible();
     await page.goto("/profile/account");
     await chooseLanguage(page, "zh-Hans");
     await page.goto(`/trainer/clients/${clientId}/360`);
@@ -506,7 +589,7 @@ test.describe("Ascend multilingual browser validation", () => {
     await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe("en");
 
     await page.goto("/login");
-    await expect(page.getByText(localeAnchors.en.login)).toBeVisible();
+    await expect(page.getByText(localeAnchors.en.login, { exact: true })).toBeVisible();
     mocks.assertApiHealthy();
   });
 

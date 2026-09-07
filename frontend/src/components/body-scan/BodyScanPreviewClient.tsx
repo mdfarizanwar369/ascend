@@ -245,12 +245,12 @@ export function BodyScanPreviewClient() {
     <div className="mx-auto w-full max-w-2xl pb-10 pt-4">
       <header className="px-1">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-400">Your first Body Scan</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-400">{t("bodyScanPreview.first")}</p>
           <div className="mt-2 flex items-start gap-3">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-lime text-ink"><ScanLine size={22} /></span>
           <div>
-            <h1 className="text-2xl font-semibold">Understand your Body Scan</h1>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">Confirm the report, then Coach Zoe will explain what the numbers mean in plain language.</p>
+            <h1 className="text-2xl font-semibold">{t("bodyScanPreview.understand")}</h1>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">{t("bodyScanPreview.understandHelp")}</p>
           </div>
           </div>
         </div>
@@ -348,13 +348,13 @@ export function BodyScanPreviewClient() {
 
       {showCapture ? (
         <section className="mt-5 rounded-xl border border-line bg-surface p-4 sm:p-5">
-          <h2 className="text-lg font-semibold">Add your scan report</h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-400">One introductory scan is included. Use a clear, straight-on photo; Ascend reads the visible values and you confirm them before anything is saved.</p>
+          <h2 className="text-lg font-semibold">{t("bodyScanPreview.addReport")}</h2>
+          <p className="mt-1 text-sm leading-6 text-zinc-400">{t("bodyScanPreview.addReportHelp")}</p>
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={prepareImages} />
           <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={prepareImages} />
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <button type="button" disabled={busy} onClick={() => cameraInputRef.current?.click()} className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-lg bg-lime font-semibold text-ink disabled:opacity-50"><Camera size={18} /> Take photo</button>
-            <button type="button" disabled={busy} onClick={() => galleryInputRef.current?.click()} className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-lg border border-line bg-ink font-semibold text-zinc-200 disabled:opacity-50"><ImagePlus size={18} /> Gallery</button>
+            <button type="button" disabled={busy} onClick={() => cameraInputRef.current?.click()} className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-lg bg-lime font-semibold text-ink disabled:opacity-50"><Camera size={18} /> {t("bodyScanPreview.takePhoto")}</button>
+            <button type="button" disabled={busy} onClick={() => galleryInputRef.current?.click()} className="ascend-pressable flex h-12 items-center justify-center gap-2 rounded-lg border border-line bg-ink font-semibold text-zinc-200 disabled:opacity-50"><ImagePlus size={18} /> {t("bodyScanPreview.gallery")}</button>
           </div>
           {images.length ? (
             <div className="mt-4">

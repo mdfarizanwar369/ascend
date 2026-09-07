@@ -114,12 +114,12 @@ export function DnaSigil({ score }: { score?: number | string | null }) {
   );
 }
 
-export function PrioritySigil({ count }: { count: number }) {
+export function PrioritySigil({ count, label }: { count: number; label: string }) {
   return (
     <div className="ascend-float grid h-24 w-24 shrink-0 place-items-center rounded-[2rem] border border-lime/35 bg-ink/80 shadow-lg shadow-lime/10">
       <Activity className="text-lime" size={24} />
       <p className="text-3xl font-semibold text-white">{count}</p>
-      <p className="text-[10px] uppercase tracking-[0.12em] text-lime">Today</p>
+      <p className="text-[10px] uppercase tracking-[0.12em] text-lime">{label}</p>
     </div>
   );
 }

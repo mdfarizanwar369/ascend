@@ -23,20 +23,21 @@ function trainerCode(name: string) {
 }
 
 function ReferralCard({ item, onCopy }: { item: Referral; onCopy: (code: string) => void }) {
+  const { t } = useI18n();
   return (
     <article className="ascend-workspace-stat p-4 md:grid md:grid-cols-[minmax(0,1fr)_9rem_9rem_2.75rem] md:items-center md:gap-4">
       <div className="flex items-start justify-between gap-3 md:contents">
         <div>
           <p className="font-semibold text-lime">{item.code}</p>
           <p className="mt-1 text-sm text-zinc-400">
-            {item.type === "trainer" ? item.trainer_name ?? "Unknown trainer" : item.gym_name ?? "Unknown gym"}
+            {item.type === "trainer" ? item.trainer_name ?? t("admin.unknownTrainer") : item.gym_name ?? t("admin.unknownGym")}
           </p>
         </div>
         <button
           type="button"
           onClick={() => onCopy(item.code)}
           className="grid h-11 w-11 place-items-center rounded-lg border border-line bg-ink md:order-last"
-          aria-label={`Copy ${item.code}`}
+          aria-label={t("admin.copyCode", { code: item.code })}
         >
           <Copy size={17} />
         </button>
@@ -45,12 +46,12 @@ function ReferralCard({ item, onCopy }: { item: Referral; onCopy: (code: string)
         <div className="rounded-lg bg-ink p-3 md:bg-transparent md:p-0">
           <QrCode className="text-calm" size={18} />
           <p className="mt-2 text-lg font-semibold">{item.referred_users}</p>
-          <p className="text-xs text-zinc-400">Referred users</p>
+          <p className="text-xs text-zinc-400">{t("admin.referredUsers")}</p>
         </div>
         <div className="rounded-lg bg-ink p-3 md:bg-transparent md:p-0">
           <TrendingUp className="text-amber" size={18} />
-          <p className="mt-2 text-lg font-semibold">{Number(item.currency_count) > 1 ? "Mixed currencies" : money(item.active_plan_value_cents, item.currency)}</p>
-          <p className="text-xs text-zinc-400">Current plan value</p>
+          <p className="mt-2 text-lg font-semibold">{Number(item.currency_count) > 1 ? t("admin.mixedCurrencies") : money(item.active_plan_value_cents, item.currency)}</p>
+          <p className="text-xs text-zinc-400">{t("admin.currentPlanValue")}</p>
         </div>
       </div>
     </article>
@@ -61,7 +62,7 @@ export function AdminReferralsClient() {
   const { t } = useI18n();
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
-  const [status, setStatus] = useState("Loading referral codes...");
+  const [status, setStatus] = useState(t("admin.loadingReferralCodes"));
   const [selectedTrainerId, setSelectedTrainerId] = useState("");
   const [newCode, setNewCode] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -137,8 +138,8 @@ export function AdminReferralsClient() {
       <section className="mt-3 flex items-start gap-3">
         <BackButton fallbackHref="/admin" />
         <div>
-          <p className="text-sm text-zinc-400">Referral attribution</p>
-          <h1 className="mt-1 text-2xl font-semibold">Gym and trainer codes</h1>
+          <p className="text-sm text-zinc-400">{t("admin.referralAttribution")}</p>
+          <h1 className="mt-1 text-2xl font-semibold">{t("admin.gymTrainerCodes")}</h1>
         </div>
       </section>
 
@@ -146,14 +147,14 @@ export function AdminReferralsClient() {
 
       <section className="mt-4 grid grid-cols-2 gap-3 lg:max-w-xl">
         <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Gym referrals</p>
+          <p className="text-xs uppercase text-zinc-400">{t("admin.gymReferrals")}</p>
           <p className="mt-2 text-2xl font-semibold text-lime">{gymReferredUsers}</p>
-          <p className="mt-1 text-xs text-zinc-400">members across {gymReferrals.length} codes</p>
+          <p className="mt-1 text-xs text-zinc-400">{t("admin.membersAcrossCodes", { members: gymReferredUsers, codes: gymReferrals.length })}</p>
         </div>
         <div className="ascend-workspace-stat p-4">
-          <p className="text-xs uppercase text-zinc-400">Trainer referrals</p>
+          <p className="text-xs uppercase text-zinc-400">{t("admin.trainerReferrals")}</p>
           <p className="mt-2 text-2xl font-semibold text-lime">{trainerReferredUsers}</p>
-          <p className="mt-1 text-xs text-zinc-400">members across {trainerReferrals.length} codes</p>
+          <p className="mt-1 text-xs text-zinc-400">{t("admin.membersAcrossCodes", { members: trainerReferredUsers, codes: trainerReferrals.length })}</p>
         </div>
       </section>
 
@@ -163,14 +164,14 @@ export function AdminReferralsClient() {
             <Plus size={18} />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-lime">Create trainer code</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-300">Pick an active trainer, adjust the code if needed, then share it with clients.</p>
+            <h2 className="text-base font-semibold text-lime">{t("admin.createTrainerCode")}</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-300">{t("admin.createTrainerCodeHelp")}</p>
           </div>
         </div>
         <div className="mt-4 space-y-3">
           <Field label={t("common.trainer")}>
             <select className={selectClass} value={selectedTrainerId} onChange={(event) => chooseTrainer(event.target.value)}>
-              <option value="">Choose trainer</option>
+              <option value="">{t("admin.chooseTrainer")}</option>
               {activeTrainers.map((trainer) => (
                 <option key={trainer.id} value={trainer.id}>
                   {trainer.full_name} / {trainer.gym_name}
@@ -193,38 +194,38 @@ export function AdminReferralsClient() {
             className="ascend-pressable flex h-12 w-full items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
           >
             <Plus className="mr-2" size={18} />
-            {isSaving ? "Creating..." : "Create trainer code"}
+            {isSaving ? t("admin.creating") : t("admin.createTrainerCode")}
           </button>
         </div>
       </section>
 
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div>
-          <h2 className="text-base font-semibold">Gym referral codes</h2>
+          <h2 className="text-base font-semibold">{t("admin.gymReferralCodes")}</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">
-            Use these when the gym itself brings in a member. Current plan value is attributed to the gym; it is not recognized revenue.
+            {t("admin.gymReferralHelp")}
           </p>
         </div>
         <div className="mt-4 space-y-3">
           {gymReferrals.map((item) => (
             <ReferralCard key={item.code} item={item} onCopy={copyCode} />
           ))}
-          {!gymReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Gym referral codes will appear here once they are created for a launch club.</p> : null}
+          {!gymReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">{t("admin.gymReferralEmpty")}</p> : null}
         </div>
       </section>
 
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div>
-          <h2 className="text-base font-semibold">Trainer referral codes</h2>
+          <h2 className="text-base font-semibold">{t("admin.trainerReferralCodes")}</h2>
           <p className="mt-1 text-sm leading-6 text-zinc-400">
-            Use these when a trainer brings in a member. Current plan value is attributed to that trainer; it is not recognized revenue.
+            {t("admin.trainerReferralHelp")}
           </p>
         </div>
         <div className="mt-4 space-y-3">
           {trainerReferrals.map((item) => (
             <ReferralCard key={item.code} item={item} onCopy={copyCode} />
           ))}
-          {!trainerReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">Trainer referral codes will appear here after you create one for an active trainer.</p> : null}
+          {!trainerReferrals.length && !status ? <p className="rounded-lg bg-ink p-3 text-sm leading-6 text-zinc-400">{t("admin.trainerReferralEmpty")}</p> : null}
         </div>
       </section>
     </>

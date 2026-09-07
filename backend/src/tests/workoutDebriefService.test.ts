@@ -344,6 +344,60 @@ describe("Coach Zoe Workout Debrief V1", () => {
     expect(userPrompt).toContain("Do not ask for loads, sets, reps, ratings, notes, or any additional tracking");
   });
 
+  it.each([
+    {
+      locale: "ms-MY" as const,
+      languageInstruction: "natural Malaysian Bahasa Melayu",
+      output: {
+        accomplishment: "Dumbbell Press dan Cable Row telah direkodkan.",
+        observation: "Sesi ini menggabungkan pergerakan menolak dan menarik.",
+        recoveryGuidance: "Rekod workout ini tidak menyokong kesimpulan pemulihan yang khusus.",
+        nextConsideration: "Lain kali, ulangi Dumbbell Press dan catat beban atau tahap usaha.",
+        debrief: "Dumbbell Press dan Cable Row memberi sesi bahagian atas badan ini struktur menolak dan menarik yang jelas. Lain kali, ulangi Dumbbell Press dan catat beban atau tahap usaha supaya Ascend mempunyai perbandingan yang boleh diukur."
+      }
+    },
+    {
+      locale: "zh-Hans" as const,
+      languageInstruction: "natural Simplified Chinese",
+      output: {
+        accomplishment: "Dumbbell Press 和 Cable Row 均已记录。",
+        observation: "这次训练结合了推和拉两种动作模式。",
+        recoveryGuidance: "现有训练记录不足以支持具体的恢复结论。",
+        nextConsideration: "下次重复 Dumbbell Press，并记录负重或用力程度。",
+        debrief: "Dumbbell Press 和 Cable Row 让这次上肢训练形成了清晰的推拉结构。下次重复 Dumbbell Press，并记录负重或用力程度，让 Ascend 能够进行一次可靠且可衡量的训练比较。"
+      }
+    }
+  ])("requests and accepts a workout debrief in $locale", async ({ locale, languageInstruction, output }) => {
+    const { store } = createMemoryStore();
+    const generate = vi.fn<WorkoutDebriefDependencies["generate"]>(async (_systemPrompt, _userPrompt) => generatedReply(output));
+    const deps = dependencies(store, generate);
+    await initializeWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      source: "ai_workout_capture",
+      metadata: {
+        source: "ai_workout_capture",
+        workoutTitle: "Upper Body Strength",
+        workoutType: "Strength",
+        exercises: [
+          { name: "Dumbbell Press", movementPattern: "push", sets: 3, reps: "8-10" },
+          { name: "Cable Row", movementPattern: "pull", sets: 3, reps: "10" }
+        ]
+      }
+    }, deps);
+
+    const result = await generateWorkoutDebrief({
+      workoutEventId: EVENT_ID,
+      userId: USER_ID,
+      isPlatformOwner: false,
+      locale
+    }, deps);
+
+    expect(generate.mock.calls[0]?.[0]).toContain(languageInstruction);
+    expect(result).toMatchObject({ status: "generated", source: "ai", text: output.debrief });
+  });
+
   it("supplies exact confirmed details and ambiguities for an evidence-led custom-workout review", async () => {
     const metadata = {
       source: "ai_workout_capture",
@@ -495,6 +549,23 @@ describe("Coach Zoe Workout Debrief V1", () => {
       source: "quick_activity",
       metadata: { activityType: "Running", durationMinutes: 30 }
     })).toBe("Your 30-minute running has been recorded and added to today's activity.");
+  });
+
+  it("localizes deterministic workout acknowledgements for Malay and Simplified Chinese", () => {
+    const metadata = {
+      workoutType: "Strength",
+      exercises: [{ name: "Dumbbell Press", movementPattern: "push", sets: 3, reps: "10", confidence: 0.95 }]
+    };
+    expect(deterministicWorkoutAcknowledgement({
+      source: "ai_workout_capture",
+      metadata,
+      locale: "ms-MY"
+    })).toContain("Workout anda telah disimpan");
+    expect(deterministicWorkoutAcknowledgement({
+      source: "ai_workout_capture",
+      metadata,
+      locale: "zh-Hans"
+    })).toContain("你的训练已保存");
   });
 
   it.each([

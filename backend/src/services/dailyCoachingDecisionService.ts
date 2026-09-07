@@ -8,6 +8,8 @@ import {
   TodayPriorityCandidate,
   TodayPriorityFacts
 } from "./todayPriorityService";
+import { renderDailyInsightCopy, renderTodayPriorityCopy } from "./localizedCoachingCopy";
+import type { AscendLocale } from "@ascend/shared";
 
 export const DAILY_COACHING_ENGINE_VERSION = "daily-coaching-v1";
 const MAX_AI_REFINEMENTS_PER_DAY = 3;
@@ -34,9 +36,10 @@ export type DailyCoachingPriority = Omit<TodayPriorityCandidate, "rank"> & { ran
 };
 
 export type DailyCoachingInsight = {
-  title: "Today's Insight";
+  title: string;
   body: string;
   href: string;
+  locale?: AscendLocale;
 };
 
 export type DailyCoachingDecision = {
@@ -258,9 +261,10 @@ function ratioBucket(value: number, target: number) {
   return "complete";
 }
 
-export function dailyCoachingFingerprint(localDate: string, facts: TodayPriorityFacts, cacheVersion = "rules-v1") {
+export function dailyCoachingFingerprint(localDate: string, facts: TodayPriorityFacts, cacheVersion = "rules-v1", locale: AscendLocale = "en") {
   const normalized = {
     cacheVersion,
+    locale,
     localDate,
     timeBand: timeBand(facts.localHour),
     mealsToday: Math.min(facts.mealsToday, 4),
@@ -275,42 +279,8 @@ export function dailyCoachingFingerprint(localDate: string, facts: TodayPriority
   return createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
 }
 
-export function buildDailyCoachingInsight(priority: DailyCoachingPriority, facts: TodayPriorityFacts): DailyCoachingInsight {
-  if (priority.key === "Meal") {
-    const body = facts.workoutCompletedToday
-      ? "Your movement is complete. A protein-rich meal is the clearest way to support recovery now."
-      : facts.mealsToday === 0
-        ? "Start with one honest meal. That gives Ascend something real to guide the rest of your day."
-        : "Food is the clearest opportunity left today. Make the next meal protein-rich and keep it simple.";
-    return { title: "Today's Insight", body, href: priority.href };
-  }
-
-  if (priority.key === "Movement") {
-    const gentle = facts.daysSinceWorkout === 1 || facts.sleepQuality === "poor";
-    const body = gentle
-      ? "Today does not need intensity. Gentle movement is enough to keep your rhythm without forcing recovery."
-      : facts.stepsToday >= 2_500
-        ? `You already have ${facts.stepsToday.toLocaleString()} steps. A short walk is enough to build on that.`
-        : facts.daysSinceWorkout !== null && facts.daysSinceWorkout >= 3
-          ? `It has been ${facts.daysSinceWorkout} days since your last recorded workout. A short session is the most useful next step.`
-          : "Movement is the clearest opportunity today. One manageable session is enough.";
-    return { title: "Today's Insight", body, href: priority.href };
-  }
-
-  if (priority.key === "Water") {
-    const waterLeftMl = Math.max(0, facts.waterTargetMl - facts.waterTodayMl);
-    return {
-      title: "Today's Insight",
-      body: `${Number((waterLeftMl / 1000).toFixed(1))}L remains toward today's water guide. Keep sipping gradually rather than forcing it at once.`,
-      href: priority.href
-    };
-  }
-
-  return {
-    title: "Today's Insight",
-    body: "Your important basics are already in motion. Protect the progress you have built and keep the rest of today steady.",
-    href: priority.href
-  };
+export function buildDailyCoachingInsight(priority: DailyCoachingPriority, facts: TodayPriorityFacts, locale: AscendLocale = "en"): DailyCoachingInsight {
+  return renderDailyInsightCopy(priority, facts, locale);
 }
 
 type ResolveDailyCoachingDecisionInput = {
@@ -321,6 +291,7 @@ type ResolveDailyCoachingDecisionInput = {
   facts: TodayPriorityFacts;
   allowAiRefinement: boolean;
   legacyPriorityKey: DailyCoachingPriority["key"];
+  locale?: AscendLocale;
 };
 
 type ResolveDailyCoachingDecisionDependencies = {
@@ -382,11 +353,12 @@ async function resolveDailyCoachingDecisionUncoalesced(
       deterministic,
       dependencies.preserveRefinedPresentation === true
     );
-    const insight = buildDailyCoachingInsight(priority, input.facts);
-    await store.recordCacheHit({ id: cached.id, priority, insight });
+    const localizedPriority = renderTodayPriorityCopy(priority, input.facts, input.locale) as DailyCoachingPriority;
+    const insight = buildDailyCoachingInsight(localizedPriority, input.facts, input.locale);
+    await store.recordCacheHit({ id: cached.id, priority: localizedPriority, insight });
     return {
       id: cached.id,
-      priority,
+      priority: localizedPriority,
       insight,
       decisionSource: cached.decision_source,
       responseSource: "cache",
@@ -437,7 +409,8 @@ async function resolveDailyCoachingDecisionUncoalesced(
     }
   }
 
-  const insight = buildDailyCoachingInsight(priority, input.facts);
+  priority = renderTodayPriorityCopy(priority, input.facts, input.locale) as DailyCoachingPriority;
+  const insight = buildDailyCoachingInsight(priority, input.facts, input.locale);
   const resolutionDurationMs = Date.now() - startedAt;
   const id = await store.save({
     userId: input.userId,
@@ -486,7 +459,7 @@ export async function resolveDailyCoachingDecision(
   const cacheVersion = input.allowAiRefinement
     ? dependencies.promptVersion ?? "refinement-unversioned"
     : "rules-v1";
-  const fingerprint = dailyCoachingFingerprint(input.localDate, input.facts, cacheVersion);
+  const fingerprint = dailyCoachingFingerprint(input.localDate, input.facts, cacheVersion, input.locale ?? "en");
   const inFlightKey = [input.userId, input.localDate, fingerprint, DAILY_COACHING_ENGINE_VERSION, resolutionMode].join(":");
   const existing = inFlightDecisions.get(inFlightKey);
   if (existing) return existing;
@@ -544,7 +517,8 @@ export async function getLatestCachedDailyCoachingInsight(
   userId: string,
   localDate: string,
   timezoneOffsetMinutes: number,
-  promptVersion: string
+  promptVersion: string,
+  locale: AscendLocale = "en"
 ) {
   const result = await query<{
     id: string;
@@ -558,11 +532,12 @@ export async function getLatestCachedDailyCoachingInsight(
       and timezone_offset_minutes = $3
       and resolution_mode in ('refined', 'rules_only')
       and (resolution_mode = 'rules_only' or prompt_version = $4)
+      and coalesce(insight->>'locale', 'en') = $5
       and expires_at > now()
     order by case when resolution_mode = 'refined' then 0 else 1 end, updated_at desc
     limit 1
     `,
-    [userId, localDate, timezoneOffsetMinutes, promptVersion]
+    [userId, localDate, timezoneOffsetMinutes, promptVersion, locale]
   );
   const row = result.rows[0];
   return row ? { id: row.id, insight: row.insight } : null;

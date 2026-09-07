@@ -1,4 +1,4 @@
-import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, NotificationCandidate, NotificationEngine } from "@ascend/shared";
+import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, normalizeAscendLocale, NotificationCandidate, NotificationEngine, type AscendLocale } from "@ascend/shared";
 import { query } from "../db/pool";
 import { getFirebaseMessaging } from "../integrations/firebase";
 import { getHealthSyncSummary } from "./healthSyncService";
@@ -446,8 +446,11 @@ type UnifiedNotificationDependencies = {
 export async function resolveUnifiedNotificationInsightForUser(
   userId: string,
   timezoneOffsetMinutes: number,
+  localeOrDependencies: AscendLocale | UnifiedNotificationDependencies = "en",
   dependencies: UnifiedNotificationDependencies = {}
 ): Promise<UnifiedNotificationInsight> {
+  const locale = typeof localeOrDependencies === "string" ? localeOrDependencies : "en";
+  if (typeof localeOrDependencies !== "string") dependencies = localeOrDependencies;
   const getCached = dependencies.getCached ?? getLatestCachedDailyCoachingInsight;
   const loadFacts = dependencies.loadFacts ?? loadTodayPriorityFacts;
   const resolveDecision = dependencies.resolveDecision ?? resolveDailyCoachingDecision;
@@ -456,7 +459,8 @@ export async function resolveUnifiedNotificationInsightForUser(
     userId,
     dayContext.localDate,
     timezoneOffsetMinutes,
-    TODAY_PRIORITY_PROMPT_VERSION
+    TODAY_PRIORITY_PROMPT_VERSION,
+    locale
   );
   if (cached) return cached;
 
@@ -468,6 +472,7 @@ export async function resolveUnifiedNotificationInsightForUser(
     timezoneOffsetMinutes,
     expiresAt: context.dayEndUtc.toISOString(),
     facts,
+    locale,
     allowAiRefinement: false,
     legacyPriorityKey: deterministic.key
   });
@@ -475,9 +480,9 @@ export async function resolveUnifiedNotificationInsightForUser(
 }
 
 export async function runCoachNotificationJob(limit = 500) {
-  const users = await query<{ id: string; email: string; timezone_offset_minutes: number | string }>(
+  const users = await query<{ id: string; email: string; preferred_locale: string | null; timezone_offset_minutes: number | string }>(
     `
-    select u.id, u.email, latest_device.timezone_offset_minutes
+    select u.id, u.email, u.preferred_locale, latest_device.timezone_offset_minutes
     from users u
     join lateral (
       select timezone_offset_minutes
@@ -507,7 +512,7 @@ export async function runCoachNotificationJob(limit = 500) {
     let unifiedNotificationInsight: Awaited<ReturnType<typeof getLatestCachedDailyCoachingInsight>> = null;
     if (rolloutMode === "active") {
       try {
-        unifiedNotificationInsight = await resolveUnifiedNotificationInsightForUser(user.id, timezoneOffsetMinutes);
+        unifiedNotificationInsight = await resolveUnifiedNotificationInsightForUser(user.id, timezoneOffsetMinutes, normalizeAscendLocale(user.preferred_locale));
         dailyCoachingTelemetry("notification_decision_resolved", {
           rolloutMode,
           correlation: dailyCoachingCorrelation(user.id),

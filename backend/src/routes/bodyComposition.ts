@@ -377,7 +377,7 @@ bodyCompositionRouter.get("/body-composition/baseline", requireAuth, async (req,
     const scan = await latestConfirmedBodyScan(req.user!.id);
     const access = bodyScanPreviewAccess(req.user!, Boolean(scan));
     if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan is not available for this account." });
-    const explanation = scan?.id ? await getCachedBodyScanExplanation(req.user!.id, scan.id) : null;
+    const explanation = scan?.id ? await getCachedBodyScanExplanation(req.user!.id, scan.id, req.user!.preferredLocale) : null;
     res.json({ scan: introductoryBaseline(scan), explanation: explanation?.explanation ?? null, access });
   } catch (error) {
     next(error);
@@ -391,7 +391,7 @@ bodyCompositionRouter.post("/body-composition/scans/:scanId/explanation", requir
     const access = bodyScanPreviewAccess(req.user!, Boolean(scan));
     if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan is not available for this account." });
     if (!scan) return res.status(404).json({ error: "Confirmed Body Scan not found." });
-    const coaching = await getOrCreateBodyScanExplanation(req.user!.id, scan);
+    const coaching = await getOrCreateBodyScanExplanation(req.user!.id, scan, req.user!.preferredLocale);
     res.json({ coaching, access });
   } catch (error) {
     next(error);
@@ -406,7 +406,7 @@ bodyCompositionRouter.post("/body-composition/scans/:scanId/follow-ups", require
     const access = bodyScanPreviewAccess(req.user!, Boolean(scan));
     if (!access.enabled || !access.canViewBaseline) return res.status(404).json({ error: "Body Scan is not available for this account." });
     if (!scan) return res.status(404).json({ error: "Confirmed Body Scan not found." });
-    const result = await createBodyScanFollowUp(req.user!.id, scan, input.question);
+    const result = await createBodyScanFollowUp(req.user!.id, scan, input.question, req.user!.preferredLocale);
     res.status(201).json({ ...result, access });
   } catch (error) {
     next(error);

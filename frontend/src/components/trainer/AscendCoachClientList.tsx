@@ -18,8 +18,11 @@ function relativeTime(value: string | null | undefined, t: (key: string, values?
   return t("trainer.lastWorkoutDaysAgo", { days });
 }
 
-function goalLabel(goal?: string | null) {
-  return goal ? goal.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) : null;
+function goalLabel(goal: string | null | undefined, t: (key: string) => string) {
+  if (goal === "fat_loss") return t("onboarding.goalFatLoss");
+  if (goal === "muscle_gain") return t("onboarding.goalMuscleGain");
+  if (goal === "maintenance") return t("onboarding.goalMaintenance");
+  return null;
 }
 
 export function AscendCoachClientList() {
@@ -92,7 +95,7 @@ export function AscendCoachClientList() {
                   <ProfileAvatar name={client.displayName} />
                   <div className="min-w-0 flex-1">
                     <p className="break-words font-semibold text-white">{visibleName}</p>
-                    <p className="mt-1 text-sm capitalize text-zinc-400">{goalLabel(client.goal) ?? t("trainer.goalNotShared")}</p>
+                    <p className="mt-1 text-sm capitalize text-zinc-400">{goalLabel(client.goal, t) ?? t("trainer.goalNotShared")}</p>
                     <p className="mt-2 text-xs text-zinc-500">{hasTraining ? relativeTime(client.lastWorkoutAt, t) : t("trainer.trainingDataNotShared")}{client.accessMode === "platform_owner" ? ` · ${t("trainer.platformOwnerAccess")}` : ""}</p>
                   </div>
                   <ChevronRight className="shrink-0 text-zinc-500" size={20} aria-hidden="true" />

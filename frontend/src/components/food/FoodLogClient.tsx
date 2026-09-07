@@ -42,6 +42,7 @@ import {
   stopMealSpeechRecognition
 } from "@/lib/mealSpeech";
 import { messages } from "@/lib/i18n/messages";
+import { renderedMessages } from "@/lib/i18n/renderedMessages";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -74,7 +75,7 @@ type FrontendFoodAiTrace = {
 };
 
 function english(key: string, values?: Record<string, string | number>) {
-  let value = messages.en[key] ?? key;
+  let value = renderedMessages.en[key] ?? messages.en[key] ?? key;
   for (const [name, replacement] of Object.entries(values ?? {})) {
     value = value.replaceAll(`{${name}}`, String(replacement));
   }
@@ -95,7 +96,7 @@ function asNumber(value: string | number | null | undefined) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function manualEstimate(): FoodEstimate {
+function manualEstimate(t: Translate, source: "photo" | "text" = "photo"): FoodEstimate {
   return {
     foodName: "",
     confidence: 0,
@@ -103,7 +104,7 @@ function manualEstimate(): FoodEstimate {
     proteinG: 0,
     carbsG: 0,
     fatG: 0,
-    notes: "AI could not estimate this photo reliably. Please type the food name and macros before saving, or try a clearer photo."
+    notes: t(source === "photo" ? "food.manualPhotoFallbackNote" : "food.manualTextFallbackNote")
   };
 }
 
@@ -270,10 +271,10 @@ function portionLabel(value: FoodEstimate["visiblePortionLabel"], t: Translate =
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
-function formatPortionItemQuantity(item: FoodPortionItem) {
-  if (item.estimatedQuantity === null && item.portionSource === "standard_serving_fallback") return "standard serving";
+function formatPortionItemQuantity(item: FoodPortionItem, t: Translate = english) {
+  if (item.estimatedQuantity === null && item.portionSource === "standard_serving_fallback") return t("food.standardServing");
   const quantity = item.finalQuantity ?? item.estimatedQuantity;
-  if (quantity === null) return "amount unclear";
+  if (quantity === null) return t("food.amountUnclear");
   const unit = item.unit === "piece" || item.unit === "slice" || item.unit === "serving"
     ? `${item.unit}${quantity === 1 ? "" : "s"}`
     : item.unit;
@@ -315,7 +316,7 @@ function PortionQuantityInput({ item, onCommit }: { item: FoodPortionItem; onCom
   );
 }
 
-function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>) {
+function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>, t: Translate = english) {
   const calorieShare = estimate.calories / targets.calorieTarget;
   const proteinCalories = estimate.proteinG * 4;
   const proteinRatio = estimate.calories > 0 ? proteinCalories / estimate.calories : 0;
@@ -324,42 +325,42 @@ function mealInsight(estimate: FoodEstimate, targets: ReturnType<typeof calculat
 
   if (estimate.calories <= 0) {
     return {
-      title: "Add meal details",
-      detail: "Enter the food name and macros so Ascend can guide the rest of your day."
+      title: t("food.insight.add.title"),
+      detail: t("food.insight.add.body")
     };
   }
 
   if (proteinRatio < 0.16 && estimate.proteinG < 25) {
     return {
-      title: "Protein looks low",
-      detail: "Add chicken, eggs, tofu, fish, tempeh, or Greek yogurt later today to support recovery."
+      title: t("food.insight.protein.title"),
+      detail: t("food.insight.protein.body")
     };
   }
 
   if (fatShare >= 0.55) {
     return {
-      title: "High-fat meal",
-      detail: "This uses a lot of today's fat guide. Keep the next meal leaner and add vegetables or fruit."
+      title: t("food.insight.fat.title"),
+      detail: t("food.insight.fat.body")
     };
   }
 
   if (carbsShare >= 0.5 && calorieShare < 0.45) {
     return {
-      title: "Carb-heavy meal",
-      detail: "Useful for training energy. Balance the next meal with more protein and lighter fats."
+      title: t("food.insight.carbs.title"),
+      detail: t("food.insight.carbs.body")
     };
   }
 
   if (calorieShare >= 0.45) {
     return {
-      title: "Big meal",
-      detail: "This uses a larger part of today's calorie guide. Keep the next meal simple and protein-focused."
+      title: t("food.insight.big.title"),
+      detail: t("food.insight.big.body")
     };
   }
 
   return {
-    title: "Balanced enough",
-    detail: "Good start. Keep the next meal aligned with your protein and water guide."
+    title: t("food.insight.balanced.title"),
+    detail: t("food.insight.balanced.body")
   };
 }
 
@@ -425,18 +426,18 @@ function summarizeLogs(logs: FoodLog[]) {
   );
 }
 
-function complianceStatus(logs: FoodLog[], totals: ReturnType<typeof summarizeLogs>, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>) {
-  if (!logs.length) return { label: "No Food Logged", tone: "danger" as const };
+function complianceStatus(logs: FoodLog[], totals: ReturnType<typeof summarizeLogs>, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>, t: Translate = english) {
+  if (!logs.length) return { label: t("food.status.none"), tone: "danger" as const };
   const proteinRatio = targets.proteinTargetG ? totals.proteinG / targets.proteinTargetG : 0;
   const calorieRatio = targets.calorieTarget ? totals.calories / targets.calorieTarget : 0;
   if (logs.length >= 2 && proteinRatio >= 0.8 && calorieRatio >= 0.65 && calorieRatio <= 1.15) {
-    return { label: "Strong Day", tone: "success" as const };
+    return { label: t("food.status.strong"), tone: "success" as const };
   }
-  return { label: "Partially Logged", tone: "warning" as const };
+  return { label: t("food.status.partial"), tone: "warning" as const };
 }
 
-function mealObservations(logs: FoodLog[], totals: ReturnType<typeof summarizeLogs>, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>) {
-  if (!logs.length) return ["No meals logged for this date."];
+function mealObservations(logs: FoodLog[], totals: ReturnType<typeof summarizeLogs>, targets: ReturnType<typeof calculateAdaptiveNutritionTargets>, t: Translate = english) {
+  if (!logs.length) return [t("food.observation.none")];
 
   const observations: string[] = [];
   const proteinRatio = targets.proteinTargetG ? totals.proteinG / targets.proteinTargetG : 0;
@@ -446,12 +447,12 @@ function mealObservations(logs: FoodLog[], totals: ReturnType<typeof summarizeLo
     return hour >= 22 || hour < 4;
   });
 
-  observations.push(proteinRatio >= 0.9 ? "Protein target achieved." : "Protein could use a top-up.");
-  if (calorieRatio >= 0.8 && calorieRatio <= 1.1) observations.push("Calories are close to your daily guide.");
-  if (calorieRatio > 1.1) observations.push("Calories are above today's guide.");
-  if (calorieRatio < 0.8) observations.push("Calories are still below today's guide.");
-  observations.push(logs.length >= 2 ? "Good logging consistency for the day." : "One meal logged so far.");
-  if (lateNightMeal) observations.push("Late-night meal recorded.");
+  observations.push(t(proteinRatio >= 0.9 ? "food.observation.proteinMet" : "food.observation.proteinLow"));
+  if (calorieRatio >= 0.8 && calorieRatio <= 1.1) observations.push(t("food.observation.caloriesClose"));
+  if (calorieRatio > 1.1) observations.push(t("food.observation.caloriesHigh"));
+  if (calorieRatio < 0.8) observations.push(t("food.observation.caloriesLow"));
+  observations.push(t(logs.length >= 2 ? "food.observation.loggingGood" : "food.observation.oneMeal"));
+  if (lateNightMeal) observations.push(t("food.observation.lateMeal"));
 
   return observations;
 }
@@ -526,12 +527,12 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   }
 
   const loadHistoryLogs = useCallback(async (offset = 0, append = false) => {
-    setHistoryStatus(offset ? "" : "Loading your meal history...");
+    setHistoryStatus(offset ? "" : t("food.historyLoading"));
     const response = await getFoodLogs({ range: historyRange, order: historyOrder, limit: 30, offset });
     setHistoryLogs((current) => append ? [...current, ...response.foodLogs] : response.foodLogs);
     setHistoryNextOffset(response.nextOffset ?? null);
     setHistoryStatus("");
-  }, [historyOrder, historyRange]);
+  }, [historyOrder, historyRange, t]);
 
   async function loadUser() {
     const [response, weights, targets] = await Promise.all([getMe(), getWeightLogs(), getMyNutritionTargets()]);
@@ -547,9 +548,9 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
   useEffect(() => {
     Promise.allSettled([loadFoodLogs(), loadAllowance(), loadUser()]).catch(() => {
-      setStatus("Upload a food photo to estimate calories and macros.");
+      setStatus(t("food.uploadPrompt"));
     });
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     let active = true;
@@ -566,9 +567,9 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   useEffect(() => {
     if (view !== "history") return;
     loadHistoryLogs().catch((error) => {
-      setHistoryStatus(error instanceof Error ? error.message : "Could not load meal history.");
+      setHistoryStatus(t("food.historyLoadError"));
     });
-  }, [view, loadHistoryLogs]);
+  }, [view, loadHistoryLogs, t]);
 
   const todaysFoodLogs = useMemo(() => {
     const today = localDateKey();
@@ -629,7 +630,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     return estimate.foodName.trim().length > 0 && Number(estimate.calories) > 0;
   }, [estimate]);
 
-  const currentMealInsight = estimate ? mealInsight(estimate, effectiveNutritionTargets) : null;
+  const currentMealInsight = estimate ? mealInsight(estimate, effectiveNutritionTargets, t) : null;
   const portionAwareEstimate = estimate?.analysisVersion === "portion_aware_v1" && estimate.items?.length
     ? estimate
     : null;
@@ -648,16 +649,16 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     return visibleKeys.map((dateKey) => {
       const logs = [...(map.get(dateKey) ?? [])].sort((a, b) => new Date(a.logged_at).getTime() - new Date(b.logged_at).getTime());
       const totals = summarizeLogs(logs);
-      const status = complianceStatus(logs, totals, effectiveNutritionTargets);
+      const status = complianceStatus(logs, totals, effectiveNutritionTargets, t);
       return {
         dateKey,
         logs,
         totals,
         status,
-        observations: mealObservations(logs, totals, effectiveNutritionTargets)
+        observations: mealObservations(logs, totals, effectiveNutritionTargets, t)
       };
     });
-  }, [effectiveNutritionTargets, historyLogs, historyOrder, historyRange]);
+  }, [effectiveNutritionTargets, historyLogs, historyOrder, historyRange, t]);
 
   async function loadMoreHistory() {
     if (historyNextOffset === null) return;
@@ -665,7 +666,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     try {
       await loadHistoryLogs(historyNextOffset, true);
     } catch (error) {
-      setHistoryStatus(error instanceof Error ? error.message : "Could not load more meals.");
+      setHistoryStatus(t("food.historyMoreError"));
     } finally {
       setIsLoadingHistoryMore(false);
     }
@@ -673,20 +674,20 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
   async function handleDeleteFoodLog(log: FoodLog) {
     if (deletingFoodLogId) return;
-    const confirmed = window.confirm(`Remove “${log.estimated_food_name}” from your meal history? This cannot be undone.`);
+    const confirmed = window.confirm(t("food.removeConfirm", { food: log.estimated_food_name }));
     if (!confirmed) return;
 
     setDeletingFoodLogId(log.id);
-    setStatus("Removing meal...");
+    setStatus(t("food.removingMeal"));
     try {
       await deleteFoodLog(log.id);
       foodLogsRequestRef.current += 1;
       setFoodLogs((current) => current.filter((item) => item.id !== log.id));
       setHistoryLogs((current) => current.filter((item) => item.id !== log.id));
       clearPendingFoodLog(log.id);
-      setStatus("Meal removed. Your daily totals have been updated.");
+      setStatus(t("food.removedMessage"));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not remove this meal. Please try again.");
+      setStatus(t("food.removeError"));
     } finally {
       setDeletingFoodLogId(null);
     }
@@ -698,7 +699,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     for (let attempt = 0; attempt < 1; attempt += 1) {
       try {
         if (attempt > 0) {
-          setStatus("AI is taking another look at the same photo...");
+          setStatus(t("food.retryingPhoto"));
           await sleep(1200 * attempt);
         }
         markFrontendStage(trace ?? null, "API request starts", { attempt: attempt + 1 });
@@ -740,7 +741,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setShowPortionEditor(false);
     setShowPortionDiagnostics(false);
     setShowManualEntry(false);
-    setStatus("Photo selected. Estimating calories and macros...");
+    setStatus(t("food.photoSelected"));
     setIsEstimating(true);
 
     markFrontendStage(trace, "Image compression starts");
@@ -756,14 +757,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         setEstimate(response.estimate);
         setAiFailed(false);
         setShowEstimateEditor(false);
-        setStatus("AI estimate ready. Review, edit if needed, then save.");
+        setStatus(t("food.estimateReady"));
         window.setTimeout(() => {
           markFrontendStage(trace, "Result rendered to user");
           logFrontendFoodAiReport(trace);
         }, 0);
       })
       .catch((error) => {
-        setEstimate(manualEstimate());
+        setEstimate(manualEstimate(t));
         setWasEdited(true);
         setAiFailed(true);
         setShowEstimateEditor(true);
@@ -792,7 +793,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         return;
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Camera could not open yet. Try again.");
+      setStatus(t("food.cameraError"));
       return;
     }
     cameraInputRef.current?.click();
@@ -807,7 +808,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         return;
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Photo library could not open yet. Try again.");
+      setStatus(t("food.galleryError"));
       return;
     }
     galleryInputRef.current?.click();
@@ -820,7 +821,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setIsEstimating(true);
     setAiFailed(false);
     setEstimate(null);
-    setStatus("Estimating food, calories, protein, carbs, and fat...");
+    setStatus(t("food.estimatingDetails"));
     setSavedMeal(null);
     setShowEstimateEditor(false);
 
@@ -837,14 +838,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setShowEstimateEditor(false);
       setShowPortionEditor(false);
       setShowPortionDiagnostics(false);
-      setStatus("AI estimate ready. Review, edit if needed, then save.");
+      setStatus(t("food.estimateReady"));
       window.setTimeout(() => {
         markFrontendStage(trace, "Result rendered to user");
         logFrontendFoodAiReport(trace);
       }, 0);
     } catch (error) {
       if (selectedFile) {
-        setEstimate(manualEstimate());
+        setEstimate(manualEstimate(t));
         setWasEdited(true);
         setAiFailed(true);
         setShowEstimateEditor(true);
@@ -863,7 +864,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   async function handleTextEstimate() {
     const description = manualMealText.trim();
     if (description.length < 2) {
-      setStatus("Type what you ate first, for example chicken rice or 2 eggs and toast.");
+      setStatus(t("food.describeFirst"));
       return;
     }
     setIsEstimating(true);
@@ -877,7 +878,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     setShowEstimateEditor(false);
     setShowPortionEditor(false);
     setShowPortionDiagnostics(false);
-    setStatus("Analysing your meal description...");
+    setStatus(t("food.analysingDescription"));
 
     try {
       const response = await estimateFoodFromText(description);
@@ -886,7 +887,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setShowEstimateEditor(false);
       setShowPortionEditor(false);
       setShowPortionDiagnostics(false);
-      setStatus("Meal estimate ready. Review, edit if needed, then save.");
+      setStatus(t("food.descriptionReady"));
     } catch (error) {
       setEstimate({
         foodName: description,
@@ -895,7 +896,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         proteinG: 0,
         carbsG: 0,
         fatG: 0,
-        notes: "AI could not estimate this text reliably. Please add the calories and macros before saving."
+        notes: t("food.manualTextFallbackNote")
       });
       setWasEdited(true);
       setAiFailed(true);
@@ -909,9 +910,9 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
 
   async function handleMealSpeech() {
     if (isListeningForMeal) {
-      setMealSpeechMessage("Finishing your meal description...");
+      setMealSpeechMessage(t("food.finishingSpeech"));
       await stopMealSpeechRecognition().catch(() => {
-        setMealSpeechMessage("I could not finish listening. Try again or type the meal instead.");
+        setMealSpeechMessage(t("food.speechFinishError"));
       });
       return;
     }
@@ -921,15 +922,15 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     const requestId = ++mealSpeechRequestRef.current;
     setShowManualEntry(true);
     setIsListeningForMeal(true);
-    setMealSpeechMessage("Listening... say everything you ate, then pause.");
+    setMealSpeechMessage(t("food.listening"));
 
     try {
       const result = await startMealSpeechRecognition();
       if (mealSpeechRequestRef.current !== requestId) return;
       const transcript = result.transcript.trim();
       setManualMealText(transcript);
-      setMealSpeechMessage(`I heard: “${transcript}” Review it, then analyse your meal.`);
-      setStatus("Voice description ready. Review it, then analyse your meal.");
+      setMealSpeechMessage(t("food.heardTranscript", { transcript }));
+      setStatus(t("food.voiceReady"));
     } catch (error) {
       if (mealSpeechRequestRef.current !== requestId || isMealSpeechCancellation(error)) return;
       setMealSpeechMessage(mealSpeechErrorMessage(error, t));
@@ -974,13 +975,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   async function handleSave() {
     if (saveLockRef.current) return;
     if (!estimate || !canSaveEstimate) {
-      setStatus("Please add the food name and calories before saving.");
+      setStatus(t("food.missingNameCalories"));
       return;
     }
 
     saveLockRef.current = true;
     setIsSaving(true);
-    setStatus(selectedImageDataUrl ? "Saving food log and photo..." : "Saving food log...");
+    setStatus(t(selectedImageDataUrl ? "food.savingPhoto" : "food.savingLog"));
 
     const savedLog = {
       id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -1057,10 +1058,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setShowPortionDiagnostics(false);
       setManualMealText("");
       setMealSpeechMessage("");
-      setStatus(imageS3Key ? "Food log and photo saved to Ascend." : "Food log saved. Photo storage is temporarily unavailable.");
+      setStatus(t(imageS3Key ? "food.savedPhoto" : "food.photoUnavailable"));
       markInstallEligible("first_action");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save food log. Please check your connection and try again.");
+      setStatus(t("food.saveError"));
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
@@ -1078,14 +1079,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             onClick={() => setView("log")}
             className={`ascend-pressable h-11 rounded-[0.65rem] text-sm font-semibold ${view === "log" ? "bg-lime text-ink" : "text-zinc-300"}`}
           >
-            Log Food
+            {t("food.logFood")}
           </button>
           <button
             type="button"
             onClick={() => setView("history")}
             className={`ascend-pressable h-11 rounded-[0.65rem] text-sm font-semibold ${view === "history" ? "bg-lime text-ink" : "text-zinc-300"}`}
           >
-            Meal History
+            {t("food.mealHistory")}
           </button>
         </div>
 
@@ -1094,12 +1095,12 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             <div>
               <p className="text-sm font-semibold">{t("food.todaysMeals")}</p>
               <p className="mt-1 text-sm text-zinc-400">
-                {todaysFoodLogs.length ? `${todaysFoodLogs.length} meals logged` : "Your first meal today will appear here."}
+                {todaysFoodLogs.length ? t("food.mealsLogged", { count: todaysFoodLogs.length }) : t("food.firstMealToday")}
               </p>
             </div>
             <div className="text-right">
               <p className="text-2xl font-semibold">{todaysTotals.calories}</p>
-              <p className="text-xs text-zinc-400">of {effectiveNutritionTargets.calorieTarget.toLocaleString()} kcal</p>
+              <p className="text-xs text-zinc-400">{t("food.ofTarget", { value: effectiveNutritionTargets.calorieTarget.toLocaleString() })}</p>
             </div>
           </div>
           <div className="mt-3 h-3 overflow-hidden rounded-full bg-ink">
@@ -1114,18 +1115,18 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.proteinG)} / {effectiveNutritionTargets.proteinTargetG}g</p>
             </div>
             <div className="ascend-inset p-2.5">
-              <p className="text-[10px] uppercase text-zinc-500">Carbs</p>
+              <p className="text-[10px] uppercase text-zinc-500">{t("food.carbohydrates")}</p>
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.carbsG)} / {effectiveNutritionTargets.carbsTargetG}g</p>
             </div>
             <div className="ascend-inset p-2.5">
-              <p className="text-[10px] uppercase text-zinc-500">Fat</p>
+              <p className="text-[10px] uppercase text-zinc-500">{t("food.fat")}</p>
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.fatG)} / {effectiveNutritionTargets.fatTargetG}g</p>
             </div>
           </div>
           <p className="mt-2 text-xs text-zinc-500">
             {isStarterNutritionGuide
-              ? "Starting guide based on the details available. Complete your profile to personalise it."
-              : "Daily guide, not a strict limit. Review portions with your trainer if unsure."}
+              ? t("food.starterGuide")
+              : t("food.dailyGuide")}
           </p>
 
           {todaysFoodLogs.length ? (
@@ -1148,14 +1149,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         disabled={deletingFoodLogId === log.id}
                         onClick={() => handleDeleteFoodLog(log)}
                         className="ascend-pressable absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-black/65 text-white backdrop-blur-sm disabled:opacity-60"
-                        aria-label={`Remove ${log.estimated_food_name}`}
+                        aria-label={t("food.removeAria", { food: log.estimated_food_name })}
                         title={t("food.removeMeal")}
                       >
                         <Trash2 size={17} />
                       </button>
                       <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
                         <div className="min-w-0">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-lime">Latest meal</p>
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-lime">{t("food.latestMeal")}</p>
                           <p className="mt-1 truncate text-base font-semibold text-white">{log.estimated_food_name}</p>
                           <p className="mt-1 text-xs text-white/70">
                             P {Math.round(Number(log.protein_g))}g / C {Math.round(Number(log.carbs_g))}g / F {Math.round(Number(log.fat_g))}g
@@ -1190,7 +1191,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                           disabled={deletingFoodLogId === log.id}
                           onClick={() => handleDeleteFoodLog(log)}
                           className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-red-400/30 bg-red-500/10 text-red-300 disabled:opacity-60"
-                          aria-label={`Remove ${log.estimated_food_name}`}
+                          aria-label={t("food.removeAria", { food: log.estimated_food_name })}
                           title={t("food.removeMeal")}
                         >
                           <Trash2 size={17} />
@@ -1210,14 +1211,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <CalendarDays className="text-lime" size={19} />
-                  <h2 className="text-base font-semibold">Meal history filters</h2>
+                  <h2 className="text-base font-semibold">{t("food.historyFilters")}</h2>
                 </div>
                 <button
                   type="button"
                   onClick={() => setView("log")}
                   className="ascend-pressable rounded-xl bg-lime px-3 py-2.5 text-sm font-semibold text-ink"
                 >
-                  Add meal
+                  {t("food.addMeal")}
                 </button>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1239,7 +1240,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 onClick={() => setHistoryOrder((current) => current === "newest" ? "oldest" : "newest")}
                 className="ascend-pressable mt-3 h-11 w-full rounded-xl border border-line bg-ink text-sm font-semibold text-zinc-200"
               >
-                {historyOrder === "newest" ? "Newest First" : "Oldest First"}
+                {t(historyOrder === "newest" ? "food.newestFirst" : "food.oldestFirst")}
               </button>
             </section>
 
@@ -1261,15 +1262,15 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         {day.status.label}
                       </p>
                     </div>
-                    <span className="ascend-inset px-3 py-2 text-sm font-semibold text-lime">{day.logs.length} meals</span>
+                    <span className="ascend-inset px-3 py-2 text-sm font-semibold text-lime">{t("food.mealCount", { count: day.logs.length })}</span>
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     {[
-                      ["Calories", `${Math.round(day.totals.calories).toLocaleString()} kcal`],
-                      ["Protein", `${Math.round(day.totals.proteinG)}g`],
-                      ["Carbs", `${Math.round(day.totals.carbsG)}g`],
-                      ["Fat", `${Math.round(day.totals.fatG)}g`]
+                      [t("nutrition.calories"), `${Math.round(day.totals.calories).toLocaleString()} kcal`],
+                      [t("nutrition.protein"), `${Math.round(day.totals.proteinG)}g`],
+                      [t("food.carbohydrates"), `${Math.round(day.totals.carbsG)}g`],
+                      [t("food.fat"), `${Math.round(day.totals.fatG)}g`]
                     ].map(([label, value]) => (
                       <div key={label} className="ascend-inset p-3">
                         <p className="text-xs uppercase text-zinc-500">{label}</p>
@@ -1279,7 +1280,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   </div>
 
                   <div className="ascend-inset mt-4 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Daily notes</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">{t("food.dailyNotes")}</p>
                     <div className="mt-2 space-y-1">
                       {day.observations.map((observation) => (
                         <p key={observation} className="text-sm leading-6 text-zinc-300">{observation}</p>
@@ -1313,7 +1314,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                                 P {Math.round(asNumber(log.protein_g))}g / C {Math.round(asNumber(log.carbs_g))}g / F {Math.round(asNumber(log.fat_g))}g
                               </p>
                               {ai.confidence !== undefined ? (
-                                <p className="mt-2 text-xs text-zinc-500">AI confidence: {Math.round(ai.confidence * 100)}%</p>
+                                <p className="mt-2 text-xs text-zinc-500">{t("food.aiConfidence", { value: Math.round(ai.confidence * 100) })}</p>
                               ) : null}
                               {ai.notes || log.description ? (
                                 <p className="mt-2 text-xs leading-5 text-zinc-400">{ai.notes ?? log.description}</p>
@@ -1325,7 +1326,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                                 className="ascend-pressable mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-400/30 bg-red-500/10 px-3 text-sm font-semibold text-red-300 disabled:opacity-60"
                               >
                                 <Trash2 size={16} />
-                                {deletingFoodLogId === log.id ? "Removing..." : "Remove meal"}
+                                {deletingFoodLogId === log.id ? t("food.removing") : t("food.removeMeal")}
                               </button>
                             </div>
                           </div>
@@ -1348,7 +1349,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         onClick={() => setView("log")}
                         className="ascend-pressable flex h-11 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink"
                       >
-                        Log your first meal
+                        {t("food.logFirstMeal")}
                       </button>
                     }
                   />
@@ -1363,7 +1364,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 onClick={loadMoreHistory}
                 className="ascend-pressable mt-4 h-12 w-full rounded-xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
-                {isLoadingHistoryMore ? "Loading..." : "Load more meals"}
+                {t(isLoadingHistoryMore ? "food.loadingMore" : "food.loadMore")}
               </button>
             ) : null}
           </>
@@ -1396,31 +1397,31 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4 text-left">
                   <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(53,242,208,0.28)]"><Check size={24} strokeWidth={2.5} /></span>
-                  <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-lime">Meal saved</p><h2 className="mt-1 text-xl font-semibold text-white">{savedMeal.foodName}</h2></div>
+                  <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-lime">{t("food.mealSaved")}</p><h2 className="mt-1 text-xl font-semibold text-white">{savedMeal.foodName}</h2></div>
                 </div>
               </div>
             ) : (
               <div className="px-5 pt-5 text-center">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(53,242,208,0.28)]"><Check size={28} strokeWidth={2.5} /></div>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-lime">Meal saved</p>
+                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-lime">{t("food.mealSaved")}</p>
                 <h2 className="mt-2 text-xl font-semibold">{savedMeal.foodName}</h2>
               </div>
             )}
             <div className="p-5 text-center">
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-ink p-3"><p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Calories</p><p className="mt-1 font-semibold text-white">{Math.round(savedMeal.calories)} kcal</p></div>
-              <div className="rounded-xl bg-ink p-3"><p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Protein</p><p className="mt-1 font-semibold text-white">{Math.round(savedMeal.proteinG)}g</p></div>
+              <div className="rounded-xl bg-ink p-3"><p className="text-xs uppercase tracking-[0.12em] text-zinc-500">{t("nutrition.calories")}</p><p className="mt-1 font-semibold text-white">{Math.round(savedMeal.calories)} kcal</p></div>
+              <div className="rounded-xl bg-ink p-3"><p className="text-xs uppercase tracking-[0.12em] text-zinc-500">{t("nutrition.protein")}</p><p className="mt-1 font-semibold text-white">{Math.round(savedMeal.proteinG)}g</p></div>
             </div>
-            <p className="mt-4 text-sm leading-6 text-zinc-300">Your daily progress has been updated.</p>
+            <p className="mt-4 text-sm leading-6 text-zinc-300">{t("food.progressUpdated")}</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <Link href="/dashboard" className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-lime/30 bg-ink font-semibold text-lime">
                 {t("food.backToToday")}
               </Link>
               <button type="button" onClick={() => setView("history")} className="ascend-pressable h-12 rounded-xl border border-line bg-ink font-semibold text-white">
-                Meal history
+                {t("food.mealHistory")}
               </button>
               <button type="button" onClick={() => setSavedMeal(null)} className="ascend-pressable col-span-2 h-12 rounded-xl bg-lime font-semibold text-ink">
-                Log another
+                {t("food.logAnother")}
               </button>
             </div>
             </div>
@@ -1430,15 +1431,15 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             <div className="relative aspect-[4/3] overflow-hidden bg-ink">
               {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt="Selected meal" className="h-full w-full object-cover" />
+                <img src={previewUrl} alt={t("food.selectedMeal")} className="h-full w-full object-cover" />
               ) : (
                 <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving || isListeningForMeal} className="grid h-full w-full place-items-center p-6 text-center disabled:opacity-60">
                   <span>
                     <span className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-lime/30 bg-lime/10 text-lime shadow-[0_0_32px_rgba(53,242,208,0.12)]">
                       <Camera size={30} />
                     </span>
-                    <span className="mt-4 block text-lg font-semibold text-white">Photograph your meal</span>
-                    <span className="mt-2 block text-sm text-zinc-400">Ascend reads the food and prepares an estimate.</span>
+                    <span className="mt-4 block text-lg font-semibold text-white">{t("food.photoTitle")}</span>
+                    <span className="mt-2 block text-sm text-zinc-400">{t("food.photoBody")}</span>
                   </span>
                 </button>
               )}
@@ -1452,8 +1453,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 <div className="absolute inset-0 grid place-items-center bg-black/65 px-6 text-center" aria-live="polite">
                   <div>
                     <Sparkles className="mx-auto text-lime" size={30} />
-                    <p className="mt-3 text-lg font-semibold text-white">Reading your meal</p>
-                    <p className="mt-2 text-sm text-zinc-300">Identifying foods and estimating portions...</p>
+                    <p className="mt-3 text-lg font-semibold text-white">{t("food.readingMeal")}</p>
+                    <p className="mt-2 text-sm text-zinc-300">{t("food.identifying")}</p>
                   </div>
                   <div className="ascend-food-scan-line absolute left-4 right-4 h-px bg-lime shadow-[0_0_14px_rgba(53,242,208,0.95)]" />
                 </div>
@@ -1463,8 +1464,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             <div className="p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-white">AI meal estimate</p>
-                  <p className="mt-1 text-xs text-zinc-500">{allowance?.label ?? "Food photo analysis"}</p>
+                  <p className="text-sm font-semibold text-white">{t("food.aiEstimate")}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{t("food.photoAnalysis")}</p>
                 </div>
                 <span className="rounded-full border border-lime/30 bg-lime/10 px-3 py-1 text-xs font-semibold text-lime">{allowanceText(allowance, t)}</span>
               </div>
@@ -1472,11 +1473,11 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <button type="button" onClick={openCameraPicker} disabled={isEstimating || isSaving || isListeningForMeal} className="ascend-pressable flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-60">
                   <Camera className="mr-2" size={18} />
-                  {previewUrl ? "Retake" : "Take photo"}
+                  {t(previewUrl ? "food.retake" : "food.takePhoto")}
                 </button>
                 <button type="button" onClick={openGalleryPicker} disabled={isEstimating || isSaving || isListeningForMeal} className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-line bg-ink font-semibold text-white disabled:opacity-60">
                   <ImagePlus className="mr-2" size={18} />
-                  Gallery
+                  {t("food.gallery")}
                 </button>
               </div>
 
@@ -1488,7 +1489,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   className="ascend-pressable flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-zinc-300 disabled:opacity-50"
                 >
                   <Utensils size={17} />
-                  Type meal
+                  {t("food.typeMeal")}
                   {showManualEntry ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
                 {mealSpeechAvailable ? (
@@ -1502,14 +1503,14 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     }`}
                   >
                     {isListeningForMeal ? <Square size={15} fill="currentColor" /> : <Mic size={17} />}
-                    {isListeningForMeal ? "Finish" : manualMealText.trim() ? "Speak again" : "Speak meal"}
+                    {t(isListeningForMeal ? "food.finish" : manualMealText.trim() ? "food.speakAgain" : "food.speakMeal")}
                   </button>
                 ) : null}
               </div>
 
               {showManualEntry ? (
                 <div className="ascend-inset ascend-soft-enter mt-2 p-3">
-                  <label className="text-sm font-semibold text-zinc-100" htmlFor="manual-meal-text">What did you eat?</label>
+                  <label className="text-sm font-semibold text-zinc-100" htmlFor="manual-meal-text">{t("food.whatAte")}</label>
                   <textarea
                     id="manual-meal-text"
                     value={manualMealText}
@@ -1522,12 +1523,12 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   {mealSpeechMessage ? (
                     <div className="mt-2" aria-live="polite">
                       <p className={`text-xs leading-5 ${isListeningForMeal ? "text-lime" : "text-zinc-400"}`}>{mealSpeechMessage}</p>
-                      <p className="mt-1 text-[11px] leading-5 text-zinc-500">Voice is used only while listening. Ascend keeps the text, not the recording.</p>
+                      <p className="mt-1 text-[11px] leading-5 text-zinc-500">{t("food.voicePrivacy")}</p>
                     </div>
                   ) : null}
                   <button type="button" disabled={isEstimating || isListeningForMeal || manualMealText.trim().length < 2} onClick={handleTextEstimate} className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:opacity-50">
                     <Sparkles className="mr-2" size={18} />
-                    {isEstimating ? "Analysing..." : "Analyse meal"}
+                    {t(isEstimating ? "food.analysing" : "food.analyseMeal")}
                   </button>
                 </div>
               ) : null}
@@ -1535,10 +1536,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               {previewUrl && !isEstimating ? (
                 <button type="button" onClick={handleEstimate} className="ascend-pressable mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink">
                   <Sparkles className="mr-2" size={18} />
-                  Analyse meal
+                  {t("food.analyseMeal")}
                 </button>
               ) : null}
-              <p className="mt-3 text-center text-[11px] leading-5 text-zinc-500">Estimates can be reviewed before anything is saved.</p>
+              <p className="mt-3 text-center text-[11px] leading-5 text-zinc-500">{t("food.reviewBeforeSave")}</p>
             </div>
           </section>
         ) : (
@@ -1548,16 +1549,16 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt={estimate.foodName || "Analysed meal"} className="h-full w-full object-cover" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-4 pb-4 pt-12">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Meal identified</p>
-                  <h2 className="mt-1 text-xl font-semibold text-white">{estimate.foodName || "Review this meal"}</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">{t("food.mealIdentified")}</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">{estimate.foodName || t("food.reviewMeal")}</h2>
                 </div>
               </div>
             ) : (
               <div className="flex items-center gap-3 border-b border-line p-4">
                 <div className="grid h-11 w-11 place-items-center rounded-lg bg-lime/10 text-lime"><Utensils size={21} /></div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Meal identified</p>
-                  <h2 className="mt-1 text-lg font-semibold">{estimate.foodName || "Review this meal"}</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">{t("food.mealIdentified")}</p>
+                  <h2 className="mt-1 text-lg font-semibold">{estimate.foodName || t("food.reviewMeal")}</h2>
                 </div>
               </div>
             )}
@@ -1576,10 +1577,10 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Estimated nutrition</p>
-                  <p className="mt-2 text-sm leading-6 text-zinc-300">Review the estimate, then save it to today.</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{t("food.estimatedNutrition")}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">{t("food.reviewEstimate")}</p>
                   {portionAwareEstimate ? (
-                    <p className="mt-2 text-xs leading-5 text-zinc-500">Estimated from your photo, not measured.</p>
+                    <p className="mt-2 text-xs leading-5 text-zinc-500">{t("food.photoEstimateCaveat")}</p>
                   ) : (
                     <p className="mt-2 text-xs text-zinc-500">{Math.round(estimate.confidence * 100)}% AI confidence</p>
                   )}
@@ -1589,19 +1590,19 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               <div className="ascend-inset mt-5 space-y-4 p-4">
                 <MacroProgress label={t("client360.protein")} value={estimate.proteinG} target={effectiveNutritionTargets.proteinTargetG} />
                 <MacroProgress label={t("trainer.carbohydrates")} value={estimate.carbsG} target={effectiveNutritionTargets.carbsTargetG} />
-                <MacroProgress label="Fat" value={estimate.fatG} target={effectiveNutritionTargets.fatTargetG} />
+                <MacroProgress label={t("food.fat")} value={estimate.fatG} target={effectiveNutritionTargets.fatTargetG} />
               </div>
 
               {portionAwareEstimate ? (
-                <section className="ascend-inset mt-4 p-4" aria-label="Estimated meal portions">
+                <section className="ascend-inset mt-4 p-4" aria-label={t("food.estimatedPortionsAria")}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Zoe analysed your meal</p>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">{t("food.zoeAnalysed")}</p>
                       <p className="mt-2 text-sm font-semibold text-white">{t("food.estimatedPortion", { portion: portionLabel(portionAwareEstimate.visiblePortionLabel, t) })}</p>
-                      <p className="mt-1 text-xs text-zinc-500">Estimated from your photo, not measured.</p>
+                      <p className="mt-1 text-xs text-zinc-500">{t("food.photoEstimateCaveat")}</p>
                     </div>
                     {portionAwareEstimate.portionFallback ? (
-                      <span className="rounded-full border border-amber/30 bg-amber/10 px-2.5 py-1 text-[11px] font-semibold text-amber">Some amounts unclear</span>
+                      <span className="rounded-full border border-amber/30 bg-amber/10 px-2.5 py-1 text-[11px] font-semibold text-amber">{t("food.amountsUnclear")}</span>
                     ) : null}
                   </div>
 
@@ -1614,7 +1615,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                             {item.nutritionSource === "ascend_database" ? "Ascend nutrition data" : item.nutritionSource === "standard_serving_fallback" ? "Standard-serving fallback" : "AI nutrition estimate"}
                           </p>
                         </div>
-                        <span className="shrink-0 text-sm font-semibold text-zinc-200">~{formatPortionItemQuantity(item)}</span>
+                        <span className="shrink-0 text-sm font-semibold text-zinc-200">~{formatPortionItemQuantity(item, t)}</span>
                       </div>
                     ))}
                   </div>
@@ -1628,7 +1629,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     onClick={() => setShowPortionEditor((current) => !current)}
                     className="ascend-pressable mt-4 flex h-11 w-full items-center justify-between rounded-xl border border-line bg-surface px-4 text-sm font-semibold text-zinc-200"
                   >
-                    <span className="flex items-center gap-2"><SlidersHorizontal size={17} /> Adjust portions</span>
+                    <span className="flex items-center gap-2"><SlidersHorizontal size={17} /> {t("food.adjustPortions")}</span>
                     {showPortionEditor ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
                   </button>
 
@@ -1646,13 +1647,13 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                               </div>
                             </div>
                             {item.unit === "piece" || item.unit === "slice" ? (
-                              <p className="mt-3 text-xs leading-5 text-zinc-500">Use the quantity field for countable foods so whole pieces stay clear.</p>
+                              <p className="mt-3 text-xs leading-5 text-zinc-500">{t("food.portionQuantityHelp")}</p>
                             ) : (
                               <div className="mt-3 grid grid-cols-3 gap-2">
                                 {[
-                                  { label: "Smaller", multiplier: 0.75 },
-                                  { label: "Estimated", multiplier: 1 },
-                                  { label: "Larger", multiplier: 1.25 }
+                                  { label: t("food.smaller"), multiplier: 0.75 },
+                                  { label: t("food.estimated"), multiplier: 1 },
+                                  { label: t("food.larger"), multiplier: 1.25 }
                                 ].map((option) => (
                                   <button
                                     key={option.label}
@@ -1668,7 +1669,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                           </div>
                         );
                       })}
-                      <p className="text-xs leading-5 text-zinc-500">Nutrition updates immediately. Adjusting a portion does not run AI again.</p>
+                      <p className="text-xs leading-5 text-zinc-500">{t("food.portionNoAi")}</p>
                     </div>
                   ) : null}
 
@@ -1717,7 +1718,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   <p className="text-sm leading-6 text-amber">{status}</p>
                   <button className="ascend-pressable mt-3 flex h-11 w-full items-center justify-center rounded-xl bg-amber font-semibold text-ink disabled:opacity-60" disabled={isEstimating} onClick={selectedFile ? handleEstimate : handleTextEstimate} type="button">
                     <Sparkles className="mr-2" size={18} />
-                    {isEstimating ? "Trying again..." : "Try AI again"}
+                    {t(isEstimating ? "food.tryingAgain" : "food.tryAiAgain")}
                   </button>
                 </div>
               ) : null}
@@ -1730,31 +1731,31 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 }}
                 className="ascend-pressable mt-4 flex h-11 w-full items-center justify-between rounded-xl border border-line bg-ink px-4 text-sm font-semibold text-zinc-200"
               >
-                <span className="flex items-center gap-2"><Pencil size={17} /> Edit estimate</span>
+                <span className="flex items-center gap-2"><Pencil size={17} /> {t("food.editEstimate")}</span>
                 {showEstimateEditor ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
               </button>
 
               {showEstimateEditor ? (
                 <div className="ascend-inset ascend-soft-enter mt-3 space-y-4 p-4">
-                  <Field label="Detected foods"><input ref={foodNameInputRef} className={inputClass} value={estimate.foodName} onChange={(event) => updateEstimate("foodName", event.target.value)} /></Field>
+                  <Field label={t("food.detectedFoods")}><input ref={foodNameInputRef} className={inputClass} value={estimate.foodName} onChange={(event) => updateEstimate("foodName", event.target.value)} /></Field>
                   <div className="grid grid-cols-2 gap-3">
-                    <Field label="Calories"><input className={inputClass} inputMode="numeric" value={estimate.calories} onChange={(event) => updateEstimate("calories", Number(event.target.value))} /></Field>
-                    <Field label="Protein"><input className={inputClass} inputMode="decimal" value={estimate.proteinG} onChange={(event) => updateEstimate("proteinG", Number(event.target.value))} /></Field>
-                    <Field label="Carbs"><input className={inputClass} inputMode="decimal" value={estimate.carbsG} onChange={(event) => updateEstimate("carbsG", Number(event.target.value))} /></Field>
-                    <Field label="Fat"><input className={inputClass} inputMode="decimal" value={estimate.fatG} onChange={(event) => updateEstimate("fatG", Number(event.target.value))} /></Field>
+                    <Field label={t("nutrition.calories")}><input className={inputClass} inputMode="numeric" value={estimate.calories} onChange={(event) => updateEstimate("calories", Number(event.target.value))} /></Field>
+                    <Field label={t("nutrition.protein")}><input className={inputClass} inputMode="decimal" value={estimate.proteinG} onChange={(event) => updateEstimate("proteinG", Number(event.target.value))} /></Field>
+                    <Field label={t("food.carbohydrates")}><input className={inputClass} inputMode="decimal" value={estimate.carbsG} onChange={(event) => updateEstimate("carbsG", Number(event.target.value))} /></Field>
+                    <Field label={t("food.fat")}><input className={inputClass} inputMode="decimal" value={estimate.fatG} onChange={(event) => updateEstimate("fatG", Number(event.target.value))} /></Field>
                   </div>
-                  <p className="text-xs leading-5 text-zinc-500">Macro calories: {macroTotal} kcal. {estimate.notes}</p>
+                  <p className="text-xs leading-5 text-zinc-500">{t("food.macroCalories", { value: macroTotal, notes: estimate.notes })}</p>
                 </div>
               ) : null}
 
               <button type="button" disabled={isSaving || !canSaveEstimate} onClick={handleSave} className="ascend-pressable mt-4 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_12px_30px_rgba(53,242,208,0.16)] disabled:cursor-not-allowed disabled:opacity-60">
                 {wasEdited ? <Save className="mr-2" size={19} /> : <Check className="mr-2" size={19} />}
-                {isSaving ? "Saving meal..." : "Save meal"}
+                {t(isSaving ? "food.savingMeal" : "food.saveMeal")}
               </button>
               <button type="button" onClick={previewUrl ? openCameraPicker : () => { setEstimate(null); setShowManualEntry(true); }} disabled={isSaving} className="ascend-pressable mt-2 h-11 w-full rounded-xl text-sm font-semibold text-zinc-400 disabled:opacity-60">
-                {previewUrl ? "Retake photo" : "Change description"}
+                {t(previewUrl ? "food.retakePhoto" : "food.changeDescription")}
               </button>
-              {!aiFailed && status.startsWith("Could not") ? <p className="mt-3 text-center text-sm text-red-300">{status}</p> : null}
+              {!aiFailed && status === t("food.saveError") ? <p className="mt-3 text-center text-sm text-red-300">{status}</p> : null}
             </div>
           </form>
         )}

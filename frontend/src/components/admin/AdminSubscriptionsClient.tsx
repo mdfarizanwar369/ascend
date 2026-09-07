@@ -32,7 +32,7 @@ function statusTone(status: string) {
 export function AdminSubscriptionsClient() {
   const { t } = useI18n();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [status, setStatus] = useState("Loading subscriptions...");
+  const [status, setStatus] = useState(t("admin.loadingSubscriptions"));
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("current");
   const [providerFilter, setProviderFilter] = useState("all");
@@ -51,7 +51,7 @@ export function AdminSubscriptionsClient() {
 
   useEffect(() => {
     let mounted = true;
-    setStatus("Loading subscriptions...");
+    setStatus(t("admin.loadingSubscriptions"));
     getAdminSubscriptions({ page, pageSize: 50, status: statusFilter, provider: providerFilter === "all" ? "" : providerFilter, q: debouncedSearch })
       .then((response) => {
         if (!mounted) return;
@@ -60,34 +60,34 @@ export function AdminSubscriptionsClient() {
         setPagination(response.pagination ?? { page: 1, pageSize: 50, total: response.subscriptions.length, totalPages: 1 });
         setStatus("");
       })
-      .catch(() => mounted && setStatus("Subscription records could not be loaded. Other owner tools remain available."));
+      .catch(() => mounted && setStatus(t("admin.subscriptionLoadError")));
     return () => { mounted = false; };
-  }, [debouncedSearch, page, providerFilter, statusFilter]);
+  }, [debouncedSearch, page, providerFilter, statusFilter, t]);
 
   return (
     <>
       <section className="mt-3 flex items-start gap-3">
         <BackButton fallbackHref="/admin" />
         <div>
-          <p className="text-sm text-zinc-400">Owner tools</p>
-          <h1 className="mt-1 text-2xl font-semibold">Subscriptions</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Review access state and billing source. Values below are subscription records, not recognized revenue.</p>
+          <p className="text-sm text-zinc-400">{t("admin.ownerTools")}</p>
+          <h1 className="mt-1 text-2xl font-semibold">{t("admin.subscriptions")}</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">{t("admin.subscriptionsHelp")}</p>
         </div>
       </section>
 
       {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="mt-4 grid grid-cols-3 gap-3">
-        <div className="ascend-workspace-stat p-4"><p className="text-xs uppercase text-zinc-400">Current access</p><p className="mt-2 text-2xl font-semibold">{summary.current}</p></div>
-        <div className="ascend-workspace-stat p-4"><p className="text-xs uppercase text-zinc-400">Trials</p><p className="mt-2 text-2xl font-semibold">{summary.trials}</p></div>
-        <div className="ascend-workspace-stat p-4"><p className="text-xs uppercase text-zinc-400">Past due</p><p className={`mt-2 text-2xl font-semibold ${summary.pastDue ? "text-red-300" : "text-lime"}`}>{summary.pastDue}</p></div>
+        <div className="ascend-workspace-stat p-4"><p className="text-xs uppercase text-zinc-400">{t("admin.currentAccess")}</p><p className="mt-2 text-2xl font-semibold">{summary.current}</p></div>
+        <div className="ascend-workspace-stat p-4"><p className="text-xs uppercase text-zinc-400">{t("admin.trials")}</p><p className="mt-2 text-2xl font-semibold">{summary.trials}</p></div>
+        <div className="ascend-workspace-stat p-4"><p className="text-xs uppercase text-zinc-400">{t("admin.pastDue")}</p><p className={`mt-2 text-2xl font-semibold ${summary.pastDue ? "text-red-300" : "text-lime"}`}>{summary.pastDue}</p></div>
       </section>
 
       <section className="ascend-workspace-section mt-4 p-4">
         <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_180px]">
-          <label className="relative block"><span className="sr-only">Search subscriptions</span><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search member, email, or gym" /></label>
-          <label><span className="sr-only">Filter subscription status</span><select className={selectClass} value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="current">Current access</option><option value="all">All records</option><option value="active">Active</option><option value="trialing">Trialing</option><option value="past_due">Past due</option><option value="canceled">Canceled</option><option value="expired">Expired</option></select></label>
-          <label><span className="sr-only">Filter billing provider</span><select className={selectClass} value={providerFilter} onChange={(event) => { setProviderFilter(event.target.value); setPage(1); }}><option value="all">All providers</option><option value="manual">Manual</option><option value="stripe">Stripe</option><option value="google_play">Google Play</option><option value="lemon_squeezy">Lemon Squeezy</option></select></label>
+          <label className="relative block"><span className="sr-only">{t("admin.searchSubscriptions")}</span><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} /><input className={`${inputClass} pl-10`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t("admin.searchMemberEmailGym")} /></label>
+          <label><span className="sr-only">{t("admin.filterSubscriptionStatus")}</span><select className={selectClass} value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="current">{t("admin.currentAccess")}</option><option value="all">{t("admin.allRecords")}</option><option value="active">{t("admin.active")}</option><option value="trialing">{t("admin.trialing")}</option><option value="past_due">{t("admin.pastDue")}</option><option value="canceled">{t("admin.canceled")}</option><option value="expired">{t("admin.expired")}</option></select></label>
+          <label><span className="sr-only">{t("admin.filterBillingProvider")}</span><select className={selectClass} value={providerFilter} onChange={(event) => { setProviderFilter(event.target.value); setPage(1); }}><option value="all">{t("admin.allProviders")}</option><option value="manual">{t("admin.manual")}</option><option value="stripe">Stripe</option><option value="google_play">Google Play</option><option value="lemon_squeezy">Lemon Squeezy</option></select></label>
         </div>
       </section>
 
@@ -95,7 +95,7 @@ export function AdminSubscriptionsClient() {
         {subscriptions.map((item) => (
           <article key={item.id} className="bg-surface p-4 md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(12rem,0.8fr)_auto] md:items-center md:gap-4">
             <div className="flex items-start justify-between gap-3 md:contents">
-              <div><p className="font-semibold">{item.full_name}</p><p className="mt-1 text-sm text-zinc-400">{item.email}</p><p className="mt-1 text-xs text-zinc-500">{item.referred_gym_name ?? "No gym attribution"} · {item.referred_trainer_name ?? "No trainer attribution"}</p></div>
+              <div><p className="font-semibold">{item.full_name}</p><p className="mt-1 text-sm text-zinc-400">{item.email}</p><p className="mt-1 text-xs text-zinc-500">{item.referred_gym_name ?? t("admin.noGymAttribution")} · {item.referred_trainer_name ?? t("admin.noTrainerAttribution")}</p></div>
               <span className={`rounded-lg px-3 py-1 text-xs ${statusTone(item.status)}`}>{item.status.replaceAll("_", " ")}</span>
             </div>
             <div className="mt-4 flex items-center justify-between gap-4 rounded-lg bg-ink p-3 md:mt-0 md:contents">
@@ -104,7 +104,7 @@ export function AdminSubscriptionsClient() {
             </div>
           </article>
         ))}
-        {!subscriptions.length && !status ? <p className="ascend-workspace-section p-4 text-sm leading-6 text-zinc-400">No subscription records match these filters.</p> : null}
+        {!subscriptions.length && !status ? <p className="ascend-workspace-section p-4 text-sm leading-6 text-zinc-400">{t("admin.noSubscriptionMatches")}</p> : null}
       </section>
       {pagination.totalPages > 1 ? <nav aria-label="Subscription pages" className="mt-4 flex items-center justify-between gap-3"><button type="button" disabled={pagination.page <= 1 || Boolean(status)} onClick={() => setPage((current) => Math.max(1, current - 1))} className="h-11 rounded-lg border border-line px-4 text-sm font-semibold disabled:opacity-40">Previous</button><span className="text-sm text-zinc-400">Page {pagination.page} of {pagination.totalPages} · {pagination.total} records</span><button type="button" disabled={pagination.page >= pagination.totalPages || Boolean(status)} onClick={() => setPage((current) => current + 1)} className="h-11 rounded-lg border border-line px-4 text-sm font-semibold disabled:opacity-40">Next</button></nav> : null}
     </>

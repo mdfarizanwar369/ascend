@@ -25,6 +25,7 @@ import { deterministicTodayPriority } from "../services/todayPriorityService";
 import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
 import { dailyCoachingCorrelation, dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
 import { loadTodayPriorityFacts } from "../services/todayPriorityContextService";
+import { renderTodayPriorityCopy } from "../services/localizedCoachingCopy";
 import { localDateKeyAtOffset, localDateKeyDaysAgo, localWeekKeyAtOffset } from "../services/memberTimeService";
 import { bodyCompositionScanFromDb, buildBodyCompositionSummary, getTrustedBodyCompositionHistory } from "../services/bodyCompositionService";
 
@@ -647,7 +648,8 @@ aiRouter.post("/ai/today-priority", requireAuth, todayPriorityRateLimit, async (
     const { timezoneOffsetMinutes } = todayPrioritySchema.parse(req.body ?? {});
     const { context, facts } = await loadTodayPriorityFacts(req.user!.id, timezoneOffsetMinutes);
     const localDay = context.localDate;
-    const deterministicPriority = deterministicTodayPriority(facts);
+    const locale = req.user!.preferredLocale;
+    const deterministicPriority = renderTodayPriorityCopy(deterministicTodayPriority(facts), facts, locale);
     const resolveLegacyPriority = async () => {
       try {
         const decision = await resolveDailyCoachingDecision({
@@ -656,6 +658,7 @@ aiRouter.post("/ai/today-priority", requireAuth, todayPriorityRateLimit, async (
           timezoneOffsetMinutes,
           expiresAt: context.dayEndUtc.toISOString(),
           facts,
+          locale,
           allowAiRefinement: true,
           legacyPriorityKey: deterministicPriority.key
         }, {
@@ -712,6 +715,7 @@ aiRouter.post("/ai/today-priority", requireAuth, todayPriorityRateLimit, async (
           timezoneOffsetMinutes,
           expiresAt: context.dayEndUtc.toISOString(),
           facts,
+          locale,
           allowAiRefinement: true,
           legacyPriorityKey: deterministicPriority.key
         }, {
@@ -785,6 +789,7 @@ aiRouter.post("/ai/today-priority", requireAuth, todayPriorityRateLimit, async (
         timezoneOffsetMinutes,
         expiresAt: context.dayEndUtc.toISOString(),
         facts,
+        locale,
         allowAiRefinement: false,
         legacyPriorityKey: legacy.priority.key
       }).then((decision) => {

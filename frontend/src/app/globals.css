@@ -3,7 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --ascend-safe-area-top: env(safe-area-inset-top, 0px);
+  --ascend-native-status-bar-top: 0px;
+  --ascend-safe-area-top: max(env(safe-area-inset-top, 0px), var(--ascend-native-status-bar-top));
   --color-ink: 15 22 31;
   --color-surface: 27 37 51;
   --color-line: 38 48 66;
@@ -21,10 +22,6 @@
   --surface-soft: 11 16 24;
   --shadow-raised: 0 18px 48px rgba(0, 0, 0, 0.22);
   color-scheme: dark;
-}
-
-html[data-native-platform="android"] {
-  --ascend-safe-area-top: max(env(safe-area-inset-top, 0px), 1.5rem);
 }
 
 html[data-theme="light"] {
@@ -64,6 +61,16 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html[data-native-platform="android"] body::before {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  height: var(--ascend-safe-area-top);
+  background: rgb(var(--color-ink));
+  content: "";
+  pointer-events: none;
 }
 
 html {

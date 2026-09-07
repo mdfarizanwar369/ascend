@@ -182,6 +182,7 @@ function startWorkoutDebriefAfterSave(input: {
   userId: string;
   gymId: string | null;
   isPlatformOwner: boolean;
+  locale: AuthUser["preferredLocale"];
 }, debrief: Awaited<ReturnType<typeof initializeWorkoutDebrief>> | null) {
   if (!debrief?.enabled || debrief.status !== "pending") return;
   void generateWorkoutDebrief(input).catch((error) => {
@@ -611,7 +612,8 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
       isPlatformOwner: req.user!.isPlatformOwner,
       source: "quick_activity",
       metadata: burnLog.metadata,
-      createdAt: burnLog.created_at
+      createdAt: burnLog.created_at,
+      locale: req.user!.preferredLocale
     }).catch((error) => {
       console.warn("[workout-debrief]", {
         feature: "coach_zoe_workout_debrief_v1",
@@ -651,7 +653,8 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
       isPlatformOwner: req.user!.isPlatformOwner,
       source: "coach_zoe_workout_planner",
       metadata: result.burnLog.metadata,
-      createdAt: result.burnLog.created_at
+      createdAt: result.burnLog.created_at,
+      locale: req.user!.preferredLocale
     }).catch((error) => {
       console.warn("[workout-debrief]", {
         feature: "coach_zoe_workout_debrief_v1",
@@ -668,7 +671,8 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("
       workoutEventId: result.burnLog.id,
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,
-      isPlatformOwner: req.user!.isPlatformOwner
+      isPlatformOwner: req.user!.isPlatformOwner,
+      locale: req.user!.preferredLocale
     }, debrief);
   } catch (error) {
     next(error);
@@ -735,7 +739,8 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       isPlatformOwner: req.user!.isPlatformOwner,
       source: "ai_workout_capture",
       metadata: result.burnLog.metadata,
-      createdAt: result.burnLog.created_at
+      createdAt: result.burnLog.created_at,
+      locale: req.user!.preferredLocale
     }).catch((error) => {
       console.warn("[workout-debrief]", {
         feature: "coach_zoe_workout_debrief_v1",
@@ -751,7 +756,8 @@ logsRouter.post("/burn-logs/captured-workout", requireAuth, async (req, res, nex
       workoutEventId: result.burnLog.id,
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,
-      isPlatformOwner: req.user!.isPlatformOwner
+      isPlatformOwner: req.user!.isPlatformOwner,
+      locale: req.user!.preferredLocale
     }, debrief);
   } catch (error) {
     next(error);
@@ -825,7 +831,8 @@ logsRouter.post("/burn-logs/:burnLogId/debrief", requireAuth, workoutDebriefRate
       workoutEventId,
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,
-      isPlatformOwner: req.user!.isPlatformOwner
+      isPlatformOwner: req.user!.isPlatformOwner,
+      locale: req.user!.preferredLocale
     });
     if (!debrief) return res.status(404).json({ error: "Workout debrief not found." });
     res.json({ debrief: { ...debrief, access: reservation.access } });

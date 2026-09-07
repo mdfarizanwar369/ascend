@@ -1,5 +1,6 @@
 /// <reference types="@capacitor-firebase/authentication" />
 /// <reference types="@capacitor/push-notifications" />
+/// <reference types="@capacitor/status-bar" />
 
 import type { CapacitorConfig } from "@capacitor/cli";
 
@@ -39,6 +40,11 @@ const config: CapacitorConfig = {
       launchFadeOutDuration: 200,
       backgroundColor: "#07090d",
       showSpinner: false
+    },
+    StatusBar: {
+      overlaysWebView: false,
+      style: "LIGHT",
+      backgroundColor: "#07090D"
     }
   }
 };

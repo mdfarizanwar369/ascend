@@ -1,6 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.min(max, Math.max(min, value));
@@ -21,6 +22,7 @@ export function AscendRiseMomentum({
   reward?: boolean;
   compact?: boolean;
 }) {
+  const { t } = useI18n();
   const radius = 76;
   const progress = isStarting ? 0 : clamp(score);
   const endAngle = ((progress / 100) * 360 - 90) * (Math.PI / 180);
@@ -39,7 +41,7 @@ export function AscendRiseMomentum({
       data-reward={reward ? "true" : "false"}
       data-starting={isStarting ? "true" : "false"}
       role="img"
-      aria-label={isStarting ? "Momentum starts building after your first check-in." : `Momentum ${score} out of 100, based on your last seven days.`}
+      aria-label={isStarting ? t("dashboard.momentumBeginsAria") : t("dashboard.momentumScoreAria", { score })}
     >
       <svg className="h-full w-full" viewBox="0 0 200 200" role="img" aria-hidden="true">
         <defs>
@@ -85,7 +87,7 @@ export function AscendRiseMomentum({
       <div className="absolute inset-0 grid place-items-center text-center">
         <div className="ascend-rise-score">
           <p className={`${compact ? "text-2xl" : "text-4xl sm:text-5xl"} font-semibold leading-none text-white`}>{isStarting ? "--" : score}</p>
-          <p className={`${compact ? "mt-1 text-[7px]" : "mt-2 text-[10px]"} font-bold uppercase tracking-[0.2em] text-purple-200`}>Momentum</p>
+          <p className={`${compact ? "mt-1 text-[7px]" : "mt-2 text-[10px]"} font-bold uppercase tracking-[0.2em] text-purple-200`}>{t("dashboard.yourMomentum")}</p>
           <p className={`${compact ? "mt-0.5 max-w-16 text-[8px] leading-3" : "mt-1 text-xs"} mx-auto font-medium text-calm`}>{label}</p>
         </div>
       </div>

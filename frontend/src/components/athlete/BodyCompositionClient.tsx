@@ -234,7 +234,10 @@ function quickSummary(summary: BodyCompositionSummary | null, scan: BodyComposit
   const bodyFat = comparisonFor(summary, "Body Fat");
   const muscle = comparisonFor(summary, "Skeletal Muscle");
   if (summary.comparison.status === "PROVISIONAL") {
-    return bodyFat?.meaningful ? bodyFat.message : muscle?.meaningful ? muscle.message : summary.comparison.headline;
+    if (bodyFat?.meaningful && bodyFat.signal === "lower") return t("bodyScan.bodyFatLowerMuscleStable");
+    if (bodyFat?.meaningful && bodyFat.signal === "higher") return t("bodyScan.bodyFatHigher");
+    if (muscle?.meaningful && muscle.signal === "lower") return t("bodyScan.muscleLower");
+    return t("bodyScan.changeNotEstablished");
   }
   if (bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful && bodyFat.signal === "lower" && muscle?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscle.signal)) {
     return t("bodyScan.bodyFatLowerMuscleStable");
@@ -245,11 +248,35 @@ function quickSummary(summary: BodyCompositionSummary | null, scan: BodyComposit
   if (bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful && bodyFat.signal === "higher") {
     return t("bodyScan.bodyFatHigher");
   }
-  return summary.comparison.headline;
+  return t("bodyScan.changeNotEstablished");
+}
+
+function evidenceLabel(status: BodyCompositionSummary["comparison"]["status"] | undefined, t: Translate) {
+  if (status === "ESTABLISHED") return t("bodyScan.evidenceEstablished");
+  if (status === "PROVISIONAL") return t("bodyScan.evidenceProvisional");
+  return t("bodyScan.evidenceBuilding");
+}
+
+const BODY_SCAN_METRICS = { weight: "Weight", bodyFat: "Body Fat", muscle: "Skeletal Muscle", leanMass: "Lean Mass", visceralFat: "Visceral Fat" } as const;
+
+function metricLabel(metric: string | undefined, t: Translate) {
+  if (metric === BODY_SCAN_METRICS.weight) return t("bodyScan.metricWeight");
+  if (metric === BODY_SCAN_METRICS.bodyFat) return t("bodyScan.metricBodyFat");
+  if (metric === BODY_SCAN_METRICS.muscle) return t("bodyScan.metricSkeletalMuscle");
+  if (metric === BODY_SCAN_METRICS.leanMass) return t("bodyScan.leanMass");
+  if (metric === BODY_SCAN_METRICS.visceralFat) return t("bodyScan.visceralFat");
+  return metric ?? "--";
+}
+
+function alertMessage(type: string, t: Translate) {
+  const key = `bodyScan.alert.${type}`;
+  const value = t(key);
+  return value === key ? t("bodyScan.alert.default") : value;
 }
 
 function TrendSparkline({ values }: { values: number[] }) {
-  if (values.length < 2) return <div className="grid h-10 place-items-center rounded-lg bg-ink text-xs text-zinc-500">Trend appears after three comparable scans</div>;
+  const { t } = useI18n();
+  if (values.length < 2) return <div className="grid h-10 place-items-center rounded-lg bg-ink text-xs text-zinc-500">{t("bodyScan.trendNeedsThree")}</div>;
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -266,6 +293,7 @@ function TrendSparkline({ values }: { values: number[] }) {
 }
 
 function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary | null; draftScan?: BodyCompositionScan | null }) {
+  const { t } = useI18n();
   const score = summary?.dnaScore.current;
   const change = summary?.dnaScore.change ?? null;
   return (
@@ -273,26 +301,27 @@ function DnaScoreCard({ summary, draftScan }: { summary: BodyCompositionSummary 
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Ascend DNA</p>
-          <h2 className="mt-1 text-xl font-semibold">Body Progress Score</h2>
-          <p className="mt-1 text-xs leading-5 text-zinc-400">An experimental coaching signal based on your confirmed scan measurements.</p>
-          {draftScan ? <p className="mt-2 inline-flex rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">Draft (Not yet saved)</p> : null}
+          <h2 className="mt-1 text-xl font-semibold">{t("bodyScan.dnaScore")}</h2>
+          <p className="mt-1 text-xs leading-5 text-zinc-400">{t("bodyScan.dnaHelp")}</p>
+          {draftScan ? <p className="mt-2 inline-flex rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">{t("bodyScan.draftUnsaved")}</p> : null}
         </div>
         <div className="grid h-20 w-20 shrink-0 place-items-center rounded-full border-4 border-teal-300 bg-ink text-center">
           <span className="text-2xl font-semibold">{score ?? "--"}</span>
         </div>
       </div>
       {draftScan ? (
-        <p className="mt-3 text-sm text-zinc-300">Save the scan to update your confirmed score.</p>
+        <p className="mt-3 text-sm text-zinc-300">{t("bodyScan.saveScore")}</p>
       ) : change !== null && change !== undefined ? (
-        <p className="mt-3 text-sm text-teal-200">{change >= 0 ? "+" : ""}{change} vs previous scan</p>
+        <p className="mt-3 text-sm text-teal-200">{t("bodyScan.vsPrevious", { value: `${change >= 0 ? "+" : ""}${change}` })}</p>
       ) : (
-        <p className="mt-3 text-sm text-zinc-400">Three comparable scans are required before Ascend shows a score trend.</p>
+        <p className="mt-3 text-sm text-zinc-400">{t("bodyScan.scoreNeedsThree")}</p>
       )}
     </section>
   );
 }
 
 function EmptyState() {
+  const { t } = useI18n();
   return (
     <section className="rounded-lg border border-teal-400/30 bg-teal-400/10 p-4">
       <div className="flex items-start gap-3">
@@ -300,10 +329,10 @@ function EmptyState() {
           <Sparkles size={20} />
         </div>
         <div>
-          <p className="text-xs uppercase tracking-[0.25em] text-teal-300">Body Scan</p>
-          <h2 className="mt-1 text-lg font-semibold">Start with your first scan</h2>
+          <p className="text-xs uppercase tracking-[0.25em] text-teal-300">{t("bodyScan.title")}</p>
+          <h2 className="mt-1 text-lg font-semibold">{t("bodyScan.startFirst")}</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            Upload a clear photo of your scan report. Ascend will help turn the numbers into progress you can actually understand.
+            {t("bodyScan.startFirstHelp")}
           </p>
         </div>
       </div>
@@ -603,23 +632,23 @@ function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) 
     <section className="rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
       <div className="flex items-center gap-2">
         <ShieldCheck className="text-purple-300" size={19} />
-        <h2 className="font-semibold">Coach view</h2>
+        <h2 className="font-semibold">{t("bodyScan.coachView")}</h2>
       </div>
-      <p className="mt-2 text-sm leading-6 text-zinc-300">Use this scan to guide the next check-in without turning the client review into a data dump.</p>
+      <p className="mt-2 text-sm leading-6 text-zinc-300">{t("bodyScan.coachViewHelp")}</p>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Body fat movement</p><p className="mt-1 font-semibold">{comparisonLabel(bodyFat, "%")}</p></div>
-        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Muscle movement</p><p className="mt-1 font-semibold">{comparisonLabel(muscle, "kg")}</p></div>
-        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Visceral fat</p><p className="mt-1 font-semibold">{valueText(summary.latestScan.visceralFat)}</p></div>
-        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Evidence</p><p className="mt-1 font-semibold">{summary.comparison.status === "ESTABLISHED" ? "Established" : summary.comparison.status === "PROVISIONAL" ? "Provisional" : "Building"}</p></div>
+        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{t("bodyScan.bodyFatMovement")}</p><p className="mt-1 font-semibold">{comparisonLabel(bodyFat, "%")}</p></div>
+        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{t("bodyScan.muscleMovement")}</p><p className="mt-1 font-semibold">{comparisonLabel(muscle, "kg")}</p></div>
+        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{t("bodyScan.visceralFat")}</p><p className="mt-1 font-semibold">{valueText(summary.latestScan.visceralFat)}</p></div>
+        <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{t("bodyScan.evidence")}</p><p className="mt-1 font-semibold">{evidenceLabel(summary.comparison.status, t)}</p></div>
       </div>
       <div className="mt-3 rounded-lg bg-ink p-3">
-        <p className="text-xs text-zinc-500">Recommended discussion</p>
+        <p className="text-xs text-zinc-500">{t("bodyScan.recommendedDiscussion")}</p>
         <p className="mt-1 text-sm leading-6 text-zinc-200">{quickSummary(summary, summary.latestScan, t)}</p>
       </div>
       {summary.coachAlerts.length ? (
         <div className="mt-3 space-y-2">
           {summary.coachAlerts.map((alert) => (
-            <p key={alert.type} className={`rounded-lg bg-ink p-3 text-sm ${alert.severity === "positive" ? "text-teal-200" : alert.severity === "high" ? "text-red-300" : "text-amber"}`}>{alert.message}</p>
+            <p key={alert.type} className={`rounded-lg bg-ink p-3 text-sm ${alert.severity === "positive" ? "text-teal-200" : alert.severity === "high" ? "text-red-300" : "text-amber"}`}>{alertMessage(alert.type, t)}</p>
           ))}
         </div>
       ) : null}
@@ -628,7 +657,7 @@ function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) 
 }
 
 export function BodyCompositionClient({ clientId, coachView = false }: { clientId?: string; coachView?: boolean }) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [summary, setSummary] = useState<BodyCompositionSummary | null>(null);
   const [nutritionTargets, setNutritionTargets] = useState<ResolvedNutritionTargets | null>(null);
   const [scans, setScans] = useState<BodyCompositionScan[]>([]);
@@ -860,9 +889,9 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       <section className="mt-4 flex items-start gap-3">
         <BackButton fallbackHref={coachView ? (clientId ? `/trainer/clients/${clientId}` : "/trainer") : "/athlete"} />
         <div>
-          <p className="text-sm text-teal-300">Update Progress</p>
-          <h1 className="mt-1 text-3xl font-semibold">Body Scan</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan photo, confirm the key numbers, and build a trusted history.</p>
+          <p className="text-sm text-teal-300">{t("bodyScan.updateProgress")}</p>
+          <h1 className="mt-1 text-3xl font-semibold">{t("bodyScan.title")}</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">{t("bodyScan.pageIntro")}</p>
         </div>
       </section>
 
@@ -879,66 +908,66 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
           <div className="flex items-center gap-3">
             <LineChart className="text-teal-300" size={20} />
             <div>
-              <h2 className="font-semibold">Progress Snapshot</h2>
-              <p className="text-xs text-zinc-400">{trendSeries ? `${trendSeries.label} trend from comparable scans` : summary?.latestScan ? "No metric trend is established yet" : "Add a scan to unlock trends"}</p>
+              <h2 className="font-semibold">{t("bodyScan.progressSnapshot")}</h2>
+              <p className="text-xs text-zinc-400">{trendSeries ? t("bodyScan.metricTrend", { metric: metricLabel(trendSeries.metric, t) }) : summary?.latestScan ? t("bodyScan.noTrend") : t("bodyScan.addScanForTrends")}</p>
             </div>
           </div>
           <div className="mt-3 rounded-lg bg-ink p-3">
             <TrendSparkline values={trendValues} />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{draftHasValues ? "Draft weight" : "Latest weight"}</p><p className="mt-1 text-xl font-semibold">{valueText(displayScan?.weightKg, "kg")}</p>{draftHasValues ? <p className="mt-1 text-[11px] text-amber">Draft (Not yet saved)</p> : null}</div>
-            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Body fat</p><p className="mt-1 text-xl font-semibold">{valueText(displayScan?.bodyFatPercent, "%")}</p>{draftHasValues ? <p className="mt-1 text-[11px] text-amber">Draft</p> : null}</div>
-            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">Lean mass</p><p className="mt-1 text-xl font-semibold">{valueText(draftHasValues ? (displayScan?.leanBodyMassKg ?? displayScan?.estimatedLeanBodyMassKg) : summary?.derived.fatFreeMassKg, "kg")}</p></div>
+            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{draftHasValues ? t("bodyScan.draftWeight") : t("bodyScan.latestWeight")}</p><p className="mt-1 text-xl font-semibold">{valueText(displayScan?.weightKg, "kg")}</p>{draftHasValues ? <p className="mt-1 text-[11px] text-amber">{t("bodyScan.draftUnsaved")}</p> : null}</div>
+            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{t("bodyScan.bodyFat")}</p><p className="mt-1 text-xl font-semibold">{valueText(displayScan?.bodyFatPercent, "%")}</p>{draftHasValues ? <p className="mt-1 text-[11px] text-amber">{t("bodyScan.draftUnsaved")}</p> : null}</div>
+            <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">{t("bodyScan.leanMass")}</p><p className="mt-1 text-xl font-semibold">{valueText(draftHasValues ? (displayScan?.leanBodyMassKg ?? displayScan?.estimatedLeanBodyMassKg) : summary?.derived.fatFreeMassKg, "kg")}</p></div>
             <div className="rounded-lg bg-ink p-3"><p className="text-xs text-zinc-500">FFMI</p><p className="mt-1 text-xl font-semibold">{valueText(summary?.derived.ffmi)}</p></div>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <div className="rounded-lg border border-purple-400/30 bg-purple-400/10 p-3">
-              <p className="text-xs text-purple-200">Fitness age</p>
-              <p className="mt-1 text-xl font-semibold">{fitnessAge ? `${Math.round(fitnessAge)} years` : "--"}</p>
-              <p className="mt-1 text-[11px] leading-4 text-zinc-500">Experimental. Uses scan data when available.</p>
+              <p className="text-xs text-purple-200">{t("bodyScan.fitnessAge")}</p>
+              <p className="mt-1 text-xl font-semibold">{fitnessAge ? t("bodyScan.years", { count: Math.round(fitnessAge) }) : "--"}</p>
+              <p className="mt-1 text-[11px] leading-4 text-zinc-500">{t("bodyScan.fitnessAgeHelp")}</p>
             </div>
             <div className="rounded-lg border border-teal-400/30 bg-teal-400/10 p-3">
-              <p className="text-xs text-teal-200">Goal ETA</p>
+              <p className="text-xs text-teal-200">{t("bodyScan.goalEta")}</p>
               <p className="mt-1 text-xl font-semibold">--</p>
-              <p className="mt-1 text-[11px] leading-4 text-zinc-500">Uses longer-term weight history, not Body Scan estimates.</p>
+              <p className="mt-1 text-[11px] leading-4 text-zinc-500">{t("bodyScan.goalEtaHelp")}</p>
             </div>
           </div>
           <details className="mt-3 rounded-lg border border-line bg-ink p-3">
             <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm font-semibold text-white">
-              <span>More progress details</span>
-              <span className="text-xs text-zinc-400">Optional</span>
+              <span>{t("bodyScan.moreDetails")}</span>
+              <span className="text-xs text-zinc-400">{t("bodyScan.optional")}</span>
             </summary>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Best improvement</p>
-                <p className="mt-1 text-sm font-semibold">{greatestImprovement ? greatestImprovement.metric : "--"}</p>
-                <p className="mt-1 text-xs text-teal-200">{greatestImprovement ? greatestImprovement.message : "Requires an established trend"}</p>
+                <p className="text-xs text-zinc-500">{t("bodyScan.bestImprovement")}</p>
+                <p className="mt-1 text-sm font-semibold">{greatestImprovement ? metricLabel(greatestImprovement.metric, t) : "--"}</p>
+                <p className="mt-1 text-xs text-teal-200">{greatestImprovement ? changeText(greatestImprovement.change, greatestImprovement.unit, t) : t("bodyScan.requiresTrend")}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Needs focus</p>
-                <p className="mt-1 text-sm font-semibold">{biggestChallenge ? biggestChallenge.metric : "--"}</p>
-                <p className="mt-1 text-xs text-amber">{biggestChallenge ? biggestChallenge.message : "No established concern"}</p>
+                <p className="text-xs text-zinc-500">{t("bodyScan.needsFocus")}</p>
+                <p className="mt-1 text-sm font-semibold">{biggestChallenge ? metricLabel(biggestChallenge.metric, t) : "--"}</p>
+                <p className="mt-1 text-xs text-amber">{biggestChallenge ? changeText(biggestChallenge.change, biggestChallenge.unit, t) : t("bodyScan.noConcern")}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Evidence</p>
-                <p className="mt-1 text-sm font-semibold">{summary?.comparison.status === "ESTABLISHED" ? "Established" : summary?.comparison.status === "PROVISIONAL" ? "Provisional" : "Building"}</p>
-                <p className="mt-1 text-xs text-zinc-500">{summary?.comparison.reason ?? "Add your first scan"}</p>
+                <p className="text-xs text-zinc-500">{t("bodyScan.evidence")}</p>
+                <p className="mt-1 text-sm font-semibold">{evidenceLabel(summary?.comparison.status, t)}</p>
+                <p className="mt-1 text-xs text-zinc-500">{summary?.comparison.available ? t("bodyScan.scansRequired") : t("bodyScan.addScanForTrends")}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Trend evidence</p>
-                <p className="mt-1 text-sm font-semibold">{summary?.comparison.status === "ESTABLISHED" ? `${summary.comparison.metrics.filter((metric) => metric.evidenceStatus === "ESTABLISHED").length} supported readings` : "Not established"}</p>
-                <p className="mt-1 text-xs text-zinc-500">Three comparable scans are required</p>
+                <p className="text-xs text-zinc-500">{t("bodyScan.trendEvidence")}</p>
+                <p className="mt-1 text-sm font-semibold">{summary?.comparison.status === "ESTABLISHED" ? t("bodyScan.supportedReadings", { count: summary.comparison.metrics.filter((metric) => metric.evidenceStatus === "ESTABLISHED").length }) : t("bodyScan.notEstablished")}</p>
+                <p className="mt-1 text-xs text-zinc-500">{t("bodyScan.scansRequired")}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Scans saved</p>
-                <p className="mt-1 text-sm font-semibold">{summary?.scanCount ? `${summary.scanCount} confirmed` : "--"}</p>
-                <p className="mt-1 text-xs text-zinc-500">More scans improve trends</p>
+                <p className="text-xs text-zinc-500">{t("bodyScan.scansSaved")}</p>
+                <p className="mt-1 text-sm font-semibold">{summary?.scanCount ? t("bodyScan.confirmedCount", { count: summary.scanCount }) : "--"}</p>
+                <p className="mt-1 text-xs text-zinc-500">{t("bodyScan.moreScansHelp")}</p>
               </div>
               <div className="rounded-lg bg-surface p-3">
-                <p className="text-xs text-zinc-500">Last scan</p>
-                <p className="mt-1 text-sm font-semibold">{latest?.scanDate ? new Date(latest.scanDate).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : "--"}</p>
-                <p className="mt-1 text-xs text-zinc-500">{nextScanDate ? `Next around ${nextScanDate.toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "No scan yet"}</p>
+                <p className="text-xs text-zinc-500">{t("bodyScan.lastScan")}</p>
+                <p className="mt-1 text-sm font-semibold">{latest?.scanDate ? new Date(latest.scanDate).toLocaleDateString(locale, { day: "numeric", month: "short" }) : "--"}</p>
+                <p className="mt-1 text-xs text-zinc-500">{nextScanDate ? t("bodyScan.nextAround", { date: nextScanDate.toLocaleDateString(locale, { day: "numeric", month: "short" }) }) : t("bodyScan.noScanYet")}</p>
               </div>
             </div>
           </details>
@@ -947,29 +976,29 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         <section className="rounded-lg border border-line bg-surface p-4">
           <div className="flex items-center gap-2">
             <Target className="text-teal-300" size={19} />
-            <h2 className="font-semibold">Nutrition Guide</h2>
+            <h2 className="font-semibold">{t("bodyScan.nutritionGuide")}</h2>
           </div>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Confirmed scans help Ascend personalize your daily guide.</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">{t("bodyScan.nutritionHelp")}</p>
           <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
             <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.calories ?? "--"}</span>kcal</div>
-            <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.protein ?? "--"}g</span>protein</div>
-            <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.carbs ?? "--"}g</span>carbs</div>
-            <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.fat ?? "--"}g</span>fat</div>
+            <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.protein ?? "--"}g</span>{t("bodyScan.protein")}</div>
+            <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.carbs ?? "--"}g</span>{t("bodyScan.carbs")}</div>
+            <div className="rounded-lg bg-ink p-2"><span className="block text-lg font-semibold text-white">{guide.fat ?? "--"}g</span>{t("bodyScan.fat")}</div>
           </div>
         </section>
 
         {summary?.insights.length || summary?.coachAlerts.length ? (
           <section className="rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
-            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">Coach Insight</h2></div>
+            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">{t("bodyScan.coachInsight")}</h2></div>
             <div className="mt-3 space-y-2 text-sm leading-6 text-zinc-200">
-              {summary.insights.map((insight) => <p key={insight}>{insight}</p>)}
-              {summary.coachAlerts.map((alert) => <p key={alert.type} className={alert.severity === "positive" ? "text-teal-200" : alert.severity === "high" ? "text-red-300" : "text-amber"}>{alert.message}</p>)}
+              <p>{quickSummary(summary, summary.latestScan, t)}</p>
+              {summary.coachAlerts.map((alert) => <p key={alert.type} className={alert.severity === "positive" ? "text-teal-200" : alert.severity === "high" ? "text-red-300" : "text-amber"}>{alertMessage(alert.type, t)}</p>)}
             </div>
           </section>
         ) : (
           <section className="rounded-lg border border-line bg-surface p-4">
-            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">Coach Insight</h2></div>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Add a scan to unlock clear, coach-friendly progress insights.</p>
+            <div className="flex items-center gap-2"><Brain className="text-purple-300" size={19} /><h2 className="font-semibold">{t("bodyScan.coachInsight")}</h2></div>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">{t("bodyScan.addScanForInsight")}</p>
           </section>
         )}
 
@@ -1011,7 +1040,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             ) : null}
           </section>
         ) : (
-          <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); }} className="ascend-pressable h-11 rounded-lg border border-teal-400/60 bg-teal-400/10 font-semibold !text-teal-100">Add scan manually</button>
+          <button type="button" onClick={() => { setDraft(emptyDraft()); setShowManualEntry(true); setEditAnyway(true); setShowAdvancedMetrics(false); }} className="ascend-pressable h-11 rounded-lg border border-teal-400/60 bg-teal-400/10 font-semibold !text-teal-100">{t("bodyScan.addManual")}</button>
         )}
 
         {showManualEntry ? (
@@ -1107,7 +1136,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         ) : null}
 
         <section id="scan-history" className="rounded-lg border border-line bg-surface p-4 scroll-mt-4">
-          <div className="flex items-center gap-2"><Activity className="text-teal-300" size={19} /><h2 className="font-semibold">Scan history</h2></div>
+          <div className="flex items-center gap-2"><Activity className="text-teal-300" size={19} /><h2 className="font-semibold">{t("bodyScan.scanHistory")}</h2></div>
           <div className="mt-3 space-y-3">
             {scans.map((scan) => {
               const scanConfidence = confidenceInfo(scan.confidenceScore);
@@ -1123,25 +1152,25 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
                 <article key={scan.id ?? `${scan.scanDate}-${scan.createdAt}`} className="rounded-lg border border-line bg-ink p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-semibold">{new Date(scan.scanDate).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</p>
-                      <p className="text-xs text-zinc-500">{scan.machine || "Scanner model not entered"} / {scan.importSource === "ai_import" ? "Read by AI" : "Entered manually"}</p>
+                      <p className="font-semibold">{new Date(scan.scanDate).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}</p>
+                      <p className="text-xs text-zinc-500">{scan.machine || t("bodyScan.scannerMissing")} / {scan.importSource === "ai_import" ? t("bodyScan.readByAi") : t("bodyScan.enteredManually")}</p>
                     </div>
-                    <span className={`rounded-md border px-2 py-1 text-xs ${scanConfidence.tone}`}>{scanConfidence.percent ? `${scanConfidence.percent}%` : "reviewed"}</span>
+                    <span className={`rounded-md border px-2 py-1 text-xs ${scanConfidence.tone}`}>{scanConfidence.percent ? `${scanConfidence.percent}%` : t("bodyScan.reviewed")}</span>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                    <p><span className="block text-xs text-zinc-500">Weight</span>{valueText(scan.weightKg, "kg")}</p>
-                    <p><span className="block text-xs text-zinc-500">Fat</span>{valueText(scan.bodyFatPercent, "%")}</p>
-                    <p><span className="block text-xs text-zinc-500">Muscle</span>{valueText(scan.skeletalMuscleMassKg ?? scan.muscleMassKg, "kg")}</p>
+                    <p><span className="block text-xs text-zinc-500">{t("bodyScan.metricWeight")}</span>{valueText(scan.weightKg, "kg")}</p>
+                    <p><span className="block text-xs text-zinc-500">{t("bodyScan.fatShort")}</span>{valueText(scan.bodyFatPercent, "%")}</p>
+                    <p><span className="block text-xs text-zinc-500">{t("bodyScan.muscleShort")}</span>{valueText(scan.skeletalMuscleMassKg ?? scan.muscleMassKg, "kg")}</p>
                   </div>
                   {scan.id === latest?.id ? (
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <p className="rounded-lg bg-surface p-2">{bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "lower" ? <ArrowDownRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}Body fat {historyChange(bodyFatComparison, "%")}</p>
-                      <p className="rounded-lg bg-surface p-2">{muscleComparison?.evidenceStatus === "ESTABLISHED" && muscleComparison.signal === "higher" ? <ArrowUpRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}Muscle {historyChange(muscleComparison, "kg")}</p>
+                      <p className="rounded-lg bg-surface p-2">{bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "lower" ? <ArrowDownRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}{t("bodyScan.bodyFat")} {historyChange(bodyFatComparison, "%")}</p>
+                      <p className="rounded-lg bg-surface p-2">{muscleComparison?.evidenceStatus === "ESTABLISHED" && muscleComparison.signal === "higher" ? <ArrowUpRight className="mr-1 inline text-teal-300" size={14} /> : <TrendingUp className="mr-1 inline text-zinc-400" size={14} />}{t("bodyScan.muscleShort")} {historyChange(muscleComparison, "kg")}</p>
                     </div>
                   ) : null}
                   {scan.sourceImages?.[0]?.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={scan.sourceImages[0].url} alt="Body composition scan" className="mt-3 max-h-48 w-full rounded-lg object-contain" loading="lazy" decoding="async" />
+                    <img src={scan.sourceImages[0].url} alt={t("bodyScan.alt")} className="mt-3 max-h-48 w-full rounded-lg object-contain" loading="lazy" decoding="async" />
                   ) : null}
                 </article>
               );
@@ -1149,14 +1178,14 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
             {!scans.length ? (
               <div className="rounded-lg bg-ink p-4 text-sm text-zinc-400">
                 <FileText className="mb-2 text-teal-300" size={20} />
-                Your saved scans will appear here after your first Body Scan.
+                {t("bodyScan.savedScansEmpty")}
               </div>
             ) : null}
           </div>
         </section>
 
         {nextScanDate ? (
-          <p className="pb-4 text-center text-xs text-zinc-500">Suggested next scan: {nextScanDate.toLocaleDateString(undefined, { day: "numeric", month: "short" })}</p>
+          <p className="pb-4 text-center text-xs text-zinc-500">{t("bodyScan.suggestedNext", { date: nextScanDate.toLocaleDateString(locale, { day: "numeric", month: "short" }) })}</p>
         ) : null}
       </div>
     </>

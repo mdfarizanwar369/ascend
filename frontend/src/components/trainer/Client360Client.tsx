@@ -32,7 +32,9 @@ const DAY_MS = 86_400_000;
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 function label(value: string | null | undefined, t: Translate) {
-  return value ? value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) : t("client360.notAvailable");
+  if (!value) return t("client360.notAvailable");
+  const known = new Set(["fat_loss", "muscle_gain", "maintenance", "increasing", "decreasing", "stable", "improving", "declining", "ESTABLISHED", "PROVISIONAL", "INSUFFICIENT"]);
+  return known.has(value) ? t(`client360.value.${value}`) : value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function relativeTime(value: string | null | undefined, t: Translate) {
@@ -53,7 +55,7 @@ function metricValue<T>(metric: Client360Metric<T>, format: (value: T) => string
 
 function trendText(trend: Client360Trend, t: Translate, unit = "") {
   if (!trend.sufficientData || trend.direction === "insufficient") return t("client360.notEnoughData");
-  const rate = trend.ratePerWeek === null ? "" : ` (${trend.ratePerWeek > 0 ? "+" : ""}${trend.ratePerWeek}${unit}/week)`;
+  const rate = trend.ratePerWeek === null ? "" : ` (${t("client360.ratePerWeek", { value: `${trend.ratePerWeek > 0 ? "+" : ""}${trend.ratePerWeek}${unit}` })})`;
   return `${label(trend.direction, t)}${rate}`;
 }
 
@@ -116,7 +118,7 @@ function Signals({ signals }: { signals: Client360CoachingSignal[] }) {
       {signals.slice(0, 4).map((signal) => (
         <div key={signal.code} className={`rounded-xl border p-3 ${signal.severity === "attention" ? "border-amber/35 bg-amber/10" : signal.severity === "positive" ? "border-lime/30 bg-lime/10" : "border-calm/30 bg-calm/10"}`}>
           <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-400">{signalSeverityLabel(signal, t)}</p>
-          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-300">{label(signal.code, t)}</p>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-[0.08em] text-zinc-300">{t(`client360.signalCode.${signal.code}`)}</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">{signalCopy(signal, t)}</p>
         </div>
       ))}
@@ -164,7 +166,7 @@ function ZoeInsightCard({ clientId, value, onChange }: { clientId: string; value
               </div>
             ))}
           </div>
-          {value.insight.dataCaveats.length ? <p className="mt-3 text-xs leading-5 text-zinc-500">Data note: {value.insight.dataCaveats.join(" ")}</p> : null}
+          {value.insight.dataCaveats.length ? <p className="mt-3 text-xs leading-5 text-zinc-500">{t("client360.dataNote", { note: value.insight.dataCaveats.join(" ") })}</p> : null}
           <p className="mt-3 text-xs text-zinc-500">{relativeTime(value.generatedAt, t)} · {t("client360.cached")}</p>
         </div>
       ) : (
@@ -202,9 +204,9 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
       <AscendHeroPanel
         eyebrow={t("trainer.client360")}
         title={snapshot.profile?.displayName ?? t("client360.authorizedClient")}
-        body={`${snapshot.profile?.goal ? `${label(snapshot.profile.goal, t)} goal · ` : ""}${snapshot.access.mode === "platform_owner" ? t("client360.platformOwnerRead") : snapshot.access.mode === "break_glass" ? t("client360.breakGlassRead") : t("client360.activeRelationship")}`}
+        body={`${snapshot.profile?.goal ? `${t("client360.goalSummary", { goal: label(snapshot.profile.goal, t) })} · ` : ""}${snapshot.access.mode === "platform_owner" ? t("client360.platformOwnerRead") : snapshot.access.mode === "break_glass" ? t("client360.breakGlassRead") : t("client360.activeRelationship")}`}
         tone="trainer"
-        visual={<PrioritySigil count={topSignals.filter((signal) => signal.severity === "attention").length} />}
+        visual={<PrioritySigil count={topSignals.filter((signal) => signal.severity === "attention").length} label={t("common.today")} />}
       >
         {snapshot.access.mode === "break_glass" ? (
           <div className="flex items-center gap-2 rounded-xl border border-amber/35 bg-amber/10 p-3 text-sm text-amber"><ShieldAlert size={18} /> {t("client360.breakGlassActive")}</div>
@@ -218,10 +220,10 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
         <p className="ascend-eyebrow text-calm">{t("client360.tenSecondView")}</p>
         <h2 id="current-state-title" className="mt-1 text-xl font-semibold">{t("client360.currentState")}</h2>
         <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {training ? <Stat title={t("client360.training")} value={`${training.completedWorkouts.last7Days} in 7 days`} detail={`Last workout ${relativeTime(training.lastWorkoutAt, t).toLowerCase()}`} /> : null}
-          {nutrition ? <Stat title={t("client360.nutrition")} value={`${nutrition.last7Days.daysLogged} of 7 days`} detail={t("client360.nutritionCoverage")} /> : null}
-          {body ? <Stat title={t("client360.weightTrend")} value={trendText(body.weight.trend28d, t, " kg")} detail={`Updated ${relativeTime(body.weight.currentRecordedAt, t).toLowerCase()}`} /> : null}
-          {activity ? <Stat title={t("client360.activity")} value={metricValue(activity.averageSteps7d, (value) => `${Math.round(value).toLocaleString()} steps`, t)} detail={`Synced ${relativeTime(activity.lastSyncedAt, t).toLowerCase()}`} /> : null}
+          {training ? <Stat title={t("client360.training")} value={t("client360.countInDays", { count: training.completedWorkouts.last7Days, days: 7 })} detail={t("client360.lastWorkoutRelative", { time: relativeTime(training.lastWorkoutAt, t).toLowerCase() })} /> : null}
+          {nutrition ? <Stat title={t("client360.nutrition")} value={t("client360.daysOfDays", { count: nutrition.last7Days.daysLogged, days: 7 })} detail={t("client360.nutritionCoverage")} /> : null}
+          {body ? <Stat title={t("client360.weightTrend")} value={trendText(body.weight.trend28d, t, " kg")} detail={t("client360.updatedRelative", { time: relativeTime(body.weight.currentRecordedAt, t).toLowerCase() })} /> : null}
+          {activity ? <Stat title={t("client360.activity")} value={metricValue(activity.averageSteps7d, (value) => t("client360.stepsValue", { count: Math.round(value).toLocaleString() }), t)} detail={t("client360.syncedRelative", { time: relativeTime(activity.lastSyncedAt, t).toLowerCase() })} /> : null}
         </div>
       </section>
 
@@ -239,7 +241,7 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <Stat title={t("client360.last7Days")} value={`${training.completedWorkouts.last7Days}`} detail={t("client360.workoutsRecorded")} />
-                <Stat title={t("client360.last30Days")} value={`${training.completedWorkouts.last30Days}`} detail={`${training.averageSessionsPerWeek30d} per week average`} />
+                <Stat title={t("client360.last30Days")} value={`${training.completedWorkouts.last30Days}`} detail={t("client360.averagePerWeek", { value: training.averageSessionsPerWeek30d })} />
                 <Stat title={t("client360.consistency")} value={metricValue(training.loggingConsistency8w, (value) => percentage(value, t), t)} detail={t("client360.trainingLoggingConsistency")} />
                 <Stat title={t("client360.frequency")} value={trendText(training.frequencyTrend, t)} detail={t("client360.currentVsPrevious")} />
               </div>
@@ -247,12 +249,12 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
               <div>
                 <h3 className="font-semibold">{t("client360.recordedProgression")}</h3>
                 {training.exerciseProgression.items.length ? (
-                  <div className="mt-2 space-y-2">{training.exerciseProgression.items.slice(0, 4).map((item) => <div key={`${item.exerciseKey}-${item.lastPerformedAt}`} className="rounded-xl border border-line bg-ink/30 p-3"><p className="font-medium">{item.displayName}</p><p className="mt-1 text-sm text-zinc-400">{label(item.status, t)} · last recorded {relativeTime(item.lastPerformedAt, t).toLowerCase()}</p></div>)}</div>
+                  <div className="mt-2 space-y-2">{training.exerciseProgression.items.slice(0, 4).map((item) => <div key={`${item.exerciseKey}-${item.lastPerformedAt}`} className="rounded-xl border border-line bg-ink/30 p-3"><p className="font-medium">{item.displayName}</p><p className="mt-1 text-sm text-zinc-400">{label(item.status, t)} · {t("client360.lastRecordedRelative", { time: relativeTime(item.lastPerformedAt, t).toLowerCase() })}</p></div>)}</div>
                 ) : <p className="mt-2 text-sm text-zinc-400">{t("client360.notComparableExercise")}</p>}
               </div>
               <div>
                 <h3 className="font-semibold">{t("client360.recentWorkouts")}</h3>
-                {training.recentWorkouts.length ? <div className="mt-2 space-y-2">{training.recentWorkouts.map((workout) => <div key={workout.id} className="flex items-start justify-between gap-3 rounded-xl border border-line bg-ink/30 p-3"><div><p className="font-medium">{workout.title}</p><p className="mt-1 text-xs text-zinc-500">{workout.exerciseCount} exercises{workout.recordedSets !== null ? ` · ${workout.recordedSets} sets` : ""}{workout.debriefAvailable ? " · debrief available" : ""}</p></div><p className="shrink-0 text-xs text-zinc-400">{relativeTime(workout.completedAt, t)}</p></div>)}</div> : <p className="mt-2 text-sm text-zinc-400">{t("client360.noWorkouts")}</p>}
+                {training.recentWorkouts.length ? <div className="mt-2 space-y-2">{training.recentWorkouts.map((workout) => <div key={workout.id} className="flex items-start justify-between gap-3 rounded-xl border border-line bg-ink/30 p-3"><div><p className="font-medium">{workout.title}</p><p className="mt-1 text-xs text-zinc-500">{t("client360.workoutEvidence", { exercises: workout.exerciseCount, sets: workout.recordedSets ?? 0, debrief: workout.debriefAvailable ? t("client360.debriefAvailable") : "" })}</p></div><p className="shrink-0 text-xs text-zinc-400">{relativeTime(workout.completedAt, t)}</p></div>)}</div> : <p className="mt-2 text-sm text-zinc-400">{t("client360.noWorkouts")}</p>}
               </div>
             </div>
           )}
@@ -265,7 +267,7 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
               {(["last7Days", "last30Days"] as const).map((period) => {
                 const value = nutrition[period];
                 const days = period === "last7Days" ? 7 : 30;
-                return <div key={period}><h3 className="font-semibold">{days === 7 ? t("client360.last7Days") : t("client360.last30Days")}</h3><div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat title={t("client360.daysLogged")} value={`${value.daysLogged} of ${days}`} detail={t("client360.nutritionCoverage")} /><Stat title={t("client360.calories")} value={metricValue(value.averageCaloriesPerLoggedDay, (entry) => `${Math.round(entry)} kcal`, t)} detail={t("client360.averageLoggedDay")} /><Stat title={t("client360.protein")} value={metricValue(value.averageProteinGPerLoggedDay, (entry) => `${entry} g`, t)} detail={t("client360.averageLoggedDay")} /><Stat title={t("client360.proteinTargetRate")} value={metricValue(value.proteinTargetMetDays, (entry) => percentage(entry, t), t)} detail={t("client360.targetMetLoggedDays")} /></div></div>;
+                return <div key={period}><h3 className="font-semibold">{days === 7 ? t("client360.last7Days") : t("client360.last30Days")}</h3><div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat title={t("client360.daysLogged")} value={t("client360.daysOfDays", { count: value.daysLogged, days })} detail={t("client360.nutritionCoverage")} /><Stat title={t("client360.calories")} value={metricValue(value.averageCaloriesPerLoggedDay, (entry) => `${Math.round(entry)} kcal`, t)} detail={t("client360.averageLoggedDay")} /><Stat title={t("client360.protein")} value={metricValue(value.averageProteinGPerLoggedDay, (entry) => `${entry} g`, t)} detail={t("client360.averageLoggedDay")} /><Stat title={t("client360.proteinTargetRate")} value={metricValue(value.proteinTargetMetDays, (entry) => percentage(entry, t), t)} detail={t("client360.targetMetLoggedDays")} /></div></div>;
               })}
               <p className="text-xs leading-5 text-zinc-500">{t("client360.targetRateNote")}</p>
             </div>
@@ -292,8 +294,8 @@ function Client360Content({ snapshot, initialInsight }: { snapshot: Client360Sna
         <Section id="activity" title={t("client360.activity")} icon={<HeartPulse size={19} />}>
           {!authorized(snapshot, "activity") || !activity ? <ScopeUnavailable section={t("client360.activity")} /> : !activity.connected ? <p className="text-sm text-zinc-400">{t("client360.noActivitySource")}</p> : (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-              <Stat title={t("client360.today")} value={activity.todaySteps === null ? t("client360.notEnoughData") : `${activity.todaySteps.toLocaleString()} steps`} detail={t("client360.recordedSteps")} />
-              <Stat title={t("client360.sevenDayAverage")} value={metricValue(activity.averageSteps7d, (value) => `${Math.round(value).toLocaleString()} steps`, t)} detail={t("client360.recordedDays", { count: activity.averageSteps7d.sampleSize })} />
+              <Stat title={t("client360.today")} value={activity.todaySteps === null ? t("client360.notEnoughData") : t("client360.stepsValue", { count: activity.todaySteps.toLocaleString() })} detail={t("client360.recordedSteps")} />
+              <Stat title={t("client360.sevenDayAverage")} value={metricValue(activity.averageSteps7d, (value) => t("client360.stepsValue", { count: Math.round(value).toLocaleString() }), t)} detail={t("client360.recordedDays", { count: activity.averageSteps7d.sampleSize })} />
               <Stat title={t("client360.sessions")} value={`${activity.exerciseSessions7d}`} detail={t("client360.activitySessions7d")} />
             </div>
           )}

@@ -38,7 +38,7 @@ export function ProfileClient() {
   const [preview, setPreview] = useState("");
   const [compressed, setCompressed] = useState("");
   const [compressionLabel, setCompressionLabel] = useState("");
-  const [status, setStatus] = useState("Loading profile...");
+  const [status, setStatus] = useState(t("profile.loading"));
   const [billingStatus, setBillingStatus] = useState("");
   const [isWorking, setIsWorking] = useState(false);
   const [isBillingWorking, setIsBillingWorking] = useState(false);
@@ -62,9 +62,9 @@ export function ProfileClient() {
         if (!mounted) return;
         setStatus("");
       })
-      .catch((error) => mounted && setStatus(error instanceof Error ? error.message : "Could not load your profile."));
+      .catch((error) => mounted && setStatus(error instanceof Error ? error.message : t("profile.loadError")));
     return () => { mounted = false; };
-  }, []);
+  }, [t]);
 
   const canUpload = roles.some((role) => role === "owner" || role === "admin") || plan === "premium" || plan === "trainer_pro";
   const backHref = roles.some((role) => role === "owner" || role === "admin") ? "/admin" : roles.includes("trainer") ? "/trainer" : "/dashboard";
@@ -78,35 +78,38 @@ export function ProfileClient() {
   const isCancelled = subscriptionStatus === "canceled";
   const renewalTimestamp = renewalDate ? new Date(renewalDate).getTime() : Number.NaN;
   const hasUpcomingBillingDate = Number.isFinite(renewalTimestamp) && renewalTimestamp > Date.now();
+  const localizedSubscriptionStatus = ["active", "canceled", "past_due", "trialing"].includes(subscriptionStatus)
+    ? t(`profile.subscriptionStatus.${subscriptionStatus}`)
+    : subscriptionStatus.replace(/_/g, " ");
   const renewalLabel = isCancelled
-    ? (hasUpcomingBillingDate ? "Access ends" : "Access")
-    : (hasUpcomingBillingDate ? "Renewal date" : "Billing status");
+    ? (hasUpcomingBillingDate ? t("profile.accessEnds") : t("profile.access"))
+    : (hasUpcomingBillingDate ? t("profile.renewalDate") : t("profile.billingStatus"));
   const renewalValue = !hasPaidPlan
-    ? "No paid renewal"
+    ? t("profile.noPaidRenewal")
     : hasUpcomingBillingDate
       ? formatBillingDate(renewalDate, t)
       : isCancelled
-        ? "Ended"
-        : "Active";
-  const isInitialLoading = !user && status.startsWith("Loading");
+        ? t("profile.ended")
+        : t("profile.active");
+  const isInitialLoading = !user && Boolean(status);
 
   async function selectPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
     setIsWorking(true);
-    setStatus("Preparing a small profile photo...");
+    setStatus(t("profile.preparingPhoto"));
     try {
       const result = await compressProfileImage(file);
       setCompressed(result.dataUrl);
       setPreview(result.dataUrl);
-      setCompressionLabel(`${formatBytes(result.originalBytes)} reduced to ${formatBytes(result.compressedBytes)}`);
-      setStatus("Photo prepared. Save it when you are happy.");
+      setCompressionLabel(t("profile.photoReduced", { original: formatBytes(result.originalBytes), compressed: formatBytes(result.compressedBytes) }));
+      setStatus(t("profile.photoPrepared"));
     } catch (error) {
       setCompressed("");
       setPreview("");
       setCompressionLabel("");
-      setStatus(error instanceof Error ? error.message : "This photo could not be prepared.");
+      setStatus(error instanceof Error ? error.message : t("profile.photoPrepareError"));
     } finally {
       setIsWorking(false);
     }
@@ -115,15 +118,15 @@ export function ProfileClient() {
   async function save() {
     if (!compressed || isWorking) return;
     setIsWorking(true);
-    setStatus("Saving profile photo...");
+    setStatus(t("profile.savingPhoto"));
     try {
       const response = await saveProfilePhoto(compressed);
       setUser((current) => current ? { ...current, profile_photo_url: response.profilePhotoUrl } : current);
       setCompressed("");
       setPreview("");
-      setStatus("Profile photo saved.");
+      setStatus(t("profile.photoSaved"));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Profile photo could not be saved.");
+      setStatus(error instanceof Error ? error.message : t("profile.photoSaveError"));
     } finally {
       setIsWorking(false);
     }
@@ -132,16 +135,16 @@ export function ProfileClient() {
   async function remove() {
     if (isWorking) return;
     setIsWorking(true);
-    setStatus("Removing profile photo...");
+    setStatus(t("profile.removingPhoto"));
     try {
       await removeProfilePhoto();
       setUser((current) => current ? { ...current, profile_photo_url: null } : current);
       setCompressed("");
       setPreview("");
       setCompressionLabel("");
-      setStatus("Profile photo removed.");
+      setStatus(t("profile.photoRemoved"));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Profile photo could not be removed.");
+      setStatus(error instanceof Error ? error.message : t("profile.photoRemoveError"));
     } finally {
       setIsWorking(false);
     }
@@ -213,7 +216,7 @@ export function ProfileClient() {
         <div className="mx-auto w-full max-w-md">
           <header className="flex items-center gap-3 py-3">
             <BackButton fallbackHref="/dashboard" />
-            <div><p className="text-sm text-zinc-400">Account</p><h1 className="text-2xl font-semibold">Profile & settings</h1></div>
+            <div><p className="text-sm text-zinc-400">{t("profile.account")}</p><h1 className="text-2xl font-semibold">{t("profile.profileSettings")}</h1></div>
           </header>
           <SectionShell title={t("common.profile")}>
             <div className="flex flex-col items-center">
@@ -237,57 +240,57 @@ export function ProfileClient() {
       <div className="mx-auto w-full max-w-xl">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref={backHref} />
-          <div><p className="text-sm text-zinc-400">Account</p><h1 className="text-2xl font-semibold">Profile & settings</h1></div>
+          <div><p className="text-sm text-zinc-400">{t("profile.account")}</p><h1 className="text-2xl font-semibold">{t("profile.profileSettings")}</h1></div>
         </header>
 
         <section className="mt-4 rounded-xl border border-line bg-surface p-5 text-center shadow-soft">
           <div className="flex justify-center"><ProfileAvatar src={shownPhoto} name={user?.full_name} size="lg" /></div>
-          <h2 className="mt-4 text-lg font-semibold">{user?.full_name || "Ascend member"}</h2>
+          <h2 className="mt-4 text-lg font-semibold">{user?.full_name || t("profile.ascendMember")}</h2>
           <p className="mt-1 text-sm text-zinc-400">{user?.email}</p>
 
           {canUpload ? (
             <>
               <label className={`mt-5 flex h-12 cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-ink font-semibold ${isWorking ? "pointer-events-none opacity-60" : ""}`}>
-                <Camera size={19} /> Choose photo
+                <Camera size={19} /> {t("profile.choosePhoto")}
                 <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={selectPhoto} className="sr-only" disabled={isWorking} />
               </label>
               {compressionLabel ? <p className="mt-3 text-xs font-medium text-lime">{compressionLabel}</p> : null}
               {compressed ? (
                 <button type="button" onClick={save} disabled={isWorking} className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-lime font-semibold text-ink disabled:opacity-60">
-                  <Check size={19} /> {isWorking ? "Saving..." : "Save photo"}
+                  <Check size={19} /> {isWorking ? t("common.saving") : t("profile.savePhoto")}
                 </button>
               ) : null}
               {user?.profile_photo_url ? (
                 <button type="button" onClick={remove} disabled={isWorking} className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-zinc-300 disabled:opacity-60">
-                  <Trash2 size={17} /> Remove photo
+                  <Trash2 size={17} /> {t("profile.removePhoto")}
                 </button>
               ) : null}
-              <p className="mt-4 text-xs leading-5 text-zinc-500">Ascend crops the photo square and compresses it before upload. The original file is not stored.</p>
+              <p className="mt-4 text-xs leading-5 text-zinc-500">{t("profile.photoPrivacy")}</p>
             </>
           ) : (
             <div className="mt-5 rounded-lg border border-calm/40 bg-calm/10 p-4 text-left">
-              <p className="text-sm font-semibold text-calm">Profile photos are available with Premium.</p>
+              <p className="text-sm font-semibold text-calm">{t("profile.photoPremium")}</p>
               <Link href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-                {hideHostedBilling ? "Premium options" : "View plans"}
+                {hideHostedBilling ? t("profile.premiumOptions") : t("profile.viewPlans")}
               </Link>
             </div>
           )}
         </section>
 
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Subscription</p>
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{t("profile.subscription")}</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">Subscription</p>
-              <p className="mt-1 text-sm text-zinc-400">Plan, renewal, and cancellation controls.</p>
+              <p className="text-sm font-semibold">{t("profile.subscription")}</p>
+              <p className="mt-1 text-sm text-zinc-400">{t("profile.subscriptionHelp")}</p>
             </div>
             <CreditCard className="text-calm" size={21} />
           </div>
           <div className="mt-4 grid gap-3">
             <div className="rounded-lg bg-ink p-3">
-              <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">Current plan</p>
+              <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">{t("profile.currentPlan")}</p>
               <p className="mt-1 text-lg font-semibold">{formatPlan(plan)}</p>
-              <p className="mt-1 text-xs text-zinc-500">Status: {subscriptionStatus.replace(/_/g, " ")}</p>
+              <p className="mt-1 text-xs text-zinc-500">{t("profile.statusLabel", { status: localizedSubscriptionStatus })}</p>
             </div>
             <div className="rounded-lg bg-ink p-3">
               <p className="text-[11px] uppercase tracking-[0.12em] text-zinc-500">{renewalLabel}</p>
@@ -296,7 +299,7 @@ export function ProfileClient() {
           </div>
           <div className="mt-4 grid gap-3">
             <Link href="/subscription" className="flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200">
-              {hideHostedBilling ? "Premium options" : "View plans"}
+              {hideHostedBilling ? t("profile.premiumOptions") : t("profile.viewPlans")}
             </Link>
             {hasPaidPlan ? (
               <>
@@ -309,7 +312,7 @@ export function ProfileClient() {
                       className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
                     >
                       <ExternalLink className="mr-2" size={18} />
-                      Manage in Google Play
+                      {t("profile.manageGooglePlay")}
                     </button>
                     <button
                       type="button"
@@ -318,7 +321,7 @@ export function ProfileClient() {
                       className="flex h-11 items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
                     >
                       <XCircle className="mr-2" size={18} />
-                      Cancel in Google Play
+                      {t("profile.cancelGooglePlay")}
                     </button>
                   </>
                 ) : hasHostedBilling && !hideHostedBilling ? (
@@ -330,7 +333,7 @@ export function ProfileClient() {
                       className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
                     >
                       <ExternalLink className="mr-2" size={18} />
-                      Manage Subscription
+                      {t("profile.manageSubscription")}
                     </button>
                     <button
                       type="button"
@@ -339,7 +342,7 @@ export function ProfileClient() {
                       className="flex h-11 items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
                     >
                       <XCircle className="mr-2" size={18} />
-                      {isCancelled ? "Cancellation Scheduled" : "Cancel Subscription"}
+                      {isCancelled ? t("profile.cancellationScheduled") : t("profile.cancelSubscription")}
                     </button>
                   </>
                 ) : hasHostedBilling && hideHostedBilling ? (
@@ -354,7 +357,7 @@ export function ProfileClient() {
                     className="flex h-11 items-center justify-center rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60"
                   >
                     <XCircle className="mr-2" size={18} />
-                    {isCancelled ? "Cancellation Scheduled" : "Cancel Subscription"}
+                    {isCancelled ? t("profile.cancellationScheduled") : t("profile.cancelSubscription")}
                   </button>
                 )}
               </>
@@ -363,36 +366,36 @@ export function ProfileClient() {
           {billingStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">{billingStatus}</p> : null}
           <p className="mt-3 text-xs leading-5 text-zinc-500">
             {nativePlayBilling || isGooglePlaySubscription
-              ? "Google Play manages Android Premium billing. Web checkout continues to use Stripe."
+              ? t("profile.googleBillingHelp")
               : hideHostedBilling
-              ? "Premium access can still be granted manually for closed testing while in-app billing is being prepared."
-              : "Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions."}
+              ? t("profile.manualPremiumHelp")
+              : t("profile.cancellationHelp")}
           </p>
         </section>
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Connected services</p>
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{t("profile.connectedServices")}</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">App settings</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Install Ascend on this device for faster access and a full-screen app experience.</p>
+          <p className="text-sm font-semibold">{t("profile.appSettings")}</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">{t("profile.installHelp")}</p>
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
             <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
-              <Activity size={17} /> Health Sync
+              <Activity size={17} /> {t("profile.healthSync")}
             </Link>
             {user?.athlete_mode_enabled || user?.body_scan_introductory_enabled ? (
               <Link href={user?.athlete_mode_enabled ? "/athlete/body-composition" : "/body-scan"} className="flex h-11 items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/10 text-sm font-semibold text-violet-200">
-                <ScanLine size={17} /> Body Scan
+                <ScanLine size={17} /> {t("profile.bodyScan")}
               </Link>
             ) : null}
           </div>
         </section>
 
-        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Account security</p>
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">{t("profile.accountSecurity")}</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
-          <p className="text-sm font-semibold">Account</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Manage sensitive account actions, including account deletion.</p>
+          <p className="text-sm font-semibold">{t("profile.account")}</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">{t("profile.accountHelp")}</p>
           <Link href="/profile/account" className="mt-4 flex h-11 items-center justify-center rounded-lg border border-line bg-ink font-semibold text-zinc-200">
-            Open Account Settings
+            {t("profile.openAccountSettings")}
           </Link>
         </section>
         {status ? <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}

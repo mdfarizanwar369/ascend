@@ -69,27 +69,27 @@ function starterMessages(t: Translate): ChatMessage[] {
   return [{ role: "assistant", text: t("coach.starterMessage") }];
 }
 
-const locationOptions: Array<{ value: WorkoutPlannerLocation; label: string }> = [
-  { value: "gym", label: "Gym" },
-  { value: "home", label: "Home" },
-  { value: "hotel", label: "Hotel" },
-  { value: "outdoors", label: "Outdoors" }
+const locationOptions: Array<{ value: WorkoutPlannerLocation; labelKey: string }> = [
+  { value: "gym", labelKey: "coach.location.gym" },
+  { value: "home", labelKey: "coach.location.home" },
+  { value: "hotel", labelKey: "coach.location.hotel" },
+  { value: "outdoors", labelKey: "coach.location.outdoors" }
 ];
 
-const timeOptions: Array<{ value: WorkoutPlannerTime; label: string }> = [
-  { value: "20", label: "20 minutes" },
-  { value: "30", label: "30 minutes" },
-  { value: "45", label: "45 minutes" },
-  { value: "60", label: "60+ minutes" }
+const timeOptions: Array<{ value: WorkoutPlannerTime; labelKey: string }> = [
+  { value: "20", labelKey: "coach.time.20" },
+  { value: "30", labelKey: "coach.time.30" },
+  { value: "45", labelKey: "coach.time.45" },
+  { value: "60", labelKey: "coach.time.60" }
 ];
 
-const goalOptions: Array<{ value: WorkoutPlannerGoal; label: string }> = [
-  { value: "fat_loss", label: "Fat Loss" },
-  { value: "muscle_gain", label: "Muscle Gain" },
-  { value: "strength", label: "Strength" },
-  { value: "general_fitness", label: "General Fitness" },
-  { value: "recovery", label: "Recovery" },
-  { value: "mobility", label: "Mobility" }
+const goalOptions: Array<{ value: WorkoutPlannerGoal; labelKey: string }> = [
+  { value: "fat_loss", labelKey: "coach.goal.fatLoss" },
+  { value: "muscle_gain", labelKey: "coach.goal.muscleGain" },
+  { value: "strength", labelKey: "coach.goal.strength" },
+  { value: "general_fitness", labelKey: "coach.goal.generalFitness" },
+  { value: "recovery", labelKey: "coach.goal.recovery" },
+  { value: "mobility", labelKey: "coach.goal.mobility" }
 ];
 
 const equipmentByLocation: Record<WorkoutPlannerLocation, string[]> = {
@@ -219,6 +219,7 @@ function WorkoutPlannerCard({
   workoutSaved: boolean;
   workout: GeneratedWorkout | null;
 }) {
+  const { t } = useI18n();
   const nextStep = !answers.location ? "location" : !answers.timeAvailable ? "time" : !answers.goal ? "goal" : !answers.equipment ? "equipment" : "done";
   const equipmentOptions = answers.location ? equipmentByLocation[answers.location] : [];
   const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(0);
@@ -232,30 +233,30 @@ function WorkoutPlannerCard({
             <Dumbbell size={19} />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold">You already have today&apos;s workout.</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">Keep it, regenerate it, or ask Zoe to adjust it in chat.</p>
+            <h2 className="text-lg font-semibold">{t("coach.workout.exists")}</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">{t("coach.workout.existsBody")}</p>
           </div>
         </div>
         <div className="mt-4 grid gap-2">
           <button type="button" onClick={onCancel} className="rounded-xl bg-lime px-4 py-3 text-sm font-bold text-ink">
-            Keep current workout
+            {t("coach.workout.keep")}
           </button>
           <button
             type="button"
             onClick={onRegenerate}
             className="rounded-xl border border-line bg-ink px-4 py-3 text-sm font-semibold text-zinc-100"
           >
-            Regenerate
+            {t("coach.workout.regenerate")}
           </button>
           <button
             type="button"
             onClick={() => {
-              setMessage("Can you modify today's workout to be ");
+              setMessage(t("coach.workout.modifyPrompt"));
               onCancel();
             }}
             className="rounded-xl border border-line bg-ink px-4 py-3 text-sm font-semibold text-zinc-100"
           >
-            Modify in chat
+            {t("coach.workout.modify")}
           </button>
         </div>
       </section>
@@ -266,15 +267,15 @@ function WorkoutPlannerCard({
     return (
       <section className="overflow-hidden rounded-2xl border border-lime/25 bg-surface shadow-soft">
         <div className="relative aspect-[16/9] overflow-hidden bg-ink">
-          <Image src={workoutHeroImage(answers)} alt={`${answers.location ?? "Personalized"} workout setting`} fill sizes="(max-width: 480px) 100vw, 448px" className="object-cover" priority />
+          <Image src={workoutHeroImage(answers)} alt={t("coach.workout.imageAlt")} fill sizes="(max-width: 480px) 100vw, 448px" className="object-cover" priority />
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-4">
             <div className="flex flex-wrap items-center gap-2 text-lime">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-lime text-ink"><Dumbbell size={17} /></span>
-              <p className="text-xs font-bold uppercase tracking-[0.24em]">Today&apos;s workout</p>
+              <p className="text-xs font-bold uppercase tracking-[0.24em]">{t("workout.today")}</p>
               {answers.location ? (
                 <span className="rounded-full border border-white/20 bg-black/35 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm">
-                  Built for {answers.location}
+                  {t("coach.workout.builtFor", { location: t(`coach.location.${answers.location}`) })}
                 </span>
               ) : null}
             </div>
@@ -287,22 +288,22 @@ function WorkoutPlannerCard({
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-xl border border-line bg-ink/70 p-3">
-            <p className="text-zinc-500">Duration</p>
+            <p className="text-zinc-500">{t("trainer.duration")}</p>
             <p className="mt-1 font-bold text-zinc-100">{workout.estimatedDurationMinutes} min</p>
           </div>
           <div className="rounded-xl border border-line bg-ink/70 p-3">
-            <p className="text-zinc-500">Focus</p>
+            <p className="text-zinc-500">{t("trainer.focus")}</p>
             <p className="mt-1 font-bold text-zinc-100">{workout.focus}</p>
           </div>
           <div className="rounded-xl border border-line bg-ink/70 p-3">
-            <p className="text-zinc-500">Effort</p>
+            <p className="text-zinc-500">{t("coach.workout.effort")}</p>
             <p className="mt-1 font-bold capitalize text-zinc-100">{workout.intensity}</p>
           </div>
         </div>
 
         <div className="mt-5 space-y-4">
           <div>
-            <p className="text-sm font-semibold text-zinc-100">Warm-up</p>
+            <p className="text-sm font-semibold text-zinc-100">{t("coach.workout.warmup")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {workout.warmup.map((item) => (
                 <span key={item} className="rounded-full border border-line bg-ink/70 px-3 py-2 text-xs text-zinc-300">
@@ -315,8 +316,8 @@ function WorkoutPlannerCard({
           <div>
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-zinc-100">Your session</p>
-                <p className="mt-1 text-xs text-zinc-500">Tap an exercise for coaching details.</p>
+                <p className="text-sm font-semibold text-zinc-100">{t("coach.workout.session")}</p>
+                <p className="mt-1 text-xs text-zinc-500">{t("coach.workout.tapExercise")}</p>
               </div>
               <p className="text-sm font-semibold text-lime">{checkedExercises.size}/{workout.exercises.length}</p>
             </div>
@@ -340,7 +341,7 @@ function WorkoutPlannerCard({
                     type="button"
                     disabled={workoutSaved}
                     onClick={() => onToggleExercise(index)}
-                    aria-label={`${complete ? "Mark incomplete" : "Mark complete"}: ${exercise.name}`}
+                    aria-label={t(complete ? "coach.workout.markIncomplete" : "coach.workout.markComplete", { exercise: exercise.name })}
                     className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border ${
                       complete ? "border-lime bg-lime text-ink" : "border-line text-zinc-500"
                     }`}
@@ -356,7 +357,7 @@ function WorkoutPlannerCard({
                     <span className="min-w-0">
                     <span className="block text-sm font-semibold text-zinc-100">{exercise.name}</span>
                     <span className="mt-1 block text-xs leading-5 text-zinc-400">
-                      {[exercise.sets ? `${exercise.sets} sets` : null, exercise.reps, exercise.duration, exercise.rest ? `${exercise.rest} rest` : null]
+                      {[exercise.sets ? t("trainer.setsCount", { count: exercise.sets }) : null, exercise.reps, exercise.duration, exercise.rest ? t("trainer.restValue", { value: exercise.rest }) : null]
                         .filter(Boolean)
                         .join(" / ")}
                     </span>
@@ -372,12 +373,12 @@ function WorkoutPlannerCard({
           </div>
 
           <div className="rounded-xl border border-line bg-ink/70 p-3">
-            <p className="text-sm font-semibold text-zinc-100">Cooldown</p>
+            <p className="text-sm font-semibold text-zinc-100">{t("coach.workout.cooldown")}</p>
             <p className="mt-2 text-sm leading-6 text-zinc-400">{workout.cooldown.join(" / ")}</p>
           </div>
 
           <div className="rounded-xl border border-violet/30 bg-violet/10 p-3">
-            <p className="text-sm font-semibold text-purple-200">Coach tip</p>
+            <p className="text-sm font-semibold text-purple-200">{t("coach.workout.tip")}</p>
             <p className="mt-2 text-sm leading-6 text-zinc-300">{workout.coachTip}</p>
           </div>
           <p className="text-xs leading-5 text-zinc-500">{workout.disclaimer}</p>
@@ -395,8 +396,8 @@ function WorkoutPlannerCard({
             <Sparkles size={18} />
           </span>
           <div>
-            <h2 className="text-lg font-semibold">Building today&apos;s workout...</h2>
-            <p className="mt-1 text-sm text-zinc-400">Coach Zoe is matching the session to your setup and recent activity.</p>
+            <h2 className="text-lg font-semibold">{t("coach.workout.building")}</h2>
+            <p className="mt-1 text-sm text-zinc-400">{t("coach.workout.buildingBody")}</p>
           </div>
         </div>
       </section>
@@ -410,8 +411,8 @@ function WorkoutPlannerCard({
           <Dumbbell size={19} />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold">Generate Today&apos;s Workout</h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-400">A quick session for today, based on where you are and how much time you have.</p>
+          <h2 className="text-lg font-semibold">{t("coach.actionWorkout")}</h2>
+          <p className="mt-1 text-sm leading-6 text-zinc-400">{t("coach.workout.generatorBody")}</p>
         </div>
       </div>
 
@@ -419,31 +420,31 @@ function WorkoutPlannerCard({
         <div className="mt-4">
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-300">
             {nextStep === "location"
-              ? "Where are you training?"
+              ? t("coach.workout.where")
               : nextStep === "time"
-                ? "How much time do you have?"
+                ? t("coach.workout.howLong")
                 : nextStep === "goal"
-                  ? "Today's goal?"
-                  : "Equipment available?"}
+                  ? t("coach.workout.goal")
+                  : t("coach.workout.equipment")}
           </p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {nextStep === "location"
               ? locationOptions.map((option) => (
-                  <OptionButton key={option.value} imageUrl={locationVisuals[option.value]} label={option.label} onClick={() => onAnswer({ location: option.value })} />
+                  <OptionButton key={option.value} imageUrl={locationVisuals[option.value]} label={t(option.labelKey)} onClick={() => onAnswer({ location: option.value })} />
                 ))
               : null}
             {nextStep === "time"
               ? timeOptions.map((option) => (
-                  <OptionButton key={option.value} label={option.label} onClick={() => onAnswer({ timeAvailable: option.value })} />
+                  <OptionButton key={option.value} label={t(option.labelKey)} onClick={() => onAnswer({ timeAvailable: option.value })} />
                 ))
               : null}
             {nextStep === "goal"
               ? goalOptions.map((option) => (
-                  <OptionButton key={option.value} imageUrl={goalVisuals[option.value]} label={option.label} onClick={() => onAnswer({ goal: option.value })} />
+                  <OptionButton key={option.value} imageUrl={goalVisuals[option.value]} label={t(option.labelKey)} onClick={() => onAnswer({ goal: option.value })} />
                 ))
               : null}
             {nextStep === "equipment"
-              ? equipmentOptions.map((option) => <OptionButton key={option} label={option} onClick={() => onGenerate(option)} />)
+              ? equipmentOptions.map((option) => <OptionButton key={option} label={t(`coach.equipment.${option.replaceAll(" ", "_").toLowerCase()}`)} onClick={() => onGenerate(option)} />)
               : null}
           </div>
         </div>
@@ -451,7 +452,7 @@ function WorkoutPlannerCard({
 
       {Object.keys(answers).length ? (
         <button type="button" onClick={onCancel} className="mt-4 text-sm font-semibold text-zinc-400">
-          Cancel
+          {t("common.cancel")}
         </button>
       ) : null}
     </section>
@@ -459,7 +460,7 @@ function WorkoutPlannerCard({
 }
 
 export function CoachHubClient() {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [messages, setMessages] = useState<ChatMessage[]>(() => starterMessages(t));
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
@@ -483,6 +484,10 @@ export function CoachHubClient() {
   const allExercisesCompleted = Boolean(workout && workout.exercises.length > 0 && completedCount === workout.exercises.length);
 
   useEffect(() => {
+    setMessages((current) => current.length === 1 && current[0]?.role === "assistant" ? starterMessages(t) : current);
+  }, [locale, t]);
+
+  useEffect(() => {
     let active = true;
     const priorityRequest = loadAccountProfile()
       .then((profile) => profile.isPlatformOwner ? getTodayPriorityRecommendation() : null)
@@ -500,7 +505,7 @@ export function CoachHubClient() {
         });
         setTodaysInsight(
           priorityResponse?.decision?.active
-            ? priorityResponse.decision.insight.body
+            ? t(`dashboard.priority.${priorityResponse.priority.key?.toLowerCase() ?? "default"}.reason`)
             : buildTodaysInsight({
             coachPresence: coachPresenceResponse.latest?.message ?? null,
             foodCountToday: foodResponse.foodLogs.length,
@@ -689,11 +694,11 @@ export function CoachHubClient() {
   }
 
   const quickActions = [
-    { label: "Ask Zoe", icon: MessageCircle, action: "focus" },
-    { label: "Generate Today's Workout", icon: Dumbbell, action: "workout" },
-    { label: "Meal Advice", icon: UtensilsCrossed, action: "meal" },
-    { label: "Explain my progress", icon: Zap, action: "progress" },
-    { label: "Help me stay consistent", icon: Sparkles, action: "consistency" }
+    { label: t("coach.actionAsk"), icon: MessageCircle, action: "focus" },
+    { label: t("coach.actionWorkout"), icon: Dumbbell, action: "workout" },
+    { label: t("coach.actionMeal"), icon: UtensilsCrossed, action: "meal" },
+    { label: t("coach.actionProgress"), icon: Zap, action: "progress" },
+    { label: t("coach.actionConsistency"), icon: Sparkles, action: "consistency" }
   ] as const;
 
   return (
@@ -703,25 +708,25 @@ export function CoachHubClient() {
           <BackButton fallbackHref="/dashboard" />
           <ZoeAvatar />
           <div>
-            <h1 className="text-xl font-semibold">Coach Zoe</h1>
-            <p className="text-xs text-zinc-400">A steady voice between sessions</p>
+            <h1 className="text-xl font-semibold">{t("coach.zoe")}</h1>
+            <p className="text-xs text-zinc-400">{t("coach.subtitle")}</p>
           </div>
         </header>
 
         {status ? <p className="mt-3 rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm text-amber">{status}</p> : null}
 
         <section className="ascend-stagger-enter ascend-branded-surface mt-4 rounded-2xl border border-purple-400/20 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.98)_52%,rgba(61,230,209,0.06))] p-5 shadow-soft">
-          <div className="flex items-center gap-3"><ZoeAvatar size="lg" /><div><p className="ascend-eyebrow text-purple-200">Today&apos;s Insight</p><p className="mt-1 text-sm font-semibold text-white">Zoe noticed something useful</p></div></div>
+          <div className="flex items-center gap-3"><ZoeAvatar size="lg" /><div><p className="ascend-eyebrow text-purple-200">{t("coach.insightTitle")}</p><p className="mt-1 text-sm font-semibold text-white">{t("coach.insightKicker")}</p></div></div>
           <h2 className="mt-4 text-2xl font-semibold leading-tight text-white">{todaysInsight}</h2>
-          <p className="mt-3 text-sm leading-6 text-zinc-400">One useful observation, based on what you&apos;ve logged.</p>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">{t("coach.insightBasis")}</p>
         </section>
 
         <section className="ascend-stagger-enter mt-5 border-t border-line pt-5" style={{ animationDelay: "70ms" }}>
           <div className="flex items-center gap-2">
             <Sparkles className="text-calm" size={18} />
             <div>
-              <p className="text-sm font-semibold text-white">Quick Coach Actions</p>
-              <p className="text-xs text-zinc-400">Practical help without the guesswork.</p>
+              <p className="text-sm font-semibold text-white">{t("coach.quickActions")}</p>
+              <p className="text-xs text-zinc-400">{t("coach.quickActionsBody")}</p>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -742,23 +747,23 @@ export function CoachHubClient() {
                     }
                     if (action.action === "meal") {
                       void sendPresetPrompt({
-                        label: "Meal Advice",
-                        prompt: "Use my recent history and give me meal advice for today.",
+                        label: t("coach.actionMeal"),
+                        prompt: t("coach.promptMeal"),
                         mode: "meal_advice"
                       });
                       return;
                     }
                     if (action.action === "progress") {
                       void sendPresetPrompt({
-                        label: "Explain my progress",
-                        prompt: "Explain my recent progress using my actual data and tell me what matters most today.",
+                        label: t("coach.actionProgress"),
+                        prompt: t("coach.promptProgress"),
                         mode: "progress"
                       });
                       return;
                     }
                     void sendPresetPrompt({
-                      label: "Help me stay consistent",
-                      prompt: "Help me stay consistent today using my recent patterns.",
+                      label: t("coach.actionConsistency"),
+                      prompt: t("coach.promptConsistency"),
                       mode: "consistency"
                     });
                   }}
@@ -812,7 +817,7 @@ export function CoachHubClient() {
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="flex items-center gap-2 text-zinc-300">
                   <CheckCircle2 className="text-lime" size={18} />
-                  {completedCount}/{workout.exercises.length} exercises checked
+                  {t("coach.workout.checked", { completed: completedCount, total: workout.exercises.length })}
                 </span>
                 <button
                   type="button"
@@ -820,21 +825,21 @@ export function CoachHubClient() {
                   className="flex items-center gap-1 text-xs font-semibold text-purple-300"
                 >
                   <RotateCcw size={14} />
-                  Options
+                  {t("coach.workout.options")}
                 </button>
               </div>
 
               {savedWorkoutSummary ? (
                 <div className="ascend-success-reveal mt-4 overflow-hidden rounded-2xl border border-lime/30 bg-ink">
                   <div className="relative aspect-[16/8] overflow-hidden">
-                    <Image src={workoutHeroImage(answers)} alt="Completed workout" fill sizes="(max-width: 480px) 100vw, 416px" className="object-cover" />
+                    <Image src={workoutHeroImage(answers)} alt={t("coach.workout.completedAlt")} fill sizes="(max-width: 480px) 100vw, 416px" className="object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
                     <div className="absolute inset-x-0 bottom-0 flex items-end gap-3 p-4">
                       <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-lime text-ink shadow-[0_0_32px_rgba(61,230,209,0.28)]">
                         <Check size={20} />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-lime">Workout complete</p>
+                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-lime">{t("coach.workout.complete")}</p>
                         <h3 className="mt-1 truncate text-xl font-semibold text-white">{savedWorkoutSummary.workoutTitle}</h3>
                       </div>
                     </div>
@@ -842,7 +847,7 @@ export function CoachHubClient() {
                   <div className="p-4">
                       <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-zinc-200">
                         <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
-                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Duration</p>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{t("trainer.duration")}</p>
                           <p className="mt-1 font-semibold">{savedWorkoutSummary.durationMinutes} min</p>
                         </div>
                         <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
@@ -850,11 +855,11 @@ export function CoachHubClient() {
                           <p className="mt-1 font-semibold">~{savedWorkoutSummary.estimatedCaloriesBurned} kcal</p>
                         </div>
                         <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
-                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Momentum Earned</p>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{t("coach.workout.momentumEarned")}</p>
                           <p className="mt-1 font-semibold text-lime">+{savedWorkoutSummary.momentumEarned}</p>
                         </div>
                         <div className="rounded-xl border border-white/10 bg-ink/60 px-3 py-3">
-                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Workout Type</p>
+                          <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{t("coach.workout.type")}</p>
                           <p className="mt-1 font-semibold">{savedWorkoutSummary.workoutType}</p>
                         </div>
                       </div>
@@ -876,18 +881,18 @@ export function CoachHubClient() {
                   disabled={isSavingWorkout}
                   className="mt-4 flex h-14 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(61,230,209,1),rgba(109,246,220,0.92))] text-base font-bold text-ink shadow-[0_18px_44px_rgba(61,230,209,0.24)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isSavingWorkout ? "Saving workout..." : "Complete & Save Workout"}
+                  {t(isSavingWorkout ? "coach.workout.saving" : "coach.workout.completeSave")}
                 </button>
               ) : (
                 <div className="mt-4 rounded-xl border border-white/5 bg-ink/55 px-4 py-3 text-sm text-zinc-400">
-                  Check off every exercise to unlock workout save.
+                  {t("coach.workout.completeAll")}
                 </div>
               )}
             </div>
           ) : null}
         </div>
 
-        <section aria-label="Conversation" className="mt-2 flex-1 space-y-3 border-t border-line py-5">
+        <section aria-label={t("coach.conversation")} className="mt-2 flex-1 space-y-3 border-t border-line py-5">
           {messages.map((item, index) => (
             <StaggerItem key={`${item.role}-${index}`} index={Math.min(index, 5)} className={item.role === "user" ? "ml-auto max-w-[86%]" : "max-w-[92%]"}>
               <div className={`flex items-start gap-2 ${item.role === "user" ? "justify-end" : ""}`}>
@@ -896,7 +901,7 @@ export function CoachHubClient() {
               </div>
             </StaggerItem>
           ))}
-          {isSending ? <p className="rounded-lg bg-surface p-3 text-sm text-zinc-400">Coach is thinking...</p> : null}
+          {isSending ? <p className="rounded-lg bg-surface p-3 text-sm text-zinc-400">{t("coach.thinking")}</p> : null}
         </section>
 
         <form className="sticky bottom-0 flex gap-2 border-t border-line bg-ink/95 pb-4 pt-3 backdrop-blur" onSubmit={handleSubmit}>

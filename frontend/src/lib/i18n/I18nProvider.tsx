@@ -5,19 +5,31 @@ import { ASCEND_LOCALE_LABELS, DEFAULT_ASCEND_LOCALE, normalizeAscendLocale, typ
 import { getMe, updateLanguagePreference } from "@/lib/ascendApi";
 import { clearCachedAccountProfile } from "@/lib/accountSession";
 import { messages } from "./messages";
+import { renderedMessages } from "./renderedMessages";
 
 const STORAGE_KEY = "ascend:locale";
+
+export type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 type I18nContextValue = {
   locale: AscendLocale;
   labels: typeof ASCEND_LOCALE_LABELS;
-  t: (key: string, values?: Record<string, string | number>) => string;
+  t: Translate;
   setLocale: (locale: AscendLocale, options?: { persist?: boolean }) => Promise<void>;
   formatDate: (value: string | Date, options?: Intl.DateTimeFormatOptions) => string;
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
+
+const fallbackI18nContext = {
+  locale: DEFAULT_ASCEND_LOCALE,
+  labels: ASCEND_LOCALE_LABELS,
+  t: (key: string, values?: Record<string, string | number>) => interpolate(renderedMessages.en[key] ?? messages.en[key] ?? key, values),
+  setLocale: async () => undefined,
+  formatDate: (value: string | Date, options?: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(DEFAULT_ASCEND_LOCALE, options).format(typeof value === "string" ? new Date(value) : value),
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(DEFAULT_ASCEND_LOCALE, options).format(value)
+} satisfies I18nContextValue;
 
 function readStoredLocale() {
   if (typeof window === "undefined") return DEFAULT_ASCEND_LOCALE;
@@ -80,7 +92,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<I18nContextValue>(() => {
     const t = (key: string, values?: Record<string, string | number>) => {
-      const template = messages[locale][key] ?? messages.en[key] ?? key;
+      const template = renderedMessages[locale][key] ?? messages[locale][key] ?? renderedMessages.en[key] ?? messages.en[key] ?? key;
       return interpolate(template, values);
     };
 
@@ -99,15 +111,5 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
 export function useI18n() {
   const context = useContext(I18nContext);
-  if (!context) {
-    return {
-      locale: DEFAULT_ASCEND_LOCALE,
-      labels: ASCEND_LOCALE_LABELS,
-      t: (key: string, values?: Record<string, string | number>) => interpolate(messages.en[key] ?? key, values),
-      setLocale: async () => undefined,
-      formatDate: (value: string | Date, options?: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(DEFAULT_ASCEND_LOCALE, options).format(typeof value === "string" ? new Date(value) : value),
-      formatNumber: (value: number, options?: Intl.NumberFormatOptions) => new Intl.NumberFormat(DEFAULT_ASCEND_LOCALE, options).format(value)
-    } satisfies I18nContextValue;
-  }
-  return context;
+  return context ?? fallbackI18nContext;
 }

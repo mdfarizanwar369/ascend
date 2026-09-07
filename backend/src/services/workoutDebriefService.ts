@@ -9,7 +9,8 @@ import {
   WorkoutDebriefView,
   WorkoutMovementPattern,
   WorkoutProgressionIntelligenceV3,
-  WorkoutSignalV1
+  WorkoutSignalV1,
+  type AscendLocale
 } from "@ascend/shared";
 import { env } from "../config/env";
 import { query } from "../db/pool";
@@ -495,10 +496,52 @@ export function buildWorkoutSignalV1(input: {
 export function deterministicWorkoutAcknowledgement(input: {
   source: WorkoutDebriefSource;
   metadata: Record<string, unknown>;
+  locale?: AscendLocale;
 }) {
+  const locale = input.locale ?? "en";
   const title = text(input.metadata.workoutTitle);
   const activity = text(input.metadata.activityType) ?? text(input.metadata.workoutType);
   const duration = finiteNumber(input.metadata.durationMinutes);
+  if (locale === "ms-MY") {
+    if (input.source === "quick_activity" && activity) {
+      const durationLabel = duration && duration > 0 ? ` selama ${Math.round(duration)} minit` : "";
+      return `${activity}${durationLabel} anda telah direkodkan dan ditambah pada aktiviti hari ini.`;
+    }
+    const exercises = debriefExerciseEvidence(input.metadata);
+    if (input.source === "ai_workout_capture" && exercises.length) {
+      const confirmedCount = exercises.filter((exercise) => !exercise.needsConfirmation && exercise.confidence >= 0.7).length;
+      const uncertainCount = exercises.filter((exercise) => exercise.needsConfirmation).length;
+      const evidence = confirmedCount
+        ? `${confirmedCount} senaman yang disahkan`
+        : `${exercises.length} senaman yang direkodkan`;
+      const uncertainty = uncertainCount ? ` ${uncertainCount} senaman masih perlu disemak.` : "";
+      const comparison = uncertainCount
+        ? "Sahkan butiran tersebut sebelum menggunakannya untuk perbandingan kemajuan."
+        : `Lain kali, catat beban atau tahap usaha untuk ${exercises[0]!.name} supaya Ascend boleh membandingkan kemajuan.`;
+      return `Workout anda telah disimpan dengan ${evidence}.${uncertainty} ${comparison}`;
+    }
+    if (title) return `Workout disimpan. ${title} telah ditambah pada sejarah latihan anda.`;
+    return "Workout disimpan. Sesi anda telah direkodkan dan sejarah latihan anda telah dikemas kini.";
+  }
+  if (locale === "zh-Hans") {
+    if (input.source === "quick_activity" && activity) {
+      const durationLabel = duration && duration > 0 ? `（${Math.round(duration)} 分钟）` : "";
+      return `你的${activity}${durationLabel}已记录，并添加到今天的活动中。`;
+    }
+    const exercises = debriefExerciseEvidence(input.metadata);
+    if (input.source === "ai_workout_capture" && exercises.length) {
+      const confirmedCount = exercises.filter((exercise) => !exercise.needsConfirmation && exercise.confidence >= 0.7).length;
+      const uncertainCount = exercises.filter((exercise) => exercise.needsConfirmation).length;
+      const evidence = confirmedCount ? `${confirmedCount} 个已确认动作` : `${exercises.length} 个已记录动作`;
+      const uncertainty = uncertainCount ? ` 仍有 ${uncertainCount} 个动作需要复查。` : "";
+      const comparison = uncertainCount
+        ? "请先确认这些细节，再用它们比较训练进展。"
+        : `下次请记录 ${exercises[0]!.name} 的负重或用力程度，让 Ascend 能够比较进展。`;
+      return `你的训练已保存，包含${evidence}。${uncertainty}${comparison}`;
+    }
+    if (title) return `训练已保存。${title} 已添加到你的训练历史中。`;
+    return "训练已保存。你的训练记录和训练历史已更新。";
+  }
   if (input.source === "quick_activity" && activity) {
     const activityLabel = activity.toLowerCase();
     const prefix = duration && duration > 0 ? `Your ${Math.round(duration)}-minute ${activityLabel}` : `Your ${activityLabel}`;
@@ -568,12 +611,13 @@ export async function initializeWorkoutDebrief(input: {
   source: WorkoutDebriefSource;
   metadata: Record<string, unknown>;
   createdAt?: string;
+  locale?: AscendLocale;
 }, dependencies: Pick<WorkoutDebriefDependencies, "store"> = defaultDependencies): Promise<WorkoutDebriefView> {
   if (workoutDebriefRolloutMode({ isPlatformOwner: input.isPlatformOwner }) !== "active") {
     return disabledView(input.workoutEventId);
   }
   const signal = buildWorkoutSignalV1({ source: input.source, metadata: input.metadata, createdAt: input.createdAt });
-  const fallbackText = deterministicWorkoutAcknowledgement({ source: input.source, metadata: input.metadata });
+  const fallbackText = deterministicWorkoutAcknowledgement({ source: input.source, metadata: input.metadata, locale: input.locale });
   const status = input.source === "quick_activity" ? "not_required" : "available";
   const record = await dependencies.store.initialize({
     workoutEventId: input.workoutEventId,
@@ -624,11 +668,16 @@ function numericTokens(value: unknown): string[] {
 
 export function validateWorkoutDebriefOutput(
   value: string,
-  options: { allowedNumbers?: Iterable<string | number> } = {}
+  options: { allowedNumbers?: Iterable<string | number>; locale?: AscendLocale } = {}
 ): WorkoutDebriefOutput {
   const output = outputSchema.parse(parseJsonObject(value));
-  const wordCount = output.debrief.split(/\s+/).filter(Boolean).length;
-  if (wordCount < 20 || wordCount > 80) throw new Error("Workout debrief length is outside the allowed range.");
+  const locale = options.locale ?? "en";
+  const length = locale === "zh-Hans"
+    ? (output.debrief.match(/[\u3400-\u9fff]/g) ?? []).length
+    : output.debrief.split(/\s+/).filter(Boolean).length;
+  const minimum = locale === "zh-Hans" ? 35 : 20;
+  const maximum = locale === "zh-Hans" ? 180 : 80;
+  if (length < minimum || length > maximum) throw new Error("Workout debrief length is outside the allowed range.");
   const combined = Object.values(output).join(" ");
   const allowedNumbers = new Set(Array.from(options.allowedNumbers ?? [], (number) => String(Number(number))));
   const unsupportedNumber = numericTokens(combined).find((number) => !allowedNumbers.has(number));
@@ -643,22 +692,40 @@ const completionOnlyTrackingRequest = /(?:\b(?:ask|consider|remember|try|please|
 const genericPraise = /\b(?:good to see|it(?:'s|’s| is) great to see|keep up (?:the )?(?:good work|consistent effort)|great (?:work|job)|amazing job|solid effort|keep crushing it|you(?:'|’)ve got this)\b/i;
 
 function sentences(value: string) {
-  return value.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map((sentence) => sentence.trim()).filter(Boolean) ?? [];
+  return value.match(/[^.!?。！？]+[.!?。！？]+|[^.!?。！？]+$/g)?.map((sentence) => sentence.trim()).filter(Boolean) ?? [];
 }
 
-function enforceWorkoutSpecificOutput(output: WorkoutDebriefOutput, signal: WorkoutSignalV1): WorkoutDebriefOutput {
+function debriefLength(value: string, locale: AscendLocale) {
+  return locale === "zh-Hans"
+    ? (value.match(/[\u3400-\u9fff]/g) ?? []).length
+    : value.split(/\s+/).filter(Boolean).length;
+}
+
+function completionHistoryCopy(locale: AscendLocale) {
+  if (locale === "ms-MY") return "Sesi yang selesai ini kini menjadi sebahagian daripada sejarah workout anda.";
+  if (locale === "zh-Hans") return "这次已完成的训练现已记录在你的训练历史中。";
+  return "This completed session is now part of your workout history.";
+}
+
+function completionEvidenceFallback(locale: AscendLocale) {
+  if (locale === "ms-MY") return "Melengkapkan sesi yang dirancang ini memberi latihan terkini anda satu titik rujukan yang jelas tanpa melebih-lebihkan prestasi setiap senaman.";
+  if (locale === "zh-Hans") return "完成这次计划训练，为你近期的训练留下了清晰的参考记录，同时不会夸大每个动作的实际表现。";
+  return "Completing the planned session gives your recent training a clear reference point without overstating how each exercise went.";
+}
+
+function enforceWorkoutSpecificOutput(output: WorkoutDebriefOutput, signal: WorkoutSignalV1, locale: AscendLocale): WorkoutDebriefOutput {
   if (signal.prescribedComparison !== "completion_only") return output;
 
   const debrief = sentences(output.debrief)
     .filter((sentence) => !completionOnlyTrackingRequest.test(sentence) && !genericPraise.test(sentence))
     .join(" ");
-  const safeDebrief = debrief.split(/\s+/).filter(Boolean).length >= 20
+  const safeDebrief = debriefLength(debrief, locale) >= (locale === "zh-Hans" ? 35 : 20)
     ? debrief
-    : `${debrief}${debrief ? " " : ""}Completing the planned session gives your recent training a clear reference point without overstating how each exercise went.`;
+    : `${debrief}${debrief ? " " : ""}${completionEvidenceFallback(locale)}`;
 
   return {
     ...output,
-    nextConsideration: "This completed session is now part of your workout history.",
+    nextConsideration: completionHistoryCopy(locale),
     debrief: safeDebrief
   };
 }
@@ -725,7 +792,7 @@ function allowedDebriefNumbers(context: ReturnType<typeof aiContext>) {
   });
 }
 
-function assertEvidenceLedDebrief(output: WorkoutDebriefOutput, context: ReturnType<typeof aiContext>) {
+function assertEvidenceLedDebrief(output: WorkoutDebriefOutput, context: ReturnType<typeof aiContext>, locale: AscendLocale) {
   const signal = context.currentWorkout.signal;
   if (signal.prescribedComparison === "completion_only") return;
 
@@ -746,17 +813,38 @@ function assertEvidenceLedDebrief(output: WorkoutDebriefOutput, context: ReturnT
   }
 
   const hasUncertainty = exercises.some((exercise) => exercise.needsConfirmation);
-  if (hasUncertainty && !/\b(confirm|check|clarify|review)\b/i.test(output.debrief)) {
+  const uncertaintyPattern = locale === "zh-Hans"
+    ? /(确认|核对|澄清|复查)/
+    : locale === "ms-MY"
+      ? /\b(sahkan|semak|jelaskan|tinjau)\b/i
+      : /\b(confirm|check|clarify|review)\b/i;
+  const nextActionPattern = locale === "zh-Hans"
+    ? /(下次|下一次|确认|核对|重复|记录|比较|保持)/
+    : locale === "ms-MY"
+      ? /\b(lain kali|sesi seterusnya|sahkan|semak|ulangi|catat|bandingkan|kekalkan)\b/i
+      : /\b(next time|next session|confirm|repeat|record|compare|use as|keep)\b/i;
+  if (hasUncertainty && !uncertaintyPattern.test(output.debrief)) {
     throw new Error("Workout debrief omitted an important workout uncertainty.");
   }
-  if (!/\b(next time|next session|confirm|repeat|record|compare|use as|keep)\b/i.test(output.debrief)) {
+  if (!nextActionPattern.test(output.debrief)) {
     throw new Error("Workout debrief omitted one useful next action.");
   }
 }
 
-function workoutDebriefPrompts(context: ReturnType<typeof aiContext>) {
+function workoutDebriefLocaleInstruction(locale: AscendLocale) {
+  if (locale === "ms-MY") {
+    return "Write every user-visible JSON string in natural Malaysian Bahasa Melayu. Keep exercise names and exact recorded units unchanged where translating them would reduce clarity. Do not mix in English interface or coaching prose.";
+  }
+  if (locale === "zh-Hans") {
+    return "Write every user-visible JSON string in natural Simplified Chinese. Keep exercise names and exact recorded units unchanged where translating them would reduce clarity. Do not mix in English interface or coaching prose.";
+  }
+  return "Write every user-visible JSON string in natural English.";
+}
+
+function workoutDebriefPrompts(context: ReturnType<typeof aiContext>, locale: AscendLocale = "en") {
   const systemPrompt = [
     "You are Coach Zoe leaving one calm, thoughtful post-workout coach note inside Ascend.",
+    workoutDebriefLocaleInstruction(locale),
     "The supplied JSON is the complete source of truth. Interpret it but never add facts.",
     "Return strict JSON with exactly: accomplishment, observation, recoveryGuidance, nextConsideration, debrief.",
     "The debrief must be one natural response with a hard maximum of 80 words. Aim for 40 to 65 words with strong evidence, 30 to 55 words with normal evidence, and 25 to 45 words with sparse evidence. Do not use markdown.",
@@ -814,6 +902,7 @@ export async function generateWorkoutDebrief(input: {
   userId: string;
   gymId?: string | null;
   isPlatformOwner: boolean;
+  locale?: AscendLocale;
 }, dependencies: WorkoutDebriefDependencies = defaultDependencies): Promise<WorkoutDebriefView | null> {
   if (workoutDebriefRolloutMode({ isPlatformOwner: input.isPlatformOwner }) !== "active") {
     return disabledView(input.workoutEventId);
@@ -838,17 +927,20 @@ export async function generateWorkoutDebrief(input: {
     const context = await dependencies.store.loadGenerationContext(input.workoutEventId, input.userId);
     if (!context) throw new Error("Workout context is unavailable.");
     const promptContext = aiContext(context, claimed.workoutSignal);
-    const prompts = workoutDebriefPrompts(promptContext);
+    const locale = input.locale ?? "en";
+    const prompts = workoutDebriefPrompts(promptContext, locale);
     const reply = await dependencies.generate(prompts.systemPrompt, prompts.userPrompt);
     provider = reply.provider;
     model = reply.model;
     const output = enforceWorkoutSpecificOutput(
       validateWorkoutDebriefOutput(reply.text, {
-        allowedNumbers: allowedDebriefNumbers(promptContext)
+        allowedNumbers: allowedDebriefNumbers(promptContext),
+        locale
       }),
-      claimed.workoutSignal
+      claimed.workoutSignal,
+      locale
     );
-    assertEvidenceLedDebrief(output, promptContext);
+    assertEvidenceLedDebrief(output, promptContext, locale);
     const generated = await dependencies.store.markGenerated({
       workoutEventId: input.workoutEventId,
       userId: input.userId,

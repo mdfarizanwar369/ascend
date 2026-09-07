@@ -37,7 +37,7 @@ describe("daily coaching notifications", () => {
     });
 
     expect(result).toEqual({ id: "decision-home", insight });
-    expect(getCached).toHaveBeenCalledWith("user-1", expect.any(String), -480, "today-priority-referee-v2");
+    expect(getCached).toHaveBeenCalledWith("user-1", expect.any(String), -480, "today-priority-referee-v2", "en");
     expect(loadFacts).not.toHaveBeenCalled();
     expect(resolveDecision).not.toHaveBeenCalled();
   });

@@ -33,18 +33,14 @@ export { accountDetailsChanged, adminUserDetailsDraft, trainersForUser } from ".
 
 type WorkspaceView = "people" | "assignments" | "trainers";
 
-const workspaceViews: Array<{ id: WorkspaceView; label: string }> = [
-  { id: "people", label: "People" },
-  { id: "assignments", label: "Assignments" },
-  { id: "trainers", label: "Trainers" }
-];
+const workspaceViews: WorkspaceView[] = ["people", "assignments", "trainers"];
 
 export function AdminUsersClient() {
   const { t } = useI18n();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [gyms, setGyms] = useState<Gym[]>([]);
-  const [status, setStatus] = useState("Loading people...");
+  const [status, setStatus] = useState(t("admin.loadingPeople"));
   const [referralStatus, setReferralStatus] = useState("");
   const [savingUserId, setSavingUserId] = useState("");
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("people");
@@ -103,9 +99,9 @@ export function AdminUsersClient() {
   }, [activeUsers, gymFilter, inactiveUsers, roleFilter, search, userView]);
 
   const viewCounts: Record<WorkspaceView, string> = {
-    people: `${activeUsers.length} active`,
-    assignments: `${unassignedClients.length} open`,
-    trainers: pendingTrainers.length ? `${pendingTrainers.length} pending` : `${activeTrainers.length} active`
+    people: t("admin.countActive", { count: activeUsers.length }),
+    assignments: t("admin.countOpen", { count: unassignedClients.length }),
+    trainers: pendingTrainers.length ? t("admin.countPending", { count: pendingTrainers.length }) : t("admin.countActive", { count: activeTrainers.length })
   };
 
   async function assignTrainer(clientId: string, trainerId: string) {
@@ -154,9 +150,9 @@ export function AdminUsersClient() {
       <section className="mt-3 flex items-start gap-3">
         <BackButton fallbackHref="/admin" />
         <div className="min-w-0">
-          <p className="text-sm text-zinc-400">Owner tools</p>
-          <h1 className="mt-1 text-2xl font-semibold">Business</h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Manage one business task at a time.</p>
+          <p className="text-sm text-zinc-400">{t("admin.ownerTools")}</p>
+          <h1 className="mt-1 text-2xl font-semibold">{t("admin.business")}</h1>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">{t("admin.businessHelp")}</p>
         </div>
       </section>
 
@@ -166,17 +162,17 @@ export function AdminUsersClient() {
       <nav aria-label="Business sections" className="mt-4 grid grid-cols-3 gap-1 rounded-xl border border-line bg-ink p-1">
         {workspaceViews.map((view) => (
           <button
-            key={view.id}
+            key={view}
             type="button"
-            aria-pressed={workspaceView === view.id}
-            onClick={() => setWorkspaceView(view.id)}
+            aria-pressed={workspaceView === view}
+            onClick={() => setWorkspaceView(view)}
             className={`min-h-12 rounded-lg px-2 py-2 text-xs font-semibold sm:text-sm ${
-              workspaceView === view.id ? "bg-lime text-ink" : "text-zinc-300"
+              workspaceView === view ? "bg-lime text-ink" : "text-zinc-300"
             }`}
           >
-            <span className="block">{view.label}</span>
-            <span className={`mt-0.5 block text-[11px] ${workspaceView === view.id ? "text-ink/70" : "text-zinc-500"}`}>
-              {viewCounts[view.id]}
+            <span className="block">{t(`admin.workspace.${view}`)}</span>
+            <span className={`mt-0.5 block text-[11px] ${workspaceView === view ? "text-ink/70" : "text-zinc-500"}`}>
+              {viewCounts[view]}
             </span>
           </button>
         ))}
@@ -186,8 +182,8 @@ export function AdminUsersClient() {
         <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold">People</h2>
-              <p className="mt-1 text-sm text-zinc-400">Open one account to make changes.</p>
+              <h2 className="text-base font-semibold">{t("admin.workspace.people")}</h2>
+              <p className="mt-1 text-sm text-zinc-400">{t("admin.openAccountHelp")}</p>
             </div>
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-ink p-1">
               <button
@@ -195,21 +191,21 @@ export function AdminUsersClient() {
                 onClick={() => setUserView("active")}
                 className={`min-h-10 rounded-md px-2 text-xs font-semibold ${userView === "active" ? "bg-lime text-ink" : "text-zinc-300"}`}
               >
-                Active {activeUsers.length}
+                {t("admin.countActive", { count: activeUsers.length })}
               </button>
               <button
                 type="button"
                 onClick={() => setUserView("inactive")}
                 className={`min-h-10 rounded-md px-2 text-xs font-semibold ${userView === "inactive" ? "bg-lime text-ink" : "text-zinc-300"}`}
               >
-                Inactive {inactiveUsers.length}
+                {t("admin.countInactive", { count: inactiveUsers.length })}
               </button>
             </div>
           </div>
 
           <div className="mt-4 grid gap-2 md:grid-cols-[minmax(0,1fr)_180px_220px]">
             <label className="relative block">
-              <span className="sr-only">Search people</span>
+              <span className="sr-only">{t("admin.searchPeople")}</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
               <input
                 className={`${inputClass} pl-10`}
@@ -219,19 +215,19 @@ export function AdminUsersClient() {
               />
             </label>
             <label>
-              <span className="sr-only">Filter by role</span>
+              <span className="sr-only">{t("admin.filterRole")}</span>
               <select className={selectClass} value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as "all" | Role)}>
-                <option value="all">All roles</option>
-                <option value="client">Clients</option>
-                <option value="trainer">Trainers</option>
-                <option value="owner">Owners</option>
-                <option value="admin">Admins</option>
+                <option value="all">{t("admin.allRoles")}</option>
+                <option value="client">{t("admin.clients")}</option>
+                <option value="trainer">{t("admin.workspace.trainers")}</option>
+                <option value="owner">{t("admin.owners")}</option>
+                <option value="admin">{t("admin.admins")}</option>
               </select>
             </label>
             <label>
-              <span className="sr-only">Filter by gym</span>
+              <span className="sr-only">{t("admin.filterGym")}</span>
               <select className={selectClass} value={gymFilter} onChange={(event) => setGymFilter(event.target.value)}>
-                <option value="all">All gyms</option>
+                <option value="all">{t("admin.allGyms")}</option>
                 {gyms.map((gym) => <option key={gym.id} value={gym.id}>{gym.name}</option>)}
               </select>
             </label>
@@ -247,24 +243,24 @@ export function AdminUsersClient() {
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <p className="truncate text-sm font-medium">{user.full_name}</p>
-                    {user.is_platform_owner_account ? <span className="rounded bg-calm/15 px-2 py-0.5 text-[10px] font-semibold text-calm">Platform Owner</span> : null}
+                    {user.is_platform_owner_account ? <span className="rounded bg-calm/15 px-2 py-0.5 text-[10px] font-semibold text-calm">{t("admin.platformOwner")}</span> : null}
                   </div>
                   <p className="mt-1 truncate text-xs text-zinc-400">{user.email}</p>
                   <p className="mt-1 truncate text-xs text-zinc-500">
-                    {formatRole(user.primary_role, t)} · {user.gym_name ?? "No gym"} · {formatPlan(user.current_plan, t)}
+                    {formatRole(user.primary_role, t)} · {user.gym_name ?? t("admin.noGym")} · {formatPlan(user.current_plan, t)}
                   </p>
                   {user.primary_role === "client" ? (
                     <p className="mt-1 truncate text-xs text-zinc-500">{formatCoachingMode(user.coaching_mode, user.assigned_trainer_name, t)}</p>
                   ) : null}
                 </div>
                 <span className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-lime">
-                  Manage <ChevronRight size={17} />
+                  {t("admin.manage")} <ChevronRight size={17} />
                 </span>
               </Link>
             ))}
             {!visibleUsers.length ? (
               <p className="bg-ink p-4 text-sm leading-6 text-zinc-400">
-                {userView === "active" ? "No active people match these filters." : "No deactivated people match these filters."}
+                {userView === "active" ? t("admin.noActiveMatches") : t("admin.noInactiveMatches")}
               </p>
             ) : null}
           </div>

@@ -494,7 +494,7 @@ export function TrainerDashboardClient() {
         title={t("trainer.todaysPriorities")}
         body={t("trainer.todaysPrioritiesBody")}
         tone="trainer"
-        visual={<PrioritySigil count={priorities.needsAttention.length} />}
+        visual={<PrioritySigil count={priorities.needsAttention.length} label={t("common.today")} />}
       />
 
       {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}

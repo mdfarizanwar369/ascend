@@ -7,6 +7,7 @@ import {
   fallbackIntroductoryExplanation,
   introductoryBaseline,
   introductoryScanFacts,
+  localizedBodyScanPromptVersion,
   parseBodyScanExplanation,
   resolveBodyScanIntroductoryAccess
 } from "../services/bodyScanPreviewService";
@@ -129,6 +130,18 @@ describe("introductory Body Scan", () => {
     expect(explanation.priorities.length).toBeLessThanOrEqual(3);
     expect(explanation.measurementNote.toLowerCase()).toContain("hydration");
     expect(JSON.stringify(explanation).toLowerCase()).not.toContain("improved since");
+  });
+
+  it("localizes deterministic fallbacks and separates generated-copy cache versions by locale", () => {
+    const malay = fallbackIntroductoryExplanation(scan, { fullName: "Test Owner", goalType: "fat_loss" }, "ms-MY");
+    const chinese = fallbackIntroductoryExplanation(scan, { fullName: "Test Owner", goalType: "fat_loss" }, "zh-Hans");
+
+    expect(malay.headline).toContain("Imbasan");
+    expect(chinese.headline).toMatch(/[\u3400-\u9fff]/);
+    expect(parseBodyScanExplanation(JSON.stringify(chinese), chinese, undefined, "zh-Hans")).toEqual(chinese);
+    expect(localizedBodyScanPromptVersion("body-scan-introductory-v1", "en")).toBe("body-scan-introductory-v1:en");
+    expect(localizedBodyScanPromptVersion("body-scan-introductory-v1", "ms-MY")).toBe("body-scan-introductory-v1:ms-MY");
+    expect(localizedBodyScanPromptVersion("body-scan-introductory-v1", "zh-Hans")).toBe("body-scan-introductory-v1:zh-Hans");
   });
 
   it("rejects malformed coaching output instead of trusting arbitrary AI text", () => {
