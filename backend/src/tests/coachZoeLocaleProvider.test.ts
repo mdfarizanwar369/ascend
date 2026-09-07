@@ -54,4 +54,55 @@ describe("Coach Zoe multilingual provider contract", () => {
     expect(providerText).toContain("Client context:");
     expect(providerText).toContain("Question: How should I adjust today's workout if I feel tired?");
   });
+
+  it.each([
+    ["ms-MY", "Jana Workout Hari Ini", "Pembina Workout"],
+    ["zh-Hans", "生成今日训练", "训练生成器"]
+  ])("localizes English Ascend feature labels returned by the provider for %s", async (locale, generatedWorkoutLabel, builderLabel) => {
+    vi.mocked(fetch).mockResolvedValueOnce(geminiResponse("Open Generate Today's Workout in the Workout Builder."));
+
+    const reply = await createCoachZoeReply("Build my session", "{}", "workout", locale);
+
+    expect(reply).toContain(generatedWorkoutLabel);
+    expect(reply).toContain(builderLabel);
+    expect(reply).not.toContain("Generate Today's Workout");
+    expect(reply).not.toContain("Workout Builder");
+  });
+
+  it("localizes generic English training categories in Simplified Chinese while preserving named exercises", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(geminiResponse("Use Push movements for Upper Body, then Lower Body & Core and Pull Movements with Goblet Squats."));
+
+    const reply = await createCoachZoeReply("What should I train?", "{}", "workout", "zh-Hans");
+
+    expect(reply).toContain("推类动作");
+    expect(reply).toContain("上肢");
+    expect(reply).toContain("下肢与核心");
+    expect(reply).toContain("拉类动作");
+    expect(reply).toContain("Goblet Squats");
+    expect(reply).not.toMatch(/Push movements|Upper Body|Lower Body & Core|Pull Movements/i);
+  });
+
+  it.each([
+    ["ms-MY", "Jana Workout Hari Ini"],
+    ["zh-Hans", "生成今日训练"]
+  ])("uses a localized deterministic fallback for %s", async (locale, expectedCopy) => {
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("synthetic provider outage"));
+
+    const reply = await createCoachZoeReply("Build my session", "{}", "workout", locale);
+
+    expect(reply).toContain(expectedCopy);
+    expect(reply).not.toContain("Generate Today's Workout");
+  });
+
+  it.each([
+    ["ms-MY", "Untuk langkah seterusnya"],
+    ["zh-Hans", "下一步请完成"]
+  ])("localizes the no-question closing for %s", async (locale, expectedClosing) => {
+    vi.mocked(fetch).mockResolvedValueOnce(geminiResponse("Adakah anda bersedia?"));
+
+    const reply = await createCoachZoeReply("What next?", "{}", "general", locale);
+
+    expect(reply).toContain(expectedClosing);
+    expect(reply).not.toContain("For your next step");
+  });
 });

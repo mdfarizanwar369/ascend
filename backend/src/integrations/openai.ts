@@ -1742,10 +1742,10 @@ type CoachZoeMode = "general" | "progress" | "consistency" | "meal_advice" | "wo
 function localeInstruction(localeInput?: AscendLocale | string | null) {
   const locale = normalizeAscendLocale(localeInput);
   if (locale === "ms-MY") {
-    return "Language: Answer in natural Malaysian Bahasa Melayu. Keep common fitness terms such as workout, reps, sets, protein, calories, RPE, and named exercises in English when that is clearer for Malaysian users.";
+    return "Language: Answer in natural Malaysian Bahasa Melayu. Keep common fitness terms such as workout, reps, sets, protein, calories, RPE, and named exercises in English only when that is clearer for Malaysian users. All ordinary prose, headings, calls to action, and Ascend interface labels must be in Bahasa Melayu. If referring to Ascend's workout-generation action, call it exactly 'Jana Workout Hari Ini'; never output the English labels 'Generate Today's Workout' or 'Workout Builder'.";
   }
   if (locale === "zh-Hans") {
-    return "Language: Answer in natural Simplified Chinese for Malaysian and Singaporean Chinese-speaking users. Keep internationally recognised fitness terms, abbreviations, and exercise names in English when that preserves meaning.";
+    return "Language: Answer in natural Simplified Chinese for Malaysian and Singaporean Chinese-speaking users. Keep only internationally recognised abbreviations and named exercises in English when that preserves meaning. All ordinary prose, headings, calls to action, muscle-group names, and Ascend interface labels must be in Simplified Chinese. If referring to Ascend's workout-generation action, call it exactly '生成今日训练'; never output the English labels 'Generate Today's Workout' or 'Workout Builder'.";
   }
   return "Language: Answer in English.";
 }
@@ -1769,7 +1769,38 @@ function coachZoeSystemPrompt(mode: CoachZoeMode, locale?: AscendLocale | string
   return `${shared} For general chat, act as a Senior Coach. This is the only mode that should feel like an open coaching conversation. Always ground the answer in the user's actual data before giving advice. If the user asks for a full personalized workout plan or today's complete session, recommend Generate Today's Workout, then still give one simple direction they can use now. Do not drift into generic motivational language and do not force nutrition or workout advice unless it is clearly relevant.`;
 }
 
-function coachZoeFallback(mode: CoachZoeMode) {
+function coachZoeFallback(mode: CoachZoeMode, localeInput?: AscendLocale | string | null) {
+  const locale = normalizeAscendLocale(localeInput);
+  if (locale === "ms-MY") {
+    if (mode === "progress") {
+      return "Apa yang berubah\n- Saya belum ada data terkini yang mencukupi untuk menerangkan trend anda dengan yakin.\n\nPunca yang mungkin\n- Check-in terkini belum cukup untuk membezakan progres sebenar daripada turun naik biasa.\n\nPerkara paling penting hari ini\n- Kekurangan data ialah batas utama sekarang.\n\nSatu tindakan\n- Rekod satu check-in bermakna hari ini supaya analisis esok lebih tepat.";
+    }
+    if (mode === "consistency") {
+      return "Kemenangan paling mudah hari ini\n- Lengkapkan satu check-in ringkas.\n\nMengapa ini penting\n- Satu rekod yang jujur memastikan momentum anda jelas dan memudahkan hari esok.\n\nPilih satu tindakan\n- Rekod tindakan yang paling mungkin anda terlepas.\n\nPenutup\n- Anda tidak perlukan hari yang sempurna. Cukup hari yang sebenar.";
+    }
+    if (mode === "meal_advice") {
+      return "Ringkasan pemakanan\n- Saya belum ada rekod makanan terkini yang mencukupi untuk memberi cadangan khusus.\n\nArah terbaik hari ini\n- Sediakan satu hidangan seimbang dengan sumber protein yang jelas, satu sumber karbohidrat, serta buah atau sayur.\n\nPilihan mudah\n- Nasi ayam dengan telur tambahan\n- Protein shake dan pisang\n- Telur dan roti bakar\n\nMengapa ini sesuai\n- Hidangan ringkas yang boleh diulang lebih berguna daripada terlalu memikirkan pilihan seterusnya.";
+    }
+    if (mode === "workout") {
+      return "Saya boleh bantu dengan panduan workout ringkas di sini. Untuk sesi lengkap yang diperibadikan, gunakan Jana Workout Hari Ini. Buat masa sekarang, pilih satu sesi yang sesuai dengan tenaga anda hari ini dan selesaikannya dengan baik.";
+    }
+    return "Saya boleh membantu dengan lebih tepat apabila ada sedikit data terkini untuk dinilai. Buat masa sekarang, pilih satu tindakan berguna hari ini, rekodkannya, dan saya akan beri jawapan yang lebih tepat selepas itu.";
+  }
+  if (locale === "zh-Hans") {
+    if (mode === "progress") {
+      return "变化情况\n- 目前近期数据不足，我还无法有把握地解释你的趋势。\n\n可能原因\n- 近期记录不足，暂时无法区分真实进展与正常波动。\n\n今天最重要的事\n- 当前最大的限制是数据不足。\n\n一个行动\n- 今天完成一项有意义的记录，让明天的分析更准确。";
+    }
+    if (mode === "consistency") {
+      return "今天最容易完成的一步\n- 完成一次简短记录。\n\n为什么重要\n- 一次真实记录能让你的节奏保持清晰，也让明天更容易继续。\n\n选择一个行动\n- 记录你今天最可能忽略的行动。\n\n鼓励\n- 你不需要完美的一天，只需要真实地完成一步。";
+    }
+    if (mode === "meal_advice") {
+      return "营养概况\n- 目前近期饮食记录不足，还无法提供真正个性化的建议。\n\n今天的最佳方向\n- 安排一顿均衡饮食，包括明确的蛋白质来源、一份碳水和水果或蔬菜。\n\n简单选择\n- 鸡饭加一颗蛋\n- 蛋白奶昔和香蕉\n- 鸡蛋和吐司\n\n为什么适合\n- 简单、可重复的饮食选择，比反复纠结下一餐更有效。";
+    }
+    if (mode === "workout") {
+      return "我可以在这里提供简短的训练方向。如果需要完整的个性化训练，请使用“生成今日训练”。现在先选择一项符合今天精力的训练，并认真完成。";
+    }
+    return "有一些近期数据后，我才能提供更准确的帮助。现在先选择今天最有用的一项行动并记录下来，下一次我就能给你更明确的建议。";
+  }
   if (mode === "progress") {
     return "What changed\n- I do not have enough recent data to explain your trend confidently.\n\nWhat likely caused it\n- There are not enough recent check-ins to separate progress from noise.\n\nWhat matters most today\n- Missing data is the main limit right now.\n\nOne action\n- Log one meaningful check-in today so tomorrow's analysis is sharper.";
   }
@@ -1785,15 +1816,40 @@ function coachZoeFallback(mode: CoachZoeMode) {
   return "I can help best when I have a little recent data to read. For now, pick one useful action today, log it, and I will give you a sharper answer next time.";
 }
 
+function localizeCoachZoeFeatureReferences(reply: string, localeInput?: AscendLocale | string | null) {
+  const locale = normalizeAscendLocale(localeInput);
+  if (locale === "ms-MY") {
+    return reply
+      .replace(/Generate Today['’]s Workout/gi, "Jana Workout Hari Ini")
+      .replace(/Workout Builder/gi, "Pembina Workout");
+  }
+  if (locale === "zh-Hans") {
+    return reply
+      .replace(/Generate Today['’]s Workout/gi, "生成今日训练")
+      .replace(/Workout Builder/gi, "训练生成器")
+      .replace(/Lower Body\s*(?:&|and)\s*Core/gi, "下肢与核心")
+      .replace(/Upper Body/gi, "上肢")
+      .replace(/Pull Movements?/gi, "拉类动作")
+      .replace(/Push Movements?/gi, "推类动作")
+      .replace(/Push 动作/gi, "推类动作")
+      .replace(/Pull 动作/gi, "拉类动作");
+  }
+  return reply;
+}
+
 export async function createCoachZoeReply(message: string, context: string, mode: CoachZoeMode = "general", locale?: AscendLocale | string | null) {
   const reply = await createTextReply(
     coachZoeSystemPrompt(mode, locale),
     `Client context: ${context}\n\nQuestion: ${message}`,
-    coachZoeFallback(mode)
+    coachZoeFallback(mode, locale)
   );
-  const cleaned = reply.replace(/\*\*/g, "").replace(/\*/g, "").trim();
+  const cleaned = localizeCoachZoeFeatureReferences(reply, locale).replace(/\*\*/g, "").replace(/\*/g, "").trim();
   if (cleaned.endsWith("?")) {
-    return `${cleaned.slice(0, -1).trim()}. For your next step, follow the one action above and log it after.`;
+    const statement = cleaned.slice(0, -1).trim();
+    const normalizedLocale = normalizeAscendLocale(locale);
+    if (normalizedLocale === "ms-MY") return `${statement}. Untuk langkah seterusnya, ikut satu tindakan di atas dan rekodkannya selepas selesai.`;
+    if (normalizedLocale === "zh-Hans") return `${statement}。下一步请完成上面的一项行动，并在完成后记录下来。`;
+    return `${statement}. For your next step, follow the one action above and log it after.`;
   }
   return cleaned;
 }
