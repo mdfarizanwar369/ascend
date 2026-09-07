@@ -1,4 +1,5 @@
 import { SubscriptionPlan } from "@ascend/shared";
+import type { AscendLocale } from "@ascend/shared";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
 import { usablePlan } from "@/lib/subscriptionPlan";
 
@@ -8,6 +9,7 @@ export type AccountProfileSnapshot = {
   roles: string[];
   isPlatformOwner?: boolean;
   profilePhotoUrl?: string | null;
+  preferredLocale?: AscendLocale | null;
 };
 
 const PROFILE_CACHE_KEY = "ascend:account-profile";
@@ -37,7 +39,8 @@ function normalizeProfile(response: Awaited<ReturnType<typeof getMe>>): AccountP
     fullName: response.user.full_name,
     roles: response.roles ?? [],
     isPlatformOwner: response.user.is_platform_owner === true,
-    profilePhotoUrl: response.user.profile_photo_url
+    profilePhotoUrl: response.user.profile_photo_url,
+    preferredLocale: response.user.preferred_locale as AscendLocale | null | undefined
   };
 }
 

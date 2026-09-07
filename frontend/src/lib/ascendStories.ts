@@ -1,3 +1,5 @@
+import { englishMessage } from "@/lib/i18n/static";
+
 export type AscendStoryFormat = "today" | "then-now" | "earned";
 export type AscendStoryStyle = "loud" | "cinematic" | "quiet";
 
@@ -77,11 +79,11 @@ export function defaultStoryCaption(format: AscendStoryFormat, context: AscendSt
     if (days >= 60) return `${Math.max(2, Math.round(days / 30))} months of choosing progress.`;
     if (days >= 14) return `${Math.max(2, Math.round(days / 7))} weeks of showing up.`;
     if (days > 0) return `${days} days. One ascent at a time.`;
-    return "Progress worth remembering.";
+    return englishMessage("stories.progressWorthRemembering");
   }
 
   if (context.currentStreak >= 7) return `${context.currentStreak} days of showing up.`;
-  return "Today, I chose progress.";
+  return englishMessage("stories.todayChoseProgress");
 }
 
 export function createStoryDraft(format: AscendStoryFormat, context: AscendStoryContext): AscendStoryDraft {
@@ -149,8 +151,8 @@ export function listVerifiedMilestones(input: VerifiedMilestoneInput) {
   if (input.goalAchievedAt) {
     candidates.push({
       key: "goal-achieved",
-      title: "A goal I worked for. Earned.",
-      detail: "Goal achieved in Ascend.",
+      title: englishMessage("stories.goalEarnedTitle"),
+      detail: englishMessage("stories.goalEarnedDetail"),
       occurredAt: input.goalAchievedAt,
       score: 100
     });
@@ -173,8 +175,8 @@ export function listVerifiedMilestones(input: VerifiedMilestoneInput) {
   if (streak >= 7) {
     candidates.push({
       key: `streak-${streak}`,
-      title: `${streak} days of consistency. Earned.`,
-      detail: "Verified from your Ascend streak.",
+      title: englishMessage("stories.streakEarnedTitle", { streak }),
+      detail: englishMessage("stories.streakEarnedDetail"),
       occurredAt: new Date().toISOString(),
       score: 40 + Math.min(30, streak)
     });
@@ -184,8 +186,8 @@ export function listVerifiedMilestones(input: VerifiedMilestoneInput) {
     const workoutCount = `${input.workouts}${input.workoutsAreMinimum ? "+" : ""}`;
     candidates.push({
       key: `workouts-${input.workouts}`,
-      title: `${workoutCount} workouts completed. Still ascending.`,
-      detail: "Verified from your workout history.",
+      title: englishMessage("stories.workoutsEarnedTitle", { count: workoutCount }),
+      detail: englishMessage("stories.workoutsEarnedDetail"),
       occurredAt: new Date().toISOString(),
       score: 35 + Math.min(25, Math.floor((input.workouts ?? 0) / 5))
     });
@@ -195,8 +197,8 @@ export function listVerifiedMilestones(input: VerifiedMilestoneInput) {
     const mealCount = `${input.meals}${input.mealsAreMinimum ? "+" : ""}`;
     candidates.push({
       key: `meals-${input.meals}`,
-      title: `${mealCount} honest meal check-ins. That counts.`,
-      detail: "Verified from your meal history.",
+      title: englishMessage("stories.mealsEarnedTitle", { count: mealCount }),
+      detail: englishMessage("stories.mealsEarnedDetail"),
       occurredAt: new Date().toISOString(),
       score: 30 + Math.min(20, Math.floor((input.meals ?? 0) / 10))
     });
@@ -224,14 +226,14 @@ export function buildVerifiedStoryMetrics(input: {
   mealsAreMinimum?: boolean;
 }) {
   const metrics: AscendStoryMetric[] = [];
-  if ((input.currentStreak ?? 0) > 0) metrics.push({ key: "streak", label: "Current streak", value: `${input.currentStreak} days`, sensitive: false });
-  if (input.momentum !== null && input.momentum !== undefined) metrics.push({ key: "momentum", label: "Momentum", value: `${Math.round(input.momentum)}/100`, sensitive: false });
+  if ((input.currentStreak ?? 0) > 0) metrics.push({ key: "streak", label: englishMessage("stories.currentStreak"), value: englishMessage("stories.daysValue", { days: input.currentStreak ?? 0 }), sensitive: false });
+  if (input.momentum !== null && input.momentum !== undefined) metrics.push({ key: "momentum", label: englishMessage("stories.momentum"), value: `${Math.round(input.momentum)}/100`, sensitive: false });
   if (input.currentWeight && input.baselineWeight) {
     const change = Number((input.currentWeight - input.baselineWeight).toFixed(1));
-    if (change !== 0) metrics.push({ key: "weight-change", label: "Weight change", value: `${change > 0 ? "+" : ""}${change} kg`, sensitive: true });
+    if (change !== 0) metrics.push({ key: "weight-change", label: englishMessage("stories.weightChange"), value: `${change > 0 ? "+" : ""}${change} kg`, sensitive: true });
   }
-  if ((input.workouts ?? 0) > 0) metrics.push({ key: "workouts", label: "Workouts logged", value: `${input.workouts}${input.workoutsAreMinimum ? "+" : ""}`, sensitive: false });
-  if ((input.meals ?? 0) > 0) metrics.push({ key: "meals", label: "Meals logged", value: `${input.meals}${input.mealsAreMinimum ? "+" : ""}`, sensitive: false });
+  if ((input.workouts ?? 0) > 0) metrics.push({ key: "workouts", label: englishMessage("stories.workoutsLogged"), value: `${input.workouts}${input.workoutsAreMinimum ? "+" : ""}`, sensitive: false });
+  if ((input.meals ?? 0) > 0) metrics.push({ key: "meals", label: englishMessage("stories.mealsLogged"), value: `${input.meals}${input.mealsAreMinimum ? "+" : ""}`, sensitive: false });
   return metrics.slice(0, 3);
 }
 

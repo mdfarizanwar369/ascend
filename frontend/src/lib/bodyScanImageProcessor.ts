@@ -5,6 +5,7 @@ import {
   getBodyScanQualityWarnings,
   isLikelyDuplicateBodyScanImage
 } from "@ascend/shared";
+import { englishMessage } from "@/lib/i18n/static";
 
 export interface OptimizedBodyScanImage {
   id: string;
@@ -41,7 +42,7 @@ function fileCacheKey(file: File) {
 
 function canvasToImageData(canvas: HTMLCanvasElement) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("Could not read scan image.");
+  if (!context) throw new Error(englishMessage("errors.bodyScanRead"));
   return context.getImageData(0, 0, canvas.width, canvas.height);
 }
 
@@ -67,7 +68,7 @@ async function loadImage(file: File, signal?: AbortSignal) {
     };
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error("Could not read this image. If it is HEIC, try taking a normal photo or screenshot."));
+      reject(new Error(englishMessage("errors.imageReadHeic")));
     };
     image.src = objectUrl;
   });
@@ -81,7 +82,7 @@ function drawToCanvas(source: CanvasImageSource, maxLongSide: number) {
   canvas.width = Math.max(1, Math.round(width * scale));
   canvas.height = Math.max(1, Math.round(height * scale));
   const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("Could not prepare scan image.");
+  if (!context) throw new Error(englishMessage("errors.bodyScanPrepare"));
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
   context.drawImage(source, 0, 0, canvas.width, canvas.height);
@@ -150,14 +151,14 @@ function cropCanvas(canvas: HTMLCanvasElement, crop: { x: number; y: number; wid
   cropped.width = crop.width;
   cropped.height = crop.height;
   const context = cropped.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("Could not crop scan image.");
+  if (!context) throw new Error(englishMessage("errors.bodyScanCrop"));
   context.drawImage(canvas, crop.x, crop.y, crop.width, crop.height, 0, 0, crop.width, crop.height);
   return cropped;
 }
 
 function enhanceCanvas(canvas: HTMLCanvasElement) {
   const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("Could not enhance scan image.");
+  if (!context) throw new Error(englishMessage("errors.bodyScanEnhance"));
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const { data } = imageData;
   let sum = 0;
@@ -252,18 +253,18 @@ export async function optimizeBodyScanImage(file: File, options: BodyScanProcess
   const cached = cache.get(key);
   if (cached) return cached;
 
-  options.onStage?.("Correcting orientation...");
+  options.onStage?.(englishMessage("bodyScan.stageOrientation"));
   const image = await loadImage(file, options.signal);
   assertNotCancelled(options.signal);
   const originalWidth = Number("width" in image ? image.width : 0);
   const originalHeight = Number("height" in image ? image.height : 0);
 
-  options.onStage?.("Detecting report area...");
+  options.onStage?.(englishMessage("bodyScan.stageDetecting"));
   const baseCanvas = drawToCanvas(image, 1800);
   const bounds = detectContentBounds(canvasToImageData(baseCanvas));
   const croppedCanvas = cropCanvas(baseCanvas, bounds);
 
-  options.onStage?.("Enhancing text clarity...");
+  options.onStage?.(englishMessage("bodyScan.stageEnhancing"));
   const maxTextSide = 1400;
   const resizedCanvas = croppedCanvas.width > maxTextSide || croppedCanvas.height > maxTextSide
     ? drawToCanvas(croppedCanvas, maxTextSide)

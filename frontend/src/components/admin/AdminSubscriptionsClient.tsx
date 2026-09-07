@@ -5,13 +5,14 @@ import { BadgeCheck, CircleDollarSign, Search } from "lucide-react";
 import { getAdminSubscriptions } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { inputClass, selectClass } from "@/components/Field";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type Subscription = Awaited<ReturnType<typeof getAdminSubscriptions>>["subscriptions"][number];
 
-function formatPlan(plan: string) {
-  if (plan === "trainer_pro") return "Trainer Pro";
-  if (plan === "premium") return "Premium";
-  return "Free";
+function formatPlan(plan: string, t: (key: string) => string) {
+  if (plan === "trainer_pro") return t("common.trainerPro");
+  if (plan === "premium") return t("common.premium");
+  return t("admin.planFree");
 }
 
 function money(subscription: Subscription) {
@@ -29,6 +30,7 @@ function statusTone(status: string) {
 }
 
 export function AdminSubscriptionsClient() {
+  const { t } = useI18n();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [status, setStatus] = useState("Loading subscriptions...");
   const [search, setSearch] = useState("");
@@ -97,7 +99,7 @@ export function AdminSubscriptionsClient() {
               <span className={`rounded-lg px-3 py-1 text-xs ${statusTone(item.status)}`}>{item.status.replaceAll("_", " ")}</span>
             </div>
             <div className="mt-4 flex items-center justify-between gap-4 rounded-lg bg-ink p-3 md:mt-0 md:contents">
-              <div className="text-sm text-zinc-300 md:justify-self-end"><span className="flex items-center gap-2"><CircleDollarSign size={18} className="text-lime" />{formatPlan(item.plan)} · {money(item)}</span>{item.current_period_end ? <p className="mt-1 text-xs text-zinc-500">Access through {new Date(item.current_period_end).toLocaleDateString()}</p> : null}</div>
+              <div className="text-sm text-zinc-300 md:justify-self-end"><span className="flex items-center gap-2"><CircleDollarSign size={18} className="text-lime" />{formatPlan(item.plan, t)} · {money(item)}</span>{item.current_period_end ? <p className="mt-1 text-xs text-zinc-500">Access through {new Date(item.current_period_end).toLocaleDateString()}</p> : null}</div>
               <div className="flex items-center gap-2 text-sm text-zinc-300"><BadgeCheck size={18} className="text-calm" />{item.provider}</div>
             </div>
           </article>

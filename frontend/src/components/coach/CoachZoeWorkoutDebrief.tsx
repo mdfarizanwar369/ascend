@@ -1,5 +1,6 @@
 import type { WorkoutDebriefView } from "@ascend/shared";
 import { ZoeAvatar } from "@/components/ExperienceVisuals";
+import { englishMessage } from "@/lib/i18n/static";
 
 export function CoachZoeWorkoutDebrief({
   debrief,
@@ -27,7 +28,7 @@ export function CoachZoeWorkoutDebrief({
   return (
     <section
       className="mt-4 flex min-h-40 items-start gap-3 rounded-xl border border-purple-300/20 bg-purple-400/8 p-3"
-      aria-label="Coach Zoe workout debrief"
+      aria-label={englishMessage("coach.workoutDebriefAria")}
       aria-live="polite"
       aria-busy={pending || isRequesting}
     >

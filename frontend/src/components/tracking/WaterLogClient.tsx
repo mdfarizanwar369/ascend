@@ -9,14 +9,16 @@ import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { MetricPulse } from "@/components/ExperienceVisuals";
 import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const quickAmounts = [250, 500, 750, 1000];
 const dailyTargetMl = 2500;
 
 export function WaterLogClient() {
+  const { t } = useI18n();
   const [todayMl, setTodayMl] = useState(0);
   const [todayLogs, setTodayLogs] = useState<Array<{ id: string; amount_ml: number; logged_at: string }>>([]);
-  const [status, setStatus] = useState("Loading today's water...");
+  const [status, setStatus] = useState(() => t("water.loading"));
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [saveSucceeded, setSaveSucceeded] = useState(false);
@@ -39,7 +41,7 @@ export function WaterLogClient() {
         setTodayMl(total);
         setStatus("");
       } catch {
-        if (isMounted) setStatus("Please log in again if water tracking does not load.");
+        if (isMounted) setStatus(t("water.loadError"));
       }
     }
 
@@ -47,7 +49,7 @@ export function WaterLogClient() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [t]);
 
   const progress = useMemo(() => Math.min(100, Math.round((todayMl / dailyTargetMl) * 100)), [todayMl]);
 
@@ -56,7 +58,7 @@ export function WaterLogClient() {
     saveLockRef.current = true;
     setIsSaving(true);
     setSaveSucceeded(false);
-    setStatus(`Saving ${amountMl}ml...`);
+    setStatus(t("water.savingAmount", { amount: amountMl }));
 
     try {
       const saved = await saveWaterLog({ amountMl });
@@ -65,12 +67,12 @@ export function WaterLogClient() {
       const nextTotal = todayMl + amountMl;
       setTodayMl(nextTotal);
       const remainingMl = Math.max(dailyTargetMl - nextTotal, 0);
-      setStatus(remainingMl ? `${(nextTotal / 1000).toFixed(1)}L today. ${(remainingMl / 1000).toFixed(1)}L to your guide.` : "Hydration goal complete for today.");
+      setStatus(remainingMl ? t("water.todayRemaining", { total: (nextTotal / 1000).toFixed(1), remaining: (remainingMl / 1000).toFixed(1) }) : t("water.goalCompleteToday"));
       setSaveSucceeded(true);
       markInstallEligible("first_action");
     } catch {
       setSaveSucceeded(false);
-      setStatus("Could not save water. Please make sure you are logged in.");
+      setStatus(t("water.saveError"));
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
@@ -78,16 +80,16 @@ export function WaterLogClient() {
   }
 
   async function removeWater(log: { id: string; amount_ml: number }) {
-    if (!window.confirm(`Remove this ${log.amount_ml}ml water entry?`)) return;
+    if (!window.confirm(t("water.removeConfirm", { amount: log.amount_ml }))) return;
     setDeletingId(log.id);
     try {
       await deleteWaterLog(log.id);
       setTodayLogs((current) => current.filter((entry) => entry.id !== log.id));
       setTodayMl((current) => Math.max(0, current - log.amount_ml));
       setSaveSucceeded(false);
-      setStatus("Water entry removed.");
+      setStatus(t("water.removed"));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not remove that water entry.");
+      setStatus(error instanceof Error ? error.message : t("water.removeError"));
     } finally {
       setDeletingId(null);
     }
@@ -96,10 +98,10 @@ export function WaterLogClient() {
   return (
     <main className="ascend-page px-4 py-3 text-white sm:py-5">
       <div className="ascend-member-frame">
-        <TrackingPageHeader eyebrow="Daily tracking" title="Water" disabled={isSaving} />
+        <TrackingPageHeader eyebrow={t("water.eyebrow")} title={t("water.title")} disabled={isSaving} />
 
-        <TrackingHero icon={Droplets} label="Hydration today" value={<MetricPulse pulseKey={todayMl}>{(todayMl / 1000).toFixed(1)}L</MetricPulse>} detail="2.5L daily guide" progress={progress} tone="teal">
-          <DelightBadge tone={progress >= 100 ? "lime" : "teal"}>{progress >= 100 ? "Hydration goal complete" : "Every glass moves you forward"}</DelightBadge>
+        <TrackingHero icon={Droplets} label={t("water.hydrationToday")} value={<MetricPulse pulseKey={todayMl}>{(todayMl / 1000).toFixed(1)}L</MetricPulse>} detail={t("water.dailyGuide")} progress={progress} tone="teal">
+          <DelightBadge tone={progress >= 100 ? "lime" : "teal"}>{progress >= 100 ? t("water.goalComplete") : t("water.everyGlass")}</DelightBadge>
         </TrackingHero>
 
         <section className="ascend-surface mt-4 p-4">

@@ -2,6 +2,7 @@
 
 import { registerPlugin } from "@capacitor/core";
 import { isNativeAndroidCapacitor } from "./nativePlatform";
+import { englishMessage } from "./i18n/static";
 
 export type NativeGooglePlayProduct = {
   productId: string;
@@ -57,7 +58,7 @@ export async function getNativeGooglePlayProducts(productIds?: string[]) {
 }
 
 export async function startNativeGooglePlayPurchase(productId: string) {
-  if (!canUseNativeGooglePlayBilling()) throw new Error("Google Play Billing is available only in the Android app.");
+  if (!canUseNativeGooglePlayBilling()) throw new Error(englishMessage("billing.googlePlayAndroidOnly"));
   return PlayBilling.purchase({ productId });
 }
 
@@ -69,11 +70,11 @@ export async function getNativeGooglePlayPurchases() {
 }
 
 export async function acknowledgeNativeGooglePlayPurchase(purchaseToken: string) {
-  if (!canUseNativeGooglePlayBilling()) throw new Error("Google Play Billing is available only in the Android app.");
+  if (!canUseNativeGooglePlayBilling()) throw new Error(englishMessage("billing.googlePlayAndroidOnly"));
   return PlayBilling.acknowledgePurchase({ purchaseToken });
 }
 
 export async function openNativeGooglePlaySubscriptions() {
-  if (!canUseNativeGooglePlayBilling()) throw new Error("Google Play subscription management is available only in the Android app.");
+  if (!canUseNativeGooglePlayBilling()) throw new Error(englishMessage("billing.googlePlaySubscriptionsAndroidOnly"));
   return PlayBilling.openSubscriptions();
 }

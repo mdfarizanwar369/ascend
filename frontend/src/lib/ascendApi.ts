@@ -22,8 +22,10 @@ import {
   WorkoutProgressionIntelligenceV3,
   WorkoutDebriefView
 } from "@ascend/shared";
+import type { AscendLocale } from "@ascend/shared";
 import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
+import { englishMessage } from "./i18n/static";
 
 export interface ProgressComparison {
   periodDays: number;
@@ -203,7 +205,7 @@ async function withTimeout<T>(ms: number, action: (signal: AbortSignal) => Promi
     return await action(controller.signal);
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("AI is taking too long. Please try again.");
+      throw new Error(englishMessage("errors.aiTimeout"));
     }
     throw error;
   } finally {
@@ -327,6 +329,7 @@ export function getMe() {
       assigned_trainer_name?: string | null;
       trainer_status?: string | null;
       profile_photo_url?: string | null;
+      preferred_locale?: AscendLocale | string | null;
       is_platform_owner?: boolean;
       body_scan_owner_preview_enabled?: boolean;
       body_scan_introductory_enabled?: boolean;
@@ -338,6 +341,14 @@ export function getMe() {
     };
     roles: string[];
   }>("me:profile", "/me", 15_000);
+}
+
+export function updateLanguagePreference(locale: AscendLocale) {
+  invalidateCached("me:");
+  return authed<{ locale: AscendLocale }>("/me/language", {
+    method: "PATCH",
+    body: JSON.stringify({ locale })
+  });
 }
 
 export function claimReturnMode() {
@@ -440,7 +451,7 @@ async function collectAllHistory<T>(load: (offset: number) => Promise<{ items: T
     if (response.nextOffset === null || response.nextOffset === undefined) return items;
     offset = response.nextOffset;
   }
-  throw new Error("History is larger than the supported safety limit.");
+  throw new Error(englishMessage("errors.historySafetyLimit"));
 }
 
 export function getWeightLogs(options: HistoryPageOptions = {}) {

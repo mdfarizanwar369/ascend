@@ -7,8 +7,8 @@ export default function AdminReferralsPage() {
     <AppShell active="admin">
       <RoleGate
         allowedRoles={["admin", "owner"]}
-        fallbackTitle="Business access only"
-        fallbackMessage="This account cannot view referral attribution. Use an owner or admin login."
+        fallbackTitleKey="access.businessOnly"
+        fallbackMessageKey="access.businessReferralsDenied"
       >
         <AdminReferralsClient />
       </RoleGate>

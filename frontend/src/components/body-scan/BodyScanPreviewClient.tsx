@@ -27,6 +27,7 @@ import {
   saveBodyScanPreview
 } from "@/lib/ascendApi";
 import { clearBodyScanImageCache, optimizeBodyScanImage, OptimizedBodyScanImage } from "@/lib/bodyScanImageProcessor";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type EditableMetricKey =
   | "weightKg"
@@ -37,10 +38,10 @@ type EditableMetricKey =
   | "bodyWaterPercent"
   | "bmrKcal";
 
-const primaryMetrics: Array<{ key: EditableMetricKey; label: string; unit: string; step: string }> = [
-  { key: "weightKg", label: "Weight", unit: "kg", step: "0.1" },
-  { key: "bodyFatPercent", label: "Body fat", unit: "%", step: "0.1" },
-  { key: "skeletalMuscleMassKg", label: "Skeletal muscle", unit: "kg", step: "0.1" }
+const primaryMetrics: Array<{ key: EditableMetricKey; labelKey: string; unit: string; step: string }> = [
+  { key: "weightKg", labelKey: "bodyScan.weight", unit: "kg", step: "0.1" },
+  { key: "bodyFatPercent", labelKey: "bodyScan.bodyFat", unit: "%", step: "0.1" },
+  { key: "skeletalMuscleMassKg", labelKey: "bodyScan.skeletalMuscle", unit: "kg", step: "0.1" }
 ];
 
 const advancedMetrics: Array<{ key: EditableMetricKey; label: string; unit: string; step: string }> = [
@@ -63,21 +64,23 @@ function numberValue(value: number | null | undefined) {
   return value === null || value === undefined ? "" : String(value);
 }
 
-function displayValue(value: number | null | undefined, unit: string) {
-  if (value === null || value === undefined) return "Not captured";
+function displayValue(value: number | null | undefined, unit: string, t: (key: string) => string) {
+  if (value === null || value === undefined) return t("bodyScan.notCaptured");
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit ? ` ${unit}` : ""}`;
 }
 
 function ScanMetric({ label, value, unit }: { label: string; value: number | null | undefined; unit: string }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-lg border border-line bg-ink p-3">
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">{label}</p>
-      <p className="mt-2 text-lg font-semibold text-white">{displayValue(value, unit)}</p>
+      <p className="mt-2 text-lg font-semibold text-white">{displayValue(value, unit, t)}</p>
     </div>
   );
 }
 
 export function BodyScanPreviewClient() {
+  const { t } = useI18n();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -264,9 +267,9 @@ export function BodyScanPreviewClient() {
             <span className="grid h-10 w-10 place-items-center rounded-full border border-lime/40 bg-lime/10 text-lime"><Check size={21} /></span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <ScanMetric label="Weight" value={baseline.weightKg} unit="kg" />
-            <ScanMetric label="Body fat" value={baseline.bodyFatPercent} unit="%" />
-            <ScanMetric label="Skeletal muscle" value={baseline.skeletalMuscleMassKg} unit="kg" />
+            <ScanMetric label={t("bodyScan.weight")} value={baseline.weightKg} unit="kg" />
+            <ScanMetric label={t("bodyScan.bodyFat")} value={baseline.bodyFatPercent} unit="%" />
+            <ScanMetric label={t("bodyScan.skeletalMuscle")} value={baseline.skeletalMuscleMassKg} unit="kg" />
           </div>
         </section>
       ) : null}
@@ -365,7 +368,7 @@ export function BodyScanPreviewClient() {
               <div className="flex items-center gap-2"><CircleHelp size={18} className="text-amber" /><p className="text-sm font-semibold">Confirm against your original report</p></div>
               <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {primaryMetrics.map((metric) => (
-                  <label key={metric.key} className="text-xs font-semibold text-zinc-400">{metric.label}
+                  <label key={metric.key} className="text-xs font-semibold text-zinc-400">{t(metric.labelKey)}
                     <span className="mt-1 flex items-center rounded-lg border border-line bg-ink pr-3 focus-within:border-lime">
                       <input type="number" step={metric.step} value={numberValue(draft[metric.key] as number | null | undefined)} onChange={(event) => updateMetric(metric.key, event.target.value)} className="min-w-0 flex-1 bg-transparent p-3 text-base text-white outline-none" />
                       <span className="text-xs text-zinc-500">{metric.unit}</span>

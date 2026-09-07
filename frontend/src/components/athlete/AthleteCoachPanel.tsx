@@ -16,6 +16,7 @@ import {
   updateAthleteReviewComment
 } from "@/lib/ascendApi";
 import { buildAthleteCoachInsights, CoachInsightTone, insightToneClass } from "@/lib/coachIntelligence";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const targetOptions = [
   ["steps", "Steps", "steps", "daily"], ["cardio_minutes", "Cardio", "minutes", "daily"],
@@ -67,6 +68,7 @@ function AthletePanelCollapsible({
 }
 
 export function AthleteCoachPanel({ clientId }: { clientId: string }) {
+  const { t } = useI18n();
   const [athlete, setAthlete] = useState<AthleteDashboard | null>(null);
   const [bodyComposition, setBodyComposition] = useState<BodyCompositionSummary | null>(null);
   const [bodyScans, setBodyScans] = useState<BodyCompositionScan[]>([]);
@@ -213,7 +215,7 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
       </section>
 
       <AthletePanelCollapsible
-        title="Body Scan History"
+        title={t("athlete.bodyScanHistory")}
         preview={bodyScans.length ? `${bodyScans.length} scans saved` : "No saved scans yet"}
         isOpen={openSections.bodyScanHistory}
         onToggle={() => setSectionOpen("bodyScanHistory", !openSections.bodyScanHistory)}
@@ -273,7 +275,7 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
       </div>
 
       <AthletePanelCollapsible
-        title="Athlete Targets"
+        title={t("athlete.athleteTargets")}
         preview={athlete.targets.length ? `${athlete.targets.length} active targets` : "No athlete targets set"}
         isOpen={openSections.targets}
         onToggle={() => setSectionOpen("targets", !openSections.targets)}
@@ -290,7 +292,7 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
       </AthletePanelCollapsible>
 
       <AthletePanelCollapsible
-        title="Weekly Review"
+        title={t("athlete.weeklyReview")}
         preview={athlete.latestReview ? "Review summary available" : "Appears when enough athlete data is available"}
         isOpen={openSections.weeklyReview}
         onToggle={() => setSectionOpen("weeklyReview", !openSections.weeklyReview)}
@@ -304,7 +306,7 @@ export function AthleteCoachPanel({ clientId }: { clientId: string }) {
       </AthletePanelCollapsible>
 
       <AthletePanelCollapsible
-        title="Notes"
+        title={t("athlete.notes")}
         preview={notes.length ? `${notes.length} private notes` : "No notes added yet"}
         isOpen={openSections.notes}
         onToggle={() => setSectionOpen("notes", !openSections.notes)}

@@ -5,11 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Lock, RefreshCw, Sparkles } from "lucide-react";
 import { SubscriptionPlan } from "@ascend/shared";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
-import { planRank, usablePlan } from "@/lib/subscriptionPlan";
-
-function planLabel(plan: Exclude<SubscriptionPlan, "free">) {
-  return plan === "trainer_pro" ? "Trainer Pro" : "Premium";
-}
+import { planRank, usablePlan, formatPlan } from "@/lib/subscriptionPlan";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -29,25 +26,36 @@ export function RoleGate({
   children,
   fallbackTitle,
   fallbackMessage,
+  fallbackTitleKey,
+  fallbackMessageKey,
   requiredPlan,
   planFeature,
+  planFeatureKey,
   requirePlatformOwner = false,
   allowPlatformOwner = false,
   hideWhenDenied = false
 }: {
   allowedRoles: string[];
   children: React.ReactNode;
-  fallbackTitle: string;
-  fallbackMessage: string;
+  fallbackTitle?: string;
+  fallbackMessage?: string;
+  fallbackTitleKey?: string;
+  fallbackMessageKey?: string;
   requiredPlan?: Exclude<SubscriptionPlan, "free">;
   planFeature?: string;
+  planFeatureKey?: string;
   requirePlatformOwner?: boolean;
   allowPlatformOwner?: boolean;
   hideWhenDenied?: boolean;
 }) {
+  const { t } = useI18n();
   const [state, setState] = useState<"loading" | "allowed" | "role-blocked" | "plan-blocked" | "error">("loading");
   const [retryKey, setRetryKey] = useState(0);
   const allowedRoleKey = useMemo(() => allowedRoles.join("|"), [allowedRoles]);
+  const translatedFallbackTitle = fallbackTitleKey ? t(fallbackTitleKey) : fallbackTitle ?? t("access.deniedTitle");
+  const translatedFallbackMessage = fallbackMessageKey ? t(fallbackMessageKey) : fallbackMessage ?? t("access.deniedMessage");
+  const translatedFeature = planFeatureKey ? t(planFeatureKey) : planFeature ?? t("common.feature");
+  const requiredPlanLabel = requiredPlan ? formatPlan(requiredPlan, t) : "";
 
   useEffect(() => {
     let isMounted = true;
@@ -118,17 +126,17 @@ export function RoleGate({
 
   if (state === "loading") {
     if (hideWhenDenied) return null;
-    return <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">Checking account access...</p>;
+    return <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">{t("access.checkingAccount")}</p>;
   }
 
   if (state === "role-blocked") {
     if (hideWhenDenied) return null;
     return (
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <h1 className="text-xl font-semibold">{fallbackTitle}</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-400">{fallbackMessage}</p>
+        <h1 className="text-xl font-semibold">{translatedFallbackTitle}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-400">{translatedFallbackMessage}</p>
         <Link href="/dashboard" className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-          Back to client dashboard
+          {t("access.backToClientDashboard")}
         </Link>
       </section>
     );
@@ -138,15 +146,15 @@ export function RoleGate({
     if (hideWhenDenied) return null;
     return (
       <section className="mt-4 rounded-lg border border-amber/35 bg-amber/10 p-4">
-        <h1 className="text-xl font-semibold">Ascend could not check access</h1>
-        <p className="mt-2 text-sm leading-6 text-zinc-300">Your account has not been blocked. Check your connection and try the access check again.</p>
+        <h1 className="text-xl font-semibold">{t("access.errorTitle")}</h1>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">{t("access.errorMessage")}</p>
         <button
           type="button"
           onClick={() => setRetryKey((value) => value + 1)}
           className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-lime font-semibold text-ink"
         >
           <RefreshCw size={18} />
-          Try again
+          {t("common.tryAgain")}
         </button>
       </section>
     );
@@ -161,16 +169,16 @@ export function RoleGate({
             <Lock size={20} />
           </span>
           <div>
-            <p className="text-sm text-zinc-400">{planFeature ?? "Feature"}</p>
-            <h1 className="text-xl font-semibold">{planLabel(requiredPlan)} required</h1>
+            <p className="text-sm text-zinc-400">{translatedFeature}</p>
+            <h1 className="text-xl font-semibold">{t("access.planRequired", { plan: requiredPlanLabel })}</h1>
             <div className="mt-3 flex items-start gap-2">
               <Sparkles className="mt-0.5 shrink-0 text-lime" size={18} />
               <p className="text-sm leading-6 text-zinc-300">
-                This feature is part of {planLabel(requiredPlan)}. Ask your trainer or gym owner to approve access, or view the available plans.
+                {t("access.planMessage", { plan: requiredPlanLabel })}
               </p>
             </div>
             <Link href="/subscription" className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-              View plans
+              {t("access.viewPlans")}
             </Link>
           </div>
         </div>

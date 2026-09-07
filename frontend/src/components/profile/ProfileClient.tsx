@@ -13,19 +13,21 @@ import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/PerceivedLoading";
 import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayBilling } from "@/lib/billingPlatform";
 import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-function formatBillingDate(value: string | null | undefined) {
-  if (!value) return "Not scheduled";
+function formatBillingDate(value: string | null | undefined, t: (key: string) => string) {
+  if (!value) return t("profile.notScheduled");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not scheduled";
+  if (Number.isNaN(date.getTime())) return t("profile.notScheduled");
   return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
 export function ProfileClient() {
+  const { t } = useI18n();
   const [user, setUser] = useState<Awaited<ReturnType<typeof getMe>>["user"] | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
@@ -82,7 +84,7 @@ export function ProfileClient() {
   const renewalValue = !hasPaidPlan
     ? "No paid renewal"
     : hasUpcomingBillingDate
-      ? formatBillingDate(renewalDate)
+      ? formatBillingDate(renewalDate, t)
       : isCancelled
         ? "Ended"
         : "Active";
@@ -213,7 +215,7 @@ export function ProfileClient() {
             <BackButton fallbackHref="/dashboard" />
             <div><p className="text-sm text-zinc-400">Account</p><h1 className="text-2xl font-semibold">Profile & settings</h1></div>
           </header>
-          <SectionShell title="Profile">
+          <SectionShell title={t("common.profile")}>
             <div className="flex flex-col items-center">
               <SkeletonBlock className="h-24 w-24 rounded-full" />
               <SkeletonBlock className="mt-4 h-5 w-32" />
@@ -221,7 +223,7 @@ export function ProfileClient() {
               <SkeletonBlock className="mt-5 h-12 w-full rounded-lg" />
             </div>
           </SectionShell>
-          <SectionShell title="Subscription">
+          <SectionShell title={t("profile.subscription")}>
             <SkeletonStatGrid count={2} />
           </SectionShell>
           <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>

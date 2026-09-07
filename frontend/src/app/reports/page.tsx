@@ -3,7 +3,7 @@ import { WeeklyReportClient } from "@/components/reports/WeeklyReportClient";
 
 export default function ReportsPage() {
   return (
-    <PlanGate requiredPlan="premium" feature="Weekly progress reports">
+    <PlanGate requiredPlan="premium" featureKey="premium.weeklyReports">
       <WeeklyReportClient />
     </PlanGate>
   );

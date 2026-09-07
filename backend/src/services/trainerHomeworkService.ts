@@ -160,7 +160,7 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
     await Promise.all([
       query(
         `
-        select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
+        select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm, preferred_locale
         from users
         where id = $1
         `,
@@ -248,6 +248,7 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
       }
     : null;
 
+  const preferredLocale = String(profileResult.rows[0]?.preferred_locale ?? "en");
   const promptContext = JSON.stringify(
     buildWorkoutPlannerContext({
       coachAccess: { tier: "trainer_pro", premiumDepth: true },
@@ -274,7 +275,8 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
         timeAvailable: input.timeAvailable,
         goal: input.goal,
         equipment: input.equipment.join(", ")
-      }
+      },
+      preferredLocale
     })
   );
 
@@ -287,7 +289,8 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
     assignmentDate: input.assignmentDate,
     dueDate: input.dueDate,
     coachNote: input.coachNote ?? null,
-    context: promptContext
+    context: promptContext,
+    locale: preferredLocale
   });
 
   return { workout };

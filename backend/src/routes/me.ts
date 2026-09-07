@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
+import { ASCEND_LOCALES, normalizeAscendLocale } from "@ascend/shared";
 import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
@@ -20,6 +21,10 @@ export const meRouter = Router();
 
 const accountDeletionSchema = z.object({
   confirmationText: z.string().trim().max(20)
+});
+
+const languagePreferenceSchema = z.object({
+  locale: z.enum(ASCEND_LOCALES)
 });
 
 meRouter.get("/me", requireAuth, async (req, res) => {
@@ -62,6 +67,25 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     },
     roles: req.user!.roles
   });
+});
+
+meRouter.patch("/me/language", requireAuth, async (req, res, next) => {
+  try {
+    const input = languagePreferenceSchema.parse(req.body);
+    const result = await query<{ preferred_locale: string }>(
+      `
+      update users
+      set preferred_locale = $2, updated_at = now()
+      where id = $1
+      returning preferred_locale
+      `,
+      [req.user!.id, input.locale]
+    );
+
+    res.json({ locale: normalizeAscendLocale(result.rows[0]?.preferred_locale) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 meRouter.post("/me/return-mode/claim", requireAuth, async (req, res, next) => {

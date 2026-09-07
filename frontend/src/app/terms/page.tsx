@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/LegalPage";
+import { englishMessage } from "@/lib/i18n/static";
 
 export const metadata: Metadata = { title: "Terms of Service | Ascend" };
 
 export default function TermsPage() {
   return (
     <LegalPage
-      eyebrow="Using Ascend"
-      title="Terms of Service"
+      eyebrow={englishMessage("legal.usingAscend")}
+      title={englishMessage("legal.termsOfService")}
       introduction="These Terms govern access to Ascend. By creating an account or using the service, you agree to use Ascend responsibly and understand the limits of fitness and AI guidance."
       sections={[
         {

@@ -6,26 +6,27 @@ import { ArrowRight, Camera, Droplets, Home, Scale, Sparkles } from "lucide-reac
 import { GoalType, MotivationAnchor, PrimaryBarrier } from "@ascend/shared";
 import { completeOnboarding, getMe } from "@/lib/ascendApi";
 import { Field, inputClass, selectClass } from "@/components/Field";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const draftKey = "ascend:onboarding:v2:draft";
 const welcomeSeenKey = "ascend:onboarding:v2:welcome-seen";
 
 type GoalChoice = GoalType | "performance" | "healthy_lifestyle";
 
-const barrierOptions: Array<{ value: PrimaryBarrier; label: string }> = [
-  { value: "motivation_loss", label: "I lose motivation" },
-  { value: "too_busy", label: "Life gets too busy" },
-  { value: "stress_or_fatigue", label: "Stress or tiredness takes over" },
-  { value: "unsure_what_to_do", label: "I'm unsure what to do" },
-  { value: "all_or_nothing", label: "I start strongly, then stop" }
+const barrierOptions: Array<{ value: PrimaryBarrier; labelKey: string }> = [
+  { value: "motivation_loss", labelKey: "onboarding.barrierMotivationLoss" },
+  { value: "too_busy", labelKey: "onboarding.barrierTooBusy" },
+  { value: "stress_or_fatigue", labelKey: "onboarding.barrierStressFatigue" },
+  { value: "unsure_what_to_do", labelKey: "onboarding.barrierUnsure" },
+  { value: "all_or_nothing", labelKey: "onboarding.barrierAllOrNothing" }
 ];
 
-const motivationOptions: Array<{ value: MotivationAnchor; label: string }> = [
-  { value: "health", label: "My health" },
-  { value: "family", label: "My family" },
-  { value: "confidence", label: "My confidence" },
-  { value: "capability", label: "Feeling capable again" },
-  { value: "milestone", label: "A personal milestone" }
+const motivationOptions: Array<{ value: MotivationAnchor; labelKey: string }> = [
+  { value: "health", labelKey: "onboarding.motivationHealth" },
+  { value: "family", labelKey: "onboarding.motivationFamily" },
+  { value: "confidence", labelKey: "onboarding.motivationConfidence" },
+  { value: "capability", labelKey: "onboarding.motivationCapability" },
+  { value: "milestone", labelKey: "onboarding.motivationMilestone" }
 ];
 
 interface Draft {
@@ -61,12 +62,12 @@ function mapGoal(choice: GoalChoice): GoalType {
   return choice;
 }
 
-function goalLabel(choice: GoalChoice) {
-  if (choice === "fat_loss") return "Fat Loss";
-  if (choice === "muscle_gain") return "Muscle Gain";
-  if (choice === "maintenance") return "Maintain";
-  if (choice === "performance") return "Performance";
-  return "Healthy Lifestyle";
+function goalLabelKey(choice: GoalChoice) {
+  if (choice === "fat_loss") return "onboarding.goalFatLoss";
+  if (choice === "muscle_gain") return "onboarding.goalMuscleGain";
+  if (choice === "maintenance") return "onboarding.goalMaintain";
+  if (choice === "performance") return "onboarding.goalPerformance";
+  return "onboarding.goalHealthyLifestyle";
 }
 
 function readDraft(): Draft {
@@ -81,6 +82,7 @@ function readDraft(): Draft {
 export function ProgressiveClientOnboarding() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { t } = useI18n();
   const startProfile = searchParams.get("profile") === "1";
   const [draft, setDraft] = useState<Draft>(defaultDraft);
   const [showProfileFlow, setShowProfileFlow] = useState(startProfile);
@@ -111,13 +113,13 @@ export function ProgressiveClientOnboarding() {
   }, [draft]);
 
   const stepTitle = useMemo(() => {
-    if (draft.step === 0) return "What are you working toward?";
-    if (draft.step === 1) return "Help Ascend personalise your guide.";
-    if (draft.step === 2) return "Where are you starting from?";
-    if (draft.step === 3) return "How active are you right now?";
-    if (draft.step === 4) return "What usually makes it difficult to stay consistent?";
-    return "What makes this important to you right now?";
-  }, [draft.step]);
+    if (draft.step === 0) return t("onboarding.stepGoal");
+    if (draft.step === 1) return t("onboarding.stepPersonalise");
+    if (draft.step === 2) return t("onboarding.stepStarting");
+    if (draft.step === 3) return t("onboarding.stepActivity");
+    if (draft.step === 4) return t("onboarding.stepBarrier");
+    return t("onboarding.stepMotivation");
+  }, [draft.step, t]);
 
   function updateDraft(next: Partial<Draft>) {
     setDraft((current) => ({ ...current, ...next }));
@@ -145,27 +147,27 @@ export function ProgressiveClientOnboarding() {
     if (draft.step === 1) {
       const age = Number(draft.ageYears);
       const height = Number(draft.heightCm);
-      if (!Number.isFinite(age) || age < 18 || age > 100) return "You must be 18 or older to create and manage your own Ascend account.";
-      if (!Number.isFinite(height) || height <= 0) return "Please enter your height in cm.";
+      if (!Number.isFinite(age) || age < 18 || age > 100) return t("onboarding.errorAdult");
+      if (!Number.isFinite(height) || height <= 0) return t("onboarding.errorHeightCm");
     }
     if (draft.step === 2) {
       const currentWeight = Number(draft.currentWeightKg);
       const targetWeight = draft.targetWeightKg ? Number(draft.targetWeightKg) : null;
-      if (!Number.isFinite(currentWeight) || currentWeight <= 0) return "Please enter your current weight.";
-      if (targetWeight !== null && (!Number.isFinite(targetWeight) || targetWeight <= 0)) return "Please enter a valid target weight.";
+      if (!Number.isFinite(currentWeight) || currentWeight <= 0) return t("onboarding.errorCurrentWeight");
+      if (targetWeight !== null && (!Number.isFinite(targetWeight) || targetWeight <= 0)) return t("onboarding.errorTargetWeight");
       if (draft.goalChoice !== "maintenance" && draft.goalChoice !== "healthy_lifestyle" && !targetWeight) {
-        return "Please add a target weight for this goal.";
+        return t("onboarding.errorTargetRequired");
       }
     }
     if (draft.step === 4 && !draft.primaryBarrier) {
-      return "Please choose the option that fits you best.";
+      return t("onboarding.errorChooseBest");
     }
     return null;
   }
 
   async function saveOnboarding(motivationAnchor: MotivationAnchor | null = draft.motivationAnchor) {
     if (!draft.primaryBarrier) {
-      setStatus("Please choose the option that fits you best.");
+      setStatus(t("onboarding.errorChooseBest"));
       return;
     }
 
@@ -193,7 +195,7 @@ export function ProgressiveClientOnboarding() {
       }
       router.push("/dashboard");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save your profile yet. Please try again.");
+      setStatus(error instanceof Error ? error.message : t("onboarding.errorSaveProfile"));
     } finally {
       setIsSaving(false);
     }
@@ -217,21 +219,21 @@ export function ProgressiveClientOnboarding() {
     return (
       <section className="mt-6 space-y-4">
         <div className="rounded-2xl border border-line bg-surface p-5 shadow-soft">
-          <p className="text-sm text-zinc-400">Welcome to Ascend</p>
-          <h1 className="mt-2 text-4xl font-semibold leading-tight">Great to have you here.</h1>
+          <p className="text-sm text-zinc-400">{t("onboarding.welcome")}</p>
+          <h1 className="mt-2 text-4xl font-semibold leading-tight">{t("onboarding.welcomeCardTitle")}</h1>
           <p className="mt-4 text-sm leading-6 text-zinc-300">
-            Your coach only sees a few hours of your week. Ascend helps you stay accountable during the other 166 hours.
+            {t("onboarding.welcomeCardBody")}
           </p>
         </div>
 
         <div className="rounded-2xl border border-calm/40 bg-calm/10 p-4">
-          <p className="text-sm font-semibold text-calm">What&apos;s your first step today?</p>
+          <p className="text-sm font-semibold text-calm">{t("onboarding.firstStep")}</p>
           <div className="mt-4 grid gap-3">
             {[
-              { icon: Camera, title: "Log Food", detail: "Recommended. Snap your first meal and let AI estimate calories and macros.", href: "/food-log" },
-              { icon: Scale, title: "Record Weight", detail: "Start tracking your progress.", href: "/weight-log" },
-              { icon: Droplets, title: "Log Water", detail: "Build your first healthy habit.", href: "/water-log" },
-              { icon: Home, title: "Explore Dashboard", detail: "Skip for now and discover Ascend.", href: "/dashboard" }
+              { icon: Camera, title: t("onboarding.firstLogFood"), detail: t("onboarding.firstLogFoodDetail"), href: "/food-log" },
+              { icon: Scale, title: t("onboarding.firstRecordWeight"), detail: t("onboarding.firstRecordWeightDetail"), href: "/weight-log" },
+              { icon: Droplets, title: t("onboarding.firstLogWater"), detail: t("onboarding.firstLogWaterDetail"), href: "/water-log" },
+              { icon: Home, title: t("onboarding.firstExploreDashboard"), detail: t("onboarding.firstExploreDashboardDetail"), href: "/dashboard" }
             ].map((item) => (
               <button
                 key={item.title}
@@ -256,9 +258,9 @@ export function ProgressiveClientOnboarding() {
           onClick={startProfileSetup}
           className="flex h-12 w-full items-center justify-center rounded-xl border border-line bg-surface font-semibold text-lime"
         >
-          Set up personalised targets
+          {t("onboarding.setupTargets")}
         </button>
-        <p className="text-center text-xs leading-5 text-zinc-500">You can complete your profile later. No pressure.</p>
+        <p className="text-center text-xs leading-5 text-zinc-500">{t("onboarding.completeLater")}</p>
       </section>
     );
   }
@@ -270,7 +272,7 @@ export function ProgressiveClientOnboarding() {
           <Sparkles size={20} />
         </span>
         <div>
-          <p className="text-sm text-zinc-400">Step {draft.step + 1} of 6</p>
+          <p className="text-sm text-zinc-400">{t("onboarding.progressStep", { step: draft.step + 1, total: 6 })}</p>
           <h1 className="mt-1 text-2xl font-semibold">{stepTitle}</h1>
         </div>
       </div>
@@ -289,16 +291,16 @@ export function ProgressiveClientOnboarding() {
                     draft.goalChoice === goal ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-white"
                   }`}
                 >
-                  {goalLabel(goal)}
+                  {t(goalLabelKey(goal))}
                 </button>
               ))}
             </div>
-            <Field label="Referral code" hint="Optional. Add your gym or trainer code if you have one.">
+            <Field label={t("onboarding.referralCode")} hint={t("onboarding.referralOptional")}>
               <input
                 className={inputClass}
                 value={draft.referralCode}
                 onChange={(event) => updateDraft({ referralCode: event.target.value.toUpperCase() })}
-                placeholder="Optional"
+                placeholder={t("onboarding.optional")}
               />
             </Field>
           </>
@@ -306,17 +308,17 @@ export function ProgressiveClientOnboarding() {
 
         {draft.step === 1 ? (
           <>
-            <Field label="Age">
+            <Field label={t("onboarding.age")}>
               <input className={inputClass} value={draft.ageYears} inputMode="numeric" onChange={(event) => updateDraft({ ageYears: event.target.value })} />
             </Field>
-            <Field label="Height">
+            <Field label={t("onboarding.height")}>
               <input className={inputClass} value={draft.heightCm} inputMode="decimal" placeholder="cm" onChange={(event) => updateDraft({ heightCm: event.target.value })} />
             </Field>
-            <Field label="Sex for calorie estimate">
+            <Field label={t("onboarding.sexForCalories")}>
               <select className={selectClass} value={draft.gender} onChange={(event) => updateDraft({ gender: event.target.value as Draft["gender"] })}>
-                <option value="prefer_not_to_say">Prefer not to say</option>
-                <option value="female">Female</option>
-                <option value="male">Male</option>
+                <option value="prefer_not_to_say">{t("onboarding.preferNotSay")}</option>
+                <option value="female">{t("onboarding.female")}</option>
+                <option value="male">{t("onboarding.male")}</option>
               </select>
             </Field>
           </>
@@ -324,21 +326,21 @@ export function ProgressiveClientOnboarding() {
 
         {draft.step === 2 ? (
           <>
-            <Field label="Current weight">
+            <Field label={t("onboarding.currentWeight")}>
               <input className={inputClass} value={draft.currentWeightKg} inputMode="decimal" placeholder="kg" onChange={(event) => updateDraft({ currentWeightKg: event.target.value })} />
             </Field>
-            <Field label="Target weight" hint="Optional for maintenance and healthy lifestyle goals.">
+            <Field label={t("onboarding.targetWeight")} hint={t("onboarding.targetWeightHint")}>
               <input className={inputClass} value={draft.targetWeightKg} inputMode="decimal" placeholder="kg" onChange={(event) => updateDraft({ targetWeightKg: event.target.value })} />
             </Field>
           </>
         ) : null}
 
         {draft.step === 3 ? (
-          <Field label="Activity level">
+          <Field label={t("onboarding.activityLevel")}>
             <select className={selectClass} value={draft.activityLevel} onChange={(event) => updateDraft({ activityLevel: event.target.value as Draft["activityLevel"] })}>
-              <option value="low">Low - mostly sitting</option>
-              <option value="moderate">Moderate - train/walk a few days weekly</option>
-              <option value="high">High - active most days</option>
+              <option value="low">{t("onboarding.activityLow")}</option>
+              <option value="moderate">{t("onboarding.activityModerate")}</option>
+              <option value="high">{t("onboarding.activityHigh")}</option>
             </select>
           </Field>
         ) : null}
@@ -355,7 +357,7 @@ export function ProgressiveClientOnboarding() {
                   draft.primaryBarrier === option.value ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-white"
                 }`}
               >
-                {option.label}
+                {t(option.labelKey)}
               </button>
             ))}
           </div>
@@ -373,7 +375,7 @@ export function ProgressiveClientOnboarding() {
                   draft.motivationAnchor === option.value ? "border-lime bg-lime/10 text-lime" : "border-line bg-ink text-white"
                 }`}
               >
-                {option.label}
+                {t(option.labelKey)}
               </button>
             ))}
           </div>
@@ -389,7 +391,7 @@ export function ProgressiveClientOnboarding() {
           onClick={() => updateDraft({ step: Math.max(0, draft.step - 1) })}
           className="h-12 rounded-xl border border-line bg-ink font-semibold text-white disabled:opacity-40"
         >
-          Back
+          {t("common.back")}
         </button>
         <button
           type="button"
@@ -397,7 +399,7 @@ export function ProgressiveClientOnboarding() {
           onClick={nextStep}
           className="flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-wait disabled:opacity-60"
         >
-          {isSaving ? "Saving..." : draft.step === 5 ? "Done" : "Continue"}
+          {isSaving ? t("common.saving") : draft.step === 5 ? t("common.done") : t("common.continue")}
           {!isSaving ? <ArrowRight className="ml-2" size={18} /> : null}
         </button>
       </div>
@@ -409,11 +411,11 @@ export function ProgressiveClientOnboarding() {
           onClick={() => saveOnboarding(null)}
           className="mt-4 min-h-11 w-full text-sm font-medium text-zinc-300 underline decoration-zinc-600 underline-offset-4 disabled:opacity-50"
         >
-          Skip for now
+          {t("common.skipForNow")}
         </button>
       ) : (
         <button type="button" onClick={() => router.push("/dashboard")} className="mt-4 min-h-11 w-full text-sm font-medium text-zinc-400">
-          Skip for now
+          {t("common.skipForNow")}
         </button>
       )}
     </section>

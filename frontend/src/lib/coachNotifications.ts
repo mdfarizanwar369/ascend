@@ -6,6 +6,7 @@ import type { PluginListenerHandle } from "@capacitor/core";
 import { detectInstallPlatform } from "@ascend/shared";
 import { getFirebaseClientApp } from "@/lib/firebase";
 import { recordNotificationActivity, registerNotificationDevice, unregisterNotificationDevice } from "@/lib/ascendApi";
+import { englishMessage } from "@/lib/i18n/static";
 
 export const COACH_NOTIFICATION_ELIGIBLE_EVENT = "ascend:coach-notification-eligible";
 
@@ -86,8 +87,8 @@ async function createNativeCoachChannel() {
   if (!push) return;
   await push.createChannel({
     id: "coach_checkins",
-    name: "Coach check-ins",
-    description: "Helpful Ascend coaching nudges and trainer updates.",
+    name: englishMessage("notifications.channelName"),
+    description: englishMessage("notifications.channelDescription"),
     importance: 3,
     visibility: 0,
     lights: true,
@@ -104,7 +105,7 @@ async function registerNativePushToken() {
   if (granted.receive !== "granted") {
     write(storageKeys.prompted, "true");
     write(storageKeys.postponedAt, String(Date.now()));
-    throw new Error("Notifications were not enabled.");
+    throw new Error(englishMessage("notifications.notEnabled"));
   }
 
   await createNativeCoachChannel();
@@ -143,7 +144,7 @@ async function registerNativePushToken() {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error(error.error || "Android could not register this device for notifications."));
+      reject(new Error(error.error || englishMessage("notifications.androidRegistrationError")));
     }).then((handle) => {
       errorHandle = handle;
     }).catch(reject);
@@ -152,7 +153,7 @@ async function registerNativePushToken() {
       if (settled) return;
       settled = true;
       cleanup();
-      reject(new Error("Android did not return a notification token. Please try again."));
+      reject(new Error(englishMessage("notifications.androidTokenMissing")));
     }, 15_000);
 
     push.register().catch((error) => {
@@ -166,13 +167,13 @@ async function registerNativePushToken() {
 
 async function enableWebCoachNotifications() {
   const messaging = await getMessagingIfAvailable();
-  if (!messaging) throw new Error("Coach notifications are not available on this browser yet.");
+  if (!messaging) throw new Error(englishMessage("notifications.browserUnavailable"));
 
   const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
   if (permission !== "granted") {
     write(storageKeys.prompted, "true");
     write(storageKeys.postponedAt, String(Date.now()));
-    throw new Error("Notifications were not enabled.");
+    throw new Error(englishMessage("notifications.notEnabled"));
   }
 
   const registration = await navigator.serviceWorker.ready;
@@ -180,7 +181,7 @@ async function enableWebCoachNotifications() {
     vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
     serviceWorkerRegistration: registration
   });
-  if (!fcmToken) throw new Error("This browser did not return a notification token.");
+  if (!fcmToken) throw new Error(englishMessage("notifications.browserTokenMissing"));
 
   const platform = detectInstallPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
   await registerNotificationDevice({ fcmToken, platform });
@@ -248,7 +249,7 @@ export async function listenForForegroundCoachMessages(onReceive: (payload: { ti
     const handle = await push.addListener("pushNotificationReceived", (notification) => {
       onReceive({
         title: notification.title ?? "Ascend",
-        body: notification.body ?? "Open Ascend when you are ready.",
+        body: notification.body ?? englishMessage("notifications.defaultBody"),
         href: notification.data?.href ?? notification.link ?? "/dashboard"
       });
     });
@@ -260,7 +261,7 @@ export async function listenForForegroundCoachMessages(onReceive: (payload: { ti
   return onMessage(messaging, (payload) => {
     onReceive({
       title: payload.notification?.title ?? "Ascend",
-      body: payload.notification?.body ?? "Open Ascend when you are ready.",
+      body: payload.notification?.body ?? englishMessage("notifications.defaultBody"),
       href: payload.data?.href ?? "/dashboard"
     });
   });

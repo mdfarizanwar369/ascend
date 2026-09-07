@@ -1,4 +1,5 @@
 import { AthleteDashboard, BodyCompositionScan, BodyCompositionSummary } from "@/lib/ascendApi";
+import { englishMessage } from "@/lib/i18n/static";
 
 export type CoachInsightTone = "red" | "orange" | "yellow" | "green" | "blue";
 
@@ -51,23 +52,23 @@ export function buildAthleteCoachInsights(input: {
   const foodLogs = input.foodLogs ?? [];
   const latest = input.summary?.latestScan ?? scans[0] ?? null;
   const comparison = input.summary?.comparison;
-  const muscleComparison = comparison?.metrics.find((metric) => metric.metric === "Skeletal Muscle") ?? null;
-  const bodyFatComparison = comparison?.metrics.find((metric) => metric.metric === "Body Fat") ?? null;
+  const muscleComparison = comparison?.metrics.find((metric) => metric.metric === englishMessage("bodyScan.metricSkeletalMuscle")) ?? null;
+  const bodyFatComparison = comparison?.metrics.find((metric) => metric.metric === englishMessage("bodyScan.metricBodyFat")) ?? null;
 
   if (muscleComparison?.evidenceStatus === "ESTABLISHED" && muscleComparison.meaningful && muscleComparison.signal === "lower") {
     insights.push({
       tone: "red",
-      title: "Lower muscle trend",
+      title: englishMessage("coachInsight.lowerMuscleTrend"),
       explanation: muscleComparison.message,
-      action: "Recheck the scan conditions, then review protein, recovery, and resistance training.",
+      action: englishMessage("coachInsight.recheckScanAction"),
       priority: 100
     });
   } else if (muscleComparison?.evidenceStatus === "PROVISIONAL" && muscleComparison.meaningful && muscleComparison.signal === "lower") {
     insights.push({
       tone: "yellow",
-      title: "Muscle reading needs confirmation",
+      title: englishMessage("coachInsight.muscleConfirmationTitle"),
       explanation: muscleComparison.message,
-      action: "Compare one more scan under similar conditions before drawing a conclusion.",
+      action: englishMessage("coachInsight.compareScanAction"),
       priority: 55
     });
   }
@@ -75,9 +76,9 @@ export function buildAthleteCoachInsights(input: {
   if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.signal === "no_clear_change") {
     insights.push({
       tone: "orange",
-      title: "Body fat trend is steady",
-      explanation: "Three readings from the same recorded scanner model over at least six weeks show no clear movement beyond the comparison caution range.",
-      action: "Review recent consistency before adjusting the plan.",
+      title: englishMessage("coachInsight.bodyFatSteady"),
+      explanation: englishMessage("coachInsight.bodyFatSteadyExplanation"),
+      action: englishMessage("coachInsight.reviewConsistencyAction"),
       priority: 80
     });
   }
@@ -86,17 +87,17 @@ export function buildAthleteCoachInsights(input: {
   if (scanAge === null) {
     insights.push({
       tone: "yellow",
-      title: "No Body Scan yet",
-      explanation: "This athlete does not have a confirmed Body Scan baseline yet.",
-      action: "Invite client for their first Body Scan.",
+      title: englishMessage("coachInsight.noBodyScan"),
+      explanation: englishMessage("coachInsight.noBodyScanExplanation"),
+      action: englishMessage("coachInsight.inviteFirstBodyScan"),
       priority: 70
     });
   } else if (scanAge > 28) {
     insights.push({
       tone: "yellow",
-      title: "Body Scan overdue",
-      explanation: `Last Body Scan was ${scanAge} days ago.`,
-      action: "Invite client for another Body Scan.",
+      title: englishMessage("coachInsight.bodyScanOverdue"),
+      explanation: englishMessage("coachInsight.lastBodyScanDays", { days: scanAge }),
+      action: englishMessage("coachInsight.inviteAnotherBodyScan"),
       priority: 70
     });
   }
@@ -106,9 +107,9 @@ export function buildAthleteCoachInsights(input: {
   if (previousFoodLogs >= 4 && recentFoodLogs <= Math.max(2, Math.floor(previousFoodLogs * 0.5))) {
     insights.push({
       tone: "yellow",
-      title: "Nutrition consistency low",
-      explanation: `Food logging dropped from ${previousFoodLogs} to ${recentFoodLogs} logs compared with the previous week.`,
-      action: "Check in with client.",
+      title: englishMessage("coachInsight.nutritionConsistencyLow"),
+      explanation: englishMessage("coachInsight.foodLoggingDropped", { previous: previousFoodLogs, recent: recentFoodLogs }),
+      action: englishMessage("coachInsight.checkInClient"),
       priority: 60
     });
   }
@@ -116,9 +117,9 @@ export function buildAthleteCoachInsights(input: {
   if (bodyFatComparison?.evidenceStatus === "ESTABLISHED" && bodyFatComparison.meaningful && bodyFatComparison.signal === "lower" && muscleComparison?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscleComparison.signal)) {
     insights.push({
       tone: "green",
-      title: "Excellent progress",
-      explanation: "The body-fat reading is lower without a clear decline in the skeletal-muscle reading.",
-      action: "Continue current plan.",
+      title: englishMessage("coachInsight.excellentProgress"),
+      explanation: englishMessage("coachInsight.excellentProgressExplanation"),
+      action: englishMessage("coachInsight.continuePlan"),
       priority: 40
     });
   }
@@ -128,9 +129,9 @@ export function buildAthleteCoachInsights(input: {
   if (goalWeight !== null && latestWeight !== null && Math.abs(latestWeight - goalWeight) <= Math.max(1, goalWeight * 0.1)) {
     insights.push({
       tone: "blue",
-      title: "Goal approaching",
-      explanation: "Client is within approximately 10% of the goal weight.",
-      action: "Begin planning the maintenance phase.",
+      title: englishMessage("coachInsight.goalApproaching"),
+      explanation: englishMessage("coachInsight.goalApproachingExplanation"),
+      action: englishMessage("coachInsight.planMaintenance"),
       priority: 30
     });
   }

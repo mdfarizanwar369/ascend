@@ -6,17 +6,19 @@ import { ArrowRight } from "lucide-react";
 import { CoachingMode } from "@ascend/shared";
 import { Field, inputClass, selectClass } from "@/components/Field";
 import { completeOnboarding, validateReferral } from "@/lib/ascendApi";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const draftKey = "ascend:onboarding:draft";
 
-const coachingOptions: Array<{ value: CoachingMode; title: string; detail: string }> = [
-  { value: "self_coached", title: "Self-Coached", detail: "Use Ascend to stay consistent on your own." },
-  { value: "ai_coach", title: "AI Coach", detail: "Add AI guidance for meals, check-ins, and weekly support." },
-  { value: "human_coach", title: "Human Coach", detail: "Connect with a real trainer between sessions." }
+const coachingOptions: Array<{ value: CoachingMode; titleKey: string; detailKey: string }> = [
+  { value: "self_coached", titleKey: "onboarding.selfCoached", detailKey: "onboarding.selfCoachedDetail" },
+  { value: "ai_coach", titleKey: "onboarding.aiCoach", detailKey: "onboarding.aiCoachDetail" },
+  { value: "human_coach", titleKey: "onboarding.humanCoach", detailKey: "onboarding.humanCoachDetail" }
 ];
 
 export function OnboardingForm() {
   const router = useRouter();
+  const { t } = useI18n();
   const [fullName, setFullName] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [coachingMode, setCoachingMode] = useState<CoachingMode>("self_coached");
@@ -87,27 +89,27 @@ export function OnboardingForm() {
     setStatus(null);
 
     if (!fullName.trim()) {
-      setStatus("Please enter your name.");
+      setStatus(t("onboarding.errorName"));
       return;
     }
 
     if (!startingWeightKg || Number.isNaN(Number(startingWeightKg)) || Number(startingWeightKg) <= 0) {
-      setStatus("Please enter your current weight.");
+      setStatus(t("onboarding.errorCurrentWeight"));
       return;
     }
 
     if (!heightCm || Number.isNaN(Number(heightCm)) || Number(heightCm) <= 0) {
-      setStatus("Please enter your height.");
+      setStatus(t("onboarding.errorHeight"));
       return;
     }
 
     if (!ageYears || Number.isNaN(Number(ageYears)) || Number(ageYears) < 18 || Number(ageYears) > 100) {
-      setStatus("You must be 18 or older to create and manage your own Ascend account.");
+      setStatus(t("onboarding.errorAdult"));
       return;
     }
 
     if (targetWeightKg && (Number.isNaN(Number(targetWeightKg)) || Number(targetWeightKg) <= 0)) {
-      setStatus("Please enter a valid target weight.");
+      setStatus(t("onboarding.errorTargetWeight"));
       return;
     }
 
@@ -115,7 +117,7 @@ export function OnboardingForm() {
 
     try {
       if (referralCode.trim()) {
-        setStatus("Checking your referral code...");
+        setStatus(t("auth.checkingReferral"));
         await validateReferral(referralCode.trim());
       }
       await completeOnboarding({
@@ -141,8 +143,8 @@ export function OnboardingForm() {
     } catch (error) {
       setStatus(
         error instanceof Error
-          ? `${error.message}. Please log in again and try once more.`
-          : "Could not save onboarding. Please try again."
+          ? t("onboarding.errorLoginAgain", { message: error.message })
+          : t("onboarding.errorSave")
       );
     } finally {
       setIsSaving(false);
@@ -155,10 +157,10 @@ export function OnboardingForm() {
       onSubmit={(event) => event.preventDefault()}
       className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4"
     >
-      <Field label="Full name">
-        <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Your name" required />
+      <Field label={t("onboarding.fullName")}>
+        <input className={inputClass} value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder={t("onboarding.yourName")} required />
       </Field>
-      <Field label="Referral code" hint="Optional. Use your gym or trainer code if you have one.">
+      <Field label={t("onboarding.referralCode")} hint={t("onboarding.referralOptional")}>
         <input
           className={selectClass}
           value={referralCode}
@@ -166,7 +168,7 @@ export function OnboardingForm() {
         />
       </Field>
       <section>
-        <p className="text-sm font-medium text-zinc-200">How do you want to use Ascend?</p>
+        <p className="text-sm font-medium text-zinc-200">{t("onboarding.howUse")}</p>
         <div className="mt-2 grid gap-2">
           {coachingOptions.map((option) => {
             const selected = coachingMode === option.value;
@@ -180,27 +182,27 @@ export function OnboardingForm() {
                   selected ? "border-lime bg-lime/10 text-white" : "border-line bg-ink text-zinc-300"
                 }`}
               >
-                <span className="block text-sm font-semibold">{option.title}</span>
-                <span className="mt-1 block text-xs leading-5 text-zinc-400">{option.detail}</span>
+                <span className="block text-sm font-semibold">{t(option.titleKey)}</span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-400">{t(option.detailKey)}</span>
               </button>
             );
           })}
         </div>
-        <p className="mt-2 text-xs leading-5 text-zinc-500">Trainer codes connect you to Human Coach mode automatically.</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">{t("onboarding.trainerCodesHelp")}</p>
       </section>
-      <Field label="Goal">
+      <Field label={t("onboarding.goal")}>
         <select
           className={inputClass}
           value={goalType}
           onChange={(event) => setGoalType(event.target.value as "fat_loss" | "muscle_gain" | "maintenance")}
         >
-          <option value="fat_loss">Fat loss</option>
-          <option value="muscle_gain">Muscle gain</option>
-          <option value="maintenance">Maintenance</option>
+          <option value="fat_loss">{t("onboarding.goalFatLoss")}</option>
+          <option value="muscle_gain">{t("onboarding.goalMuscleGain")}</option>
+          <option value="maintenance">{t("onboarding.goalMaintenance")}</option>
         </select>
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Age">
+        <Field label={t("onboarding.age")}>
           <input
             className={inputClass}
             value={ageYears}
@@ -210,7 +212,7 @@ export function OnboardingForm() {
             required
           />
         </Field>
-        <Field label="Height">
+        <Field label={t("onboarding.height")}>
           <input
             className={inputClass}
             value={heightCm}
@@ -221,22 +223,22 @@ export function OnboardingForm() {
           />
         </Field>
       </div>
-      <Field label="Activity level">
+      <Field label={t("onboarding.activityLevel")}>
         <select className={selectClass} value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as "low" | "moderate" | "high")}>
-          <option value="low">Low - mostly sitting</option>
-          <option value="moderate">Moderate - train/walk a few days weekly</option>
-          <option value="high">High - active most days</option>
+          <option value="low">{t("onboarding.activityLow")}</option>
+          <option value="moderate">{t("onboarding.activityModerate")}</option>
+          <option value="high">{t("onboarding.activityHigh")}</option>
         </select>
       </Field>
-      <Field label="Sex for calorie estimate">
+      <Field label={t("onboarding.sexForCalories")}>
         <select className={selectClass} value={gender} onChange={(event) => setGender(event.target.value as "female" | "male" | "prefer_not_to_say")}>
-          <option value="prefer_not_to_say">Prefer not to say</option>
-          <option value="female">Female</option>
-          <option value="male">Male</option>
+          <option value="prefer_not_to_say">{t("onboarding.preferNotSay")}</option>
+          <option value="female">{t("onboarding.female")}</option>
+          <option value="male">{t("onboarding.male")}</option>
         </select>
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Current weight">
+        <Field label={t("onboarding.currentWeight")}>
           <input
             className={inputClass}
             value={startingWeightKg}
@@ -246,13 +248,13 @@ export function OnboardingForm() {
             required
           />
         </Field>
-        <Field label="Target weight">
+        <Field label={t("onboarding.targetWeight")}>
           <input
             className={inputClass}
             value={targetWeightKg}
             onChange={(event) => setTargetWeightKg(event.target.value)}
             inputMode="decimal"
-            placeholder="Optional"
+            placeholder={t("onboarding.optional")}
           />
         </Field>
       </div>
@@ -265,7 +267,7 @@ export function OnboardingForm() {
         disabled={isSaving}
         className="flex h-12 w-full items-center justify-center rounded-lg bg-lime px-4 font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSaving ? "Saving..." : "Continue"}
+        {isSaving ? t("common.saving") : t("common.continue")}
         {!isSaving ? <ArrowRight className="ml-2" size={19} /> : null}
       </button>
     </form>

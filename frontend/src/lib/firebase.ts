@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from "firebase/app";
 import type { FirebaseApp } from "firebase/app";
 import { browserLocalPersistence, getAuth, indexedDBLocalPersistence, setPersistence } from "firebase/auth";
+import { englishMessage } from "@/lib/i18n/static";
 
 let persistenceReady: Promise<void> | null = null;
 
@@ -17,7 +18,7 @@ function getFirebaseAuthDomain() {
 
 export function getFirebaseClientApp(): FirebaseApp {
   if (typeof window === "undefined") {
-    throw new Error("Firebase is only available in the browser.");
+    throw new Error(englishMessage("errors.firebaseBrowserOnly"));
   }
 
   const firebaseConfig = {
@@ -29,7 +30,7 @@ export function getFirebaseClientApp(): FirebaseApp {
   };
 
   if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId || !firebaseConfig.appId) {
-    throw new Error("Firebase web app environment variables are not configured.");
+    throw new Error(englishMessage("errors.firebaseEnvMissing"));
   }
 
   return getApps().length ? getApps()[0] : initializeApp(firebaseConfig);

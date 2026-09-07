@@ -7,6 +7,7 @@ import { BackButton } from "@/components/BackButton";
 import { rememberDashboardAction } from "@/lib/dataSync";
 import { AscendStoriesLauncher } from "@/components/progress/AscendStoriesLauncher";
 import { ascendStoriesEnabled } from "@/lib/ascendStoriesFlag";
+import { englishMessage } from "@/lib/i18n/static";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 type PhotoType = ProgressPhoto["photo_type"];
@@ -123,7 +124,7 @@ export function ProgressPhotosClient() {
     try {
       const imageDataUrl = await resizeImageToDataUrl(selectedFile);
       const upload = await uploadProgressPhotoDataUrl(imageDataUrl);
-      if (upload.storageConfigured === false) throw new Error("Photo storage is not configured yet.");
+      if (upload.storageConfigured === false) throw new Error(englishMessage("photos.storageNotConfigured"));
       const imageS3Key = upload.key;
       const saved = await saveProgressPhoto({ imageS3Key, photoType });
       setPhotos((current) => [
@@ -229,7 +230,7 @@ export function ProgressPhotosClient() {
                   value={Math.max(0, comparisonPhotos.findIndex((photo) => photo.id === selectedComparisonPhoto?.id))}
                   onChange={(event) => setSelectedPhotoId(comparisonPhotos[Number(event.target.value)]?.id ?? null)}
                   className="mt-3 h-11 w-full accent-lime"
-                  aria-label="Choose progress photo date"
+                  aria-label={englishMessage("photos.chooseProgressDate")}
                 />
               </div>
             ) : null}

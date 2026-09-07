@@ -6,24 +6,28 @@ import { getMe, getMessageContacts, getMessages, sendMessage } from "@/lib/ascen
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { SectionShell, SkeletonBlock, SkeletonCardList } from "@/components/PerceivedLoading";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type Contact = Awaited<ReturnType<typeof getMessageContacts>>["contacts"][number];
 type Message = Awaited<ReturnType<typeof getMessages>>["messages"][number];
 
-function roleLabel(role: string) {
-  if (role === "trainer") return "Trainer";
-  if (role === "owner") return "Owner";
-  if (role === "admin") return "Admin";
-  return "Client";
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function roleLabel(role: string, t: Translate) {
+  if (role === "trainer") return t("common.trainer");
+  if (role === "owner") return t("admin.roleOwner");
+  if (role === "admin") return t("common.admin");
+  return t("trainer.client");
 }
 
 export function MessagesClient({ initialContactId }: { initialContactId?: string }) {
+  const { t } = useI18n();
   const [currentUserId, setCurrentUserId] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactId, setSelectedContactId] = useState(initialContactId ?? "");
   const [messages, setMessages] = useState<Message[]>([]);
   const [body, setBody] = useState("");
-  const [status, setStatus] = useState("Loading messages...");
+  const [status, setStatus] = useState(t("messages.loading"));
   const [isSending, setIsSending] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [isTrainerView, setIsTrainerView] = useState(false);
@@ -139,7 +143,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
               <SkeletonBlock className="mt-2 h-7 w-40" />
             </div>
           </header>
-          <SectionShell title="Conversation">
+          <SectionShell title={t("messages.conversation")}>
             <SkeletonCardList count={3} compact />
           </SectionShell>
           <div className="mt-3 flex gap-2">
@@ -189,7 +193,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
                       {contact.full_name}
                       {Number(contact.unread_count ?? 0) > 0 ? <span className="rounded-full bg-calm px-2 py-0.5 text-[10px] font-bold text-ink">{Number(contact.unread_count)}</span> : null}
                     </span>
-                    <span className="text-xs opacity-75">{roleLabel(contact.primary_role)}</span>
+                    <span className="text-xs opacity-75">{roleLabel(contact.primary_role, t)}</span>
                   </span>
                 </span>
               </button>
@@ -225,7 +229,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
           <textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            placeholder="Type a message..."
+            placeholder={t("messages.typeMessage")}
             rows={1}
             className="min-h-12 flex-1 resize-none rounded-lg border border-line bg-surface px-3 py-3 text-sm outline-none focus:border-lime"
           />
@@ -233,7 +237,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
             type="submit"
             disabled={!body.trim() || !selectedContact?.id || isSending}
             className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink disabled:opacity-60"
-            aria-label="Send message"
+            aria-label={t("trainer.sendMessage")}
           >
             <Send size={18} />
           </button>

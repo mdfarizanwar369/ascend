@@ -17,8 +17,8 @@ export function usablePlan(plan: SubscriptionPlan, status?: string | null, curre
   return isUsableSubscriptionStatus(status, currentPeriodEnd) ? plan : "free";
 }
 
-export function formatPlan(plan?: SubscriptionPlan | null) {
-  if (plan === "trainer_pro") return "Trainer Pro";
-  if (plan === "premium") return "Premium";
-  return "Free Plan";
+export function formatPlan(plan?: SubscriptionPlan | null, t?: (key: string) => string) {
+  if (plan === "trainer_pro") return t ? t("common.trainerPro") : "Trainer Pro";
+  if (plan === "premium") return t ? t("common.premium") : "Premium";
+  return t ? t("common.freePlan") : "Free Plan";
 }

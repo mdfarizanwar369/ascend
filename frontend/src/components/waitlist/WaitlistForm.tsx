@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type WaitlistRole = "trainer" | "gym_owner";
 
@@ -12,6 +13,7 @@ const roleOptions: Array<{ value: WaitlistRole; label: string }> = [
 ];
 
 export function WaitlistForm() {
+  const { t } = useI18n();
   const [fullName, setFullName] = useState("");
   const [contact, setContact] = useState("");
   const [role, setRole] = useState<WaitlistRole>("gym_owner");
@@ -74,7 +76,7 @@ export function WaitlistForm() {
             className="h-12 rounded-lg border border-line bg-ink px-4 text-base text-white outline-none transition focus:border-calm"
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
-            placeholder="Your name"
+            placeholder={t("waitlist.yourName")}
             autoComplete="name"
           />
         </label>
@@ -118,7 +120,7 @@ export function WaitlistForm() {
               className="h-12 rounded-lg border border-line bg-ink px-4 text-base text-white outline-none transition focus:border-calm"
               value={gymOrCompany}
               onChange={(event) => setGymOrCompany(event.target.value)}
-              placeholder="Optional"
+              placeholder={t("common.optional")}
             />
           </label>
 
@@ -128,7 +130,7 @@ export function WaitlistForm() {
               className="h-12 rounded-lg border border-line bg-ink px-4 text-base text-white outline-none transition focus:border-calm"
               value={country}
               onChange={(event) => setCountry(event.target.value)}
-              placeholder="Optional"
+              placeholder={t("common.optional")}
               autoComplete="country-name"
             />
           </label>

@@ -292,9 +292,9 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
 
     const analysisWindowDays = coachAccess.premiumDepth ? 30 : 7;
     const [contextResult, recentFoodResult, foodWindowResult, recentBurnResult, burnWindowResult, athleteResult, bodyScanHistoryResult, recentMessagesResult, healthSyncSummary, momentumResult, waterWindowResult, weightWindowResult, habitWindowResult, weeklyReportResult, recognitionResult, longTermFoodResult, longTermWaterResult, longTermWeightResult, longTermHabitResult, longTermBurnResult, resolvedNutritionTargets] = await Promise.all([
-      query<{ metadata: Record<string, unknown> | null; created_at: string }>(
+      query<{ preferred_locale?: string | null; goal_type?: string | null; starting_weight_kg?: string | number | null; target_weight_kg?: string | number | null; activity_level?: string | null; age_years?: string | number | null; gender?: string | null; height_cm?: string | number | null }>(
         `
-        select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
+        select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm, preferred_locale
         from users
         where id = $1
         `,
@@ -548,7 +548,9 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
       bodyScanHistory,
       timezoneOffsetMinutes
     });
+    const preferredLocale = String(contextResult.rows[0]?.preferred_locale ?? "en");
     const promptContext = JSON.stringify({
+      preferredLocale,
       coachAccess: {
         tier: coachAccess.tier,
         analysisDepth: coachAccess.premiumDepth ? "complete_journey" : "recent_history_only",
@@ -605,7 +607,7 @@ aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
           }
         : null
     });
-    const reply = await createCoachZoeReply(message, promptContext, mode);
+    const reply = await createCoachZoeReply(message, promptContext, mode, preferredLocale);
     await logAiUsage({
       userId: req.user!.id,
       gymId: req.user!.gymId,
@@ -987,6 +989,7 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
         }
       : null;
 
+    const preferredLocale = String(profileResult.rows[0]?.preferred_locale ?? "en");
     const promptContext = JSON.stringify(
       buildWorkoutPlannerContext({
         coachAccess,
@@ -1014,6 +1017,7 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
           goal: input.goal,
           equipment: input.equipment
         },
+        preferredLocale,
         timezoneOffsetMinutes: input.timezoneOffsetMinutes
       })
     );
@@ -1023,7 +1027,8 @@ aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) =>
       timeAvailable: input.timeAvailable,
       goal: input.goal,
       equipment: input.equipment,
-      context: promptContext
+      context: promptContext,
+      locale: preferredLocale
     });
 
     await logAiUsage({

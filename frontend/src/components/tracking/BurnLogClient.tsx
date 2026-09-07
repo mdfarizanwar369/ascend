@@ -15,14 +15,40 @@ import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 import { CoachedSessionsCard } from "@/components/tracking/CoachedSessionsCard";
 import { MetricPulse } from "@/components/ExperienceVisuals";
 import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
+import { messages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
-const burnRates: Record<string, number> = {
-  Walking: 4,
-  "Strength training": 6,
-  Cycling: 8,
-  Running: 10,
-  "Group class": 7
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+type BurnActivityKey = "walking" | "strength_training" | "cycling" | "running" | "group_class";
+
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
+
+const burnRates: Record<BurnActivityKey, number> = {
+  walking: 4,
+  strength_training: 6,
+  cycling: 8,
+  running: 10,
+  group_class: 7
 };
+
+function activityLabelKey(activity: BurnActivityKey) {
+  return `burn.activity.${activity}`;
+}
+
+function normalizeActivityKey(value: string): BurnActivityKey {
+  const normalized = value.toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized.includes("run") || normalized.includes("jog")) return "running";
+  if (normalized.includes("walk")) return "walking";
+  if (normalized.includes("cycle") || normalized.includes("bike")) return "cycling";
+  if (normalized.includes("class") || normalized.includes("hiit") || normalized.includes("zumba")) return "group_class";
+  return "strength_training";
+}
 
 function understandBurnText(text: string) {
   const lower = text.toLowerCase();
@@ -30,32 +56,33 @@ function understandBurnText(text: string) {
   const amount = durationMatch ? Number(durationMatch[1]) : 30;
   const unit = durationMatch?.[2] ?? "minutes";
 
-  let activityType = "Strength training";
-  if (lower.includes("run") || lower.includes("jog")) activityType = "Running";
-  if (lower.includes("walk")) activityType = "Walking";
-  if (lower.includes("cycle") || lower.includes("bike")) activityType = "Cycling";
-  if (lower.includes("class") || lower.includes("hiit") || lower.includes("zumba")) activityType = "Group class";
-  if (lower.includes("gym") || lower.includes("lift") || lower.includes("weight")) activityType = "Strength training";
+  let activityType: BurnActivityKey = "strength_training";
+  if (lower.includes("run") || lower.includes("jog")) activityType = "running";
+  if (lower.includes("walk")) activityType = "walking";
+  if (lower.includes("cycle") || lower.includes("bike")) activityType = "cycling";
+  if (lower.includes("class") || lower.includes("hiit") || lower.includes("zumba")) activityType = "group_class";
+  if (lower.includes("gym") || lower.includes("lift") || lower.includes("weight")) activityType = "strength_training";
 
-  const durationMinutes = unit.startsWith("km") || unit === "k" ? Math.round(amount * (activityType === "Running" ? 6 : 12)) : Math.round(amount);
+  const durationMinutes = unit.startsWith("km") || unit === "k" ? Math.round(amount * (activityType === "running" ? 6 : 12)) : Math.round(amount);
   return { activityType, durationMinutes: Math.max(durationMinutes, 1) };
 }
 
 export function BurnLogClient() {
+  const { t } = useI18n();
   const coachedSessionsEnabled = trainerSessionCaptureEnabled();
   const homeworkFeatureEnabled = trainerHomeworkEnabled();
   const captureFeatureEnabled = workoutCaptureEnabled();
   const canUseDetailedCapture = captureFeatureEnabled;
   const [loggingMode, setLoggingMode] = useState<"quick" | "detailed">("quick");
   const [detailedBusy, setDetailedBusy] = useState(false);
-  const [activityType, setActivityType] = useState("Strength training");
+  const [activityType, setActivityType] = useState<BurnActivityKey>("strength_training");
   const [durationMinutes, setDurationMinutes] = useState("");
   const [activityText, setActivityText] = useState("");
   const [todayCalories, setTodayCalories] = useState(0);
   const [todayLogs, setTodayLogs] = useState<Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"]>([]);
   const [aiCalories, setAiCalories] = useState<number | null>(null);
   const [estimateNotes, setEstimateNotes] = useState("");
-  const [status, setStatus] = useState("Loading today's burn...");
+  const [status, setStatus] = useState(t("burn.loading"));
   const [isSaving, setIsSaving] = useState(false);
   const [isEstimating, setIsEstimating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -75,7 +102,7 @@ export function BurnLogClient() {
 
   async function estimateFromText() {
     if (!canUseAiEstimate) {
-      setStatus("Premium is required for AI burn estimates. You can still choose the activity and save it manually.");
+      setStatus(t("burn.premiumAiRequired"));
       return;
     }
 
@@ -85,17 +112,17 @@ export function BurnLogClient() {
     setDurationMinutes(String(localEstimate.durationMinutes));
     setAiCalories(null);
     setEstimateNotes("");
-    setStatus("Estimating activity burn...");
+    setStatus(t("burn.estimating"));
 
     try {
       const response = await estimateBurnFromText(activityText);
-      setActivityType(response.estimate.activityType);
+      setActivityType(normalizeActivityKey(response.estimate.activityType));
       setDurationMinutes(String(response.estimate.durationMinutes));
       setAiCalories(response.estimate.caloriesBurned);
       setEstimateNotes(response.estimate.notes ?? "");
-      setStatus("AI burn estimate ready. Review, then save.");
+      setStatus(t("burn.aiReady"));
     } catch {
-      setStatus(`Estimated ${localEstimate.activityType.toLowerCase()} for ${localEstimate.durationMinutes} minutes. Review, then save.`);
+      setStatus(t("burn.localEstimateReady", { activity: t(activityLabelKey(localEstimate.activityType)).toLowerCase(), minutes: localEstimate.durationMinutes }));
     } finally {
       setIsEstimating(false);
     }
@@ -119,7 +146,7 @@ export function BurnLogClient() {
         setStatus("");
       } catch (error) {
         if (isMounted) {
-          setStatus(error instanceof Error ? error.message : "Please log in again if activity burn does not load.");
+          setStatus(error instanceof Error ? error.message : t("burn.loadError"));
         }
       }
     }
@@ -128,7 +155,7 @@ export function BurnLogClient() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!homeworkFeatureEnabled) return;
@@ -176,11 +203,11 @@ export function BurnLogClient() {
     if (saveLockRef.current) return;
     saveLockRef.current = true;
     setIsSaving(true);
-    setStatus("Saving activity...");
+    setStatus(t("burn.savingActivity"));
 
     try {
       const saved = await saveBurnLog({
-        activityType,
+        activityType: english(activityLabelKey(activityType)),
         durationMinutes: Number(durationMinutes),
         caloriesBurned: estimatedCalories
       });
@@ -189,9 +216,9 @@ export function BurnLogClient() {
       setTodayCalories((current) => current + estimatedCalories);
       setStatus(saved.debrief?.enabled && saved.debrief.text
         ? saved.debrief.text
-        : `${activityType} saved. About ${estimatedCalories} kcal added to today's movement.`);
+        : t("burn.savedCalories", { activity: t(activityLabelKey(activityType)), calories: estimatedCalories }));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save activity. Please make sure you are logged in.");
+      setStatus(error instanceof Error ? error.message : t("burn.saveError"));
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
@@ -199,16 +226,16 @@ export function BurnLogClient() {
   }
 
   async function removeActivity(log: Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number]) {
-    if (!window.confirm("Remove this activity from your history and today's progress?")) return;
+    if (!window.confirm(t("burn.removeConfirm"))) return;
     setDeletingId(log.id);
     try {
       await deleteBurnLog(log.id);
       const calories = Number(log.metadata?.caloriesBurned ?? log.metadata?.estimatedCaloriesBurned ?? 0);
       setTodayLogs((current) => current.filter((entry) => entry.id !== log.id));
       setTodayCalories((current) => Math.max(0, current - calories));
-      setStatus("Activity entry removed.");
+      setStatus(t("burn.removed"));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not remove that activity.");
+      setStatus(error instanceof Error ? error.message : t("burn.removeError"));
     } finally {
       setDeletingId(null);
     }
@@ -217,35 +244,35 @@ export function BurnLogClient() {
   return (
     <main className="ascend-page px-4 py-3 text-white sm:py-5">
       <div className="ascend-member-frame">
-        <TrackingPageHeader eyebrow="Daily tracking" title="Movement" disabled={isSaving || detailedBusy} />
+        <TrackingPageHeader eyebrow={t("burn.dailyTracking")} title={t("burn.movement")} disabled={isSaving || detailedBusy} />
 
-        <TrackingHero icon={Flame} label="Activity logged today" value={<MetricPulse pulseKey={todayCalories}>{todayCalories} kcal</MetricPulse>} detail="Movement added to Today's Progress" tone="amber" />
+        <TrackingHero icon={Flame} label={t("burn.activityLoggedToday")} value={<MetricPulse pulseKey={todayCalories}>{todayCalories} kcal</MetricPulse>} detail={t("burn.movementAddedToday")} tone="amber" />
 
         {homework ? (
           <section className="ascend-branded-surface mt-4 rounded-xl border border-calm/30 bg-[linear-gradient(145deg,rgba(61,230,209,0.09),rgba(18,23,33,0.98))] p-4">
-            <p className="ascend-eyebrow text-calm">Coach Homework</p>
+            <p className="ascend-eyebrow text-calm">{t("trainer.coachHomework")}</p>
             <h2 className="mt-2 text-xl font-semibold text-white">{homework.title}</h2>
-            <p className="mt-2 text-sm text-zinc-300">Assigned by {homework.trainer_name ?? "your coach"}</p>
+            <p className="mt-2 text-sm text-zinc-300">{t("burn.assignedBy", { name: homework.trainer_name ?? t("burn.yourCoach") })}</p>
             <div className="mt-3 space-y-1 text-sm text-zinc-400">
-              <p>Scheduled for {new Date(`${homework.assignment_date}T00:00:00`).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</p>
-              <p>Due {new Date(`${homework.due_date}T00:00:00`).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" })}</p>
+              <p>{t("burn.scheduledFor", { date: new Date(`${homework.assignment_date}T00:00:00`).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }) })}</p>
+              <p>{t("burn.dueDate", { date: new Date(`${homework.due_date}T00:00:00`).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }) })}</p>
             </div>
             {homework.coach_note ? (
               <div className="mt-3 rounded-2xl border border-lime/20 bg-lime/10 p-3 text-sm text-zinc-100">
-                Coach note: {homework.coach_note}
+                {t("burn.coachNote", { note: homework.coach_note })}
               </div>
             ) : null}
             <Link
               href={`/coach-homework/${homework.id}`}
               className="ascend-pressable mt-4 flex h-12 items-center justify-center rounded-xl bg-lime font-semibold text-ink"
             >
-              Start Homework
+              {t("burn.startHomework")}
             </Link>
           </section>
         ) : null}
 
         {canUseDetailedCapture ? (
-          <section className="ascend-surface mt-4 p-1" aria-label="Movement logging depth">
+          <section className="ascend-surface mt-4 p-1" aria-label={t("burn.loggingDepth")}>
             <div className="grid grid-cols-2 gap-1">
               <button
                 type="button"
@@ -255,7 +282,7 @@ export function BurnLogClient() {
                 className={`ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-[0.65rem] px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "quick" ? "bg-lime text-ink" : "text-zinc-300"}`}
               >
                 <Zap size={18} />
-                <span>Quick Activity</span>
+                <span>{t("burn.quickActivity")}</span>
               </button>
               <button
                 type="button"
@@ -265,7 +292,7 @@ export function BurnLogClient() {
                 className={`ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-[0.65rem] px-2 text-xs font-semibold transition-colors disabled:opacity-50 sm:text-sm ${loggingMode === "detailed" ? "bg-lime text-ink" : "text-zinc-300"}`}
               >
                 <ListChecks size={18} />
-                <span>Detailed Workout</span>
+                <span>{t("burn.detailedWorkout")}</span>
               </button>
             </div>
           </section>
@@ -273,7 +300,7 @@ export function BurnLogClient() {
 
         {!canUseDetailedCapture || loggingMode === "quick" ? (
         <form onSubmit={onSubmit} className="ascend-surface mt-4 space-y-4 p-4">
-          <Field label="Tell Ascend what you did">
+          <Field label={t("burn.tellAscend")}>
             <div className="space-y-2">
             <input
               className={selectClass}
@@ -283,7 +310,7 @@ export function BurnLogClient() {
                   setAiCalories(null);
                   setEstimateNotes("");
                 }}
-              placeholder="Ran 30 minutes"
+              placeholder={t("burn.exampleActivity")}
               />
               <button
                 type="button"
@@ -291,36 +318,36 @@ export function BurnLogClient() {
                 onClick={estimateFromText}
                 className="ascend-pressable h-11 w-full rounded-xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
-                {isEstimating ? "Estimating..." : canUseAiEstimate ? "Estimate with AI" : "Premium AI estimate"}
+                {isEstimating ? t("burn.estimatingShort") : canUseAiEstimate ? t("burn.estimateWithAi") : t("burn.premiumAiEstimate")}
               </button>
             </div>
           </Field>
 
           <div className="flex items-center gap-3" aria-hidden="true">
             <span className="h-px flex-1 bg-line" />
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">or enter it yourself</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("burn.enterYourself")}</span>
             <span className="h-px flex-1 bg-line" />
           </div>
 
-          <Field label="Activity">
+          <Field label={t("burn.activity")}>
             <select
               className={selectClass}
               value={activityType}
               onChange={(event) => {
-                setActivityType(event.target.value);
+                setActivityType(event.target.value as BurnActivityKey);
                 setAiCalories(null);
                 setEstimateNotes("");
               }}
             >
               {Object.keys(burnRates).map((activity) => (
                 <option key={activity} value={activity}>
-                  {activity}
+                  {t(activityLabelKey(activity as BurnActivityKey))}
                 </option>
               ))}
             </select>
           </Field>
 
-          <Field label="Minutes">
+          <Field label={t("burn.minutes")}>
             <input
               className={inputClass}
               value={durationMinutes}
@@ -335,7 +362,7 @@ export function BurnLogClient() {
           </Field>
 
           <div className="ascend-inset p-4">
-            <p className="text-sm text-zinc-400">Estimated burn</p>
+            <p className="text-sm text-zinc-400">{t("trainer.estimatedBurn")}</p>
             <p className="mt-1 text-3xl font-semibold">{estimatedCalories} kcal</p>
             {estimateNotes ? <p className="mt-2 text-sm leading-6 text-zinc-400">{estimateNotes}</p> : null}
           </div>
@@ -348,7 +375,7 @@ export function BurnLogClient() {
             className="ascend-pressable flex h-12 w-full items-center justify-center rounded-xl bg-lime font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Save className="mr-2" size={18} />
-            {isSaving ? "Saving..." : "Save activity"}
+            {isSaving ? t("common.saving") : t("burn.saveActivity")}
           </button>
         </form>
         ) : (
@@ -356,10 +383,10 @@ export function BurnLogClient() {
         )}
         {todayLogs.length ? (
           <section className="ascend-surface mt-4 p-4">
-            <h2 className="text-base font-semibold">Today&apos;s movement</h2>
+            <h2 className="text-base font-semibold">{t("burn.todaysMovement")}</h2>
             <div className="mt-3 space-y-2">
               {todayLogs.map((log) => {
-                const label = log.metadata?.workoutTitle ?? log.metadata?.activityType ?? "Activity";
+                const label = log.metadata?.workoutTitle ?? log.metadata?.activityType ?? t("burn.activity");
                 const calories = Number(log.metadata?.caloriesBurned ?? log.metadata?.estimatedCaloriesBurned ?? 0);
                 return (
                   <div key={log.id} className="ascend-inset flex min-h-14 items-center gap-3 px-4 py-3">

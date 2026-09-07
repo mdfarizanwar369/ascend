@@ -24,6 +24,8 @@ import {
 import { DelightBadge, DelightEmptyState } from "@/components/Delight";
 import { AscendHeroPanel, BusinessSigil } from "@/components/AscendVisualIdentity";
 import { DashboardHeroSkeleton, SectionShell, SkeletonCardList, SkeletonStatGrid } from "@/components/PerceivedLoading";
+import { messages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type Revenue = Awaited<ReturnType<typeof getAdminRevenue>>;
 type RevenueGym = Revenue["byGym"][number];
@@ -34,6 +36,15 @@ type AiUsage = Awaited<ReturnType<typeof getAdminAiUsage>>;
 type PilotMetrics = Awaited<ReturnType<typeof getAdminPilotMetrics>>;
 type AdminNotifications = Awaited<ReturnType<typeof getAdminNotifications>>;
 type Notification = AdminNotifications["notifications"][number];
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
 
 function asNumber(value: string | number | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -56,20 +67,20 @@ function formatCurrency(cents: string | number | null | undefined, currency = "M
   }
 }
 
-export function summarizeCurrentPlanValue(rows: RevenueGym[]) {
+export function summarizeCurrentPlanValue(rows: RevenueGym[], t: Translate = english) {
   const currencies = new Set(rows.flatMap((row) => asNumber(row.currency_count) > 1 ? ["mixed"] : [row.currency || "MYR"]));
   const subscriptions = rows.reduce((total, row) => total + asNumber(row.active_subscriptions), 0);
   if (currencies.size !== 1 || currencies.has("mixed")) {
     return {
       value: `${subscriptions} active`,
-      detail: "Subscription values use multiple currencies. Review each club for the accurate amount."
+      detail: t("admin.multipleCurrenciesDetail")
     };
   }
   const currency = [...currencies][0] ?? "MYR";
   const cents = rows.reduce((total, row) => total + asNumber(row.active_plan_value_cents), 0);
   return {
     value: formatCurrency(cents, currency),
-    detail: `${subscriptions} current paid access periods. This is plan value, not recognized revenue.`
+    detail: t("admin.currentPaidAccessPeriods", { count: subscriptions })
   };
 }
 
@@ -120,6 +131,7 @@ function SummaryCard({ label, value, detail, tone = "plain" }: { label: string; 
 }
 
 export function AdminDashboardClient() {
+  const { t } = useI18n();
   const [revenue, setRevenue] = useState<Revenue>({ byGym: [], byTrainer: [] });
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [compliance, setCompliance] = useState<ComplianceRow[]>([]);
@@ -136,12 +148,12 @@ export function AdminDashboardClient() {
 
     async function load() {
       await Promise.allSettled([
-        getAdminRevenue().then((value) => mounted && setRevenue({ byGym: safeArray(value.byGym), byTrainer: safeArray(value.byTrainer) })).catch(recordFailure("subscription values")),
-        getAdminUsage().then((value) => mounted && setUsage(safeArray(value.usage))).catch(recordFailure("club activity")),
-        getAdminCompliance().then((value) => mounted && setCompliance(safeArray(value.compliance))).catch(recordFailure("member momentum")),
-        getAdminAiUsage().then((value) => mounted && setAiUsage(value)).catch(recordFailure("AI operations")),
-        getAdminPilotMetrics().then((value) => mounted && setPilotMetrics(value)).catch(recordFailure("business summary")),
-        getAdminNotifications().then((value) => mounted && setNotifications(value)).catch(recordFailure("owner priorities"))
+        getAdminRevenue().then((value) => mounted && setRevenue({ byGym: safeArray(value.byGym), byTrainer: safeArray(value.byTrainer) })).catch(recordFailure(t("admin.subscriptionValues"))),
+        getAdminUsage().then((value) => mounted && setUsage(safeArray(value.usage))).catch(recordFailure(t("admin.clubActivity"))),
+        getAdminCompliance().then((value) => mounted && setCompliance(safeArray(value.compliance))).catch(recordFailure(t("admin.memberMomentum"))),
+        getAdminAiUsage().then((value) => mounted && setAiUsage(value)).catch(recordFailure(t("admin.aiOperations"))),
+        getAdminPilotMetrics().then((value) => mounted && setPilotMetrics(value)).catch(recordFailure(t("admin.businessSummary"))),
+        getAdminNotifications().then((value) => mounted && setNotifications(value)).catch(recordFailure(t("admin.ownerPriorities")))
       ]);
       if (mounted) {
         setLoadFailures(failures);
@@ -153,12 +165,12 @@ export function AdminDashboardClient() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [t]);
 
   const byGym = safeArray(revenue.byGym);
   const byTrainer = safeArray(revenue.byTrainer);
   const priorities = useMemo(() => uniquePriorities(safeArray(notifications?.notifications)), [notifications]);
-  const planValue = summarizeCurrentPlanValue(byGym);
+  const planValue = summarizeCurrentPlanValue(byGym, t);
   const totalClients = pilotMetrics?.clients.totalClients ?? usage.reduce((total, row) => total + asNumber(row.clients), 0);
   const weeklyActive = pilotMetrics?.clients.weeklyActiveUsers ?? usage.reduce((total, row) => total + asNumber(row.weekly_active_clients), 0);
   const clientsMonitored = pilotMetrics?.trainers.clientsMonitored ?? usage.reduce((total, row) => total + asNumber(row.assigned_clients), 0);
@@ -170,14 +182,15 @@ export function AdminDashboardClient() {
   const unassignedClients = pilotMetrics?.trainers.unassignedClients ?? 0;
   const pendingTrainers = pilotMetrics?.trainers.pendingTrainers ?? 0;
   const criticalCount = notifications?.summary.critical ?? 0;
-  const heroStatus = loadFailures.length ? "Watch" : criticalCount ? "Needs Attention" : priorities.length ? "Watch" : "Good";
+  const heroStatus = loadFailures.length ? "watch" : criticalCount ? "attention" : priorities.length ? "watch" : "good";
+  const heroStatusLabel = heroStatus === "good" ? t("admin.good") : heroStatus === "watch" ? t("trainer.watch") : t("client360.needsAttention");
   const heroBrief = loadFailures.length
-    ? `Some business data is temporarily unavailable. Ascend is showing confirmed results only; ${loadFailures.join(", ")} will refresh on your next visit.`
+    ? t("admin.partialDataBrief", { failures: loadFailures.join(", ") })
     : criticalCount
-      ? `${criticalCount} urgent ${criticalCount === 1 ? "item needs" : "items need"} your attention. Start with the first priority below.`
+      ? t("admin.urgentItemsBrief", { count: criticalCount })
       : outstandingFollowUps
-        ? `${outstandingFollowUps} trainer follow-ups are outstanding. ${weeklyActive} of ${totalClients} active clients used Ascend this week.`
-        : `No urgent owner actions are waiting. ${weeklyActive} of ${totalClients} active clients used Ascend this week, and trainers contacted ${clientsContacted} assigned clients.`;
+        ? t("admin.outstandingFollowupsBrief", { followups: outstandingFollowUps, active: weeklyActive, total: totalClients })
+        : t("admin.noUrgentBrief", { active: weeklyActive, total: totalClients, contacted: clientsContacted });
 
   const clubRows = useMemo(() => {
     const gymIds = new Set([...usage.map((row) => row.gym_id), ...byGym.map((row) => row.id)]);
@@ -224,39 +237,39 @@ export function AdminDashboardClient() {
     return (
       <>
         <DashboardHeroSkeleton bodyLines={2} />
-        <SectionShell title="Today's Business Picture"><SkeletonStatGrid count={4} /></SectionShell>
-        <SectionShell title="Today's Priorities"><SkeletonCardList count={3} compact /></SectionShell>
+        <SectionShell title={t("admin.todaysBusinessPicture")}><SkeletonStatGrid count={4} /></SectionShell>
+        <SectionShell title={t("trainer.todaysPriorities")}><SkeletonCardList count={3} compact /></SectionShell>
       </>
     );
   }
 
   return (
     <>
-      <AscendHeroPanel eyebrow="Today's Business Brief" title="Owner Command Center" body={heroBrief} tone="owner" visual={<BusinessSigil status={heroStatus} />}>
+      <AscendHeroPanel eyebrow={t("admin.todaysBusinessBrief")} title={t("admin.ownerCommandCenter")} body={heroBrief} tone="owner" visual={<BusinessSigil status={heroStatusLabel} />}>
         <div className="mt-3">
-          <DelightBadge tone={heroStatus === "Good" ? "teal" : "amber"}>
-            {heroStatus === "Good" ? "No urgent owner actions" : heroStatus === "Watch" ? "Review today's signals" : "Start with the urgent item"}
+          <DelightBadge tone={heroStatus === "good" ? "teal" : "amber"}>
+            {heroStatus === "good" ? t("admin.noUrgentOwnerActions") : heroStatus === "watch" ? t("admin.reviewTodaysSignals") : t("admin.startUrgentItem")}
           </DelightBadge>
         </div>
       </AscendHeroPanel>
 
       <section className="mt-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Today&apos;s Business Picture</h2>
-          {pilotMetrics?.generatedAt ? <time className="text-xs text-zinc-500" dateTime={pilotMetrics.generatedAt}>Updated {new Date(pilotMetrics.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</time> : null}
+          <h2 className="text-xl font-semibold">{t("admin.todaysBusinessPicture")}</h2>
+          {pilotMetrics?.generatedAt ? <time className="text-xs text-zinc-500" dateTime={pilotMetrics.generatedAt}>{t("admin.updatedAt", { time: new Date(pilotMetrics.generatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) })}</time> : null}
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard label="Current plan value" value={planValue.value} detail={planValue.detail} />
-          <SummaryCard label="Members active this week" value={`${weeklyActive} / ${totalClients}`} detail="Active clients with meaningful Ascend activity in the last 7 days." tone={weeklyActive > 0 ? "positive" : "plain"} />
-          <SummaryCard label="Trainer follow-up" value={`${clientsContacted} / ${clientsMonitored}`} detail={`${percentage(followUpCoverage)} of assigned clients received a trainer message this week.`} tone={followUpCoverage >= 70 ? "positive" : clientsMonitored ? "warning" : "plain"} />
-          <SummaryCard label="Outstanding follow-ups" value={String(outstandingFollowUps)} detail="Open client risk alerts that still need trainer action." tone={outstandingFollowUps ? "warning" : "positive"} />
+          <SummaryCard label={t("admin.currentPlanValue")} value={planValue.value} detail={planValue.detail} />
+          <SummaryCard label={t("admin.membersActiveThisWeek")} value={`${weeklyActive} / ${totalClients}`} detail={t("admin.activeClients7dDetail")} tone={weeklyActive > 0 ? "positive" : "plain"} />
+          <SummaryCard label={t("admin.trainerFollowup")} value={`${clientsContacted} / ${clientsMonitored}`} detail={t("admin.followupCoverageDetail", { percentage: percentage(followUpCoverage) })} tone={followUpCoverage >= 70 ? "positive" : clientsMonitored ? "warning" : "plain"} />
+          <SummaryCard label={t("admin.outstandingFollowups")} value={String(outstandingFollowUps)} detail={t("admin.openRiskAlertsDetail")} tone={outstandingFollowUps ? "warning" : "positive"} />
         </div>
       </section>
 
       <section className="mt-5">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2"><Bell className="text-calm" size={20} /><h2 className="text-xl font-semibold">Today&apos;s Priorities</h2></div>
-          <span className="text-sm text-zinc-400">{notifications?.summary.total ?? priorities.length} open</span>
+          <div className="flex items-center gap-2"><Bell className="text-calm" size={20} /><h2 className="text-xl font-semibold">{t("trainer.todaysPriorities")}</h2></div>
+          <span className="text-sm text-zinc-400">{t("admin.openCount", { count: notifications?.summary.total ?? priorities.length })}</span>
         </div>
         <div className="mt-3 grid gap-3 xl:grid-cols-3">
           {priorities.length ? priorities.map((priority) => (
@@ -266,49 +279,49 @@ export function AdminDashboardClient() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3"><p className="font-semibold">{priority.title}</p><span className="rounded-full bg-ink px-2 py-0.5 text-xs text-zinc-300">{priority.count}</span></div>
                   <p className="mt-2 text-sm leading-6 text-zinc-300">{priority.body}</p>
-                  <Link href={priority.href} className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-white">Take action <ChevronRight size={17} /></Link>
+                  <Link href={priority.href} className="mt-4 inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-white">{t("admin.takeAction")} <ChevronRight size={17} /></Link>
                 </div>
               </div>
             </article>
           )) : (
-            <div className="xl:col-span-3"><DelightEmptyState tone="teal" title="Nothing urgent is waiting." body="Ascend will surface trainer approvals, unassigned members, risk follow-ups, and service issues here when action is required." /></div>
+            <div className="xl:col-span-3"><DelightEmptyState tone="teal" title={t("admin.nothingUrgent")} body={t("admin.prioritiesEmptyDetail")} /></div>
           )}
         </div>
       </section>
 
       <section className="mt-5">
-        <div className="flex items-center gap-2"><ClipboardCheck className="text-lime" size={20} /><h2 className="text-xl font-semibold">Review Candidates</h2></div>
-        <p className="mt-1 text-sm text-zinc-400">These are people to review, not guaranteed sales or revenue.</p>
+        <div className="flex items-center gap-2"><ClipboardCheck className="text-lime" size={20} /><h2 className="text-xl font-semibold">{t("admin.reviewCandidates")}</h2></div>
+        <p className="mt-1 text-sm text-zinc-400">{t("admin.reviewCandidatesDetail")}</p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <SummaryCard label="Free plan members" value={String(freeCandidates)} detail="Active free members who may benefit from a personal Premium conversation." />
-          <SummaryCard label="Athlete review" value={String(premiumCandidates)} detail="Premium members not currently using Athlete Mode." />
-          <SummaryCard label="Trainer assignment" value={String(unassignedClients)} detail="Active clients without an assigned trainer." tone={unassignedClients ? "warning" : "positive"} />
+          <SummaryCard label={t("admin.freePlanMembers")} value={String(freeCandidates)} detail={t("admin.freePlanMembersDetail")} />
+          <SummaryCard label={t("admin.athleteReview")} value={String(premiumCandidates)} detail={t("admin.athleteReviewDetail")} />
+          <SummaryCard label={t("admin.trainerAssignment")} value={String(unassignedClients)} detail={t("admin.trainerAssignmentDetail")} tone={unassignedClients ? "warning" : "positive"} />
         </div>
       </section>
 
       <section className="mt-5">
-        <div className="flex items-center gap-2"><Building2 className="text-lime" size={20} /><h2 className="text-xl font-semibold">Club Performance</h2></div>
+        <div className="flex items-center gap-2"><Building2 className="text-lime" size={20} /><h2 className="text-xl font-semibold">{t("admin.clubPerformance")}</h2></div>
         <div className="mt-3 grid gap-3 xl:grid-cols-2">
           {clubRows.length ? clubRows.map((club) => (
             <article key={club.id} className="ascend-workspace-stat p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><p className="font-semibold">{club.name}</p><p className="mt-1 text-sm text-zinc-400">{club.activeSubscriptions} paid access periods · {club.planValueText} current plan value</p></div>
-                {club.lowMomentum ? <span className="rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">Watch</span> : <span className="rounded-full border border-calm/40 bg-calm/10 px-3 py-1 text-xs font-semibold text-calm">Steady</span>}
+                <div><p className="font-semibold">{club.name}</p><p className="mt-1 text-sm text-zinc-400">{t("admin.clubPlanValueLine", { count: club.activeSubscriptions, value: club.planValueText })}</p></div>
+                {club.lowMomentum ? <span className="rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs font-semibold text-amber">{t("trainer.watch")}</span> : <span className="rounded-full border border-calm/40 bg-calm/10 px-3 py-1 text-xs font-semibold text-calm">{t("admin.steady")}</span>}
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                <div><p className="text-zinc-500">Active</p><p className="mt-1 font-semibold">{club.active}/{club.clients}</p></div>
-                <div><p className="text-zinc-500">Contacted</p><p className="mt-1 font-semibold">{club.contacted}/{club.assigned}</p></div>
-                <div><p className="text-zinc-500">Low momentum</p><p className="mt-1 font-semibold">{club.lowMomentum}</p></div>
-                <div><p className="text-zinc-500">Paid access</p><p className="mt-1 font-semibold">{club.activeSubscriptions}</p></div>
+                <div><p className="text-zinc-500">{t("trainer.active")}</p><p className="mt-1 font-semibold">{club.active}/{club.clients}</p></div>
+                <div><p className="text-zinc-500">{t("admin.contacted")}</p><p className="mt-1 font-semibold">{club.contacted}/{club.assigned}</p></div>
+                <div><p className="text-zinc-500">{t("admin.lowMomentum")}</p><p className="mt-1 font-semibold">{club.lowMomentum}</p></div>
+                <div><p className="text-zinc-500">{t("admin.paidAccess")}</p><p className="mt-1 font-semibold">{club.activeSubscriptions}</p></div>
               </div>
-              <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-6 text-zinc-300"><span className="font-semibold text-white">Recommended action:</span> {club.recommendation}</p>
+              <p className="mt-4 border-t border-white/10 pt-3 text-sm leading-6 text-zinc-300"><span className="font-semibold text-white">{t("admin.recommendedAction")}</span> {club.recommendation}</p>
             </article>
-          )) : <div className="xl:col-span-2"><DelightEmptyState tone="teal" title="No club activity yet." body="Club-level member, trainer, and subscription facts will appear here as activity is recorded." /></div>}
+          )) : <div className="xl:col-span-2"><DelightEmptyState tone="teal" title={t("admin.noClubActivity")} body={t("admin.clubActivityEmpty")} /></div>}
         </div>
       </section>
 
       <section className="mt-5">
-        <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Users className="text-calm" size={20} /><h2 className="text-xl font-semibold">Trainer Follow-up</h2></div>{pendingTrainers ? <Link href="/admin/users" className="text-sm font-semibold text-amber">{pendingTrainers} pending approval</Link> : null}</div>
+        <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Users className="text-calm" size={20} /><h2 className="text-xl font-semibold">{t("admin.trainerFollowup")}</h2></div>{pendingTrainers ? <Link href="/admin/users" className="text-sm font-semibold text-amber">{t("admin.pendingApprovalCount", { count: pendingTrainers })}</Link> : null}</div>
         <div className="mt-3 grid gap-3 xl:grid-cols-2">
           {trainerRows.length ? trainerRows.map((trainer: RevenueTrainer) => {
             const assigned = asNumber(trainer.clients_assigned);
@@ -316,23 +329,23 @@ export function AdminDashboardClient() {
             const gap = Math.max(0, assigned - contacted);
             return (
               <article key={trainer.id} className="ascend-workspace-stat p-4">
-                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{trainer.trainer_name || "Trainer"}</p><p className="mt-1 text-sm text-zinc-400">{trainer.gym_name}</p></div><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${gap || asNumber(trainer.open_risk_alerts) ? "border-amber/40 bg-amber/10 text-amber" : "border-calm/40 bg-calm/10 text-calm"}`}>{gap || asNumber(trainer.open_risk_alerts) ? "Follow up" : "On track"}</span></div>
-                <div className="mt-4 grid grid-cols-3 gap-3 text-sm"><div><p className="text-zinc-500">Clients reached</p><p className="mt-1 font-semibold">{contacted}/{assigned}</p></div><div><p className="text-zinc-500">Weekly reviews</p><p className="mt-1 font-semibold">{asNumber(trainer.weekly_reviews_7d)}</p></div><div><p className="text-zinc-500">Open alerts</p><p className="mt-1 font-semibold">{asNumber(trainer.open_risk_alerts)}</p></div></div>
-                <p className="mt-4 text-sm text-zinc-300">{gap ? `${gap} assigned ${gap === 1 ? "client has" : "clients have"} not received a trainer message this week.` : assigned ? "Every assigned client has received a trainer message this week." : "No active clients are assigned yet."}</p>
+                <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{trainer.trainer_name || t("common.trainer")}</p><p className="mt-1 text-sm text-zinc-400">{trainer.gym_name}</p></div><span className={`rounded-full border px-3 py-1 text-xs font-semibold ${gap || asNumber(trainer.open_risk_alerts) ? "border-amber/40 bg-amber/10 text-amber" : "border-calm/40 bg-calm/10 text-calm"}`}>{gap || asNumber(trainer.open_risk_alerts) ? t("admin.followUp") : t("trainer.onTrack")}</span></div>
+                <div className="mt-4 grid grid-cols-3 gap-3 text-sm"><div><p className="text-zinc-500">{t("admin.clientsReached")}</p><p className="mt-1 font-semibold">{contacted}/{assigned}</p></div><div><p className="text-zinc-500">{t("admin.weeklyReviews")}</p><p className="mt-1 font-semibold">{asNumber(trainer.weekly_reviews_7d)}</p></div><div><p className="text-zinc-500">{t("admin.openAlerts")}</p><p className="mt-1 font-semibold">{asNumber(trainer.open_risk_alerts)}</p></div></div>
+                <p className="mt-4 text-sm text-zinc-300">{gap ? t("admin.assignedClientsNotMessaged", { count: gap }) : assigned ? t("admin.allAssignedMessaged") : t("admin.noActiveClientsAssigned")}</p>
               </article>
             );
-          }) : <div className="xl:col-span-2"><DelightEmptyState tone="purple" title="No active trainers yet." body="Approved trainers will appear here with factual client contact, review, and alert counts." /></div>}
+          }) : <div className="xl:col-span-2"><DelightEmptyState tone="purple" title={t("admin.noActiveTrainers")} body={t("admin.activeTrainersEmpty")} /></div>}
         </div>
       </section>
 
       <section className="ascend-workspace-section mt-5 p-4 sm:p-5">
-        <h2 className="text-xl font-semibold">Member Engagement</h2>
-        <p className="mt-1 text-sm text-zinc-400">Measured activity from active members in the current reporting window.</p>
+        <h2 className="text-xl font-semibold">{t("admin.memberEngagement")}</h2>
+        <p className="mt-1 text-sm text-zinc-400">{t("admin.memberEngagementDetail")}</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <ProgressRow label="Members active this week" value={`${weeklyActive}/${totalClients}`} percentageValue={totalClients ? (weeklyActive / totalClients) * 100 : 0} />
-          <ProgressRow label="Food logging" value={percentage(pilotMetrics?.clients.foodLoggingRate ?? 0)} percentageValue={pilotMetrics?.clients.foodLoggingRate ?? 0} />
-          <ProgressRow label="Workout logging" value={percentage(pilotMetrics?.clients.workoutLoggingRate ?? 0)} percentageValue={pilotMetrics?.clients.workoutLoggingRate ?? 0} />
-          <ProgressRow label="Body Scan adoption" value={pilotMetrics?.clients.athleteClients ? `${pilotMetrics.clients.bodyScanUsers90d}/${pilotMetrics.clients.athleteClients} Athlete members` : "No Athlete members"} percentageValue={pilotMetrics?.clients.bodyScanAdoptionRate ?? 0} />
+          <ProgressRow label={t("admin.membersActiveThisWeek")} value={`${weeklyActive}/${totalClients}`} percentageValue={totalClients ? (weeklyActive / totalClients) * 100 : 0} />
+          <ProgressRow label={t("admin.foodLogging")} value={percentage(pilotMetrics?.clients.foodLoggingRate ?? 0)} percentageValue={pilotMetrics?.clients.foodLoggingRate ?? 0} />
+          <ProgressRow label={t("admin.workoutLogging")} value={percentage(pilotMetrics?.clients.workoutLoggingRate ?? 0)} percentageValue={pilotMetrics?.clients.workoutLoggingRate ?? 0} />
+          <ProgressRow label={t("admin.bodyScanAdoption")} value={pilotMetrics?.clients.athleteClients ? t("admin.athleteMembersCount", { scans: pilotMetrics.clients.bodyScanUsers90d, athletes: pilotMetrics.clients.athleteClients }) : t("admin.noAthleteMembers")} percentageValue={pilotMetrics?.clients.bodyScanAdoptionRate ?? 0} />
         </div>
       </section>
 

@@ -25,7 +25,8 @@
     "android:release-bundle": "powershell -Command \"if (Test-Path android\\\\gradlew.bat) { Set-Location android; .\\\\gradlew.bat bundleRelease } else { throw 'Android platform not added yet. Run npm run android:add first.' }\"",
     "android:release-apk": "powershell -Command \"if (Test-Path android\\\\gradlew.bat) { Set-Location android; .\\\\gradlew.bat assembleRelease } else { throw 'Android platform not added yet. Run npm run android:add first.' }\"",
     "android:keystore:generate": "powershell -ExecutionPolicy Bypass -File scripts/generate-android-keystore.ps1",
-    "android:internal-testing:prepare": "npm run build && npm run android:sync && npm run android:release-bundle"
+    "android:internal-testing:prepare": "npm run build && npm run android:sync && npm run android:release-bundle",
+    "i18n:audit": "npx tsx scripts/i18n-audit.ts"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",

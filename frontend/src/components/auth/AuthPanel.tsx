@@ -24,10 +24,12 @@ import { Field, inputClass } from "@/components/Field";
 import { getMe } from "@/lib/ascendApi";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { markInstallEligible } from "@/lib/installAscend";
 import { hasCompletedClientOnboardingProfile, isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
 import { isNativeAndroidCapacitor } from "@/lib/nativePlatform";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
@@ -46,22 +48,22 @@ function withTimeout<T>(promise: Promise<T>, message: string, ms = 25_000) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
-function getFriendlyAuthError(error: unknown) {
-  if (!(error instanceof Error)) return "Unable to continue. Please try again.";
+function getFriendlyAuthError(error: unknown, t: (key: string) => string) {
+  if (!(error instanceof Error)) return t("auth.errorUnable");
   const code = getAuthErrorCode(error);
-  if (code === "auth/popup-blocked") return "Google sign-in was blocked by the browser. Please allow popups or use Safari/Chrome normally and try again.";
-  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return "Google sign-in was closed before it finished. Please try again when you are ready.";
-  if (code === "auth/unauthorized-domain") return "This website is not authorized for Google sign-in yet. Please contact Ascend support.";
-  if (code === "auth/network-request-failed") return "Google sign-in could not connect. Please check your internet connection and try again.";
-  if (code === "auth/operation-not-supported-in-this-environment") return "Google sign-in is not supported in this browser mode. Please open Ascend in Safari or Chrome and try again.";
-  if (code === "auth/account-exists-with-different-credential") return "This email already has an Ascend account. Please log in with your original sign-in method.";
-  if (code === "auth/invalid-api-key" || code === "auth/app-not-authorized") return "Google sign-in is not configured correctly yet. Please contact Ascend support.";
-  if (/auth\/email-already-in-use/i.test(error.message)) return "This email already has an account. Please log in instead.";
-  if (/auth\/invalid-email/i.test(error.message)) return "Please enter a valid email address.";
-  if (/auth\/weak-password/i.test(error.message)) return "Please use a password with at least 6 characters.";
-  if (/API request failed: 404/i.test(error.message)) return "That referral code was not found. Please check it with your gym or trainer.";
+  if (code === "auth/popup-blocked") return t("auth.errorPopupBlocked");
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") return t("auth.errorPopupClosed");
+  if (code === "auth/unauthorized-domain") return t("auth.errorUnauthorizedDomain");
+  if (code === "auth/network-request-failed") return t("auth.errorGoogleNetwork");
+  if (code === "auth/operation-not-supported-in-this-environment") return t("auth.errorUnsupportedBrowser");
+  if (code === "auth/account-exists-with-different-credential") return t("auth.errorDifferentCredential");
+  if (code === "auth/invalid-api-key" || code === "auth/app-not-authorized") return t("auth.errorGoogleConfig");
+  if (/auth\/email-already-in-use/i.test(error.message)) return t("auth.errorEmailExists");
+  if (/auth\/invalid-email/i.test(error.message)) return t("auth.errorInvalidEmail");
+  if (/auth\/weak-password/i.test(error.message)) return t("auth.errorWeakPassword");
+  if (/API request failed: 404/i.test(error.message)) return t("auth.errorReferralMissing");
   if (/network|fetch|timeout|timed out|taking too long/i.test(error.message)) {
-    return "The connection is taking too long. Please check your internet connection and try again.";
+    return t("auth.errorConnectionSlow");
   }
   return error.message;
 }
@@ -209,7 +211,7 @@ async function signInWithNativeAndroidGoogle() {
   const idToken = nativeResult.credential?.idToken;
   const accessToken = nativeResult.credential?.accessToken;
   if (!idToken) {
-    throw new Error("Google sign-in finished, but no Google ID token was returned.");
+    throw new Error("GOOGLE_ID_TOKEN_MISSING");
   }
 
   const auth = getFirebaseClientAuth();
@@ -223,6 +225,7 @@ async function signInWithNativeAndroidGoogle() {
 
 export function AuthPanel() {
   const router = useRouter();
+  const { t } = useI18n();
   const hasProcessedRedirectAuth = useRef(false);
   const [mode, setMode] = useState<Mode>("signup");
   const [signupRole, setSignupRole] = useState<SignupRole>("client");
@@ -392,7 +395,7 @@ export function AuthPanel() {
             hasProcessedRedirectAuth.current = true;
             clearGoogleRedirectPending();
             setIsSubmitting(true);
-            setStatus("Finishing Google sign-in...");
+          setStatus(t("auth.finishingGoogle"));
             await provisionGoogleUser(fallbackUser);
             return;
           }
@@ -407,7 +410,7 @@ export function AuthPanel() {
         hasProcessedRedirectAuth.current = true;
         clearGoogleRedirectPending();
         setIsSubmitting(true);
-        setStatus("Setting up your Ascend profile...");
+        setStatus(t("auth.settingProfile"));
         await provisionGoogleUser(result.user);
         authDebug("redirect_auth_completed");
         authTrace("Authentication completed", { uid: result.user.uid });
@@ -415,7 +418,7 @@ export function AuthPanel() {
         const errorDetails = describeUnknownError(error);
         authDebug("redirect_result_error", errorDetails);
         authTrace("Google redirect flow failed", errorDetails);
-        if (!cancelled) setStatus(getFriendlyAuthError(error));
+        if (!cancelled) setStatus(error instanceof Error && error.message === "GOOGLE_ID_TOKEN_MISSING" ? t("auth.errorGoogleNoToken") : getFriendlyAuthError(error, t));
       } finally {
         if (!cancelled) setIsSubmitting(false);
       }
@@ -426,7 +429,7 @@ export function AuthPanel() {
     return () => {
       cancelled = true;
     };
-  }, [firebaseConfigured, googleSignInEnabled, progressiveClientSignup, provisionGoogleUser]);
+  }, [firebaseConfigured, googleSignInEnabled, progressiveClientSignup, provisionGoogleUser, t]);
 
   async function handleAuthAction() {
     if (isSubmitting) return;
@@ -440,22 +443,22 @@ export function AuthPanel() {
       const effectiveSignupRole: SignupRole = progressiveClientSignup ? "client" : signupRole;
 
       if (!normalizedEmail || !password) {
-        setStatus("Please enter your email and password.");
+        setStatus(t("auth.emailPasswordRequired"));
         return;
       }
 
       if (mode === "signup" && !normalizedFullName) {
-        setStatus("Please enter your full name.");
+        setStatus(t("auth.fullNameRequired"));
         return;
       }
 
       if (mode === "signup" && effectiveSignupRole === "trainer" && !normalizedReferralCode) {
-        setStatus("Please enter the gym or trainer referral code provided by the gym owner.");
+        setStatus(t("auth.referralRequired"));
         return;
       }
 
       if (mode === "signup" && normalizedReferralCode) {
-        setStatus("Checking your referral code...");
+        setStatus(t("auth.checkingReferral"));
         await withTimeout(
           api(`/referrals/validate/${encodeURIComponent(normalizedReferralCode)}`),
           "The referral code check is taking too long. Please check your connection and try again.",
@@ -463,7 +466,7 @@ export function AuthPanel() {
         );
       }
 
-      setStatus(mode === "signup" ? "Creating your Ascend account..." : "Logging you in...");
+      setStatus(mode === "signup" ? t("auth.creatingAccount") : t("auth.loggingIn"));
       await withTimeout(
         waitForFirebasePersistence(),
         "Secure login is taking too long to start. Please check your connection and try again.",
@@ -489,7 +492,7 @@ export function AuthPanel() {
       }
 
       const token = await credential.user.getIdToken();
-      setStatus("Setting up your Ascend profile...");
+      setStatus(t("auth.settingProfile"));
       await withTimeout(
         api(
         "/auth/provision",
@@ -518,7 +521,7 @@ export function AuthPanel() {
       const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please open Ascend again.");
       router.replace(roleHome(profile.roles));
     } catch (error) {
-      setStatus(getFriendlyAuthError(error));
+      setStatus(getFriendlyAuthError(error, t));
     } finally {
       setIsSubmitting(false);
     }
@@ -528,21 +531,21 @@ export function AuthPanel() {
     if (isSubmitting) return;
     const normalizedEmail = email.trim();
     if (!normalizedEmail) {
-      setStatus("Enter your email address first, then choose Forgot password.");
+      setStatus(t("auth.resetEmailFirst"));
       return;
     }
 
     setIsSubmitting(true);
-    setStatus("Sending your password reset email...");
+    setStatus(t("auth.sendingReset"));
     try {
       await withTimeout(
         sendPasswordResetEmail(getFirebaseClientAuth(), normalizedEmail),
         "The password reset request is taking too long. Please check your connection and try again.",
         15_000
       );
-      setStatus("Check your inbox for a secure password reset link. You can return here when your password is updated.");
+      setStatus(t("auth.resetSent"));
     } catch (error) {
-      setStatus(getFriendlyAuthError(error));
+      setStatus(getFriendlyAuthError(error, t));
     } finally {
       setIsSubmitting(false);
     }
@@ -570,10 +573,10 @@ export function AuthPanel() {
       authDebug("google_button_clicked", { ...platform, method });
       setStatus(
         method === "native"
-          ? "Opening secure Google sign-in..."
+          ? t("auth.openingGoogle")
           : method === "redirect"
-            ? "Opening secure Google sign-in..."
-            : "Opening secure Google sign-in popup..."
+            ? t("auth.openingGoogle")
+            : t("auth.openingGooglePopup")
       );
 
       if (method === "native") {
@@ -589,7 +592,7 @@ export function AuthPanel() {
           hasIdToken: Boolean(nativeResult.credential?.idToken),
           firebaseUid: userCredential.user.uid
         });
-        setStatus("Setting up your Ascend profile...");
+        setStatus(t("auth.settingProfile"));
         await provisionGoogleUser(userCredential.user);
         authDebug("google_native_auth_completed");
         return;
@@ -650,7 +653,7 @@ export function AuthPanel() {
       }
 
       authDebug("google_popup_success");
-      setStatus("Setting up your Ascend profile...");
+      setStatus(t("auth.settingProfile"));
       await provisionGoogleUser(userCredential.user);
       authDebug("google_auth_completed");
     } catch (error) {
@@ -658,7 +661,7 @@ export function AuthPanel() {
         code: getAuthErrorCode(error),
         message: error instanceof Error ? error.message : String(error)
       });
-      setStatus(getFriendlyAuthError(error));
+      setStatus(error instanceof Error && error.message === "GOOGLE_ID_TOKEN_MISSING" ? t("auth.errorGoogleNoToken") : getFriendlyAuthError(error, t));
     } finally {
       setIsSubmitting(false);
     }
@@ -672,25 +675,27 @@ export function AuthPanel() {
             <BrandMark />
             <div>
               <p className="text-lg font-semibold">Ascend</p>
-              <p className="text-xs text-zinc-400">The missing link between training and results</p>
+              <p className="text-xs text-zinc-400">{t("auth.tagline")}</p>
             </div>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <LanguageSelector compact />
+            <ThemeToggle />
+          </div>
         </header>
 
         <section className="flex flex-1 flex-col justify-center">
           <div>
-            <p className="text-sm text-zinc-400">{mode === "signup" ? "Create account" : "Welcome back"}</p>
+            <p className="text-sm text-zinc-400">{mode === "signup" ? t("auth.signUp") : t("auth.welcomeBack")}</p>
             <h1 className="mt-2 text-4xl font-semibold leading-tight">
-              {mode === "signup" ? "Start your Ascend journey." : "Continue your progress."}
+              {mode === "signup" ? t("auth.startJourney") : t("auth.continueProgress")}
             </h1>
           </div>
 
           <form className="mt-6 space-y-4 border-t border-line pt-6" noValidate onSubmit={handleAuthSubmit}>
             {!firebaseConfigured ? (
               <div className="rounded-lg border border-amber/40 bg-amber/10 p-3 text-sm leading-6 text-amber">
-                Firebase is not configured locally yet. Use local preview mode to review the MVP screens, or add Firebase web app values to
-                `frontend/.env.local` for real sign-up.
+                {t("auth.firebaseMissing")}
               </div>
             ) : null}
             {progressiveClientSignup && googleSignInEnabled ? (
@@ -701,24 +706,24 @@ export function AuthPanel() {
                 className="flex h-12 w-full items-center justify-center rounded-lg bg-white font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Chrome className="mr-2" size={18} />
-                {isSubmitting ? "Working..." : "Continue with Google"}
+                {isSubmitting ? t("auth.working") : t("auth.google")}
               </button>
             ) : null}
             {progressiveClientSignup && googleSignInEnabled ? (
               <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <span className="h-px flex-1 bg-line" />
-                <span>or</span>
+                <span>{t("auth.or")}</span>
                 <span className="h-px flex-1 bg-line" />
               </div>
             ) : null}
             {mode === "signup" && !progressiveClientSignup ? (
               <>
                 <div id="ascend-role-field">
-                  <p className="mb-2 text-sm font-medium">I am signing up as</p>
+                  <p className="mb-2 text-sm font-medium">{t("auth.rolePrompt")}</p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { value: "client", title: "Client", detail: "Stay consistent" },
-                      { value: "trainer", title: "Trainer", detail: "Coach clients" }
+                      { value: "client", title: t("auth.roleClient"), detail: t("auth.roleClientDetail") },
+                      { value: "trainer", title: t("auth.roleTrainer"), detail: t("auth.roleTrainerDetail") }
                     ].map((item) => (
                       <button
                         key={item.value}
@@ -738,10 +743,10 @@ export function AuthPanel() {
                       </button>
                     ))}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-zinc-500">Owner/admin access is invite-only and cannot be selected here.</p>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">{t("auth.roleInviteOnly")}</p>
                 </div>
                 <div id="ascend-full-name-field">
-                  <Field label="Full name">
+                  <Field label={t("auth.fullName")}>
                   <input
                     id="ascend-full-name"
                     autoComplete="name"
@@ -749,7 +754,7 @@ export function AuthPanel() {
                     required
                     value={fullName}
                     onChange={(event) => setFullName(event.target.value)}
-                    placeholder="Your name"
+                    placeholder={t("auth.fullName")}
                   />
                   </Field>
                 </div>
@@ -757,7 +762,7 @@ export function AuthPanel() {
             ) : null}
             {mode === "signup" && progressiveClientSignup ? (
               <div id="ascend-full-name-field">
-                <Field label="Full name">
+                <Field label={t("auth.fullName")}>
                   <input
                     id="ascend-full-name"
                     autoComplete="name"
@@ -765,12 +770,12 @@ export function AuthPanel() {
                     required
                     value={fullName}
                     onChange={(event) => setFullName(event.target.value)}
-                    placeholder="Your name"
+                    placeholder={t("auth.fullName")}
                   />
                 </Field>
               </div>
             ) : null}
-            <Field label="Email">
+            <Field label={t("auth.email")}>
               <input
                 id="ascend-email"
                 autoComplete="email"
@@ -782,7 +787,7 @@ export function AuthPanel() {
                 placeholder="you@example.com"
               />
             </Field>
-            <Field label="Password" hint={mode === "signup" ? "Use at least 6 characters." : undefined}>
+            <Field label={t("auth.password")} hint={mode === "signup" ? t("auth.passwordHint") : undefined}>
               <div className="relative">
               <input
                 id="ascend-password"
@@ -798,7 +803,7 @@ export function AuthPanel() {
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
                 className="absolute inset-y-0 right-0 grid w-12 place-items-center text-zinc-400 hover:text-white"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? t("auth.hidePassword") : t("auth.showPassword")}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
@@ -811,17 +816,17 @@ export function AuthPanel() {
                 disabled={isSubmitting || !firebaseConfigured}
                 className="min-h-11 w-full text-right text-sm font-semibold text-lime transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Forgot password?
+                {t("auth.forgotPassword")}
               </button>
             ) : null}
             {mode === "signup" ? (
               <div id="ascend-referral-field">
               <Field
-                label="Referral code"
+                label={t("auth.referralCode")}
                 hint={
                   signupRole === "trainer"
-                    ? "Use your gym code if you have one."
-                    : "Use your gym or trainer code if you have one."
+                    ? t("auth.referralTrainerHint")
+                    : t("auth.referralClientHint")
                 }
               >
                 <input
@@ -829,7 +834,7 @@ export function AuthPanel() {
                   autoComplete="off"
                   className={inputClass}
                   value={referralCode}
-                  placeholder={signupRole === "trainer" ? "PPF-CENTRAL" : "Optional"}
+                  placeholder={signupRole === "trainer" ? "PPF-CENTRAL" : t("auth.optional")}
                   onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
                 />
               </Field>
@@ -851,13 +856,13 @@ export function AuthPanel() {
               onClick={handleAuthButtonClick}
             >
               {mode === "signup" ? <ArrowRight className="mr-2" size={18} /> : <LogIn className="mr-2" size={18} />}
-              {isSubmitting ? "Working..." : mode === "signup" ? signupRole === "trainer" ? "Create trainer account" : progressiveClientSignup ? "Continue with Email" : "Create client account" : "Log in"}
+              {isSubmitting ? t("auth.working") : mode === "signup" ? signupRole === "trainer" ? t("auth.createTrainer") : progressiveClientSignup ? t("auth.continueEmail") : t("auth.createClient") : t("auth.login")}
             </button>
             {mode === "signup" ? (
               <p className="text-center text-xs leading-5 text-zinc-500">
-                By creating an account, you agree to Ascend&apos;s{" "}
-                <Link href="/terms" className="text-calm hover:underline">Terms</Link> and{" "}
-                <Link href="/privacy" className="text-calm hover:underline">Privacy Policy</Link>.
+                {t("auth.agreePrefix")}{" "}
+                <Link href="/terms" className="text-calm hover:underline">{t("auth.terms")}</Link> {t("auth.and")}{" "}
+                <Link href="/privacy" className="text-calm hover:underline">{t("auth.privacy")}</Link>.
               </p>
             ) : null}
             {!firebaseConfigured ? (
@@ -868,7 +873,7 @@ export function AuthPanel() {
                 }}
                 type="button"
               >
-                Continue in local preview mode
+                {t("auth.localPreview")}
               </button>
             ) : null}
           </form>
@@ -879,7 +884,7 @@ export function AuthPanel() {
             onClick={() => setMode(mode === "signup" ? "login" : "signup")}
             type="button"
           >
-            {mode === "signup" ? "Already have an account? Log in" : "Need an account? Sign up"}
+            {mode === "signup" ? t("auth.alreadyAccount") : t("auth.needAccount")}
           </button>
           {progressiveClientSignup && mode === "signup" ? (
             <button
@@ -891,7 +896,7 @@ export function AuthPanel() {
               }}
               type="button"
             >
-              Are you a Trainer? <span className="text-lime">Register here</span>
+              {t("auth.trainerRegister")} <span className="text-lime">{t("auth.registerHere")}</span>
             </button>
           ) : null}
         </section>

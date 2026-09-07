@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/LegalPage";
+import { englishMessage } from "@/lib/i18n/static";
 
 export const metadata: Metadata = { title: "Refund and Cancellation Policy | Ascend" };
 
 export default function RefundPolicyPage() {
   return (
     <LegalPage
-      eyebrow="Subscriptions"
-      title="Refund and Cancellation Policy"
+      eyebrow={englishMessage("legal.subscriptions")}
+      title={englishMessage("legal.refundPolicy")}
       introduction="We want Ascend subscriptions to be straightforward. This policy explains renewals, cancellations, refunds, and how to get billing help."
       sections={[
         {

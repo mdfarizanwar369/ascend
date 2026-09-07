@@ -7,10 +7,13 @@ import { AccountBar } from "@/components/AccountBar";
 import { BackButton } from "@/components/BackButton";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageSelector } from "@/components/LanguageSelector";
 import { getCachedAccountProfile, loadAccountPlan, loadAccountProfile } from "@/lib/accountSession";
 import { canSeeAscendCoachShell } from "@/lib/ascendCoachFlag";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" | "founder" }) {
+  const { t } = useI18n();
   const [account, setAccount] = useState<{
     email?: string;
     fullName?: string;
@@ -29,10 +32,10 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   const canFounder = identityVerified && account.isPlatformOwner === true;
   const canSeeCoach = identityVerified && canSeeAscendCoachShell({ roles, isPlatformOwner: account.isPlatformOwner });
   const items = [
-    { href: "/dashboard", label: "Home", icon: Home, key: "client", show: true },
-    { href: "/trainer", label: canSeeCoach ? "Coach" : "Trainer", icon: Users, key: "trainer", show: canTrain },
-    { href: "/admin", label: roles.includes("owner") ? "Business" : "Admin", icon: Shield, key: "admin", show: canAdmin },
-    { href: "/founder", label: "Founder", icon: Crown, key: "founder", show: canFounder }
+    { href: "/dashboard", label: t("common.home"), icon: Home, key: "client", show: true },
+    { href: "/trainer", label: canSeeCoach ? t("common.coach") : t("common.trainer"), icon: Users, key: "trainer", show: canTrain },
+    { href: "/admin", label: roles.includes("owner") ? t("common.business") : t("common.admin"), icon: Shield, key: "admin", show: canAdmin },
+    { href: "/founder", label: t("common.founder"), icon: Crown, key: "founder", show: canFounder }
   ].filter((item) => item.show);
   const backHref = active === "founder" ? "/founder" : active === "admin" ? "/admin" : active === "trainer" ? "/trainer" : "/dashboard";
   const isOperational = active !== "client";
@@ -83,19 +86,20 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
               <BrandMark size="sm" />
               <span>
                 <span className="block text-lg font-semibold leading-5">Ascend</span>
-                <span className="hidden text-xs text-zinc-400 sm:block">Accountability between sessions</span>
+                <span className="hidden text-xs text-zinc-400 sm:block">{t("app.tagline")}</span>
               </span>
             </Link>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Link href="/contact" className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface" aria-label="Get support">
+            <LanguageSelector compact />
+            <Link href="/contact" className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface" aria-label={t("nav.getSupport")}>
               <CircleHelp size={19} />
             </Link>
             <Link
               href={isOperational ? "/messages" : "/coach"}
               className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface"
-              aria-label={isOperational ? "Open messages" : "Open coach"}
+              aria-label={isOperational ? t("nav.openMessages") : t("nav.openCoach")}
             >
               <MessageCircle size={19} />
             </Link>
@@ -105,7 +109,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           {isOperational ? (
             <aside className="hidden md:block">
               <AccountBar email={account.email} fullName={account.fullName} roles={account.roles} plan={account.plan} profilePhotoUrl={account.profilePhotoUrl} />
-              <nav aria-label="Role navigation" className="ascend-operational-nav mt-4">
+              <nav aria-label={t("nav.aria.role")} className="ascend-operational-nav mt-4">
                 {items.map((item) => {
                   const Icon = item.icon;
                   const selected = active === item.key;
@@ -127,7 +131,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
           </div>
         </div>
       </div>
-      <nav aria-label="Primary navigation" className="ascend-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-line px-4 pt-2 backdrop-blur md:hidden">
+      <nav aria-label={t("nav.aria.primary")} className="ascend-bottom-nav fixed inset-x-0 bottom-0 z-40 border-t border-line px-4 pt-2 backdrop-blur md:hidden">
         <div className={`mx-auto grid max-w-md gap-2 ${items.length === 1 ? "grid-cols-1" : items.length === 2 ? "grid-cols-2" : items.length === 3 ? "grid-cols-3" : "grid-cols-4"}`}>
           {items.map((item) => {
             const Icon = item.icon;
@@ -152,7 +156,7 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
         <Link
           href="/food-log"
           className="ascend-pressable fixed bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-xl shadow-lime/20 md:bottom-6 md:right-6"
-          aria-label="Log food photo"
+          aria-label={t("nav.logFoodPhoto")}
         >
           <Camera size={24} />
         </Link>

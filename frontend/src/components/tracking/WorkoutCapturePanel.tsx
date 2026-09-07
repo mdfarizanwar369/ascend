@@ -29,6 +29,7 @@ import { inputClass, selectClass } from "@/components/Field";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import { workoutProgressionEnabled } from "@/lib/workoutProgressionFlag";
 import { workoutProgressionV3Enabled } from "@/lib/workoutProgressionV3Flag";
+import { englishMessage } from "@/lib/i18n/static";
 
 type RecentWorkout = Awaited<ReturnType<typeof getRecentDetailedWorkouts>>["workouts"][number];
 type SavedSummary = NonNullable<Awaited<ReturnType<typeof saveCapturedWorkout>>["summary"]>;
@@ -81,8 +82,8 @@ const LOAD_BASIS_LABELS: Record<WorkoutLoadBasis, string> = {
 };
 
 function formatLoad(value: number | null | undefined, unit: "kg" | "lb" | null | undefined, basis: WorkoutLoadBasis | undefined) {
-  if (basis === "bodyweight" && value === null) return "Bodyweight";
-  if (basis === "band" && value === null) return "Resistance band";
+  if (basis === "bodyweight" && value === null) return englishMessage("workout.bodyweight");
+  if (basis === "band" && value === null) return englishMessage("workout.resistanceBand");
   if (value === null || value === undefined) return null;
   const suffix = unit ? ` ${unit}` : "";
   const basisLabel = basis ? LOAD_BASIS_LABELS[basis] : "";
@@ -547,7 +548,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
             }}
             maxLength={5_000}
             rows={5}
-            placeholder={"Bench 60kg 3x10\nLat pulldown 45kg 3x12\n45 minutes total"}
+            placeholder={englishMessage("workout.capturePlaceholder")}
             className="ascend-field mt-2 w-full resize-none rounded-xl border px-3 py-3 text-base leading-6 outline-none focus:border-lime"
           />
           <p className="mt-2 text-xs leading-5 text-zinc-500">Ascend creates a review first. Nothing is saved automatically.</p>
@@ -659,7 +660,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
           type="button"
           onClick={resetCapture}
           disabled={busy}
-          aria-label="Start workout capture again"
+          aria-label={englishMessage("workout.startCaptureAgain")}
           className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line bg-ink text-zinc-300 disabled:opacity-50"
         >
           <RefreshCcw size={18} />

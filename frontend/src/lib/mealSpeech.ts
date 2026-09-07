@@ -2,6 +2,17 @@
 
 import { registerPlugin } from "@capacitor/core";
 import { isNativeAndroidCapacitor } from "./nativePlatform";
+import { messages } from "./i18n/messages";
+
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
 
 export type MealSpeechResult = {
   transcript: string;
@@ -177,16 +188,16 @@ async function prepareBrowserMicrophone() {
   }
 }
 
-export function mealSpeechErrorMessage(error: unknown) {
+export function mealSpeechErrorMessage(error: unknown, t: Translate = english) {
   const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
-  if (code === "permission_denied") return "Microphone access is off. Allow it in your device settings, then try again.";
-  if (code === "no_speech" || code === "no_match") return "I did not catch that meal. Try again and speak naturally.";
-  if (code === "audio_error") return "Your microphone is unavailable right now. Type the meal or try again.";
-  if (code === "network" || code === "network_timeout") return "Speech recognition needs a connection right now. Type the meal or try again.";
-  if (code === "speech_timeout") return "Listening took too long. Nothing was saved, so you can try again or type the meal.";
-  if (code === "busy") return "The microphone is already listening. Wait a moment and try again.";
+  if (code === "permission_denied") return t("mealSpeech.permissionDenied");
+  if (code === "no_speech" || code === "no_match") return t("mealSpeech.noSpeech");
+  if (code === "audio_error") return t("mealSpeech.audioError");
+  if (code === "network" || code === "network_timeout") return t("mealSpeech.network");
+  if (code === "speech_timeout") return t("mealSpeech.timeout");
+  if (code === "busy") return t("mealSpeech.busy");
   if (error instanceof Error && error.message) return error.message;
-  return "I could not understand that meal. Try again or type it instead.";
+  return t("mealSpeech.understandError");
 }
 
 export function isMealSpeechCancellation(error: unknown) {

@@ -6,6 +6,7 @@ import { BackButton } from "@/components/BackButton";
 import { generateWeeklyReport, getCurrentWeeklyReport } from "@/lib/ascendApi";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { SectionShell, SkeletonBlock, SkeletonText } from "@/components/PerceivedLoading";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type WeeklyReport = NonNullable<Awaited<ReturnType<typeof getCurrentWeeklyReport>>["report"]>;
 
@@ -15,6 +16,7 @@ function formatDate(value?: string | null) {
 }
 
 export function WeeklyReportClient() {
+  const { t } = useI18n();
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [status, setStatus] = useState("Loading this week's report...");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -58,7 +60,7 @@ export function WeeklyReportClient() {
               <h1 className="text-2xl font-semibold">Weekly reflection</h1>
             </div>
           </header>
-          <SectionShell title="Weekly Reflection">
+          <SectionShell title={t("weekly.reflectionTitle")}>
             <SkeletonText lines={4} />
             <SkeletonBlock className="mt-4 h-12 w-full rounded-lg" />
           </SectionShell>

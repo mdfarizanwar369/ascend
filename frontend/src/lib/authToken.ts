@@ -1,5 +1,6 @@
 import { onAuthStateChanged, User } from "firebase/auth";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "./firebase";
+import { englishMessage } from "./i18n/static";
 
 let tokenRequest: Promise<string> | null = null;
 let forcedTokenRequest: Promise<string> | null = null;
@@ -23,7 +24,7 @@ async function resolveFirebaseToken(forceRefresh: boolean) {
   await waitForFirebasePersistence();
   const auth = getFirebaseClientAuth();
   const user = auth.currentUser ?? (await waitForFirebaseUser());
-  if (!user) throw new Error("Authentication is still loading. Please wait a moment and try again.");
+  if (!user) throw new Error(englishMessage("auth.stillLoading"));
   if (!forceRefresh && cachedToken && cachedToken.uid === user.uid && Date.now() < cachedToken.expiresAt - 60_000) {
     return cachedToken.token;
   }

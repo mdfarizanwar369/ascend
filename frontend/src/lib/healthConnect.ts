@@ -2,6 +2,7 @@
 
 import { registerPlugin } from "@capacitor/core";
 import { isNativeAndroidCapacitor } from "./nativePlatform";
+import { englishMessage } from "./i18n/static";
 
 export type HealthConnectAvailability =
   | "available"
@@ -59,11 +60,11 @@ export async function getNativeHealthConnectStatus() {
 }
 
 export async function requestNativeHealthConnectPermissions() {
-  if (!canUseHealthConnect()) throw new Error("Health Connect is available only in the Android app.");
+  if (!canUseHealthConnect()) throw new Error(englishMessage("health.healthConnectAndroidOnly"));
   return HealthSync.requestHealthPermissions();
 }
 
 export async function syncNativeHealthConnect() {
-  if (!canUseHealthConnect()) throw new Error("Health Connect is available only in the Android app.");
+  if (!canUseHealthConnect()) throw new Error(englishMessage("health.healthConnectAndroidOnly"));
   return HealthSync.sync();
 }

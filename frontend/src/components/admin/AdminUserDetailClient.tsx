@@ -20,6 +20,7 @@ import {
 } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import {
   AccountDetailsDraft,
   AdminTrainer,
@@ -38,6 +39,7 @@ import {
 
 export function AdminUserDetailClient({ userId }: { userId: string }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [user, setUser] = useState<AdminUser | null>(null);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [gyms, setGyms] = useState<Gym[]>([]);
@@ -100,13 +102,13 @@ export function AdminUserDetailClient({ userId }: { userId: string }) {
   async function changeRole(role: Role) {
     if (!user || role === user.primary_role) return;
     if ((role === "trainer" || role === "owner") && !user.gym_id) {
-      setStatus(`Choose a gym for ${user.full_name} before granting ${formatRole(role)} access.`);
+      setStatus(`Choose a gym for ${user.full_name} before granting ${formatRole(role, t)} access.`);
       return;
     }
-    if (!window.confirm(`Change ${user.full_name}'s role from ${formatRole(user.primary_role)} to ${formatRole(role)}?`)) return;
+    if (!window.confirm(`Change ${user.full_name}'s role from ${formatRole(user.primary_role, t)} to ${formatRole(role, t)}?`)) return;
     await runMutation(
       () => updateAdminUserRole({ userId: user.id, role, gymId: role === "trainer" || role === "owner" ? user.gym_id ?? undefined : undefined }),
-      `${user.full_name} is now ${formatRole(role)}.`
+      `${user.full_name} is now ${formatRole(role, t)}.`
     );
   }
 
@@ -124,10 +126,10 @@ export function AdminUserDetailClient({ userId }: { userId: string }) {
       setStatus(`${user.full_name}'s access is managed by ${user.subscription_provider}. Update it through that billing provider.`);
       return;
     }
-    if (!window.confirm(`Manually change ${user.full_name} from ${formatPlan(user.current_plan)} to ${formatPlan(plan)}?`)) return;
+    if (!window.confirm(`Manually change ${user.full_name} from ${formatPlan(user.current_plan, t)} to ${formatPlan(plan, t)}?`)) return;
     await runMutation(
       () => grantAdminSubscription({ userId: user.id, plan }),
-      `${user.full_name} is now on ${formatPlan(plan)}.`
+      `${user.full_name} is now on ${formatPlan(plan, t)}.`
     );
   }
 
@@ -195,7 +197,7 @@ export function AdminUserDetailClient({ userId }: { userId: string }) {
               <div className="min-w-0">
                 <h2 className="text-base font-semibold">Account</h2>
                 <p className="mt-1 text-sm text-zinc-400">
-                  {formatRole(user.primary_role)} · {user.gym_name ?? "No gym"} · {formatPlan(user.current_plan)}
+                  {formatRole(user.primary_role, t)} · {user.gym_name ?? "No gym"} · {formatPlan(user.current_plan, t)}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
@@ -207,9 +209,9 @@ export function AdminUserDetailClient({ userId }: { userId: string }) {
             </div>
             {user.primary_role === "client" ? (
               <div className="mt-3 rounded-lg bg-ink p-3 text-xs leading-5 text-zinc-400">
-                <p>{referralLabel(user)}</p>
-                <p className="mt-1">{assignmentLabel(user)}</p>
-                <p className="mt-1">{formatCoachingMode(user.coaching_mode, user.assigned_trainer_name)}</p>
+                <p>{referralLabel(user, t)}</p>
+                <p className="mt-1">{assignmentLabel(user, t)}</p>
+                <p className="mt-1">{formatCoachingMode(user.coaching_mode, user.assigned_trainer_name, t)}</p>
               </div>
             ) : null}
           </section>
@@ -243,7 +245,7 @@ export function AdminUserDetailClient({ userId }: { userId: string }) {
               <section className="ascend-workspace-section p-4 sm:p-5">
                 <h2 className="text-base font-semibold">Account details</h2>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label="Full name">
+                  <Field label={t("admin.fullName")}>
                     <input
                       className={inputClass}
                       disabled={saving}
@@ -277,7 +279,7 @@ export function AdminUserDetailClient({ userId }: { userId: string }) {
               <section className="ascend-workspace-section p-4 sm:p-5">
                 <h2 className="text-base font-semibold">Role and coaching</h2>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <Field label="Role">
+                  <Field label={t("admin.role")}>
                     <select
                       className={selectClass}
                       disabled={saving || user.is_platform_owner_account}
@@ -291,7 +293,7 @@ export function AdminUserDetailClient({ userId }: { userId: string }) {
                     </select>
                     {user.is_platform_owner_account ? <p className="mt-1 text-xs leading-5 text-zinc-500">Owner remains the protected primary role; Coach access is added separately.</p> : null}
                   </Field>
-                  <Field label="Trainer">
+                  <Field label={t("common.trainer")}>
                     <select
                       className={selectClass}
                       disabled={user.primary_role !== "client" || saving || (!user.trainer_assignment_eligible && !user.assigned_trainer_id)}

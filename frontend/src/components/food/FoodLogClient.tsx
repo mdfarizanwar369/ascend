@@ -41,6 +41,8 @@ import {
   startMealSpeechRecognition,
   stopMealSpeechRecognition
 } from "@/lib/mealSpeech";
+import { messages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
 type FoodUser = Awaited<ReturnType<typeof getMe>>["user"];
@@ -48,6 +50,7 @@ type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number]
 type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>>["targets"];
 type RangeFilter = "today" | "7d" | "30d" | "all";
 type OrderFilter = "newest" | "oldest";
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 type SavedMealSummary = {
   foodName: string;
   calories: number;
@@ -70,12 +73,20 @@ type FrontendFoodAiTrace = {
   backend?: FoodAiPerformanceReport;
 };
 
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
+
 const frontendFoodAiPerformanceEnabled = process.env.NEXT_PUBLIC_FOOD_AI_PERFORMANCE_LOGS === "true";
-const rangeOptions: Array<{ label: string; value: RangeFilter }> = [
-  { label: "Today", value: "today" },
-  { label: "Last 7 Days", value: "7d" },
-  { label: "Last 30 Days", value: "30d" },
-  { label: "All Time", value: "all" }
+const rangeOptions: Array<{ labelKey: string; value: RangeFilter }> = [
+  { labelKey: "client360.today", value: "today" },
+  { labelKey: "client360.last7Days", value: "7d" },
+  { labelKey: "client360.last30Days", value: "30d" },
+  { labelKey: "food.allTime", value: "all" }
 ];
 
 function asNumber(value: string | number | null | undefined) {
@@ -227,35 +238,35 @@ function shouldRetryEstimate(error: unknown) {
   return true;
 }
 
-function estimateFailureMessage(error: unknown) {
+function estimateFailureMessage(error: unknown, t: Translate = english) {
   if (error instanceof Error && /Premium plan required/i.test(error.message)) {
-    return "Premium access is required for AI food estimates. Ask your trainer or gym owner for approved access, or open plans.";
+    return t("food.aiPremiumRequired");
   }
   if (error instanceof Error && /limit reached/i.test(error.message)) {
     return error.message;
   }
   if (error instanceof Error && /quota|billing|AI provider|temporarily unavailable|timed out|malformed response|empty result|request was rejected/i.test(error.message)) {
-    return "Zoe couldn't estimate this meal reliably from that photo. Try another photo or log it manually.";
+    return t("food.estimateFailure");
   }
-  return "Zoe couldn't estimate this meal reliably from that photo. Try another photo or log it manually.";
+  return t("food.estimateFailure");
 }
 
-function allowanceText(allowance: FoodAiAllowance | null) {
-  if (!allowance) return "Checking AI scan allowance...";
-  if (allowance.limit === null) return "Unlimited owner/admin AI scans";
+function allowanceText(allowance: FoodAiAllowance | null, t: Translate = english) {
+  if (!allowance) return t("food.checkingAllowance");
+  if (allowance.limit === null) return t("food.unlimitedOwnerScans");
   const used = Math.min(allowance.used, allowance.limit);
-  return `${used} / ${allowance.limit} used ${allowance.period === "week" ? "this week" : "today"}`;
+  return t(allowance.period === "week" ? "food.allowanceUsedWeek" : "food.allowanceUsedToday", { used, limit: allowance.limit });
 }
 
-function allowanceHint(allowance: FoodAiAllowance | null) {
-  if (!allowance) return "Your food scan limit will appear here.";
-  if (allowance.limit === null) return "Your scans are still tracked in the owner AI dashboard.";
-  if ((allowance.remaining ?? 0) <= 0) return "You can still save food manually until this allowance resets.";
-  return `${allowance.remaining} AI ${allowance.remaining === 1 ? "scan" : "scans"} remaining.`;
+function allowanceHint(allowance: FoodAiAllowance | null, t: Translate = english) {
+  if (!allowance) return t("food.allowancePlaceholder");
+  if (allowance.limit === null) return t("food.ownerScansTracked");
+  if ((allowance.remaining ?? 0) <= 0) return t("food.manualUntilReset");
+  return t("food.aiScansRemaining", { count: allowance.remaining ?? 0 });
 }
 
-function portionLabel(value: FoodEstimate["visiblePortionLabel"]) {
-  if (!value || value === "unknown") return "Standard estimate";
+function portionLabel(value: FoodEstimate["visiblePortionLabel"], t: Translate = english) {
+  if (!value || value === "unknown") return t("food.standardEstimate");
   return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
@@ -370,11 +381,11 @@ function formatHistoryTime(value: string) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function dateLabel(dateKey: string) {
+function dateLabel(dateKey: string, t: Translate = english) {
   const today = localDateKey();
   const yesterday = localDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  if (dateKey === today) return "Today";
-  if (dateKey === yesterday) return "Yesterday";
+  if (dateKey === today) return t("client360.today");
+  if (dateKey === yesterday) return t("client360.yesterday");
   const date = new Date(`${dateKey}T12:00:00`);
   return Number.isFinite(date.getTime())
     ? date.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" })
@@ -466,6 +477,7 @@ function MacroProgress({ label, value, target, unit = "g" }: { label: string; va
 }
 
 export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "history" }) {
+  const { t } = useI18n();
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
@@ -755,7 +767,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         setWasEdited(true);
         setAiFailed(true);
         setShowEstimateEditor(true);
-        setStatus(estimateFailureMessage(error));
+        setStatus(estimateFailureMessage(error, t));
         loadAllowance().catch(() => {});
         window.setTimeout(() => {
           markFrontendStage(trace, "Result rendered to user", { state: "manual_fallback" });
@@ -836,7 +848,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         setWasEdited(true);
         setAiFailed(true);
         setShowEstimateEditor(true);
-        setStatus(estimateFailureMessage(error));
+        setStatus(estimateFailureMessage(error, t));
         loadAllowance().catch(() => {});
         window.setTimeout(() => {
           markFrontendStage(trace, "Result rendered to user", { state: "manual_fallback" });
@@ -888,7 +900,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setWasEdited(true);
       setAiFailed(true);
       setShowEstimateEditor(true);
-      setStatus(estimateFailureMessage(error));
+      setStatus(estimateFailureMessage(error, t));
       loadAllowance().catch(() => {});
     } finally {
       setIsEstimating(false);
@@ -920,7 +932,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setStatus("Voice description ready. Review it, then analyse your meal.");
     } catch (error) {
       if (mealSpeechRequestRef.current !== requestId || isMealSpeechCancellation(error)) return;
-      setMealSpeechMessage(mealSpeechErrorMessage(error));
+      setMealSpeechMessage(mealSpeechErrorMessage(error, t));
     } finally {
       if (mealSpeechRequestRef.current === requestId) {
         setIsListeningForMeal(false);
@@ -1058,7 +1070,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
   return (
     <main className="ascend-page px-4 py-3 text-white sm:py-5">
       <div className="ascend-member-frame">
-        <TrackingPageHeader eyebrow="Food & nutrition" title={view === "history" ? "Meal history" : "Log a meal"} disabled={isSaving} />
+        <TrackingPageHeader eyebrow={t("food.foodNutrition")} title={view === "history" ? t("food.mealHistory") : t("food.logMeal")} disabled={isSaving} />
 
         <div className="ascend-surface mt-2 grid grid-cols-2 gap-1 p-1">
           <button
@@ -1080,7 +1092,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
         <section className="ascend-surface mt-3 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold">Today's meals</p>
+              <p className="text-sm font-semibold">{t("food.todaysMeals")}</p>
               <p className="mt-1 text-sm text-zinc-400">
                 {todaysFoodLogs.length ? `${todaysFoodLogs.length} meals logged` : "Your first meal today will appear here."}
               </p>
@@ -1098,7 +1110,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2">
             <div className="ascend-inset p-2.5">
-              <p className="text-[10px] uppercase text-zinc-500">Protein</p>
+              <p className="text-[10px] uppercase text-zinc-500">{t("client360.protein")}</p>
               <p className="mt-1 text-sm font-semibold">{Math.round(todaysTotals.proteinG)} / {effectiveNutritionTargets.proteinTargetG}g</p>
             </div>
             <div className="ascend-inset p-2.5">
@@ -1137,7 +1149,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                         onClick={() => handleDeleteFoodLog(log)}
                         className="ascend-pressable absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full border border-white/20 bg-black/65 text-white backdrop-blur-sm disabled:opacity-60"
                         aria-label={`Remove ${log.estimated_food_name}`}
-                        title="Remove meal"
+                        title={t("food.removeMeal")}
                       >
                         <Trash2 size={17} />
                       </button>
@@ -1179,7 +1191,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                           onClick={() => handleDeleteFoodLog(log)}
                           className="ascend-pressable grid h-11 w-11 place-items-center rounded-xl border border-red-400/30 bg-red-500/10 text-red-300 disabled:opacity-60"
                           aria-label={`Remove ${log.estimated_food_name}`}
-                          title="Remove meal"
+                          title={t("food.removeMeal")}
                         >
                           <Trash2 size={17} />
                         </button>
@@ -1218,7 +1230,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                       historyRange === option.value ? "border-lime bg-lime text-ink" : "border-line bg-ink text-zinc-300"
                     }`}
                   >
-                    {option.label}
+                    {t(option.labelKey)}
                   </button>
                 ))}
               </div>
@@ -1238,7 +1250,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 <article key={day.dateKey} className="ascend-surface p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h2 className="text-lg font-semibold">{dateLabel(day.dateKey)}</h2>
+                      <h2 className="text-lg font-semibold">{dateLabel(day.dateKey, t)}</h2>
                       <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                         day.status.tone === "success"
                           ? "bg-lime text-ink"
@@ -1328,8 +1340,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 <article>
                   <DelightEmptyState
                     tone="teal"
-                    title="Your meal story starts with one photo."
-                    body="No meals match this view yet. Try another range or log your next meal when you're ready."
+                    title={t("food.mealStoryStarts")}
+                    body={t("food.noMealsMatch")}
                     action={
                       <button
                         type="button"
@@ -1402,7 +1414,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
             <p className="mt-4 text-sm leading-6 text-zinc-300">Your daily progress has been updated.</p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <Link href="/dashboard" className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-lime/30 bg-ink font-semibold text-lime">
-                Back to Today
+                {t("food.backToToday")}
               </Link>
               <button type="button" onClick={() => setView("history")} className="ascend-pressable h-12 rounded-xl border border-line bg-ink font-semibold text-white">
                 Meal history
@@ -1454,7 +1466,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   <p className="text-sm font-semibold text-white">AI meal estimate</p>
                   <p className="mt-1 text-xs text-zinc-500">{allowance?.label ?? "Food photo analysis"}</p>
                 </div>
-                <span className="rounded-full border border-lime/30 bg-lime/10 px-3 py-1 text-xs font-semibold text-lime">{allowanceText(allowance)}</span>
+                <span className="rounded-full border border-lime/30 bg-lime/10 px-3 py-1 text-xs font-semibold text-lime">{allowanceText(allowance, t)}</span>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1505,7 +1517,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                     disabled={isEstimating || isSaving}
                     rows={2}
                     className="mt-3 w-full resize-none rounded-xl border border-line bg-surface px-4 py-3 text-base text-white outline-none transition focus:border-lime disabled:opacity-60"
-                    placeholder="Chicken rice, protein shake..."
+                    placeholder={t("food.manualMealPlaceholder")}
                   />
                   {mealSpeechMessage ? (
                     <div className="mt-2" aria-live="polite">
@@ -1575,8 +1587,8 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               </div>
 
               <div className="ascend-inset mt-5 space-y-4 p-4">
-                <MacroProgress label="Protein" value={estimate.proteinG} target={effectiveNutritionTargets.proteinTargetG} />
-                <MacroProgress label="Carbohydrates" value={estimate.carbsG} target={effectiveNutritionTargets.carbsTargetG} />
+                <MacroProgress label={t("client360.protein")} value={estimate.proteinG} target={effectiveNutritionTargets.proteinTargetG} />
+                <MacroProgress label={t("trainer.carbohydrates")} value={estimate.carbsG} target={effectiveNutritionTargets.carbsTargetG} />
                 <MacroProgress label="Fat" value={estimate.fatG} target={effectiveNutritionTargets.fatTargetG} />
               </div>
 
@@ -1585,7 +1597,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Zoe analysed your meal</p>
-                      <p className="mt-2 text-sm font-semibold text-white">Estimated portion: {portionLabel(portionAwareEstimate.visiblePortionLabel)}</p>
+                      <p className="mt-2 text-sm font-semibold text-white">{t("food.estimatedPortion", { portion: portionLabel(portionAwareEstimate.visiblePortionLabel, t) })}</p>
                       <p className="mt-1 text-xs text-zinc-500">Estimated from your photo, not measured.</p>
                     </div>
                     {portionAwareEstimate.portionFallback ? (

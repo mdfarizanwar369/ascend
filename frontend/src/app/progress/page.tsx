@@ -3,7 +3,7 @@ import { PlanGate } from "@/components/PlanGate";
 
 export default function ProgressPage() {
   return (
-    <PlanGate requiredPlan="premium" feature="Progress photos">
+    <PlanGate requiredPlan="premium" featureKey="premium.progressPhotos">
       <ProgressPhotosClient />
     </PlanGate>
   );

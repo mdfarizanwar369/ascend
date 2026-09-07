@@ -1,6 +1,7 @@
 "use client";
 
 import { disconnectHealthSync, getHealthSyncStatus, importHealthSync } from "./ascendApi";
+import { englishMessage } from "./i18n/static";
 import {
   canUseHealthConnect,
   getNativeHealthConnectStatus,
@@ -12,15 +13,15 @@ export async function runHealthConnectSync(options: { interactive?: boolean } = 
   const interactive = options.interactive ?? true;
   const nativeStatus = await getNativeHealthConnectStatus();
   if (!nativeStatus.available) {
-    throw new Error("Health Connect is not available on this Android device.");
+    throw new Error(englishMessage("health.deviceUnavailable"));
   }
   if (!nativeStatus.allPermissionsGranted) {
     if (!interactive) {
-      throw new Error("Health Connect permissions are not currently granted.");
+      throw new Error(englishMessage("health.permissionsNotGranted"));
     }
     const requested = await requestNativeHealthConnectPermissions();
     if (!requested.allPermissionsGranted) {
-      throw new Error("Health Connect permissions were not fully granted.");
+      throw new Error(englishMessage("health.permissionsIncomplete"));
     }
   }
   const nativeSync = await syncNativeHealthConnect();

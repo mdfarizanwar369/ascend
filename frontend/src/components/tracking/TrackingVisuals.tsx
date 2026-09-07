@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LucideIcon } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { DelightProgressBar } from "@/components/Delight";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const toneClasses = {
   teal: "border-calm/30 bg-[linear-gradient(145deg,rgba(61,230,209,0.10),rgba(18,23,33,0.98)_56%,rgba(139,92,246,0.07))]",
@@ -86,14 +87,16 @@ export function TrackingStatus({
   message,
   success = false,
   actionHref,
-  actionLabel = "Back to Today"
+  actionLabel
 }: {
   message: string;
   success?: boolean;
   actionHref?: string;
   actionLabel?: string;
 }) {
+  const { t } = useI18n();
   if (!message) return null;
+  const resolvedActionLabel = actionLabel ?? t("tracking.backToToday");
   return (
     <div
       role="status"
@@ -105,7 +108,7 @@ export function TrackingStatus({
         <p className="min-w-0 flex-1">{message}</p>
         {success && actionHref ? (
           <Link href={actionHref} className="ascend-pressable inline-flex min-h-11 shrink-0 items-center rounded-lg border border-lime/30 bg-ink/70 px-3 text-xs font-semibold text-lime">
-            {actionLabel}
+            {resolvedActionLabel}
           </Link>
         ) : null}
       </div>

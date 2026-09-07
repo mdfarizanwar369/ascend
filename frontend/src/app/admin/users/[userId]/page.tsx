@@ -9,8 +9,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
     <AppShell active="admin">
       <RoleGate
         allowedRoles={["admin", "owner"]}
-        fallbackTitle="Business access only"
-        fallbackMessage="This account cannot manage users. Use an owner or admin login."
+        fallbackTitleKey="access.businessOnly"
+        fallbackMessageKey="access.businessUsersDenied"
       >
         <AdminUserDetailClient userId={userId} />
       </RoleGate>

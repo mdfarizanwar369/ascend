@@ -32,6 +32,7 @@ import { recordAscendStoryEvent } from "@/lib/ascendStoryAnalytics";
 import { renderAscendStory } from "@/lib/ascendStoryRenderer";
 import { prepareStoryPhotos } from "@/lib/ascendStoryPhotoSource";
 import { saveAscendStory, shareAscendStory } from "@/lib/ascendStoryShare";
+import { englishMessage } from "@/lib/i18n/static";
 
 type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhotos"][number];
 
@@ -54,7 +55,7 @@ function photoTransform(crop: AscendStoryCrop): CSSProperties {
 
 function readableErrorMessage(error: unknown) {
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") return error.message;
-  return "Could not prepare your story. Please try again.";
+  return englishMessage("stories.prepareStoryError");
 }
 
 function useReducedMotion() {
@@ -71,7 +72,7 @@ function useReducedMotion() {
 
 async function loadStoryContext(photos: ProgressPhoto[]): Promise<AscendStoryContext> {
   const available = photos.map(storyPhoto).filter((photo): photo is AscendStoryPhoto => Boolean(photo));
-  if (!available.length) throw new Error("Add a progress photo before creating a story.");
+  if (!available.length) throw new Error(englishMessage("stories.addPhotoBeforeStory"));
   const sorted = [...available].sort((left, right) => new Date(left.loggedAt).getTime() - new Date(right.loggedAt).getTime());
   const latestPhoto = sorted[sorted.length - 1];
   const matchingAngle = sorted.filter((photo) => photo.photoType === latestPhoto.photoType);
@@ -259,7 +260,7 @@ export function AscendStoriesComposer({ photos, onClose }: { photos: ProgressPho
         setStatus("Your photos stay on this device while the story is created.");
         recordAscendStoryEvent("ascend_story_opened");
       })
-      .catch((error) => mounted && setStatus(error instanceof Error ? error.message : "Could not prepare your story."));
+      .catch((error) => mounted && setStatus(error instanceof Error ? error.message : englishMessage("stories.prepareStoryShortError")));
     return () => { mounted = false; };
   }, [photos]);
 
@@ -458,7 +459,7 @@ export function AscendStoriesComposer({ photos, onClose }: { photos: ProgressPho
             {showCrop ? (
               <section className="ascend-surface mt-4 space-y-3 p-4">
                 <CropControls label={draft.format === "then-now" ? "Earlier photo" : "Photo position"} crop={draft.format === "then-now" ? draft.firstCrop : draft.latestCrop} onChange={(crop) => setDraft(draft.format === "then-now" ? { ...draft, firstCrop: crop } : { ...draft, latestCrop: crop })} />
-                {draft.format === "then-now" ? <CropControls label="Latest photo" crop={draft.latestCrop} onChange={(crop) => setDraft({ ...draft, latestCrop: crop })} /> : null}
+                {draft.format === "then-now" ? <CropControls label={englishMessage("stories.latestPhoto")} crop={draft.latestCrop} onChange={(crop) => setDraft({ ...draft, latestCrop: crop })} /> : null}
               </section>
             ) : null}
 

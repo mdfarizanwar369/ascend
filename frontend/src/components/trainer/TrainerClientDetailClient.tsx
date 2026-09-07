@@ -57,6 +57,7 @@ import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { buildCoachingTimelineGroups, CoachingTimelineGroups } from "@/components/trainer/TrainerCoachingTimeline";
 import { TrainerHomeworkPanel } from "@/components/trainer/TrainerHomeworkPanel";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -70,12 +71,14 @@ type WeeklyReport = Awaited<ReturnType<typeof getTrainerClientWeeklyReport>>["re
 type ProgressComparison = Awaited<ReturnType<typeof getTrainerClientProgressComparison>>["comparison"];
 type CoachNutritionPlan = Awaited<ReturnType<typeof getTrainerClientNutritionPlan>>["coachPlan"];
 
-function formatGoal(goal?: string | null) {
-  if (goal === "fat_loss") return "Fat loss";
-  if (goal === "muscle_gain") return "Muscle gain";
-  if (goal === "maintenance") return "Maintenance";
-  if (goal === "performance") return "Performance";
-  return "Goal not set";
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function formatGoal(goal: string | null | undefined, t: Translate) {
+  if (goal === "fat_loss") return t("onboarding.goalFatLoss");
+  if (goal === "muscle_gain") return t("onboarding.goalMuscleGain");
+  if (goal === "maintenance") return t("onboarding.goalMaintenance");
+  if (goal === "performance") return t("onboarding.goalPerformance");
+  return t("trainer.goalNotShared");
 }
 
 function asNumber(value: string | number | null | undefined) {
@@ -83,17 +86,17 @@ function asNumber(value: string | number | null | undefined) {
   return Number(value);
 }
 
-function formatShortDate(value?: string | null) {
-  if (!value) return "Not yet";
+function formatShortDate(value: string | null | undefined, t: Translate) {
+  if (!value) return t("trainer.notYet");
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "Not yet";
+  if (!Number.isFinite(date.getTime())) return t("trainer.notYet");
   return date.toLocaleDateString([], { day: "numeric", month: "short" });
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return "Not yet";
+function formatDateTime(value: string | null | undefined, t: Translate) {
+  if (!value) return t("trainer.notYet");
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "Not yet";
+  if (!Number.isFinite(date.getTime())) return t("trainer.notYet");
   return date.toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
@@ -101,8 +104,8 @@ function isToday(value?: string | null) {
   return value ? localDateKey(value) === localDateKey() : false;
 }
 
-function titleCase(value?: string | null) {
-  if (!value) return "Not set";
+function titleCase(value: string | null | undefined, t: Translate) {
+  if (!value) return t("trainer.notSet");
   return value
     .replace(/[_-]/g, " ")
     .split(" ")
@@ -111,8 +114,8 @@ function titleCase(value?: string | null) {
     .join(" ");
 }
 
-function workoutName(log?: BurnLog | null) {
-  return log?.metadata?.workoutTitle ?? log?.metadata?.activityType ?? "Workout";
+function workoutName(log: BurnLog | null | undefined, t: Translate) {
+  return log?.metadata?.workoutTitle ?? log?.metadata?.activityType ?? t("trainer.workout");
 }
 
 function workoutCalories(log?: BurnLog | null) {
@@ -231,38 +234,38 @@ function HandoverItem({ icon, label, value }: { icon: ReactNode; label: string; 
   );
 }
 
-function WorkoutDetail({ workout }: { workout: BurnLog }) {
+function WorkoutDetail({ workout, t }: { workout: BurnLog; t: Translate }) {
   const exercises = workout.metadata?.exercises ?? [];
   return (
     <div className="mt-4 rounded-2xl border border-purple-300/20 bg-ink/80 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">Saved Workout</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">{workoutName(workout)}</h3>
-          <p className="mt-1 text-sm text-zinc-400">Workout Completed / {formatDateTime(workout.created_at)}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">{t("trainer.savedWorkout")}</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">{workoutName(workout, t)}</h3>
+          <p className="mt-1 text-sm text-zinc-400">{t("trainer.workoutCompletedAt", { date: formatDateTime(workout.created_at, t) })}</p>
         </div>
-        <span className="rounded-full bg-lime px-3 py-1 text-xs font-bold text-ink">Completed</span>
+        <span className="rounded-full bg-lime px-3 py-1 text-xs font-bold text-ink">{t("common.completed")}</span>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <MetricTile label="Duration" value={`${Number(workout.metadata?.durationMinutes ?? 0) || "--"} min`} />
-        <MetricTile label="Focus" value={titleCase(workout.metadata?.workoutType ?? workout.metadata?.activityType)} />
-        <MetricTile label="Difficulty" value={titleCase(workout.metadata?.workoutDifficultyLabel ?? workout.metadata?.workoutDifficulty)} />
-        <MetricTile label="Estimated burn" value={`~${workoutCalories(workout)} kcal`} />
+        <MetricTile label={t("trainer.duration")} value={`${Number(workout.metadata?.durationMinutes ?? 0) || "--"} min`} />
+        <MetricTile label={t("trainer.focus")} value={titleCase(workout.metadata?.workoutType ?? workout.metadata?.activityType, t)} />
+        <MetricTile label={t("trainer.difficulty")} value={titleCase(workout.metadata?.workoutDifficultyLabel ?? workout.metadata?.workoutDifficulty, t)} />
+        <MetricTile label={t("trainer.estimatedBurn")} value={`~${workoutCalories(workout)} kcal`} />
       </div>
 
       {exercises.length ? (
         <div className="mt-4 space-y-2">
-          <p className="text-sm font-semibold text-white">Exercises</p>
+          <p className="text-sm font-semibold text-white">{t("trainer.exercises")}</p>
           {exercises.map((exercise, index) => (
             <article key={`${exercise.name ?? "exercise"}-${index}`} className="rounded-2xl border border-white/5 bg-surface p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-semibold text-white">{exercise.name ?? `Exercise ${index + 1}`}</p>
+                  <p className="font-semibold text-white">{exercise.name ?? t("trainer.exerciseNumber", { number: index + 1 })}</p>
                   <p className="mt-1 text-sm text-zinc-400">
-                    {[exercise.sets ? `${exercise.sets} sets` : null, exercise.reps ? `${exercise.reps} reps` : null, exercise.duration, exercise.rest ? `${exercise.rest} rest` : null]
+                    {[exercise.sets ? t("trainer.setsCount", { count: exercise.sets }) : null, exercise.reps ? t("trainer.repsCount", { count: exercise.reps }) : null, exercise.duration, exercise.rest ? t("trainer.restValue", { value: exercise.rest }) : null]
                       .filter(Boolean)
-                      .join(" / ") || "Coach Zoe workout item"}
+                      .join(" / ") || t("trainer.coachZoeWorkoutItem")}
                   </p>
                   {exercise.note ? <p className="mt-2 text-xs leading-5 text-zinc-500">{exercise.note}</p> : null}
                 </div>
@@ -289,6 +292,7 @@ function WorkoutDetail({ workout }: { workout: BurnLog }) {
 }
 
 export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
+  const { t } = useI18n();
   const sessionCaptureEnabled = trainerSessionCaptureEnabled();
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -318,7 +322,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const [missionTitle, setMissionTitle] = useState("");
   const [missionDueDate, setMissionDueDate] = useState("");
   const [checkin, setCheckin] = useState("");
-  const [status, setStatus] = useState("Loading client handover...");
+  const [status, setStatus] = useState(t("common.loading"));
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [isSavingMission, setIsSavingMission] = useState(false);
@@ -358,10 +362,10 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         if (presence.status === "fulfilled") setCoachPresence(presence.value);
 
         if ([foods, nextMessages, weights, waters, burns, nextMissions, presence].some((result) => result.status === "rejected")) {
-          setStatus("Some client sections could not load yet. The main handover is still available.");
+          setStatus(t("trainer.loadClientPartial"));
         }
       } catch (error) {
-        if (isMounted) setStatus(error instanceof Error ? error.message : "Could not load this client.");
+        if (isMounted) setStatus(error instanceof Error ? error.message : t("trainer.loadClientError"));
       }
     }
 
@@ -369,7 +373,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     return () => {
       isMounted = false;
     };
-  }, [clientId]);
+  }, [clientId, t]);
 
   const loadSection = useCallback(async (section: "messages" | "progress" | "memory" | "weekly" | "nutrition") => {
     if (loadedSections.current.has(section)) return;
@@ -403,9 +407,9 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       }
     } catch {
       loadedSections.current.delete(section);
-      setStatus(`Could not load ${section} details yet. The rest of the client profile is still available.`);
+      setStatus(t("trainer.loadSectionError", { section }));
     }
-  }, [clientId]);
+  }, [clientId, t]);
   const openMessages = useCallback(() => loadSection("messages"), [loadSection]);
   const openProgress = useCallback(() => loadSection("progress"), [loadSection]);
   const openMemory = useCallback(() => loadSection("memory"), [loadSection]);
@@ -413,10 +417,10 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   const openNutrition = useCallback(() => loadSection("nutrition"), [loadSection]);
 
   useEffect(() => {
-    if (!status || status.startsWith("Loading") || status.startsWith("Pausing") || status.startsWith("Resuming")) return;
+    if (!status || status === t("common.loading") || status === t("trainer.pauseZoe") || status === t("trainer.resumeZoe")) return;
     const timeout = window.setTimeout(() => setStatus(""), 6000);
     return () => window.clearTimeout(timeout);
-  }, [status]);
+  }, [status, t]);
 
   const today = useMemo(() => localDateKey(), []);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
@@ -498,14 +502,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
   const suggestedDiscussion = useMemo(() => {
     if (todaysWorkout && todaysNutrition.proteinG < effectiveProteinTarget * 0.6) {
-      return "Review recovery from today's workout and agree on one high-protein meal.";
+      return t("trainer.discussionRecoveryProtein");
     }
-    if ((score ?? 100) < 50) return "Keep the next conversation simple: one supportive check-in and one achievable action.";
-    if (!todaysFood.length && new Date().getHours() >= 14) return "Ask what made food logging difficult today and remove one friction point.";
-    if (weightDelta > 0.5 && client?.goal_type === "fat_loss") return "Review the weight trend and compare it with recent food consistency.";
-    if (todaysWorkout) return "Celebrate the completed workout, then align recovery, water, and protein.";
-    return "Reinforce the strongest consistent behaviour and choose one focus for the next session.";
-  }, [client?.goal_type, effectiveProteinTarget, score, todaysFood.length, todaysNutrition.proteinG, todaysWorkout, weightDelta]);
+    if ((score ?? 100) < 50) return t("trainer.discussionSimpleCheckin");
+    if (!todaysFood.length && new Date().getHours() >= 14) return t("trainer.discussionFoodLogging");
+    if (weightDelta > 0.5 && client?.goal_type === "fat_loss") return t("trainer.discussionWeightTrend");
+    if (todaysWorkout) return t("trainer.discussionWorkoutRecovery");
+    return t("trainer.discussionConsistentBehaviour");
+  }, [client?.goal_type, effectiveProteinTarget, score, t, todaysFood.length, todaysNutrition.proteinG, todaysWorkout, weightDelta]);
 
   useEffect(() => {
     if (coachNutritionPlan) return;
@@ -524,7 +528,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       const response = await createWeeklyCheckin(clientId);
       setCheckin(response.summary);
     } catch {
-      setCheckin("Could not generate the coach draft yet. Try again when the AI provider is available.");
+      setCheckin(t("client360.zoeUnavailable"));
     } finally {
       setIsGenerating(false);
     }
@@ -542,10 +546,10 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       const response = await sendTrainerClientMessage(clientId, trimmed);
       setMessages((current) => [...current, response.message]);
       setClient((current) => (current ? { ...current, last_trainer_message_at: response.message.created_at } : current));
-      setStatus("Check-in sent.");
+      setStatus(t("trainer.checkInSent"));
     } catch {
       setMessageBody(trimmed);
-      setStatus("Could not send message. Make sure this client is assigned to this trainer.");
+      setStatus(t("trainer.messageError"));
     } finally {
       setIsSendingMessage(false);
     }
@@ -568,9 +572,9 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       setMissions((current) => [response.mission, ...current]);
       setMissionTitle("");
       setMissionDueDate("");
-      setStatus("Mission assigned.");
+      setStatus(t("trainer.missionAssigned"));
     } catch {
-      setStatus("Could not assign mission. Make sure this client is assigned to this trainer.");
+      setStatus(t("trainer.missionError"));
     } finally {
       setIsSavingMission(false);
     }
@@ -582,9 +586,9 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
     try {
       await sendTrainerClientPraise(clientId);
-      setStatus("Praise sent. The client will see it on their dashboard.");
+      setStatus(t("trainer.praiseSent"));
     } catch {
-      setStatus("Could not send praise yet. Make sure this client is assigned to this trainer.");
+      setStatus(t("trainer.praiseError"));
     } finally {
       setIsSendingPraise(false);
     }
@@ -598,12 +602,12 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
     const fatG = Number(nutritionFat);
 
     if (![calories, proteinG, carbsG, fatG].every((value) => Number.isFinite(value) && value >= 0)) {
-      setNutritionStatus("Enter valid numbers for calories, protein, carbs, and fat.");
+      setNutritionStatus(t("trainer.nutritionNumberError"));
       return;
     }
 
     setIsSavingNutrition(true);
-    setNutritionStatus("Saving coach plan...");
+    setNutritionStatus(t("trainer.savingCoachPlan"));
     try {
       const response = await saveTrainerClientNutritionPlan(clientId, {
         calories,
@@ -614,23 +618,23 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         coachNote: nutritionNote || null
       });
       setCoachNutritionPlan(response.coachPlan);
-      setNutritionStatus("Coach plan saved. The client will see your targets.");
+      setNutritionStatus(t("trainer.coachPlanSaved"));
     } catch (error) {
-      setNutritionStatus(error instanceof Error ? error.message : "Could not save coach plan.");
+      setNutritionStatus(error instanceof Error ? error.message : t("trainer.coachPlanError"));
     } finally {
       setIsSavingNutrition(false);
     }
   }
 
   async function setCoachPresencePause(pauseHours: number | null) {
-    setStatus(pauseHours ? "Pausing proactive Zoe insights..." : "Resuming proactive Zoe insights...");
+    setStatus(pauseHours ? t("trainer.pauseZoe") : t("trainer.resumeZoe"));
     try {
       await pauseTrainerClientCoachPresence(clientId, pauseHours);
       const response = await getTrainerClientCoachPresence(clientId);
       setCoachPresence(response);
-      setStatus(pauseHours ? "Proactive Zoe insights paused for this client." : "Proactive Zoe insights resumed for this client.");
+      setStatus(pauseHours ? t("trainer.zoePaused") : t("trainer.zoeResumed"));
     } catch {
-      setStatus("Could not update proactive Zoe insights for this client yet.");
+      setStatus(t("trainer.zoeUpdateError"));
     }
   }
 
@@ -643,30 +647,30 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         <div className="flex items-center gap-3">
           <ProfileAvatar src={client?.profile_photo_url} name={client?.full_name} size="md" />
           <div className="min-w-0">
-            <p className="text-sm text-zinc-400">Client profile</p>
-            <h1 className="mt-1 truncate text-2xl font-semibold">{client?.full_name ?? "Client"}</h1>
-            <p className="mt-1 text-sm text-zinc-400">{formatGoal(client?.goal_type)} / {client?.gym_name ?? "Gym not set"}</p>
+            <p className="text-sm text-zinc-400">{t("trainer.clientProfile")}</p>
+            <h1 className="mt-1 truncate text-2xl font-semibold">{client?.full_name ?? t("trainer.client")}</h1>
+            <p className="mt-1 text-sm text-zinc-400">{formatGoal(client?.goal_type, t)} / {client?.gym_name ?? t("trainer.gymNotSet")}</p>
           </div>
         </div>
         {client?.goal_achieved_at ? (
           <p className="mt-3 rounded-2xl border border-lime/40 bg-lime/10 p-3 text-sm font-semibold text-lime">
-            Goal achieved. This is a great moment to celebrate and agree on the next goal.
+            {t("trainer.goalAchievedDetail")}
           </p>
         ) : client?.goal_updated_at ? (
-          <p className="mt-3 text-xs text-zinc-500">Goal last updated {new Date(client.goal_updated_at).toLocaleDateString()}</p>
+          <p className="mt-3 text-xs text-zinc-500">{t("trainer.goalLastUpdated", { date: new Date(client.goal_updated_at).toLocaleDateString() })}</p>
         ) : null}
         {client?.id ? (
           <div className="mt-4 grid grid-cols-3 gap-2">
             {sessionCaptureEnabled ? (
               <Link href={`/trainer/clients/${client.id}/session`} className="col-span-3 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-bold text-ink">
-                <Dumbbell size={19} /> Record PT Session
+                <Dumbbell size={19} /> {t("trainer.recordPtSession")}
               </Link>
             ) : null}
             <Link
               href={`/messages?userId=${client.id}`}
               className="flex h-12 items-center justify-center rounded-2xl bg-lime font-semibold text-ink"
             >
-              Open chat
+              {t("trainer.openChat")}
             </Link>
             <button
               type="button"
@@ -674,7 +678,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               onClick={handleSendPraise}
               className="col-span-2 h-12 rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
             >
-              {isSendingPraise ? "Sending..." : "Send praise"}
+              {isSendingPraise ? t("trainer.sending") : t("trainer.sendPraise")}
             </button>
           </div>
         ) : null}
@@ -692,59 +696,59 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             <Brain size={24} />
           </span>
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">Coach Zoe Handover</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">{recentCoachedSession ? "Since your last coaching session" : "Recent client activity"}</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-purple-200">{t("trainer.handover")}</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{recentCoachedSession ? t("trainer.sinceSession") : t("trainer.recentActivity")}</h2>
             <p className="mt-2 text-sm leading-6 text-zinc-300">
-              {recentCoachedSession ? "The time between sessions, summarized so you know what to discuss next." : "A focused seven-day summary to prepare your next conversation."}
+              {recentCoachedSession ? t("trainer.sinceSessionBody") : t("trainer.recentActivityBody")}
             </p>
           </div>
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <HandoverItem icon={<Dumbbell size={18} />} label={recentCoachedSession ? "workouts since session" : "workouts in 7 days"} value={String(workoutsSinceHandover.length)} />
-          <HandoverItem icon={<Utensils size={18} />} label={recentCoachedSession ? "meals since session" : "food logs in 7 days"} value={String(foodLogsSinceHandover.length)} />
-          <HandoverItem icon={<Sparkles size={18} />} label="today's insight" value={todaysCoachInsight ? "Delivered" : "Not yet"} />
-          <HandoverItem icon={<Zap size={18} />} label="momentum" value={score === null || score === undefined ? "--" : `${score}/100`} />
+          <HandoverItem icon={<Dumbbell size={18} />} label={recentCoachedSession ? t("trainer.workoutsSinceSession") : t("trainer.workouts7d")} value={String(workoutsSinceHandover.length)} />
+          <HandoverItem icon={<Utensils size={18} />} label={recentCoachedSession ? t("trainer.mealsSinceSession") : t("trainer.foodLogs7d")} value={String(foodLogsSinceHandover.length)} />
+          <HandoverItem icon={<Sparkles size={18} />} label={t("trainer.todaysInsight")} value={todaysCoachInsight ? t("trainer.delivered") : t("trainer.notYet")} />
+          <HandoverItem icon={<Zap size={18} />} label={t("trainer.momentum")} value={score === null || score === undefined ? "--" : `${score}/100`} />
         </div>
 
         <div className="mt-4 rounded-2xl border border-white/10 bg-ink/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">Suggested discussion</p>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">{t("trainer.suggestedDiscussion")}</p>
           <p className="mt-2 text-sm leading-6 text-zinc-200">{suggestedDiscussion}</p>
         </div>
       </section>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <SectionCard
-          eyebrow="Today's Insight"
-          title={todaysCoachInsight ? "What the client saw today" : "No insight delivered today"}
+          eyebrow={t("trainer.todaysInsightTitle")}
+          title={todaysCoachInsight ? t("trainer.whatClientSaw") : t("trainer.noInsightToday")}
           tone="zoe"
           action={<Sparkles className="text-purple-200" size={22} />}
         >
           <p className="mt-3 rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-200">
-            {todaysCoachInsight?.message ?? "Coach Zoe has not delivered a new insight today. Use the latest activity below for context."}
+            {todaysCoachInsight?.message ?? t("trainer.noInsightTodayBody")}
           </p>
         </SectionCard>
 
         <SectionCard
-          eyebrow={latestWorkoutIsCoached ? "Coached Session" : latestWorkoutIsZoe ? "Coach Zoe Workout" : "Logged Workout"}
-          title={latestWorkout ? workoutName(latestWorkout) : "No saved workout yet"}
+          eyebrow={latestWorkoutIsCoached ? t("trainer.coachedSession") : latestWorkoutIsZoe ? t("trainer.coachZoeWorkout") : t("trainer.loggedWorkout")}
+          title={latestWorkout ? workoutName(latestWorkout, t) : t("trainer.noSavedWorkout")}
           tone={latestWorkout ? "success" : "default"}
           action={<Dumbbell className="text-lime" size={22} />}
         >
           {latestWorkout ? (
             <>
               <div className="mt-4 grid grid-cols-2 gap-2">
-                <MetricTile label="Status" value="Completed" detail={formatDateTime(latestWorkout.created_at)} />
-                <MetricTile label="Duration" value={`${Number(latestWorkout.metadata?.durationMinutes ?? 0) || "--"} min`} />
-                <MetricTile label="Difficulty" value={titleCase(latestWorkout.metadata?.workoutDifficultyLabel ?? latestWorkout.metadata?.workoutDifficulty)} />
-                <MetricTile label="Estimated burn" value={`~${workoutCalories(latestWorkout)} kcal`} />
+                <MetricTile label={t("trainer.status")} value={t("common.completed")} detail={formatDateTime(latestWorkout.created_at, t)} />
+                <MetricTile label={t("trainer.duration")} value={`${Number(latestWorkout.metadata?.durationMinutes ?? 0) || "--"} min`} />
+                <MetricTile label={t("trainer.difficulty")} value={titleCase(latestWorkout.metadata?.workoutDifficultyLabel ?? latestWorkout.metadata?.workoutDifficulty, t)} />
+                <MetricTile label={t("trainer.estimatedBurn")} value={`~${workoutCalories(latestWorkout)} kcal`} />
               </div>
               <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-ink/70 p-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Momentum earned</p>
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{t("trainer.momentumEarned")}</p>
                   <p className="mt-1 text-lg font-semibold text-lime">
                     {latestWorkout.metadata?.momentumEarned === null || latestWorkout.metadata?.momentumEarned === undefined
-                      ? "Not recorded"
+                      ? t("trainer.notRecorded")
                       : `+${Number(latestWorkout.metadata.momentumEarned)}`}
                   </p>
                 </div>
@@ -753,14 +757,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
                   onClick={() => setShowWorkout((current) => !current)}
                   className="rounded-2xl bg-lime px-4 py-3 text-sm font-bold text-ink"
                 >
-                  {showWorkout ? "Hide Workout" : "View Workout"}
+                  {showWorkout ? t("trainer.hideWorkout") : t("trainer.viewWorkout")}
                 </button>
               </div>
-              {showWorkout ? <WorkoutDetail workout={latestWorkout} /> : null}
+              {showWorkout ? <WorkoutDetail workout={latestWorkout} t={t} /> : null}
             </>
           ) : (
             <p className="mt-3 rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
-              Completed Coach Zoe workouts, coached sessions, and detailed client workouts will appear here.
+              {t("trainer.noWorkoutDetail")}
             </p>
           )}
         </SectionCard>
@@ -768,8 +772,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
       <CollapsibleSection
         storageKey={`${clientId}:homework`}
-        title="Coach Homework"
-        preview="Create or review a workout for this client"
+        title={t("trainer.coachHomework")}
+        preview={t("trainer.coachHomeworkPreview")}
         icon={<ClipboardList size={20} />}
       >
         <TrainerHomeworkPanel clientId={clientId} />
@@ -779,49 +783,49 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
       <CollapsibleSection
         storageKey={`${clientId}:timeline`}
-        title="Coaching Timeline"
-        preview={timelineGroups.length ? `${timelineGroups.length} recent days summarized` : "Recent activity will be summarized here"}
+        title={t("trainer.coachingTimeline")}
+        preview={timelineGroups.length ? t("trainer.recentDaysSummarized", { count: timelineGroups.length }) : t("trainer.recentActivityPlaceholder")}
         icon={<CalendarClock size={20} />}
       >
-        <SectionCard eyebrow="AI Activity Timeline" title="What happened between sessions" action={<CalendarClock className="text-calm" size={22} />}>
+        <SectionCard eyebrow={t("trainer.aiActivityTimeline")} title={t("trainer.betweenSessionsTitle")} action={<CalendarClock className="text-calm" size={22} />}>
           <div className="mt-4 space-y-4">
             <CoachingTimelineGroups groups={timelineGroups} />
             {!timelineGroups.length ? (
               <p className="rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
-                Once the client logs nutrition, completes workouts, receives Coach Zoe support, or finishes missions, the important activity will be summarized here.
+                {t("trainer.timelineEmptyDetail")}
               </p>
             ) : null}
             <Link href={`/trainer/clients/${clientId}/timeline`} className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-calm/40 bg-calm/10 font-semibold text-calm">
-              View Full Coaching Timeline <ArrowRight size={18} />
+              {t("trainer.viewFullTimeline")} <ArrowRight size={18} />
             </Link>
           </div>
         </SectionCard>
       </CollapsibleSection>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <SectionCard eyebrow="Nutrition Snapshot" title="Today's intake" action={<Utensils className="text-lime" size={22} />}>
+        <SectionCard eyebrow={t("trainer.nutritionSnapshot")} title={t("trainer.todaysIntake")} action={<Utensils className="text-lime" size={22} />}>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <MetricTile label="Calories" value={todaysNutrition.calories.toLocaleString()} detail={`${effectiveCalorieTarget.toLocaleString()} kcal guide`} />
-            <MetricTile label="Protein" value={`${Math.round(todaysNutrition.proteinG)}g`} detail={`${effectiveProteinTarget}g guide`} />
-            <MetricTile label="Carbs" value={`${Math.round(todaysNutrition.carbsG)}g`} detail={`${effectiveCarbsTarget}g guide`} />
-            <MetricTile label="Fat" value={`${Math.round(todaysNutrition.fatG)}g`} detail={`${effectiveFatTarget}g guide`} />
-            <MetricTile label="Water" value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail={`${(effectiveWaterTargetMl / 1000).toFixed(1)}L target`} />
-            <MetricTile label="Meals" value={String(todaysFood.length)} detail={latestFood ? `Last: ${latestFood.estimated_food_name}` : "No meals today"} />
+            <MetricTile label={t("client360.calories")} value={todaysNutrition.calories.toLocaleString()} detail={t("trainer.kcalGuide", { value: effectiveCalorieTarget.toLocaleString() })} />
+            <MetricTile label={t("client360.protein")} value={`${Math.round(todaysNutrition.proteinG)}g`} detail={t("trainer.gramsGuide", { value: effectiveProteinTarget })} />
+            <MetricTile label={t("trainer.carbs")} value={`${Math.round(todaysNutrition.carbsG)}g`} detail={t("trainer.gramsGuide", { value: effectiveCarbsTarget })} />
+            <MetricTile label={t("trainer.fat")} value={`${Math.round(todaysNutrition.fatG)}g`} detail={t("trainer.gramsGuide", { value: effectiveFatTarget })} />
+            <MetricTile label={t("trainer.water")} value={`${(todaysWaterMl / 1000).toFixed(1)}L`} detail={t("trainer.literTarget", { value: (effectiveWaterTargetMl / 1000).toFixed(1) })} />
+            <MetricTile label={t("trainer.meals")} value={String(todaysFood.length)} detail={latestFood ? t("trainer.lastMeal", { meal: latestFood.estimated_food_name }) : t("trainer.noMealsToday")} />
           </div>
           <Link
             href={`/trainer/clients/${clientId}/meals`}
             className="mt-4 flex h-12 items-center justify-center rounded-2xl border border-lime/40 bg-lime/10 font-semibold text-lime"
           >
-            View Full Meal History
+            {t("trainer.viewFullMealHistory")}
           </Link>
         </SectionCard>
 
-        <SectionCard eyebrow="Progress Snapshot" title="Recent progress" action={<BarChart3 className="text-calm" size={22} />}>
+        <SectionCard eyebrow={t("trainer.progressSnapshot")} title={t("trainer.recentProgress")} action={<BarChart3 className="text-calm" size={22} />}>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <MetricTile label="Momentum" value={score === null || score === undefined ? "--" : `${score}/100`} detail={score === null || score === undefined ? "No score yet" : score < 50 ? "Needs support" : score < 70 ? "Building" : "On track"} />
-            <MetricTile label="Current weight" value={latestWeight ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg` : "--"} detail={weightDelta ? `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}kg vs previous` : "No trend yet"} />
-            <MetricTile label="Open missions" value={String(openMissions.length)} detail={openMissions.length === 1 ? "one action to follow up" : "actions to follow up"} />
-            <MetricTile label="Workouts" value={String(workoutsThisWeek.length)} detail="logged in the last 7 days" />
+            <MetricTile label={t("trainer.momentum")} value={score === null || score === undefined ? "--" : `${score}/100`} detail={score === null || score === undefined ? t("trainer.noScoreYet") : score < 50 ? t("trainer.needsSupport") : score < 70 ? t("trainer.building") : t("trainer.onTrack")} />
+            <MetricTile label={t("client360.currentWeight")} value={latestWeight ? `${asNumber(latestWeight.weight_kg).toFixed(1)}kg` : "--"} detail={weightDelta ? t("trainer.weightVsPrevious", { value: `${weightDelta > 0 ? "+" : ""}${weightDelta.toFixed(1)}` }) : t("trainer.noTrendYet")} />
+            <MetricTile label={t("trainer.openMissions")} value={String(openMissions.length)} detail={openMissions.length === 1 ? t("trainer.oneActionToFollowUp") : t("trainer.actionsToFollowUp")} />
+            <MetricTile label={t("trainer.workouts")} value={String(workoutsThisWeek.length)} detail={t("trainer.loggedLast7Days")} />
           </div>
           {momentumPillars.some((pillar) => pillar.value !== null && pillar.value !== undefined) ? (
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -839,14 +843,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <CollapsibleSection
           storageKey={`${clientId}:messages`}
-          title="Messages"
-          preview={unreadMessages ? `${unreadMessages} unread message${unreadMessages === 1 ? "" : "s"}` : latestMessage ? `Latest: ${latestMessage.body}` : "No conversation yet"}
+          title={t("common.messages")}
+          preview={unreadMessages ? t("trainer.unreadMessages", { count: unreadMessages }) : latestMessage ? t("trainer.latestMessage", { body: latestMessage.body }) : t("trainer.noConversation")}
           icon={<MessageCircle size={20} />}
           onOpen={openMessages}
         >
         <SectionCard
-          eyebrow="Messages"
-          title={latestMessage ? "Latest conversation" : "No conversation yet"}
+          eyebrow={t("common.messages")}
+          title={latestMessage ? t("trainer.latestConversation") : t("trainer.noConversation")}
           action={<MessageCircle className="text-calm" size={22} />}
         >
           <div id="trainer-message-card" className="mt-3 rounded-2xl bg-ink/70 p-4">
@@ -854,14 +858,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               <>
                 <p className="text-sm leading-6 text-zinc-200">{latestMessage.body}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-                  <span>{latestMessage.sender_user_id === clientId ? "Client" : "Trainer"}</span>
+                  <span>{latestMessage.sender_user_id === clientId ? t("trainer.client") : t("common.trainer")}</span>
                   <span>/</span>
-                  <span>{formatDateTime(latestMessage.created_at)}</span>
-                  {unreadMessages ? <span className="rounded-full bg-amber/20 px-2 py-1 font-semibold text-amber">{unreadMessages} unread</span> : null}
+                  <span>{formatDateTime(latestMessage.created_at, t)}</span>
+                  {unreadMessages ? <span className="rounded-full bg-amber/20 px-2 py-1 font-semibold text-amber">{t("trainer.unreadCount", { count: unreadMessages })}</span> : null}
                 </div>
               </>
             ) : (
-              <p className="text-sm leading-6 text-zinc-400">Start with a short supportive message when the client needs a human touch.</p>
+              <p className="text-sm leading-6 text-zinc-400">{t("trainer.messageEmptyDetail")}</p>
             )}
           </div>
           <form onSubmit={handleSendMessage} className="mt-3 flex gap-2">
@@ -869,14 +873,14 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               value={messageBody}
               onChange={(event) => setMessageBody(event.target.value)}
               rows={1}
-              placeholder="Reply to client..."
+              placeholder={t("trainer.replyPlaceholder")}
               className="min-h-12 flex-1 resize-none rounded-2xl border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
             />
             <button
               type="submit"
               disabled={!messageBody.trim() || isSendingMessage}
               className="grid h-12 w-12 place-items-center rounded-2xl bg-lime text-ink disabled:opacity-60"
-              aria-label="Send message"
+              aria-label={t("trainer.sendMessage")}
             >
               <Send size={18} />
             </button>
@@ -886,7 +890,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               href={`/messages?userId=${client.id}`}
               className="mt-3 flex h-12 items-center justify-center rounded-2xl border border-calm/40 bg-calm/10 font-semibold text-calm"
             >
-              Open Conversation
+              {t("trainer.openConversation")}
             </Link>
           ) : null}
         </SectionCard>
@@ -894,21 +898,21 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
         <CollapsibleSection
           storageKey={`${clientId}:memory`}
-          title="Ascend Memory"
-          preview={memoryHero ? memoryHero.title : "Journey milestones and coaching reflections"}
+          title={t("trainer.ascendMemory")}
+          preview={memoryHero ? memoryHero.title : t("trainer.memoryPreview")}
           icon={<NotebookText size={20} />}
           onOpen={openMemory}
         >
-        <SectionCard eyebrow="Ascend Memory" title={memoryHero ? "Coach Zoe remembers" : "No memories yet"} action={<NotebookText className="text-purple-200" size={22} />} tone="zoe">
+        <SectionCard eyebrow={t("trainer.ascendMemory")} title={memoryHero ? t("trainer.zoeRemembers") : t("trainer.noMemories")} action={<NotebookText className="text-purple-200" size={22} />} tone="zoe">
           {memoryHero ? (
             <article className="mt-3 rounded-2xl bg-ink/70 p-4">
               <p className="text-sm font-semibold text-white">{memoryHero.title}</p>
-              <p className="mt-1 text-xs text-zinc-500">{formatShortDate(memoryHero.occurredAt)}</p>
+              <p className="mt-1 text-xs text-zinc-500">{formatShortDate(memoryHero.occurredAt, t)}</p>
               <p className="mt-3 text-sm leading-6 text-zinc-200">{memoryHero.reflection ?? memoryHero.subtitle}</p>
             </article>
           ) : (
             <p className="mt-3 rounded-2xl bg-ink/70 p-4 text-sm leading-6 text-zinc-400">
-              Meaningful milestones will appear here after the client builds enough history.
+              {t("trainer.memoryEmptyDetail")}
             </p>
           )}
           {ascendMemory?.timeline?.length ? (
@@ -916,7 +920,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               {ascendMemory.timeline.slice(0, 3).map((item) => (
                 <div key={item.milestoneKey} className="flex items-center justify-between gap-3 rounded-2xl bg-ink/50 px-3 py-2">
                   <span className="truncate text-sm text-zinc-300">{item.title}</span>
-                  <span className="shrink-0 text-xs text-zinc-500">{formatShortDate(item.occurredAt)}</span>
+                  <span className="shrink-0 text-xs text-zinc-500">{formatShortDate(item.occurredAt, t)}</span>
                 </div>
               ))}
             </div>
@@ -928,24 +932,24 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <CollapsibleSection
           storageKey={`${clientId}:weekly`}
-          title="Weekly Report"
-          preview={weeklyReport ? `Latest: week of ${formatShortDate(weeklyReport.week_start)}` : "Generate a weekly coaching summary"}
+          title={t("trainer.weeklyReport")}
+          preview={weeklyReport ? t("trainer.latestWeekOf", { date: formatShortDate(weeklyReport.week_start, t) }) : t("trainer.generateWeeklySummary")}
           icon={<ClipboardList size={20} />}
           onOpen={openWeekly}
         >
         <SectionCard
-          eyebrow="Weekly Report"
-          title={weeklyReport ? "Latest report ready" : "Generate a coaching draft"}
+          eyebrow={t("trainer.weeklyReport")}
+          title={weeklyReport ? t("trainer.latestReportReady") : t("trainer.generateCoachingDraft")}
           action={<ClipboardList className="text-calm" size={22} />}
         >
           <div className="mt-3 rounded-2xl bg-ink/70 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-white">{weeklyReport ? `Week of ${formatShortDate(weeklyReport.week_start)}` : "No report generated yet"}</p>
-                <p className="mt-1 text-xs text-zinc-500">{weeklyReport ? `Last generated ${formatDateTime(weeklyReport.created_at)}` : "Use this when you want a quick trainer check-in draft."}</p>
+                <p className="text-sm font-semibold text-white">{weeklyReport ? t("trainer.weekOf", { date: formatShortDate(weeklyReport.week_start, t) }) : t("trainer.noReportGenerated")}</p>
+                <p className="mt-1 text-xs text-zinc-500">{weeklyReport ? t("trainer.lastGenerated", { date: formatDateTime(weeklyReport.created_at, t) }) : t("trainer.weeklySummaryHelp")}</p>
               </div>
               <span className={`rounded-full px-3 py-1 text-xs font-bold ${weeklyReport ? "bg-lime text-ink" : "bg-surface text-zinc-300"}`}>
-                {weeklyReport ? "Ready" : "Not ready"}
+                {weeklyReport ? t("trainer.ready") : t("trainer.notReady")}
               </span>
             </div>
             {checkin ? (
@@ -962,25 +966,25 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             onClick={generateCheckin}
             className="mt-3 h-12 w-full rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
           >
-            {isGenerating ? "Generating..." : checkin ? "Refresh coach draft" : "Generate Weekly Report"}
+            {isGenerating ? t("trainer.generating") : checkin ? t("trainer.refreshCoachDraft") : t("trainer.generateWeeklyReport")}
           </button>
         </SectionCard>
         </CollapsibleSection>
 
         <CollapsibleSection
           storageKey={`${clientId}:tools`}
-          title="Coach Tools"
-          preview={`${openMissions.length} open mission${openMissions.length === 1 ? "" : "s"} • Zoe ${coachPresence.settings.paused ? "paused" : "active"}`}
+          title={t("trainer.coachTools")}
+          preview={t("trainer.coachToolsPreview", { count: openMissions.length, state: coachPresence.settings.paused ? t("trainer.paused") : t("trainer.active") })}
           icon={<Target size={20} />}
         >
-        <SectionCard eyebrow="Coach Tools" title="Simple actions for next session" action={<Target className="text-lime" size={22} />}>
+        <SectionCard eyebrow={t("trainer.coachTools")} title={t("trainer.simpleActionsNextSession")} action={<Target className="text-lime" size={22} />}>
           <form onSubmit={handleCreateMission} className="mt-3 space-y-3">
             <textarea
               value={missionTitle}
               onChange={(event) => setMissionTitle(event.target.value)}
               rows={2}
               maxLength={180}
-              placeholder="Assign one mission, e.g. Walk 20 minutes today"
+              placeholder={t("trainer.missionPlaceholder")}
               className="min-h-20 w-full resize-none rounded-2xl border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
             />
             <div className="grid grid-cols-[1fr_auto] gap-2">
@@ -995,20 +999,20 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
                 disabled={!missionTitle.trim() || isSavingMission}
                 className="h-12 rounded-2xl bg-lime px-4 font-semibold text-ink disabled:opacity-60"
               >
-                {isSavingMission ? "Assigning..." : "Assign"}
+                {isSavingMission ? t("trainer.assigning") : t("trainer.assign")}
               </button>
             </div>
           </form>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <MetricTile label="Open missions" value={String(openMissions.length)} />
-            <MetricTile label="Completed" value={String(completedMissions.length)} />
+            <MetricTile label={t("trainer.openMissions")} value={String(openMissions.length)} />
+            <MetricTile label={t("common.completed")} value={String(completedMissions.length)} />
           </div>
           <button
             type="button"
             onClick={() => setCoachPresencePause(coachPresence.settings.paused ? null : 24)}
             className={`mt-3 h-11 w-full rounded-2xl border font-semibold ${coachPresence.settings.paused ? "border-calm/50 bg-calm/10 text-calm" : "border-amber/50 bg-amber/10 text-amber"}`}
           >
-            {coachPresence.settings.paused ? "Resume insights" : "Pause insights for 24h"}
+            {coachPresence.settings.paused ? t("trainer.resumeInsights") : t("trainer.pauseInsights24h")}
           </button>
         </SectionCard>
         </CollapsibleSection>
@@ -1016,41 +1020,46 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
 
       <CollapsibleSection
         storageKey={`${clientId}:nutrition-plan`}
-        title="Coach Nutrition Plan"
-        preview={coachNutritionPlan ? `${coachNutritionPlan.plan_label || "Custom plan"} active` : `${effectiveCalorieTarget.toLocaleString()} kcal Ascend guide`}
+        title={t("trainer.coachNutritionPlan")}
+        preview={coachNutritionPlan ? t("trainer.planActive", { label: coachNutritionPlan.plan_label || t("trainer.customPlan") }) : t("trainer.kcalAscendGuide", { value: effectiveCalorieTarget.toLocaleString() })}
         icon={<Flame size={20} />}
         onOpen={openNutrition}
       >
-      <SectionCard eyebrow="Coach Nutrition Plan" title={coachNutritionPlan ? "Custom plan active" : "Using Ascend recommendation"} action={<Flame className="text-lime" size={22} />}>
+      <SectionCard eyebrow={t("trainer.coachNutritionPlan")} title={coachNutritionPlan ? t("trainer.customPlanActive") : t("trainer.usingAscendRecommendation")} action={<Flame className="text-lime" size={22} />}>
         <div className="mt-3 rounded-2xl border border-line bg-ink p-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">Ascend recommendation</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-lime">{t("trainer.ascendRecommendation")}</p>
           <p className="mt-2 text-sm leading-6 text-zinc-300">
-            {effectiveCalorieTarget.toLocaleString()} kcal / Protein {effectiveProteinTarget}g / Carbs {effectiveCarbsTarget}g / Fat {effectiveFatTarget}g
+            {t("trainer.nutritionRecommendationLine", {
+              calories: effectiveCalorieTarget.toLocaleString(),
+              protein: effectiveProteinTarget,
+              carbs: effectiveCarbsTarget,
+              fat: effectiveFatTarget
+            })}
           </p>
         </div>
         <form onSubmit={handleSaveNutritionPlan} className="mt-4 space-y-3">
           <input
             value={nutritionLabel}
             onChange={(event) => setNutritionLabel(event.target.value)}
-            placeholder="Plan label, e.g. Fat Loss Phase"
+            placeholder={t("trainer.planLabelPlaceholder")}
             maxLength={80}
             className="h-12 w-full rounded-2xl border border-line bg-ink px-3 text-sm outline-none focus:border-lime"
           />
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
-              Calories
+              {t("client360.calories")}
               <input value={nutritionCalories} onChange={(event) => setNutritionCalories(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
-              Protein
+              {t("client360.protein")}
               <input value={nutritionProtein} onChange={(event) => setNutritionProtein(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
-              Carbohydrates
+              {t("trainer.carbohydrates")}
               <input value={nutritionCarbs} onChange={(event) => setNutritionCarbs(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
             <label className="grid gap-1 text-sm font-medium text-zinc-300">
-              Fat
+              {t("trainer.fat")}
               <input value={nutritionFat} onChange={(event) => setNutritionFat(event.target.value)} inputMode="numeric" className="h-12 rounded-2xl border border-line bg-ink px-3 text-white outline-none focus:border-lime" />
             </label>
           </div>
@@ -1059,7 +1068,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             onChange={(event) => setNutritionNote(event.target.value)}
             rows={3}
             maxLength={800}
-            placeholder="Optional coach note for the client plan."
+            placeholder={t("trainer.coachNotePlaceholder")}
             className="min-h-24 w-full resize-none rounded-2xl border border-line bg-ink px-3 py-3 text-sm outline-none focus:border-lime"
           />
           <button
@@ -1067,11 +1076,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
             disabled={isSavingNutrition}
             className="h-12 w-full rounded-2xl bg-lime font-semibold text-ink disabled:opacity-60"
           >
-            {isSavingNutrition ? "Saving..." : "Save Coach Plan"}
+            {isSavingNutrition ? t("common.saving") : t("trainer.saveCoachPlan")}
           </button>
         </form>
         {coachNutritionPlan?.updated_at ? (
-          <p className="mt-3 text-xs text-zinc-500">Last updated {new Date(coachNutritionPlan.updated_at).toLocaleString()}</p>
+          <p className="mt-3 text-xs text-zinc-500">{t("trainer.lastUpdated", { date: new Date(coachNutritionPlan.updated_at).toLocaleString() })}</p>
         ) : null}
         {nutritionStatus ? <p className="mt-3 rounded-2xl border border-line bg-ink p-3 text-sm text-zinc-300">{nutritionStatus}</p> : null}
       </SectionCard>
@@ -1080,11 +1089,11 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <CollapsibleSection
           storageKey={`${clientId}:food-evidence`}
-          title="Food Logs"
-          preview={foodLogs.length ? `${foodLogs.length} recent log${foodLogs.length === 1 ? "" : "s"}` : "No food logs yet"}
+          title={t("trainer.foodLogs")}
+          preview={foodLogs.length ? t("trainer.recentFoodLogs", { count: foodLogs.length }) : t("trainer.noFoodLogs")}
           icon={<Utensils size={20} />}
         >
-        <SectionCard eyebrow="Food Evidence" title="Latest meals" action={<Utensils className="text-lime" size={22} />}>
+        <SectionCard eyebrow={t("trainer.foodEvidence")} title={t("trainer.latestMeals")} action={<Utensils className="text-lime" size={22} />}>
           <div className="mt-3 space-y-2">
             {foodLogs.slice(0, 3).map((log) => (
               <article key={log.id} className="rounded-2xl bg-ink/70 p-3">
@@ -1105,20 +1114,20 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
                 </div>
               </article>
             ))}
-            {!foodLogs.length ? <p className="rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">No food logs yet.</p> : null}
+            {!foodLogs.length ? <p className="rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">{t("trainer.noFoodLogs")}</p> : null}
           </div>
         </SectionCard>
         </CollapsibleSection>
 
         <CollapsibleSection
           storageKey={`${clientId}:progress`}
-          title="Progress Photos"
-          preview={progressPhotos.length ? `${progressPhotos.length} saved photo${progressPhotos.length === 1 ? "" : "s"}` : "Photos and weekly comparison"}
+          title={t("premium.progressPhotos")}
+          preview={progressPhotos.length ? t("trainer.savedPhotos", { count: progressPhotos.length }) : t("trainer.photosComparison")}
           icon={<Activity size={20} />}
           onOpen={openProgress}
         >
         {progressComparison ? <ProgressComparisonCard comparison={progressComparison} photoHref="#progress-photos" /> : null}
-        <SectionCard eyebrow="Progress Photos" title={progressPhotos.length ? `${progressPhotos.length} saved photos` : "No photos yet"} action={<Activity className="text-calm" size={22} />}>
+        <SectionCard eyebrow={t("premium.progressPhotos")} title={progressPhotos.length ? t("trainer.savedPhotos", { count: progressPhotos.length }) : t("trainer.noPhotos")} action={<Activity className="text-calm" size={22} />}>
           <div id="progress-photos" className="mt-3 grid grid-cols-3 gap-2">
             {progressPhotos.slice(0, 6).map((photo) => (
               <article key={photo.id} className="overflow-hidden rounded-2xl bg-ink">
@@ -1127,16 +1136,16 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={photo.image_url} alt={photo.photo_type} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                   ) : (
-                    <span className="text-xs text-zinc-500">No image</span>
+                    <span className="text-xs text-zinc-500">{t("trainer.noImage")}</span>
                   )}
                 </div>
                 <div className="p-2">
                   <p className="truncate text-xs font-medium capitalize">{photo.photo_type}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{formatShortDate(photo.logged_at)}</p>
+                  <p className="mt-1 text-xs text-zinc-500">{formatShortDate(photo.logged_at, t)}</p>
                 </div>
               </article>
             ))}
-            {!progressPhotos.length ? <p className="col-span-3 rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">Progress photos will appear here when the client uploads them.</p> : null}
+            {!progressPhotos.length ? <p className="col-span-3 rounded-2xl bg-ink/70 p-3 text-sm text-zinc-400">{t("trainer.progressPhotosEmpty")}</p> : null}
           </div>
         </SectionCard>
         </CollapsibleSection>
@@ -1145,7 +1154,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="flex items-center gap-3">
           {weightDelta < 0 ? <TrendingDown className="text-lime" size={20} /> : <TrendingUp className="text-calm" size={20} />}
-          <p className="text-sm text-zinc-300">Everything your client has shared, ready for the next conversation.</p>
+          <p className="text-sm text-zinc-300">{t("trainer.sharedClientFooter")}</p>
           <ArrowRight className="ml-auto hidden text-zinc-600 sm:block" size={18} />
         </div>
       </section>

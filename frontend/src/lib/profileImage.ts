@@ -1,3 +1,5 @@
+import { englishMessage } from "@/lib/i18n/static";
+
 const MAX_ORIGINAL_BYTES = 25 * 1024 * 1024;
 const TARGET_BYTES = 150 * 1024;
 const supportedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
@@ -18,7 +20,7 @@ function loadImage(file: File) {
     };
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error("This photo format could not be read. Try a JPEG, PNG, or WebP photo."));
+      reject(new Error(englishMessage("profile.photoReadError")));
     };
     image.src = objectUrl;
   });
@@ -29,7 +31,7 @@ function renderSquare(image: HTMLImageElement, size: number, mimeType: "image/we
   canvas.width = size;
   canvas.height = size;
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("This browser could not prepare the profile photo.");
+  if (!context) throw new Error(englishMessage("profile.photoPrepareError"));
 
   const sourceSize = Math.min(image.naturalWidth, image.naturalHeight);
   const sourceX = Math.max(0, (image.naturalWidth - sourceSize) / 2);
@@ -39,12 +41,12 @@ function renderSquare(image: HTMLImageElement, size: number, mimeType: "image/we
 }
 
 export async function compressProfileImage(file: File) {
-  if (file.size > MAX_ORIGINAL_BYTES) throw new Error("Choose a photo smaller than 25 MB.");
+  if (file.size > MAX_ORIGINAL_BYTES) throw new Error(englishMessage("profile.photoTooLarge"));
   const type = file.type.toLowerCase();
-  if (type && !supportedTypes.has(type)) throw new Error("Use a JPEG, PNG, WebP, or iPhone HEIC photo.");
+  if (type && !supportedTypes.has(type)) throw new Error(englishMessage("profile.photoUnsupported"));
 
   const image = await loadImage(file);
-  if (!image.naturalWidth || !image.naturalHeight) throw new Error("This photo has no readable dimensions.");
+  if (!image.naturalWidth || !image.naturalHeight) throw new Error(englishMessage("profile.photoNoDimensions"));
 
   let bestDataUrl = "";
   for (const size of [512, 448, 384]) {
@@ -60,4 +62,3 @@ export async function compressProfileImage(file: File) {
 
   return { dataUrl: bestDataUrl, originalBytes: file.size, compressedBytes: dataUrlBytes(bestDataUrl), size: 384 };
 }
-

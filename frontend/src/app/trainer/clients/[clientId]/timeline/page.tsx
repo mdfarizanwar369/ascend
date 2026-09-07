@@ -9,10 +9,10 @@ export default async function TrainerClientCoachingTimelinePage({ params }: { pa
     <AppShell active="trainer">
       <RoleGate
         allowedRoles={["trainer", "admin", "owner"]}
-        fallbackTitle="Trainer access only"
-        fallbackMessage="This account cannot view client coaching history. Use a trainer, owner, or admin login."
+        fallbackTitleKey="access.trainerOnly"
+        fallbackMessageKey="access.trainerTimelineDenied"
         requiredPlan="trainer_pro"
-        planFeature="Trainer coaching timeline"
+        planFeatureKey="trainer.timelineFeature"
       >
         <TrainerCoachingTimelineHistoryClient clientId={clientId} />
       </RoleGate>

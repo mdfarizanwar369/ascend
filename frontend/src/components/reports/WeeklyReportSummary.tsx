@@ -1,5 +1,8 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { englishMessage, type Translate } from "@/lib/i18n/static";
+
 type WeeklyReportAudience = "client" | "trainer";
 
 type Section = {
@@ -45,7 +48,7 @@ function polishSentence(value: string, name: string) {
     .trim();
 }
 
-function parseDeterministicReport(value: string, audience: WeeklyReportAudience): Section[] {
+function parseDeterministicReport(value: string, audience: WeeklyReportAudience, t: Translate = englishMessage): Section[] {
   const cleaned = cleanText(value);
   const lines = cleaned.split("\n").map((line) => line.trim()).filter(Boolean);
   const sections: Section[] = [];
@@ -55,12 +58,12 @@ function parseDeterministicReport(value: string, audience: WeeklyReportAudience)
   function pushCurrent() {
     if (!currentTitle || !currentLines.length) return;
     const normalizedTitle =
-      audience === "client" && currentTitle === "Coach summary"
-        ? "What this week shows"
-        : currentTitle === "Suggested focus for next week"
-          ? audience === "client" ? "One focus for next week" : "Suggested coach focus"
-          : currentTitle === "This week at a glance"
-            ? "This week at a glance"
+      audience === "client" && currentTitle === englishMessage("weekly.coachSummary")
+        ? t("weekly.whatThisWeekShows")
+        : currentTitle === englishMessage("weekly.suggestedFocusNextWeek")
+          ? audience === "client" ? t("weekly.oneFocusNextWeek") : t("weekly.suggestedCoachFocus")
+          : currentTitle === englishMessage("weekly.thisWeekAtGlance")
+            ? t("weekly.thisWeekAtGlance")
             : currentTitle;
 
     sections.push({
@@ -83,26 +86,26 @@ function parseDeterministicReport(value: string, audience: WeeklyReportAudience)
   pushCurrent();
 
   if (sections.length) return sections;
-  return [{ title: audience === "client" ? "Your week in review" : "Coach check-in draft", body: cleaned, tone: "calm" }];
+  return [{ title: audience === "client" ? t("weekly.yourWeekReview") : t("weekly.coachCheckinDraft"), body: cleaned, tone: "calm" }];
 }
 
-function buildSections(summary: string, audience: WeeklyReportAudience): Section[] {
+function buildSections(summary: string, audience: WeeklyReportAudience, t: Translate = englishMessage): Section[] {
   const named = extractNamedSections(summary);
   if (named) {
     return audience === "client"
       ? [
-          { title: "What went well", body: named.wins, tone: "lime" },
-          { title: "What to keep building", body: named.risks || "No major concerns stood out this week.", tone: "amber" },
-          { title: "One focus for next week", body: named.actions, tone: "calm" }
+          { title: t("weekly.whatWentWell"), body: named.wins, tone: "lime" },
+          { title: t("weekly.whatToKeepBuilding"), body: named.risks || t("weekly.noMajorConcerns"), tone: "amber" },
+          { title: t("weekly.oneFocusNextWeek"), body: named.actions, tone: "calm" }
         ]
       : [
-          { title: "Wins", body: named.wins, tone: "lime" },
-          { title: "Watch-outs", body: named.risks || "No immediate concerns stood out.", tone: "amber" },
-          { title: "Suggested coach action", body: named.actions, tone: "calm" }
+          { title: t("weekly.wins"), body: named.wins, tone: "lime" },
+          { title: t("weekly.watchOuts"), body: named.risks || t("weekly.noImmediateConcerns"), tone: "amber" },
+          { title: t("weekly.suggestedCoachAction"), body: named.actions, tone: "calm" }
         ];
   }
 
-  return parseDeterministicReport(summary, audience);
+  return parseDeterministicReport(summary, audience, t);
 }
 
 function toneClasses(tone: Section["tone"]) {
@@ -113,7 +116,8 @@ function toneClasses(tone: Section["tone"]) {
 }
 
 export function WeeklyReportSummary({ summary, audience = "client" }: { summary: string; audience?: WeeklyReportAudience }) {
-  const sections = buildSections(summary, audience);
+  const { t } = useI18n();
+  const sections = buildSections(summary, audience, t);
 
   return (
     <div className="divide-y divide-line">

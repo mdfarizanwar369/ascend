@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage } from "@/components/legal/LegalPage";
+import { englishMessage } from "@/lib/i18n/static";
 
 export const metadata: Metadata = { title: "Delete Account | Ascend" };
 
@@ -21,8 +22,8 @@ export default async function DeleteAccountPage({
   return (
     <>
       <LegalPage
-        eyebrow="Account control"
-        title="Delete your Ascend account"
+        eyebrow={englishMessage("legal.accountControl")}
+        title={englishMessage("legal.deleteAccountTitle")}
         introduction="Ascend gives you a public path to request account deletion even if you no longer have the app installed. The fastest path is inside Ascend under Profile > Account > Delete Account."
         sections={[
           {

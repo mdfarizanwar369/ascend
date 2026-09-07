@@ -8,6 +8,7 @@ import { getTrainerClient, getTrainerClientFoodLogs, getTrainerClientWeightLogs 
 import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
 import { SectionShell, SkeletonCardList } from "@/components/PerceivedLoading";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type RangeFilter = "today" | "7d" | "30d" | "all";
 type OrderFilter = "newest" | "oldest";
@@ -34,11 +35,11 @@ function formatTime(value: string) {
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function dateLabel(dateKey: string) {
+function dateLabel(dateKey: string, t: (key: string) => string) {
   const today = localDateKey();
   const yesterday = localDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  if (dateKey === today) return "Today";
-  if (dateKey === yesterday) return "Yesterday";
+  if (dateKey === today) return t("common.today");
+  if (dateKey === yesterday) return t("common.yesterday");
   const date = new Date(`${dateKey}T12:00:00`);
   return Number.isFinite(date.getTime())
     ? date.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", year: "numeric" })
@@ -110,6 +111,7 @@ function coachingInsights(logs: FoodLog[], totals: ReturnType<typeof summarizeLo
 }
 
 export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
+  const { t } = useI18n();
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [weights, setWeights] = useState<WeightLog[]>([]);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -228,7 +230,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
             </div>
           </div>
         </section>
-        <SectionShell title="Meal history">
+        <SectionShell title={t("trainer.mealHistory")}>
           <SkeletonCardList count={3} compact />
         </SectionShell>
         <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p>
@@ -289,7 +291,7 @@ export function TrainerMealHistoryClient({ clientId }: { clientId: string }) {
           <article key={day.dateKey} className="ascend-workspace-section p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold">{dateLabel(day.dateKey)}</h2>
+                <h2 className="text-lg font-semibold">{dateLabel(day.dateKey, t)}</h2>
                 <p className={`mt-2 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                   day.status.tone === "success"
                     ? "bg-lime text-ink"

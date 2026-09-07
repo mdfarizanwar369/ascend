@@ -8,13 +8,14 @@ import { AscendHeroPanel, BusinessSigil } from "@/components/AscendVisualIdentit
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { SkeletonCardList } from "@/components/PerceivedLoading";
 import { getAscendCoachClients } from "@/lib/ascendCoachApi";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
-function relativeTime(value?: string | null) {
-  if (!value) return "No workouts recorded yet";
+function relativeTime(value: string | null | undefined, t: (key: string, values?: Record<string, string | number>) => string) {
+  if (!value) return t("trainer.noWorkoutsYet");
   const days = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
-  if (days === 0) return "Last workout today";
-  if (days === 1) return "Last workout yesterday";
-  return `Last workout ${days} days ago`;
+  if (days === 0) return t("trainer.lastWorkoutToday");
+  if (days === 1) return t("trainer.lastWorkoutYesterday");
+  return t("trainer.lastWorkoutDaysAgo", { days });
 }
 
 function goalLabel(goal?: string | null) {
@@ -22,6 +23,7 @@ function goalLabel(goal?: string | null) {
 }
 
 export function AscendCoachClientList() {
+  const { t } = useI18n();
   const [clients, setClients] = useState<AscendCoachClientListItem[] | null>(null);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -40,18 +42,18 @@ export function AscendCoachClientList() {
   return (
     <div className="pb-4">
       <AscendHeroPanel
-        eyebrow="Ascend Coach"
-        title="Clients"
-        body={platformOwnerMode ? "Platform Owner access to every active Ascend client. All opens are audited." : "Open a client to see the coaching evidence Ascend can currently support."}
+        eyebrow={t("common.ascendCoach")}
+        title={t("trainer.clients")}
+        body={platformOwnerMode ? t("trainer.platformOwnerClientList") : t("trainer.authorizedClientList")}
         tone="trainer"
-        visual={<BusinessSigil status={clients ? `${clients.length} active` : "Coach"} />}
+        visual={<BusinessSigil status={clients ? t("trainer.activeCount", { count: clients.length }) : t("common.coach")} />}
       />
 
       <section className="mt-5" aria-labelledby="coach-client-list-title">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <p className="ascend-eyebrow text-calm">Client 360</p>
-            <h2 id="coach-client-list-title" className="mt-1 text-xl font-semibold">{platformOwnerMode ? "All active clients" : "Authorized clients"}</h2>
+            <p className="ascend-eyebrow text-calm">{t("trainer.client360")}</p>
+            <h2 id="coach-client-list-title" className="mt-1 text-xl font-semibold">{platformOwnerMode ? t("trainer.allActiveClients") : t("trainer.authorizedClients")}</h2>
           </div>
         </div>
 
@@ -62,12 +64,12 @@ export function AscendCoachClientList() {
             <div className="flex items-start gap-3">
               <AlertCircle className="mt-0.5 shrink-0 text-amber" size={20} />
               <div>
-                <h3 className="font-semibold">Client list unavailable</h3>
-                <p className="mt-1 text-sm leading-6 text-zinc-300">Ascend Coach may be disabled, or the client list could not be loaded.</p>
+                <h3 className="font-semibold">{t("trainer.clientListUnavailable")}</h3>
+                <p className="mt-1 text-sm leading-6 text-zinc-300">{t("trainer.clientListUnavailableDetail")}</p>
               </div>
             </div>
             <button type="button" onClick={() => setRetry((value) => value + 1)} className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-lime font-semibold text-ink">
-              <RefreshCw size={18} /> Try again
+              <RefreshCw size={18} /> {t("common.tryAgain")}
             </button>
           </div>
         ) : null}
@@ -75,23 +77,23 @@ export function AscendCoachClientList() {
         {clients?.length === 0 ? (
           <div className="rounded-2xl border border-line bg-surface p-6 text-center">
             <Users className="mx-auto text-calm" size={28} />
-            <h3 className="mt-3 font-semibold">No active clients</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">Accepted, active coaching relationships will appear here.</p>
+            <h3 className="mt-3 font-semibold">{t("trainer.noActiveClients")}</h3>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">{t("trainer.noActiveClientsDetail")}</p>
           </div>
         ) : null}
 
         {clients?.length ? (
           <div className="space-y-3">
             {clients.map((client) => {
-              const visibleName = client.displayName ?? "Client profile not shared";
+              const visibleName = client.displayName ?? t("trainer.clientProfileNotShared");
               const hasTraining = Object.prototype.hasOwnProperty.call(client, "lastWorkoutAt");
               return (
                 <Link key={`${client.accessMode}:${client.clientId}`} href={`/trainer/clients/${client.clientId}/360`} className="ascend-pressable flex min-h-20 items-center gap-3 rounded-2xl border border-line bg-surface p-4 shadow-soft hover:border-calm/45">
                   <ProfileAvatar name={client.displayName} />
                   <div className="min-w-0 flex-1">
                     <p className="break-words font-semibold text-white">{visibleName}</p>
-                    <p className="mt-1 text-sm capitalize text-zinc-400">{goalLabel(client.goal) ?? "Goal not shared"}</p>
-                    <p className="mt-2 text-xs text-zinc-500">{hasTraining ? relativeTime(client.lastWorkoutAt) : "Training data not shared"}{client.accessMode === "platform_owner" ? " · Platform Owner access" : ""}</p>
+                    <p className="mt-1 text-sm capitalize text-zinc-400">{goalLabel(client.goal) ?? t("trainer.goalNotShared")}</p>
+                    <p className="mt-2 text-xs text-zinc-500">{hasTraining ? relativeTime(client.lastWorkoutAt, t) : t("trainer.trainingDataNotShared")}{client.accessMode === "platform_owner" ? ` · ${t("trainer.platformOwnerAccess")}` : ""}</p>
                   </div>
                   <ChevronRight className="shrink-0 text-zinc-500" size={20} aria-hidden="true" />
                 </Link>

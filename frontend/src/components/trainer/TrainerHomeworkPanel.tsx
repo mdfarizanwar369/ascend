@@ -10,6 +10,7 @@ import {
   TrainerHomeworkAssignment
 } from "@/lib/ascendApi";
 import { trainerHomeworkEnabled } from "@/lib/trainerHomeworkFlag";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const locationOptions = [
   { value: "home", label: "Home" },
@@ -81,6 +82,7 @@ function statusTone(status: TrainerHomeworkAssignment["status"]) {
 }
 
 export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
+  const { t } = useI18n();
   const enabled = trainerHomeworkEnabled();
   const [assignments, setAssignments] = useState<TrainerHomeworkAssignment[]>([]);
   const [summary, setSummary] = useState({ assigned: 0, completed: 0, missed: 0 });
@@ -332,7 +334,7 @@ export function TrainerHomeworkPanel({ clientId }: { clientId: string }) {
             value={coachNote}
             onChange={(event) => setCoachNote(event.target.value.slice(0, 150))}
             rows={2}
-            placeholder="Focus on good technique."
+            placeholder={t("trainer.homeworkTechniquePlaceholder")}
             className="min-h-20 rounded-2xl border border-line bg-surface px-3 py-3 text-white outline-none focus:border-lime"
           />
         </label>

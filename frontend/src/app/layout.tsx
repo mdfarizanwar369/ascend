@@ -9,6 +9,7 @@ import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { AscendLaunchMorphV22Provider } from "@/components/dashboard/AscendLaunchMorphV22";
 import { ClientErrorReporter } from "@/components/ClientErrorReporter";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -76,18 +77,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
       <body>
-        <AscendLaunchMorphV22Provider>
-          <CanonicalDomainGuard />
-          <AuthStateGuard />
-          <CapacitorAppUrlRouter />
-          <PwaRegistrar />
-          <PwaInstallCoordinator />
-          <CoachNotificationCoordinator />
-          <HealthSyncCoordinator />
-          <OfflineIndicator />
-          <ClientErrorReporter />
-          {children}
-        </AscendLaunchMorphV22Provider>
+        <I18nProvider>
+          <AscendLaunchMorphV22Provider>
+            <CanonicalDomainGuard />
+            <AuthStateGuard />
+            <CapacitorAppUrlRouter />
+            <PwaRegistrar />
+            <PwaInstallCoordinator />
+            <CoachNotificationCoordinator />
+            <HealthSyncCoordinator />
+            <OfflineIndicator />
+            <ClientErrorReporter />
+            {children}
+          </AscendLaunchMorphV22Provider>
+        </I18nProvider>
       </body>
     </html>
   );

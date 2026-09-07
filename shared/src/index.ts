@@ -33,6 +33,7 @@ export * from "./trainerSession";
 export * from "./todayExperience";
 export * from "./returnMode";
 export * from "./portionNutrition";
+export * from "./locale";
 
 export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {
   const isIpadOs = platform === "MacIntel" && maxTouchPoints > 1;

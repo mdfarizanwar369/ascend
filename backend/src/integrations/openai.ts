@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { normalizeAscendLocale, type AscendLocale } from "@ascend/shared";
 import { createHash } from "crypto";
 import { FoodEstimate, LOCAL_FOODS, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
 import { env } from "../config/env";
@@ -1738,9 +1739,20 @@ export async function refineLegacyTodayPriority(input: TodayPriorityRefinementIn
 
 type CoachZoeMode = "general" | "progress" | "consistency" | "meal_advice" | "workout";
 
-function coachZoeSystemPrompt(mode: CoachZoeMode) {
+function localeInstruction(localeInput?: AscendLocale | string | null) {
+  const locale = normalizeAscendLocale(localeInput);
+  if (locale === "ms-MY") {
+    return "Language: Answer in natural Malaysian Bahasa Melayu. Keep common fitness terms such as workout, reps, sets, protein, calories, RPE, and named exercises in English when that is clearer for Malaysian users.";
+  }
+  if (locale === "zh-Hans") {
+    return "Language: Answer in natural Simplified Chinese for Malaysian and Singaporean Chinese-speaking users. Keep internationally recognised fitness terms, abbreviations, and exercise names in English when that preserves meaning.";
+  }
+  return "Language: Answer in English.";
+}
+
+function coachZoeSystemPrompt(mode: CoachZoeMode, locale?: AscendLocale | string | null) {
   const shared =
-    "You are Coach Zoe inside Ascend. You are one coach wearing different specialist hats depending on the request. You are not a motivational chatbot. Always read the member's real data first, then analyze it honestly. Use the client context, recent food logs, saved workout history, workout memory summary, Health Connect activity, Momentum's Fuel/Move/Recover/Focus pillars, Athlete Mode signals, the trusted body-scan evidence summary, weekly report summary, recognitions, recent conversation, and the dataConfidence state. Treat Momentum as a seven-day coaching signal, never a moral grade. Identify the weakest meaningful pillar, but account for time of day, deliberate rest, and missing optional sleep data before recommending action. Weight is progress context and never a Momentum task. Never invent data. Never say you noticed something if the context does not support it. For body composition, never infer a trend by comparing raw scan numbers yourself: use only bodyScanEvidence, and make a progress or decline claim only for metrics marked ESTABLISHED. Describe PROVISIONAL or INSUFFICIENT evidence as readings that need another comparable scan. Never automatically recommend food, protein, or workouts unless the user explicitly asked or the analysis clearly identifies that topic as the biggest limiting factor. Prefer plain text. Headings and short bullets are allowed when they improve clarity. Keep replies compact, mobile-friendly, and usually 60 to 120 words unless the user explicitly asks for detail. Avoid long motivational essays. Avoid questions at the end. Vary the ending naturally instead of using the same closing every time. If dataConfidence.state is FIRST_TIME_USER, do not mention momentum, trends, decline, recovery patterns, or consistency history. Welcome the member and ask for one honest starting action. If dataConfidence.state is FIRST_DAY_COMPLETE, acknowledge the first real check-in but do not claim comparisons or trends. If dataConfidence.state is EARLY_HISTORY, you may discuss early routine-building, but avoid long-term pattern claims. Only discuss trends, momentum, behaviour patterns, or plateaus when dataConfidence.state is TREND_READY or LONG_TERM_HISTORY.";
+    `You are Coach Zoe inside Ascend. ${localeInstruction(locale)} You are one coach wearing different specialist hats depending on the request. You are not a motivational chatbot. Always read the member's real data first, then analyze it honestly. Use the client context, recent food logs, saved workout history, workout memory summary, Health Connect activity, Momentum's Fuel/Move/Recover/Focus pillars, Athlete Mode signals, the trusted body-scan evidence summary, weekly report summary, recognitions, recent conversation, and the dataConfidence state. Treat Momentum as a seven-day coaching signal, never a moral grade. Identify the weakest meaningful pillar, but account for time of day, deliberate rest, and missing optional sleep data before recommending action. Weight is progress context and never a Momentum task. Never invent data. Never say you noticed something if the context does not support it. For body composition, never infer a trend by comparing raw scan numbers yourself: use only bodyScanEvidence, and make a progress or decline claim only for metrics marked ESTABLISHED. Describe PROVISIONAL or INSUFFICIENT evidence as readings that need another comparable scan. Never automatically recommend food, protein, or workouts unless the user explicitly asked or the analysis clearly identifies that topic as the biggest limiting factor. Prefer plain text. Headings and short bullets are allowed when they improve clarity. Keep replies compact, mobile-friendly, and usually 60 to 120 words unless the user explicitly asks for detail. Avoid long motivational essays. Avoid questions at the end. Vary the ending naturally instead of using the same closing every time. If dataConfidence.state is FIRST_TIME_USER, do not mention momentum, trends, decline, recovery patterns, or consistency history. Welcome the member and ask for one honest starting action. If dataConfidence.state is FIRST_DAY_COMPLETE, acknowledge the first real check-in but do not claim comparisons or trends. If dataConfidence.state is EARLY_HISTORY, you may discuss early routine-building, but avoid long-term pattern claims. Only discuss trends, momentum, behaviour patterns, or plateaus when dataConfidence.state is TREND_READY or LONG_TERM_HISTORY.`;
 
   if (mode === "progress") {
     return `${shared} For progress requests, act as a Fitness Progress Analyst. This is an analysis task, not a motivation task. Use this exact structure in this exact order: What changed, What likely caused it, What matters most today, One action. Keep the total answer under 120 words unless the user asks for more detail. Use bullets where helpful. Use the member's actual recent data such as weight trend, workout consistency, meal consistency, water, habits, momentum, and body scan when available. If data is limited, say that clearly. Do not add extra sections. Do not automatically end with meal advice.`;
@@ -1773,9 +1785,9 @@ function coachZoeFallback(mode: CoachZoeMode) {
   return "I can help best when I have a little recent data to read. For now, pick one useful action today, log it, and I will give you a sharper answer next time.";
 }
 
-export async function createCoachZoeReply(message: string, context: string, mode: CoachZoeMode = "general") {
+export async function createCoachZoeReply(message: string, context: string, mode: CoachZoeMode = "general", locale?: AscendLocale | string | null) {
   const reply = await createTextReply(
-    coachZoeSystemPrompt(mode),
+    coachZoeSystemPrompt(mode, locale),
     `Client context: ${context}\n\nQuestion: ${message}`,
     coachZoeFallback(mode)
   );
@@ -1818,6 +1830,7 @@ type WorkoutPlannerInput = {
   goal: string;
   equipment: string;
   context: string;
+  locale?: AscendLocale | string | null;
 };
 
 type TrainerHomeworkPlannerInput = {
@@ -1830,6 +1843,7 @@ type TrainerHomeworkPlannerInput = {
   dueDate: string;
   coachNote?: string | null;
   context: string;
+  locale?: AscendLocale | string | null;
 };
 
 function fallbackWorkoutPlan(input: WorkoutPlannerInput): CoachWorkoutPlan {
@@ -1935,7 +1949,7 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput): Promis
 
   try {
     const reply = await createTextReply(
-      "You are Coach Zoe inside Ascend, a premium fitness accountability app. Generate one safe workout for today only. Use the provided workout request, profile, personalization signals, recent activity, recent workouts, workout memory summary, Health Connect, athlete data, body scan data, food consistency, and conversation context if available. The workout memory summary is important: avoid nearly identical sessions, avoid repeating the same muscle group on consecutive days when the context supports that, and if the latest workout was completed today prefer recovery, mobility, or easy cardio instead of another full session unless the request strongly demands otherwise. Age, current body weight, height, recent training history, activity level, and any explicit limitations must influence exercise selection, total volume, intensity, rest periods, and impact level. If the personalization signals say to use beginner-friendly defaults, stay conservative and mention that better profile details will improve future workouts. If limitations are missing, do not invent them. If the context suggests lower impact, avoid high-skill or high-impact choices. If the context suggests stronger training capacity, you may use slightly more volume or shorter rest while staying safe. Do not build a program. Do not prescribe maximal lifts. Do not give medical advice. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer. exercises must be an array of objects with name, sets, reps, duration, rest, note. Keep it concise, practical, beginner-friendly, and coach-like.",
+      `You are Coach Zoe inside Ascend, a premium fitness accountability app. ${localeInstruction(input.locale)} Generate one safe workout for today only. Use the provided workout request, profile, personalization signals, recent activity, recent workouts, workout memory summary, Health Connect, athlete data, body scan data, food consistency, and conversation context if available. The workout memory summary is important: avoid nearly identical sessions, avoid repeating the same muscle group on consecutive days when the context supports that, and if the latest workout was completed today prefer recovery, mobility, or easy cardio instead of another full session unless the request strongly demands otherwise. Age, current body weight, height, recent training history, activity level, and any explicit limitations must influence exercise selection, total volume, intensity, rest periods, and impact level. If the personalization signals say to use beginner-friendly defaults, stay conservative and mention that better profile details will improve future workouts. If limitations are missing, do not invent them. If the context suggests lower impact, avoid high-skill or high-impact choices. If the context suggests stronger training capacity, you may use slightly more volume or shorter rest while staying safe. Do not build a program. Do not prescribe maximal lifts. Do not give medical advice. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer. exercises must be an array of objects with name, sets, reps, duration, rest, note. Keep it concise, practical, beginner-friendly, and coach-like.`,
       `Workout request: ${JSON.stringify({
         location: input.location,
         timeAvailable: input.timeAvailable,
@@ -1966,7 +1980,7 @@ export async function createTrainerHomeworkPlan(input: TrainerHomeworkPlannerInp
 
   try {
     const reply = await createTextReply(
-      "You are Ascend's invisible trainer-workout assistant. Create a coach homework workout that will be presented as coming from the human trainer, not AI. Use the trainer inputs, client profile, personalization signals, recent workouts, workout memory summary, activity history, Health Connect summary, athlete mode, body scan data, and coach note if available. Do not mention AI. Do not say 'generated'. Respect missing data and use safe beginner-friendly defaults when details are incomplete. Age, body weight, recent training history, activity level, and any explicit limitations must influence exercise selection, intensity, volume, rest, and impact. Keep it practical, safe, and easy for a trainer to approve in under a minute. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer, whyItFits. exercises must be an array of objects with name, sets, reps, duration, rest, note. whyItFits should explain in 1-2 short sentences why the session suits the client.",
+      `You are Ascend's invisible trainer-workout assistant. ${localeInstruction(input.locale)} Create a coach homework workout that will be presented as coming from the human trainer, not AI. Use the trainer inputs, client profile, personalization signals, recent workouts, workout memory summary, activity history, Health Connect summary, athlete mode, body scan data, and coach note if available. Do not mention AI. Do not say 'generated'. Respect missing data and use safe beginner-friendly defaults when details are incomplete. Age, body weight, recent training history, activity level, and any explicit limitations must influence exercise selection, intensity, volume, rest, and impact. Keep it practical, safe, and easy for a trainer to approve in under a minute. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer, whyItFits. exercises must be an array of objects with name, sets, reps, duration, rest, note. whyItFits should explain in 1-2 short sentences why the session suits the client.`,
       `Trainer homework request: ${JSON.stringify({
         trainerName: input.trainerName,
         location: input.location,

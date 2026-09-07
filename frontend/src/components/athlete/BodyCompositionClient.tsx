@@ -36,8 +36,19 @@ import { DelightBadge } from "@/components/Delight";
 import { DnaSigil } from "@/components/AscendVisualIdentity";
 import { OptimizedBodyScanImage, clearBodyScanImageCache, optimizeBodyScanImage } from "@/lib/bodyScanImageProcessor";
 import { establishedProgressSeries } from "@/lib/bodyCompositionEvidence";
+import { messages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type MetricKey = keyof BodyCompositionScan;
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
 
 const metricFields: Array<{ key: MetricKey; label: string; unit: string; section: "body" | "composition" | "health" | "hydration" }> = [
   { key: "weightKg", label: "Weight", unit: "kg", section: "body" },
@@ -151,27 +162,27 @@ function reviewTimeText(scan: BodyCompositionScan | null) {
   return `${minutes} min review`;
 }
 
-function friendlyBodyScanError(error: unknown) {
+function friendlyBodyScanError(error: unknown, t: Translate = english) {
   const message = error instanceof Error ? error.message : "";
-  if (/date/i.test(message)) return "Please choose a valid scan date.";
-  if (/weight|fat mass|lean body/i.test(message)) return "One of the scan numbers looks unusual. Check the main values and try saving again.";
-  if (/machine|notes/i.test(message)) return "One optional note is too long. Shorten it and try again.";
-  if (/image|payload|too large|at most 6/i.test(message)) return "That upload is too large. Try fewer images or retake a clearer photo.";
-  if (/auth|token|login|permission/i.test(message)) return "Your session needs a quick refresh. Please log in again and retry.";
-  if (/network|fetch|timeout/i.test(message)) return "Connection was interrupted. Please try again in a moment.";
-  return "Ascend could not save this scan yet. Check the highlighted values and try again.";
+  if (/date/i.test(message)) return t("bodyScan.errorDate");
+  if (/weight|fat mass|lean body/i.test(message)) return t("bodyScan.errorUnusualNumbers");
+  if (/machine|notes/i.test(message)) return t("bodyScan.errorNoteLong");
+  if (/image|payload|too large|at most 6/i.test(message)) return t("bodyScan.errorUploadLarge");
+  if (/auth|token|login|permission/i.test(message)) return t("bodyScan.errorRefreshSession");
+  if (/network|fetch|timeout/i.test(message)) return t("bodyScan.errorConnection");
+  return t("bodyScan.errorSave");
 }
 
-function friendlyBodyScanLoadError(error: unknown, coachView: boolean) {
+function friendlyBodyScanLoadError(error: unknown, coachView: boolean, t: Translate = english) {
   const message = error instanceof Error ? error.message : "";
   if (/not enabled for this (account|client)/i.test(message)) {
     return coachView
-      ? "This client does not have Athlete Mode active yet, so there is no Body Scan workspace to review."
-      : "Body Scan is available after Athlete Mode is enabled on your account.";
+      ? t("bodyScan.errorClientAthleteMode")
+      : t("bodyScan.errorAthleteMode");
   }
-  if (/disabled globally/i.test(message)) return "Body Scan is temporarily unavailable. Please try again later.";
-  if (/network|fetch|timeout/i.test(message)) return "Body Scan is taking too long to load. Please try again in a moment.";
-  return "Body Scan could not load yet.";
+  if (/disabled globally/i.test(message)) return t("bodyScan.errorUnavailable");
+  if (/network|fetch|timeout/i.test(message)) return t("bodyScan.errorLoadSlow");
+  return t("bodyScan.errorLoad");
 }
 
 function prepareDraftForReview(draft: BodyCompositionScan): BodyCompositionScan {
@@ -210,15 +221,15 @@ function comparisonFor(summary: BodyCompositionSummary | null, metric: string) {
   return summary?.comparison?.metrics.find((item) => item.metric === metric) ?? null;
 }
 
-function changeText(change: number | null | undefined, unit = "") {
-  if (change === null || change === undefined || Number.isNaN(Number(change))) return "No previous scan";
+function changeText(change: number | null | undefined, unit = "", t: Translate = english) {
+  if (change === null || change === undefined || Number.isNaN(Number(change))) return t("bodyScan.noPreviousScan");
   const sign = change > 0 ? "+" : "";
   return `${sign}${Number(change).toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit}`;
 }
 
-function quickSummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan | null) {
-  if (!scan) return "Save your first scan to see your confirmed Body Scan progress.";
-  if ((summary?.scanCount ?? 0) <= 1 || !summary?.comparison?.available) return "First scan saved. Add another scan later to unlock true trend coaching.";
+function quickSummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan | null, t: Translate = english) {
+  if (!scan) return t("bodyScan.saveFirstScanProgress");
+  if ((summary?.scanCount ?? 0) <= 1 || !summary?.comparison?.available) return t("bodyScan.firstScanSaved");
   if (summary.comparison.status === "INSUFFICIENT") return summary.comparison.headline;
   const bodyFat = comparisonFor(summary, "Body Fat");
   const muscle = comparisonFor(summary, "Skeletal Muscle");
@@ -226,13 +237,13 @@ function quickSummary(summary: BodyCompositionSummary | null, scan: BodyComposit
     return bodyFat?.meaningful ? bodyFat.message : muscle?.meaningful ? muscle.message : summary.comparison.headline;
   }
   if (bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful && bodyFat.signal === "lower" && muscle?.evidenceStatus === "ESTABLISHED" && ["higher", "no_clear_change"].includes(muscle.signal)) {
-    return "The body-fat reading is lower without a clear decline in the skeletal-muscle reading.";
+    return t("bodyScan.bodyFatLowerMuscleStable");
   }
   if (muscle?.evidenceStatus === "ESTABLISHED" && muscle.meaningful && muscle.signal === "lower") {
-    return "The skeletal-muscle reading is lower. Recheck under similar conditions and review protein, recovery, and training load.";
+    return t("bodyScan.muscleLower");
   }
   if (bodyFat?.evidenceStatus === "ESTABLISHED" && bodyFat.meaningful && bodyFat.signal === "higher") {
-    return "The body-fat reading is higher. Repeat under similar conditions before changing the plan.";
+    return t("bodyScan.bodyFatHigher");
   }
   return summary.comparison.headline;
 }
@@ -327,12 +338,12 @@ function StageProgress({ activeStage, busy }: { activeStage: BodyScanImportStage
   );
 }
 
-function coachInsight(summary: BodyCompositionSummary | null, scan: BodyCompositionScan, nutritionTargets?: ResolvedNutritionTargets | null) {
+function coachInsight(summary: BodyCompositionSummary | null, scan: BodyCompositionScan, nutritionTargets: ResolvedNutritionTargets | null | undefined, t: Translate = english) {
   const alert = summary?.coachAlerts.find((item) => item.severity !== "positive") ?? summary?.coachAlerts[0];
   if (alert?.message) return alert.message;
   const protein = nutritionGuide(summary, scan, nutritionTargets).protein;
-  if (protein) return `Use this scan to keep protein near ${protein}g daily and review your next scan in about four weeks.`;
-  return "Keep training consistent, log your meals honestly, and compare again in about four weeks.";
+  if (protein) return t("bodyScan.keepProteinNear", { protein });
+  return t("bodyScan.keepTrainingConsistent");
 }
 
 function compactMetric(value: number | null | undefined, unit = "") {
@@ -340,7 +351,7 @@ function compactMetric(value: number | null | undefined, unit = "") {
   return `${Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 })}${unit}`;
 }
 
-function bodySummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan) {
+function bodySummary(summary: BodyCompositionSummary | null, scan: BodyCompositionScan, t: Translate = english) {
   const bodyFat = compactMetric(scan.bodyFatPercent, "%");
   const muscle = compactMetric(scan.skeletalMuscleMassKg ?? scan.muscleMassKg, "kg");
   const bmr = compactMetric(scan.bmrKcal, " kcal");
@@ -353,11 +364,11 @@ function bodySummary(summary: BodyCompositionSummary | null, scan: BodyCompositi
   ].filter(Boolean);
 
   if (parts.length >= 2) {
-    const trend = quickSummary(summary, scan);
-    return `Your scan shows ${parts.slice(0, 3).join(", ")}. ${trend}`;
+    const trend = quickSummary(summary, scan, t);
+    return t("bodyScan.scanShows", { parts: parts.slice(0, 3).join(", "), trend });
   }
-  if (parts.length === 1) return `Your scan captured that ${parts[0]}. Save future scans to build a clearer body composition trend.`;
-  return "Your scan is now saved as a baseline. Add another scan in about four weeks to unlock clearer body composition trends.";
+  if (parts.length === 1) return t("bodyScan.scanCapturedOne", { part: parts[0] ?? "" });
+  return t("bodyScan.baselineSaved");
 }
 
 function resultStrengths(scan: BodyCompositionScan) {
@@ -389,33 +400,34 @@ function resultOpportunities(scan: BodyCompositionScan) {
   return opportunities.length ? opportunities.slice(0, 3) : [{ title: "Build comparable history", detail: "Repeat the scan under similar conditions in about four weeks." }];
 }
 
-function progressRows(summary: BodyCompositionSummary | null) {
+function progressRows(summary: BodyCompositionSummary | null, t: Translate = english) {
   if (!summary?.previousScan) return [];
   const comparisonValue = (metric: string, fallbackUnit: string) => {
     const item = comparisonFor(summary, metric);
-    if (!item || item.signal === "not_comparable") return "Not available";
-    if (item.evidenceStatus === "INSUFFICIENT") return "Not established";
-    if (item.signal === "no_clear_change") return "No clear change";
-    const change = changeText(item.change, fallbackUnit);
-    return item.evidenceStatus === "PROVISIONAL" ? `${change} provisional` : change;
+    if (!item || item.signal === "not_comparable") return t("client360.notAvailable");
+    if (item.evidenceStatus === "INSUFFICIENT") return t("bodyScan.notEstablished");
+    if (item.signal === "no_clear_change") return t("bodyScan.noClearChange");
+    const change = changeText(item.change, fallbackUnit, t);
+    return item.evidenceStatus === "PROVISIONAL" ? t("bodyScan.provisionalChange", { change }) : change;
   };
   return [
     { label: "Weight", value: comparisonValue("Weight", "kg") },
     { label: "Body fat", value: comparisonValue("Body Fat", "%") },
     { label: "Skeletal muscle", value: comparisonValue("Skeletal Muscle", "kg") },
-    { label: "DNA Score", value: summary.dnaScore.change !== null ? changeText(summary.dnaScore.change, "") : "Not established" }
+    { label: "DNA Score", value: summary.dnaScore.change !== null ? changeText(summary.dnaScore.change, "", t) : t("bodyScan.notEstablished") }
   ];
 }
 
 function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyCompositionSummary | null; scan: BodyCompositionScan | null; nutritionTargets: ResolvedNutritionTargets | null }) {
+  const { t } = useI18n();
   if (!scan) return null;
   const guide = nutritionGuide(summary, scan, nutritionTargets);
-  const summaryText = bodySummary(summary, scan);
+  const summaryText = bodySummary(summary, scan, t);
   const score = summary?.dnaScore.current ?? null;
   const scoreChange = summary?.dnaScore.change ?? null;
   const strengths = resultStrengths(scan);
   const opportunities = resultOpportunities(scan);
-  const progress = progressRows(summary);
+  const progress = progressRows(summary, t);
   const dashboardHref = "/dashboard";
   return (
     <section className="rounded-lg border border-teal-400/50 bg-gradient-to-br from-teal-400/20 via-surface to-purple-400/15 p-4 shadow-xl shadow-teal-400/10">
@@ -528,7 +540,7 @@ function ResultsCard({ summary, scan, nutritionTargets }: { summary: BodyComposi
 
       <div className="mt-3 rounded-lg border border-teal-400/30 bg-teal-400/10 p-3">
         <p className="text-sm font-semibold">Coach Insight</p>
-        <p className="mt-2 text-sm leading-6 text-zinc-200">{coachInsight(summary, scan, nutritionTargets)}</p>
+        <p className="mt-2 text-sm leading-6 text-zinc-200">{coachInsight(summary, scan, nutritionTargets, t)}</p>
       </div>
 
       <div className="mt-3 rounded-lg border border-line bg-ink p-3">
@@ -577,14 +589,15 @@ function AiDraftSummary({ draft }: { draft: BodyCompositionScan }) {
 }
 
 function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) {
+  const { t } = useI18n();
   if (!summary?.latestScan) return null;
   const bodyFat = comparisonFor(summary, "Body Fat");
   const muscle = comparisonFor(summary, "Skeletal Muscle");
   const comparisonLabel = (metric: typeof bodyFat, unit: string) => {
-    if (!metric || metric.signal === "not_comparable") return "Not available";
-    if (metric.evidenceStatus === "INSUFFICIENT") return "Change not established";
-    if (metric.evidenceStatus === "PROVISIONAL") return `${changeText(metric.change, unit)} provisional`;
-    return changeText(metric.change, unit);
+    if (!metric || metric.signal === "not_comparable") return t("client360.notAvailable");
+    if (metric.evidenceStatus === "INSUFFICIENT") return t("bodyScan.changeNotEstablished");
+    if (metric.evidenceStatus === "PROVISIONAL") return t("bodyScan.provisionalChange", { change: changeText(metric.change, unit, t) });
+    return changeText(metric.change, unit, t);
   };
   return (
     <section className="rounded-lg border border-purple-400/40 bg-purple-400/10 p-4">
@@ -601,7 +614,7 @@ function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) 
       </div>
       <div className="mt-3 rounded-lg bg-ink p-3">
         <p className="text-xs text-zinc-500">Recommended discussion</p>
-        <p className="mt-1 text-sm leading-6 text-zinc-200">{quickSummary(summary, summary.latestScan)}</p>
+        <p className="mt-1 text-sm leading-6 text-zinc-200">{quickSummary(summary, summary.latestScan, t)}</p>
       </div>
       {summary.coachAlerts.length ? (
         <div className="mt-3 space-y-2">
@@ -615,12 +628,13 @@ function CoachSnapshot({ summary }: { summary: BodyCompositionSummary | null }) 
 }
 
 export function BodyCompositionClient({ clientId, coachView = false }: { clientId?: string; coachView?: boolean }) {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<BodyCompositionSummary | null>(null);
   const [nutritionTargets, setNutritionTargets] = useState<ResolvedNutritionTargets | null>(null);
   const [scans, setScans] = useState<BodyCompositionScan[]>([]);
   const [draft, setDraft] = useState<BodyCompositionScan>(emptyDraft());
   const [selectedImages, setSelectedImages] = useState<OptimizedBodyScanImage[]>([]);
-  const [status, setStatus] = useState("Loading Body Scan...");
+  const [status, setStatus] = useState(t("bodyScan.loading"));
   const [busy, setBusy] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [activeStage, setActiveStage] = useState<BodyScanImportStageId | null>(null);
@@ -645,9 +659,9 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
       }
       setStatus("");
     } catch (error) {
-      setStatus(friendlyBodyScanLoadError(error, coachView));
+      setStatus(friendlyBodyScanLoadError(error, coachView, t));
     }
-  }, [clientId, coachView]);
+  }, [clientId, coachView, t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -818,7 +832,7 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : null
       });
-      setStatus(friendlyBodyScanError(error));
+      setStatus(friendlyBodyScanError(error, t));
     } finally {
       setBusy(false);
     }
@@ -1100,10 +1114,10 @@ export function BodyCompositionClient({ clientId, coachView = false }: { clientI
               const bodyFatComparison = scan.id === latest?.id ? comparisonFor(summary, "Body Fat") : null;
               const muscleComparison = scan.id === latest?.id ? comparisonFor(summary, "Skeletal Muscle") : null;
               const historyChange = (comparison: typeof bodyFatComparison, unit: string) => {
-                if (!comparison || comparison.signal === "not_comparable") return "Not comparable";
-                if (comparison.evidenceStatus === "INSUFFICIENT") return "Change not established";
-                if (comparison.evidenceStatus === "PROVISIONAL") return `${changeText(comparison.change, unit)} provisional`;
-                return changeText(comparison.change, unit);
+                if (!comparison || comparison.signal === "not_comparable") return t("bodyScan.notComparable");
+                if (comparison.evidenceStatus === "INSUFFICIENT") return t("bodyScan.changeNotEstablished");
+                if (comparison.evidenceStatus === "PROVISIONAL") return t("bodyScan.provisionalChange", { change: changeText(comparison.change, unit, t) });
+                return changeText(comparison.change, unit, t);
               };
               return (
                 <article key={scan.id ?? `${scan.scanDate}-${scan.createdAt}`} className="rounded-lg border border-line bg-ink p-3">

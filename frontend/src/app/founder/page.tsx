@@ -8,8 +8,8 @@ export default function FounderPage() {
       <RoleGate
         allowedRoles={["owner"]}
         requirePlatformOwner
-        fallbackTitle="Founder access only"
-        fallbackMessage="This private workspace is available only to the Ascend platform owner."
+        fallbackTitleKey="access.founderOnly"
+        fallbackMessageKey="access.founderDenied"
       >
         <FounderDashboardClient />
       </RoleGate>

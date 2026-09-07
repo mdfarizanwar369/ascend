@@ -1,6 +1,7 @@
 "use client";
 
 import { getNativeCapacitorPlatform, isNativeAndroidCapacitor, isNativeCapacitorPlatform } from "@/lib/nativePlatform";
+import { englishMessage } from "@/lib/i18n/static";
 
 function envFlagEnabled(value: string | undefined) {
   return value === "true";
@@ -30,11 +31,11 @@ export function shouldHideHostedBilling() {
 
 export function getNativeBillingMessage() {
   if (isNativeAndroidCapacitor() && !isAndroidPlayBillingEnabled()) {
-    return "Premium upgrades are not available in this test build yet. Testers can request Premium access from the Ascend team.";
+    return englishMessage("billing.premiumUnavailableTestBuild");
   }
 
   if (getNativeCapacitorPlatform() === "ios" && !isIosBillingEnabled()) {
-    return "In-app premium upgrades are not available on iPhone yet. Please use the web app for billing.";
+    return englishMessage("billing.iosUnavailable");
   }
 
   return null;

@@ -1,5 +1,6 @@
 import { getProgressPhotoImageBlob } from "@/lib/ascendApi";
 import type { AscendStoryContext, AscendStoryFormat, AscendStoryPhoto } from "@/lib/ascendStories";
+import { englishMessage } from "@/lib/i18n/static";
 
 type PhotoBlobLoader = (photoId: string) => Promise<Blob>;
 
@@ -20,12 +21,12 @@ export async function prepareStoryPhotos(
   try {
     await Promise.all(unique.map(async (photo) => {
       const blob = await loadPhotoBlob(photo.id);
-      if (!blob.type.startsWith("image/") || !blob.size) throw new Error("Progress photo is unavailable.");
+      if (!blob.type.startsWith("image/") || !blob.size) throw new Error(englishMessage("stories.photoUnavailable"));
       objectUrls.set(photo.id, URL.createObjectURL(blob));
     }));
   } catch {
     objectUrls.forEach((url) => URL.revokeObjectURL(url));
-    throw new Error("Ascend could not securely load this photo. Please try again.");
+    throw new Error(englishMessage("stories.photoSecureLoadError"));
   }
 
   const replaceUrl = (photo: AscendStoryPhoto) => {

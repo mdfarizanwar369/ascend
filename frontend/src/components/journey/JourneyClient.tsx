@@ -52,6 +52,7 @@ import { SectionShell, SkeletonBlock, SkeletonCardList, SkeletonText } from "@/c
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
 import { bodyCompositionJourneyDetail } from "@/lib/bodyCompositionEvidence";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type JourneyUser = Awaited<ReturnType<typeof getMe>>["user"];
 type WeightLog = Awaited<ReturnType<typeof getWeightLogs>>["weightLogs"][number];
@@ -541,7 +542,7 @@ function buildTimelineHighlights(
   return highlights.slice(0, 3);
 }
 
-function groupTimelineByDate(items: TimelineItem[]) {
+function groupTimelineByDate(items: TimelineItem[], t: (key: string) => string) {
   const groups = new Map<string, TimelineItem[]>();
 
   for (const item of items) {
@@ -554,19 +555,19 @@ function groupTimelineByDate(items: TimelineItem[]) {
   return [...groups.entries()]
     .map(([dateKey, groupItems]) => ({
       dateKey,
-      label: formatTimelineGroupLabel(dateKey),
+      label: formatTimelineGroupLabel(dateKey, t),
       items: groupItems.sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
     }))
     .sort((left, right) => new Date(right.dateKey).getTime() - new Date(left.dateKey).getTime());
 }
 
-function formatTimelineGroupLabel(dateKey: string) {
+function formatTimelineGroupLabel(dateKey: string, t: (key: string) => string) {
   const today = localDateKey(new Date().toISOString());
   const yesterdayDate = new Date();
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
   const yesterday = localDateKey(yesterdayDate.toISOString());
-  if (dateKey === today) return "Today";
-  if (dateKey === yesterday) return "Yesterday";
+  if (dateKey === today) return t("common.today");
+  if (dateKey === yesterday) return t("common.yesterday");
   return formatShortDate(dateKey);
 }
 
@@ -751,6 +752,7 @@ function buildNextMilestone({
 }
 
 export function JourneyClient() {
+  const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState("Loading your journey...");
   const [user, setUser] = useState<JourneyUser | null>(null);
@@ -977,7 +979,7 @@ export function JourneyClient() {
     !burnLogs.length &&
     !progressPhotos.length &&
     !ascendMemory?.timeline.some((item) => item.type !== "started_journey");
-  const fullTimelineGroups = useMemo(() => groupTimelineByDate(filteredTimeline), [filteredTimeline]);
+  const fullTimelineGroups = useMemo(() => groupTimelineByDate(filteredTimeline, t), [filteredTimeline, t]);
   const coachMoments = useMemo(
     () =>
       buildCoachMoments({
@@ -1032,11 +1034,11 @@ export function JourneyClient() {
           <header className="flex items-center gap-3 py-3">
             <BackButton fallbackHref="/dashboard" />
             <div>
-              <p className="text-sm text-zinc-400">Today</p>
+              <p className="text-sm text-zinc-400">{t("common.today")}</p>
               <h1 className="text-2xl font-semibold">Journey</h1>
             </div>
           </header>
-          <SectionShell title="Your Journey">
+          <SectionShell title={t("journey.yourJourney")}>
             <SkeletonText lines={3} />
             <div className="mt-4 grid grid-cols-3 gap-2">
               <SkeletonBlock className="h-20 rounded-2xl" />
@@ -1044,7 +1046,7 @@ export function JourneyClient() {
               <SkeletonBlock className="h-20 rounded-2xl" />
             </div>
           </SectionShell>
-          <SectionShell title="Timeline">
+          <SectionShell title={t("journey.timeline")}>
             <SkeletonCardList count={3} compact />
           </SectionShell>
         </div>

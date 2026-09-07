@@ -30,6 +30,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { getMarketingDemoFrame, MARKETING_DEMO_SCENE_DURATIONS_MS, type WorkoutDebriefView } from "@ascend/shared";
 import { BrandMark } from "@/components/BrandMark";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
+import { englishMessage } from "@/lib/i18n/static";
 
 type DemoSceneKind = "image" | "debrief" | "journey" | "body-scan" | "trainer" | "owner";
 
@@ -170,7 +171,7 @@ function ProductSceneFooter({ scene }: { scene: DemoSceneDefinition }) {
 function DebriefScene({ scene }: { scene: DemoSceneDefinition }) {
   return (
     <ProductPanel>
-      <SceneHeading eyebrow="Workout saved" title="Push Strength · 45 min" />
+      <SceneHeading eyebrow={englishMessage("demo.workoutSaved")} title={englishMessage("demo.pushStrength45")} />
       <div className="relative h-36 overflow-hidden rounded-2xl border border-teal-300/20">
         <Image src="/workouts/goal-strength.jpg" alt="Strength workout" fill sizes="380px" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
@@ -198,7 +199,7 @@ function JourneyScene({ scene }: { scene: DemoSceneDefinition }) {
   ];
   return (
     <ProductPanel>
-      <SceneHeading eyebrow="Your story" title="You're building something that lasts." />
+      <SceneHeading eyebrow={englishMessage("demo.yourStory")} title="You're building something that lasts." />
       <div className="rounded-2xl border border-purple-300/20 bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.22),transparent_45%),#0a0d14] p-4">
         <div className="flex items-center justify-between"><div><p className="text-xs text-zinc-400">Biggest achievement</p><p className="mt-1 text-2xl font-semibold">12-day streak</p></div><Award className="text-purple-300" size={34} /></div>
         <p className="mt-3 text-xs leading-5 text-zinc-300">Small check-ins became your most consistent stretch yet.</p>
@@ -250,14 +251,14 @@ function TrainerScene({ scene }: { scene: DemoSceneDefinition }) {
   ];
   return (
     <ProductPanel>
-      <SceneHeading eyebrow="Today's priorities" title="3 clients need attention" />
+      <SceneHeading eyebrow={englishMessage("demo.todaysPriorities")} title="3 clients need attention" />
       <div className="grid grid-cols-3 gap-2">
         {[["Clients", "17"], ["Check-ins", "3"], ["Wins", "2"]].map(([label, value]) => <div key={label} className="rounded-xl border border-white/8 bg-[#080b12] p-3"><p className="text-xl font-semibold">{value}</p><p className="text-[10px] text-zinc-500">{label}</p></div>)}
       </div>
       <div className="mt-3 space-y-2">
         {clients.map((client, index) => (
           <div key={client.name} className={`rounded-xl border p-3 ${index === 0 ? "border-amber-300/30 bg-amber-300/8" : "border-white/8 bg-[#080b12]"}`}>
-            <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-purple-400/15 text-xs font-semibold text-purple-200">{client.initials}</span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{client.name}</p><span className="text-[10px] text-zinc-500">Today</span></div><p className="mt-1 text-xs text-zinc-300">{client.signal}</p><p className="mt-2 flex items-center gap-1 text-xs font-semibold text-lime">{client.action} <ArrowRight size={12} /></p></div></div>
+            <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-purple-400/15 text-xs font-semibold text-purple-200">{client.initials}</span><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold">{client.name}</p><span className="text-[10px] text-zinc-500">{englishMessage("common.today")}</span></div><p className="mt-1 text-xs text-zinc-300">{client.signal}</p><p className="mt-2 flex items-center gap-1 text-xs font-semibold text-lime">{client.action} <ArrowRight size={12} /></p></div></div>
           </div>
         ))}
       </div>
@@ -270,7 +271,7 @@ function TrainerScene({ scene }: { scene: DemoSceneDefinition }) {
 function OwnerScene({ scene }: { scene: DemoSceneDefinition }) {
   return (
     <ProductPanel>
-      <SceneHeading eyebrow="Today's business brief" title="Owner Command Center" />
+      <SceneHeading eyebrow={englishMessage("demo.todaysBusinessBrief")} title={englishMessage("admin.ownerCommandCenter")} />
       <div className="rounded-2xl border border-purple-300/25 bg-[radial-gradient(circle_at_top_right,rgba(168,85,247,0.22),transparent_45%),#0a0d14] p-4">
         <div className="flex items-center gap-3"><span className="grid h-12 w-12 place-items-center rounded-xl bg-purple-400/15 text-purple-200"><Building2 size={23} /></span><div><p className="text-sm font-semibold">Business picture: Good</p><p className="text-xs text-zinc-400">Member activity is steady. Three follow-ups need action.</p></div></div>
       </div>

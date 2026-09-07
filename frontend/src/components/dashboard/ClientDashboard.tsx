@@ -48,6 +48,7 @@ import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { getAscendMorphV22Timing, useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -65,6 +66,8 @@ type ProgressPhoto = Awaited<ReturnType<typeof getProgressPhotos>>["progressPhot
 type ResolvedNutritionTargets = Awaited<ReturnType<typeof getMyNutritionTargets>>["targets"];
 type TodayPriority = TodayPriorityRecommendation;
 type HealthSyncStatus = Awaited<ReturnType<typeof getHealthSyncStatus>>["status"];
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+type SnapshotMetricKey = "calories" | "protein" | "water" | "activity" | "momentum";
 type MomentumSignalKey = "fuel" | "move" | "recover";
 type MomentumSignal = {
   key: MomentumSignalKey;
@@ -112,11 +115,11 @@ const goalCelebrationMessages = [
   "Celebrate this, then choose the next climb."
 ];
 
-function formatGoal(goal?: string | null) {
-  if (goal === "fat_loss") return "Fat loss";
-  if (goal === "muscle_gain") return "Muscle gain";
-  if (goal === "maintenance") return "Maintenance";
-  return "Goal not set";
+function formatGoal(goal: string | null | undefined, t: Translate) {
+  if (goal === "fat_loss") return t("onboarding.goalFatLoss");
+  if (goal === "muscle_gain") return t("onboarding.goalMuscleGain");
+  if (goal === "maintenance") return t("onboarding.goalMaintenance");
+  return t("dashboard.goalNotSet");
 }
 
 function effectiveCoachingMode(user: DashboardUser | null): CoachingMode {
@@ -125,10 +128,10 @@ function effectiveCoachingMode(user: DashboardUser | null): CoachingMode {
   return "self_coached";
 }
 
-function coachingLabel(mode: CoachingMode) {
-  if (mode === "human_coach") return "Human Coach";
-  if (mode === "ai_coach") return "AI Coach";
-  return "Self-Coached";
+function coachingLabel(mode: CoachingMode, t: Translate) {
+  if (mode === "human_coach") return t("dashboard.humanCoach");
+  if (mode === "ai_coach") return t("dashboard.aiCoach");
+  return t("dashboard.selfCoached");
 }
 
 function asNumber(value: string | number | null | undefined) {
@@ -193,11 +196,11 @@ export function SignalProgressRing({
   );
 }
 
-function progressCopy(goal?: string | null) {
-  if (goal === "fat_loss") return "toward your weight-loss goal";
-  if (goal === "muscle_gain") return "toward your muscle-gain goal";
-  if (goal === "maintenance") return "toward your maintenance range";
-  return "after you set a goal";
+function progressCopy(goal: string | null | undefined, t: Translate) {
+  if (goal === "fat_loss") return t("dashboard.progressWeightLossGoal");
+  if (goal === "muscle_gain") return t("dashboard.progressMuscleGainGoal");
+  if (goal === "maintenance") return t("dashboard.progressMaintenanceRange");
+  return t("dashboard.progressAfterGoal");
 }
 
 function lastSevenDateKeys() {
@@ -253,11 +256,11 @@ function summarizeRecentFoodDays(logs: FoodLog[], days = 3) {
   }));
 }
 
-function snapshotIcon(label: string) {
-  if (label === "Calories") return Flame;
-  if (label === "Protein") return Beef;
-  if (label === "Water") return Droplets;
-  if (label === "Calories Burned") return Activity;
+function snapshotIcon(key: SnapshotMetricKey) {
+  if (key === "calories") return Flame;
+  if (key === "protein") return Beef;
+  if (key === "water") return Droplets;
+  if (key === "activity") return Activity;
   return Zap;
 }
 
@@ -348,6 +351,7 @@ function CollapsibleSection({
 }
 
 export function ClientDashboard() {
+  const { t } = useI18n();
   const launchMorphV22 = useAscendLaunchMorphV22();
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -521,8 +525,9 @@ export function ClientDashboard() {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusFrame = window.requestAnimationFrame(() => recoveryCloseRef.current?.focus());
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setRecoverySheetOpen(false);
-      if (event.key !== "Tab") return;
+      const pressedKey = event.key.toLowerCase();
+      if (pressedKey === "escape") setRecoverySheetOpen(false);
+      if (pressedKey !== "tab") return;
       const focusable = Array.from(
         recoveryDialogRef.current?.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -1176,28 +1181,28 @@ export function ClientDashboard() {
       return {
         label: dailyDecisionInsight.title,
         message: dailyDecisionInsight.body,
-        detail: "One clear direction, based on what matters most today."
+        detail: t("dashboard.oneClearDirection")
       };
     }
     if (coachPresence.latest?.message && proactiveCoachInsight.key === "steady") {
       return {
-        label: "Coach Presence",
+        label: t("dashboard.coachPresence"),
         message: coachPresence.latest.message,
-        detail: "A small check-in based on your recent rhythm."
+        detail: t("dashboard.smallCheckinRhythm")
       };
     }
     if (latestRecognition?.message && proactiveCoachInsight.key === "steady") {
       return {
-        label: "Trainer noticed",
+        label: t("dashboard.trainerNoticed"),
         message: latestRecognition.message,
-        detail: latestRecognition.trainer_name ? `From ${latestRecognition.trainer_name}` : "Your effort was seen."
+        detail: latestRecognition.trainer_name ? t("dashboard.fromTrainer", { name: latestRecognition.trainer_name }) : t("dashboard.effortSeen")
       };
     }
     if (recentCelebration && proactiveCoachInsight.key === "steady") {
       return {
-        label: "Nice work",
+        label: t("dashboard.niceWork"),
         message: recentCelebration.secondary,
-        detail: "Take the win before chasing the next task."
+        detail: t("dashboard.takeTheWin")
       };
     }
     return {
@@ -1205,8 +1210,8 @@ export function ClientDashboard() {
       message: proactiveCoachInsight.body,
       detail:
         proactiveCoachInsight.key === "steady"
-          ? "Small steady actions still count today."
-          : "Coach Zoe noticed something worth your attention."
+          ? t("dashboard.smallSteadyActions")
+          : t("dashboard.zoeNoticedAttention")
     };
   })();
   const primaryAction = { label: todayPriority.cta, href: todayPriority.href };
@@ -1217,33 +1222,33 @@ export function ClientDashboard() {
     if (dailyMission?.title) {
       return {
         message: dailyMission.title,
-        detail: dailyMission.trainer_name ? `Shared by ${dailyMission.trainer_name}.` : "Your trainer is keeping today's focus simple."
+        detail: dailyMission.trainer_name ? t("dashboard.sharedByTrainer", { name: dailyMission.trainer_name }) : t("dashboard.trainerKeepingFocusSimple")
       };
     }
     if (latestRecognition?.message) {
       return {
         message: latestRecognition.message,
-        detail: latestRecognition.trainer_name ? `From ${latestRecognition.trainer_name}.` : "A note from your coach."
+        detail: latestRecognition.trainer_name ? t("dashboard.fromTrainerWithPeriod", { name: latestRecognition.trainer_name }) : t("dashboard.noteFromCoach")
       };
     }
     if (coachPresence.latest?.message) {
       return {
         message: coachPresence.latest.message,
-        detail: "Support between sessions, shaped by your recent activity."
+        detail: t("dashboard.supportBetweenSessions")
       };
     }
     return {
-      message: "Your coach wants today's basics to feel easy to complete.",
-      detail: "Open your messages when you're ready for the latest note."
+      message: t("dashboard.coachBasicsEasy"),
+      detail: t("dashboard.openMessagesLatestNote")
     };
   })();
   const athleteTrainingFocus = (() => {
-    if (!athleteDashboard) return "Open Athlete Mode to review today's readiness and targets.";
+    if (!athleteDashboard) return t("dashboard.openAthleteModeReviewToday");
     const todayTarget = athleteDashboard.targets.find((target) => target.cadence === "daily" && target.notes);
     if (todayTarget?.notes) return todayTarget.notes;
     if (athleteDashboard.latestReview?.summary) return athleteDashboard.latestReview.summary;
     if (athleteDashboard.readinessTrend.warningPatterns[0]) return athleteDashboard.readinessTrend.warningPatterns[0];
-    return "Use today's check-in to guide training intensity.";
+    return t("dashboard.useTodayCheckin");
   })();
   const progressPreview = (() => {
     if (weightLostFromStart >= 0.1) {
@@ -1289,9 +1294,7 @@ export function ClientDashboard() {
   })();
   const athleteTodaySummary = (() => {
     if (!user?.athlete_mode_enabled) return null;
-    if (!athleteDashboard) {
-      return "Open Athlete Mode for today's readiness and event countdown.";
-    }
+    if (!athleteDashboard) return t("dashboard.openAthleteModeToday");
     const parts = [
       athleteDashboard.readiness.status,
       athleteDashboard.countdown ? `${athleteDashboard.countdown.days} days out` : null,
@@ -1382,11 +1385,12 @@ export function ClientDashboard() {
       href: null
     }
   ];
-  const priorityMomentumKey: MomentumSignalKey | null = todayPriority.key === "Meal"
+  const todayPriorityKey = todayPriority.key?.toLowerCase();
+  const priorityMomentumKey: MomentumSignalKey | null = todayPriorityKey === "meal"
     ? "fuel"
-    : todayPriority.key === "Movement"
+    : todayPriorityKey === "movement"
       ? "move"
-      : todayPriority.key === "Water"
+      : todayPriorityKey === "water"
         ? "recover"
         : null;
   const fuelMomentumDone = momentumSignals.find((item) => item.key === "fuel")?.done ?? false;
@@ -1587,7 +1591,7 @@ export function ClientDashboard() {
               <BrandMark size="sm" />
               <span>
                 <span className="block text-lg font-semibold leading-5">Ascend</span>
-                <span className="text-xs text-zinc-400">Loading your dashboard</span>
+                <span className="text-xs text-zinc-400">{t("dashboard.loadingDashboard")}</span>
               </span>
             </Link>
             <div className="flex items-center gap-2">
@@ -1597,7 +1601,7 @@ export function ClientDashboard() {
           </header>
 
           <AccountBarSkeleton />
-          <SectionShell title="Today's essentials">
+          <SectionShell title={t("dashboard.todaysEssentials")}>
             <SkeletonBlock className="h-7 w-64" />
             <div className="mt-4 space-y-3">
               <SkeletonBlock className="h-32 w-full rounded-2xl" />
@@ -1606,14 +1610,14 @@ export function ClientDashboard() {
             </div>
           </SectionShell>
           <SkeletonBlock className="h-28 w-full rounded-2xl" />
-          <SectionShell title="Today's focus">
+          <SectionShell title={t("dashboard.todaysFocus")}>
             <SkeletonText lines={2} />
             <SkeletonBlock className="mt-4 h-12 w-full rounded-xl" />
           </SectionShell>
-          <SectionShell title="Today's Numbers">
+          <SectionShell title={t("dashboard.todaysNumbers")}>
             <SkeletonStatGrid count={4} />
           </SectionShell>
-          <SectionShell title="Today's insight">
+          <SectionShell title={t("dashboard.todaysInsight")}>
             <SkeletonCardList count={2} compact />
           </SectionShell>
           <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
@@ -1630,12 +1634,12 @@ export function ClientDashboard() {
             <BrandMark size="sm" />
             <span>
               <span className="block text-lg font-semibold leading-5">Ascend</span>
-              <span className="text-xs text-zinc-400">{coachingLabel(coachingMode)}</span>
+              <span className="text-xs text-zinc-400">{coachingLabel(coachingMode, t)}</span>
             </span>
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Link href="/coach" className="ascend-pressable grid h-11 w-11 place-items-center rounded-lg border border-line bg-surface text-purple-200" aria-label="Open Coach Zoe">
+            <Link href="/coach" className="ascend-pressable grid h-11 w-11 place-items-center rounded-lg border border-line bg-surface text-purple-200" aria-label={t("dashboard.openCoachZoe")}>
               <Sparkles size={18} />
             </Link>
           </div>
@@ -1662,10 +1666,10 @@ export function ClientDashboard() {
                 ))}
               </div>
             ) : null}
-            <p className="text-sm font-semibold uppercase text-lime">Goal achieved</p>
-            <h1 className="mt-2 text-3xl font-semibold">You reached {Number(goalStatus.milestone_target_weight_kg).toFixed(1)}kg!</h1>
+            <p className="text-sm font-semibold uppercase text-lime">{t("dashboard.goalAchieved")}</p>
+            <h1 className="mt-2 text-3xl font-semibold">{t("dashboard.goalReachedWeight", { weight: Number(goalStatus.milestone_target_weight_kg).toFixed(1) })}</h1>
             <p className="mt-2 text-sm leading-6 text-zinc-200">
-              {isCelebratingGoal ? goalCelebrationMessage : "This milestone came from consistent work. Celebrate it, then choose whether to maintain your result or begin a new journey."}
+              {isCelebratingGoal ? goalCelebrationMessage : t("dashboard.goalMilestoneDetail")}
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
@@ -1674,10 +1678,10 @@ export function ClientDashboard() {
                 onClick={acknowledgeMilestone}
                 className="h-11 rounded-lg border border-lime/50 bg-ink font-semibold text-lime disabled:cursor-default disabled:opacity-100"
               >
-                {hasCelebratedGoal ? "🎉 Celebrated" : "Celebrate"}
+                {hasCelebratedGoal ? t("dashboard.celebrated") : t("dashboard.celebrate")}
               </button>
               <Link href="/profile/guide" className="ascend-pressable flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-                Choose next goal
+                {t("dashboard.chooseNextGoal")}
               </Link>
             </div>
           </section>
@@ -1691,12 +1695,12 @@ export function ClientDashboard() {
           aria-labelledby="today-essentials-title"
         >
           <div className="ascend-essentials-heading">
-            <p className="ascend-eyebrow">Today&apos;s essentials</p>
+            <p className="ascend-eyebrow">{t("dashboard.todaysEssentials")}</p>
             <h1 id="today-essentials-title" className="mt-1.5 text-[1.65rem] font-semibold leading-tight text-white">
               Your three. Build your momentum.
             </h1>
           </div>
-          <div className="ascend-essentials-completion mt-3 flex items-center gap-2" aria-label={`${completedMomentumSignals} of ${activeMomentumSignals.length} essentials complete`}>
+          <div className="ascend-essentials-completion mt-3 flex items-center gap-2" aria-label={t("dashboard.essentialsCompleteAria", { completed: completedMomentumSignals, total: activeMomentumSignals.length })}>
             <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.06]" aria-hidden="true">
               <div
                 className="ascend-opening-path-progress h-full origin-left rounded-full bg-[linear-gradient(90deg,#a484ff,#35f2d0,#63a2ff)] transition-[width] duration-700"
@@ -1705,11 +1709,11 @@ export function ClientDashboard() {
             </div>
             <p className="text-[11px] font-semibold text-zinc-400">{completedMomentumSignals} of {activeMomentumSignals.length}</p>
           </div>
-          <nav className="mt-4 grid gap-3" aria-label="Today activity shortcuts">
+          <nav className="mt-4 grid gap-3" aria-label={t("dashboard.todayActivityShortcuts")}>
             {activeMomentumSignals.map((item, index) => {
               const Icon = item.icon;
               const isPriority = index === 0 && !item.done;
-              const actionLabel = item.key === "fuel" ? "Log Meal" : item.key === "move" ? "Log Movement" : "Log Recovery";
+              const actionLabel = item.key === "fuel" ? t("dashboard.logMeal") : item.key === "move" ? t("dashboard.logMovement") : t("dashboard.logRecovery");
               const morphV22Timing = getAscendMorphV22Timing(index);
               const cardStyle = {
                 "--ascend-essential-entry-delay": `${index * 80}ms`,
@@ -1776,18 +1780,18 @@ export function ClientDashboard() {
           </nav>
         </section>
 
-        <Link href="/momentum-score" data-ascend-opening-target="momentum" className="ascend-pressable ascend-momentum-result mt-3 flex items-center gap-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label={isFirstDayState ? "Your Momentum begins with your first check-in" : `Your Momentum is ${score} out of 100 based on seven-day consistency`}>
+        <Link href="/momentum-score" data-ascend-opening-target="momentum" className="ascend-pressable ascend-momentum-result mt-3 flex items-center gap-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label={isFirstDayState ? t("dashboard.momentumBeginsAria") : t("dashboard.momentumScoreAria", { score })}>
           <div className="min-w-0 flex-1">
-            <p className="ascend-eyebrow">Your momentum</p>
-            <p className="mt-1.5 text-lg font-semibold text-white">{isFirstDayState ? "Ready to build" : `${score}/100`}</p>
-            <p className="mt-1 text-xs leading-5 text-zinc-400">Your seven-day consistency, built from Fuel, Move and Recover.</p>
+            <p className="ascend-eyebrow">{t("dashboard.yourMomentum")}</p>
+            <p className="mt-1.5 text-lg font-semibold text-white">{isFirstDayState ? t("dashboard.readyToBuild") : `${score}/100`}</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">{t("dashboard.momentumDetail")}</p>
           </div>
-          <AscendRiseMomentum compact score={score} label={isFirstDayState ? "Start here" : scoreLabel} isStarting={isFirstDayState} reward={momentumRewardActive} />
+          <AscendRiseMomentum compact score={score} label={isFirstDayState ? t("dashboard.startHere") : scoreLabel} isStarting={isFirstDayState} reward={momentumRewardActive} />
           <ArrowRight className="shrink-0 text-purple-200" size={17} />
         </Link>
 
         <section className="ascend-today-focus relative mt-3 overflow-hidden rounded-2xl border px-4 py-5 text-center">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-purple-200">Today&apos;s focus</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-purple-200">{t("dashboard.todaysFocus")}</p>
           <h2 className="mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
           <p className="mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
           <Link href={primaryAction.href} className="ascend-pressable ascend-cta-pulse mx-auto mt-4 flex h-[3.25rem] max-w-[21rem] items-center justify-center gap-2 rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_16px_36px_rgba(61,230,209,0.18)]">
@@ -1856,16 +1860,16 @@ export function ClientDashboard() {
         </section>
 
             <CollapsibleSection
-              title="Today's Numbers"
+              title={t("dashboard.todaysNumbers")}
               icon={<Zap size={17} />}
               tone="teal"
-              preview={hasTodaysNumbers ? "Your day, at a glance" : "Numbers appear as you check in"}
+              preview={hasTodaysNumbers ? t("dashboard.dayAtGlance") : t("dashboard.numbersAppear")}
               previewVisual={hasTodaysNumbers ? (
                 <div className="grid grid-cols-3 gap-2" aria-hidden="true">
                   {[
-                    { label: "Fuel", value: calorieProgress, color: "bg-amber" },
-                    { label: "Protein", value: proteinProgress, color: "bg-purple-400" },
-                    { label: "Water", value: waterProgress, color: "bg-calm" }
+                    { label: t("dashboard.fuel"), value: calorieProgress, color: "bg-amber" },
+                    { label: t("client360.protein"), value: proteinProgress, color: "bg-purple-400" },
+                    { label: t("trainer.water"), value: waterProgress, color: "bg-calm" }
                   ].map((signal) => (
                     <span key={signal.label} className="min-w-0">
                       <span className="flex items-center justify-between gap-1 text-[10px] font-semibold text-zinc-400">
@@ -1885,42 +1889,42 @@ export function ClientDashboard() {
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                   {[
                     {
-                      key: "calories",
-                      label: "Calories",
+                      key: "calories" as const,
+                      label: t("client360.calories"),
                       value: calories.toLocaleString(),
-                      target: `${calorieTarget.toLocaleString()} kcal guide`,
+                      target: t("trainer.kcalGuide", { value: calorieTarget.toLocaleString() }),
                       progress: calorieProgress
                     },
                     {
-                      key: "protein",
-                      label: "Protein",
+                      key: "protein" as const,
+                      label: t("client360.protein"),
                       value: `${protein}g`,
-                      target: `${proteinTarget}g guide`,
+                      target: t("trainer.gramsGuide", { value: proteinTarget }),
                       progress: proteinProgress
                     },
                     {
-                      key: "water",
-                      label: "Water",
+                      key: "water" as const,
+                      label: t("trainer.water"),
                       value: `${(todaysWaterMl / 1000).toFixed(1)}L`,
-                      target: `${(nutritionTargets.waterTargetMl / 1000).toFixed(1)}L guide`,
+                      target: t("dashboard.literGuide", { value: (nutritionTargets.waterTargetMl / 1000).toFixed(1) }),
                       progress: waterProgress
                     },
                     {
-                      key: "activity",
-                      label: "Calories Burned",
-                      value: hasActivityCalories ? `${todayActivityCalories.toLocaleString()} kcal` : "No activity yet",
+                      key: "activity" as const,
+                      label: t("dashboard.caloriesBurned"),
+                      value: hasActivityCalories ? `${todayActivityCalories.toLocaleString()} kcal` : t("dashboard.noActivityYet"),
                       target: hasActivityCalories
                         ? hasSyncedActivity && syncedActiveCalories >= todaysBurnCalories
-                          ? "Synced active calories"
-                          : "Estimated calories burned"
-                        : "Movement will appear here",
+                          ? t("dashboard.syncedActiveCalories")
+                          : t("dashboard.estimatedCaloriesBurned")
+                        : t("dashboard.movementWillAppear"),
                       progress: null
                     },
                     {
-                      key: "momentum",
-                      label: "Momentum",
+                      key: "momentum" as const,
+                      label: t("trainer.momentum"),
                       value: scoreLabel,
-                      target: `${score}/100 today`,
+                      target: t("dashboard.scoreToday", { score }),
                       progress: score
                     }
                   ].map((item) => (
@@ -1928,7 +1932,7 @@ export function ClientDashboard() {
                       <div className="flex items-start justify-between gap-2">
                         <span className={`grid h-8 w-8 place-items-center rounded-xl ${snapshotTone[item.key as keyof typeof snapshotTone].icon}`}>
                           {(() => {
-                            const Icon = snapshotIcon(item.label);
+                            const Icon = snapshotIcon(item.key);
                             return <Icon size={15} />;
                           })()}
                         </span>
@@ -2012,7 +2016,7 @@ export function ClientDashboard() {
           <button
             type="button"
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-            aria-label="Close recovery check-in"
+            aria-label={t("dashboard.closeRecoveryCheckin")}
             onClick={() => setRecoverySheetOpen(false)}
           />
           <section
@@ -2029,15 +2033,15 @@ export function ClientDashboard() {
                 <HeartPulse size={21} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 id="recovery-action-title" className="text-lg font-semibold text-white">Recovery check-in</h2>
-                <p className="mt-1 text-sm leading-5 text-zinc-400">Log hydration or how you slept. Either one helps Ascend guide today.</p>
+                <h2 id="recovery-action-title" className="text-lg font-semibold text-white">{t("dashboard.recoveryCheckin")}</h2>
+                <p className="mt-1 text-sm leading-5 text-zinc-400">{t("dashboard.recoveryCheckinDetail")}</p>
               </div>
               <button
                 ref={recoveryCloseRef}
                 type="button"
                 onClick={() => setRecoverySheetOpen(false)}
                 className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 text-zinc-300 hover:border-sky-300/35 hover:text-white"
-                aria-label="Close recovery check-in"
+                aria-label={t("dashboard.closeRecoveryCheckin")}
               >
                 <X size={19} />
               </button>
@@ -2050,9 +2054,9 @@ export function ClientDashboard() {
             >
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-calm/15 text-calm"><Droplets size={19} /></span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-white">Log water</span>
+                <span className="block text-sm font-semibold text-white">{t("dashboard.logWater")}</span>
                 <span className="mt-0.5 block text-xs text-zinc-400">
-                  {todaysWaterMl > 0 ? `${(todaysWaterMl / 1000).toFixed(1)}L recorded today` : "Add a quick hydration check-in"}
+                  {todaysWaterMl > 0 ? t("dashboard.litersRecordedToday", { value: (todaysWaterMl / 1000).toFixed(1) }) : t("dashboard.addHydrationCheckin")}
                 </span>
               </span>
               <ArrowRight size={18} className="shrink-0 text-calm" />

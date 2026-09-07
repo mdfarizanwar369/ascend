@@ -9,10 +9,10 @@ export default async function TrainerBodyCompositionPage({ params }: { params: P
     <AppShell active="trainer">
       <RoleGate
         allowedRoles={["trainer", "admin", "owner"]}
-        fallbackTitle="Trainer access only"
-        fallbackMessage="This account cannot view client athlete records. Use a trainer, owner, or admin login."
+        fallbackTitleKey="access.trainerOnly"
+        fallbackMessageKey="access.trainerBodyDenied"
         requiredPlan="trainer_pro"
-        planFeature="Body composition coaching"
+        planFeatureKey="trainer.bodyCompositionFeature"
       >
         <BodyCompositionClient clientId={clientId} coachView />
       </RoleGate>

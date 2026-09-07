@@ -13,6 +13,7 @@ import {
 } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import {
   AdminTrainer,
   AdminUser,
@@ -39,6 +40,7 @@ const workspaceViews: Array<{ id: WorkspaceView; label: string }> = [
 ];
 
 export function AdminUsersClient() {
+  const { t } = useI18n();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [gyms, setGyms] = useState<Gym[]>([]);
@@ -213,7 +215,7 @@ export function AdminUsersClient() {
                 className={`${inputClass} pl-10`}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search name, email, or gym"
+                placeholder={t("admin.searchNameEmailGym")}
               />
             </label>
             <label>
@@ -249,10 +251,10 @@ export function AdminUsersClient() {
                   </div>
                   <p className="mt-1 truncate text-xs text-zinc-400">{user.email}</p>
                   <p className="mt-1 truncate text-xs text-zinc-500">
-                    {formatRole(user.primary_role)} · {user.gym_name ?? "No gym"} · {formatPlan(user.current_plan)}
+                    {formatRole(user.primary_role, t)} · {user.gym_name ?? "No gym"} · {formatPlan(user.current_plan, t)}
                   </p>
                   {user.primary_role === "client" ? (
-                    <p className="mt-1 truncate text-xs text-zinc-500">{formatCoachingMode(user.coaching_mode, user.assigned_trainer_name)}</p>
+                    <p className="mt-1 truncate text-xs text-zinc-500">{formatCoachingMode(user.coaching_mode, user.assigned_trainer_name, t)}</p>
                   ) : null}
                 </div>
                 <span className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold text-lime">
@@ -288,12 +290,12 @@ export function AdminUsersClient() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{client.full_name}</p>
                       <p className="mt-1 truncate text-xs text-zinc-400">{client.email}</p>
-                      <p className="mt-1 text-xs text-zinc-500">{referralLabel(client)}</p>
+                      <p className="mt-1 text-xs text-zinc-500">{referralLabel(client, t)}</p>
                     </div>
-                    <span className={`shrink-0 rounded px-2 py-1 text-xs ${assignmentTone(client)}`}>{assignmentLabel(client)}</span>
+                    <span className={`shrink-0 rounded px-2 py-1 text-xs ${assignmentTone(client)}`}>{assignmentLabel(client, t)}</span>
                   </div>
                   <div className="mt-3">
-                    <Field label="Assign trainer">
+                    <Field label={t("admin.assignTrainer")}>
                       <select
                         className={selectClass}
                         disabled={savingUserId === client.id || !client.trainer_assignment_eligible}

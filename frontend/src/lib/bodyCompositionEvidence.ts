@@ -1,11 +1,12 @@
 import type { BodyCompositionScan, BodyCompositionSummary } from "@/lib/ascendApi";
+import { englishMessage } from "@/lib/i18n/static";
 
 type ComparisonMetric = BodyCompositionSummary["comparison"]["metrics"][number];
 
 const trendCandidates = [
-  { metric: "Body Fat", label: "Body fat", read: (scan: BodyCompositionScan) => scan.bodyFatPercent },
-  { metric: "Weight", label: "Weight", read: (scan: BodyCompositionScan) => scan.weightKg },
-  { metric: "Skeletal Muscle", label: "Skeletal muscle", read: (scan: BodyCompositionScan) => scan.skeletalMuscleMassKg ?? scan.muscleMassKg }
+  { metric: englishMessage("bodyScan.metricBodyFat"), label: englishMessage("bodyScan.bodyFat"), read: (scan: BodyCompositionScan) => scan.bodyFatPercent },
+  { metric: englishMessage("bodyScan.metricWeight"), label: englishMessage("bodyScan.weight"), read: (scan: BodyCompositionScan) => scan.weightKg },
+  { metric: englishMessage("bodyScan.metricSkeletalMuscle"), label: englishMessage("bodyScan.skeletalMuscle"), read: (scan: BodyCompositionScan) => scan.skeletalMuscleMassKg ?? scan.muscleMassKg }
 ] as const;
 
 function metricEvidence(summary: BodyCompositionSummary | null, metric: string) {
@@ -40,7 +41,7 @@ export function bodyCompositionJourneyDetail(summary: BodyCompositionSummary) {
     .map(evidencePhrase)
     .filter((phrase): phrase is string => Boolean(phrase));
 
-  if (!supported.length) return "You are building a body-composition record for future comparison.";
-  if (supported.length === 1) return `Your comparable scans support ${supported[0]}.`;
-  return `Your comparable scans support ${supported.slice(0, -1).join(", ")} and ${supported.at(-1)}.`;
+  if (!supported.length) return englishMessage("bodyScan.futureComparison");
+  if (supported.length === 1) return englishMessage("bodyScan.singleComparableSupport", { phrase: supported[0] });
+  return englishMessage("bodyScan.multipleComparableSupport", { phrases: supported.slice(0, -1).join(", "), final: supported.at(-1) ?? "" });
 }

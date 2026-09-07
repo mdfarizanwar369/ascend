@@ -1,5 +1,6 @@
 import type { AscendStoryContext, AscendStoryCrop, AscendStoryDraft, AscendStoryPhoto } from "@/lib/ascendStories";
 import { formatStoryDate, storyElapsedLabel } from "@/lib/ascendStories";
+import { englishMessage } from "@/lib/i18n/static";
 
 export const ASCEND_STORY_WIDTH = 1080;
 export const ASCEND_STORY_HEIGHT = 1920;
@@ -22,12 +23,12 @@ function loadImage(url: string) {
     };
     image.onerror = () => {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      reject(new Error("Could not prepare this photo. Reopen Progress Photos and try again."));
+      reject(new Error(englishMessage("stories.preparePhotoError")));
     };
 
     try {
       const response = await fetch(url, { credentials: "omit", cache: "no-store" });
-      if (!response.ok) throw new Error("Photo request failed.");
+      if (!response.ok) throw new Error(englishMessage("stories.photoRequestFailed"));
       objectUrl = URL.createObjectURL(await response.blob());
       image.src = objectUrl;
     } catch {
@@ -285,13 +286,13 @@ function drawThenNow(
 }
 
 export async function renderAscendStory(story: AscendStoryContext, draft: AscendStoryDraft) {
-  if (typeof document === "undefined") throw new Error("Story export is available on your device.");
+  if (typeof document === "undefined") throw new Error(englishMessage("stories.exportDeviceOnly"));
 
   const canvas = document.createElement("canvas");
   canvas.width = ASCEND_STORY_WIDTH;
   canvas.height = ASCEND_STORY_HEIGHT;
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("This device could not prepare the story image.");
+  if (!context) throw new Error(englishMessage("stories.prepareImageError"));
 
   context.fillStyle = INK;
   context.fillRect(0, 0, ASCEND_STORY_WIDTH, ASCEND_STORY_HEIGHT);
@@ -307,7 +308,7 @@ export async function renderAscendStory(story: AscendStoryContext, draft: Ascend
   else drawTodayOrEarned(context, latest, logo, story, draft);
 
   const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Could not create the story image.")), "image/png");
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error(englishMessage("stories.createImageError"))), "image/png");
   });
   canvas.width = 1;
   canvas.height = 1;

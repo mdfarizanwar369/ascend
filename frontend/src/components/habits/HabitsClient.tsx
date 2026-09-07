@@ -8,17 +8,19 @@ import { localDateKey } from "@/lib/date";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
-const starterHabits = ["8,000 steps", "No sugary drinks", "Protein at breakfast", "Sleep before midnight"];
+const starterHabitKeys = ["habits.starterSteps", "habits.starterNoSugaryDrinks", "habits.starterProteinBreakfast", "habits.starterSleepBeforeMidnight"];
 
 type Habit = Awaited<ReturnType<typeof getHabits>>["habits"][number];
 type HabitLog = Awaited<ReturnType<typeof getHabitLogs>>["habitLogs"][number];
 
 export function HabitsClient() {
+  const { t } = useI18n();
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [newHabit, setNewHabit] = useState("");
-  const [status, setStatus] = useState("Loading habits...");
+  const [status, setStatus] = useState(() => t("habits.loading"));
   const [isSaving, setIsSaving] = useState(false);
   const saveLockRef = useRef(false);
 
@@ -30,8 +32,8 @@ export function HabitsClient() {
   }
 
   useEffect(() => {
-    loadHabits().catch(() => setStatus("Please log in again if habits do not load."));
-  }, []);
+    loadHabits().catch(() => setStatus(t("habits.loadError")));
+  }, [t]);
 
   const completedToday = useMemo(() => {
     const today = localDateKey();
@@ -48,7 +50,7 @@ export function HabitsClient() {
       const completed = new Set(habitLogs.filter((log) => log.completed && localDateKey(log.logged_at) === dateKey).map((log) => log.habit_id)).size;
       return {
         dateKey,
-        day: date.toLocaleDateString("en-MY", { weekday: "narrow" }),
+        day: date.toLocaleDateString(undefined, { weekday: "narrow" }),
         completed,
         progress: habits.length ? Math.round((completed / habits.length) * 100) : 0
       };
@@ -59,18 +61,18 @@ export function HabitsClient() {
     if (saveLockRef.current) return;
     saveLockRef.current = true;
     setIsSaving(true);
-    setStatus("Creating starter habits...");
+    setStatus(t("habits.creatingStarters"));
 
     try {
-      const created = await Promise.all(starterHabits.map((name) => createHabit({ name, frequency: "daily" })));
+      const created = await Promise.all(starterHabitKeys.map((key) => createHabit({ name: t(key), frequency: "daily" })));
       setHabits((current) => [
         ...created.map((response) => response.habit),
         ...current.filter((habit) => !created.some((response) => response.habit.id === habit.id))
       ]);
       loadHabits().catch(() => undefined);
-      setStatus("Starter habits created.");
+      setStatus(t("habits.startersCreated"));
     } catch {
-      setStatus("Could not create habits. Please try again.");
+      setStatus(t("habits.createError"));
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
@@ -83,16 +85,16 @@ export function HabitsClient() {
     saveLockRef.current = true;
 
     setIsSaving(true);
-    setStatus("Adding habit...");
+    setStatus(t("habits.adding"));
 
     try {
       const created = await createHabit({ name: newHabit.trim(), frequency: "daily" });
       setHabits((current) => [created.habit, ...current.filter((habit) => habit.id !== created.habit.id)]);
       setNewHabit("");
       loadHabits().catch(() => undefined);
-      setStatus("Habit added.");
+      setStatus(t("habits.added"));
     } catch {
-      setStatus("Could not add habit. Please try again.");
+      setStatus(t("habits.addError"));
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
@@ -103,16 +105,16 @@ export function HabitsClient() {
     if (saveLockRef.current) return;
     saveLockRef.current = true;
     setIsSaving(true);
-    setStatus("Saving habit...");
+    setStatus(t("habits.saving"));
 
     try {
       const saved = await saveHabitLog({ habitId, completed: true });
       rememberDashboardRecord("habit", saved.habitLog);
       setHabitLogs((current) => [saved.habitLog, ...current]);
-      setStatus(`Habit complete. ${Math.min(completedToday.size + 1, habits.length)} of ${habits.length} done today.`);
+      setStatus(t("habits.completeStatus", { completed: Math.min(completedToday.size + 1, habits.length), total: habits.length }));
       markInstallEligible("first_action");
     } catch {
-      setStatus("Could not save habit. Please make sure you are logged in.");
+      setStatus(t("habits.saveError"));
     } finally {
       saveLockRef.current = false;
       setIsSaving(false);
@@ -122,19 +124,19 @@ export function HabitsClient() {
   return (
     <main className="ascend-page px-4 py-3 text-white sm:py-5">
       <div className="ascend-member-frame">
-        <TrackingPageHeader eyebrow="Daily accountability" title="Habits" disabled={isSaving} />
+        <TrackingPageHeader eyebrow={t("habits.eyebrow")} title={t("habits.title")} disabled={isSaving} />
 
         <TrackingHero
           icon={ListChecks}
-          label="Today"
-          value={habits.length ? `${completedToday.size} of ${habits.length}` : "One small start"}
-          detail={habits.length ? "daily habits complete" : "Create a habit you can repeat"}
+          label={t("habits.today")}
+          value={habits.length ? t("habits.completedCount", { completed: completedToday.size, total: habits.length }) : t("habits.oneSmallStart")}
+          detail={habits.length ? t("habits.dailyComplete") : t("habits.createRepeatable")}
           progress={habits.length ? completionProgress : undefined}
           tone="purple"
         >
           {habits.length ? (
             <div className="mt-4 border-t border-white/10 pt-4">
-              <div className="flex items-end justify-between gap-2" role="img" aria-label={`Habit completion over the last seven days. Today is ${completedToday.size} of ${habits.length} complete.`}>
+              <div className="flex items-end justify-between gap-2" role="img" aria-label={t("habits.weeklyAria", { completed: completedToday.size, total: habits.length })}>
                 {weeklyRhythm.map((day) => (
                   <div key={day.dateKey} className="flex min-w-0 flex-1 flex-col items-center gap-2">
                     <span className="flex h-16 w-full items-end justify-center rounded-full bg-black/20 p-1">
@@ -144,26 +146,26 @@ export function HabitsClient() {
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-xs text-zinc-400">Your seven-day rhythm. Every completed habit strengthens the pattern.</p>
+              <p className="mt-3 text-xs text-zinc-400">{t("habits.weeklyRhythm")}</p>
             </div>
           ) : null}
         </TrackingHero>
 
         <section className="ascend-surface mt-4 p-4">
-          <Field label="Add a daily habit">
+          <Field label={t("habits.addDaily")}>
             <div className="flex gap-2">
               <input
                 className={inputClass}
                 value={newHabit}
                 onChange={(event) => setNewHabit(event.target.value)}
-                placeholder="Evening walk"
+                placeholder={t("habits.placeholder")}
               />
               <button
                 type="button"
                 disabled={isSaving || !newHabit.trim()}
                 onClick={addHabit}
                 className="ascend-pressable grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-lime text-ink disabled:opacity-60"
-                aria-label="Add habit"
+                aria-label={t("habits.addHabit")}
               >
                 <Plus size={20} />
               </button>
@@ -173,14 +175,14 @@ export function HabitsClient() {
 
         {!habits.length ? (
           <section className="mt-4 rounded-xl border border-calm/40 bg-calm/10 p-4">
-            <p className="text-sm leading-6 text-zinc-300">Create starter habits for beginner-friendly accountability.</p>
+            <p className="text-sm leading-6 text-zinc-300">{t("habits.starterCopy")}</p>
             <button
               type="button"
               disabled={isSaving}
               onClick={createStarterHabits}
               className="ascend-pressable mt-4 h-12 w-full rounded-xl bg-lime font-semibold text-ink disabled:opacity-60"
             >
-              Create starter habits
+              {t("habits.createStarters")}
             </button>
           </section>
         ) : null}
@@ -192,7 +194,7 @@ export function HabitsClient() {
               <article key={habit.id} className={`ascend-pressable flex min-h-16 items-center justify-between rounded-xl border p-4 ${completed ? "border-lime/25 bg-lime/8" : "border-line bg-surface"}`}>
                 <div>
                   <p className="font-medium">{habit.name}</p>
-                  <p className="mt-1 text-xs text-zinc-400">Daily</p>
+                  <p className="mt-1 text-xs text-zinc-400">{t("habits.daily")}</p>
                 </div>
                 <button
                   type="button"
@@ -201,7 +203,7 @@ export function HabitsClient() {
                   className={`grid h-11 w-11 place-items-center rounded-xl ${
                     completed ? "bg-lime text-ink" : "border border-line text-zinc-300"
                   } disabled:cursor-not-allowed`}
-                  aria-label={completed ? "Completed today" : "Mark complete"}
+                  aria-label={completed ? t("habits.completedToday") : t("habits.markComplete")}
                 >
                   {completed ? <Check size={19} /> : null}
                 </button>
@@ -210,7 +212,7 @@ export function HabitsClient() {
           })}
         </section>
 
-        <TrackingStatus message={status} success={status.includes("created") || status.includes("added") || status.includes("complete")} actionHref={status.includes("complete") ? "/dashboard" : undefined} />
+        <TrackingStatus message={status} success={status === t("habits.startersCreated") || status === t("habits.added") || status.startsWith(t("habits.completePrefix"))} actionHref={status.startsWith(t("habits.completePrefix")) ? "/dashboard" : undefined} />
       </div>
     </main>
   );

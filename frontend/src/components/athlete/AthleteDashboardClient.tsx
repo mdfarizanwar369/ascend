@@ -15,6 +15,18 @@ import { markInstallEligible } from "@/lib/installAscend";
 import { AscendHeroPanel, DnaSigil } from "@/components/AscendVisualIdentity";
 import { DelightProgressBar } from "@/components/Delight";
 import { DashboardHeroSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
+import { messages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
 
 function labelTarget(type: string) {
   return type.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(" ");
@@ -34,42 +46,43 @@ const sliderLabels: Record<string, [string, string]> = {
   motivation: ["Low", "High"]
 };
 
-function targetInputLabel(type: string) {
-  if (type === "steps") return "Today's steps";
-  if (type === "cardio_minutes") return "Today's cardio minutes";
-  if (type === "water_ml") return "Today's water intake (ml)";
-  if (type.includes("session") || type === "runs") return "Today's completed sessions";
-  if (type === "recovery_days") return "Today's recovery completed";
-  return "Today's completed amount";
+function targetInputLabel(type: string, t: Translate = english) {
+  if (type === "steps") return t("athlete.todaysSteps");
+  if (type === "cardio_minutes") return t("athlete.todaysCardioMinutes");
+  if (type === "water_ml") return t("athlete.todaysWaterIntake");
+  if (type.includes("session") || type === "runs") return t("athlete.todaysCompletedSessions");
+  if (type === "recovery_days") return t("athlete.todaysRecoveryCompleted");
+  return t("athlete.todaysCompletedAmount");
 }
 
 function isSessionTarget(type: string) {
   return type.includes("session") || type === "runs";
 }
 
-function friendlyAthleteDashboardError(error: unknown) {
+function friendlyAthleteDashboardError(error: unknown, t: Translate = english) {
   const message = error instanceof Error ? error.message : "";
   if (/not enabled for this account/i.test(message)) {
     return {
-      title: "Athlete Mode is not active on this account.",
-      detail: "This screen is reserved for members using Athlete Mode. You can keep using Ascend normally from Home."
+      title: t("athlete.modeNotActive"),
+      detail: t("athlete.modeNotActiveDetail")
     };
   }
   if (/disabled globally/i.test(message)) {
     return {
-      title: "Athlete Mode is temporarily unavailable.",
-      detail: "The Athlete Mode workspace is not available right now. Please try again later or return to Home."
+      title: t("athlete.modeUnavailable"),
+      detail: t("athlete.modeUnavailableDetail")
     };
   }
   return {
-    title: "Athlete Mode could not load.",
-    detail: "Please try again in a moment. If this keeps happening, return to Home and try again later."
+    title: t("athlete.modeLoadError"),
+    detail: t("athlete.modeLoadErrorDetail")
   };
 }
 
 export function AthleteDashboardClient() {
+  const { t } = useI18n();
   const [data, setData] = useState<AthleteDashboard | null>(null);
-  const [status, setStatus] = useState("Loading your athlete dashboard...");
+  const [status, setStatus] = useState(t("athlete.loadingDashboard"));
   const [loadError, setLoadError] = useState<{ title: string; detail: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState({ sport: "", division: "", competitionName: "", competitionDate: "", coachName: "", goalWeightKg: "" });
@@ -115,10 +128,10 @@ export function AthleteDashboardClient() {
 
   useEffect(() => {
     load().catch((error) => {
-      setLoadError(friendlyAthleteDashboardError(error));
+      setLoadError(friendlyAthleteDashboardError(error, t));
       setStatus("");
     });
-  }, []);
+  }, [t]);
 
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
@@ -151,7 +164,7 @@ export function AthleteDashboardClient() {
         stress: Number(checkin.stress), hunger: Number(checkin.hunger), motivation: Number(checkin.motivation)
       });
       await load();
-      setStatus("Today's readiness check-in is saved.");
+      setStatus(t("athlete.readinessSaved"));
       markInstallEligible("first_action");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save check-in.");
@@ -177,7 +190,7 @@ export function AthleteDashboardClient() {
     if (loadError) {
       return (
         <section className="mt-4 rounded-2xl border border-line bg-surface p-5 shadow-soft">
-          <p className="text-sm font-semibold text-purple-200">Athlete Mode</p>
+          <p className="text-sm font-semibold text-purple-200">{t("athlete.mode")}</p>
           <h1 className="mt-2 text-2xl font-semibold text-white">{loadError.title}</h1>
           <p className="mt-3 text-sm leading-6 text-zinc-400">{loadError.detail}</p>
           <Link href="/dashboard" className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-lime px-4 text-sm font-semibold text-ink">
@@ -192,10 +205,10 @@ export function AthleteDashboardClient() {
         <div className="mt-4">
           <SkeletonStatGrid count={2} />
         </div>
-        <SectionShell title="Today's targets">
+        <SectionShell title={t("athlete.todaysTargets")}>
           <SkeletonCardList count={2} compact />
         </SectionShell>
-        <SectionShell title="Weekly coach review">
+        <SectionShell title={t("athlete.weeklyCoachReview")}>
           <SkeletonText lines={3} />
         </SectionShell>
         <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">{status}</p>
@@ -206,9 +219,9 @@ export function AthleteDashboardClient() {
   return (
     <>
       <AscendHeroPanel
-        eyebrow="Athlete Mode"
-        title="Prepare with clarity"
-        body="A simple daily view of readiness, targets, and progress toward your next goal."
+        eyebrow={t("athlete.mode")}
+        title={t("athlete.prepareWithClarity")}
+        body={t("athlete.heroBody")}
         tone="dna"
         visual={<DnaSigil score={data.readiness.score ?? "Ready"} />}
       >
@@ -281,13 +294,13 @@ export function AthleteDashboardClient() {
         const compliance = cadence === "daily" ? data.dailyCompliancePercent : data.weeklyCompliancePercent;
         return (
       <section key={cadence} className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <div className="flex items-center justify-between"><div><h2 className="font-semibold">{cadence === "daily" ? "Today's targets" : "Weekly targets"}</h2><p className="mt-1 text-sm text-zinc-400">{cadence === "daily" ? "Enter only what you completed today." : "Today's entries add toward this week's goal."}</p></div><span className="text-2xl font-semibold text-purple-300">{compliance}%</span></div>
+        <div className="flex items-center justify-between"><div><h2 className="font-semibold">{cadence === "daily" ? t("athlete.todaysTargets") : t("athlete.weeklyTargets")}</h2><p className="mt-1 text-sm text-zinc-400">{cadence === "daily" ? t("athlete.dailyTargetsHelp") : t("athlete.weeklyTargetsHelp")}</p></div><span className="text-2xl font-semibold text-purple-300">{compliance}%</span></div>
         <div className="mt-4 space-y-3">
           {targets.map((target) => (
             <div key={target.id} className="rounded-lg bg-ink p-3">
               <div className="flex justify-between gap-3"><p className="text-sm font-medium">{labelTarget(target.target_type)}</p><p className="text-sm text-zinc-400">{cadence === "daily" ? `Daily target: ${target.target_value}` : `This week: ${target.weekly_completed_value}/${target.target_value}`} {target.unit}</p></div>
               {target.notes ? <p className="mt-1 text-xs text-zinc-500">{target.notes}</p> : null}
-              <label className="mt-3 block text-xs text-zinc-400">{targetInputLabel(target.target_type)}<div className="mt-1 flex gap-2"><input aria-label={targetInputLabel(target.target_type)} type="number" min="0" step="0.1" value={targetValues[target.id] ?? ""} onChange={(e) => setTargetValues((current) => ({ ...current, [target.id]: e.target.value }))} className="h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-white" /><button type="button" disabled={saving} onClick={() => saveProgress(target.id)} className="h-11 rounded-lg bg-purple-500 px-3 text-sm font-semibold !text-white disabled:border disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">Save today</button></div></label>
+              <label className="mt-3 block text-xs text-zinc-400">{targetInputLabel(target.target_type, t)}<div className="mt-1 flex gap-2"><input aria-label={targetInputLabel(target.target_type, t)} type="number" min="0" step="0.1" value={targetValues[target.id] ?? ""} onChange={(e) => setTargetValues((current) => ({ ...current, [target.id]: e.target.value }))} className="h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-white" /><button type="button" disabled={saving} onClick={() => saveProgress(target.id)} className="h-11 rounded-lg bg-purple-500 px-3 text-sm font-semibold !text-white disabled:border disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">{t("athlete.saveToday")}</button></div></label>
               {isSessionTarget(target.target_type) ? <button type="button" disabled={saving} onClick={() => saveProgress(target.id, Number(target.today_completed_value) + 1)} className="mt-2 h-11 w-full rounded-lg border border-purple-400/60 bg-purple-400/10 text-sm font-semibold !text-purple-100 disabled:border-zinc-600 disabled:bg-zinc-800 disabled:!text-zinc-200">+1 session completed</button> : null}
             </div>
           ))}
@@ -298,10 +311,10 @@ export function AthleteDashboardClient() {
       })}
 
       <section className="mt-4 rounded-lg border border-line bg-surface p-4">
-        <div className="flex items-center gap-3"><CheckCircle2 className="text-purple-300" size={20} /><h2 className="font-semibold">Weekly coach review</h2></div>
+        <div className="flex items-center gap-3"><CheckCircle2 className="text-purple-300" size={20} /><h2 className="font-semibold">{t("athlete.weeklyCoachReview")}</h2></div>
         <p className="mt-3 text-sm leading-6 text-zinc-300">{data.latestReview?.summary ?? "Your weekly review will appear here once there is enough athlete data."}</p>
         {data.latestReview?.coach_comment ? <p className="mt-3 rounded-lg bg-ink p-3 text-sm text-zinc-200"><span className="font-semibold text-purple-300">Coach:</span> {data.latestReview.coach_comment}</p> : null}
-        <p className="mt-3 text-xs text-zinc-500">Updates automatically when you open Athlete Mode.</p>
+        <p className="mt-3 text-xs text-zinc-500">{t("athlete.updatesAutomatically")}</p>
       </section>
 
       {data.progressPhotos.length ? (

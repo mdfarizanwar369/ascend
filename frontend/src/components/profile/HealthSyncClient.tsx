@@ -6,11 +6,12 @@ import { BackButton } from "@/components/BackButton";
 import { getHealthSyncStatus, HealthSyncStatus } from "@/lib/ascendApi";
 import { canUseHealthConnect, getNativeHealthConnectStatus } from "@/lib/healthConnect";
 import { disconnectHealthConnectFromAscend, runHealthConnectSync } from "@/lib/healthSyncClient";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "Not yet synced";
+function formatDateTime(value: string | null | undefined, t: (key: string) => string) {
+  if (!value) return t("health.notYetSynced");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not yet synced";
+  if (Number.isNaN(date.getTime())) return t("health.notYetSynced");
   return new Intl.DateTimeFormat(undefined, {
     day: "numeric",
     month: "short",
@@ -28,6 +29,7 @@ function permissionLabel(permission: string) {
 }
 
 export function HealthSyncClient() {
+  const { t } = useI18n();
   const [backendStatus, setBackendStatus] = useState<HealthSyncStatus | null>(null);
   const [nativeStatus, setNativeStatus] = useState<Awaited<ReturnType<typeof getNativeHealthConnectStatus>> | null>(null);
   const [status, setStatus] = useState("Loading Health Sync...");
@@ -135,7 +137,7 @@ export function HealthSyncClient() {
                     ? "Connected"
                     : "Not connected"}
               </p>
-              <p className="mt-1 text-sm text-zinc-500">Last synced: {formatDateTime(backendStatus?.lastSyncedAt ?? null)}</p>
+              <p className="mt-1 text-sm text-zinc-500">Last synced: {formatDateTime(backendStatus?.lastSyncedAt ?? null, t)}</p>
             </div>
 
             <div className="rounded-2xl border border-line bg-ink p-4">

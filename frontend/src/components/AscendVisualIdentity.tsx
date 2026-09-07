@@ -2,6 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { Activity, Dna, Sparkles } from "lucide-react";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type Tone = "momentum" | "dna" | "trainer" | "owner";
 
@@ -44,7 +45,9 @@ export function AscendHeroPanel({
   );
 }
 
-export function MomentumHalo({ value, label = "Momentum" }: { value: number | string; label?: string }) {
+export function MomentumHalo({ value, label }: { value: number | string; label?: string }) {
+  const { t } = useI18n();
+  const displayLabel = label ?? t("stories.momentum");
   const numeric = typeof value === "number" ? Math.max(0, Math.min(100, value)) : null;
   const dash = numeric === null ? 72 : numeric;
   const [animatedDash, setAnimatedDash] = useState(0);
@@ -61,7 +64,7 @@ export function MomentumHalo({ value, label = "Momentum" }: { value: number | st
   }, [dash]);
 
   return (
-    <div className="ascend-float relative grid h-28 w-28 shrink-0 place-items-center" aria-label={`${label} ${value}`}>
+    <div className="ascend-float relative grid h-28 w-28 shrink-0 place-items-center" aria-label={`${displayLabel} ${value}`}>
       <svg viewBox="0 0 120 120" className="absolute inset-0 h-full w-full -rotate-90">
         <defs>
           <linearGradient id="ascendMomentumGradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -87,7 +90,7 @@ export function MomentumHalo({ value, label = "Momentum" }: { value: number | st
       <div className="grid h-20 w-20 place-items-center rounded-3xl border border-calm/30 bg-ink/80 text-center shadow-[0_0_32px_rgba(61,230,209,0.12)]">
         <div>
           <p className="text-2xl font-semibold text-white">{value}</p>
-          <p className="text-[10px] uppercase tracking-[0.12em] text-calm">{label}</p>
+          <p className="text-[10px] uppercase tracking-[0.12em] text-calm">{displayLabel}</p>
         </div>
       </div>
     </div>

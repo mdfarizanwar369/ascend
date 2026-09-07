@@ -9,10 +9,10 @@ export default async function TrainerClientDetailPage({ params }: { params: Prom
     <AppShell active="trainer">
       <RoleGate
         allowedRoles={["trainer", "admin", "owner"]}
-        fallbackTitle="Trainer access only"
-        fallbackMessage="This account cannot view client trainer records. Use a trainer, owner, or admin login."
+        fallbackTitleKey="access.trainerOnly"
+        fallbackMessageKey="access.trainerClientDenied"
         requiredPlan="trainer_pro"
-        planFeature="Trainer client profile"
+        planFeatureKey="trainer.clientProfileFeature"
       >
         <TrainerClientDetailClient clientId={clientId} />
       </RoleGate>

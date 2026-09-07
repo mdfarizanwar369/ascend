@@ -6,11 +6,8 @@ import { SubscriptionPlan } from "@ascend/shared";
 import { useEffect, useMemo, useState } from "react";
 import { BackButton } from "@/components/BackButton";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
-import { planRank, usablePlan } from "@/lib/subscriptionPlan";
-
-function planLabel(plan: Exclude<SubscriptionPlan, "free">) {
-  return plan === "trainer_pro" ? "Trainer Pro" : "Premium";
-}
+import { planRank, usablePlan, formatPlan } from "@/lib/subscriptionPlan";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function withTimeout<T>(promise: Promise<T>, ms = 12_000) {
   let timeoutId = 0;
@@ -25,13 +22,16 @@ export function PlanGate({
   requiredPlan,
   children,
   feature,
+  featureKey,
   fallbackHref = "/dashboard"
 }: {
   requiredPlan: Exclude<SubscriptionPlan, "free">;
   children: React.ReactNode;
-  feature: string;
+  feature?: string;
+  featureKey?: string;
   fallbackHref?: string;
 }) {
+  const { t } = useI18n();
   const [activePlan, setActivePlan] = useState<SubscriptionPlan>("free");
   const [roles, setRoles] = useState<string[]>([]);
   const [primaryRole, setPrimaryRole] = useState<string | null>(null);
@@ -94,7 +94,7 @@ export function PlanGate({
     return (
       <main className="min-h-screen bg-ink px-4 py-5 text-white">
         <div className="mx-auto max-w-md">
-          <section className="rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">Checking your plan...</section>
+          <section className="rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">{t("account.checkingPlan")}</section>
         </div>
       </main>
     );
@@ -111,8 +111,8 @@ export function PlanGate({
             <Lock size={20} />
           </span>
           <div>
-            <p className="text-sm text-zinc-400">{feature}</p>
-            <h1 className="text-2xl font-semibold">{planLabel(requiredPlan)} required</h1>
+            <p className="text-sm text-zinc-400">{featureKey ? t(featureKey) : feature ?? t("common.feature")}</p>
+            <h1 className="text-2xl font-semibold">{t("access.planRequired", { plan: formatPlan(requiredPlan, t) })}</h1>
           </div>
         </header>
 
@@ -120,16 +120,16 @@ export function PlanGate({
           <div className="flex items-start gap-3">
             <Sparkles className="mt-0.5 text-lime" size={20} />
             <div>
-              <p className="font-semibold text-lime">This feature is part of {planLabel(requiredPlan)}.</p>
+              <p className="font-semibold text-lime">{t("access.planPartOf", { plan: formatPlan(requiredPlan, t) })}</p>
               <p className="mt-2 text-sm leading-6 text-zinc-300">
-                Ask your trainer or gym owner to approve access, or view the available plans.
+                {t("access.planAskOwner")}
               </p>
             </div>
           </div>
         </section>
 
         <Link href="/subscription" className="mt-4 flex h-12 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
-          View plans
+          {t("access.viewPlans")}
         </Link>
       </div>
     </main>

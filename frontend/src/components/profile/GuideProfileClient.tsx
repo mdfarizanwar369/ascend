@@ -6,6 +6,7 @@ import { calculateAdaptiveNutritionTargets, GoalType } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
 import { getMe, getMyNutritionTargets, getWeightLogs, ResolvedNutritionTargets, saveMyNutritionTargets, updateGuideProfile } from "@/lib/ascendApi";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function toInputValue(value: string | number | null | undefined) {
   if (value === null || value === undefined) return "";
@@ -13,6 +14,7 @@ function toInputValue(value: string | number | null | undefined) {
 }
 
 export function GuideProfileClient() {
+  const { t, formatNumber } = useI18n();
   const [gender, setGender] = useState<"female" | "male" | "prefer_not_to_say">("prefer_not_to_say");
   const [ageYears, setAgeYears] = useState("");
   const [heightCm, setHeightCm] = useState("");
@@ -21,7 +23,7 @@ export function GuideProfileClient() {
   const [targetWeightKg, setTargetWeightKg] = useState("");
   const [currentWeightKg, setCurrentWeightKg] = useState<number | null>(null);
   const [weightLogs, setWeightLogs] = useState<Array<{ weight_kg: string | number; logged_at: string }>>([]);
-  const [status, setStatus] = useState("Loading your guide profile...");
+  const [status, setStatus] = useState(() => t("guide.loading"));
   const [isSaving, setIsSaving] = useState(false);
   const [resolvedTargets, setResolvedTargets] = useState<ResolvedNutritionTargets | null>(null);
   const [targetMode, setTargetMode] = useState<"ascend" | "custom">("ascend");
@@ -68,13 +70,13 @@ export function GuideProfileClient() {
         setStatus("");
       })
       .catch(() => {
-        if (isMounted) setStatus("Please log in again if this profile does not load.");
+        if (isMounted) setStatus(t("guide.loadError"));
       });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [t]);
 
   const targetPreview = calculateAdaptiveNutritionTargets({
     goalType,
@@ -90,34 +92,34 @@ export function GuideProfileClient() {
     event.preventDefault();
 
     if (!ageYears || Number.isNaN(Number(ageYears)) || Number(ageYears) < 18 || Number(ageYears) > 100) {
-      setStatus("Ascend self-managed accounts require an age between 18 and 100.");
+      setStatus(t("guide.ageError"));
       return;
     }
 
     if (!heightCm || Number.isNaN(Number(heightCm)) || Number(heightCm) <= 0) {
-      setStatus("Please enter your height in cm.");
+      setStatus(t("guide.heightError"));
       return;
     }
 
     if (goalType !== "maintenance" && (!targetWeightKg || Number(targetWeightKg) <= 0)) {
-      setStatus("Please enter a target weight for this goal.");
+      setStatus(t("guide.targetWeightError"));
       return;
     }
 
     const goalChanged = goalType !== initialGoalRef.current.goalType || Number(targetWeightKg || 0) !== Number(initialGoalRef.current.targetWeightKg ?? 0);
 
     if (goalChanged && currentWeightKg && goalType === "fat_loss" && Number(targetWeightKg) >= currentWeightKg) {
-      setStatus("For fat loss, choose a target below your current weight.");
+      setStatus(t("guide.fatLossTargetError"));
       return;
     }
 
     if (goalChanged && currentWeightKg && goalType === "muscle_gain" && Number(targetWeightKg) <= currentWeightKg) {
-      setStatus("For muscle gain, choose a target above your current weight.");
+      setStatus(t("guide.muscleGainTargetError"));
       return;
     }
 
     setIsSaving(true);
-    setStatus("Saving your daily guide...");
+    setStatus(t("guide.saving"));
 
     try {
       await updateGuideProfile({
@@ -129,12 +131,12 @@ export function GuideProfileClient() {
         targetWeightKg: targetWeightKg ? Number(targetWeightKg) : currentWeightKg
       });
       initialGoalRef.current = { goalType, targetWeightKg: targetWeightKg ? Number(targetWeightKg) : currentWeightKg };
-      setStatus("Daily guide updated.");
+      setStatus(t("guide.updated"));
       window.setTimeout(() => {
         window.location.href = "/dashboard";
       }, 500);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not update your guide. Please try again.");
+      setStatus(error instanceof Error ? error.message : t("guide.updateError"));
     } finally {
       setIsSaving(false);
     }
@@ -143,7 +145,7 @@ export function GuideProfileClient() {
   async function saveTargets() {
     if (!resolvedTargets?.editableByMember || isSavingTargets) return;
     setIsSavingTargets(true);
-    setTargetStatus(targetMode === "custom" ? "Saving your targets..." : "Restoring Ascend's recommendation...");
+    setTargetStatus(targetMode === "custom" ? t("guide.savingTargets") : t("guide.restoringAscend"));
     try {
       const response = await saveMyNutritionTargets(targetMode === "custom" ? {
         mode: "custom",
@@ -154,9 +156,9 @@ export function GuideProfileClient() {
       } : { mode: "ascend" });
       setResolvedTargets(response.targets);
       setTargetMode(response.targets.memberPreferenceMode);
-      setTargetStatus(targetMode === "custom" ? "Your nutrition targets are now active everywhere in Ascend." : "Ascend's recommendation is active again.");
+      setTargetStatus(targetMode === "custom" ? t("guide.targetsActive") : t("guide.ascendActive"));
     } catch (error) {
-      setTargetStatus(error instanceof Error ? error.message : "Could not update your nutrition targets.");
+      setTargetStatus(error instanceof Error ? error.message : t("guide.targetsError"));
     } finally {
       setIsSavingTargets(false);
     }
@@ -171,8 +173,8 @@ export function GuideProfileClient() {
             <Sparkles size={21} />
           </span>
           <div>
-            <p className="text-sm text-zinc-400">Nutrition guide</p>
-            <h1 className="text-2xl font-semibold">Improve my daily guide</h1>
+            <p className="text-sm text-zinc-400">{t("guide.nutritionGuide")}</p>
+            <h1 className="text-2xl font-semibold">{t("guide.improveDailyGuide")}</h1>
           </div>
         </header>
 
@@ -183,7 +185,7 @@ export function GuideProfileClient() {
         </section>
 
         <form onSubmit={onSubmit} className="mt-4 space-y-4 rounded-lg border border-line bg-surface p-4">
-          <Field label="Current goal">
+          <Field label={t("guide.currentGoal")}>
             <select className={selectClass} value={goalType} onChange={(event) => setGoalType(event.target.value as GoalType)}>
               <option value="fat_loss">Fat loss</option>
               <option value="muscle_gain">Muscle gain</option>
@@ -192,23 +194,23 @@ export function GuideProfileClient() {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Current weight">
-              <div className={`${inputClass} flex items-center text-zinc-300`}>{currentWeightKg ? `${currentWeightKg.toFixed(1)} kg` : "Log weight first"}</div>
+            <Field label={t("guide.currentWeight")}>
+              <div className={`${inputClass} flex items-center text-zinc-300`}>{currentWeightKg ? `${formatNumber(currentWeightKg, { maximumFractionDigits: 1 })} kg` : t("guide.logWeightFirst")}</div>
             </Field>
-            <Field label={goalType === "maintenance" ? "Maintenance weight" : "Target weight"}>
+            <Field label={goalType === "maintenance" ? t("guide.maintenanceWeight") : t("guide.targetWeight")}>
               <input className={inputClass} value={targetWeightKg} onChange={(event) => setTargetWeightKg(event.target.value)} inputMode="decimal" placeholder={currentWeightKg ? currentWeightKg.toFixed(1) : "kg"} />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Age">
+            <Field label={t("guide.age")}>
               <input className={inputClass} value={ageYears} onChange={(event) => setAgeYears(event.target.value)} inputMode="numeric" placeholder="e.g. 32" required />
             </Field>
-            <Field label="Height">
+            <Field label={t("guide.height")}>
               <input className={inputClass} value={heightCm} onChange={(event) => setHeightCm(event.target.value)} inputMode="decimal" placeholder="cm" required />
             </Field>
           </div>
 
-          <Field label="Activity level">
+          <Field label={t("guide.activityLevel")}>
             <select className={selectClass} value={activityLevel} onChange={(event) => setActivityLevel(event.target.value as "low" | "moderate" | "high")}>
               <option value="low">Low - mostly sitting</option>
               <option value="moderate">Moderate - train/walk a few days weekly</option>
@@ -216,7 +218,7 @@ export function GuideProfileClient() {
             </select>
           </Field>
 
-          <Field label="Sex for calorie estimate">
+          <Field label={t("guide.sexForCalorieEstimate")}>
             <select className={selectClass} value={gender} onChange={(event) => setGender(event.target.value as "female" | "male" | "prefer_not_to_say")}>
               <option value="prefer_not_to_say">Prefer not to say</option>
               <option value="female">Female</option>

@@ -38,6 +38,18 @@ import {
   syncFounderGmailReplies,
   updateFounderLead
 } from "@/lib/ascendApi";
+import { messages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
 
 const statuses: FounderLeadStatus[] = [
   "Not Contacted",
@@ -85,9 +97,9 @@ function money(cents: number | string | null | undefined) {
   return `RM ${(Number(cents ?? 0) / 100).toLocaleString("en-MY", { maximumFractionDigits: 0 })}`;
 }
 
-function fieldValue(value: unknown) {
+function fieldValue(value: unknown, t: Translate = english) {
   if (Array.isArray(value)) return value.join("\n");
-  if (value === null || value === undefined || value === "") return "Unknown";
+  if (value === null || value === undefined || value === "") return t("founder.unknown");
   if (typeof value === "object") return JSON.stringify(value, null, 2);
   return String(value);
 }
@@ -125,15 +137,17 @@ function StatCard({ title, value, detail, icon: Icon }: { title: string; value: 
 }
 
 function DraftBlock({ title, value }: { title: string; value: unknown }) {
+  const { t } = useI18n();
   return (
     <div className="rounded-2xl border border-line bg-ink p-4">
       <p className="text-xs uppercase tracking-[0.22em] text-purple-300">{title}</p>
-      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-zinc-300">{fieldValue(value)}</p>
+      <p className="mt-3 whitespace-pre-line text-sm leading-6 text-zinc-300">{fieldValue(value, t)}</p>
     </div>
   );
 }
 
 export function FounderDashboardClient() {
+  const { t } = useI18n();
   const [summary, setSummary] = useState<Summary | null>(null);
   const [leads, setLeads] = useState<FounderLead[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -409,10 +423,10 @@ export function FounderDashboardClient() {
       {status ? <p className="ascend-workspace-inset p-4 text-sm text-zinc-300">{status}</p> : null}
 
       <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Leads" value={String(summary?.leads ?? 0)} detail="Total gyms tracked" icon={Building2} />
-        <StatCard title="Reply rate" value={`${summary?.replyRate ?? 0}%`} detail="Based on pipeline status" icon={Mail} />
-        <StatCard title="Meetings" value={String(summary?.meetingsBooked ?? 0)} detail="Booked or later stage" icon={Users} />
-        <StatCard title="Expected MRR" value={money(summary?.expectedMrrCents ?? 0)} detail="Weighted manually by you" icon={DollarSign} />
+        <StatCard title={t("founder.leads")} value={String(summary?.leads ?? 0)} detail={t("founder.totalGymsTracked")} icon={Building2} />
+        <StatCard title={t("founder.replyRate")} value={`${summary?.replyRate ?? 0}%`} detail={t("founder.pipelineStatusDetail")} icon={Mail} />
+        <StatCard title={t("founder.meetings")} value={String(summary?.meetingsBooked ?? 0)} detail={t("founder.bookedOrLater")} icon={Users} />
+        <StatCard title={t("founder.expectedMrr")} value={money(summary?.expectedMrrCents ?? 0)} detail={t("founder.weightedManually")} icon={DollarSign} />
       </section>
 
       <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(19rem,0.45fr)]">

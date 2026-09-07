@@ -24,6 +24,8 @@ import {
   getTrainerClientWeeklyReport,
   getTrainerClientWeightLogs
 } from "@/lib/ascendApi";
+import { messages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
 type WeightLog = Awaited<ReturnType<typeof getTrainerClientWeightLogs>>["weightLogs"][number];
@@ -32,6 +34,15 @@ type Mission = Awaited<ReturnType<typeof getTrainerClientMissions>>["missions"][
 type BurnLog = Awaited<ReturnType<typeof getTrainerClientBurnLogs>>["burnLogs"][number];
 type WeeklyReport = Awaited<ReturnType<typeof getTrainerClientWeeklyReport>>["report"];
 type CoachPresenceHistory = Awaited<ReturnType<typeof getTrainerClientCoachPresence>>["history"];
+type Translate = (key: string, values?: Record<string, string | number>) => string;
+
+function english(key: string, values?: Record<string, string | number>) {
+  let value = messages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
+  }
+  return value;
+}
 
 export type CoachingTimelineItem = {
   id: string;
@@ -69,34 +80,34 @@ function asNumber(value: string | number | null | undefined) {
   return Number.isFinite(number) ? number : 0;
 }
 
-function formatShortDate(value?: string | null) {
-  if (!value) return "Not yet";
+function formatShortDate(value: string | null | undefined, t: Translate = english) {
+  if (!value) return t("trainer.notYet");
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "Not yet";
+  if (!Number.isFinite(date.getTime())) return t("trainer.notYet");
   return date.toLocaleDateString([], { day: "numeric", month: "short" });
 }
 
-function formatDateTime(value?: string | null) {
-  if (!value) return "Not yet";
+function formatDateTime(value: string | null | undefined, t: Translate = english) {
+  if (!value) return t("trainer.notYet");
   const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return "Not yet";
+  if (!Number.isFinite(date.getTime())) return t("trainer.notYet");
   return date.toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
 
-function dateGroupLabel(value?: string | null) {
-  if (!value) return "Recently";
+function dateGroupLabel(value: string | null | undefined, t: Translate = english) {
+  if (!value) return t("trainer.recently");
   const key = localDateKey(value);
   const today = localDateKey();
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayKey = localDateKey(yesterday.toISOString());
-  if (key === today) return "Today";
-  if (key === yesterdayKey) return "Yesterday";
-  return formatShortDate(value);
+  if (key === today) return t("client360.today");
+  if (key === yesterdayKey) return t("client360.yesterday");
+  return formatShortDate(value, t);
 }
 
-function titleCase(value?: string | null) {
-  if (!value) return "Not set";
+function titleCase(value: string | null | undefined, t: Translate = english) {
+  if (!value) return t("trainer.notSet");
   return value
     .replace(/[_-]/g, " ")
     .split(" ")
@@ -105,8 +116,8 @@ function titleCase(value?: string | null) {
     .join(" ");
 }
 
-function workoutName(log?: BurnLog | null) {
-  return log?.metadata?.workoutTitle ?? log?.metadata?.activityType ?? "Workout";
+function workoutName(log: BurnLog | null | undefined, t: Translate = english) {
+  return log?.metadata?.workoutTitle ?? log?.metadata?.activityType ?? t("trainer.workout");
 }
 
 function workoutCalories(log?: BurnLog | null) {
@@ -123,24 +134,25 @@ function TimelineMetricTile({ label, value }: { label: string; value: string }) 
 }
 
 function WorkoutDetail({ workout }: { workout: BurnLog }) {
+  const { t } = useI18n();
   const exercises = workout.metadata?.exercises ?? [];
 
   return (
     <div className="mt-4 rounded-2xl border border-purple-300/20 bg-ink/80 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">Saved Workout</p>
-          <h3 className="mt-1 text-xl font-semibold text-white">{workoutName(workout)}</h3>
-          <p className="mt-1 text-sm text-zinc-400">Workout Completed / {formatDateTime(workout.created_at)}</p>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-purple-200">{t("trainer.savedWorkout")}</p>
+          <h3 className="mt-1 text-xl font-semibold text-white">{workoutName(workout, t)}</h3>
+          <p className="mt-1 text-sm text-zinc-400">{t("trainer.workoutCompletedAt", { date: formatDateTime(workout.created_at, t) })}</p>
         </div>
-        <span className="rounded-full bg-lime px-3 py-1 text-xs font-bold text-ink">Completed</span>
+        <span className="rounded-full bg-lime px-3 py-1 text-xs font-bold text-ink">{t("common.completed")}</span>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <TimelineMetricTile label="Duration" value={`${Number(workout.metadata?.durationMinutes ?? 0) || "--"} min`} />
-        <TimelineMetricTile label="Focus" value={titleCase(workout.metadata?.workoutType ?? workout.metadata?.activityType)} />
-        <TimelineMetricTile label="Difficulty" value={titleCase(workout.metadata?.workoutDifficultyLabel ?? workout.metadata?.workoutDifficulty)} />
-        <TimelineMetricTile label="Estimated burn" value={`~${workoutCalories(workout)} kcal`} />
+        <TimelineMetricTile label={t("trainer.duration")} value={`${Number(workout.metadata?.durationMinutes ?? 0) || "--"} min`} />
+        <TimelineMetricTile label={t("trainer.focus")} value={titleCase(workout.metadata?.workoutType ?? workout.metadata?.activityType, t)} />
+        <TimelineMetricTile label={t("trainer.difficulty")} value={titleCase(workout.metadata?.workoutDifficultyLabel ?? workout.metadata?.workoutDifficulty, t)} />
+        <TimelineMetricTile label={t("trainer.estimatedBurn")} value={`~${workoutCalories(workout)} kcal`} />
       </div>
 
       {exercises.length ? (

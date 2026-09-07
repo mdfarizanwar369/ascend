@@ -79,6 +79,7 @@ type BuildWorkoutPlannerContextInput = {
   recentCoachZoeContext: RecentMessageRow[];
   healthSync: HealthSyncSummaryInput;
   request: WorkoutRequestInput;
+  preferredLocale?: string | null;
   timezoneOffsetMinutes?: number;
 };
 
@@ -185,6 +186,7 @@ export function buildWorkoutPlannerContext(input: BuildWorkoutPlannerContextInpu
   });
 
   return {
+    preferredLocale: input.preferredLocale ?? "en",
     coachAccess: {
       tier: input.coachAccess.tier,
       analysisDepth: input.coachAccess.premiumDepth ? "complete_journey" : "recent_history_only"

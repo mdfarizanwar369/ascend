@@ -5,6 +5,7 @@ import { Copy, Plus, QrCode, TrendingUp } from "lucide-react";
 import { createAdminReferral, getAdminReferrals, getAdminTrainers } from "@/lib/ascendApi";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type Referral = Awaited<ReturnType<typeof getAdminReferrals>>["referrals"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
@@ -57,6 +58,7 @@ function ReferralCard({ item, onCopy }: { item: Referral; onCopy: (code: string)
 }
 
 export function AdminReferralsClient() {
+  const { t } = useI18n();
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [status, setStatus] = useState("Loading referral codes...");
@@ -85,7 +87,7 @@ export function AdminReferralsClient() {
 
   async function copyCode(code: string) {
     try {
-      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      if (!navigator.clipboard) throw new Error(t("admin.clipboardUnavailable"));
       await navigator.clipboard.writeText(code);
       setStatus(`${code} copied.`);
     } catch {
@@ -166,7 +168,7 @@ export function AdminReferralsClient() {
           </div>
         </div>
         <div className="mt-4 space-y-3">
-          <Field label="Trainer">
+          <Field label={t("common.trainer")}>
             <select className={selectClass} value={selectedTrainerId} onChange={(event) => chooseTrainer(event.target.value)}>
               <option value="">Choose trainer</option>
               {activeTrainers.map((trainer) => (
@@ -176,7 +178,7 @@ export function AdminReferralsClient() {
               ))}
             </select>
           </Field>
-          <Field label="Referral code">
+          <Field label={t("admin.referralCode")}>
             <input
               className={inputClass}
               value={newCode}

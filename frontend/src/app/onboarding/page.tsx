@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { BadgeCheck } from "lucide-react";
 import { OnboardingForm } from "@/components/onboarding/OnboardingForm";
@@ -6,8 +8,10 @@ import { BackButton } from "@/components/BackButton";
 import { BrandMark } from "@/components/BrandMark";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { getOnboardingVersion } from "@/lib/onboardingVersion";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 export default function OnboardingPage() {
+  const { t } = useI18n();
   const onboardingVersion = getOnboardingVersion();
   const isProgressive = onboardingVersion === "v2";
 
@@ -18,8 +22,8 @@ export default function OnboardingPage() {
           <BackButton fallbackHref="/login" />
           <BrandMark />
           <div>
-            <p className="text-lg font-semibold">{isProgressive ? "Welcome to Ascend" : "Ascend setup"}</p>
-            <p className="text-xs text-zinc-400">{isProgressive ? "Start simple, complete details later" : "Goal, support, and daily targets"}</p>
+            <p className="text-lg font-semibold">{isProgressive ? t("onboarding.welcome") : t("onboarding.setup")}</p>
+            <p className="text-xs text-zinc-400">{isProgressive ? t("onboarding.simple") : t("onboarding.targets")}</p>
           </div>
         </header>
 
@@ -28,14 +32,14 @@ export default function OnboardingPage() {
             <div className="flex items-start gap-3">
               <BadgeCheck className="mt-0.5 text-lime" size={20} />
               <p className="text-sm leading-6 text-zinc-300">
-                Referral codes connect you to the right gym or trainer. You can skip this if you do not have one yet.
+                {t("onboarding.referralHelp")}
               </p>
             </div>
           </section>
         ) : null}
 
         {isProgressive ? (
-          <Suspense fallback={<div className="ascend-skeleton mt-6 rounded-2xl border border-line bg-surface p-5 text-sm text-zinc-300">Preparing your setup...</div>}>
+          <Suspense fallback={<div className="ascend-skeleton mt-6 rounded-2xl border border-line bg-surface p-5 text-sm text-zinc-300">{t("onboarding.preparing")}</div>}>
             <ProgressiveClientOnboarding />
           </Suspense>
         ) : <OnboardingForm />}

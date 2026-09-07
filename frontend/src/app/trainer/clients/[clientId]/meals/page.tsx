@@ -9,10 +9,10 @@ export default async function TrainerClientMealHistoryPage({ params }: { params:
     <AppShell active="trainer">
       <RoleGate
         allowedRoles={["trainer", "admin", "owner"]}
-        fallbackTitle="Trainer access only"
-        fallbackMessage="This account cannot view client meal history. Use a trainer, owner, or admin login."
+        fallbackTitleKey="access.trainerOnly"
+        fallbackMessageKey="access.trainerMealsDenied"
         requiredPlan="trainer_pro"
-        planFeature="Trainer meal history"
+        planFeatureKey="trainer.mealHistoryFeature"
       >
         <TrainerMealHistoryClient clientId={clientId} />
       </RoleGate>

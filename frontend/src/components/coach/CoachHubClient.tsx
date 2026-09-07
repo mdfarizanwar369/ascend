@@ -28,11 +28,14 @@ import {
 } from "@/lib/ascendApi";
 import { loadAccountProfile } from "@/lib/accountSession";
 import { rememberDashboardRecord } from "@/lib/dataSync";
+import { messages as i18nMessages } from "@/lib/i18n/messages";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 type ChatMessage = {
   role: "assistant" | "user";
   text: string;
 };
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 
 type WorkoutAnswers = {
   location?: WorkoutPlannerLocation;
@@ -54,12 +57,17 @@ type WorkoutSaveSuccess = {
 
 type WorkoutPlannerTime = NonNullable<WorkoutAnswers["timeAvailable"]>;
 
-const starterMessages: ChatMessage[] = [
-  {
-    role: "assistant",
-    text: "Ask about meals, workouts, recovery, habits, or how to make today easier to follow through on."
+function english(key: string, values?: Record<string, string | number>) {
+  let value = i18nMessages.en[key] ?? key;
+  for (const [name, replacement] of Object.entries(values ?? {})) {
+    value = value.replaceAll(`{${name}}`, String(replacement));
   }
-];
+  return value;
+}
+
+function starterMessages(t: Translate): ChatMessage[] {
+  return [{ role: "assistant", text: t("coach.starterMessage") }];
+}
 
 const locationOptions: Array<{ value: WorkoutPlannerLocation; label: string }> = [
   { value: "gym", label: "Gym" },
@@ -141,21 +149,21 @@ function buildTodaysInsight({
   todaySteps: number;
   averageSteps7d: number;
   goalAchieved: boolean;
-}) {
+}, t: Translate = english) {
   if (!hasJourneyHistory && totalWorkoutLogs === 0 && foodCountToday === 0 && streak === 0 && todaySteps === 0 && averageSteps7d === 0 && !goalAchieved) {
-    return "Welcome to Ascend. Give me one honest check-in today and I'll start coaching from something real.";
+    return t("coach.insightWelcome");
   }
   if (!hasJourneyHistory && (foodCountToday + totalWorkoutLogs) >= 1 && streak <= 1 && !goalAchieved) {
-    return "Great start. One real check-in is enough to begin building momentum.";
+    return t("coach.insightGreatStart");
   }
-  if (goalAchieved) return "You already hit an important milestone. Today is about protecting the win.";
+  if (goalAchieved) return t("coach.insightGoalAchieved");
   if (coachPresence) return coachPresence;
-  if (latestWorkoutToday) return "You already trained today. Recovery, water, and protein matter most now.";
-  if (latestWorkoutYesterday) return "You trained yesterday. Recovery matters today.";
-  if (foodCountToday === 0) return "Protein is your biggest opportunity today.";
-  if (streak >= 7) return "One workout today keeps your streak feeling real.";
-  if (averageSteps7d > 0 && todaySteps < averageSteps7d) return "A short walk would already move you closer to your usual rhythm.";
-  return "One honest action is enough to keep today moving.";
+  if (latestWorkoutToday) return t("coach.insightTrainedToday");
+  if (latestWorkoutYesterday) return t("coach.insightTrainedYesterday");
+  if (foodCountToday === 0) return t("coach.insightProteinOpportunity");
+  if (streak >= 7) return t("coach.insightWorkoutStreak");
+  if (averageSteps7d > 0 && todaySteps < averageSteps7d) return t("coach.insightShortWalk");
+  return t("coach.insightOneAction");
 }
 
 function OptionButton({ imageUrl, label, onClick }: { imageUrl?: string; label: string; onClick: () => void }) {
@@ -451,7 +459,8 @@ function WorkoutPlannerCard({
 }
 
 export function CoachHubClient() {
-  const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
+  const { t } = useI18n();
+  const [messages, setMessages] = useState<ChatMessage[]>(() => starterMessages(t));
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -466,7 +475,7 @@ export function CoachHubClient() {
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
   const [isRequestingDebrief, setIsRequestingDebrief] = useState(false);
   const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
-  const [todaysInsight, setTodaysInsight] = useState("One honest action is enough to keep today moving.");
+  const [todaysInsight, setTodaysInsight] = useState(t("coach.insightOneAction"));
   const saveWorkoutLockRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -503,7 +512,7 @@ export function CoachHubClient() {
             todaySteps: healthResponse.status.summary?.todaySteps ?? 0,
             averageSteps7d: healthResponse.status.summary?.averageSteps7d ?? 0,
             goalAchieved: Boolean(goalResponse.goalStatus?.achieved_at)
-          })
+          }, t)
         );
       })
       .catch(() => undefined);
@@ -511,7 +520,7 @@ export function CoachHubClient() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   function nextWorkoutCompletionKey() {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -894,7 +903,7 @@ export function CoachHubClient() {
           <input
             ref={inputRef}
             className="h-12 flex-1 rounded-xl border border-line bg-surface px-3 outline-none focus:border-lime"
-            placeholder="Ask Coach Zoe"
+            placeholder={t("coach.askCoachZoe")}
             value={message}
             onChange={(event) => setMessage(event.target.value)}
           />
@@ -902,7 +911,7 @@ export function CoachHubClient() {
             type="submit"
             disabled={isSending || !message.trim()}
             className="ascend-pressable grid h-12 w-12 place-items-center rounded-xl bg-lime text-ink disabled:opacity-60"
-            aria-label="Send message"
+            aria-label={t("trainer.sendMessage")}
           >
             <Send size={19} />
           </button>

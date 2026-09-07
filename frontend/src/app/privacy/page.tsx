@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/LegalPage";
+import { englishMessage } from "@/lib/i18n/static";
 
 export const metadata: Metadata = { title: "Privacy Policy | Ascend" };
 
 export default function PrivacyPage() {
   return (
     <LegalPage
-      eyebrow="Your data"
-      title="Privacy Policy"
+      eyebrow={englishMessage("legal.yourData")}
+      title={englishMessage("legal.privacyPolicy")}
       introduction="Ascend helps members, trainers, and gym owners stay aligned between sessions. This policy explains what information we collect, how we use it, and the choices available to you."
       sections={[
         {
