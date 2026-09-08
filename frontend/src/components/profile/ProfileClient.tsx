@@ -2,12 +2,15 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Camera, Check, CreditCard, ExternalLink, ScanLine, Trash2, XCircle } from "lucide-react";
+import { updateProfile as updateFirebaseProfile } from "firebase/auth";
+import { Activity, Camera, Check, CreditCard, ExternalLink, Pencil, ScanLine, Trash2, XCircle } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { InstallAscendButton } from "@/components/InstallAscendButton";
 import { EnableCoachNotificationsButton } from "@/components/EnableCoachNotificationsButton";
-import { cancelSubscription, getBillingPortal, getMe, getMySubscription, removeProfilePhoto, saveProfilePhoto } from "@/lib/ascendApi";
+import { cancelSubscription, getBillingPortal, getMe, getMySubscription, removeProfilePhoto, saveProfilePhoto, updateMyProfile } from "@/lib/ascendApi";
+import { clearCachedAccountProfile } from "@/lib/accountSession";
+import { getFirebaseClientAuth } from "@/lib/firebase";
 import { compressProfileImage } from "@/lib/profileImage";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/PerceivedLoading";
@@ -42,10 +45,15 @@ export function ProfileClient() {
   const [billingStatus, setBillingStatus] = useState("");
   const [isWorking, setIsWorking] = useState(false);
   const [isBillingWorking, setIsBillingWorking] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameStatus, setNameStatus] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
 
   async function loadProfile() {
     const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
     setUser(me.user);
+    setNameDraft(me.user.full_name ?? "");
     setRoles(me.roles);
     setRawPlan(subscription.subscription.plan);
     setPlan(usablePlan(subscription.subscription.plan, subscription.subscription.status, subscription.subscription.current_period_end));
@@ -92,6 +100,34 @@ export function ProfileClient() {
         ? t("profile.ended")
         : t("profile.active");
   const isInitialLoading = !user && Boolean(status);
+
+  async function saveName() {
+    const fullName = nameDraft.trim();
+    if (!fullName || fullName.length > 120 || isSavingName) return;
+    setIsSavingName(true);
+    setNameStatus(t("profile.savingName"));
+    try {
+      const response = await updateMyProfile({ fullName });
+      setUser((current) => current ? { ...current, full_name: response.user.full_name } : current);
+      setNameDraft(response.user.full_name);
+      clearCachedAccountProfile();
+      setIsEditingName(false);
+      setNameStatus(t("profile.nameSaved"));
+
+      try {
+        const firebaseUser = getFirebaseClientAuth().currentUser;
+        if (firebaseUser && firebaseUser.displayName !== response.user.full_name) {
+          await updateFirebaseProfile(firebaseUser, { displayName: response.user.full_name });
+        }
+      } catch {
+        // Ascend's profile is canonical. Provider metadata is a best-effort compatibility sync.
+      }
+    } catch (error) {
+      setNameStatus(error instanceof Error ? error.message : t("profile.nameSaveError"));
+    } finally {
+      setIsSavingName(false);
+    }
+  }
 
   async function selectPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -245,8 +281,67 @@ export function ProfileClient() {
 
         <section className="mt-4 rounded-xl border border-line bg-surface p-5 text-center shadow-soft">
           <div className="flex justify-center"><ProfileAvatar src={shownPhoto} name={user?.full_name} size="lg" /></div>
-          <h2 className="mt-4 text-lg font-semibold">{user?.full_name || t("profile.ascendMember")}</h2>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <h2 className="break-words text-lg font-semibold">{user?.full_name || t("profile.ascendMember")}</h2>
+            <button
+              type="button"
+              onClick={() => {
+                setNameDraft(user?.full_name ?? "");
+                setNameStatus("");
+                setIsEditingName(true);
+              }}
+              disabled={isSavingName}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-ink px-3 text-xs font-semibold text-zinc-300 hover:border-calm/50 hover:text-white disabled:opacity-60"
+              aria-label={t("profile.editName")}
+            >
+              <Pencil size={15} /> {t("profile.editName")}
+            </button>
+          </div>
           <p className="mt-1 text-sm text-zinc-400">{user?.email}</p>
+
+          {isEditingName ? (
+            <form
+              className="mt-4 rounded-lg border border-line bg-ink p-4 text-left"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveName();
+              }}
+            >
+              <label className="block text-sm font-semibold" htmlFor="profile-full-name">{t("profile.fullName")}</label>
+              <input
+                id="profile-full-name"
+                value={nameDraft}
+                onChange={(event) => setNameDraft(event.target.value)}
+                maxLength={120}
+                autoComplete="name"
+                disabled={isSavingName}
+                className="mt-2 h-12 w-full rounded-lg border border-line bg-surface px-4 text-white outline-none focus:border-calm disabled:opacity-60"
+              />
+              <p className="mt-2 text-xs leading-5 text-zinc-500">{t("profile.nameHelp")}</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNameDraft(user?.full_name ?? "");
+                    setNameStatus("");
+                    setIsEditingName(false);
+                  }}
+                  disabled={isSavingName}
+                  className="h-11 rounded-lg border border-line bg-surface font-semibold text-zinc-200 disabled:opacity-60"
+                >
+                  {t("common.cancel")}
+                </button>
+                <button
+                  type="submit"
+                  disabled={!nameDraft.trim() || nameDraft.trim().length > 120 || isSavingName}
+                  className="h-11 rounded-lg bg-lime font-semibold text-ink disabled:opacity-60"
+                >
+                  {isSavingName ? t("common.saving") : t("profile.saveName")}
+                </button>
+              </div>
+            </form>
+          ) : null}
+          {nameStatus ? <p className="mt-3 text-sm text-zinc-300" role="status">{nameStatus}</p> : null}
 
           {canUpload ? (
             <>

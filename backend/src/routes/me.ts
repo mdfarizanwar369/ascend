@@ -27,6 +27,14 @@ const languagePreferenceSchema = z.object({
   locale: z.enum(ASCEND_LOCALES)
 });
 
+export const profileDetailsSchema = z.object({
+  fullName: z.string()
+    .trim()
+    .min(1)
+    .max(120)
+    .refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "Name cannot contain control characters")
+});
+
 meRouter.get("/me", requireAuth, async (req, res) => {
   const result = await query(
     `
@@ -83,6 +91,26 @@ meRouter.patch("/me/language", requireAuth, async (req, res, next) => {
     );
 
     res.json({ locale: normalizeAscendLocale(result.rows[0]?.preferred_locale) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+meRouter.patch("/me/profile", requireAuth, async (req, res, next) => {
+  try {
+    const input = profileDetailsSchema.parse(req.body);
+    const result = await query<{ id: string; full_name: string; email: string }>(
+      `
+      update users
+      set full_name = $2, updated_at = now()
+      where id = $1 and status = 'active'
+      returning id, full_name, email
+      `,
+      [req.user!.id, input.fullName]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(404).json({ error: "Active profile not found" });
+    res.json({ user });
   } catch (error) {
     next(error);
   }

@@ -60,14 +60,13 @@ export async function upsertProvisionedUser(options: {
       update users
       set firebase_uid = $2,
           email = $3,
-          full_name = coalesce(nullif($4, ''), full_name),
-          primary_role = case when $5 = true then 'owner'::user_role else primary_role end,
-          gym_id = coalesce($6, gym_id),
-          assigned_trainer_id = coalesce($7, assigned_trainer_id),
-          referred_by_gym_id = coalesce($8, referred_by_gym_id),
-          referred_by_trainer_id = coalesce($9, referred_by_trainer_id),
+          primary_role = case when $4 = true then 'owner'::user_role else primary_role end,
+          gym_id = coalesce($5, gym_id),
+          assigned_trainer_id = coalesce($6, assigned_trainer_id),
+          referred_by_gym_id = coalesce($7, referred_by_gym_id),
+          referred_by_trainer_id = coalesce($8, referred_by_trainer_id),
           coaching_mode = case
-            when coalesce($7, assigned_trainer_id) is not null then 'human_coach'
+            when coalesce($6, assigned_trainer_id) is not null then 'human_coach'
             else coaching_mode
           end,
           updated_at = now()
@@ -78,7 +77,6 @@ export async function upsertProvisionedUser(options: {
         matchedExistingUser.id,
         options.firebaseUid,
         options.currentEmail,
-        options.fullName,
         options.isBootstrapOwner,
         options.gymId,
         options.assignedTrainerId,

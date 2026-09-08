@@ -351,6 +351,16 @@ export function updateLanguagePreference(locale: AscendLocale) {
   });
 }
 
+export function updateMyProfile(input: { fullName: string }) {
+  invalidateCached("me:");
+  return authed<{
+    user: { id: string; full_name: string; email: string };
+  }>("/me/profile", {
+    method: "PATCH",
+    body: JSON.stringify(input)
+  });
+}
+
 export function claimReturnMode() {
   return authed<{
     returnMode: {

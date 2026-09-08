@@ -55,11 +55,11 @@ describe("Google auth provisioning", () => {
       ["member@example.com"]
     );
     expect(dbQuery.mock.calls[2]?.[0]).toContain("update users");
+    expect(dbQuery.mock.calls[2]?.[0]).not.toContain("full_name =");
     expect(dbQuery.mock.calls[2]?.[1]).toEqual([
       "user-1",
       "new-firebase-uid",
       "member@example.com",
-      "Member Name",
       false,
       null,
       null,
