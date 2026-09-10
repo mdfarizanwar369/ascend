@@ -28,3 +28,15 @@ android/captures
 android/keystore/
 android/signing.properties
 android/gradle/gradle-daemon-jvm.properties
+ios/App/build/
+ios/App/DerivedData/
+ios/App/App/public/
+ios/App/App/capacitor.config.json
+ios/App/App/GoogleService-Info.plist
+ios/App/Pods/
+**/xcuserdata/
+*.p8
+*.p12
+*.mobileprovision
+*.xcarchive
+*.ipa
