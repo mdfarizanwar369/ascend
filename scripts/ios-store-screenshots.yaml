@@ -25,11 +25,15 @@ appId: fit.getascend.app
 - tapOn: "Password"
 - inputText: ${REVIEW_PASSWORD}
 - tapOn:
-    point: "50%,36.7%"
+    point: "97%,97%"
     retryTapIfNoChange: true
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    element: "Log in"
+    direction: DOWN
+    timeout: 30000
 - tapOn:
     text: "Log in"
-    optional: true
     retryTapIfNoChange: true
 - extendedWaitUntil:
     visible: "(?i).*essentials.*"
