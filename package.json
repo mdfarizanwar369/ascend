@@ -9,6 +9,11 @@
     "shared"
   ],
   "scripts": {
+    "ios:add": "node scripts/ios-sync.mjs add",
+    "ios:sync": "node scripts/ios-sync.mjs",
+    "ios:assets": "node scripts/generate-ios-brand-assets.mjs",
+    "ios:prepare": "npm run ios:assets && npm run ios:sync",
+    "ios:check": "node --test scripts/ios-project.test.mjs",
     "setup": "npm install",
     "dev": "concurrently \"npm run dev --workspace backend\" \"npm run dev --workspace frontend\"",
     "build": "npm run build --workspace shared && npm run build --workspace backend && npm run build --workspace frontend",
@@ -30,7 +35,7 @@
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
     "concurrently": "^8.2.2",
-    "sharp": "^0.35.2"
+    "sharp": "^0.35.4"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -42,6 +47,7 @@
     "@capacitor/camera": "^8.2.0",
     "@capacitor/core": "^8.4.1",
     "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/ios": "^8.4.1",
     "@capacitor/push-notifications": "^8.1.1",
     "@capacitor/share": "^8.0.1",
     "@capacitor/splash-screen": "^8.0.1",

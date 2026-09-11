@@ -1,0 +1,87 @@
+name: iOS build
+
+on:
+  pull_request:
+    paths:
+      - 'ios/**'
+      - 'scripts/ios-*'
+      - 'scripts/generate-ios-*'
+      - 'capacitor.config.ts'
+      - 'package*.json'
+      - 'mobile-shell/**'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+    inputs:
+      upload_testflight:
+        description: Sign and upload to TestFlight (requires configured Apple secrets)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  simulator:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run ios:prepare
+      - run: npm run ios:check
+      - name: Validate Xcode metadata
+        run: |
+          xcodebuild -version
+          plutil -lint ios/App/App/Info.plist ios/App/App/PrivacyInfo.xcprivacy ios/App/App.xcodeproj/project.pbxproj
+      - name: Build iOS simulator app
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/ios-derived" CODE_SIGNING_ALLOWED=NO build \
+            | tee "$RUNNER_TEMP/ios-build.log"
+      - name: Package simulator app
+        run: ditto -c -k --sequesterRsrc --keepParent "$RUNNER_TEMP/ios-derived/Build/Products/Debug-iphonesimulator/App.app" "$RUNNER_TEMP/Ascend-simulator.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ascend-iOS-simulator
+          path: ${{ runner.temp }}/Ascend-simulator.zip
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: iOS-build-log
+          path: ${{ runner.temp }}/ios-build.log
+          retention-days: 7
+
+  testflight:
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_testflight && github.ref == 'refs/heads/main'
+    needs: simulator
+    runs-on: macos-26
+    timeout-minutes: 40
+    environment: apple-testflight
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run ios:prepare
+      - name: Sign and upload to TestFlight
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: python3 scripts/ios-release.py
