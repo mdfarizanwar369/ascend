@@ -21,7 +21,7 @@ After review and merge to main, configure the `apple-testflight` GitHub environm
 | `ASC_ISSUER_ID` | App Store Connect API issuer ID |
 | `ASC_PRIVATE_KEY_BASE64` | Base64 downloaded `.p8` key; use a role that permits build uploads |
 
-Apple API access has not yet been requested on this new account. Enabling API access and issuing signing credentials is a separate account action requiring approval. No credentials were created or copied into this repository.
+Apple API access and signing credentials are configured. The `apple-testflight` environment contains all six secrets and permits deployments only from `main`. The App Store profile is named `Ascend App Store GitHub`; its certificate and profile expire on September 11, 2027. No credential files belong in this repository.
 
 In Actions, run **iOS build** on **main**, with **upload_testflight** checked. The simulator job must pass first. The release job validates the profile team, bundle ID, expiration and distribution type, installs signing material into a temporary keychain, archives and exports the app, and uploads through Apple's tooling. It removes signing files after the job. The workflow run and attempt form the build number. Upload does not submit the app for App Review or publish it; Apple still needs to process the build and testers need to be configured.
 
