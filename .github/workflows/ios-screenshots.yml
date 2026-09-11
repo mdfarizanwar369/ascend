@@ -2,6 +2,12 @@ name: iOS App Store screenshots
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ios-screenshots.yml'
+      - 'scripts/ios-store-screenshots.py'
+      - 'scripts/ios-store-screenshots.yaml'
 
 permissions:
   contents: read
@@ -11,14 +17,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: [iphone, ipad]
+        device: [ipad]
     if: github.ref == 'refs/heads/main'
     runs-on: macos-26
-    timeout-minutes: 35
+    timeout-minutes: 45
     environment: apple-testflight
     env:
       SCREENSHOT_DEVICE: ${{ matrix.device }}
       MAESTRO_CLI_NO_ANALYTICS: 1
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: 300000
       IOS_GOOGLE_SERVICE_INFO_BASE64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_BASE64 }}
     steps:
       - uses: actions/checkout@v4

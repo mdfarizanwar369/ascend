@@ -24,9 +24,15 @@ appId: fit.getascend.app
     timeout: 30000
 - tapOn: "Password"
 - inputText: ${REVIEW_PASSWORD}
-- pressKey: enter
+- tapOn:
+    point: "50%,36.7%"
+    retryTapIfNoChange: true
+- tapOn:
+    text: "Log in"
+    optional: true
+    retryTapIfNoChange: true
 - extendedWaitUntil:
-    visible: ".*Essentials.*"
+    visible: "(?i).*essentials.*"
     timeout: 60000
 - waitForAnimationToEnd
 - takeScreenshot: 01-dashboard

@@ -8,6 +8,7 @@ import os
 import pathlib
 import plistlib
 import secrets
+import time
 import subprocess
 import urllib.request
 import urllib.error
@@ -39,6 +40,8 @@ auth = post('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + c
             {'email': email, 'password': password, 'returnSecureToken': True})
 token = auth['idToken']
 print('::add-mask::' + token, flush=True)
+post('https://identitytoolkit.googleapis.com/v1/accounts:update?key=' + config['API_KEY'],
+     {'idToken': token, 'displayName': 'Alex', 'returnSecureToken': False})
 profile = post(base + '/auth/provision', {'fullName': 'Alex', 'primaryRole': 'client'}, token)
 assert profile['user']['primary_role'] == 'client' and profile['user']['gym_id'] is None
 post(base + '/me/onboarding', {'fullName': 'Alex', 'goalType': 'maintenance',
@@ -76,11 +79,14 @@ for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (
             '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3',
             '--batteryState', 'charged', '--batteryLevel', '100')
         run('xcrun', 'simctl', 'install', device, str(app))
+        run('xcrun', 'simctl', 'launch', device, 'fit.getascend.app')
+        time.sleep(30)
+        run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / '00-welcome.png'))
         print('Starting Maestro for ' + label, flush=True)
         result = subprocess.run(['maestro', '--device', device, 'test',
              '-e', 'REVIEW_EMAIL=' + email, '-e', 'REVIEW_PASSWORD=' + password,
              '--test-output-dir', str(folder), 'scripts/ios-store-screenshots.yaml'],
-             cwd=os.getcwd(), timeout=600)
+             cwd=os.getcwd(), timeout=900)
         if result.returncode:
             failures.append(label)
             run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / 'capture-failed.png'))
