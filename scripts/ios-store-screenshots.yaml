@@ -5,11 +5,21 @@ appId: fit.getascend.app
     visible: "Create account"
     timeout: 60000
 - takeScreenshot: 00-welcome
-- scrollUntilVisible:
-    element: "Already have an account\\? Log in"
-    direction: DOWN
-    timeout: 60000
-- tapOn: "Already have an account\\? Log in"
+- retry:
+    maxRetries: 3
+    commands:
+      - scrollUntilVisible:
+          element: "Already have an account\\? Log in"
+          direction: DOWN
+          timeout: 30000
+      - tapOn:
+          text: "Already have an account\\? Log in"
+          retryTapIfNoChange: true
+      - scrollUntilVisible:
+          element: "Welcome back"
+          direction: UP
+          timeout: 15000
+- assertVisible: "Welcome back"
 - scrollUntilVisible:
     element: "you@example.com"
     direction: UP
