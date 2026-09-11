@@ -8,6 +8,7 @@ import os
 import pathlib
 import plistlib
 import secrets
+import time
 import subprocess
 import urllib.request
 import urllib.error
@@ -63,6 +64,38 @@ runtime = max((r for r in runtimes if r.get('isAvailable') and r['name'].startsw
 print('Selected runtime: ' + runtime, flush=True)
 types = json.loads(run('xcrun', 'simctl', 'list', 'devicetypes', '-j'))['devicetypes']
 app = temp / 'ios-derived/Build/Products/Debug-iphonesimulator/App.app'
+# These credentials and the helper exist only in the disposable simulator app.
+# Only screenshot PNGs are exported by the workflow.
+login_script = '''(() => {
+  const credentials = CREDENTIALS;
+  if (location.pathname.startsWith('/dashboard') && /essentials/i.test(document.body.innerText)) {
+    window.scrollTo(0, 0);
+    return 'READY';
+  }
+  const toggle = document.getElementById('ascend-auth-toggle');
+  if (toggle && /Already have an account/.test(toggle.textContent)) {
+    toggle.click();
+    return 'Opening login';
+  }
+  const button = document.getElementById('ascend-auth-action');
+  if (!button || !/Log in/.test(button.textContent)) return 'Waiting for login form';
+  const email = document.querySelector('input[type="email"]');
+  const password = document.querySelector('input[type="password"]');
+  if (!email || !password) return 'Waiting for form fields';
+  const enter = (input, value) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+  };
+  if (email.value !== credentials.email) { enter(email, credentials.email); return 'Entering email'; }
+  if (password.value !== credentials.password) { enter(password, credentials.password); return 'Entering password'; }
+  if (!button.disabled && (!window.__captureLastClick || Date.now() - window.__captureLastClick > 15000)) {
+    window.__captureLastClick = Date.now();
+    button.click();
+  }
+  return 'Waiting for dashboard';
+})()'''.replace('CREDENTIALS', json.dumps({'email': email, 'password': password}))
+(app / 'capture-login.js').write_text(login_script)
 failures = []
 for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (M4)')]:
     if label != os.environ['SCREENSHOT_DEVICE']:
@@ -78,12 +111,27 @@ for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (
             '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3',
             '--batteryState', 'charged', '--batteryLevel', '100')
         run('xcrun', 'simctl', 'install', device, str(app))
-        print('Starting Maestro for ' + label, flush=True)
-        result = subprocess.run(['maestro', '--device', device, 'test',
-             '-e', 'REVIEW_EMAIL=' + email, '-e', 'REVIEW_PASSWORD=' + password,
-             '--test-output-dir', str(folder), 'scripts/ios-store-screenshots.yaml'],
-             cwd=os.getcwd(), timeout=900)
-        if result.returncode:
+        container = pathlib.Path(run('xcrun', 'simctl', 'get_app_container', device, 'fit.getascend.app', 'data'))
+        ready = container / 'Documents/capture-ready.txt'
+        status_file = container / 'Documents/capture-status.txt'
+        for attempt in range(2):
+            try:
+                subprocess.run(['xcrun', 'simctl', 'launch', device, 'fit.getascend.app'], check=False, timeout=90)
+            except subprocess.TimeoutExpired:
+                print('Launch command is slow; checking app readiness.', flush=True)
+            deadline = time.monotonic() + 180
+            last_status = None
+            while time.monotonic() < deadline and not ready.exists():
+                status = status_file.read_text() if status_file.exists() else 'Waiting for app startup'
+                if status != last_status:
+                    print(status, flush=True)
+                    last_status = status
+                time.sleep(3)
+            if ready.exists():
+                break
+        if ready.exists():
+            run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / '01-ipad-dashboard.png'))
+        else:
             failures.append(label)
             run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / 'capture-failed.png'))
     except subprocess.TimeoutExpired:

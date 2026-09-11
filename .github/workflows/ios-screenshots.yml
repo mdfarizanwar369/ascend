@@ -8,6 +8,7 @@ on:
       - '.github/workflows/ios-screenshots.yml'
       - 'scripts/ios-store-screenshots.py'
       - 'scripts/ios-store-screenshots.yaml'
+      - 'scripts/prepare-ios-screenshot-driver.py'
 
 permissions:
   contents: read
@@ -39,6 +40,7 @@ jobs:
           java-version: 17
       - run: npm ci
       - run: npm run ios:prepare
+      - run: python3 scripts/prepare-ios-screenshot-driver.py
       - name: Build the current iOS app for screenshots
         run: |
           set -o pipefail
@@ -46,11 +48,6 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/ios-derived" CODE_SIGNING_ALLOWED=NO build \
             > "$RUNNER_TEMP/ios-screenshot-build.log" 2>&1
-      - name: Install Maestro from its official distribution
-        run: |
-          curl -fsSL https://get.maestro.mobile.dev -o "$RUNNER_TEMP/install-maestro.sh"
-          bash "$RUNNER_TEMP/install-maestro.sh"
-          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
       - name: Capture native iPhone and iPad screens with fictional data
         run: python3 scripts/ios-store-screenshots.py
       - uses: actions/upload-artifact@v4
