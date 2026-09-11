@@ -24,17 +24,9 @@ appId: fit.getascend.app
     timeout: 30000
 - tapOn: "Password"
 - inputText: ${REVIEW_PASSWORD}
-- scrollUntilVisible:
-    element: "Log in"
-    direction: DOWN
-    timeout: 30000
-- tapOn: "Log in"
+- pressKey: enter
 - extendedWaitUntil:
-    notVisible: "Log in"
-    timeout: 60000
-- scrollUntilVisible:
-    element: ".*Water.*"
-    direction: DOWN
+    visible: ".*Essentials.*"
     timeout: 60000
 - waitForAnimationToEnd
 - takeScreenshot: 01-dashboard
