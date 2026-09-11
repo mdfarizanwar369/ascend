@@ -1,6 +1,9 @@
 appId: fit.getascend.app
 ---
 - launchApp
+- extendedWaitUntil:
+    visible: "Create account"
+    timeout: 60000
 - scrollUntilVisible:
     element: "Already have an account\\? Log in"
     direction: DOWN
@@ -15,8 +18,12 @@ appId: fit.getascend.app
     timeout: 60000
 - tapOn: "you@example.com"
 - inputText: ${REVIEW_EMAIL}
-- tapOn:
-    id: "ascend-password"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "Password"
+    direction: DOWN
+    timeout: 30000
+- tapOn: "Password"
 - inputText: ${REVIEW_PASSWORD}
 - hideKeyboard
 - tapOn: "Log in"

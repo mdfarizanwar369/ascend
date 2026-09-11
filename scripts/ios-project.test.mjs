@@ -35,6 +35,13 @@ test("iOS startup and account navigation remain inside the configured app origin
   assert.ok(!"https://www.getascend.fit.example/".startsWith(ios.server.url));
 });
 
+test("iOS remote start path also has the bundled path required by Capacitor", () => {
+  const ios = config({ CAPACITOR_PLATFORM: "ios" });
+  const startPath = ios.server.appStartPath.replace(/^\/+/, "");
+  assert.ok(fs.existsSync(`${ios.webDir}/${startPath}`), "Capacitor exits before loading a remote URL if its local start path is missing");
+  assert.ok(fs.existsSync(`ios/App/App/public/${startPath}`), "ios:prepare must package the local start path");
+});
+
 test("synced iOS project resolves portable plugin paths and includes its privacy resource", () => {
   const manifest = read("ios/App/CapApp-SPM/Package.swift");
   assert.ok(!manifest.includes("\\"), "Swift package paths must use forward slashes");
