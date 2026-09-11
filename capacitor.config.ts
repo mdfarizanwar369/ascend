@@ -5,6 +5,9 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const isIos = process.env.CAPACITOR_PLATFORM === "ios";
 const remoteUrl = (isIos ? process.env.CAPACITOR_IOS_SERVER_URL : process.env.CAPACITOR_ANDROID_SERVER_URL)?.trim() || "https://www.getascend.fit/launch";
+// iOS compares navigation URLs against server.url. Keep the origin there so
+// moving from /launch to /login or /dashboard stays inside the native app.
+const iosRemoteUrl = isIos ? new URL(remoteUrl) : null;
 const androidLoggingBehavior = process.env.CAPACITOR_ANDROID_LOGGING_BEHAVIOR?.trim() || "production";
 
 const config: CapacitorConfig = {
@@ -18,7 +21,8 @@ const config: CapacitorConfig = {
     includePlugins: ["@capacitor-firebase/authentication", "@capacitor/app", "@capacitor/camera", "@capacitor/filesystem", "@capacitor/share", "@capacitor/splash-screen", "@capacitor/status-bar"]
   },
   server: {
-    url: remoteUrl,
+    url: iosRemoteUrl ? `${iosRemoteUrl.origin}/` : remoteUrl,
+    ...(iosRemoteUrl ? { appStartPath: iosRemoteUrl.pathname } : {}),
     cleartext: false,
     androidScheme: "https",
     errorPath: "android-error.html"

@@ -8,7 +8,7 @@ import sharp from "sharp";
 const read = (path) => fs.readFileSync(path, "utf8");
 function config(env) {
   const code = ts.transpileModule(read("capacitor.config.ts"), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText;
-  const context = { exports: {}, process: { env } };
+  const context = { exports: {}, process: { env }, URL };
   vm.runInNewContext(code, context);
   return context.exports.default;
 }
@@ -16,12 +16,23 @@ function config(env) {
 test("iOS and Android use their own URL and platform marker", () => {
   const ios = config({ CAPACITOR_PLATFORM: "ios", CAPACITOR_IOS_SERVER_URL: "https://ios.example/launch", CAPACITOR_ANDROID_SERVER_URL: "https://android.example/launch" });
   const android = config({ CAPACITOR_ANDROID_SERVER_URL: "https://android.example/launch" });
-  assert.equal(ios.server.url, "https://ios.example/launch");
+  assert.equal(ios.server.url, "https://ios.example/");
+  assert.equal(ios.server.appStartPath, "/launch");
   assert.equal(android.server.url, "https://android.example/launch");
   assert.match(ios.appendUserAgent, /AscendIOS/);
   assert.match(android.appendUserAgent, /AscendAndroid/);
   assert.equal(ios.appId, "fit.getascend.app");
   assert.equal(ios.server.cleartext, false);
+});
+
+test("iOS startup and account navigation remain inside the configured app origin", () => {
+  const ios = config({ CAPACITOR_PLATFORM: "ios" });
+  assert.equal(new URL(ios.server.appStartPath, ios.server.url).href, "https://www.getascend.fit/launch");
+  for (const path of ["/login", "/dashboard", "/profile"]) {
+    assert.ok(new URL(path, ios.server.url).href.startsWith(ios.server.url));
+  }
+  assert.ok(!"https://accounts.google.com/".startsWith(ios.server.url));
+  assert.ok(!"https://www.getascend.fit.example/".startsWith(ios.server.url));
 });
 
 test("synced iOS project resolves portable plugin paths and includes its privacy resource", () => {

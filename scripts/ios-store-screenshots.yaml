@@ -1,6 +1,15 @@
 appId: fit.getascend.app
 ---
 - launchApp
+- scrollUntilVisible:
+    element: "Already have an account\\? Log in"
+    direction: DOWN
+    timeout: 60000
+- tapOn: "Already have an account\\? Log in"
+- scrollUntilVisible:
+    element: "you@example.com"
+    direction: UP
+    timeout: 60000
 - extendedWaitUntil:
     visible: "you@example.com"
     timeout: 60000

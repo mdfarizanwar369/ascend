@@ -8,11 +8,17 @@ permissions:
 
 jobs:
   screenshots:
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [iphone, ipad]
     if: github.ref == 'refs/heads/main'
     runs-on: macos-26
     timeout-minutes: 35
     environment: apple-testflight
     env:
+      SCREENSHOT_DEVICE: ${{ matrix.device }}
+      MAESTRO_CLI_NO_ANALYTICS: 1
       IOS_GOOGLE_SERVICE_INFO_BASE64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_BASE64 }}
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +49,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Ascend-App-Store-screenshots
+          name: Ascend-App-Store-${{ matrix.device }}
           path: ${{ runner.temp }}/store-screenshots/**/*.png
           if-no-files-found: warn
           retention-days: 7

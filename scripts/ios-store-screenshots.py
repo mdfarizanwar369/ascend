@@ -17,7 +17,7 @@ output = temp / 'store-screenshots'
 output.mkdir(exist_ok=True)
 config = plistlib.loads(pathlib.Path('ios/App/App/GoogleService-Info.plist').read_bytes())
 assert config['PROJECT_ID'] == 'ascend-b2850'
-email = 'getascend.fit+shots-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '@gmail.com'
+email = 'getascend.fit+shots-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '-' + os.environ['SCREENSHOT_DEVICE'] + '@gmail.com'
 password = secrets.token_hex(16)
 print('::add-mask::' + password, flush=True)
 base = 'https://ascend-backend-production-b515.up.railway.app/api/v1'
@@ -52,34 +52,47 @@ post(base + '/weight-logs', {'weightKg': 75}, token)
 print('Synthetic screenshot profile prepared.', flush=True)
 
 def run(*args):
-    return subprocess.check_output(args, text=True).strip()
+    print('Simulator command: ' + ' '.join(args), flush=True)
+    return subprocess.check_output(args, text=True, timeout=240).strip()
 
 runtimes = json.loads(run('xcrun', 'simctl', 'list', 'runtimes', '-j'))['runtimes']
 runtime = max((r for r in runtimes if r.get('isAvailable') and r['name'].startswith('iOS ')),
               key=lambda r: tuple(int(n) for n in r['version'].split('.')))['identifier']
+print('Selected runtime: ' + runtime, flush=True)
 types = json.loads(run('xcrun', 'simctl', 'list', 'devicetypes', '-j'))['devicetypes']
 app = temp / 'ios-derived/Build/Products/Debug-iphonesimulator/App.app'
 failures = []
 for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (M4)')]:
+    if label != os.environ['SCREENSHOT_DEVICE']:
+        continue
     device_type = next(t['identifier'] for t in types if t['name'].startswith(prefix))
     device = run('xcrun', 'simctl', 'create', 'Ascend Store ' + label, device_type, runtime)
     folder = output / label
     folder.mkdir(exist_ok=True)
     try:
         run('xcrun', 'simctl', 'boot', device)
-        run('xcrun', 'simctl', 'bootstatus', device, '-b')
+        subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True, timeout=600)
         run('xcrun', 'simctl', 'status_bar', device, 'override', '--time', '9:41',
             '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3',
             '--batteryState', 'charged', '--batteryLevel', '100')
         run('xcrun', 'simctl', 'install', device, str(app))
+        print('Starting Maestro for ' + label, flush=True)
         result = subprocess.run(['maestro', '--device', device, 'test',
              '-e', 'REVIEW_EMAIL=' + email, '-e', 'REVIEW_PASSWORD=' + password,
              '--test-output-dir', str(folder), 'scripts/ios-store-screenshots.yaml'],
-             cwd=os.getcwd(), timeout=360)
+             cwd=os.getcwd(), timeout=600)
         if result.returncode:
             failures.append(label)
             run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / 'capture-failed.png'))
+    except subprocess.TimeoutExpired:
+        failures.append(label)
+        print('Simulator command timed out for ' + label, flush=True)
+        subprocess.run(['xcrun', 'simctl', 'io', device, 'screenshot',
+                        str(folder / 'capture-failed.png')], check=False, timeout=30)
     finally:
-        subprocess.run(['xcrun', 'simctl', 'shutdown', device], check=False)
+        try:
+            subprocess.run(['xcrun', 'simctl', 'shutdown', device], check=False, timeout=30)
+        except subprocess.TimeoutExpired:
+            print('Runner cleanup will stop the simulator.', flush=True)
 if failures:
     raise SystemExit('Capture needs adjustment on: ' + ', '.join(failures))
