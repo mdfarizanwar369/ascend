@@ -9,7 +9,6 @@ import {
   GoogleAuthProvider,
   onAuthStateChanged,
   sendPasswordResetEmail,
-  signInWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
@@ -27,7 +26,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 import { markInstallEligible } from "@/lib/installAscend";
 import { hasCompletedClientOnboardingProfile, isProgressiveOnboardingEnabled } from "@/lib/onboardingVersion";
-import { isNativeAndroidCapacitor } from "@/lib/nativePlatform";
+import { supportsNativeIosAuth, supportsNativeSocialAuth, getNativeCapacitorPlatform } from "@/lib/nativePlatform";
+import { signInWithNativeSocialProvider } from "@/lib/nativeSocialAuth";
 
 type Mode = "signup" | "login";
 type SignupRole = "client" | "trainer";
@@ -108,7 +108,7 @@ function getPlatformInfo() {
 }
 
 function chooseGoogleAuthMethod(): GoogleAuthMethod {
-  if (isNativeAndroidCapacitor()) return "native";
+  if (supportsNativeSocialAuth()) return "native";
   const platform = getPlatformInfo();
   return platform.isMobile || platform.isStandalone || platform.isSafari ? "redirect" : "popup";
 }
@@ -194,33 +194,6 @@ function roleHome(roles: string[]) {
   return "/dashboard";
 }
 
-async function signInWithNativeAndroidGoogle() {
-  const [{ FirebaseAuthentication }, { getFirebaseClientAuth }, { GoogleAuthProvider, signInWithCredential }] = await Promise.all([
-    import("@capacitor-firebase/authentication"),
-    import("@/lib/firebase"),
-    import("firebase/auth")
-  ]);
-
-  const nativeResult = await FirebaseAuthentication.signInWithGoogle({
-    skipNativeAuth: true,
-    useCredentialManager: false
-  });
-
-  const idToken = nativeResult.credential?.idToken;
-  const accessToken = nativeResult.credential?.accessToken;
-  if (!idToken) {
-    throw new Error("Google sign-in finished, but no Google ID token was returned.");
-  }
-
-  const auth = getFirebaseClientAuth();
-  const credential = GoogleAuthProvider.credential(idToken, accessToken ?? undefined);
-  const userCredential = await signInWithCredential(auth, credential);
-  return {
-    nativeResult,
-    userCredential
-  };
-}
-
 export function AuthPanel() {
   const router = useRouter();
   const hasProcessedRedirectAuth = useRef(false);
@@ -235,6 +208,8 @@ export function AuthPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTrainerSignup, setShowTrainerSignup] = useState(false);
   const progressiveClientSignup = isProgressiveOnboardingEnabled() && !showTrainerSignup;
+  const [nativeIosAuth, setNativeIosAuth] = useState(false);
+  useEffect(() => { setNativeIosAuth(supportsNativeIosAuth()); }, []);
   const googleSignInEnabled = process.env.NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED === "true";
   const firebaseConfigured = Boolean(
     process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
@@ -272,7 +247,7 @@ export function AuthPanel() {
     }
   }, [email, fullName, mode, referralCode, signupRole]);
 
-  const provisionGoogleUser = useCallback(async (user: User) => {
+  const provisionSocialUser = useCallback(async (user: User) => {
     authTrace("Firebase user received", {
       uid: user.uid,
       email: user.email,
@@ -312,7 +287,7 @@ export function AuthPanel() {
       const detail =
         typeof provisionPayload?.error === "string"
           ? `${provisionPayload.error}${typeof provisionPayload?.detail === "string" ? ` ${provisionPayload.detail}` : ""}`
-          : `Google profile setup failed with status ${provisionResponse.status}.`;
+          : `Profile setup failed with status ${provisionResponse.status}.`;
       throw new Error(detail);
     }
 
@@ -393,7 +368,7 @@ export function AuthPanel() {
             clearGoogleRedirectPending();
             setIsSubmitting(true);
             setStatus("Finishing Google sign-in...");
-            await provisionGoogleUser(fallbackUser);
+            await provisionSocialUser(fallbackUser);
             return;
           }
           authDebug("redirect_result_empty", { redirectWasPending, hasCurrentUser: Boolean(auth.currentUser) });
@@ -408,7 +383,7 @@ export function AuthPanel() {
         clearGoogleRedirectPending();
         setIsSubmitting(true);
         setStatus("Setting up your Ascend profile...");
-        await provisionGoogleUser(result.user);
+        await provisionSocialUser(result.user);
         authDebug("redirect_auth_completed");
         authTrace("Authentication completed", { uid: result.user.uid });
       } catch (error) {
@@ -426,7 +401,7 @@ export function AuthPanel() {
     return () => {
       cancelled = true;
     };
-  }, [firebaseConfigured, googleSignInEnabled, progressiveClientSignup, provisionGoogleUser]);
+  }, [firebaseConfigured, googleSignInEnabled, progressiveClientSignup, provisionSocialUser]);
 
   async function handleAuthAction() {
     if (isSubmitting) return;
@@ -565,6 +540,9 @@ export function AuthPanel() {
     setStatus(null);
 
     try {
+      if (getNativeCapacitorPlatform() === "ios" && !supportsNativeIosAuth()) {
+        throw new Error("Please update Ascend in TestFlight to sign in with Google, or use email and password.");
+      }
       const platform = getPlatformInfo();
       const method = chooseGoogleAuthMethod();
       authDebug("google_button_clicked", { ...platform, method });
@@ -577,12 +555,8 @@ export function AuthPanel() {
       );
 
       if (method === "native") {
-        authTrace("Native Google sign-in initiated", { platform: "android-capacitor" });
-        const { nativeResult, userCredential } = await withTimeout(
-          signInWithNativeAndroidGoogle(),
-          "Google sign-in is taking too long. Please check your connection and try again.",
-          30_000
-        );
+        authTrace("Native Google sign-in initiated", { platform: getNativeCapacitorPlatform() });
+        const { nativeResult, userCredential } = await signInWithNativeSocialProvider("google");
         authTrace("Native Google sign-in completed", {
           providerId: nativeResult.credential?.providerId ?? null,
           hasAccessToken: Boolean(nativeResult.credential?.accessToken),
@@ -590,7 +564,7 @@ export function AuthPanel() {
           firebaseUid: userCredential.user.uid
         });
         setStatus("Setting up your Ascend profile...");
-        await provisionGoogleUser(userCredential.user);
+        await provisionSocialUser(userCredential.user);
         authDebug("google_native_auth_completed");
         return;
       }
@@ -651,7 +625,7 @@ export function AuthPanel() {
 
       authDebug("google_popup_success");
       setStatus("Setting up your Ascend profile...");
-      await provisionGoogleUser(userCredential.user);
+      await provisionSocialUser(userCredential.user);
       authDebug("google_auth_completed");
     } catch (error) {
       authDebug("google_auth_error", {
@@ -659,6 +633,22 @@ export function AuthPanel() {
         message: error instanceof Error ? error.message : String(error)
       });
       setStatus(getFriendlyAuthError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleAppleSignIn() {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setStatus("Opening secure Apple sign-in...");
+    try {
+      const { userCredential } = await signInWithNativeSocialProvider("apple");
+      setStatus("Setting up your Ascend profile...");
+      await provisionSocialUser(userCredential.user);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Apple sign-in could not finish. Please try again.";
+      setStatus(/cancel|1001/i.test(message) ? "Sign-in cancelled. You can try again when ready." : getFriendlyAuthError(error));
     } finally {
       setIsSubmitting(false);
     }
@@ -704,7 +694,18 @@ export function AuthPanel() {
                 {isSubmitting ? "Working..." : "Continue with Google"}
               </button>
             ) : null}
-            {progressiveClientSignup && googleSignInEnabled ? (
+            {nativeIosAuth && progressiveClientSignup ? (
+              <button
+                type="button"
+                onClick={handleAppleSignIn}
+                disabled={isSubmitting || !firebaseConfigured}
+                className="flex h-12 w-full items-center justify-center rounded-lg border border-white bg-black font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span aria-hidden="true" className="mr-2 text-xl"></span>
+                Continue with Apple
+              </button>
+            ) : null}
+            {progressiveClientSignup && (googleSignInEnabled || nativeIosAuth) ? (
               <div className="flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-zinc-500">
                 <span className="h-px flex-1 bg-line" />
                 <span>or</span>

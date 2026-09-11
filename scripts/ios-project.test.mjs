@@ -28,7 +28,9 @@ test("synced iOS project resolves portable plugin paths and includes its privacy
   const manifest = read("ios/App/CapApp-SPM/Package.swift");
   assert.ok(!manifest.includes("\\"), "Swift package paths must use forward slashes");
   assert.match(manifest, /CapacitorCamera/);
-  assert.ok(!manifest.includes("Firebase"), "Firebase native setup is not configured yet");
+  assert.match(manifest, /FirebaseAuthentication/);
+  assert.match(read("ios/App/App/App.entitlements"), /com.apple.developer.applesignin/);
+  assert.match(read("ios/App/App/Info.plist"), /com.googleusercontent.apps.790770085471/);
   const project = read("ios/App/App.xcodeproj/project.pbxproj");
   assert.match(project, /PrivacyInfo.xcprivacy in Resources/);
   assert.match(read("ios/App/App/Info.plist"), /NSCameraUsageDescription/);

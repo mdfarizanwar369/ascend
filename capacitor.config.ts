@@ -12,12 +12,10 @@ const config: CapacitorConfig = {
   appName: "Ascend",
   webDir: "mobile-shell",
   backgroundColor: "#07090d",
-  appendUserAgent: isIos ? " AscendIOS/1 Capacitor" : " AscendAndroid/1 Capacitor",
+  appendUserAgent: isIos ? " AscendIOS/2 Capacitor" : " AscendAndroid/1 Capacitor",
   ios: {
     contentInset: "automatic",
-    // Firebase native sign-in and APNs require their own Apple/Firebase setup.
-    // The first iOS build uses the existing email/password web authentication.
-    includePlugins: ["@capacitor/app", "@capacitor/camera", "@capacitor/filesystem", "@capacitor/share", "@capacitor/splash-screen", "@capacitor/status-bar"]
+    includePlugins: ["@capacitor-firebase/authentication", "@capacitor/app", "@capacitor/camera", "@capacitor/filesystem", "@capacitor/share", "@capacitor/splash-screen", "@capacitor/status-bar"]
   },
   server: {
     url: remoteUrl,
@@ -35,7 +33,7 @@ const config: CapacitorConfig = {
     FirebaseAuthentication: {
       authDomain: "www.getascend.fit",
       skipNativeAuth: true,
-      providers: ["google.com"]
+      providers: isIos ? ["google.com", "apple.com"] : ["google.com"]
     },
     PushNotifications: {
       presentationOptions: ["alert", "sound"]

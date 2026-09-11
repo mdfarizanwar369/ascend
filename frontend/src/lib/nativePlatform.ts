@@ -13,3 +13,14 @@ export function getNativeCapacitorPlatform() {
 export function isNativeAndroidCapacitor() {
   return isNativeCapacitorPlatform() && getNativeCapacitorPlatform() === "android";
 }
+
+export function supportsNativeIosAuth() {
+  if (!isNativeCapacitorPlatform() || getNativeCapacitorPlatform() !== "ios") return false;
+  // The hosted frontend also runs in the first iOS build, which has no auth plugin.
+  const version = /AscendIOS\/(\d+)/.exec(window.navigator.userAgent);
+  return Number(version?.[1] ?? 0) >= 2;
+}
+
+export function supportsNativeSocialAuth() {
+  return isNativeAndroidCapacitor() || supportsNativeIosAuth();
+}

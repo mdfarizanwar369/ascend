@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>CFBundleURLTypes</key>
+    <array><dict><key>CFBundleURLSchemes</key><array><string>com.googleusercontent.apps.790770085471-emd8ftl5bgepj8tutqu7oglue784ud85</string></array></dict></array>
     <key>NSCameraUsageDescription</key>
     <string>Take photos of meals and progress to add to your Ascend journal.</string>
     <key>NSPhotoLibraryUsageDescription</key>
