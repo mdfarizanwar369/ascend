@@ -59,8 +59,9 @@ def main():
             build_number = f"{os.environ['GITHUB_RUN_NUMBER']}.{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
             run("xcodebuild", "-project", str(root / "ios/App/App.xcodeproj"), "-scheme", "App",
                 "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive),
-                f"DEVELOPMENT_TEAM={TEAM}", "CODE_SIGN_STYLE=Manual", "CODE_SIGN_IDENTITY=Apple Distribution",
-                f"PROVISIONING_PROFILE_SPECIFIER={profile['UUID']}", f"CURRENT_PROJECT_VERSION={build_number}", "archive")
+                # Only the App target consumes this custom setting. A global
+                # provisioning override incorrectly applies to Swift packages.
+                f"ASCEND_PROFILE_UUID={profile['UUID']}", f"CURRENT_PROJECT_VERSION={build_number}", "archive")
             export = temp / "ExportOptions.plist"
             export.write_bytes(plistlib.dumps({"method": "app-store-connect", "teamID": TEAM,
                 "signingStyle": "manual", "signingCertificate": "Apple Distribution", "manageAppVersionAndBuildNumber": False,
