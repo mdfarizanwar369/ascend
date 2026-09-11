@@ -16,7 +16,7 @@ After review and merge to main, configure the `apple-testflight` GitHub environm
 | --- | --- |
 | `IOS_CERTIFICATE_BASE64` | Base64 Apple Distribution `.p12`, including its private key |
 | `IOS_CERTIFICATE_PASSWORD` | Password protecting that `.p12` |
-| `IOS_PROFILE_BASE64` | Base64 App Store profile with Sign in with Apple for this team and bundle ID |
+| `IOS_APPLE_PROFILE_BASE64` | Base64 App Store profile with Sign in with Apple for this team and bundle ID; mapped to `IOS_PROFILE_BASE64` in the release process |
 | `IOS_GOOGLE_SERVICE_INFO_BASE64` | Base64 Firebase iOS `GoogleService-Info.plist` for `ascend-b2850` |
 | `ASC_KEY_ID` | App Store Connect API key ID |
 | `ASC_ISSUER_ID` | App Store Connect API issuer ID |
