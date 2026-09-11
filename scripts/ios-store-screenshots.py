@@ -8,7 +8,6 @@ import os
 import pathlib
 import plistlib
 import secrets
-import time
 import subprocess
 import urllib.request
 import urllib.error
@@ -79,9 +78,6 @@ for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (
             '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3',
             '--batteryState', 'charged', '--batteryLevel', '100')
         run('xcrun', 'simctl', 'install', device, str(app))
-        run('xcrun', 'simctl', 'launch', device, 'fit.getascend.app')
-        time.sleep(30)
-        run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / '00-welcome.png'))
         print('Starting Maestro for ' + label, flush=True)
         result = subprocess.run(['maestro', '--device', device, 'test',
              '-e', 'REVIEW_EMAIL=' + email, '-e', 'REVIEW_PASSWORD=' + password,

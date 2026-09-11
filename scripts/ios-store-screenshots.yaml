@@ -4,6 +4,7 @@ appId: fit.getascend.app
 - extendedWaitUntil:
     visible: "Create account"
     timeout: 60000
+- takeScreenshot: 00-welcome
 - scrollUntilVisible:
     element: "Already have an account\\? Log in"
     direction: DOWN
