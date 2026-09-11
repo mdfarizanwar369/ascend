@@ -1,0 +1,24 @@
+appId: fit.getascend.app
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "you@example.com"
+    timeout: 60000
+- tapOn: "you@example.com"
+- inputText: ${REVIEW_EMAIL}
+- tapOn:
+    id: "ascend-password"
+- inputText: ${REVIEW_PASSWORD}
+- hideKeyboard
+- tapOn: "Log in"
+- extendedWaitUntil:
+    notVisible: "Log in"
+    timeout: 60000
+- extendedWaitUntil:
+    visible: ".*Water.*"
+    timeout: 60000
+- waitForAnimationToEnd
+- takeScreenshot: 01-dashboard
+- scroll
+- waitForAnimationToEnd
+- takeScreenshot: 02-daily-tracking

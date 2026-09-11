@@ -1,0 +1,85 @@
+"""Capture the unchanged iOS shell with an isolated, fictional client account.
+
+Only PNGs are exported. Passwords, auth tokens and Maestro debug logs stay in
+the temporary runner directory, never in the public screenshot artifact.
+"""
+import json
+import os
+import pathlib
+import plistlib
+import secrets
+import subprocess
+import urllib.request
+import urllib.error
+
+temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+output = temp / 'store-screenshots'
+output.mkdir(exist_ok=True)
+config = plistlib.loads(pathlib.Path('ios/App/App/GoogleService-Info.plist').read_bytes())
+assert config['PROJECT_ID'] == 'ascend-b2850'
+email = 'getascend.fit+shots-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '@gmail.com'
+password = secrets.token_hex(16)
+print('::add-mask::' + password, flush=True)
+base = 'https://ascend-backend-production-b515.up.railway.app/api/v1'
+
+def post(url, data, token=None):
+    headers = {'Content-Type': 'application/json'}
+    if token:
+        headers['Authorization'] = 'Bearer ' + token
+    request = urllib.request.Request(url, json.dumps(data).encode(), headers)
+    try:
+        with urllib.request.urlopen(request, timeout=45) as response:
+            return json.load(response)
+    except urllib.error.HTTPError as error:
+        raise RuntimeError('Fixture request failed with HTTP ' + str(error.code)) from None
+    except urllib.error.URLError:
+        raise RuntimeError('Fixture network request failed') from None
+
+auth = post('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + config['API_KEY'],
+            {'email': email, 'password': password, 'returnSecureToken': True})
+token = auth['idToken']
+print('::add-mask::' + token, flush=True)
+profile = post(base + '/auth/provision', {'fullName': 'Alex', 'primaryRole': 'client'}, token)
+assert profile['user']['primary_role'] == 'client' and profile['user']['gym_id'] is None
+post(base + '/me/onboarding', {'fullName': 'Alex', 'goalType': 'maintenance',
+     'coachingMode': 'self_coached', 'gender': 'prefer_not_to_say', 'ageYears': 30,
+     'activityLevel': 'moderate', 'heightCm': 175, 'startingWeightKg': 75}, token)
+post(base + '/food-logs', {'mealType': 'breakfast', 'estimatedFoodName': 'Oats, yogurt and berries',
+     'calories': 420, 'proteinG': 25, 'carbsG': 55, 'fatG': 11, 'wasEditedByUser': True}, token)
+post(base + '/water-logs', {'amountMl': 750}, token)
+post(base + '/burn-logs', {'activityType': 'Walking', 'durationMinutes': 30, 'caloriesBurned': 130}, token)
+post(base + '/weight-logs', {'weightKg': 75}, token)
+print('Synthetic screenshot profile prepared.', flush=True)
+
+def run(*args):
+    return subprocess.check_output(args, text=True).strip()
+
+runtimes = json.loads(run('xcrun', 'simctl', 'list', 'runtimes', '-j'))['runtimes']
+runtime = max((r for r in runtimes if r.get('isAvailable') and r['name'].startswith('iOS ')),
+              key=lambda r: tuple(int(n) for n in r['version'].split('.')))['identifier']
+types = json.loads(run('xcrun', 'simctl', 'list', 'devicetypes', '-j'))['devicetypes']
+app = temp / 'ios-derived/Build/Products/Debug-iphonesimulator/App.app'
+failures = []
+for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (M4)')]:
+    device_type = next(t['identifier'] for t in types if t['name'].startswith(prefix))
+    device = run('xcrun', 'simctl', 'create', 'Ascend Store ' + label, device_type, runtime)
+    folder = output / label
+    folder.mkdir(exist_ok=True)
+    try:
+        run('xcrun', 'simctl', 'boot', device)
+        run('xcrun', 'simctl', 'bootstatus', device, '-b')
+        run('xcrun', 'simctl', 'status_bar', device, 'override', '--time', '9:41',
+            '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3',
+            '--batteryState', 'charged', '--batteryLevel', '100')
+        run('xcrun', 'simctl', 'install', device, str(app))
+        result = subprocess.run(['maestro', '--device', device, 'test',
+             '-e', 'REVIEW_EMAIL=' + email, '-e', 'REVIEW_PASSWORD=' + password,
+             '--test-output-dir', str(folder), 'scripts/ios-store-screenshots.yaml'],
+             cwd=os.getcwd(), timeout=360)
+        if result.returncode:
+            failures.append(label)
+            run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / 'capture-failed.png'))
+    finally:
+        subprocess.run(['xcrun', 'simctl', 'shutdown', device], check=False)
+if failures:
+    raise SystemExit('Capture needs adjustment on: ' + ', '.join(failures))

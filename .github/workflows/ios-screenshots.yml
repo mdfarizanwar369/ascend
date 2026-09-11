@@ -1,0 +1,49 @@
+name: iOS App Store screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  screenshots:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-26
+    timeout-minutes: 35
+    environment: apple-testflight
+    env:
+      IOS_GOOGLE_SERVICE_INFO_BASE64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - run: npm run ios:prepare
+      - name: Build the current iOS app for screenshots
+        run: |
+          set -o pipefail
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/ios-derived" CODE_SIGNING_ALLOWED=NO build \
+            > "$RUNNER_TEMP/ios-screenshot-build.log" 2>&1
+      - name: Install Maestro from its official distribution
+        run: |
+          curl -fsSL https://get.maestro.mobile.dev -o "$RUNNER_TEMP/install-maestro.sh"
+          bash "$RUNNER_TEMP/install-maestro.sh"
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Capture native iPhone and iPad screens with fictional data
+        run: python3 scripts/ios-store-screenshots.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Ascend-App-Store-screenshots
+          path: ${{ runner.temp }}/store-screenshots/**/*.png
+          if-no-files-found: warn
+          retention-days: 7
