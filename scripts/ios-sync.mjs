@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
+
+const googleConfig = "ios/App/App/GoogleService-Info.plist";
+if (process.env.IOS_GOOGLE_SERVICE_INFO_BASE64) {
+  writeFileSync(googleConfig, Buffer.from(process.env.IOS_GOOGLE_SERVICE_INFO_BASE64, "base64"));
+} else if (!existsSync(googleConfig)) {
+  // PR simulator builds compile without production client configuration.
+  copyFileSync("ios/App/App/GoogleService-Info.example.plist", googleConfig);
+}
 
 const result = spawnSync(process.execPath, ["node_modules/@capacitor/cli/bin/capacitor", process.argv[2] || "sync", "ios"], {
   stdio: "inherit",

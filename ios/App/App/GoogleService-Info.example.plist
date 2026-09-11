@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>790770085471-0uh5crld2ufsul6mkk3olegrut3aul3l.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>SIMULATOR_ONLY_NOT_FOR_SIGN_IN</string>
+	<key>BUNDLE_ID</key>
+	<string>fit.getascend.app</string>
+	<key>CLIENT_ID</key>
+	<string>790770085471-emd8ftl5bgepj8tutqu7oglue784ud85.apps.googleusercontent.com</string>
+	<key>GCM_SENDER_ID</key>
+	<string>790770085471</string>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:790770085471:ios:6c50744e7282f4322b75ea</string>
+	<key>IS_ADS_ENABLED</key>
+	<false/>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false/>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true/>
+	<key>IS_GCM_ENABLED</key>
+	<true/>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true/>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>PROJECT_ID</key>
+	<string>ascend-b2850</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.790770085471-emd8ftl5bgepj8tutqu7oglue784ud85</string>
+	<key>STORAGE_BUCKET</key>
+	<string>ascend-b2850.firebasestorage.app</string>
+</dict>
+</plist>

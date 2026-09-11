@@ -68,6 +68,8 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 40
     environment: apple-testflight
+    env:
+      IOS_GOOGLE_SERVICE_INFO_BASE64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_BASE64 }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -19,13 +19,16 @@ def run(*args, **kwargs):
 
 def main():
     names = ("IOS_CERTIFICATE_BASE64", "IOS_CERTIFICATE_PASSWORD", "IOS_PROFILE_BASE64",
-             "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_BASE64")
+             "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_BASE64", "IOS_GOOGLE_SERVICE_INFO_BASE64")
     missing = [name for name in names if not os.environ.get(name)]
     if missing:
         raise SystemExit("Configure the apple-testflight environment secrets: " + ", ".join(missing))
     if os.environ.get("GITHUB_REF") != "refs/heads/main" or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
         raise SystemExit("Release is allowed only through a manual run on main.")
     root = Path.cwd()
+    google_config = plistlib.loads((root / "ios/App/App/GoogleService-Info.plist").read_bytes())
+    if google_config.get("BUNDLE_ID") != BUNDLE or google_config.get("PROJECT_ID") != "ascend-b2850" or google_config.get("API_KEY") == "SIMULATOR_ONLY_NOT_FOR_SIGN_IN":
+        raise SystemExit("Valid Ascend iOS Firebase configuration is required for release.")
     installed_profile = None
     with tempfile.TemporaryDirectory(prefix="ascend-signing-", dir=os.environ.get("RUNNER_TEMP")) as directory:
         temp = Path(directory)
@@ -39,6 +42,8 @@ def main():
             profile = plistlib.loads(run("security", "cms", "-D", "-i", str(profile_file), capture_output=True).stdout)
             if profile.get("TeamIdentifier") != [TEAM] or profile["Entitlements"].get("application-identifier") != f"{TEAM}.{BUNDLE}":
                 raise SystemExit("Provisioning profile does not match Ascend's team and bundle ID.")
+            if "Default" not in profile["Entitlements"].get("com.apple.developer.applesignin", []):
+                raise SystemExit("Regenerate the provisioning profile with Sign in with Apple enabled.")
             if profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices") or profile["Entitlements"].get("get-task-allow"):
                 raise SystemExit("An App Store distribution profile is required.")
             if profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc):
