@@ -1,12 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
-import { AuthUser, requireAuth } from "../middleware/auth";
+import { AuthUser, requireAuth, requirePlatformOwner } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { getAdminGymScope } from "../services/adminScopeService";
 import { canManageClient } from "../services/clientAccessService";
 import { withProfilePhotoUrls } from "../services/profilePhotoService";
 import { notifyHumanCoachEvent } from "../services/notificationService";
+import { getConversationSafety, insertSafeMessage, resolveMessageReport } from "../services/messageSafetyService";
 
 export const messagesRouter = Router();
 
@@ -208,12 +209,9 @@ messagesRouter.post("/trainer/clients/:clientId/messages", requireAuth, requireA
     const context = await getTrainerClientThreadContext(req.params.clientId, req.user!);
     if (!context) return res.status(404).json({ error: "Client not found" });
 
-    const result = await query(
-      "insert into messages (sender_user_id, receiver_user_id, body) values ($1, $2, $3) returning *",
-      [req.user!.id, context.client_user_id, input.body]
-    );
+    const message = await insertSafeMessage(req.user!.id, context.client_user_id, input.body);
     await notifyHumanCoachEvent({ userId: context.client_user_id, event: "message", senderName: req.user!.email });
-    res.status(201).json({ message: result.rows[0] });
+    res.status(201).json({ message });
   } catch (error) {
     next(error);
   }
@@ -254,13 +252,76 @@ messagesRouter.post("/messages", requireAuth, requireActivePlan("premium"), asyn
     const allowed = await canMessageUser(req.user!, input.receiverUserId);
     if (!allowed) return res.status(403).json({ error: "You cannot message this user" });
 
-    const result = await query(
-      "insert into messages (sender_user_id, receiver_user_id, body) values ($1, $2, $3) returning *",
-      [req.user!.id, input.receiverUserId, input.body]
-    );
+    const message = await insertSafeMessage(req.user!.id, input.receiverUserId, input.body);
     await notifyHumanCoachEvent({ userId: input.receiverUserId, event: "message", senderName: req.user!.email });
-    res.status(201).json({ message: result.rows[0] });
+    res.status(201).json({ message });
   } catch (error) {
     next(error);
   }
+});
+
+async function canAccessSafety(user: AuthUser, otherId: string) {
+  if (user.id === otherId) return false;
+  const history = await query(`select 1 from messages where
+    (sender_user_id = $1 and receiver_user_id = $2) or (sender_user_id = $2 and receiver_user_id = $1)
+    union all select 1 from message_blocks where blocker_user_id = $1 and blocked_user_id = $2
+    limit 1`, [user.id, otherId]);
+  return Boolean(history.rows[0]) || await canMessageUser(user, otherId);
+}
+
+// Safety actions remain available without a paid subscription, including old conversations.
+messagesRouter.get("/messages/contacts/:userId/safety", requireAuth, async (req, res, next) => {
+  try {
+    const otherId = z.string().uuid().parse(req.params.userId);
+    if (!await canAccessSafety(req.user!, otherId)) return res.status(404).json({ error: "Conversation not found" });
+    res.json(await getConversationSafety(req.user!.id, otherId));
+  } catch (error) { next(error); }
+});
+
+messagesRouter.put("/messages/contacts/:userId/block", requireAuth, async (req, res, next) => {
+  try {
+    const otherId = z.string().uuid().parse(req.params.userId);
+    const { blocked } = z.object({ blocked: z.boolean() }).parse(req.body);
+    if (!await canAccessSafety(req.user!, otherId)) return res.status(404).json({ error: "Conversation not found" });
+    if (blocked) {
+      await query("insert into message_blocks (blocker_user_id, blocked_user_id) values ($1, $2) on conflict do nothing", [req.user!.id, otherId]);
+    } else {
+      await query("delete from message_blocks where blocker_user_id = $1 and blocked_user_id = $2", [req.user!.id, otherId]);
+    }
+    res.json(await getConversationSafety(req.user!.id, otherId));
+  } catch (error) { next(error); }
+});
+
+messagesRouter.post("/messages/:messageId/report", requireAuth, async (req, res, next) => {
+  try {
+    const messageId = z.string().uuid().parse(req.params.messageId);
+    const input = z.object({ reason: z.enum(["harassment", "inappropriate", "spam", "other"]), details: z.string().trim().max(2000).default("") }).parse(req.body);
+    const result = await query(`insert into message_reports
+      (message_id, reporter_user_id, reported_user_id, message_body, reason, details)
+      select id, $2, sender_user_id, body, $3, $4 from messages where id = $1 and receiver_user_id = $2 and sender_user_id <> $2
+      on conflict (message_id, reporter_user_id) do update set message_id = excluded.message_id
+      returning id`, [messageId, req.user!.id, input.reason, input.details]);
+    if (!result.rows[0]) return res.status(404).json({ error: "Received message not found" });
+    res.status(201).json({ report: result.rows[0] });
+  } catch (error) { next(error); }
+});
+
+// Only the platform moderation team can read private reports, never a reported coach or gym owner.
+messagesRouter.get("/moderation/messages", requireAuth, requirePlatformOwner, async (_req, res, next) => {
+  try {
+    const result = await query(`select r.*, sender.full_name as sender_name, reporter.full_name as reporter_name
+      from message_reports r join users sender on sender.id = r.reported_user_id
+      join users reporter on reporter.id = r.reporter_user_id
+      order by (r.status = 'open') desc, r.created_at asc limit 200`);
+    res.json({ reports: result.rows });
+  } catch (error) { next(error); }
+});
+
+messagesRouter.post("/moderation/messages/:reportId/resolve", requireAuth, requirePlatformOwner, async (req, res, next) => {
+  try {
+    const id = z.string().uuid().parse(req.params.reportId);
+    const { action } = z.object({ action: z.enum(["remove", "restrict", "dismiss"]) }).parse(req.body);
+    await resolveMessageReport(id, req.user!.id, action);
+    res.json({ resolved: true });
+  } catch (error) { next(error); }
 });

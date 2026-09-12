@@ -543,9 +543,9 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
       setMessages((current) => [...current, response.message]);
       setClient((current) => (current ? { ...current, last_trainer_message_at: response.message.created_at } : current));
       setStatus("Check-in sent.");
-    } catch {
+    } catch (error) {
       setMessageBody(trimmed);
-      setStatus("Could not send message. Make sure this client is assigned to this trainer.");
+      setStatus(error instanceof Error ? error.message : "Could not send message. Please try again.");
     } finally {
       setIsSendingMessage(false);
     }
@@ -886,7 +886,7 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
               href={`/messages?userId=${client.id}`}
               className="mt-3 flex h-12 items-center justify-center rounded-2xl border border-calm/40 bg-calm/10 font-semibold text-calm"
             >
-              Open Conversation
+              Open conversation · report or block
             </Link>
           ) : null}
         </SectionCard>

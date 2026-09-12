@@ -1720,6 +1720,27 @@ export function getMessageContacts() {
   }>("/messages/contacts");
 }
 
+export type ConversationSafety = { blockedByMe: boolean; canSend: boolean };
+export function getConversationSafety(userId: string) {
+  return authed<ConversationSafety>(`/messages/contacts/${userId}/safety`);
+}
+export function setConversationBlocked(userId: string, blocked: boolean) {
+  return authed<ConversationSafety>(`/messages/contacts/${userId}/block`, { method: "PUT", body: JSON.stringify({ blocked }) });
+}
+export function reportMessage(messageId: string, reason: string, details: string) {
+  return authed<{ report: { id: string } }>(`/messages/${messageId}/report`, { method: "POST", body: JSON.stringify({ reason, details }) });
+}
+export type MessageReport = {
+  id: string; message_body: string; reason: string; details: string; status: string;
+  sender_name: string; reporter_name: string; created_at: string;
+};
+export function getMessageReports() {
+  return authed<{ reports: MessageReport[] }>("/moderation/messages");
+}
+export function resolveMessageReport(reportId: string, action: "remove" | "restrict" | "dismiss") {
+  return authed<{ resolved: boolean }>(`/moderation/messages/${reportId}/resolve`, { method: "POST", body: JSON.stringify({ action }) });
+}
+
 export function getMessages(userId: string) {
   return authed<{
     messages: Array<{

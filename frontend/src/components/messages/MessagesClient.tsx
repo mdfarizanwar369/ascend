@@ -6,6 +6,7 @@ import { getMe, getMessageContacts, getMessages, sendMessage } from "@/lib/ascen
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { SectionShell, SkeletonBlock, SkeletonCardList } from "@/components/PerceivedLoading";
+import { ConversationSafetyControls, ReportMessageButton } from "./ConversationSafetyControls";
 
 type Contact = Awaited<ReturnType<typeof getMessageContacts>>["contacts"][number];
 type Message = Awaited<ReturnType<typeof getMessages>>["messages"][number];
@@ -25,6 +26,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
   const [body, setBody] = useState("");
   const [status, setStatus] = useState("Loading messages...");
   const [isSending, setIsSending] = useState(false);
+  const [canSend, setCanSend] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [isTrainerView, setIsTrainerView] = useState(false);
   const threadEndRef = useRef<HTMLDivElement>(null);
@@ -80,6 +82,8 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
   useEffect(() => {
     if (!selectedContact?.id) return;
     let isMounted = true;
+    setMessages([]);
+    setCanSend(false);
 
     async function loadThread() {
       try {
@@ -110,7 +114,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
   async function handleSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = body.trim();
-    if (!trimmed || !selectedContact?.id) return;
+    if (!trimmed || !selectedContact?.id || !canSend || isSending) return;
 
     setIsSending(true);
     setBody("");
@@ -119,9 +123,9 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
       const response = await sendMessage({ receiverUserId: selectedContact.id, body: trimmed });
       setMessages((current) => [...current, response.message]);
       setStatus("");
-    } catch {
+    } catch (error) {
       setBody(trimmed);
-      setStatus("Could not send message. Please try again.");
+      setStatus(error instanceof Error ? error.message : "Could not send message. Please try again.");
     } finally {
       setIsSending(false);
     }
@@ -200,6 +204,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
         ) : null}
 
         {status ? <p className="mt-3 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+        {selectedContact ? <ConversationSafetyControls key={selectedContact.id} userId={selectedContact.id} onAvailabilityChange={setCanSend} /> : null}
 
         <section className="mt-4 flex-1 space-y-3 overflow-y-auto rounded-lg border border-line bg-surface p-3">
           {messages.map((message) => {
@@ -211,6 +216,7 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
                   <p className={`mt-1 text-[11px] ${mine ? "text-ink/70" : "text-zinc-500"}`}>
                     {new Date(message.created_at).toLocaleString()}
                   </p>
+                  {message.receiver_user_id === currentUserId && !mine ? <ReportMessageButton messageId={message.id} /> : null}
                 </div>
               </article>
             );
@@ -227,11 +233,12 @@ export function MessagesClient({ initialContactId }: { initialContactId?: string
             onChange={(event) => setBody(event.target.value)}
             placeholder="Type a message..."
             rows={1}
+            disabled={!canSend}
             className="min-h-12 flex-1 resize-none rounded-lg border border-line bg-surface px-3 py-3 text-sm outline-none focus:border-lime"
           />
           <button
             type="submit"
-            disabled={!body.trim() || !selectedContact?.id || isSending}
+            disabled={!body.trim() || !selectedContact?.id || isSending || !canSend}
             className="grid h-12 w-12 place-items-center rounded-lg bg-lime text-ink disabled:opacity-60"
             aria-label="Send message"
           >
