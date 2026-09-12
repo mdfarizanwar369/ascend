@@ -49,6 +49,7 @@ type GeminiCallOptions = {
   models?: string[];
   attemptsPerModel?: number;
   timeoutMs?: number;
+  thinkingLevel?: "low" | "medium" | "high";
   responseMimeType?: "application/json" | "text/plain";
   responseSchema?: Record<string, unknown>;
   performanceTrace?: FoodAiPerformanceTrace | null;
@@ -537,6 +538,8 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
 
   if (model.includes("2.5")) {
     generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  } else if (model.startsWith("gemini-3") && options.thinkingLevel) {
+    generationConfig.thinkingConfig = { thinkingLevel: options.thinkingLevel };
   }
 
   if (options.responseMimeType) {
@@ -881,15 +884,21 @@ async function estimateFoodWithGeminiPortionAware(imageUrl: string, performanceT
   const imagePart = await urlToGeminiPart(imageUrl);
   const parts: GeminiPart[] = [imagePart, { text: portionAwareFoodPrompt }];
 
-  const result = await callGeminiWithOptions(parts, 1500, {
+  // Gemini counts reasoning and JSON against the same output limit. Leave room
+  // for a multi-item meal while keeping image-analysis reasoning bounded.
+  const result = await callGeminiWithOptions(parts, 4096, {
     models: [env.GEMINI_MODEL],
     attemptsPerModel: 1,
     timeoutMs: 22_000,
+    thinkingLevel: "low",
     responseMimeType: "application/json",
     responseSchema: portionAwareFoodResponseSchema,
     performanceTrace
   });
   try {
+    if (result.finishReason === "MAX_TOKENS") {
+      throw new FoodAiError("Food AI returned an incomplete response. Please try again.", "invalid_json", "Gemini reached the photo response token limit.");
+    }
     const estimate = await timeFoodAiStage(performanceTrace, "Portion response validation and scaling", () => portionAwareEstimateFromText(result.text), {
       responseMode: "JSON",
       finishReason: result.finishReason,
@@ -902,6 +911,7 @@ async function estimateFoodWithGeminiPortionAware(imageUrl: string, performanceT
     foodAiErrorLog("portion_food_estimate_parse_failed", {
       model: env.GEMINI_MODEL,
       responseMode: "JSON",
+      finishReason: result.finishReason,
       responsePreview: result.text.slice(0, 500),
       error: error instanceof Error ? error.message : "Unknown parse failure"
     });

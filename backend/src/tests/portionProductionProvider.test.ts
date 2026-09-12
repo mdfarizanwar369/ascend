@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const imageDataUrl = "data:image/jpeg;base64,QUJDRA==";
 
-function geminiResponse(text: string) {
+function geminiResponse(text: string, finishReason = "STOP") {
   return new Response(JSON.stringify({
     candidates: [{
-      finishReason: "STOP",
+      finishReason,
       content: { parts: [{ text }] }
     }]
   }), {
@@ -42,12 +42,12 @@ function validPortionJson() {
   });
 }
 
-async function loadProvider() {
+async function loadProvider(model = "gemini-2.5-flash") {
   vi.resetModules();
   vi.stubEnv("DATABASE_URL", "postgres://test:test@localhost:5432/test");
   vi.stubEnv("AI_PROVIDER", "gemini");
   vi.stubEnv("GEMINI_API_KEY", "test-gemini-key");
-  vi.stubEnv("GEMINI_MODEL", "gemini-2.5-flash");
+  vi.stubEnv("GEMINI_MODEL", model);
 
   vi.doMock("../services/aiUsageService", () => ({
     assertFoodAiAllowance: vi.fn(async () => undefined),
@@ -74,6 +74,36 @@ afterEach(() => {
 });
 
 describe("Portion-Aware Nutrition Production V1 provider calls", () => {
+  it.each([
+    ["gemini-2.5-flash", { thinkingBudget: 0 }],
+    ["gemini-3.6-flash", { thinkingLevel: "low" }]
+  ])("reserves room for complete meal JSON with compatible thinking settings on %s", async (model, thinkingConfig) => {
+    const fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
+      const request = JSON.parse(String(init?.body));
+      expect(request.generationConfig.maxOutputTokens).toBeGreaterThanOrEqual(4096);
+      expect(request.generationConfig.thinkingConfig).toEqual(thinkingConfig);
+      return geminiResponse(validPortionJson());
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { estimateFoodFromImage } = await loadProvider(model as string);
+
+    const estimate = await estimateFoodFromImage(imageDataUrl, { userId: "user-1", portionAware: true });
+    expect(estimate.calories).toBe(241);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a token-limited response even if its partial meal is valid JSON", async () => {
+    const fetchMock = vi.fn(async () => geminiResponse(validPortionJson(), "MAX_TOKENS"));
+    vi.stubGlobal("fetch", fetchMock);
+    const { estimateFoodFromImage } = await loadProvider("gemini-3.6-flash");
+
+    await expect(estimateFoodFromImage(imageDataUrl, { userId: "user-1", portionAware: true }))
+      .rejects.toThrow("Food AI returned an incomplete response.");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const { saveFoodEstimateCache } = await import("../services/aiUsageService");
+    expect(saveFoodEstimateCache).not.toHaveBeenCalled();
+  });
+
   it("uses one Gemini provider call for a successful normal photo analysis", async () => {
     const fetchMock = vi.fn(async () => geminiResponse(validPortionJson()));
     vi.stubGlobal("fetch", fetchMock);
