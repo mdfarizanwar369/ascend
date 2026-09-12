@@ -235,9 +235,9 @@ function estimateFailureMessage(error: unknown) {
     return error.message;
   }
   if (error instanceof Error && /quota|billing|AI provider|temporarily unavailable|timed out|malformed response|empty result|request was rejected/i.test(error.message)) {
-    return "Zoe couldn't estimate this meal reliably from that photo. Try another photo or log it manually.";
+    return "Zoe's meal estimates are temporarily unavailable. You can enter meal details manually, or try AI again later.";
   }
-  return "Zoe couldn't estimate this meal reliably from that photo. Try another photo or log it manually.";
+  return "Zoe couldn't complete this estimate. Try again, or enter the meal details manually.";
 }
 
 function allowanceText(allowance: FoodAiAllowance | null) {
