@@ -3,7 +3,8 @@ import { AppStoreServerAPIClient, Environment, SignedDataVerifier, Status, Verif
 
 const { db, connection, release } = vi.hoisted(() => ({ db: vi.fn(), connection: vi.fn(), release: vi.fn() }));
 vi.mock("../db/pool", () => ({ query: db, pool: { connect: async () => ({ query: connection, release }) } }));
-const userId = "648388dc-2472-48c4-9571-2c6238ccd169";
+const userId = "11111111-1111-4111-8111-111111111111";
+const otherUserId = "22222222-2222-4222-8222-222222222222";
 const now = Date.now();
 const transaction = {
   bundleId: "fit.getascend.app", environment: Environment.PRODUCTION, productId: "fit.getascend.app.premium.monthly",
@@ -40,7 +41,7 @@ describe("Apple entitlement rules", () => {
   });
   it.each([
     { bundleId: "another.app" }, { environment: Environment.SANDBOX }, { productId: "unapproved.product" },
-    { appAccountToken: "32a5a592-6a21-4939-bc52-049d4e9665c2" }, { appAccountToken: undefined },
+    { appAccountToken: otherUserId }, { appAccountToken: undefined },
     { inAppOwnershipType: "FAMILY_SHARED" }, { type: "Consumable" }, { expiresDate: undefined }
   ])("rejects an invalid entitlement: %j", async override => {
     const { normalizeAppleSubscription } = await import("../services/appleSubscriptionService");
@@ -55,6 +56,17 @@ function mockApple(status: Status = Status.ACTIVE, current = transaction) {
 }
 
 describe("Apple purchase verification and notifications", () => {
+  it("detects sandbox from Apple's verified JWS for iOS 15 without trusting a client hint", async () => {
+    mockApple();
+    vi.mocked(SignedDataVerifier.prototype.verifyAndDecodeTransaction)
+      .mockRejectedValueOnce(new VerificationException(VerificationStatus.INVALID_ENVIRONMENT))
+      .mockResolvedValue({ ...transaction, environment: Environment.SANDBOX });
+    vi.mocked(SignedDataVerifier.prototype.verifyAndDecodeRenewalInfo).mockResolvedValue({ ...renewal, environment: Environment.SANDBOX });
+    const { verifyApplePurchase } = await import("../services/appleSubscriptionService");
+    await verifyApplePurchase(userId, "signed");
+    const values = connection.mock.calls.find(([sql]) => sql.includes("insert into subscriptions"))![1];
+    expect(values[8]).toBe("Sandbox");
+  });
   it("uses Apple's current status when restoring an older receipt", async () => {
     const api = mockApple(Status.EXPIRED, { ...transaction, expiresDate: now - 1 });
     const { verifyApplePurchase } = await import("../services/appleSubscriptionService");
@@ -73,7 +85,7 @@ describe("Apple purchase verification and notifications", () => {
   it("rejects another Ascend account before querying Apple or the database", async () => {
     const api = mockApple();
     const { verifyApplePurchase } = await import("../services/appleSubscriptionService");
-    await expect(verifyApplePurchase("32a5a592-6a21-4939-bc52-049d4e9665c2", "historical", "Production")).rejects.toMatchObject({ status: 409 });
+    await expect(verifyApplePurchase(otherUserId, "historical", "Production")).rejects.toMatchObject({ status: 409 });
     expect(api).not.toHaveBeenCalled(); expect(connection).not.toHaveBeenCalled();
   });
   it("rolls back when an original transaction is already linked to someone else", async () => {

@@ -1724,7 +1724,7 @@ export function getAppleBillingConfig() {
   return authed<{ enabled: boolean; purchaseBlocked: boolean; appAccountToken: string; productIds: string[] }>("/subscriptions/apple/config");
 }
 
-export async function verifyAppleSubscription(input: { signedTransaction: string; environment: "Production" | "Sandbox" }) {
+export async function verifyAppleSubscription(input: { signedTransaction: string; environment?: "Production" | "Sandbox" }) {
   const result = await authed<Awaited<ReturnType<typeof getMySubscription>>>("/subscriptions/apple/verify", {
     method: "POST", body: JSON.stringify(input)
   });

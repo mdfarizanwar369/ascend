@@ -5,7 +5,7 @@ import { getAppleBillingConfig, verifyAppleSubscription } from "./ascendApi";
 import { getNativeCapacitorPlatform, isNativeCapacitorPlatform } from "./nativePlatform";
 
 export type AppleProduct = { id: string; title: string; description: string; displayPrice: string };
-export type AppleTransaction = { transactionId: string; signedTransaction: string; environment: "Production" | "Sandbox" };
+export type AppleTransaction = { transactionId: string; signedTransaction: string; environment?: "Production" | "Sandbox" };
 type AppleBillingPlugin = {
   getProducts(): Promise<{ products: AppleProduct[] }>;
   purchase(input: { productId: string; appAccountToken: string }): Promise<{ outcome: "purchased" | "pending" | "cancelled"; transaction?: AppleTransaction }>;

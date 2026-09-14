@@ -135,10 +135,19 @@ async function syncOriginal(originalId: string, userId: string, environment: App
   }
 }
 
-export async function verifyApplePurchase(userId: string, signedTransaction: string, environment: AppleEnvironment) {
+export async function verifyApplePurchase(userId: string, signedTransaction: string, requestedEnvironment?: AppleEnvironment) {
   requireEnabled();
+  let environment = requestedEnvironment ?? "Production";
+  if (requestedEnvironment) checkSandbox(userId, requestedEnvironment);
+  let transaction;
+  try {
+    transaction = await verifier(environment).verifyAndDecodeTransaction(signedTransaction);
+  } catch (error) {
+    if (requestedEnvironment || !(error instanceof VerificationException) || error.status !== VerificationStatus.INVALID_ENVIRONMENT) throw error;
+    environment = "Sandbox";
+    transaction = await verifier(environment).verifyAndDecodeTransaction(signedTransaction);
+  }
   checkSandbox(userId, environment);
-  const transaction = await verifier(environment).verifyAndDecodeTransaction(signedTransaction);
   if (!transaction.originalTransactionId || transaction.appAccountToken?.toLowerCase() !== userId.toLowerCase()) {
     throw failure("This Apple purchase is not linked to your Ascend account.", 409);
   }

@@ -20,7 +20,7 @@ appleSubscriptionsRouter.get("/subscriptions/apple/config", requireAuth, async (
 });
 appleSubscriptionsRouter.post("/subscriptions/apple/verify", requireAuth, rateLimit({ windowMs: 60_000, limit: 30 }), async (req, res, next) => {
   try {
-    const input = z.object({ signedTransaction: z.string().min(1).max(64_000), environment: z.enum(["Production", "Sandbox"]) }).parse(req.body);
+    const input = z.object({ signedTransaction: z.string().min(1).max(64_000), environment: z.enum(["Production", "Sandbox"]).optional() }).parse(req.body);
     res.json({ subscription: await verifyApplePurchase(req.user!.id, input.signedTransaction, input.environment) });
   } catch (error) { handleAppleError(error, res, next); }
 });

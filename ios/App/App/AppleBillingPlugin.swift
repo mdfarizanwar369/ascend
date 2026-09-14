@@ -30,8 +30,8 @@ public class AppleBillingPlugin: CAPPlugin, CAPBridgedPlugin {
 
     private func payload(_ result: VerificationResult<Transaction>) -> JSObject? {
         guard case .verified(let transaction) = result, productIDs.contains(transaction.productID) else { return nil }
-        return ["transactionId": String(transaction.id), "signedTransaction": result.jwsRepresentation,
-                "environment": transaction.environment == .production ? "Production" : "Sandbox"]
+        // The backend selects Production/Sandbox from Apple's verified JWS. This also supports iOS 15.
+        return ["transactionId": String(transaction.id), "signedTransaction": result.jwsRepresentation]
     }
 
     private func transactions() async -> [JSObject] {
