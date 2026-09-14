@@ -14,7 +14,7 @@ export type PrimaryBarrier = (typeof PRIMARY_BARRIER_VALUES)[number];
 export const MOTIVATION_ANCHOR_VALUES = ["health", "family", "confidence", "capability", "milestone"] as const;
 export type MotivationAnchor = (typeof MOTIVATION_ANCHOR_VALUES)[number];
 export type SubscriptionPlan = "free" | "premium" | "trainer_pro";
-export type SubscriptionProvider = "lemonsqueezy" | "toyyibpay" | "stripe" | "manual" | "google_play";
+export type SubscriptionProvider = "lemonsqueezy" | "toyyibpay" | "stripe" | "manual" | "google_play" | "app_store";
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "canceled" | "expired";
 export type InstallPlatform = "ios" | "android" | "desktop";
 

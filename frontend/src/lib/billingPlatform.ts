@@ -34,7 +34,7 @@ export function getNativeBillingMessage() {
   }
 
   if (getNativeCapacitorPlatform() === "ios" && !isIosBillingEnabled()) {
-    return "In-app premium upgrades are not available on iPhone yet. Please use the web app for billing.";
+    return "This subscription is managed with the billing provider you used to purchase it.";
   }
 
   return null;

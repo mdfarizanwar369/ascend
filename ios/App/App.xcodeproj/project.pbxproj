@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A12000000000000000000013 /* AscendViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12000000000000000000012 /* AscendViewController.swift */; };
+		A12000000000000000000011 /* AppleBillingPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12000000000000000000010 /* AppleBillingPlugin.swift */; };
 		A11000000000000000000003 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000004 /* GoogleService-Info.plist */; };
 		A11000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000002 /* PrivacyInfo.xcprivacy */; };
 		2FAD9763203C412B000D30F8 /* config.xml in Resources */ = {isa = PBXBuildFile; fileRef = 2FAD9762203C412B000D30F8 /* config.xml */; };
@@ -20,6 +22,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A12000000000000000000012 /* AscendViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendViewController.swift; sourceTree = "<group>"; };
+		A12000000000000000000010 /* AppleBillingPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleBillingPlugin.swift; sourceTree = "<group>"; };
 		A11000000000000000000004 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		A11000000000000000000002 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
@@ -70,6 +74,8 @@
 				A11000000000000000000004 /* GoogleService-Info.plist */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				A12000000000000000000012 /* AscendViewController.swift */,
+				A12000000000000000000010 /* AppleBillingPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -164,6 +170,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				A12000000000000000000013 /* AscendViewController.swift in Sources */,
+				A12000000000000000000011 /* AppleBillingPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -312,7 +320,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = fit.getascend.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -338,7 +346,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = fit.getascend.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";

@@ -1720,6 +1720,19 @@ export function getMessageContacts() {
   }>("/messages/contacts");
 }
 
+export function getAppleBillingConfig() {
+  return authed<{ enabled: boolean; purchaseBlocked: boolean; appAccountToken: string; productIds: string[] }>("/subscriptions/apple/config");
+}
+
+export async function verifyAppleSubscription(input: { signedTransaction: string; environment: "Production" | "Sandbox" }) {
+  const result = await authed<Awaited<ReturnType<typeof getMySubscription>>>("/subscriptions/apple/verify", {
+    method: "POST", body: JSON.stringify(input)
+  });
+  invalidateCached("subscription:");
+  invalidateDashboardReadCaches();
+  return result;
+}
+
 export type ConversationSafety = { blockedByMe: boolean; canSend: boolean };
 export function getConversationSafety(userId: string) {
   return authed<ConversationSafety>(`/messages/contacts/${userId}/safety`);
