@@ -2,7 +2,7 @@ import Capacitor
 import StoreKit
 
 @objc(AppleBillingPlugin)
-public class AppleBillingPlugin: CAPPlugin, CAPBridgedPlugin, SKPaymentQueueDelegate {
+public class AppleBillingPlugin: CAPPlugin, CAPBridgedPlugin, SKPaymentTransactionObserver {
     public let identifier = "AppleBillingPlugin"
     public let jsName = "AppleBilling"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -30,7 +30,7 @@ public class AppleBillingPlugin: CAPPlugin, CAPBridgedPlugin, SKPaymentQueueDele
             }
         } else {
             // StoreKit's supported fallback for promoted purchases on iOS 15–16.3.
-            SKPaymentQueue.default().delegate = self
+            SKPaymentQueue.default().add(self)
         }
         updatesTask = Task { [weak self] in
             for await result in Transaction.updates {
@@ -41,7 +41,17 @@ public class AppleBillingPlugin: CAPPlugin, CAPBridgedPlugin, SKPaymentQueueDele
             }
         }
     }
-    deinit { updatesTask?.cancel(); intentsTask?.cancel() }
+    deinit {
+        updatesTask?.cancel(); intentsTask?.cancel()
+        if #available(iOS 16.4, *) {} else { SKPaymentQueue.default().remove(self) }
+    }
+
+    public func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
+        // Purchased/restored entitlements are handled by the signed StoreKit 2 transaction stream.
+        for transaction in transactions where transaction.transactionState == .failed && productIDs.contains(transaction.payment.productIdentifier) {
+            queue.finishTransaction(transaction)
+        }
+    }
 
     @MainActor private func receiveIntent(_ product: Product) {
         guard productIDs.contains(product.id) else { return }
