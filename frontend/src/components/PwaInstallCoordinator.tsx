@@ -8,6 +8,7 @@ import { BrandMark } from "@/components/BrandMark";
 import {
   INSTALL_ELIGIBLE_EVENT,
   INSTALL_REQUEST_EVENT,
+  canOfferWebInstall,
   clearAscendInstalled,
   installStorageKeys,
   isAscendInstalled,
@@ -36,6 +37,7 @@ function eligibleAppPath(pathname: string) {
 
 export function PwaInstallCoordinator() {
   const pathname = usePathname();
+  const [webInstallEnabled, setWebInstallEnabled] = useState(false);
   const [platform, setPlatform] = useState<InstallPlatform>("desktop");
   const [nativePrompt, setNativePrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [eligible, setEligible] = useState(false);
@@ -47,6 +49,8 @@ export function PwaInstallCoordinator() {
   const [manualOpen, setManualOpen] = useState(false);
 
   useEffect(() => {
+    if (!canOfferWebInstall()) return;
+    setWebInstallEnabled(true);
     setPlatform(detectInstallPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints));
     setInstalled(isAscendInstalled());
     setEligible(Boolean(readInstallValue(installStorageKeys.eligible)));
@@ -85,18 +89,20 @@ export function PwaInstallCoordinator() {
   }, []);
 
   useEffect(() => {
+    if (!webInstallEnabled) return;
     const canOffer = canAutoOfferInstall({ eligible, installed, alreadyPrompted, pathname });
     const platformReady = platform === "ios" || Boolean(nativePrompt);
     if (!canOffer || !platformReady) return;
 
     const timeout = window.setTimeout(() => {
+      if (!canOfferWebInstall()) return;
       store(installStorageKeys.prompted, "true");
       setAlreadyPrompted(true);
       setManualOpen(false);
       setModalOpen(true);
     }, 900);
     return () => window.clearTimeout(timeout);
-  }, [alreadyPrompted, eligible, installed, nativePrompt, pathname, platform]);
+  }, [alreadyPrompted, eligible, installed, nativePrompt, pathname, platform, webInstallEnabled]);
 
   const showBanner = useMemo(() => {
     const bannerSnoozed = bannerDismissedAt > 0 && Date.now() - bannerDismissedAt < BANNER_SNOOZE_MS;
@@ -133,7 +139,7 @@ export function PwaInstallCoordinator() {
     }
   }
 
-  if (installed) return null;
+  if (!webInstallEnabled || installed) return null;
 
   const nativeInstallReady = platform !== "ios" && Boolean(nativePrompt);
 

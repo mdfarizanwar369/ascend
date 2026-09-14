@@ -370,7 +370,7 @@ export function ProfileClient() {
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Connected services</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <p className="text-sm font-semibold">App settings</p>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">Install Ascend on this device for faster access and a full-screen app experience.</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Manage this device's app settings and connected services.</p>
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />

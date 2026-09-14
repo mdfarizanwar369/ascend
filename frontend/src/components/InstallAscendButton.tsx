@@ -2,12 +2,15 @@
 
 import { Download, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
-import { INSTALL_STATE_EVENT, isAscendInstalled, requestInstallAscend } from "@/lib/installAscend";
+import { INSTALL_STATE_EVENT, canOfferWebInstall, isAscendInstalled, requestInstallAscend } from "@/lib/installAscend";
 
 export function InstallAscendButton() {
+  const [webInstallEnabled, setWebInstallEnabled] = useState(false);
   const [installed, setInstalled] = useState(false);
 
   useEffect(() => {
+    if (!canOfferWebInstall()) return;
+    setWebInstallEnabled(true);
     const refresh = () => setInstalled(isAscendInstalled());
     refresh();
     window.addEventListener(INSTALL_STATE_EVENT, refresh);
@@ -17,6 +20,8 @@ export function InstallAscendButton() {
       window.removeEventListener("appinstalled", refresh);
     };
   }, []);
+
+  if (!webInstallEnabled) return null;
 
   return (
     <button

@@ -1,5 +1,7 @@
 "use client";
 
+import { isNativeCapacitorPlatform } from "@/lib/nativePlatform";
+
 export const INSTALL_ELIGIBLE_EVENT = "ascend:install-eligible";
 export const INSTALL_REQUEST_EVENT = "ascend:install-request";
 export const INSTALL_STATE_EVENT = "ascend:install-state";
@@ -13,6 +15,13 @@ export const installStorageKeys = {
 } as const;
 
 type InstallReason = "signup" | "first_action";
+
+export function canOfferWebInstall() {
+  if (typeof window === "undefined") return false;
+  // The shell's user agent is available even before its Capacitor bridge is ready.
+  const nativeShell = /\bAscend(?:IOS|Android)\/\d+/.test(window.navigator.userAgent);
+  return !nativeShell && !isNativeCapacitorPlatform();
+}
 
 function write(key: string, value: string) {
   try {
@@ -31,11 +40,13 @@ export function readInstallValue(key: string) {
 }
 
 export function markInstallEligible(reason: InstallReason) {
+  if (!canOfferWebInstall()) return;
   write(installStorageKeys.eligible, reason);
   window.dispatchEvent(new CustomEvent(INSTALL_ELIGIBLE_EVENT, { detail: { reason } }));
 }
 
 export function requestInstallAscend() {
+  if (!canOfferWebInstall()) return;
   window.dispatchEvent(new CustomEvent(INSTALL_REQUEST_EVENT));
 }
 
@@ -61,6 +72,7 @@ export function clearAscendInstalled() {
 
 export function isAscendInstalled() {
   if (typeof window === "undefined") return false;
+  if (!canOfferWebInstall()) return true;
   const iosStandalone = "standalone" in window.navigator && Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
   return window.matchMedia("(display-mode: standalone)").matches || iosStandalone || readInstallValue(installStorageKeys.installed) === "true";
 }
