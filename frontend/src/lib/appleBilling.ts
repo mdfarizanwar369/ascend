@@ -13,7 +13,9 @@ type AppleBillingPlugin = {
   restore(): Promise<{ transactions: AppleTransaction[] }>;
   finish(input: { transactionId: string }): Promise<void>;
   manageSubscriptions(): Promise<void>;
-  addListener(event: "transactionsUpdated", callback: () => void): Promise<PluginListenerHandle>;
+  getPurchaseIntent(): Promise<{ productId?: string }>;
+  clearPurchaseIntent(): Promise<void>;
+  addListener(event: "transactionsUpdated" | "purchaseIntent", callback: () => void): Promise<PluginListenerHandle>;
 };
 export const AppleBilling = registerPlugin<AppleBillingPlugin>("AppleBilling");
 

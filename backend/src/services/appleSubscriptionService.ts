@@ -172,7 +172,9 @@ export async function processAppleNotification(signedPayload: string) {
   try {
     notification = await verifier(environment).verifyAndDecodeNotification(signedPayload);
   } catch (error) {
-    if (!(error instanceof VerificationException) || error.status !== VerificationStatus.INVALID_ENVIRONMENT) throw error;
+    // Sandbox notifications may omit appAppleId, which Production verification rejects before checking the environment.
+    // The second verifier still checks Apple's signature, Ascend's bundle and the Sandbox environment.
+    if (!(error instanceof VerificationException) || error.status === VerificationStatus.RETRYABLE_VERIFICATION_FAILURE) throw error;
     environment = "Sandbox";
     notification = await verifier(environment).verifyAndDecodeNotification(signedPayload);
   }

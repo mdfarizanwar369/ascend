@@ -124,6 +124,14 @@ describe("Apple purchase verification and notifications", () => {
     await expect(processAppleNotification("signed-notification")).resolves.toMatchObject({ duplicate: true });
     expect(api).not.toHaveBeenCalled();
   });
+  it("verifies sandbox notifications that omit the production Apple app ID", async () => {
+    vi.spyOn(SignedDataVerifier.prototype, "verifyAndDecodeNotification")
+      .mockRejectedValueOnce(new VerificationException(VerificationStatus.INVALID_APP_IDENTIFIER))
+      .mockResolvedValueOnce({ notificationUUID: "sandbox-test-notification", notificationType: "TEST" });
+    const { processAppleNotification } = await import("../services/appleSubscriptionService");
+    await expect(processAppleNotification("signed-sandbox-notification")).resolves.toEqual({ received: true });
+    expect(connection).not.toHaveBeenCalled();
+  });
   it("returns retryable verification failures as service unavailable", async () => {
     const { appleRequestError } = await import("../services/appleSubscriptionService");
     expect(appleRequestError(new VerificationException(VerificationStatus.RETRYABLE_VERIFICATION_FAILURE))).toMatchObject({ status: 503 });
