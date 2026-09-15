@@ -1,3 +1,4 @@
+import { requireAiConsent } from "../middleware/aiConsent";
 import { Router } from "express";
 import {
   createCoachWorkoutPlan,
@@ -280,7 +281,7 @@ function summarizeDataConfidence(input: {
   };
 }
 
-aiRouter.post("/ai/chat", requireAuth, aiRateLimit, async (req, res, next) => {
+aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     const { message, mode, timezoneOffsetMinutes } = coachChatSchema.parse(req.body);
     const coachAccess = await getCoachZoeAccess(req.user!.id, timezoneOffsetMinutes);
@@ -819,7 +820,7 @@ const workoutCaptureSchema = z.object({
   sourceMode: z.enum(["text", "dictation"]).default("text")
 });
 
-aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
+aiRouter.post("/ai/burn-estimate", requireAuth, requireAiConsent, requireActivePlan("premium"), aiRateLimit, async (req, res, next) => {
   try {
     const text = z.string().trim().min(2).max(500).parse(req.body.text);
     const estimate = await estimateBurnFromText(text);
@@ -829,7 +830,7 @@ aiRouter.post("/ai/burn-estimate", requireAuth, requireActivePlan("premium"), ai
   }
 });
 
-aiRouter.post("/ai/workout-capture", requireAuth, aiRateLimit, async (req, res, next) => {
+aiRouter.post("/ai/workout-capture", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     const access = await getWorkoutCaptureAccess({
       featureEnabled: env.WORKOUT_CAPTURE_V1,
@@ -882,7 +883,7 @@ aiRouter.post("/ai/workout-capture", requireAuth, aiRateLimit, async (req, res, 
   }
 });
 
-aiRouter.post("/ai/workout", requireAuth, aiRateLimit, async (req, res, next) => {
+aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     const input = workoutPlannerSchema.parse(req.body);
     const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =

@@ -1,3 +1,4 @@
+import { withAiDataSubject } from "./aiConsentService";
 import {
   ClientCoachedSession,
   TrainerCoachingSession,
@@ -365,13 +366,13 @@ export async function interpretTrainerSession(input: {
     const exercises = Array.isArray(row.metadata?.exercises) ? row.metadata.exercises : [];
     return exercises.map((exercise) => exercise && typeof exercise === "object" ? String((exercise as Record<string, unknown>).name ?? "").trim() : "").filter(Boolean);
   });
-  const draft = await createWorkoutCaptureDraft({
+  const draft = await withAiDataSubject(input.clientId, () => createWorkoutCaptureDraft({
     text: cleanText(input.rawInput, 2_000),
     sourceMode: input.sourceMode,
     recentExerciseNames,
     userId: input.actorUserId,
     gymId: input.actorGymId ?? null
-  });
+  }));
   if (!draft.durationMinutes) draft.durationMinutes = clamp(Math.round(input.durationMinutes), 5, 300);
   const previous = await findPreviousDraft(input.clientId, input.sessionId);
   const narratives = buildTrainerSessionNarratives(draft, session.clientName, previous);

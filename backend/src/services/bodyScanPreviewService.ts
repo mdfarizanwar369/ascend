@@ -1,3 +1,4 @@
+import { withAiDataSubject } from "./aiConsentService";
 import { z } from "zod";
 import { env } from "../config/env";
 import { query } from "../db/pool";
@@ -286,7 +287,7 @@ export async function getOrCreateBodyScanExplanation(userId: string, scan: BodyC
   const profile = await baselineProfile(userId);
   const facts = introductoryScanFacts(scan, profile);
   const fallback = fallbackIntroductoryExplanation(scan, profile);
-  const reply = await createBodyScanExplanationReply(facts, JSON.stringify(fallback));
+  const reply = await withAiDataSubject(userId, () => createBodyScanExplanationReply(facts, JSON.stringify(fallback)));
   const explanation = parseBodyScanExplanation(reply.text, fallback, structuredNumbers(facts));
   const source = reply.source === "ai" && explanation !== fallback ? "ai" as const : "fallback" as const;
   const result = await query<ExplanationRow>(
@@ -347,12 +348,12 @@ export async function createBodyScanFollowUp(userId: string, scan: BodyCompositi
 
   const profile = await baselineProfile(userId);
   const fallback = { answer: fallbackFollowUpAnswer(question) };
-  const reply = await createBodyScanFollowUpReply({
+  const reply = await withAiDataSubject(userId, () => createBodyScanFollowUpReply({
     facts: introductoryScanFacts(scan, profile),
     explanation: explanation.explanation,
     question,
     fallbackJson: JSON.stringify(fallback)
-  });
+  }));
   let parsed = fallback;
   try {
     const candidate = followUpSchema.parse(JSON.parse(cleanJson(reply.text)));

@@ -13,12 +13,14 @@ export function LegalPage({
   eyebrow,
   title,
   introduction,
-  sections
+  sections,
+  updatedAt = "19 June 2026"
 }: {
   eyebrow: string;
   title: string;
   introduction: string;
   sections: LegalSection[];
+  updatedAt?: string;
 }) {
   return (
     <main className="min-h-screen bg-ink px-5 text-white sm:px-8">
@@ -37,7 +39,7 @@ export function LegalPage({
         <article className="py-10 sm:py-16">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-calm">{eyebrow}</p>
           <h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-5xl">{title}</h1>
-          <p className="mt-4 text-sm text-zinc-500">Last updated: 19 June 2026</p>
+          <p className="mt-4 text-sm text-zinc-500">Last updated: {updatedAt}</p>
           <p className="mt-7 text-lg leading-8 text-zinc-300">{introduction}</p>
 
           <div className="mt-12 space-y-10">

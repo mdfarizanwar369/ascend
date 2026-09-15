@@ -21,6 +21,7 @@ export type InstallPlatform = "ios" | "android" | "desktop";
 import type { FoodPortionItem, FoodPortionLabel } from "./portionNutrition";
 
 export * from "./ascendDna";
+export * from "./aiConsent";
 export * from "./coachZoeProactive";
 export * from "./notificationEngine";
 export * from "./bodyScanImage";

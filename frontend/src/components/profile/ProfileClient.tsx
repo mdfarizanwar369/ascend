@@ -246,6 +246,7 @@ export function ProfileClient() {
           <div><p className="text-sm text-zinc-400">Account</p><h1 className="text-2xl font-semibold">Profile & settings</h1></div>
         </header>
 
+        <Link href="/ai-privacy" className="mt-4 flex min-h-12 items-center justify-between rounded-xl border border-line bg-surface p-4 font-semibold">AI privacy <span className="text-sm font-normal text-zinc-400">Manage data sharing</span></Link>
         <section className="mt-4 rounded-xl border border-line bg-surface p-5 text-center shadow-soft">
           <div className="flex justify-center"><ProfileAvatar src={shownPhoto} name={user?.full_name} size="lg" /></div>
           <h2 className="mt-4 text-lg font-semibold">{user?.full_name || "Ascend member"}</h2>
