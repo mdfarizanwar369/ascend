@@ -1,6 +1,7 @@
 """Archive, sign, and upload on an ephemeral GitHub macOS runner. Never prints secrets."""
 import base64
 import datetime
+import json
 import os
 from pathlib import Path
 import plistlib
@@ -11,6 +12,22 @@ import tempfile
 
 TEAM = "76N75VT6A7"
 BUNDLE = "fit.getascend.app"
+RELEASE_ORIGINS = {
+    "refs/heads/main": "https://www.getascend.fit/",
+    "refs/heads/codex/ios-subscriptions-1-1": "https://ascend-ios-payments-web-ascend-ios-payments.up.railway.app/",
+}
+
+
+def validate_release_context(environ, config):
+    expected_origin = RELEASE_ORIGINS.get(environ.get("GITHUB_REF"))
+    if environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch" or not expected_origin:
+        raise SystemExit("TestFlight upload requires a manual run on an approved release branch.")
+    if environ.get("GITHUB_REPOSITORY") != "mdfarizanwar369/ascend":
+        raise SystemExit("TestFlight upload is restricted to the Ascend repository.")
+    if config.get("appId") != BUNDLE or config.get("server", {}).get("url") != expected_origin:
+        raise SystemExit("The packaged app must use the approved server for this release branch.")
+    if config["server"].get("cleartext") is not False or config["server"].get("appStartPath") != "/launch":
+        raise SystemExit("Release requires the HTTPS launch configuration.")
 
 
 def run(*args, **kwargs):
@@ -18,14 +35,13 @@ def run(*args, **kwargs):
 
 
 def main():
+    root = Path.cwd()
+    validate_release_context(os.environ, json.loads((root / "ios/App/App/capacitor.config.json").read_text()))
     names = ("IOS_CERTIFICATE_BASE64", "IOS_CERTIFICATE_PASSWORD", "IOS_PROFILE_BASE64",
              "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_BASE64", "IOS_GOOGLE_SERVICE_INFO_BASE64")
     missing = [name for name in names if not os.environ.get(name)]
     if missing:
         raise SystemExit("Configure the apple-testflight environment secrets: " + ", ".join(missing))
-    if os.environ.get("GITHUB_REF") != "refs/heads/main" or os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
-        raise SystemExit("Release is allowed only through a manual run on main.")
-    root = Path.cwd()
     google_config = plistlib.loads((root / "ios/App/App/GoogleService-Info.plist").read_bytes())
     if google_config.get("BUNDLE_ID") != BUNDLE or google_config.get("PROJECT_ID") != "ascend-b2850" or google_config.get("API_KEY") == "SIMULATOR_ONLY_NOT_FOR_SIGN_IN":
         raise SystemExit("Valid Ascend iOS Firebase configuration is required for release.")

@@ -34,6 +34,7 @@ Migrations `037` and `038` must run in order. `npm run build --workspace backend
 | Variable | Purpose |
 | --- | --- |
 | `APPLE_IAP_ENABLED` | Defaults false. Enable only in the intended test/release environment after configuration. |
+| `APPLE_IAP_ALLOWED_ENVIRONMENT` | `Both` by default; the isolated payment test server uses `Sandbox` and rejects production transactions and notifications. |
 | `APPLE_IAP_BUNDLE_ID` | `fit.getascend.app` |
 | `APPLE_IAP_APP_ID` | `6810864942` |
 | `APPLE_IAP_KEY_ID` | Apple In-App Purchase API key ID |
@@ -59,10 +60,22 @@ Before release:
 
 1. Finish Apple's product metadata and prices; confirm Paid Applications Agreement, banking and tax status.
 2. Add the server API key as a secret, configure V2 notifications and allow isolated sandbox users.
-3. Complete the macOS build check. Build and install 1.1 through TestFlight with the intended frontend/backend configuration.
+3. Complete the macOS build check. Build and install 1.1 through TestFlight with the intended frontend/backend configuration. The payment-beta branch targets its isolated test environment; a later main-branch release build must target the public app.
 4. On a physical iPhone, purchase each plan, cancel a purchase sheet, restore after reinstall, test account mismatch, renew/expire/refund in sandbox and confirm access on the server. Record results; simulator compilation is not a completed purchase test.
 5. After 1.0 is released, create App Store version 1.1 with **manual release** and submit the first subscriptions and group with that version. Update review notes to accurately describe IAP and provide the review login. Once 1.1 is approved, turn off Streamlined Purchasing and verify the setting before releasing the app. Test the App Store-to-sign-in purchase-intent handoff as well as normal checkout.
 
 Account check on 14 September 2026: the Free Apps Agreement is active; the Paid Apps Agreement is **New**. Apple requires a legal entity update before it can be signed. The existing legal name and address were inspected but not changed. The account holder must confirm the legal information and complete the paid agreement, banking and tax requirements in App Store Connect Business before paid release. Server API credentials/notification configuration and physical TestFlight testing are still pending. No production billing flag was enabled.
 
 References: [first IAP submission](https://developer.apple.com/help/app-store-connect/manage-submissions-to-app-review/submit-an-in-app-purchase), [new app version](https://developer.apple.com/help/app-store-connect/update-your-app/create-a-new-version), [Apple server library](https://github.com/apple/app-store-server-library-node).
+
+## Isolated TestFlight preparation — 15 September 2026
+
+The user authorized uploading/testing 1.1 while preserving the queued 1.0 submission. Railway environment `ascend-ios-payments` has its own empty database, API and frontend. It does not share subscription rows with production. Firebase authentication uses the existing project; use dedicated payment-test accounts and do not test account deletion with real users or App Review accounts.
+
+- Web: `https://ascend-ios-payments-web-ascend-ios-payments.up.railway.app`
+- API: `https://ascend-ios-payments-api-ascend-ios-payments.up.railway.app`
+- Billing starts disabled and will accept only Sandbox transactions from explicitly allowed Ascend account UUIDs once configured.
+- Production Stripe, storage and AI keys were not copied. This environment is for payment testing; full AI/photo functionality is outside its setup.
+- The manual iOS workflow supports only `main` and `codex/ios-subscriptions-1-1`. The beta branch is pinned to the test URL. Signing checks the repository, event, branch, packaged app ID and HTTPS launch origin before reading signing credentials.
+- GitHub's signing environment should permit the beta branch only for the authorized upload; restore its main-only policy afterwards. Pull requests and automatic pushes cannot trigger a signed upload.
+- Apple still requires legal-entity confirmation and the Paid Apps Agreement before sandbox purchases work. In-App Purchase server credentials and test accounts also remain required. Uploading a binary alone does not complete purchase testing.

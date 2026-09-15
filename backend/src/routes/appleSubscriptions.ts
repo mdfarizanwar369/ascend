@@ -2,7 +2,7 @@ import { Router, type Response, type NextFunction } from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
-import { APPLE_PRODUCTS, appleBillingConfigured, appleRequestError, hasOtherPaidSubscription, processAppleNotification, verifyApplePurchase } from "../services/appleSubscriptionService";
+import { APPLE_PRODUCTS, appleBillingAvailableForUser, appleRequestError, hasOtherPaidSubscription, processAppleNotification, verifyApplePurchase } from "../services/appleSubscriptionService";
 
 export const appleSubscriptionsRouter = Router();
 function handleAppleError(error: unknown, res: Response, next: NextFunction) {
@@ -14,7 +14,7 @@ function handleAppleError(error: unknown, res: Response, next: NextFunction) {
 }
 appleSubscriptionsRouter.get("/subscriptions/apple/config", requireAuth, async (req, res, next) => {
   try {
-    const enabled = appleBillingConfigured();
+    const enabled = appleBillingAvailableForUser(req.user!.id);
     res.json({ enabled, purchaseBlocked: enabled && await hasOtherPaidSubscription(req.user!.id), appAccountToken: req.user!.id, productIds: Object.keys(APPLE_PRODUCTS) });
   } catch (error) { next(error); }
 });

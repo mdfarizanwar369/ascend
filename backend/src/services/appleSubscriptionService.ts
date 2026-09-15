@@ -18,6 +18,17 @@ export function appleBillingConfigured() {
   return Boolean(env.APPLE_IAP_ENABLED && env.APPLE_IAP_KEY_ID && env.APPLE_IAP_ISSUER_ID && env.APPLE_IAP_PRIVATE_KEY);
 }
 
+export function appleBillingAvailableForUser(userId: string) {
+  return appleBillingConfigured() && (env.APPLE_IAP_ALLOWED_ENVIRONMENT !== "Sandbox" ||
+    env.APPLE_IAP_SANDBOX_USER_IDS.split(",").some(id => id.trim() === userId));
+}
+
+function checkEnvironment(environment: AppleEnvironment) {
+  if (env.APPLE_IAP_ALLOWED_ENVIRONMENT !== "Both" && env.APPLE_IAP_ALLOWED_ENVIRONMENT !== environment) {
+    throw failure("This purchase environment is not enabled on this Ascend server.", 403);
+  }
+}
+
 export async function hasOtherPaidSubscription(userId: string) {
   const result = await query(`select 1 from subscriptions where user_id=$1
     and provider not in ('app_store', 'manual') and plan <> 'free'
@@ -40,6 +51,7 @@ function requireEnabled() {
 }
 
 function checkSandbox(userId: string, environment: AppleEnvironment) {
+  checkEnvironment(environment);
   if (environment === "Sandbox" && !env.APPLE_IAP_SANDBOX_USER_IDS.split(",").map(id => id.trim()).includes(userId)) {
     throw failure("This Ascend account is not enabled for subscription testing.", 403);
   }
@@ -178,6 +190,7 @@ export async function processAppleNotification(signedPayload: string) {
     environment = "Sandbox";
     notification = await verifier(environment).verifyAndDecodeNotification(signedPayload);
   }
+  checkEnvironment(environment);
   if (!notification.notificationUUID) throw failure("Missing Apple notification ID.");
   const seen = await query("select 1 from apple_notification_receipts where notification_id=$1", [notification.notificationUUID]);
   if (seen.rowCount) return { received: true, duplicate: true };

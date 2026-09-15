@@ -45,6 +45,7 @@ const schema = z.object({
   STRIPE_PREMIUM_PRICE_ID: z.string().optional(),
   STRIPE_TRAINER_PRO_PRICE_ID: z.string().optional(),
   APPLE_IAP_ENABLED: z.string().default("false").transform(value => value === "true"),
+  APPLE_IAP_ALLOWED_ENVIRONMENT: z.enum(["Both", "Sandbox", "Production"]).default("Both"),
   APPLE_IAP_BUNDLE_ID: z.string().default("fit.getascend.app"),
   APPLE_IAP_APP_ID: z.coerce.number().int().positive().default(6810864942),
   APPLE_IAP_KEY_ID: z.string().optional(),

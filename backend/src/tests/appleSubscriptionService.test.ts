@@ -19,6 +19,7 @@ beforeEach(() => {
   vi.stubEnv("APPLE_IAP_ENABLED", "true"); vi.stubEnv("APPLE_IAP_KEY_ID", "test-key-id");
   vi.stubEnv("APPLE_IAP_ISSUER_ID", "test-issuer"); vi.stubEnv("APPLE_IAP_PRIVATE_KEY", "unused-by-mocked-api");
   vi.stubEnv("APPLE_IAP_SANDBOX_USER_IDS", userId);
+  vi.stubEnv("APPLE_IAP_ALLOWED_ENVIRONMENT", "Both");
   db.mockResolvedValue({ rows: [], rowCount: 0 });
   connection.mockResolvedValue({ rows: [{ id: "saved", plan: "premium", provider: "app_store" }], rowCount: 1 });
 });
@@ -56,7 +57,29 @@ function mockApple(status: Status = Status.ACTIVE, current = transaction) {
 }
 
 describe("Apple purchase verification and notifications", () => {
+  it.each([undefined, "Production" as const])("rejects live purchases on the sandbox server, with hint %s", async hint => {
+    vi.stubEnv("APPLE_IAP_ALLOWED_ENVIRONMENT", "Sandbox");
+    const api = mockApple();
+    const { verifyApplePurchase } = await import("../services/appleSubscriptionService");
+    await expect(verifyApplePurchase(userId, "signed-production", hint)).rejects.toMatchObject({ status: 403 });
+    expect(api).not.toHaveBeenCalled();
+    expect(connection).not.toHaveBeenCalled();
+  });
+  it("does not offer sandbox checkout to accounts outside the test allowlist", async () => {
+    vi.stubEnv("APPLE_IAP_ALLOWED_ENVIRONMENT", "Sandbox");
+    const { appleBillingAvailableForUser } = await import("../services/appleSubscriptionService");
+    expect(appleBillingAvailableForUser(userId)).toBe(true);
+    expect(appleBillingAvailableForUser(otherUserId)).toBe(false);
+  });
+  it("rejects production notifications on the sandbox server before any database write", async () => {
+    vi.stubEnv("APPLE_IAP_ALLOWED_ENVIRONMENT", "Sandbox");
+    vi.spyOn(SignedDataVerifier.prototype, "verifyAndDecodeNotification").mockResolvedValue({ notificationUUID: "live-notification", notificationType: "TEST" });
+    const { processAppleNotification } = await import("../services/appleSubscriptionService");
+    await expect(processAppleNotification("signed-production-notification")).rejects.toMatchObject({ status: 403 });
+    expect(db).not.toHaveBeenCalled();
+  });
   it("detects sandbox from Apple's verified JWS for iOS 15 without trusting a client hint", async () => {
+    vi.stubEnv("APPLE_IAP_ALLOWED_ENVIRONMENT", "Sandbox");
     mockApple();
     vi.mocked(SignedDataVerifier.prototype.verifyAndDecodeTransaction)
       .mockRejectedValueOnce(new VerificationException(VerificationStatus.INVALID_ENVIRONMENT))
