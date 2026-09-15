@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/LegalPage";
+import { AI_DATA_CATEGORIES } from "@ascend/shared";
 
 export const metadata: Metadata = { title: "Privacy Policy | Ascend" };
 
@@ -8,6 +9,7 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Your data"
       title="Privacy Policy"
+      updatedAt="15 September 2026"
       introduction="Ascend helps members, trainers, and gym owners stay aligned between sessions. This policy explains what information we collect, how we use it, and the choices available to you."
       sections={[
         {
@@ -15,7 +17,7 @@ export default function PrivacyPage() {
           bullets: [
             "Account information such as your name, email address, authentication identifier, role, gym, trainer assignment, and referral source.",
             "Fitness profile information such as your goals, age, sex selection, height, weight, target weight, activity level, and coaching preference.",
-            "Information you choose to log, including food, water, activity, habits, progress photos, messages, AI coach conversations, and weekly check-ins.",
+            "Information you choose to log, including food, water, activity, habits, progress photos, messages, AI coach conversations, and weekly check-ins. We collect these through your entries, uploads and optional connected services, and keep your AI sharing choice with its provider, disclosure version and date.",
             "If you choose Speak meal, your microphone is used only while you are speaking. Your device or browser speech-recognition service converts the audio into editable text; Ascend does not store the audio recording.",
             "If you connect Android Health Connect, Ascend imports only daily steps, exercise sessions, and active calories burned so your activity summary and Coach Zoe guidance can be more useful.",
             "Subscription metadata such as plan, payment status, renewal period, and provider references. Ascend does not store complete payment card details.",
@@ -48,10 +50,13 @@ export default function PrivacyPage() {
         {
           title: "AI and service providers",
           paragraphs: [
-            "Ascend uses specialist providers to operate the service, including Firebase for authentication and Android crash diagnostics, Railway and PostgreSQL infrastructure, Cloudflare R2 or compatible storage, Google Gemini for configured AI features, Stripe for web subscription payment processing, and Google Play for eligible Android subscription processing. Relevant data is shared only as needed to provide these services.",
-            "Food photos and AI coach messages may be processed by the configured AI provider. AI estimates can be inaccurate and should be reviewed before you rely on or save them.",
+            "Ascend uses Firebase for authentication and Android crash diagnostics, Railway and PostgreSQL infrastructure for hosting and data storage, Cloudflare R2 or compatible storage for uploaded images, Stripe for web payments, Google Play for Android purchases and Apple for iOS purchases where available. We share only information needed for each service.",
+            "AI features use Google Gemini, provided by Google, or OpenAI when configured. Before personal data is sent, the in-app AI privacy screen names the current provider, describes the data and purpose, and asks you to allow or decline. No AI sharing permission is inferred from registration, a subscription, or agreeing to this policy. Changing provider or materially changing the disclosure requires a new choice.",
+            "With your permission, relevant information listed below is sent to the named AI provider for meal estimates, workout interpretation, body composition explanations and personalized fitness guidance, including daily suggestions and progress reflections. Your choice also applies when an assigned trainer requests AI guidance using your records. A trainer cannot grant consent for you. AI estimates can be inaccurate and are not medical advice.",
+            "We require service providers handling personal data to provide the same or equal protection described in this policy: limited processing for the specified service, confidentiality, access controls, secure transfer and applicable retention and deletion obligations. Google's paid Gemini API processes prompts and responses under its data-processing terms and does not use them to improve Google's products. Providers may retain limited records for abuse prevention or legal requirements. We do not use unpaid Gemini services for personal fitness data.",
             "When you use Speak meal, speech recognition may be provided by your device platform or browser and may require a network connection under that provider's settings. Ascend receives the resulting text and does not retain the microphone recording."
-          ]
+          ],
+          bullets: [...AI_DATA_CATEGORIES]
         },
         {
           title: "Retention and security",
@@ -65,6 +70,7 @@ export default function PrivacyPage() {
             "You may ask to access, correct, export, or delete personal information, subject to identity verification and applicable legal requirements. You may also disconnect from a trainer or stop uploading optional photos and logs."
           ],
           bullets: [
+            "AI sharing is optional and off until you allow it. Go to Profile → AI privacy to decline or turn it off at any time. Manual tracking remains available. Turning sharing off stops new AI requests, including trainer requests for your records; it cannot recall data already sent. Contact support for deletion requests concerning previously processed data.",
             "For privacy requests, email support@getascend.fit with the subject Privacy Request.",
             "Ascend also provides a public account deletion resource at /delete-account and an in-app self-service path under Profile -> Account -> Delete Account.",
             "Deleting your Ascend account removes Ascend-held Health Connect records from our systems subject to normal backup and legal retention limits. Revoking Health Connect on your Android device stops future Health Connect access.",

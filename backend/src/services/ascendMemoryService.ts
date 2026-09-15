@@ -1,3 +1,4 @@
+import { withAiDataSubject } from "./aiConsentService";
 import { env } from "../config/env";
 import { query } from "../db/pool";
 import { createAscendMemoryReflection } from "../integrations/openai";
@@ -611,7 +612,7 @@ async function maybeCreateReflection(userId: string, context: NonNullable<Awaite
 
   if (monthlyAiCount < 4) {
     try {
-      reflection = await createAscendMemoryReflection(reflectionContext(candidate, context, events));
+      reflection = await withAiDataSubject(userId, () => createAscendMemoryReflection(reflectionContext(candidate, context, events)));
       aiGenerated = true;
       await logAiUsage({
         userId,

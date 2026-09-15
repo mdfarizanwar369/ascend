@@ -1,3 +1,4 @@
+import { withAiDataSubject } from "./aiConsentService";
 import { query } from "../db/pool";
 import { env } from "../config/env";
 import { buildWorkoutMemorySummary } from "./workoutMemoryService";
@@ -278,7 +279,7 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
     })
   );
 
-  const workout = await createTrainerHomeworkPlan({
+  const workout = await withAiDataSubject(input.clientId, () => createTrainerHomeworkPlan({
     trainerName: input.trainerName,
     location: input.location,
     timeAvailable: input.timeAvailable,
@@ -288,7 +289,7 @@ export async function generateTrainerHomeworkPreview(input: TrainerHomeworkGener
     dueDate: input.dueDate,
     coachNote: input.coachNote ?? null,
     context: promptContext
-  });
+  }));
 
   return { workout };
 }

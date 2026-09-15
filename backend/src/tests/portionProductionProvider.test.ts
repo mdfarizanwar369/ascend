@@ -56,6 +56,9 @@ async function loadProvider(model = "gemini-2.5-flash") {
     logAiUsage: vi.fn(async () => undefined),
     saveFoodEstimateCache: vi.fn(async () => undefined)
   }));
+  // These tests exercise response parsing; permission enforcement has its own
+  // network-boundary tests in aiConsent.test.ts.
+  vi.doMock("../services/aiConsentService", () => ({ assertAiProviderConsent: vi.fn(async () => undefined) }));
   vi.doMock("../services/localFoodService", () => ({
     normalizeWithLocalFoodDatabase: vi.fn(async (estimate) => estimate),
     findLocalFoodForPortion: vi.fn(async () => null)

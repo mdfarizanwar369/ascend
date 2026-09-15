@@ -5,6 +5,7 @@ import { getFirebaseAuth } from "../integrations/firebase";
 import { env } from "../config/env";
 import { createFoodAiTrace, timeFoodAiStage } from "../services/foodAiPerformance";
 import { isPlatformOwnerEmail } from "../services/platformOwnerService";
+import { withAiDataSubject } from "../services/aiConsentService";
 
 export interface AuthUser {
   id: string;
@@ -191,7 +192,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       isPlatformOwner
     };
 
-    next();
+    withAiDataSubject(req.user.id, next);
   } catch (error) {
     next(error);
   }
