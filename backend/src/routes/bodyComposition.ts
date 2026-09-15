@@ -1,3 +1,5 @@
+import { requireAiConsent } from "../middleware/aiConsent";
+import { withAiDataSubject } from "../services/aiConsentService";
 import { randomUUID } from "crypto";
 import { Router } from "express";
 import { z } from "zod";
@@ -276,7 +278,7 @@ async function saveScan(
 }
 
 async function extractDraftForUser(userId: string, images: string[]) {
-  const draft = await extractBodyCompositionFromImages(images);
+  const draft = await withAiDataSubject(userId, () => extractBodyCompositionFromImages(images));
   const uploaded = await Promise.allSettled(images.map((imageDataUrl) => uploadDataUrl(`body-composition/${userId}/${randomUUID()}.jpg`, imageDataUrl)));
   const sourceImages = uploaded
     .filter((result): result is PromiseFulfilledResult<{ key: string; storageConfigured: boolean }> => result.status === "fulfilled")
@@ -296,7 +298,7 @@ async function extractDraftForUser(userId: string, images: string[]) {
   };
 }
 
-bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, async (req, res, next) => {
+bodyCompositionRouter.post("/athlete/body-composition/extract", requireAuth, requireAiConsent, async (req, res, next) => {
   const startedAt = Date.now();
   try {
     if (!await requireEnabledAthlete(req.user!.id)) return res.status(404).json({ error: "Athlete Mode is not enabled for this account." });
@@ -335,7 +337,7 @@ bodyCompositionRouter.get("/body-composition/access", requireAuth, async (req, r
   }
 });
 
-bodyCompositionRouter.post("/body-composition/extract", requireAuth, introductoryBodyScanRateLimit, async (req, res, next) => {
+bodyCompositionRouter.post("/body-composition/extract", requireAuth, requireAiConsent, introductoryBodyScanRateLimit, async (req, res, next) => {
   const startedAt = Date.now();
   try {
     const scan = await latestConfirmedBodyScan(req.user!.id);
@@ -384,7 +386,7 @@ bodyCompositionRouter.get("/body-composition/baseline", requireAuth, async (req,
   }
 });
 
-bodyCompositionRouter.post("/body-composition/scans/:scanId/explanation", requireAuth, async (req, res, next) => {
+bodyCompositionRouter.post("/body-composition/scans/:scanId/explanation", requireAuth, requireAiConsent, async (req, res, next) => {
   try {
     const scanId = bodyScanIdSchema.parse(req.params.scanId);
     const scan = await confirmedBodyScanById(req.user!.id, scanId);
@@ -398,7 +400,7 @@ bodyCompositionRouter.post("/body-composition/scans/:scanId/explanation", requir
   }
 });
 
-bodyCompositionRouter.post("/body-composition/scans/:scanId/follow-ups", requireAuth, async (req, res, next) => {
+bodyCompositionRouter.post("/body-composition/scans/:scanId/follow-ups", requireAuth, requireAiConsent, async (req, res, next) => {
   try {
     const scanId = bodyScanIdSchema.parse(req.params.scanId);
     const input = bodyScanFollowUpSchema.parse(req.body);

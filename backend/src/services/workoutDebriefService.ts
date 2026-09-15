@@ -1,3 +1,4 @@
+import { withAiDataSubject } from "./aiConsentService";
 import { z } from "zod";
 import {
   WORKOUT_MOVEMENT_PATTERNS,
@@ -839,7 +840,7 @@ export async function generateWorkoutDebrief(input: {
     if (!context) throw new Error("Workout context is unavailable.");
     const promptContext = aiContext(context, claimed.workoutSignal);
     const prompts = workoutDebriefPrompts(promptContext);
-    const reply = await dependencies.generate(prompts.systemPrompt, prompts.userPrompt);
+    const reply = await withAiDataSubject(input.userId, () => dependencies.generate(prompts.systemPrompt, prompts.userPrompt));
     provider = reply.provider;
     model = reply.model;
     const output = enforceWorkoutSpecificOutput(

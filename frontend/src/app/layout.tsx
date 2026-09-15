@@ -9,6 +9,7 @@ import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { AscendLaunchMorphV22Provider } from "@/components/dashboard/AscendLaunchMorphV22";
 import { ClientErrorReporter } from "@/components/ClientErrorReporter";
+import { AiConsentCoordinator } from "@/components/AiConsentCoordinator";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CapacitorAppUrlRouter />
           <PwaRegistrar />
           <PwaInstallCoordinator />
+          <AiConsentCoordinator />
           <CoachNotificationCoordinator />
           <HealthSyncCoordinator />
           <OfflineIndicator />

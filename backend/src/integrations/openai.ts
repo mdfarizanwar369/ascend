@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { assertAiProviderConsent } from "../services/aiConsentService";
 import { createHash } from "crypto";
 import { FoodEstimate, LOCAL_FOODS, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
 import { env } from "../config/env";
@@ -529,6 +530,7 @@ async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputToken
     throw new Error("GEMINI_API_KEY is not configured.");
   }
 
+  await assertAiProviderConsent("gemini");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 20_000);
   const generationConfig: Record<string, unknown> = {
@@ -923,6 +925,7 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
   if (!openaiClient) return demoFoodEstimate();
   const preparedImageUrl = await prepareFoodImageDataUrl(imageUrl);
 
+  await assertAiProviderConsent("openai");
   const response = await openaiClient.responses.create({
     model: env.OPENAI_MODEL,
     input: [
@@ -948,6 +951,7 @@ async function estimateFoodWithOpenAI(imageUrl: string) {
 async function estimateFoodWithOpenAIPortionAware(imageUrl: string) {
   if (!openaiClient) return demoFoodEstimate();
   const preparedImageUrl = await prepareFoodImageDataUrl(imageUrl);
+  await assertAiProviderConsent("openai");
   const response = await openaiClient.responses.create({
     model: env.OPENAI_MODEL,
     input: [{
@@ -1007,6 +1011,7 @@ async function estimateFoodTextWithGemini(description: string) {
 async function estimateFoodTextWithOpenAI(description: string) {
   if (!openaiClient) return demoFoodEstimate();
 
+  await assertAiProviderConsent("openai");
   const response = await openaiClient.responses.create({
     model: env.OPENAI_MODEL,
     input: [
@@ -1386,6 +1391,7 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   }
 
   if (env.AI_PROVIDER === "openai" && openaiClient) {
+    await assertAiProviderConsent("openai");
     const response = await openaiClient.responses.create({
       model: env.OPENAI_MODEL,
       ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
@@ -1429,6 +1435,7 @@ async function createBodyScanCoachingReply(
     }
 
     if (provider === "openai" && openaiClient) {
+      await assertAiProviderConsent("openai");
       const response = await openaiClient.responses.create({
         model: env.OPENAI_MODEL,
         max_output_tokens: maxOutputTokens,
@@ -1474,6 +1481,7 @@ export async function createWorkoutDebriefProviderReply(
   }
 
   if (env.AI_PROVIDER === "openai" && openaiClient) {
+    await assertAiProviderConsent("openai");
     const response = await openaiClient.responses.create({
       model: env.OPENAI_MODEL,
       max_output_tokens: 360,
@@ -1542,6 +1550,7 @@ async function requestTodayPriorityRefinement(prompt: string, promptVersion: str
       return response.text;
     }
     if (env.AI_PROVIDER === "openai" && openaiClient) {
+      await assertAiProviderConsent("openai");
       const response = await openaiClient.responses.create({
         model: env.OPENAI_MODEL,
         input: [{ role: "user", content: prompt }]

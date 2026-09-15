@@ -1,3 +1,4 @@
+import { requireAiConsent } from "../middleware/aiConsent";
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
@@ -256,7 +257,7 @@ async function withFoodImageUrls<T extends { image_s3_key?: string | null }>(row
   );
 }
 
-logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res, next) => {
+logsRouter.post("/food-logs/estimate", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
     const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodUrlEstimateSchema.parse(req.body));
@@ -299,7 +300,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, aiRateLimit, async (req, res
   }
 });
 
-logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async (req, res, next) => {
+logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     timeFoodAiSyncStage(req.foodAiPerf, "Request received", () => undefined, { route: req.path });
     const input = timeFoodAiSyncStage(req.foodAiPerf, "Request validation", () => foodImageDataSchema.parse(req.body));
@@ -337,7 +338,7 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, aiRateLimit, async 
   }
 });
 
-logsRouter.post("/food-logs/estimate-text", requireAuth, aiRateLimit, async (req, res, next) => {
+logsRouter.post("/food-logs/estimate-text", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     const input = foodTextEstimateSchema.parse(req.body);
     const estimate = await estimateFoodFromText(input.description, { userId: req.user!.id, gymId: req.user!.gymId, timezoneOffsetMinutes: input.timezoneOffsetMinutes });
@@ -805,7 +806,7 @@ logsRouter.get("/burn-logs/progression", requireAuth, async (req, res, next) => 
   }
 });
 
-logsRouter.post("/burn-logs/:burnLogId/debrief", requireAuth, workoutDebriefRateLimit, async (req, res, next) => {
+logsRouter.post("/burn-logs/:burnLogId/debrief", requireAuth, requireAiConsent, workoutDebriefRateLimit, async (req, res, next) => {
   try {
     const workoutEventId = z.string().uuid().parse(req.params.burnLogId);
     const existing = await getWorkoutDebrief({

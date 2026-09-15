@@ -73,7 +73,7 @@ trainerHomeworkRouter.post("/trainer/clients/:clientId/homework/generate", requi
     const input = trainerHomeworkGenerateSchema.parse(req.body);
     const preview = await generateTrainerHomeworkPreview({
       clientId: req.params.clientId,
-      trainerName: req.user!.email,
+      trainerName: "Your trainer",
       ...input
     });
     res.json(preview);

@@ -1,3 +1,4 @@
+import { withAiDataSubject } from "../services/aiConsentService";
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
@@ -825,7 +826,7 @@ trainerRouter.post("/ai/weekly-checkin/:clientId", requireAuth, requireActivePla
       [req.params.clientId]
     );
     const context = JSON.stringify(result.rows[0] ?? {});
-    const summary = await createWeeklySummary(context);
+    const summary = await withAiDataSubject(req.params.clientId, () => createWeeklySummary(context));
     await logAiUsage({
       userId: req.user!.id,
       gymId: req.user!.gymId,
