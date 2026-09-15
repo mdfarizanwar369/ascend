@@ -1,6 +1,8 @@
 # Ascend iOS 1.1 — Apple subscriptions
 
-This branch prepares the next release. The submitted iOS 1.0 (9.1) remains in review. Do not replace that submission or enable production purchases before sandbox validation.
+**15 September rejection update:** Apple rejected 1.0 (9.1) for missing IAP for Premium/Trainer Pro, missing EULA metadata and missing prior AI data-sharing permission. The plan to wait for 1.0 approval is superseded: the corrected first submission needs working Apple subscriptions. Keep purchases isolated until validation, then build the StoreKit-capable app against production and submit both products with it. Beta 1.1 (15.1) targets a payment-only test environment and must not be selected for public release.
+
+The EULA link is saved in the current listing. AI consent is implemented with provider-specific disclosure, explicit permission, withdrawal and provider-boundary enforcement (migration 039). A fresh physical recording must demonstrate these corrections and the working purchase flow. Paid Apps Agreement is accepted but Pending User Info; W-8BEN correction is awaiting Apple Finance. Earlier dated status sections below are historical.
 
 ## Products
 
@@ -62,7 +64,7 @@ Before release:
 2. Add the server API key as a secret, configure V2 notifications and allow isolated sandbox users.
 3. Complete the macOS build check. Build and install 1.1 through TestFlight with the intended frontend/backend configuration. The payment-beta branch targets its isolated test environment; a later main-branch release build must target the public app.
 4. On a physical iPhone, purchase each plan, cancel a purchase sheet, restore after reinstall, test account mismatch, renew/expire/refund in sandbox and confirm access on the server. Record results; simulator compilation is not a completed purchase test.
-5. After 1.0 is released, create App Store version 1.1 with **manual release** and submit the first subscriptions and group with that version. Update review notes to accurately describe IAP and provide the review login. Once 1.1 is approved, turn off Streamlined Purchasing and verify the setting before releasing the app. Test the App Store-to-sign-in purchase-intent handoff as well as normal checkout.
+5. Replace the rejected submission with the tested StoreKit-capable release build, using **manual release**, and submit the first subscriptions with it. Match the App Store version field to the actual release build. Update notes to describe IAP and AI permission accurately and provide working review logins and fresh recording. After approval, turn off Streamlined Purchasing and verify the setting before releasing. Test the App Store-to-sign-in purchase-intent handoff as well as normal checkout.
 
 Account check on 14 September 2026: the Free Apps Agreement is active; the Paid Apps Agreement is **New**. Apple requires a legal entity update before it can be signed. The existing legal name and address were inspected but not changed. The account holder must confirm the legal information and complete the paid agreement, banking and tax requirements in App Store Connect Business before paid release. Server API credentials/notification configuration and physical TestFlight testing are still pending. No production billing flag was enabled.
 
