@@ -1,5 +1,7 @@
 "use client";
 
+import { isIosFreeEdition, useIosFreeEdition } from "@/lib/appEdition";
+
 import { FormEvent, MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -189,12 +191,14 @@ function wasGoogleRedirectPending() {
 }
 
 function roleHome(roles: string[]) {
+  if (isIosFreeEdition()) return "/dashboard";
   if (roles.includes("owner") || roles.includes("admin")) return "/admin";
   if (roles.includes("trainer")) return "/trainer";
   return "/dashboard";
 }
 
 export function AuthPanel() {
+  const iosFree = useIosFreeEdition();
   const router = useRouter();
   const hasProcessedRedirectAuth = useRef(false);
   const [mode, setMode] = useState<Mode>("signup");
@@ -230,7 +234,7 @@ export function AuthPanel() {
         referralCode: string;
       }>;
       if (parsed.mode === "signup" || parsed.mode === "login") setMode(parsed.mode);
-      if (parsed.signupRole === "client" || parsed.signupRole === "trainer") setSignupRole(parsed.signupRole);
+      if (!isIosFreeEdition() && (parsed.signupRole === "client" || parsed.signupRole === "trainer")) setSignupRole(parsed.signupRole);
       if (typeof parsed.fullName === "string") setFullName(parsed.fullName);
       if (typeof parsed.email === "string") setEmail(parsed.email);
       if (typeof parsed.referralCode === "string") setReferralCode(parsed.referralCode);
@@ -714,7 +718,7 @@ export function AuthPanel() {
             ) : null}
             {mode === "signup" && !progressiveClientSignup ? (
               <>
-                <div id="ascend-role-field">
+                {!iosFree && <div id="ascend-role-field">
                   <p className="mb-2 text-sm font-medium">I am signing up as</p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
@@ -740,7 +744,7 @@ export function AuthPanel() {
                     ))}
                   </div>
                   <p className="mt-2 text-xs leading-5 text-zinc-500">Owner/admin access is invite-only and cannot be selected here.</p>
-                </div>
+                </div>}
                 <div id="ascend-full-name-field">
                   <Field label="Full name">
                   <input
@@ -882,7 +886,7 @@ export function AuthPanel() {
           >
             {mode === "signup" ? "Already have an account? Log in" : "Need an account? Sign up"}
           </button>
-          {progressiveClientSignup && mode === "signup" ? (
+          {!iosFree && progressiveClientSignup && mode === "signup" ? (
             <button
               className="mt-3 text-sm font-medium text-zinc-400"
               onClick={() => {

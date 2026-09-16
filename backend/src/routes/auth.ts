@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../config/env";
@@ -116,6 +117,7 @@ export async function upsertProvisionedUser(options: {
 authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (req, res, next) => {
   try {
     const input = provisionSchema.parse(req.body);
+    if (isIosFreeEdition()) input.primaryRole = "client";
     const firebaseUser = req.firebaseUser!;
     const allowedOwnerEmail = env.BOOTSTRAP_OWNER_EMAIL?.trim().toLowerCase();
     const currentEmail = firebaseUser.email?.trim().toLowerCase();

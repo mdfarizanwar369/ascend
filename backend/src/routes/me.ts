@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
@@ -36,7 +37,12 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     `,
     [req.user!.id]
   );
-  const user = await withProfilePhotoUrl(result.rows[0]);
+  const rawUser = result.rows[0];
+  const user = await withProfilePhotoUrl(isIosFreeEdition() && rawUser ? {
+    ...rawUser, primary_role: "client", assigned_trainer_id: null, assigned_trainer_name: null,
+    trainer_status: null, athlete_mode_enabled: false, coaching_mode: "self_coached",
+    profile_photo_s3_key: null, profile_photo_url: null
+  } : rawUser);
   if (user?.athlete_mode_enabled === true) {
     const scanResult = await query(
       `

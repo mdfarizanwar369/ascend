@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "./appEdition";
 import { withAiDataSubject } from "./aiConsentService";
 import { env } from "../config/env";
 import { query } from "../db/pool";
@@ -663,6 +664,10 @@ async function maybeCreateReflection(userId: string, context: NonNullable<Awaite
 export async function getAscendMemoryTimeline(userId: string) {
   const context = await activeClientContext(userId);
   if (!context) return { timeline: [], stats: { aiReflectionsThisMonth: 0, monthlyLimit: 4, cacheHits: 0 }, access: "none" as const };
+  if (isIosFreeEdition()) {
+    context.current_plan = "free";
+    context.athlete_mode_enabled = false;
+  }
   const events = await buildMemoryEvents(userId, context);
   const premiumAccess =
     (context.current_plan === "premium" || context.current_plan === "trainer_pro") &&

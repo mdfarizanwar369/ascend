@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "./appEdition";
 import type { Role, SubscriptionPlan, WorkoutCaptureAllowance } from "@ascend/shared";
 import { query } from "../db/pool";
 
@@ -22,14 +23,14 @@ export type WorkoutCaptureAccess = {
 export function workoutCaptureAccessFor(context: WorkoutCaptureAccessContext): WorkoutCaptureAccess {
   if (!context.featureEnabled) return { enabled: false, canCapture: false, allowance: null };
 
-  const unlimited =
+  const unlimited = !isIosFreeEdition() && (
     context.isPlatformOwner ||
     context.primaryRole === "owner" ||
     context.primaryRole === "admin" ||
     context.roles.includes("owner") ||
     context.roles.includes("admin") ||
     context.activePlan === "premium" ||
-    context.activePlan === "trainer_pro";
+    context.activePlan === "trainer_pro");
 
   if (unlimited) {
     return {

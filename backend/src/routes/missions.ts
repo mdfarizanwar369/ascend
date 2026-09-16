@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { Router } from "express";
 import { z } from "zod";
 import { query } from "../db/pool";
@@ -15,6 +16,7 @@ const missionSchema = z.object({
 
 missionsRouter.get("/missions/today", requireAuth, async (req, res, next) => {
   try {
+    if (isIosFreeEdition()) return res.json({ mission: null });
     const result = await query(
       `
       select m.*, trainer_user.full_name as trainer_name

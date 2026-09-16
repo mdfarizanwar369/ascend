@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { requireAiConsent } from "../middleware/aiConsent";
 import { Router } from "express";
 import {
@@ -285,9 +286,11 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
   try {
     const { message, mode, timezoneOffsetMinutes } = coachChatSchema.parse(req.body);
     const coachAccess = await getCoachZoeAccess(req.user!.id, timezoneOffsetMinutes);
-    if (mode === "general" && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
+    if ((isIosFreeEdition() || mode === "general") && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
       return res.status(402).json({
-        error: "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights and a coach that learns from your journey."
+        error: isIosFreeEdition()
+          ? "You've used today's 10 Zoe replies. Your allowance resets at midnight. You can keep logging meals and activity."
+          : "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights and a coach that learns from your journey."
       });
     }
 
@@ -522,7 +525,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
       completedToday: burnWindowResult.rows.some((row) => localDateKeyAtOffset(String(row.created_at ?? ""), timezoneOffsetMinutes) === localDateKeyDaysAgo(0, timezoneOffsetMinutes)),
       completedYesterday: burnWindowResult.rows.some((row) => localDateKeyAtOffset(String(row.created_at ?? ""), timezoneOffsetMinutes) === localDateKeyDaysAgo(1, timezoneOffsetMinutes))
     };
-    const latestWeeklyReport = weeklyReportResult.rows[0]
+    const latestWeeklyReport = !isIosFreeEdition() && weeklyReportResult.rows[0]
       ? {
           summary: String(weeklyReportResult.rows[0].summary ?? ""),
           complianceScore: asNumber(weeklyReportResult.rows[0].compliance_score),
@@ -530,7 +533,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
           weekEnd: weeklyReportResult.rows[0].week_end
         }
       : null;
-    const trustedBodyScans = getTrustedBodyCompositionHistory(bodyScanHistoryResult.rows.map((row) => bodyCompositionScanFromDb(row))).confirmedHistory;
+    const trustedBodyScans = isIosFreeEdition() ? [] : getTrustedBodyCompositionHistory(bodyScanHistoryResult.rows.map((row) => bodyCompositionScanFromDb(row))).confirmedHistory;
     const bodyScanSummary = buildBodyCompositionSummary(trustedBodyScans);
     const bodyScanHistory = trustedBodyScans.map((scan) => ({
       scanDate: scan.scanDate,
@@ -561,7 +564,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
       recentFoodLogs: recentFoodResult.rows,
       recentWorkouts: recentBurnResult.rows,
       workoutMemory,
-      athleteMode: athleteResult.rows[0] ?? null,
+      athleteMode: isIosFreeEdition() ? null : athleteResult.rows[0] ?? null,
       latestBodyScan: bodyScanSummary.latestScan,
       bodyScanEvidence: {
         historyCount: bodyScanSummary.scanCount,
@@ -996,7 +999,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         recentFoodConsistency: recentFoodResult.rows[0] ?? null,
         recentWorkouts: recentBurnResult.rows,
         workoutMemory,
-        athleteMode: athleteResult.rows[0] ?? null,
+        athleteMode: isIosFreeEdition() ? null : athleteResult.rows[0] ?? null,
         latestBodyScan: workoutBodyScan,
         recentCoachZoeContext: recentMessagesResult.rows.reverse(),
         healthSync: healthSyncSummary

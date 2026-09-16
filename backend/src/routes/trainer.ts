@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { withAiDataSubject } from "../services/aiConsentService";
 import { Router } from "express";
 import { z } from "zod";
@@ -261,6 +262,7 @@ trainerRouter.get("/trainer/attention", requireAuth, requireActivePlan("trainer_
 
 trainerRouter.get("/recognitions/latest", requireAuth, async (req, res, next) => {
   try {
+    if (isIosFreeEdition()) return res.json({ recognition: null });
     const result = await query(
       `
       select r.*, trainer_user.full_name as trainer_name
@@ -282,6 +284,7 @@ trainerRouter.get("/recognitions/latest", requireAuth, async (req, res, next) =>
 
 trainerRouter.get("/me/nutrition-plan", requireAuth, async (req, res, next) => {
   try {
+    if (isIosFreeEdition()) return res.json({ coachPlan: null });
     const result = await query(
       `
       select cnp.*, updater.full_name as updated_by_name

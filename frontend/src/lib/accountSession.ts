@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "./appEdition";
 import { SubscriptionPlan } from "@ascend/shared";
 import { getMe, getMySubscription } from "@/lib/ascendApi";
 import { usablePlan } from "@/lib/subscriptionPlan";
@@ -10,7 +11,7 @@ export type AccountProfileSnapshot = {
   profilePhotoUrl?: string | null;
 };
 
-const PROFILE_CACHE_KEY = "ascend:account-profile";
+const PROFILE_CACHE_KEY = isIosFreeEdition() ? "ascend:account-profile:ios-free-v1" : "ascend:account-profile";
 const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 let profileMemoryCache: { value: AccountProfileSnapshot; cachedAt: number } | null = null;
