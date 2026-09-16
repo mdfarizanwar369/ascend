@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "./appEdition";
 import { SubscriptionPlan } from "@ascend/shared";
 
 export const planRank: Record<SubscriptionPlan, number> = {
@@ -14,7 +15,7 @@ export function isUsableSubscriptionStatus(status?: string | null, currentPeriod
 }
 
 export function usablePlan(plan: SubscriptionPlan, status?: string | null, currentPeriodEnd?: string | null): SubscriptionPlan {
-  return isUsableSubscriptionStatus(status, currentPeriodEnd) ? plan : "free";
+  return !isIosFreeEdition() && isUsableSubscriptionStatus(status, currentPeriodEnd) ? plan : "free";
 }
 
 export function formatPlan(plan?: SubscriptionPlan | null) {

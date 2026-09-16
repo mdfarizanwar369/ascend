@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { Request, Router } from "express";
 import { z } from "zod";
 import { env } from "../config/env";
@@ -92,6 +93,7 @@ trainerSessionsRouter.delete("/trainer/clients/:clientId/coaching-sessions/:sess
 
 trainerSessionsRouter.get("/me/coaching-sessions", requireAuth, async (req, res, next) => {
   try {
+    if (isIosFreeEdition()) return res.json({ enabled: false, sessions: [] });
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ enabled: false, sessions: [] });
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(25).default(10) }).parse(req.query);
     res.json({ enabled: true, sessions: await getClientCoachedSessions(req.user!.id, limit) });

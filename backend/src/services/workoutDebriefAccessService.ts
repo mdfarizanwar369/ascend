@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "./appEdition";
 import type { Role, SubscriptionPlan, WorkoutDebriefAccess, WorkoutDebriefTier } from "@ascend/shared";
 import type { QueryResultRow } from "pg";
 import { pool, query } from "../db/pool";
@@ -34,6 +35,7 @@ export function workoutDebriefTierFor(input: {
   roles: Role[];
   isPlatformOwner: boolean;
 }): WorkoutDebriefTier {
+  if (isIosFreeEdition()) return "free";
   if (input.isPlatformOwner || input.athleteEnabled) return "athlete";
   if (
     input.activePlan === "premium" ||

@@ -1,5 +1,8 @@
 "use client";
 
+import { useIosFreeEdition } from "@/lib/appEdition";
+import { FreeFeatureUnavailable } from "@/components/IosFreeEditionBoundary";
+
 import Link from "next/link";
 import { Lock, Sparkles } from "lucide-react";
 import { SubscriptionPlan } from "@ascend/shared";
@@ -32,6 +35,7 @@ export function PlanGate({
   feature: string;
   fallbackHref?: string;
 }) {
+  const iosFree = useIosFreeEdition();
   const [activePlan, setActivePlan] = useState<SubscriptionPlan>("free");
   const [roles, setRoles] = useState<string[]>([]);
   const [primaryRole, setPrimaryRole] = useState<string | null>(null);
@@ -89,6 +93,8 @@ export function PlanGate({
     if (roles.includes("owner") || roles.includes("admin") || primaryRole === "owner" || primaryRole === "admin") return true;
     return planRank[activePlan] >= planRank[requiredPlan];
   }, [activePlan, primaryRole, requiredPlan, roles]);
+
+  if (iosFree) return <FreeFeatureUnavailable />;
 
   if (isLoading) {
     return (

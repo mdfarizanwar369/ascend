@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "./appEdition";
 import { calculateAdaptiveNutritionTargets, NutritionTargets } from "@ascend/shared";
 import { z } from "zod";
 import { query } from "../db/pool";
@@ -172,7 +173,7 @@ export async function resolveNutritionTargets(userId: string): Promise<ResolvedN
     throw error;
   }
 
-  const scans = profile.athlete_mode_enabled
+  const scans = !isIosFreeEdition() && profile.athlete_mode_enabled
     ? await query(`
         select * from body_composition_scans
         where user_id = $1 and user_confirmed = true
@@ -181,7 +182,7 @@ export async function resolveNutritionTargets(userId: string): Promise<ResolvedN
       `, [userId])
     : { rows: [] };
   const bodyComposition = selectBodyCompositionForNutrition(
-    profile.athlete_mode_enabled,
+    !isIosFreeEdition() && profile.athlete_mode_enabled,
     scans.rows.map(bodyCompositionScanFromDb)
   );
   const latestWeight = weightsResult.rows[0]?.weight_kg ?? profile.starting_weight_kg;
@@ -198,7 +199,7 @@ export async function resolveNutritionTargets(userId: string): Promise<ResolvedN
 
   return applyNutritionTargetPrecedence({
     recommended,
-    coachPlan: coachPlanResult.rows[0] ?? null,
+    coachPlan: isIosFreeEdition() ? null : coachPlanResult.rows[0] ?? null,
     memberPreference: preferenceResult.rows[0] ?? null,
     bodyScanUsed: Boolean(bodyComposition)
   });
@@ -209,7 +210,7 @@ export async function saveMemberNutritionPreference(
   input: z.infer<typeof memberNutritionPreferenceSchema>
 ) {
   const activeCoachPlan = await query("select 1 from coach_nutrition_plans where user_id = $1 and status = 'active' limit 1", [userId]);
-  if (activeCoachPlan.rowCount) {
+  if (!isIosFreeEdition() && activeCoachPlan.rowCount) {
     const error = new Error("Your coach currently controls these targets. Ask your coach before changing the plan.");
     (error as Error & { status?: number }).status = 409;
     throw error;

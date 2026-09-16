@@ -1,3 +1,4 @@
+import { appEditionMiddleware } from "./services/appEdition";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
@@ -73,6 +74,7 @@ app.use("/api/v1", (_req, res, next) => {
   next();
 });
 
+app.use("/api/v1", appEditionMiddleware);
 app.use("/api/v1", healthRouter);
 app.use("/api/v1", jobsRouter);
 app.use("/api/v1", authRouter);

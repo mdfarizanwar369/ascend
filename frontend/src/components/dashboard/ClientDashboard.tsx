@@ -47,6 +47,7 @@ import { ZoeAvatar } from "@/components/ExperienceVisuals";
 import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { getAscendMorphV22Timing, useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
+import { isIosFreeEdition } from "@/lib/appEdition";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -1196,7 +1197,9 @@ export function ClientDashboard() {
           : "Coach Zoe noticed something worth your attention."
     };
   })();
-  const primaryAction = { label: todayPriority.cta, href: todayPriority.href };
+  const primaryAction = isIosFreeEdition() && todayPriority.href === "/progress"
+    ? { label: "View Journey", href: "/journey" }
+    : { label: todayPriority.cta, href: todayPriority.href };
   const heroSupportingCopy = (() => {
     return todayPriority.reason;
   })();

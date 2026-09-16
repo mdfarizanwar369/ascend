@@ -1,5 +1,8 @@
 "use client";
 
+import { useIosFreeEdition } from "@/lib/appEdition";
+import { FreeFeatureUnavailable } from "@/components/IosFreeEditionBoundary";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Lock, RefreshCw, Sparkles } from "lucide-react";
@@ -41,6 +44,7 @@ export function RoleGate({
   planFeature?: string;
   requirePlatformOwner?: boolean;
 }) {
+  const iosFree = useIosFreeEdition();
   const [state, setState] = useState<"loading" | "allowed" | "role-blocked" | "plan-blocked" | "error">("loading");
   const [retryKey, setRetryKey] = useState(0);
   const allowedRoleKey = useMemo(() => allowedRoles.join("|"), [allowedRoles]);
@@ -106,6 +110,8 @@ export function RoleGate({
       window.removeEventListener("pageshow", refreshAfterBack);
     };
   }, [allowedRoleKey, requirePlatformOwner, requiredPlan, retryKey]);
+
+  if (iosFree) return <FreeFeatureUnavailable />;
 
   if (state === "loading") {
     return <p className="mt-4 rounded-lg border border-line bg-surface p-4 text-sm text-zinc-300">Checking account access...</p>;

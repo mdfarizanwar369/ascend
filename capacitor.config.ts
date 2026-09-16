@@ -15,7 +15,7 @@ const config: CapacitorConfig = {
   appName: "Ascend",
   webDir: "mobile-shell",
   backgroundColor: "#07090d",
-  appendUserAgent: isIos ? " AscendIOS/2 Capacitor" : " AscendAndroid/1 Capacitor",
+  appendUserAgent: isIos ? " AscendIOS/4 AscendFree/1 Capacitor" : " AscendAndroid/1 Capacitor",
   ios: {
     contentInset: "automatic",
     includePlugins: ["@capacitor-firebase/authentication", "@capacitor/app", "@capacitor/camera", "@capacitor/filesystem", "@capacitor/share", "@capacitor/splash-screen", "@capacitor/status-bar"]

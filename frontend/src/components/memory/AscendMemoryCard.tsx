@@ -1,5 +1,7 @@
 "use client";
 
+import { isIosFreeEdition } from "@/lib/appEdition";
+
 import { Award, CalendarDays, Sparkles } from "lucide-react";
 import { AscendMemoryResponse } from "@/lib/ascendApi";
 
@@ -93,7 +95,7 @@ export function AscendMemoryCard({
 
       <p className="mt-4 text-xs leading-5 text-zinc-500">
         {memory.access === "free"
-          ? "Free Journey shows your recent milestones and memories. Premium adds deeper reflections and longer-term pattern insights."
+          ? isIosFreeEdition() ? "Your recent milestones and memories." : "Free Journey shows your recent milestones and memories. Premium adds deeper reflections and longer-term pattern insights."
           : `${memory.stats.aiReflectionsThisMonth}/${memory.stats.monthlyLimit} monthly reflections used. Reflections are cached and never regenerated for the same milestone.`}
       </p>
     </section>

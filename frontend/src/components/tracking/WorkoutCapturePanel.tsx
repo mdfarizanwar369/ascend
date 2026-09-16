@@ -1,5 +1,7 @@
 "use client";
 
+import { isIosFreeEdition } from "@/lib/appEdition";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -497,7 +499,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         {freeLimitReached ? (
           <div className="mt-4 rounded-lg border border-calm/30 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">
             <p>Your three free Detailed Workouts are saved. Quick Activity remains unlimited.</p>
-            <Link href="/subscription" className="mt-2 inline-flex font-semibold text-calm">Explore unlimited workouts</Link>
+            {!isIosFreeEdition() && <Link href="/subscription" className="mt-2 inline-flex font-semibold text-calm">Explore unlimited workouts</Link>}
           </div>
         ) : (
           <button
@@ -556,7 +558,7 @@ export function WorkoutCapturePanel({ onBusyChange, onSaved }: WorkoutCapturePan
         {freeLimitReached ? (
           <div className="rounded-lg border border-calm/30 bg-calm/10 p-3 text-sm leading-6 text-zinc-200">
             <p>You&apos;ve saved three Detailed Workouts in the last seven days. Quick Activity remains unlimited.</p>
-            <Link href="/subscription" className="mt-2 inline-flex font-semibold text-calm">Explore unlimited workouts</Link>
+            {!isIosFreeEdition() && <Link href="/subscription" className="mt-2 inline-flex font-semibold text-calm">Explore unlimited workouts</Link>}
           </div>
         ) : null}
 

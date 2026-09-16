@@ -1,5 +1,8 @@
 "use client";
 
+import { useIosFreeEdition } from "@/lib/appEdition";
+import { FreeAppFeatures } from "@/components/IosFreeEditionBoundary";
+
 import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { Activity, Camera, Check, CreditCard, ExternalLink, ScanLine, Trash2, XCircle } from "lucide-react";
@@ -26,6 +29,7 @@ function formatBillingDate(value: string | null | undefined) {
 }
 
 export function ProfileClient() {
+  const iosFree = useIosFreeEdition();
   const [user, setUser] = useState<Awaited<ReturnType<typeof getMe>>["user"] | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
@@ -221,7 +225,7 @@ export function ProfileClient() {
               <SkeletonBlock className="mt-5 h-12 w-full rounded-lg" />
             </div>
           </SectionShell>
-          <SectionShell title="Subscription">
+          <SectionShell title={iosFree ? "Included with Ascend" : "Subscription"}>
             <SkeletonStatGrid count={2} />
           </SectionShell>
           <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
@@ -263,7 +267,7 @@ export function ProfileClient() {
               ) : null}
               <p className="mt-4 text-xs leading-5 text-zinc-500">Ascend crops the photo square and compresses it before upload. The original file is not stored.</p>
             </>
-          ) : (
+          ) : iosFree ? null : (
             <div className="mt-5 rounded-lg border border-calm/40 bg-calm/10 p-4 text-left">
               <p className="text-sm font-semibold text-calm">Profile photos are available with Premium.</p>
               <Link href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
@@ -273,6 +277,7 @@ export function ProfileClient() {
           )}
         </section>
 
+        {iosFree ? <FreeAppFeatures /> : <>
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Subscription</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
@@ -368,6 +373,7 @@ export function ProfileClient() {
               : "Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions."}
           </p>
         </section>
+        </>}
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Connected services</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <p className="text-sm font-semibold">App settings</p>

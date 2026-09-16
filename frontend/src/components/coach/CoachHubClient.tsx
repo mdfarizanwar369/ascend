@@ -1,4 +1,5 @@
 "use client";
+import { useIosFreeEdition } from "@/lib/appEdition";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
@@ -451,6 +452,7 @@ function WorkoutPlannerCard({
 }
 
 export function CoachHubClient() {
+  const iosFree = useIosFreeEdition();
   const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
@@ -537,7 +539,7 @@ export function CoachHubClient() {
       setMessages((current) => [...current, { role: "assistant", text: response.reply }]);
     } catch (error) {
       const nextStatus = error instanceof Error ? error.message : "AI coach is temporarily busy.";
-      const limitReached = /free coaching sessions|ascend plus/i.test(nextStatus);
+      const limitReached = /free coaching sessions|ascend plus|10 Zoe replies/i.test(nextStatus);
       setMessages((current) => [
         ...current,
         {
@@ -716,7 +718,7 @@ export function CoachHubClient() {
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {quickActions.map((action) => {
+            {quickActions.filter((action) => !iosFree || action.action !== "workout").map((action) => {
               const Icon = action.icon;
               return (
                 <button
