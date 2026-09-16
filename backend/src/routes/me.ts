@@ -63,8 +63,8 @@ meRouter.get("/me", requireAuth, async (req, res) => {
       ...user,
       is_platform_owner: req.user!.isPlatformOwner,
       body_scan_owner_preview_enabled: env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner,
-      body_scan_introductory_enabled: env.BODY_SCAN_UNIVERSAL_PUBLIC
-        || (env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner)
+      body_scan_introductory_enabled: !isIosFreeEdition() && (env.BODY_SCAN_UNIVERSAL_PUBLIC
+        || (env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner))
     },
     roles: req.user!.roles
   });
