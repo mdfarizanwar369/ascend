@@ -14,6 +14,9 @@ const publicPaths = new Set([
   "/launch",
   "/login",
   "/privacy",
+  "/privacy/ios",
+  "/terms/ios",
+  "/refund-policy/ios",
   "/refund-policy",
   "/reset",
   "/terms"

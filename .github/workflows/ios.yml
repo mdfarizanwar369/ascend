@@ -9,6 +9,7 @@ on:
       - 'capacitor.config.ts'
       - 'package*.json'
       - 'mobile-shell/**'
+      - 'mobile-shell-ios/**'
       - '.github/workflows/ios.yml'
   workflow_dispatch:
     inputs:

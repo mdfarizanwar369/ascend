@@ -60,3 +60,16 @@ test("App Store icon is 1024px and opaque", async () => {
   assert.equal(icon.height, 1024);
   assert.equal(icon.hasAlpha, false);
 });
+
+test("iOS packages its own startup/offline copy without other-platform promotion", () => {
+  const ios = config({ CAPACITOR_PLATFORM: "ios" });
+  const android = config({});
+  assert.equal(android.webDir, "mobile-shell");
+  assert.equal(android.server.errorPath, "android-error.html");
+  assert.equal(ios.server.errorPath, "offline.html");
+  for (const path of ["index.html", "launch/index.html", ios.server.errorPath]) {
+    assert.doesNotMatch(read(`${ios.webDir}/${path}`), /android|google play|health connect/i);
+    assert.equal(read(`ios/App/App/public/${path}`), read(`${ios.webDir}/${path}`));
+  }
+  assert.equal(fs.existsSync("ios/App/App/public/android-error.html"), false);
+});

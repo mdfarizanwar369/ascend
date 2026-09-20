@@ -13,9 +13,9 @@ const androidLoggingBehavior = process.env.CAPACITOR_ANDROID_LOGGING_BEHAVIOR?.t
 const config: CapacitorConfig = {
   appId: "fit.getascend.app",
   appName: "Ascend",
-  webDir: "mobile-shell",
+  webDir: isIos ? "mobile-shell-ios" : "mobile-shell",
   backgroundColor: "#07090d",
-  appendUserAgent: isIos ? " AscendIOS/4 AscendFree/1 Capacitor" : " AscendAndroid/1 Capacitor",
+  appendUserAgent: isIos ? " AscendIOS/5 AscendFree/1 Capacitor" : " AscendAndroid/1 Capacitor",
   ios: {
     contentInset: "automatic",
     includePlugins: ["@capacitor-firebase/authentication", "@capacitor/app", "@capacitor/camera", "@capacitor/filesystem", "@capacitor/share", "@capacitor/splash-screen", "@capacitor/status-bar"]
@@ -25,7 +25,7 @@ const config: CapacitorConfig = {
     ...(iosRemoteUrl ? { appStartPath: iosRemoteUrl.pathname } : {}),
     cleartext: false,
     androidScheme: "https",
-    errorPath: "android-error.html"
+    errorPath: isIos ? "offline.html" : "android-error.html"
   },
   android: {
     backgroundColor: "#07090d",

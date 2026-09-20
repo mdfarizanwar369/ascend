@@ -35,14 +35,16 @@ export function IosFreeEditionBoundary({ children }: { children: React.ReactNode
   const path = usePathname();
   if (!free) return <>{children}</>;
   if (path === "/" || path === "/demo") return <NativeStart />;
+  if (["/privacy", "/terms", "/refund-policy"].includes(path)) return <NativeStart href={`${path}/ios`} />;
+  if (/^\/profile\/health-sync(\/|$)/.test(path)) return <FreeFeatureUnavailable />;
   if (/^\/(subscription|trainer|admin|founder|athlete|messages|reports|progress-photos|coach-homework|bootstrap-owner)(\/|$)/.test(path)) {
     return <FreeFeatureUnavailable />;
   }
   return <>{children}</>;
 }
 
-function NativeStart() {
+function NativeStart({ href = "/launch" }: { href?: string }) {
   const router = useRouter();
-  useEffect(() => { router.replace("/launch"); }, [router]);
+  useEffect(() => { router.replace(href); }, [router, href]);
   return <p className="p-6 text-zinc-300">Opening Ascend…</p>;
 }
