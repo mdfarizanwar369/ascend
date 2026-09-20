@@ -9,9 +9,18 @@ vi.mock("@/lib/authToken", () => ({ getFirebaseToken: mocks.token }));
 vi.mock("@/lib/firebase", () => ({ getFirebaseClientAuth: () => mocks.auth }));
 const consent: AiConsentStatus = { version: AI_CONSENT_VERSION, provider: "gemini", providerName: "Google Gemini (Google)", allowed: false, decision: null, updatedAt: null };
 beforeEach(() => { mocks.api.mockReset(); mocks.token.mockResolvedValue("test-token"); mocks.auth.currentUser = { uid: "member-one" }; });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("AI privacy choices", () => {
+  it("keeps the full AI disclosure on iOS without advertising another device platform", () => {
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Mozilla AscendIOS/5 AscendFree/1 Capacitor");
+    const { container } = render(<AiPrivacySettings consent={consent} onChange={vi.fn()} />);
+    expect(container.textContent).not.toMatch(/android|health connect|google play/i);
+    expect(screen.getByText(/activity imported from connected services/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Read the Privacy Policy" })).toHaveAttribute("href", "/privacy/ios");
+    expect(screen.getByRole("button", { name: "Allow sharing with Google Gemini (Google)" })).toBeInTheDocument();
+    expect(mocks.api).not.toHaveBeenCalled();
+  });
   it("names the recipient and data without saving consent on render", () => {
     render(<AiPrivacySettings consent={consent} onChange={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Allow sharing with Google Gemini (Google)" })).toBeInTheDocument();

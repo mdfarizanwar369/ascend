@@ -8,7 +8,7 @@ import { AiPrivacySettings } from "./AiPrivacySettings";
 import { getFirebaseClientAuth } from "@/lib/firebase";
 import { api } from "@/lib/api";
 
-const publicPaths = new Set(["/", "/login", "/launch", "/reset", "/onboarding", "/privacy", "/terms", "/contact", "/delete-account", "/refund-policy", "/ai-privacy"]);
+const publicPaths = new Set(["/", "/login", "/launch", "/reset", "/onboarding", "/privacy", "/terms", "/contact", "/delete-account", "/refund-policy", "/ai-privacy", "/privacy/ios", "/terms/ios", "/refund-policy/ios"]);
 
 export function AiConsentCoordinator() {
   const pathname = usePathname();

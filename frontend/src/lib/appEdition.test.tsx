@@ -38,7 +38,7 @@ describe("native iOS vs home-screen billing", () => {
     expect(usablePlan("premium", "active")).toBe("free");
     expect(canOfferWebInstall()).toBe(false);
   });
-  it.each(["/subscription", "/trainer", "/admin/users", "/athlete", "/reports/weekly", "/messages", "/coach-homework/id"])("does not mount the paid screen at %s in the native app", path => {
+  it.each(["/subscription", "/trainer", "/admin/users", "/athlete", "/reports/weekly", "/messages", "/coach-homework/id", "/profile/health-sync"])("does not mount an unavailable screen at %s in the native app", path => {
     device("ios", "Mozilla iPhone"); state.path = path;
     const paidScreen = vi.fn(() => <button>Buy Premium</button>);
     const PaidScreen = paidScreen;
@@ -57,6 +57,17 @@ describe("native iOS vs home-screen billing", () => {
     device("ios", "Mozilla iPhone");
     render(<IosFreeEditionBoundary><button>Log a meal</button></IosFreeEditionBoundary>);
     expect(screen.getByRole("button", { name: "Log a meal" })).toBeInTheDocument();
+  });
+  it.each(["/privacy", "/terms", "/refund-policy"])("uses the Apple edition policy for native %s", path => {
+    device("ios", "Mozilla iPad"); state.path = path;
+    render(<IosFreeEditionBoundary><p>Android policy text</p></IosFreeEditionBoundary>);
+    expect(screen.queryByText("Android policy text")).not.toBeInTheDocument();
+    expect(state.replace).toHaveBeenCalledWith(`${path}/ios`);
+  });
+  it.each(["android", "web"])("preserves Health Sync for %s", platform => {
+    device(platform, platform === "android" ? "AscendAndroid/1" : "Mozilla iPhone"); state.path = "/profile/health-sync";
+    render(<IosFreeEditionBoundary><p>Health Connect</p></IosFreeEditionBoundary>);
+    expect(screen.getByText("Health Connect")).toBeInTheDocument();
   });
   it.each(["/", "/demo"])("opens the app instead of the website marketing at %s", path => {
     device("ios", "Mozilla iPhone"); state.path = path;
