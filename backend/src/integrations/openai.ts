@@ -985,27 +985,32 @@ async function estimateFoodTextWithGemini(description: string) {
     required: ["foodName", "confidence", "calories", "proteinG", "carbsG", "fatG", "notes"]
   };
 
-  try {
-    const result = await callGeminiWithOptions([{ text: prompt }], 700, {
-      models: [env.GEMINI_MODEL],
-      attemptsPerModel: 1,
-      timeoutMs: 18_000,
-      responseMimeType: "application/json",
-      responseSchema
-    });
-    return parseFoodEstimate(result.text);
-  } catch (error) {
-    foodAiErrorLog("food_text_json_attempt_failed", {
-      model: env.GEMINI_MODEL,
-      error: error instanceof Error ? error.message : "Unknown error"
-    });
-    const result = await callGeminiWithOptions([{ text: prompt }], 700, {
-      models: [env.GEMINI_MODEL, "gemini-2.5-flash"],
-      attemptsPerModel: 1,
-      timeoutMs: 18_000
-    });
-    return parseFoodEstimate(result.text);
+  let lastError: unknown;
+  // Parse inside the model loop so incomplete HTTP 200 responses also fall
+  // back. Gemini's output budget includes reasoning as well as the final JSON.
+  for (const model of uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash"])) {
+    try {
+      const result = await callGeminiWithOptions([{ text: prompt }], 2048, {
+        models: [model],
+        attemptsPerModel: 1,
+        timeoutMs: 18_000,
+        thinkingLevel: "low",
+        responseMimeType: "application/json",
+        responseSchema
+      });
+      if (result.finishReason === "MAX_TOKENS") {
+        throw new FoodAiError("Food AI returned an incomplete response.", "invalid_json", "Gemini stopped at MAX_TOKENS.");
+      }
+      return parseFoodEstimate(result.text);
+    } catch (error) {
+      lastError = error;
+      foodAiErrorLog("food_text_json_attempt_failed", {
+        model,
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
   }
+  throw lastError instanceof Error ? lastError : new Error("Food AI text estimation failed.");
 }
 
 async function estimateFoodTextWithOpenAI(description: string) {
