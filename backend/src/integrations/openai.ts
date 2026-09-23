@@ -1894,7 +1894,9 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
     )) throw new Error("Incomplete workout response");
     return normalizeWorkoutPlan(parsed, input);
   } catch (error) {
-    if (options.requireAiSuccess) throw Object.assign(new Error("Zoe couldn't build your workout. Please try again; your daily workout is still available."), { status: 503 });
+    if (options.requireAiSuccess) throw Object.assign(new Error("Zoe couldn't build your workout. Please try again; your daily workout is still available."), {
+      name: "WorkoutGenerationError", status: 503
+    });
     return fallbackWorkoutPlan(input);
   }
 }
