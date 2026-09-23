@@ -26,8 +26,7 @@ export const appEditionMiddleware: RequestHandler = (req, res, next) => {
       const restricted = /^\/(admin|founder|trainer|athlete|messages|reports|body-composition|missions)(\/|$)/.test(path) && path !== "/missions/today"
         || /^\/subscriptions(\/|$)/.test(path) && path !== "/subscriptions/me"
         || /^\/progress-photos(\/|$)/.test(path)
-        || /^\/me\/coach-homework\//.test(path) && path !== "/me/coach-homework/current"
-        || path === "/ai/workout";
+        || /^\/me\/coach-homework\//.test(path) && path !== "/me/coach-homework/current";
       if (restricted) return res.status(403).json({ error: IOS_FREE_UNAVAILABLE, code: "IOS_FREE_EDITION" });
     }
     next();
