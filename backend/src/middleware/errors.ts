@@ -43,6 +43,10 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
   }
 
   const status = (error as Error & { status?: number }).status;
+  // Only this known, sanitized provider error exposes a retry message for 5xx.
+  if (status === 503 && error.name === "WorkoutGenerationError") {
+    return res.status(503).json({ error: error.message });
+  }
   if (status && status >= 400 && status < 500) {
     return res.status(status).json({ error: error.message });
   }

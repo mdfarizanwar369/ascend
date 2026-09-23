@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Request, Response } from "express";
 
 const complete = {
   title: "Home mobility", intro: "An easy session for today.", estimatedDurationMinutes: 20,
@@ -51,5 +52,29 @@ describe("daily workout AI success requirement", () => {
     vi.mocked(assertAiProviderConsent).mockRejectedValue(new Error("Consent required"));
     await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).rejects.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("returns the safe retry response through the production error handler", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response("{ malformed private provider output")));
+    const { createCoachWorkoutPlan } = await loadProvider();
+    const { errorHandler } = await import("../middleware/errors");
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    try {
+      await createCoachWorkoutPlan(request, { requireAiSuccess: true });
+      throw new Error("Expected generation failure");
+    } catch (error) {
+      errorHandler(error as Error, { method: "POST", path: "/api/v1/ai/workout" } as Request, res as unknown as Response, vi.fn());
+    }
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({ error: "Zoe couldn't build your workout. Please try again; your daily workout is still available." });
+  });
+  it("keeps unexpected server failure details private", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const { errorHandler } = await import("../middleware/errors");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    errorHandler(Object.assign(new Error("private failure details"), { status: 503 }),
+      { method: "POST", path: "/api/v1/ai/workout" } as Request, res as unknown as Response, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: "Internal server error", detail: undefined });
   });
 });
