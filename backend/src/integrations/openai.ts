@@ -1384,10 +1384,20 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
   }
 }
 
-async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string, maxOutputTokens?: number) {
-  if (!providerConfigured()) return fallback;
+async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string, maxOutputTokens?: number, requireCompleteJson = false) {
+  if (!providerConfigured()) {
+    if (requireCompleteJson) throw new Error("AI provider unavailable");
+    return fallback;
+  }
 
   if (env.AI_PROVIDER === "gemini") {
+    if (requireCompleteJson) {
+      const result = await callGeminiWithOptions([{ text: `${systemPrompt}\n\n${userPrompt}` }], maxOutputTokens ?? 4096, {
+        thinkingLevel: "low", responseMimeType: "application/json", timeoutMs: 22_000
+      });
+      if (result.finishReason !== "STOP") throw new Error("Incomplete workout response");
+      return result.text;
+    }
     try {
       return await callGemini([{ text: `${systemPrompt}\n\n${userPrompt}` }], maxOutputTokens ?? 1400);
     } catch {
@@ -1406,9 +1416,11 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
       ]
     });
 
+    if (requireCompleteJson && response.status !== "completed") throw new Error("Incomplete workout response");
     return response.output_text;
   }
 
+  if (requireCompleteJson) throw new Error("AI provider unavailable");
   return fallback;
 }
 
@@ -1854,8 +1866,8 @@ function normalizeWorkoutPlan(raw: unknown, input: WorkoutPlannerInput): CoachWo
   };
 }
 
-export async function createCoachWorkoutPlan(input: WorkoutPlannerInput): Promise<CoachWorkoutPlan> {
-  if (!providerConfigured()) return fallbackWorkoutPlan(input);
+export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options: { requireAiSuccess?: boolean } = {}): Promise<CoachWorkoutPlan> {
+  if (!providerConfigured() && !options.requireAiSuccess) return fallbackWorkoutPlan(input);
 
   try {
     const reply = await createTextReply(
@@ -1866,10 +1878,23 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput): Promis
         goal: input.goal,
         equipment: input.equipment
       })}\n\nAscend context: ${input.context}\n\nGenerate today's workout as strict JSON now.`,
-      JSON.stringify(fallbackWorkoutPlan(input))
+      JSON.stringify(fallbackWorkoutPlan(input)),
+      options.requireAiSuccess ? 4096 : undefined,
+      options.requireAiSuccess
     );
-    return normalizeWorkoutPlan(parseJsonObject(reply), input);
-  } catch {
+    const parsed = parseJsonObject(reply);
+    if (options.requireAiSuccess && (
+      !parsed || typeof parsed !== "object" || Array.isArray(parsed)
+      || !["title", "intro", "focus", "coachTip"].every(key => typeof (parsed as Record<string, unknown>)[key] === "string" && String((parsed as Record<string, unknown>)[key]).trim())
+      || !("estimatedDurationMinutes" in parsed) || !Number.isFinite(parsed.estimatedDurationMinutes)
+      || !("warmup" in parsed) || !Array.isArray(parsed.warmup) || !parsed.warmup.length
+      || !("cooldown" in parsed) || !Array.isArray(parsed.cooldown) || !parsed.cooldown.length
+      || !("exercises" in parsed) || !Array.isArray(parsed.exercises) || !parsed.exercises.length
+      || !parsed.exercises.every(exercise => typeof exercise?.name === "string" && exercise.name.trim() && (exercise.reps || exercise.duration))
+    )) throw new Error("Incomplete workout response");
+    return normalizeWorkoutPlan(parsed, input);
+  } catch (error) {
+    if (options.requireAiSuccess) throw Object.assign(new Error("Zoe couldn't build your workout. Please try again; your daily workout is still available."), { status: 503 });
     return fallbackWorkoutPlan(input);
   }
 }

@@ -6,6 +6,7 @@ import { query } from "../db/pool";
 import { requireAuth } from "../middleware/auth";
 import type { AuthUser } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
+import { isIosFreeEdition } from "../services/appEdition";
 import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
@@ -629,9 +630,23 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
   }
 });
 
-logsRouter.post("/burn-logs/completed-workout", requireAuth, requireActivePlan("premium"), async (req, res, next) => {
+logsRouter.post("/burn-logs/completed-workout", requireAuth, (req, res, next) => {
+  if (isIosFreeEdition()) return next();
+  return requireActivePlan("premium")(req, res, next);
+}, async (req, res, next) => {
   try {
     const input = completedWorkoutSchema.parse(req.body);
+    if (isIosFreeEdition()) {
+      const { getIosWorkoutForCompletion } = await import("../services/iosDailyWorkoutService");
+      const stored = await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
+      if (!stored) return res.status(404).json({ error: "Open your generated workout in Zoe before saving it." });
+      // Use the account-owned plan, never a caller-supplied paid/custom workout.
+      input.workoutTitle = stored.workout.title;
+      input.workoutType = stored.workout.focus;
+      input.workoutDifficulty = stored.workout.intensity;
+      input.durationMinutes = stored.workout.estimatedDurationMinutes;
+      input.exercises = stored.workout.exercises;
+    }
     const result = await persistCompletedWorkout({
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,

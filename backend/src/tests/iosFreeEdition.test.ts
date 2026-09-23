@@ -37,14 +37,14 @@ describe("iOS free edition boundary", () => {
   it("supports the explicit native header", () => {
     expect(isIosFreeRequest(request("/", { "x-ascend-edition": "ios-free-v1" }))).toBe(true);
   });
-  it.each(["/subscriptions/checkout", "/Subscriptions/Checkout/", "/subscriptions/portal", "/subscriptions/demo-activate", "/trainer/clients", "/admin/users", "/athlete/me", "/messages", "/reports/weekly/current", "/body-composition/scans", "/progress-photos", "/me/coach-homework/example", "/ai/workout"])("rejects a native paid route before side effects: %s", path => {
+  it.each(["/subscriptions/checkout", "/Subscriptions/Checkout/", "/subscriptions/portal", "/subscriptions/demo-activate", "/trainer/clients", "/admin/users", "/athlete/me", "/messages", "/reports/weekly/current", "/body-composition/scans", "/progress-photos", "/me/coach-homework/example"])("rejects a native paid route before side effects: %s", path => {
     const res = response(); const next = vi.fn();
     appEditionMiddleware(request(path, { "x-ascend-edition": "ios-free-v1" }), res, next);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
     expect(dbQuery).not.toHaveBeenCalled();
   });
-  it.each(["/food-logs", "/weight-logs", "/water-logs", "/burn-logs", "/ai/chat", "/subscriptions/me", "/me/account", "/me/ai-consent"])("keeps native free tools available: %s", path => {
+  it.each(["/food-logs", "/weight-logs", "/water-logs", "/burn-logs", "/ai/chat", "/ai/workout", "/ai/workout/today", "/burn-logs/completed-workout", "/subscriptions/me", "/me/account", "/me/ai-consent"])("keeps native free tools available: %s", path => {
     const next = vi.fn(() => expect(isIosFreeEdition()).toBe(true));
     appEditionMiddleware(request(path, { "user-agent": "AscendIOS/4 Capacitor" }), response(), next);
     expect(next).toHaveBeenCalledOnce();

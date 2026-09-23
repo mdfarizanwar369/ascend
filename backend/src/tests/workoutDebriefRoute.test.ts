@@ -1,6 +1,10 @@
 import express from "express";
 import { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { appEditionMiddleware } from "../services/appEdition";
+
+const { dailyForCompletion, premiumGate } = vi.hoisted(() => ({ dailyForCompletion: vi.fn(), premiumGate: vi.fn() }));
+vi.mock("../services/iosDailyWorkoutService", () => ({ getIosWorkoutForCompletion: dailyForCompletion }));
 
 const { persistCompletedWorkoutMock, initializeWorkoutDebriefMock, generateWorkoutDebriefMock, getWorkoutDebriefMock, queryMock, workoutCaptureAccessMock, debriefAccessMock, reserveDebriefMock } = vi.hoisted(() => ({
   persistCompletedWorkoutMock: vi.fn(),
@@ -28,7 +32,7 @@ vi.mock("../middleware/auth", () => ({
   }
 }));
 vi.mock("../middleware/subscription", () => ({
-  requireActivePlan: () => (_req: any, _res: any, next: () => void) => next()
+  requireActivePlan: () => (req: any, res: any, next: () => void) => premiumGate(req, res, next)
 }));
 vi.mock("../middleware/rateLimits", () => ({
   aiRateLimit: (_req: any, _res: any, next: () => void) => next(),
@@ -60,6 +64,7 @@ describe("workout debrief route isolation", () => {
     const { logsRouter } = await import("../routes/logs");
     const app = express();
     app.use(express.json());
+    app.use(appEditionMiddleware);
     app.use(logsRouter);
     const server = app.listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
@@ -69,6 +74,8 @@ describe("workout debrief route isolation", () => {
   });
 
   beforeEach(() => {
+    dailyForCompletion.mockReset();
+    premiumGate.mockReset().mockImplementation((_req, _res, next) => next());
     persistCompletedWorkoutMock.mockReset().mockResolvedValue({
       burnLog: {
         id: "33333333-3333-4333-8333-333333333333",
@@ -109,6 +116,48 @@ describe("workout debrief route isolation", () => {
   });
 
   afterAll(async () => closeServer?.());
+
+  it("lets native Free members save only their account-owned generated plan", async () => {
+    const plan = {
+      title: "Stored daily workout", focus: "Mobility", intensity: "easy", estimatedDurationMinutes: 20,
+      exercises: [{ name: "Walk", duration: "10 minutes" }]
+    };
+    dailyForCompletion.mockResolvedValue({ workout: plan });
+    const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+      method: "POST", headers: { "content-type": "application/json", "X-Ascend-Edition": "ios-free-v1" },
+      body: JSON.stringify({ workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+        workoutTitle: "Caller supplied title", workoutType: "Strength", workoutDifficulty: "challenging",
+        durationMinutes: 60, exercises: [{ name: "Caller supplied exercise", reps: "20" }] })
+    });
+    expect(response.status).toBe(201);
+    expect(premiumGate).not.toHaveBeenCalled();
+    expect(dailyForCompletion).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111", "55555555-5555-4555-8555-555555555555");
+    expect(persistCompletedWorkoutMock).toHaveBeenCalledWith(expect.objectContaining({
+      workoutTitle: plan.title, durationMinutes: 20, exercises: plan.exercises, workoutDifficulty: "easy"
+    }));
+  });
+
+  it("rejects unknown or another account's daily workout key", async () => {
+    dailyForCompletion.mockResolvedValue(null);
+    const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+      method: "POST", headers: { "content-type": "application/json", "X-Ascend-Edition": "ios-free-v1" },
+      body: JSON.stringify({ workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+        workoutTitle: "Workout", workoutType: "Strength", workoutDifficulty: "moderate",
+        durationMinutes: 20, exercises: [{ name: "Squat", reps: "8" }] })
+    });
+    expect(response.status).toBe(404);
+    expect(persistCompletedWorkoutMock).not.toHaveBeenCalled();
+  });
+
+  it("retains the Premium gate for other clients", async () => {
+    premiumGate.mockImplementation((_req, res) => res.status(403).json({ error: "Premium required" }));
+    const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: "{}"
+    });
+    expect(response.status).toBe(403);
+    expect(dailyForCompletion).not.toHaveBeenCalled();
+    expect(persistCompletedWorkoutMock).not.toHaveBeenCalled();
+  });
 
   it("returns the saved workout even when optional debrief initialization fails", async () => {
     const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
