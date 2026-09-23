@@ -13,6 +13,7 @@ export function FreeAppFeatures() {
         <li>Unlimited manual meal, water, weight and activity logs</li>
         <li>2 AI meal estimates per day</li>
         <li>10 Zoe chat replies per day</li>
+        <li>1 generated workout per day — reopen it anytime that day</li>
         <li>3 detailed workout captures per rolling 7 days</li>
         <li>1 AI workout review per rolling 7 days</li>
       </ul>
