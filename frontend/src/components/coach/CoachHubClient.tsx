@@ -11,10 +11,12 @@ import type { WorkoutDebriefView } from "@ascend/shared";
 import {
   CoachChatMode,
   GeneratedWorkout,
+  DailyWorkout,
   WorkoutPlannerGoal,
   WorkoutPlannerLocation,
   getAscendMemory,
   generateTodayWorkout,
+  getTodayWorkout,
   getBurnLogs,
   getCoachPresence,
   getFoodLogs,
@@ -196,6 +198,7 @@ function WorkoutPlannerCard({
   onRegenerate,
   setMessage,
   showExistingChoice,
+  allowRegenerate = true,
   workoutSaved,
   workout
 }: {
@@ -209,6 +212,7 @@ function WorkoutPlannerCard({
   onRegenerate: () => void;
   setMessage: (message: string) => void;
   showExistingChoice: boolean;
+  allowRegenerate?: boolean;
   workoutSaved: boolean;
   workout: GeneratedWorkout | null;
 }) {
@@ -226,20 +230,20 @@ function WorkoutPlannerCard({
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold">You already have today&apos;s workout.</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">Keep it, regenerate it, or ask Zoe to adjust it in chat.</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">{allowRegenerate ? "Keep it, regenerate it, or ask Zoe to adjust it in chat." : "Your daily workout is ready. You can build a new one after midnight, or ask Zoe for guidance in chat."}</p>
           </div>
         </div>
         <div className="mt-4 grid gap-2">
           <button type="button" onClick={onCancel} className="rounded-xl bg-lime px-4 py-3 text-sm font-bold text-ink">
             Keep current workout
           </button>
-          <button
+          {allowRegenerate ? <button
             type="button"
             onClick={onRegenerate}
             className="rounded-xl border border-line bg-ink px-4 py-3 text-sm font-semibold text-zinc-100"
           >
             Regenerate
-          </button>
+          </button> : null}
           <button
             type="button"
             onClick={() => {
@@ -463,6 +467,8 @@ export function CoachHubClient() {
   const [workout, setWorkout] = useState<GeneratedWorkout | null>(null);
   const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set());
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
+  const [isLoadingWorkout, setIsLoadingWorkout] = useState(false);
+  const [dailyWorkoutCompleted, setDailyWorkoutCompleted] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
@@ -571,8 +577,46 @@ export function CoachHubClient() {
     }
   }
 
-  function startWorkoutPlanner() {
+  function applyDailyWorkout(daily: DailyWorkout) {
+    const changed = workoutCompletionKey !== daily.workoutCompletionKey;
+    setWorkout(daily.workout);
+    setAnswers(daily.request);
+    setWorkoutCompletionKey(daily.workoutCompletionKey);
+    setDailyWorkoutCompleted(daily.completed);
+    if (changed || daily.completed) {
+      setCheckedExercises(new Set(daily.completed ? daily.workout.exercises.map((_, index) => index) : []));
+      setSavedWorkoutSummary(null);
+      setWorkoutDebrief(null);
+    }
+    setShowExistingChoice(false);
+    setPlannerOpen(true);
+  }
+
+  async function startWorkoutPlanner() {
+    if (isLoadingWorkout || isGeneratingWorkout) return;
     setStatus("");
+    if (iosFree) {
+      setIsLoadingWorkout(true);
+      try {
+        const { dailyWorkout } = await getTodayWorkout();
+        if (dailyWorkout) {
+          applyDailyWorkout(dailyWorkout);
+          return;
+        }
+        setWorkout(null);
+        setWorkoutCompletionKey(null);
+        setSavedWorkoutSummary(null);
+        setWorkoutDebrief(null);
+        setDailyWorkoutCompleted(false);
+        setCheckedExercises(new Set());
+        setAnswers({});
+        setShowExistingChoice(false);
+        setPlannerOpen(true);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Could not load today's workout. Please try again.");
+      } finally { setIsLoadingWorkout(false); }
+      return;
+    }
     if (workout) {
       setShowExistingChoice(true);
       setPlannerOpen(true);
@@ -604,6 +648,11 @@ export function CoachHubClient() {
         goal: nextAnswers.goal,
         equipment: nextAnswers.equipment
       });
+      if (iosFree && response.dailyWorkout) {
+        applyDailyWorkout(response.dailyWorkout);
+        setMessages((current) => [...current, { role: "assistant", text: response.workout.intro }]);
+        return;
+      }
       setWorkout(response.workout);
       setCheckedExercises(new Set());
       setSavedWorkoutSummary(null);
@@ -611,6 +660,7 @@ export function CoachHubClient() {
       setWorkoutCompletionKey(nextWorkoutCompletionKey());
       setMessages((current) => [...current, { role: "assistant", text: response.workout.intro }]);
     } catch (error) {
+      setAnswers(current => ({ ...current, equipment: undefined }));
       setStatus(error instanceof Error ? error.message : "Coach Zoe could not build the workout yet.");
     } finally {
       setIsGeneratingWorkout(false);
@@ -636,6 +686,7 @@ export function CoachHubClient() {
 
       rememberDashboardRecord("burn", response.burnLog);
       setSavedWorkoutSummary(response.summary);
+      if (iosFree) setDailyWorkoutCompleted(true);
       setWorkoutDebrief(response.debrief);
       if (response.debrief?.enabled && (response.debrief.status === "pending" || response.debrief.status === "generating")) {
         void waitForWorkoutDebrief(response.burnLog.id)
@@ -718,19 +769,20 @@ export function CoachHubClient() {
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            {quickActions.filter((action) => !iosFree || action.action !== "workout").map((action) => {
+            {quickActions.map((action) => {
               const Icon = action.icon;
               return (
                 <button
                   key={action.label}
                   type="button"
+                  disabled={action.action === "workout" && (isLoadingWorkout || isGeneratingWorkout)}
                   onClick={() => {
                     if (action.action === "focus") {
                       focusCoachInput();
                       return;
                     }
                     if (action.action === "workout") {
-                      startWorkoutPlanner();
+                      void startWorkoutPlanner();
                       return;
                     }
                     if (action.action === "meal") {
@@ -760,7 +812,7 @@ export function CoachHubClient() {
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface text-calm">
                     <Icon size={17} />
                   </span>
-                  <span className="text-sm font-semibold text-zinc-100">{action.label}</span>
+                  <span className="text-sm font-semibold text-zinc-100">{action.action === "workout" && iosFree ? isLoadingWorkout ? "Opening workout..." : workout ? "Open Today's Workout" : action.label : action.label}</span>
                 </button>
               );
             })}
@@ -768,6 +820,7 @@ export function CoachHubClient() {
         </section>
 
         <div className="space-y-3 py-4">
+          {iosFree ? <p className="text-sm text-zinc-400">1 free workout per day. Reopen today's workout anytime. New workouts become available at local midnight.</p> : null}
           {plannerOpen ? (
             <WorkoutPlannerCard
               answers={answers}
@@ -795,7 +848,8 @@ export function CoachHubClient() {
               }
               setMessage={setMessage}
               showExistingChoice={showExistingChoice}
-              workoutSaved={Boolean(savedWorkoutSummary)}
+              allowRegenerate={!iosFree}
+              workoutSaved={Boolean(savedWorkoutSummary) || dailyWorkoutCompleted}
               workout={workout}
             />
           ) : null}
@@ -862,6 +916,8 @@ export function CoachHubClient() {
                       )}
                   </div>
                 </div>
+              ) : dailyWorkoutCompleted ? (
+                <p className="mt-4 rounded-xl bg-lime/10 p-4 text-sm text-lime">This workout is already saved in your activity log.</p>
               ) : allExercisesCompleted ? (
                 <button
                   type="button"
