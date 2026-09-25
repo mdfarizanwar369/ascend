@@ -35,7 +35,23 @@ export async function confirmAppleTransaction(transaction: AppleTransaction) {
 export async function syncAppleTransactions(restore = false) {
   const config = await getAppleBillingConfig();
   if (!config.enabled) return 0;
-  const result = restore ? await AppleBilling.restore() : await AppleBilling.getTransactions();
+  let result: { transactions: AppleTransaction[] };
+  if (restore) {
+    try {
+      result = await AppleBilling.restore();
+    } catch (restoreError) {
+      // StoreKit may already have signed entitlements even if its account refresh fails.
+      // Recover them through the same server verification as a successful restore.
+      try {
+        result = await AppleBilling.getTransactions();
+      } catch {
+        throw restoreError;
+      }
+      if (result.transactions.length === 0) throw restoreError;
+    }
+  } else {
+    result = await AppleBilling.getTransactions();
+  }
   let restored = 0;
   let failure: unknown;
   for (const transaction of result.transactions) {
