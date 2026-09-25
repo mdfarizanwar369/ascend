@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "./appEdition";
 import { query } from "../db/pool";
 import { env } from "../config/env";
 import { bodyCompositionScanFromDb, getTrustedBodyCompositionHistory } from "./bodyCompositionService";
@@ -86,6 +87,7 @@ export async function ensureCoachPresenceSchema() {
 }
 
 function activePaidPlan(context: UserCoachPresenceContext) {
+  if (isIosFreeEdition()) return false;
   return (context.current_plan === "premium" || context.current_plan === "trainer_pro") &&
     (context.subscription_status === null || ["active", "trialing", "past_due", "canceled"].includes(context.subscription_status));
 }

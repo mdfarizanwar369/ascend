@@ -1,5 +1,8 @@
 "use client";
 
+import { useIosFreeEdition, useIosApp } from "@/lib/appEdition";
+import { FreeAppFeatures } from "@/components/IosFreeEditionBoundary";
+
 import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { Activity, Camera, Check, CreditCard, ExternalLink, ScanLine, Trash2, XCircle } from "lucide-react";
@@ -27,6 +30,8 @@ function formatBillingDate(value: string | null | undefined) {
 }
 
 export function ProfileClient() {
+  const iosFree = useIosFreeEdition();
+  const iosApp = useIosApp();
   const [user, setUser] = useState<Awaited<ReturnType<typeof getMe>>["user"] | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
@@ -229,7 +234,7 @@ export function ProfileClient() {
               <SkeletonBlock className="mt-5 h-12 w-full rounded-lg" />
             </div>
           </SectionShell>
-          <SectionShell title="Subscription">
+          <SectionShell title={iosFree ? "Included with Ascend" : "Subscription"}>
             <SkeletonStatGrid count={2} />
           </SectionShell>
           <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
@@ -271,7 +276,7 @@ export function ProfileClient() {
               ) : null}
               <p className="mt-4 text-xs leading-5 text-zinc-500">Ascend crops the photo square and compresses it before upload. The original file is not stored.</p>
             </>
-          ) : (
+          ) : iosFree ? null : (
             <div className="mt-5 rounded-lg border border-calm/40 bg-calm/10 p-4 text-left">
               <p className="text-sm font-semibold text-calm">Profile photos are available with Premium.</p>
               <Link href="/subscription" className="mt-3 flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink">
@@ -281,6 +286,7 @@ export function ProfileClient() {
           )}
         </section>
 
+        {iosFree ? <FreeAppFeatures /> : <>
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Subscription</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <div className="flex items-start justify-between gap-3">
@@ -311,7 +317,7 @@ export function ProfileClient() {
                   <button type="button" onClick={() => openBillingPortal("manage")} disabled={isBillingWorking} className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60">
                     Manage or cancel in Apple Subscriptions
                   </button>
-                ) : isGooglePlaySubscription ? (
+                ) : isGooglePlaySubscription && iosApp ? <p className="text-sm text-zinc-300">This subscription is managed with the billing provider used to purchase it.</p> : isGooglePlaySubscription ? (
                   <>
                     <button
                       type="button"
@@ -382,6 +388,7 @@ export function ProfileClient() {
               : "Cancellation is always available here. Stripe handles card billing, receipts, renewal updates, and cancellation for paid subscriptions."}
           </p>
         </section>
+        </>}
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Connected services</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <p className="text-sm font-semibold">App settings</p>
@@ -389,9 +396,9 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
-            <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+            {!iosApp && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
               <Activity size={17} /> Health Sync
-            </Link>
+            </Link>}
             {user?.athlete_mode_enabled || user?.body_scan_introductory_enabled ? (
               <Link href={user?.athlete_mode_enabled ? "/athlete/body-composition" : "/body-scan"} className="flex h-11 items-center justify-center gap-2 rounded-lg border border-violet-500/40 bg-violet-500/10 text-sm font-semibold text-violet-200">
                 <ScanLine size={17} /> Body Scan

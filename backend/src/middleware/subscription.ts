@@ -1,3 +1,4 @@
+import { isIosFreeEdition, IOS_FREE_UNAVAILABLE } from "../services/appEdition";
 import { NextFunction, Request, Response } from "express";
 import { SubscriptionPlan } from "@ascend/shared";
 import { query } from "../db/pool";
@@ -12,6 +13,7 @@ export function requireActivePlan(requiredPlan: Exclude<SubscriptionPlan, "free"
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) return res.status(401).json({ error: "Authentication required" });
+      if (isIosFreeEdition()) return res.status(403).json({ error: IOS_FREE_UNAVAILABLE, code: "IOS_FREE_EDITION" });
       if (
         req.user.primaryRole === "owner" ||
         req.user.primaryRole === "admin" ||

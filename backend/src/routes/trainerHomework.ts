@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth";
@@ -137,6 +138,7 @@ trainerHomeworkRouter.post("/trainer/clients/:clientId/homework", requireAuth, r
 
 trainerHomeworkRouter.get("/me/coach-homework/current", requireAuth, async (req, res, next) => {
   try {
+    if (isIosFreeEdition()) return res.json({ assignment: null, disabled: true });
     if (!trainerHomeworkEnabled()) return res.json({ assignment: null, disabled: true });
     if (!req.user?.roles.includes("client") && req.user?.primaryRole !== "client") return res.json({ assignment: null });
     const assignment = await getCurrentClientHomework(req.user!.id);

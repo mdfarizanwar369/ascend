@@ -1,5 +1,6 @@
 "use client";
 
+import { isIosSubscriptionEdition } from "./appEdition";
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { getAppleBillingConfig, verifyAppleSubscription } from "./ascendApi";
 import { getNativeCapacitorPlatform, isNativeCapacitorPlatform } from "./nativePlatform";
@@ -21,7 +22,7 @@ export const AppleBilling = registerPlugin<AppleBillingPlugin>("AppleBilling");
 
 export function supportsAppleBilling() {
   if (!isNativeCapacitorPlatform() || getNativeCapacitorPlatform() !== "ios") return false;
-  return Number(/AscendIOS\/(\d+)/.exec(window.navigator.userAgent)?.[1] ?? 0) >= 3;
+  return isIosSubscriptionEdition();
 }
 
 export async function confirmAppleTransaction(transaction: AppleTransaction) {

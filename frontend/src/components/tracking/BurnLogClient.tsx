@@ -1,5 +1,7 @@
 "use client";
 
+import { isIosFreeEdition } from "@/lib/appEdition";
+
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Flame, ListChecks, Save, Trash2, Zap } from "lucide-react";
@@ -285,14 +287,14 @@ export function BurnLogClient() {
                 }}
               placeholder="Ran 30 minutes"
               />
-              <button
+              {!isIosFreeEdition() && <button
                 type="button"
                 disabled={isEstimating || !activityText.trim()}
                 onClick={estimateFromText}
                 className="ascend-pressable h-11 w-full rounded-xl border border-lime/40 bg-lime/10 font-semibold text-lime disabled:opacity-60"
               >
                 {isEstimating ? "Estimating..." : canUseAiEstimate ? "Estimate with AI" : "Premium AI estimate"}
-              </button>
+              </button>}
             </div>
           </Field>
 

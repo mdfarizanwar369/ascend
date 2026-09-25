@@ -1,3 +1,4 @@
+import { IosFreeEditionBoundary } from "@/components/IosFreeEditionBoundary";
 import type { Metadata, Viewport } from "next";
 import { AuthStateGuard } from "@/components/AuthStateGuard";
 import { CapacitorAppUrlRouter } from "@/components/CapacitorAppUrlRouter";
@@ -90,7 +91,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <HealthSyncCoordinator />
           <OfflineIndicator />
           <ClientErrorReporter />
-          {children}
+          <IosFreeEditionBoundary>{children}</IosFreeEditionBoundary>
         </AscendLaunchMorphV22Provider>
       </body>
     </html>

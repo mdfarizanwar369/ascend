@@ -1,3 +1,4 @@
+import { isIosFreeEdition, isIosNativeEdition } from "./appEdition";
 import { createHash } from "crypto";
 import { FoodEstimate } from "@ascend/shared";
 import { env } from "../config/env";
@@ -28,7 +29,7 @@ export class FoodAiLimitError extends Error {
     super(
       allowance.period === "week"
         ? "Weekly AI food scan limit reached. You can still log food manually."
-        : "Daily AI food scan limit reached. You can still log food manually."
+        : isIosFreeEdition() ? "Daily AI meal estimate limit reached. Your allowance resets at midnight. You can still log food manually." : "Daily AI food scan limit reached. You can still log food manually."
     );
     this.name = "FoodAiLimitError";
   }
@@ -37,7 +38,9 @@ export class FoodAiLimitError extends Error {
 export class CoachZoeLimitError extends Error {
   constructor() {
     super(
-      "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights, and a coach that learns from your journey."
+      isIosFreeEdition()
+        ? "You've used today's 10 Zoe replies. Your allowance resets at midnight. You can keep logging your meals and activity."
+        : "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights, and a coach that learns from your journey."
     );
     this.name = "CoachZoeLimitError";
   }
@@ -180,6 +183,7 @@ function parseRoles(roles: Role[] | string | null | undefined): Role[] {
 }
 
 async function getAiAccessProfile(userId: string) {
+  if (isIosFreeEdition()) return { primaryRole: "client" as Role, roles: [] as Role[], activePlan: "free" as SubscriptionPlan };
   const profileResult = await query<{
     primary_role: Role;
     roles: Role[] | string | null;
@@ -213,6 +217,7 @@ async function getAiAccessProfile(userId: string) {
 }
 
 function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePlan: SubscriptionPlan }): Omit<FoodAiAllowance, "used" | "remaining"> {
+  if (isIosFreeEdition()) return { period: "day", label: "Free AI meal estimates today", limit: 2 };
   if (input.primaryRole === "owner" || input.primaryRole === "admin" || input.roles.includes("owner") || input.roles.includes("admin")) {
     return { period: "unlimited", label: "Unlimited owner/admin AI scans", limit: null };
   }
@@ -225,6 +230,7 @@ function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePla
     return { period: "day", label: "Premium AI scans today", limit: 5 };
   }
 
+  if (isIosNativeEdition()) return { period: "day", label: "Free AI meal estimates today", limit: 2 };
   return { period: "week", label: "Free weekly AI scans", limit: 5 };
 }
 
@@ -293,11 +299,11 @@ export async function getCoachZoeAccess(userId: string, timezoneOffsetMinutes = 
       and event_type = 'ai_chat_message'
       and cache_hit = false
       and status = 'success'
-      and coalesce(metadata->>'mode', 'general') = 'general'
+      and ($3::boolean or coalesce(metadata->>'mode', 'general') = 'general')
       and coalesce(metadata->>'feature', '') <> 'coach_zoe_workout_planner'
       and created_at >= $2
     `,
-    [userId, localDayStartUtc(normalizeTimezoneOffsetMinutes(timezoneOffsetMinutes), now).toISOString()]
+    [userId, localDayStartUtc(normalizeTimezoneOffsetMinutes(timezoneOffsetMinutes), now).toISOString(), isIosNativeEdition()]
   );
   const used = Number(usedResult.rows[0]?.used ?? 0);
   const limit = 10;
@@ -334,4 +340,9 @@ export function aiLimitConfig() {
     monthlyChatLimit: env.AI_MONTHLY_CHAT_LIMIT,
     monthlyWeeklyReportLimit: env.AI_MONTHLY_WEEKLY_REPORT_LIMIT
   };
+}
+
+export async function usesIosDailyWorkout(userId: string) {
+  if (isIosFreeEdition()) return true;
+  return isIosNativeEdition() && !(await getCoachZoeAccess(userId)).premiumDepth;
 }

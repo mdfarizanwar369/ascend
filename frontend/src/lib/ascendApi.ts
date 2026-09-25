@@ -1480,13 +1480,30 @@ export type TrainerHomeworkAssignment = {
   workout: CoachHomeworkWorkout | null;
 };
 
+export type DailyWorkout = {
+  workout: GeneratedWorkout;
+  workoutCompletionKey: string;
+  resetsAt: string;
+  completed: boolean;
+  request: {
+    location: WorkoutPlannerLocation;
+    timeAvailable: "20" | "30" | "45" | "60";
+    goal: WorkoutPlannerGoal;
+    equipment: string;
+  };
+};
+
+export function getTodayWorkout() {
+  return authed<{ dailyWorkout: DailyWorkout | null }>("/ai/workout/today");
+}
+
 export function generateTodayWorkout(input: {
   location: WorkoutPlannerLocation;
   timeAvailable: "20" | "30" | "45" | "60";
   goal: WorkoutPlannerGoal;
   equipment: string;
 }) {
-  return authed<{ workout: GeneratedWorkout }>("/ai/workout", {
+  return authed<{ workout: GeneratedWorkout; dailyWorkout?: DailyWorkout }>("/ai/workout", {
     method: "POST",
     body: JSON.stringify({ ...input, timezoneOffsetMinutes: new Date().getTimezoneOffset() })
   });
@@ -1721,7 +1738,7 @@ export function getMessageContacts() {
 }
 
 export function getAppleBillingConfig() {
-  return authed<{ enabled: boolean; purchaseBlocked: boolean; appAccountToken: string; productIds: string[] }>("/subscriptions/apple/config");
+  return authed<{ enabled: boolean; purchaseBlocked: boolean; canPurchaseTrainerPro: boolean; appAccountToken: string; productIds: string[] }>("/subscriptions/apple/config");
 }
 
 export async function verifyAppleSubscription(input: { signedTransaction: string; environment?: "Production" | "Sandbox" }) {

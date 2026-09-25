@@ -1,3 +1,4 @@
+import { isIosFreeEdition, isIosNativeEdition } from "../services/appEdition";
 import { requireAiConsent } from "../middleware/aiConsent";
 import { Router } from "express";
 import {
@@ -13,7 +14,7 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
-import { getCoachZoeAccess, logAiUsage } from "../services/aiUsageService";
+import { getCoachZoeAccess, logAiUsage, usesIosDailyWorkout } from "../services/aiUsageService";
 import { env } from "../config/env";
 import { aiRateLimit, todayPriorityRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
@@ -21,6 +22,7 @@ import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
+import { generateIosDailyWorkout, getIosDailyWorkout } from "../services/iosDailyWorkoutService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
 import { deterministicTodayPriority } from "../services/todayPriorityService";
 import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
@@ -285,9 +287,11 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
   try {
     const { message, mode, timezoneOffsetMinutes } = coachChatSchema.parse(req.body);
     const coachAccess = await getCoachZoeAccess(req.user!.id, timezoneOffsetMinutes);
-    if (mode === "general" && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
+    if ((isIosNativeEdition() || mode === "general") && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
       return res.status(402).json({
-        error: "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights and a coach that learns from your journey."
+        error: isIosFreeEdition()
+          ? "You've used today's 10 Zoe replies. Your allowance resets at midnight. You can keep logging meals and activity."
+          : "You've used today's free coaching sessions. Upgrade to Ascend Plus for unlimited conversations, deeper insights and a coach that learns from your journey."
       });
     }
 
@@ -522,7 +526,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
       completedToday: burnWindowResult.rows.some((row) => localDateKeyAtOffset(String(row.created_at ?? ""), timezoneOffsetMinutes) === localDateKeyDaysAgo(0, timezoneOffsetMinutes)),
       completedYesterday: burnWindowResult.rows.some((row) => localDateKeyAtOffset(String(row.created_at ?? ""), timezoneOffsetMinutes) === localDateKeyDaysAgo(1, timezoneOffsetMinutes))
     };
-    const latestWeeklyReport = weeklyReportResult.rows[0]
+    const latestWeeklyReport = !isIosFreeEdition() && weeklyReportResult.rows[0]
       ? {
           summary: String(weeklyReportResult.rows[0].summary ?? ""),
           complianceScore: asNumber(weeklyReportResult.rows[0].compliance_score),
@@ -530,7 +534,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
           weekEnd: weeklyReportResult.rows[0].week_end
         }
       : null;
-    const trustedBodyScans = getTrustedBodyCompositionHistory(bodyScanHistoryResult.rows.map((row) => bodyCompositionScanFromDb(row))).confirmedHistory;
+    const trustedBodyScans = isIosFreeEdition() ? [] : getTrustedBodyCompositionHistory(bodyScanHistoryResult.rows.map((row) => bodyCompositionScanFromDb(row))).confirmedHistory;
     const bodyScanSummary = buildBodyCompositionSummary(trustedBodyScans);
     const bodyScanHistory = trustedBodyScans.map((scan) => ({
       scanDate: scan.scanDate,
@@ -561,7 +565,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
       recentFoodLogs: recentFoodResult.rows,
       recentWorkouts: recentBurnResult.rows,
       workoutMemory,
-      athleteMode: athleteResult.rows[0] ?? null,
+      athleteMode: isIosFreeEdition() ? null : athleteResult.rows[0] ?? null,
       latestBodyScan: bodyScanSummary.latestScan,
       bodyScanEvidence: {
         historyCount: bodyScanSummary.scanCount,
@@ -883,163 +887,181 @@ aiRouter.post("/ai/workout-capture", requireAuth, requireAiConsent, aiRateLimit,
   }
 });
 
+aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
+  try {
+    res.json({ dailyWorkout: await usesIosDailyWorkout(req.user!.id) ? await getIosDailyWorkout(req.user!.id) : null });
+  } catch (error) { next(error); }
+});
+
 aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     const input = workoutPlannerSchema.parse(req.body);
-    const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
-      await Promise.all([
-        getCoachZoeAccess(req.user!.id, input.timezoneOffsetMinutes),
-        query(
-          `
-          select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
-          from users
-          where id = $1
-          `,
-          [req.user!.id]
-        ),
-        query(
-          `
-          select weight_kg, logged_at
-          from weight_logs
-          where user_id = $1
-          order by logged_at desc
-          limit 1
-          `,
-          [req.user!.id]
-        ),
-        query(
-          `
-          select count(*)::int as logs_7d,
-            count(distinct logged_at::date)::int as food_days_7d,
-            coalesce(round(avg(protein_g)::numeric, 1), 0) as avg_protein_g,
-            max(logged_at) as latest_food_at
-          from food_logs
-          where user_id = $1
-            and logged_at >= now() - interval '7 days'
-          `,
-          [req.user!.id]
-        ),
-        query(
-          `
-          select metadata, created_at
-          from analytics_events
-          where user_id = $1
-            and event_name = 'burn_log'
-          order by created_at desc
-          limit 5
-          `,
-          [req.user!.id]
-        ),
-        query(
-          `
-          select enabled, sport, division, competition_name, competition_date, goal_weight_kg
-          from athlete_profiles
-          where user_id = $1
-          `,
-          [req.user!.id]
-        ),
-        query(
-          `
-          select *
-          from body_composition_scans
-          where user_id = $1
-            and user_confirmed = true
-            and experience_scope = 'athlete'
-          order by scan_date desc, created_at desc
-          limit 20
-          `,
-          [req.user!.id]
-        ),
-        query(
-          `
-          select role, message
-          from ai_chat_messages
-          where user_id = $1
-          order by created_at desc
-          limit 4
-          `,
-          [req.user!.id]
-        ),
-        getHealthSyncSummary(req.user!.id),
-        query(
-          `
-          select score
-          from compliance_scores
-          where user_id = $1
-          order by calculated_for_date desc
-          limit 1
-          `,
-          [req.user!.id]
-        )
-      ]);
-    const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
-      currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null,
-      timezoneOffsetMinutes: input.timezoneOffsetMinutes
-    });
-    const latestTrustedBodyScan = getTrustedBodyCompositionHistory(bodyScanResult.rows.map((row) => bodyCompositionScanFromDb(row))).latestConfirmedScan;
-    const workoutBodyScan = latestTrustedBodyScan
-      ? {
-          scan_date: latestTrustedBodyScan.scanDate,
-          weight_kg: latestTrustedBodyScan.weightKg ?? null,
-          body_fat_percent: latestTrustedBodyScan.bodyFatPercent ?? null,
-          skeletal_muscle_mass_kg: latestTrustedBodyScan.skeletalMuscleMassKg ?? latestTrustedBodyScan.muscleMassKg ?? null,
-          visceral_fat: latestTrustedBodyScan.visceralFat ?? null,
-          bmr_kcal: latestTrustedBodyScan.bmrKcal ?? null
-        }
-      : null;
-
-    const promptContext = JSON.stringify(
-      buildWorkoutPlannerContext({
-        coachAccess,
-        profile: profileResult.rows[0] ?? null,
-        latestWeightKg: latestWeightResult.rows[0]?.weight_kg ? Number(latestWeightResult.rows[0].weight_kg) : null,
-        recentFoodConsistency: recentFoodResult.rows[0] ?? null,
-        recentWorkouts: recentBurnResult.rows,
-        workoutMemory,
-        athleteMode: athleteResult.rows[0] ?? null,
-        latestBodyScan: workoutBodyScan,
-        recentCoachZoeContext: recentMessagesResult.rows.reverse(),
-        healthSync: healthSyncSummary
-          ? {
-              todaySteps: healthSyncSummary.todaySteps,
-              averageSteps7d: healthSyncSummary.averageSteps7d,
-              todayActiveCalories: healthSyncSummary.todayActiveCalories,
-              workoutsThisWeek: healthSyncSummary.workoutsThisWeek,
-              workoutCompletedToday: healthSyncSummary.workoutCompletedToday,
-              lastSyncedAt: healthSyncSummary.lastSyncedAt
-            }
-          : null,
-        request: {
-          location: input.location,
-          timeAvailable: input.timeAvailable,
-          goal: input.goal,
-          equipment: input.equipment
-        },
+    const dailyLimited = await usesIosDailyWorkout(req.user!.id);
+    const generate = async () => {
+      const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
+        await Promise.all([
+          getCoachZoeAccess(req.user!.id, input.timezoneOffsetMinutes),
+          query(
+            `
+            select goal_type, starting_weight_kg, target_weight_kg, activity_level, age_years, gender, height_cm
+            from users
+            where id = $1
+            `,
+            [req.user!.id]
+          ),
+          query(
+            `
+            select weight_kg, logged_at
+            from weight_logs
+            where user_id = $1
+            order by logged_at desc
+            limit 1
+            `,
+            [req.user!.id]
+          ),
+          query(
+            `
+            select count(*)::int as logs_7d,
+              count(distinct logged_at::date)::int as food_days_7d,
+              coalesce(round(avg(protein_g)::numeric, 1), 0) as avg_protein_g,
+              max(logged_at) as latest_food_at
+            from food_logs
+            where user_id = $1
+              and logged_at >= now() - interval '7 days'
+            `,
+            [req.user!.id]
+          ),
+          query(
+            `
+            select metadata, created_at
+            from analytics_events
+            where user_id = $1
+              and event_name = 'burn_log'
+            order by created_at desc
+            limit 5
+            `,
+            [req.user!.id]
+          ),
+          query(
+            `
+            select enabled, sport, division, competition_name, competition_date, goal_weight_kg
+            from athlete_profiles
+            where user_id = $1
+            `,
+            [req.user!.id]
+          ),
+          query(
+            `
+            select *
+            from body_composition_scans
+            where user_id = $1
+              and user_confirmed = true
+              and experience_scope = 'athlete'
+            order by scan_date desc, created_at desc
+            limit 20
+            `,
+            [req.user!.id]
+          ),
+          query(
+            `
+            select role, message
+            from ai_chat_messages
+            where user_id = $1
+            order by created_at desc
+            limit 4
+            `,
+            [req.user!.id]
+          ),
+          getHealthSyncSummary(req.user!.id),
+          query(
+            `
+            select score
+            from compliance_scores
+            where user_id = $1
+            order by calculated_for_date desc
+            limit 1
+            `,
+            [req.user!.id]
+          )
+        ]);
+      const workoutMemory = buildWorkoutMemorySummary(recentBurnResult.rows, {
+        currentMomentum: Number(momentumResult.rows[0]?.score ?? 0) || null,
         timezoneOffsetMinutes: input.timezoneOffsetMinutes
-      })
-    );
+      });
+      const latestTrustedBodyScan = isIosFreeEdition() ? null : getTrustedBodyCompositionHistory(bodyScanResult.rows.map((row) => bodyCompositionScanFromDb(row))).latestConfirmedScan;
+      const workoutBodyScan = latestTrustedBodyScan
+        ? {
+            scan_date: latestTrustedBodyScan.scanDate,
+            weight_kg: latestTrustedBodyScan.weightKg ?? null,
+            body_fat_percent: latestTrustedBodyScan.bodyFatPercent ?? null,
+            skeletal_muscle_mass_kg: latestTrustedBodyScan.skeletalMuscleMassKg ?? latestTrustedBodyScan.muscleMassKg ?? null,
+            visceral_fat: latestTrustedBodyScan.visceralFat ?? null,
+            bmr_kcal: latestTrustedBodyScan.bmrKcal ?? null
+          }
+        : null;
 
-    const workout = await createCoachWorkoutPlan({
-      location: input.location,
-      timeAvailable: input.timeAvailable,
-      goal: input.goal,
-      equipment: input.equipment,
-      context: promptContext
-    });
+      const promptContext = JSON.stringify(
+        buildWorkoutPlannerContext({
+          coachAccess,
+          profile: profileResult.rows[0] ?? null,
+          latestWeightKg: latestWeightResult.rows[0]?.weight_kg ? Number(latestWeightResult.rows[0].weight_kg) : null,
+          recentFoodConsistency: recentFoodResult.rows[0] ?? null,
+          recentWorkouts: recentBurnResult.rows,
+          workoutMemory,
+          athleteMode: isIosFreeEdition() ? null : athleteResult.rows[0] ?? null,
+          latestBodyScan: workoutBodyScan,
+          recentCoachZoeContext: recentMessagesResult.rows.reverse(),
+          healthSync: !isIosFreeEdition() && healthSyncSummary
+            ? {
+                todaySteps: healthSyncSummary.todaySteps,
+                averageSteps7d: healthSyncSummary.averageSteps7d,
+                todayActiveCalories: healthSyncSummary.todayActiveCalories,
+                workoutsThisWeek: healthSyncSummary.workoutsThisWeek,
+                workoutCompletedToday: healthSyncSummary.workoutCompletedToday,
+                lastSyncedAt: healthSyncSummary.lastSyncedAt
+              }
+            : null,
+          request: {
+            location: input.location,
+            timeAvailable: input.timeAvailable,
+            goal: input.goal,
+            equipment: input.equipment
+          },
+          timezoneOffsetMinutes: input.timezoneOffsetMinutes
+        })
+      );
 
-    await logAiUsage({
-      userId: req.user!.id,
-      gymId: req.user!.gymId,
-      eventType: "ai_chat_message",
-      provider: env.AI_PROVIDER,
-      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
-      status: "success",
-      inputUnits: JSON.stringify(input).length + promptContext.length,
-      outputUnits: JSON.stringify(workout).length,
-      metadata: { feature: "coach_zoe_workout_planner", mode: "workout", coachTier: coachAccess.tier }
-    });
+      const workout = await createCoachWorkoutPlan({
+        location: input.location,
+        timeAvailable: input.timeAvailable,
+        goal: input.goal,
+        equipment: input.equipment,
+        context: promptContext
+      }, { requireAiSuccess: isIosNativeEdition() });
 
-    res.json({ workout });
+      if (!dailyLimited) await logAiUsage({
+        userId: req.user!.id,
+        gymId: req.user!.gymId,
+        eventType: "ai_chat_message",
+        provider: env.AI_PROVIDER,
+        model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+        status: "success",
+        inputUnits: JSON.stringify(input).length + promptContext.length,
+        outputUnits: JSON.stringify(workout).length,
+        metadata: { feature: "coach_zoe_workout_planner", mode: "workout", coachTier: coachAccess.tier }
+      });
+
+      return workout;
+    };
+    if (dailyLimited) {
+      const dailyWorkout = await generateIosDailyWorkout({
+        userId: req.user!.id, gymId: req.user!.gymId,
+        request: { location: input.location, timeAvailable: input.timeAvailable, goal: input.goal, equipment: input.equipment },
+        timezoneOffsetMinutes: input.timezoneOffsetMinutes, generate
+      });
+      return res.json({ workout: dailyWorkout.workout, dailyWorkout });
+    }
+    res.json({ workout: await generate() });
   } catch (error) {
     next(error);
   }

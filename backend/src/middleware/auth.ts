@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { NextFunction, Request, Response } from "express";
 import { Role } from "@ascend/shared";
 import { query } from "../db/pool";
@@ -199,6 +200,9 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       isPlatformOwner
     };
 
+    if (isIosFreeEdition()) {
+      req.user = { ...req.user, primaryRole: "client", roles: ["client"], trainerId: undefined, isPlatformOwner: false };
+    }
     withAiDataSubject(req.user.id, next);
   } catch (error) {
     next(error);

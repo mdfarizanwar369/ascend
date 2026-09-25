@@ -1,5 +1,7 @@
 "use client";
 
+import { isIosFreeEdition } from "@/lib/appEdition";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -1499,7 +1501,7 @@ export function JourneyClient() {
               <div className="space-y-6 pb-5">
                 {ascendMemory ? (
                   <AscendMemoryCard memory={ascendMemory} compact />
-                ) : premiumLocked ? (
+                ) : premiumLocked && !isIosFreeEdition() ? (
                   <div className="rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
                     <p className="text-sm font-semibold text-white">Ascend Memory</p>
                     <p className="mt-2 text-sm leading-6 text-zinc-400">
@@ -1508,7 +1510,7 @@ export function JourneyClient() {
                   </div>
                 ) : null}
 
-                {showPremiumJourneyNote ? (
+                {showPremiumJourneyNote && !isIosFreeEdition() ? (
                   <div className="rounded-2xl border border-purple-400/20 bg-purple-400/8 p-4">
                     <p className="text-sm font-semibold text-white">Journey gets deeper with Premium</p>
                     <p className="mt-2 text-sm leading-6 text-zinc-400">

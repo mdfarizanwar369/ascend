@@ -14,19 +14,21 @@ export function LegalPage({
   title,
   introduction,
   sections,
+  iosEdition = false,
   updatedAt = "19 June 2026"
 }: {
   eyebrow: string;
   title: string;
   introduction: string;
   sections: LegalSection[];
+  iosEdition?: boolean;
   updatedAt?: string;
 }) {
   return (
     <main className="min-h-screen bg-ink px-5 text-white sm:px-8">
       <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col">
         <header className="flex items-center justify-between py-5">
-          <Link href="/" className="flex min-h-11 items-center gap-3" aria-label="Ascend homepage">
+          <Link href={iosEdition ? "/launch" : "/"} className="flex min-h-11 items-center gap-3" aria-label="Ascend homepage">
             <BrandMark size="sm" />
             <span className="text-xl font-semibold">Ascend</span>
           </Link>
@@ -68,7 +70,7 @@ export function LegalPage({
           </aside>
         </article>
 
-        <PublicFooter />
+        <PublicFooter iosEdition={iosEdition} />
       </div>
     </main>
   );

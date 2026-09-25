@@ -1,3 +1,4 @@
+import { appEditionHeaders } from "./appEdition";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 function apiTimingEnabled() {
@@ -36,7 +37,8 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers
+        ...options.headers,
+        ...appEditionHeaders()
       }
     });
     if (shouldLogBodyCompositionSave) {
@@ -106,7 +108,8 @@ export async function apiBlob(path: string, options: RequestInit = {}, token?: s
       cache: options.cache ?? "no-store",
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...options.headers
+        ...options.headers,
+        ...appEditionHeaders()
       }
     });
   } catch {

@@ -15,7 +15,8 @@ function handleAppleError(error: unknown, res: Response, next: NextFunction) {
 appleSubscriptionsRouter.get("/subscriptions/apple/config", requireAuth, async (req, res, next) => {
   try {
     const enabled = appleBillingAvailableForUser(req.user!.id);
-    res.json({ enabled, purchaseBlocked: enabled && await hasOtherPaidSubscription(req.user!.id), appAccountToken: req.user!.id, productIds: Object.keys(APPLE_PRODUCTS) });
+    const canPurchaseTrainerPro = Boolean(req.user!.trainerId) || req.user!.roles.some(role => role === "owner" || role === "admin");
+    res.json({ enabled, purchaseBlocked: enabled && await hasOtherPaidSubscription(req.user!.id), canPurchaseTrainerPro, appAccountToken: req.user!.id, productIds: Object.keys(APPLE_PRODUCTS) });
   } catch (error) { next(error); }
 });
 appleSubscriptionsRouter.post("/subscriptions/apple/verify", requireAuth, rateLimit({ windowMs: 60_000, limit: 30 }), async (req, res, next) => {

@@ -39,7 +39,9 @@ describe("native Apple purchase delivery", () => {
     vi.stubGlobal("Capacitor", { isNativePlatform: () => true, getPlatform: () => "ios" });
     vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("AscendIOS/2 Capacitor");
     expect(supportsAppleBilling()).toBe(false);
-    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("AscendIOS/3 Capacitor");
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("AscendIOS/5 AscendFree/1 Capacitor");
+    expect(supportsAppleBilling()).toBe(false);
+    vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("AscendIOS/6 AscendSubscriptions/1 Capacitor");
     expect(supportsAppleBilling()).toBe(true);
     vi.stubGlobal("Capacitor", undefined);
     expect(supportsAppleBilling()).toBe(false);

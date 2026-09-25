@@ -18,6 +18,22 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 describe("Apple subscription screen", () => {
+  it("retries an empty Apple catalogue without starting a purchase", async () => {
+    native.getProducts.mockResolvedValueOnce({ products: [] });
+    render(<AppleSubscriptionClient />);
+    await screen.findByText(/not available right now/);
+    fireEvent.click(screen.getByRole("button", { name: "Retry Apple prices" }));
+    expect(await screen.findByText("RM19.99 / month")).toBeInTheDocument();
+    expect(native.getProducts).toHaveBeenCalledTimes(2);
+    expect(native.purchase).not.toHaveBeenCalled();
+  });
+  it("does not charge a member for a trainer workspace they cannot access", async () => {
+    api.getAppleBillingConfig.mockResolvedValue({ ...config, canPurchaseTrainerPro: false, productIds: ["fit.getascend.app.trainerpro.monthly"] });
+    native.getProducts.mockResolvedValue({ products: [{ id: "fit.getascend.app.trainerpro.monthly", title: "Trainer Pro", description: "Trainer workspace", displayPrice: "RM99.90" }] });
+    render(<AppleSubscriptionClient />);
+    expect(await screen.findByRole("button", { name: "Subscribe to Trainer Pro" })).toBeDisabled();
+    expect(native.purchase).not.toHaveBeenCalled();
+  });
   it("requires an explicit confirmation for a product selected outside the app", async () => {
     native.getPurchaseIntent.mockResolvedValue({ productId: config.productIds[0] });
     render(<AppleSubscriptionClient />);
@@ -57,7 +73,7 @@ describe("Apple subscription screen", () => {
     expect(sync).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Manage Apple Subscriptions" }));
     expect(native.manageSubscriptions).toHaveBeenCalledOnce();
-    expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/privacy");
+    expect(screen.getByRole("link", { name: "Privacy Policy" })).toHaveAttribute("href", "/privacy/ios");
     expect(screen.getByRole("link", { name: "Terms of Use" })).toBeInTheDocument();
   });
 });

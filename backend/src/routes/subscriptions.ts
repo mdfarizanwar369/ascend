@@ -1,3 +1,4 @@
+import { isIosFreeEdition } from "../services/appEdition";
 import { Router } from "express";
 import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
@@ -55,6 +56,7 @@ subscriptionsRouter.post("/subscriptions/google-play/rtdn", async (req, res, nex
 });
 
 subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
+  if (isIosFreeEdition()) return res.json({ subscription: { plan: "free", status: "active" }, edition: "ios-free-v1" });
   try { await refreshAppleAccess(req.user!.id); } catch { /* Preserve the last verified entitlement until its expiry. */ }
   try {
     await syncGooglePlaySubscriptionForUser(req.user!.id);
