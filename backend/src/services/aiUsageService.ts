@@ -1,4 +1,4 @@
-import { isIosFreeEdition } from "./appEdition";
+import { isIosFreeEdition, isIosNativeEdition } from "./appEdition";
 import { createHash } from "crypto";
 import { FoodEstimate } from "@ascend/shared";
 import { env } from "../config/env";
@@ -230,6 +230,7 @@ function allowanceForAccess(input: { primaryRole: Role; roles: Role[]; activePla
     return { period: "day", label: "Premium AI scans today", limit: 5 };
   }
 
+  if (isIosNativeEdition()) return { period: "day", label: "Free AI meal estimates today", limit: 2 };
   return { period: "week", label: "Free weekly AI scans", limit: 5 };
 }
 
@@ -302,7 +303,7 @@ export async function getCoachZoeAccess(userId: string, timezoneOffsetMinutes = 
       and coalesce(metadata->>'feature', '') <> 'coach_zoe_workout_planner'
       and created_at >= $2
     `,
-    [userId, localDayStartUtc(normalizeTimezoneOffsetMinutes(timezoneOffsetMinutes), now).toISOString(), isIosFreeEdition()]
+    [userId, localDayStartUtc(normalizeTimezoneOffsetMinutes(timezoneOffsetMinutes), now).toISOString(), isIosNativeEdition()]
   );
   const used = Number(usedResult.rows[0]?.used ?? 0);
   const limit = 10;
@@ -339,4 +340,9 @@ export function aiLimitConfig() {
     monthlyChatLimit: env.AI_MONTHLY_CHAT_LIMIT,
     monthlyWeeklyReportLimit: env.AI_MONTHLY_WEEKLY_REPORT_LIMIT
   };
+}
+
+export async function usesIosDailyWorkout(userId: string) {
+  if (isIosFreeEdition()) return true;
+  return isIosNativeEdition() && !(await getCoachZoeAccess(userId)).premiumDepth;
 }

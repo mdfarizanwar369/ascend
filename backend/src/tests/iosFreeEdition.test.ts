@@ -30,12 +30,26 @@ describe("iOS free edition boundary", () => {
     ["Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit Safari", false],
     ["Mozilla Android AscendAndroid/1 Capacitor", false],
     [iphoneBrowser + " AscendIOS/2 Capacitor", true],
-    ["Mozilla iPad AscendIOS/4 AscendFree/1 Capacitor", true]
+    ["Mozilla iPad AscendIOS/4 AscendFree/1 Capacitor", true],
+    ["Mozilla iPhone AscendIOS/5 AscendFree/1 Capacitor", true],
+    ["Mozilla iPhone AscendIOS/6 AscendSubscriptions/1 Capacitor", false],
+    ["Mozilla iPhone AscendIOS/6 AscendFree/1 AscendSubscriptions/1 Capacitor", true]
   ])("classifies the native marker without restricting browsers: %s", (ua, expected) => {
     expect(isIosFreeRequest(request("/", { "user-agent": ua }))).toBe(expected);
   });
   it("supports the explicit native header", () => {
     expect(isIosFreeRequest(request("/", { "x-ascend-edition": "ios-free-v1" }))).toBe(true);
+  });
+  it.each(["/subscriptions/apple/config", "/subscriptions/apple/verify", "/trainer/clients"])("passes subscription-build routes to normal authentication and entitlement checks: %s", path => {
+    const next = vi.fn(() => expect(isIosFreeEdition()).toBe(false));
+    appEditionMiddleware(request(path, { "user-agent": "AscendIOS/6 AscendSubscriptions/1 Capacitor" }), response(), next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+  it.each(["/subscriptions/checkout", "/subscriptions/billing-portal", "/subscriptions/google-play/verify", "/subscriptions/demo-activate"])("keeps external checkout out of the subscription build: %s", path => {
+    const res = response(); const next = vi.fn();
+    appEditionMiddleware(request(path, { "x-ascend-edition": "ios-subscriptions-v1" }), res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
   it.each(["/subscriptions/checkout", "/Subscriptions/Checkout/", "/subscriptions/portal", "/subscriptions/demo-activate", "/trainer/clients", "/admin/users", "/athlete/me", "/messages", "/reports/weekly/current", "/body-composition/scans", "/progress-photos", "/me/coach-homework/example"])("rejects a native paid route before side effects: %s", path => {
     const res = response(); const next = vi.fn();
@@ -80,7 +94,8 @@ describe("iOS free edition boundary", () => {
     expect(req.user).toMatchObject({ primaryRole: "client", roles: ["client"], isPlatformOwner: false });
     expect(req.user?.trainerId).toBeUndefined();
     expect(dbQuery).toHaveBeenCalledTimes(1);
-    expect(dbQuery.mock.calls[0][0]).not.toMatch(/update|insert/i);
+    // Expiring an Apple entitlement is independent of the free edition; roles and paid plans are never downgraded by it.
+    expect(dbQuery.mock.calls[0][0]).not.toMatch(/update\s+users|insert\s+into\s+user_roles|set\s+plan\s*=/i);
   });
 });
 

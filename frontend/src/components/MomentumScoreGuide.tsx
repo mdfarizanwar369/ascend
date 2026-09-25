@@ -1,6 +1,6 @@
 "use client";
 
-import { useIosFreeEdition } from "@/lib/appEdition";
+import { useIosApp } from "@/lib/appEdition";
 import { BackButton } from "@/components/BackButton";
 import { BrandMark } from "@/components/BrandMark";
 
@@ -28,7 +28,7 @@ const items = [
 ];
 
 export function MomentumScoreGuide() {
-  const iosFree = useIosFreeEdition();
+  const iosFree = useIosApp();
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">

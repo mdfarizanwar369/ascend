@@ -6,6 +6,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { createCheckout } from "../services/subscriptionService";
+import { refreshAppleAccess } from "../services/appleSubscriptionService";
 import { getPaymentProvider, LemonSqueezyProvider, StripeProvider, ToyyibPayProvider } from "../integrations/payments";
 import { env } from "../config/env";
 import { applyVerifiedGooglePlaySubscription, parseGooglePlayRtdnData, processGooglePlayRtdn, syncGooglePlaySubscriptionForUser, verifyGooglePlaySubscriptionPurchase } from "../services/googlePlayBillingService";
@@ -56,6 +57,7 @@ subscriptionsRouter.post("/subscriptions/google-play/rtdn", async (req, res, nex
 
 subscriptionsRouter.get("/subscriptions/me", requireAuth, async (req, res) => {
   if (isIosFreeEdition()) return res.json({ subscription: { plan: "free", status: "active" }, edition: "ios-free-v1" });
+  try { await refreshAppleAccess(req.user!.id); } catch { /* Preserve the last verified entitlement until its expiry. */ }
   try {
     await syncGooglePlaySubscriptionForUser(req.user!.id);
   } catch {
@@ -128,7 +130,7 @@ subscriptionsRouter.post("/subscriptions/demo-activate", requireAuth, requireRol
     const user = userResult.rows[0];
 
     await query(
-      "update subscriptions set status = 'canceled', updated_at = now() where user_id = $1 and status in ('active', 'trialing')",
+      "update subscriptions set status = 'canceled', updated_at = now() where user_id = $1 and provider <> 'app_store' and status in ('active', 'trialing')",
       [req.user!.id]
     );
 
@@ -158,11 +160,14 @@ subscriptionsRouter.post("/subscriptions/cancel", requireAuth, async (req, res) 
   if (current.rows[0]?.provider === "lemonsqueezy" || current.rows[0]?.provider === "stripe") {
     return res.status(409).json({ message: "Open the billing portal to cancel or change this subscription." });
   }
+  if (current.rows[0]?.provider === "app_store") {
+    return res.status(409).json({ message: "Manage or cancel this subscription in your Apple Account subscriptions.", url: "https://apps.apple.com/account/subscriptions" });
+  }
   const result = await query(
     `
     update subscriptions
     set status = 'canceled', updated_at = now()
-    where user_id = $1 and status in ('active', 'trialing', 'past_due')
+    where user_id = $1 and provider <> 'app_store' and status in ('active', 'trialing', 'past_due')
     returning *
     `,
     [req.user!.id]
@@ -324,6 +329,7 @@ subscriptionsRouter.post("/webhooks/lemonsqueezy", async (req, res, next) => {
         set status = 'canceled', updated_at = now()
         where user_id = (select user_id from subscriptions where id = $1)
           and id <> $1
+          and provider <> 'app_store'
           and status in ('active', 'trialing')
         `,
         [subscriptionId]
@@ -432,6 +438,7 @@ subscriptionsRouter.post("/webhooks/stripe", async (req, res, next) => {
         set status = 'canceled', updated_at = now()
         where user_id = (select user_id from subscriptions where id = $1)
           and id <> $1
+          and provider <> 'app_store'
           and status in ('active', 'trialing')
         `,
         [subscriptionId]

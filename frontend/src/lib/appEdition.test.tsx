@@ -15,6 +15,20 @@ function device(platform: string, ua: string, standalone = false) {
 }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllEnvs(); device("web", "browser"); state.path = "/dashboard"; });
 describe("native iOS vs home-screen billing", () => {
+  it("enables Apple subscription routes and verified paid access only in the new binary", () => {
+    device("ios", "AscendIOS/6 AscendSubscriptions/1 Capacitor"); state.path = "/subscription";
+    expect(isIosFreeEdition()).toBe(false);
+    expect(appEditionHeaders()).toEqual({ "X-Ascend-Edition": "ios-subscriptions-v1" });
+    expect(shouldHideHostedBilling()).toBe(true);
+    expect(usablePlan("premium", "active")).toBe("premium");
+    render(<IosFreeEditionBoundary><button>Apple subscriptions</button></IosFreeEditionBoundary>);
+    expect(screen.getByRole("button", { name: "Apple subscriptions" })).toBeInTheDocument();
+  });
+  it("keeps unsupported Health Sync hidden in the subscription binary", () => {
+    device("ios", "AscendIOS/6 AscendSubscriptions/1 Capacitor"); state.path = "/profile/health-sync";
+    render(<IosFreeEditionBoundary><p>Health Connect</p></IosFreeEditionBoundary>);
+    expect(screen.queryByText("Health Connect")).not.toBeInTheDocument();
+  });
   it.each([false, true])("keeps Stripe and paid entitlements on iPhone Safari/PWA (standalone=%s)", standalone => {
     device("web", "Mozilla iPhone AppleWebKit Safari", standalone);
     expect(isIosFreeEdition()).toBe(false);

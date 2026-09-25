@@ -59,6 +59,13 @@ function loadAuthUserOnce(firebaseUid: string) {
   if (existing) return existing;
   const request = query<AuthUserRow>(
     `
+    with expired_apple_access as (
+      update subscriptions set status='expired', updated_at=now()
+      where user_id in (select id from users where firebase_uid=$1)
+        and provider::text='app_store' and status in ('active','trialing','canceled')
+        and (current_period_end is null or current_period_end <= now())
+      returning id
+    )
     select u.id, u.firebase_uid, u.email, u.primary_role, u.status, u.gym_id, t.id as trainer_id,
       coalesce(array_agg(ur.role) filter (where ur.role is not null), '{}') as roles
     from users u

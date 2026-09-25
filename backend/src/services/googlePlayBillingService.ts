@@ -367,6 +367,7 @@ export async function applyVerifiedGooglePlaySubscription(userId: string, purcha
       set status = 'canceled', updated_at = now()
       where user_id = $1
         and id <> $2
+        and provider <> 'app_store'
         and status in ('active', 'trialing')
       `,
       [userId, subscription.id]

@@ -21,6 +21,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # The payment beta uses its own server and database while 1.0 remains in review.
+  CAPACITOR_IOS_SERVER_URL: ${{ github.ref == 'refs/heads/codex/ios-subscriptions-1-1' && 'https://ascend-ios-payments-web-ascend-ios-payments.up.railway.app/launch' || 'https://www.getascend.fit/launch' }}
+
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: false
@@ -36,6 +40,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: python3 -m unittest discover -s scripts -p test_ios_release.py
       - run: npm run ios:prepare
       - run: npm run ios:check
       - name: Validate Xcode metadata
@@ -64,7 +69,7 @@ jobs:
           retention-days: 7
 
   testflight:
-    if: github.event_name == 'workflow_dispatch' && inputs.upload_testflight && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.upload_testflight && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/ios-subscriptions-1-1')
     needs: simulator
     runs-on: macos-26
     timeout-minutes: 40

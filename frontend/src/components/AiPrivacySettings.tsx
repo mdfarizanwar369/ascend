@@ -6,11 +6,11 @@ import { AI_DATA_CATEGORIES, AiConsentStatus } from "@ascend/shared";
 import { api } from "@/lib/api";
 import { getFirebaseToken } from "@/lib/authToken";
 import { getFirebaseClientAuth } from "@/lib/firebase";
-import { useIosFreeEdition } from "@/lib/appEdition";
+import { useIosApp } from "@/lib/appEdition";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
 
 export function AiPrivacySettings({ consent, onChange }: { consent: AiConsentStatus; onChange: (consent: AiConsentStatus) => void }) {
-  const iosFree = useIosFreeEdition();
+  const iosFree = useIosApp();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [accountUid] = useState(() => getFirebaseClientAuth().currentUser?.uid);

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { useIosFreeEdition } from "@/lib/appEdition";
+import { useIosFreeEdition, useIosApp } from "@/lib/appEdition";
 
 export function FreeAppFeatures() {
   return (
@@ -33,11 +33,13 @@ export function FreeFeatureUnavailable() {
 
 export function IosFreeEditionBoundary({ children }: { children: React.ReactNode }) {
   const free = useIosFreeEdition();
+  const native = useIosApp();
   const path = usePathname();
-  if (!free) return <>{children}</>;
+  if (!native) return <>{children}</>;
   if (path === "/" || path === "/demo") return <NativeStart />;
   if (["/privacy", "/terms", "/refund-policy"].includes(path)) return <NativeStart href={`${path}/ios`} />;
   if (/^\/profile\/health-sync(\/|$)/.test(path)) return <FreeFeatureUnavailable />;
+  if (!free) return <>{children}</>;
   if (/^\/(subscription|trainer|admin|founder|athlete|messages|reports|progress-photos|coach-homework|bootstrap-owner)(\/|$)/.test(path)) {
     return <FreeFeatureUnavailable />;
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useIosFreeEdition } from "@/lib/appEdition";
+import { useIosFreeEdition, useIosApp } from "@/lib/appEdition";
 import { FreeAppFeatures } from "@/components/IosFreeEditionBoundary";
 
 import { ChangeEvent, useEffect, useState } from "react";
@@ -16,6 +16,7 @@ import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/PerceivedLoading";
 import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayBilling } from "@/lib/billingPlatform";
 import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
+import { AppleBilling, supportsAppleBilling } from "@/lib/appleBilling";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -30,6 +31,7 @@ function formatBillingDate(value: string | null | undefined) {
 
 export function ProfileClient() {
   const iosFree = useIosFreeEdition();
+  const iosApp = useIosApp();
   const [user, setUser] = useState<Awaited<ReturnType<typeof getMe>>["user"] | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
@@ -150,6 +152,12 @@ export function ProfileClient() {
   }
 
   async function openBillingPortal(action: "manage" | "cancel") {
+    if (subscriptionProvider === "app_store") {
+      if (supportsAppleBilling()) {
+        try { await AppleBilling.manageSubscriptions(); } catch { setBillingStatus("Could not open Apple subscriptions. Please try again."); }
+      } else { window.location.href = "https://apps.apple.com/account/subscriptions"; }
+      return;
+    }
     if (isGooglePlaySubscription && !nativePlayBilling) {
       setBillingStatus("This Premium subscription is managed by Google Play. Open Ascend on your Android device to change or cancel it.");
       return;
@@ -185,6 +193,7 @@ export function ProfileClient() {
   }
 
   async function cancelManualSubscription() {
+    if (subscriptionProvider === "app_store") { await openBillingPortal("cancel"); return; }
     if (isBillingWorking) return;
     if (isGooglePlaySubscription && !nativePlayBilling) {
       setBillingStatus("This Premium subscription is managed by Google Play. Open Ascend on your Android device to change or cancel it.");
@@ -304,7 +313,11 @@ export function ProfileClient() {
             </Link>
             {hasPaidPlan ? (
               <>
-                {isGooglePlaySubscription ? (
+                {subscriptionProvider === "app_store" ? (
+                  <button type="button" onClick={() => openBillingPortal("manage")} disabled={isBillingWorking} className="flex h-11 items-center justify-center rounded-lg bg-lime font-semibold text-ink disabled:opacity-60">
+                    Manage or cancel in Apple Subscriptions
+                  </button>
+                ) : isGooglePlaySubscription && iosApp ? <p className="text-sm text-zinc-300">This subscription is managed with the billing provider used to purchase it.</p> : isGooglePlaySubscription ? (
                   <>
                     <button
                       type="button"
@@ -366,7 +379,9 @@ export function ProfileClient() {
           </div>
           {billingStatus ? <p className="mt-3 rounded-lg border border-line bg-ink p-3 text-sm leading-6 text-zinc-300">{billingStatus}</p> : null}
           <p className="mt-3 text-xs leading-5 text-zinc-500">
-            {nativePlayBilling || isGooglePlaySubscription
+            {subscriptionProvider === "app_store" || supportsAppleBilling()
+              ? "Apple manages subscriptions purchased in the iPhone app. You can restore purchases or manage your plan from Subscriptions."
+              : nativePlayBilling || isGooglePlaySubscription
               ? "Google Play manages Android Premium billing. Web checkout continues to use Stripe."
               : hideHostedBilling
               ? "Premium access can still be granted manually for closed testing while in-app billing is being prepared."
@@ -381,7 +396,7 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
-            {!iosFree && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+            {!iosApp && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
               <Activity size={17} /> Health Sync
             </Link>}
             {user?.athlete_mode_enabled || user?.body_scan_introductory_enabled ? (

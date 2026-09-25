@@ -1,4 +1,4 @@
-import { isIosFreeEdition } from "../services/appEdition";
+import { isIosFreeEdition, isIosNativeEdition } from "../services/appEdition";
 import { requireAiConsent } from "../middleware/aiConsent";
 import { Router } from "express";
 import {
@@ -14,7 +14,7 @@ import {
 import { requireAuth } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
-import { getCoachZoeAccess, logAiUsage } from "../services/aiUsageService";
+import { getCoachZoeAccess, logAiUsage, usesIosDailyWorkout } from "../services/aiUsageService";
 import { env } from "../config/env";
 import { aiRateLimit, todayPriorityRateLimit } from "../middleware/rateLimits";
 import { z } from "zod";
@@ -287,7 +287,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
   try {
     const { message, mode, timezoneOffsetMinutes } = coachChatSchema.parse(req.body);
     const coachAccess = await getCoachZoeAccess(req.user!.id, timezoneOffsetMinutes);
-    if ((isIosFreeEdition() || mode === "general") && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
+    if ((isIosNativeEdition() || mode === "general") && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
       return res.status(402).json({
         error: isIosFreeEdition()
           ? "You've used today's 10 Zoe replies. Your allowance resets at midnight. You can keep logging meals and activity."
@@ -889,13 +889,14 @@ aiRouter.post("/ai/workout-capture", requireAuth, requireAiConsent, aiRateLimit,
 
 aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
   try {
-    res.json({ dailyWorkout: isIosFreeEdition() ? await getIosDailyWorkout(req.user!.id) : null });
+    res.json({ dailyWorkout: await usesIosDailyWorkout(req.user!.id) ? await getIosDailyWorkout(req.user!.id) : null });
   } catch (error) { next(error); }
 });
 
 aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     const input = workoutPlannerSchema.parse(req.body);
+    const dailyLimited = await usesIosDailyWorkout(req.user!.id);
     const generate = async () => {
       const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
         await Promise.all([
@@ -1036,9 +1037,9 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         goal: input.goal,
         equipment: input.equipment,
         context: promptContext
-      }, { requireAiSuccess: isIosFreeEdition() });
+      }, { requireAiSuccess: isIosNativeEdition() });
 
-      if (!isIosFreeEdition()) await logAiUsage({
+      if (!dailyLimited) await logAiUsage({
         userId: req.user!.id,
         gymId: req.user!.gymId,
         eventType: "ai_chat_message",
@@ -1052,7 +1053,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
 
       return workout;
     };
-    if (isIosFreeEdition()) {
+    if (dailyLimited) {
       const dailyWorkout = await generateIosDailyWorkout({
         userId: req.user!.id, gymId: req.user!.gymId,
         request: { location: input.location, timeAvailable: input.timeAvailable, goal: input.goal, equipment: input.equipment },

@@ -1,5 +1,5 @@
 "use client";
-import { useIosFreeEdition } from "@/lib/appEdition";
+import { useIosFreeEdition, useIosApp } from "@/lib/appEdition";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
@@ -23,12 +23,14 @@ import {
   getGoalStatus,
   getHealthSyncStatus,
   getMyStreak,
+  getMySubscription,
   getTodayPriorityRecommendation,
   generateWorkoutDebrief,
   saveCompletedWorkout,
   sendCoachMessage,
   waitForWorkoutDebrief
 } from "@/lib/ascendApi";
+import { usablePlan } from "@/lib/subscriptionPlan";
 import { loadAccountProfile } from "@/lib/accountSession";
 import { rememberDashboardRecord } from "@/lib/dataSync";
 
@@ -456,7 +458,20 @@ function WorkoutPlannerCard({
 }
 
 export function CoachHubClient() {
-  const iosFree = useIosFreeEdition();
+  const freeEdition = useIosFreeEdition();
+  const iosApp = useIosApp();
+  const [nativePaid, setNativePaid] = useState(false);
+  const iosFree = freeEdition || (iosApp && !nativePaid);
+  useEffect(() => {
+    if (!iosApp || freeEdition) return;
+    let active = true;
+    const refresh = () => { void Promise.all([getMySubscription(), loadAccountProfile()]).then(([{ subscription }, profile]) => {
+      if (active) setNativePaid(profile.isPlatformOwner === true || profile.roles.some(role => ["owner", "admin", "trainer"].includes(role)) || usablePlan(subscription.plan, subscription.status, subscription.current_period_end) !== "free");
+    }).catch(() => { /* Keep the free allowance until access can be verified. */ }); };
+    refresh();
+    window.addEventListener("ascend:subscription-changed", refresh);
+    return () => { active = false; window.removeEventListener("ascend:subscription-changed", refresh); };
+  }, [iosApp, freeEdition]);
   const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");

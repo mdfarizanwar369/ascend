@@ -16,6 +16,12 @@ export async function createCheckout(userId: string, plan: SubscriptionPlan) {
     throw new Error("User profile was not found. Please log out and sign in again.");
   }
 
+  const appleSubscription = await query(`select 1 from subscriptions where user_id=$1 and provider::text='app_store'
+    and status in ('active','trialing','canceled') and current_period_end > now() limit 1`, [userId]);
+  if (appleSubscription.rowCount) {
+    throw Object.assign(new Error("You already have an Apple subscription. Manage it in your Apple Account before starting another subscription."), { status: 409 });
+  }
+
   const amountRm = PLANS[plan].priceRm;
   const session = await paymentProvider.createCheckoutSession({
     userId,

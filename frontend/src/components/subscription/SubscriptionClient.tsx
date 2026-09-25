@@ -7,6 +7,8 @@ import { cancelSubscription, createCheckout, getBillingPortal, getMe, getMySubsc
 import { BackButton } from "@/components/BackButton";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { PublicFooter } from "@/components/legal/PublicFooter";
+import { AppleSubscriptionClient } from "./AppleSubscriptionClient";
+import { supportsAppleBilling } from "@/lib/appleBilling";
 import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayBilling } from "@/lib/billingPlatform";
 import {
   acknowledgeNativeGooglePlayPurchase,
@@ -31,6 +33,13 @@ function formatBillingDate(value: string | null) {
 }
 
 export function SubscriptionClient() {
+  const [nativeApple, setNativeApple] = useState<boolean | null>(null);
+  useEffect(() => { setNativeApple(supportsAppleBilling()); }, []);
+  if (nativeApple === null) return <main className="min-h-screen bg-ink p-6 text-white">Loading subscriptions…</main>;
+  return nativeApple ? <AppleSubscriptionClient /> : <WebSubscriptionClient />;
+}
+
+function WebSubscriptionClient() {
   const [activePlan, setActivePlan] = useState<SubscriptionPlan>("free");
   const [backHref, setBackHref] = useState("/dashboard");
   const [status, setStatus] = useState("Loading your subscription...");
@@ -227,6 +236,10 @@ export function SubscriptionClient() {
   }
 
   async function openBillingPortal() {
+    if (provider === "app_store") {
+      window.location.href = "https://apps.apple.com/account/subscriptions";
+      return;
+    }
     if (isGooglePlaySubscription && !nativePlayBilling) {
       setStatus("This Premium subscription is managed by Google Play. Open Ascend on your Android device to change or cancel it.");
       return;
@@ -257,6 +270,7 @@ export function SubscriptionClient() {
   }
 
   async function cancelCurrentSubscription() {
+    if (provider === "app_store") { await openBillingPortal(); return; }
     if (activePlan === "free") return;
     if (isGooglePlaySubscription && !nativePlayBilling) {
       setStatus("This Premium subscription is managed by Google Play. Open Ascend on your Android device to change or cancel it.");

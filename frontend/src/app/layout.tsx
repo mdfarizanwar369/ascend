@@ -10,6 +10,7 @@ import { HealthSyncCoordinator } from "@/components/HealthSyncCoordinator";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { AscendLaunchMorphV22Provider } from "@/components/dashboard/AscendLaunchMorphV22";
 import { ClientErrorReporter } from "@/components/ClientErrorReporter";
+import { AppleSubscriptionCoordinator } from "@/components/AppleSubscriptionCoordinator";
 import { AiConsentCoordinator } from "@/components/AiConsentCoordinator";
 import "./globals.css";
 
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CapacitorAppUrlRouter />
           <PwaRegistrar />
           <PwaInstallCoordinator />
+          <AppleSubscriptionCoordinator />
           <AiConsentCoordinator />
           <CoachNotificationCoordinator />
           <HealthSyncCoordinator />

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyWorkout } from "@/lib/ascendApi";
 
 const mocks = vi.hoisted(() => ({ ios: true, today: vi.fn(), generate: vi.fn(), save: vi.fn() }));
-vi.mock("@/lib/appEdition", () => ({ useIosFreeEdition: () => mocks.ios }));
+vi.mock("@/lib/appEdition", () => ({ useIosFreeEdition: () => mocks.ios, useIosApp: () => mocks.ios }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => null, StaggerItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("next/image", () => ({ default: () => null }));
