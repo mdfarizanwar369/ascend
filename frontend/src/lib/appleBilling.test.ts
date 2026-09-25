@@ -6,7 +6,7 @@ vi.mock("@capacitor/core", () => ({ registerPlugin: () => native }));
 vi.mock("./ascendApi", () => ({ verifyAppleSubscription: verify, getAppleBillingConfig: config }));
 import { confirmAppleTransaction, supportsAppleBilling, syncAppleTransactions } from "./appleBilling";
 const transaction = { transactionId: "1001", signedTransaction: "signed-by-apple", environment: "Production" as const };
-beforeEach(() => { vi.clearAllMocks(); config.mockResolvedValue({ enabled: true }); native.finish.mockResolvedValue(undefined); verify.mockResolvedValue({ subscription: { plan: "premium" } }); });
+beforeEach(() => { vi.resetAllMocks(); config.mockResolvedValue({ enabled: true }); native.finish.mockResolvedValue(undefined); verify.mockResolvedValue({ subscription: { plan: "premium" } }); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe("native Apple purchase delivery", () => {
   it("finishes the native transaction only after the backend grants access", async () => {
@@ -34,6 +34,40 @@ describe("native Apple purchase delivery", () => {
     config.mockResolvedValue({ enabled: false });
     expect(await syncAppleTransactions(true)).toBe(0);
     expect(native.restore).not.toHaveBeenCalled();
+  });
+  it("recovers signed current purchases when Apple's restore refresh fails", async () => {
+    native.restore.mockRejectedValue(new Error("Restore was not completed. Please try again."));
+    native.getTransactions.mockResolvedValue({ transactions: [transaction] });
+    expect(await syncAppleTransactions(true)).toBe(1);
+    expect(verify).toHaveBeenCalledWith(transaction);
+    expect(native.finish).toHaveBeenCalledWith({ transactionId: "1001" });
+  });
+  it("preserves the restore error when no signed purchases can be recovered", async () => {
+    const error = new Error("Restore was not completed. Please try again.");
+    native.restore.mockRejectedValue(error);
+    native.getTransactions.mockResolvedValue({ transactions: [] });
+    await expect(syncAppleTransactions(true)).rejects.toBe(error);
+    expect(verify).not.toHaveBeenCalled();
+    expect(native.finish).not.toHaveBeenCalled();
+  });
+  it("preserves the restore error when reading current purchases also fails", async () => {
+    const error = new Error("Restore was not completed. Please try again.");
+    native.restore.mockRejectedValue(error);
+    native.getTransactions.mockRejectedValue(new Error("StoreKit unavailable"));
+    await expect(syncAppleTransactions(true)).rejects.toBe(error);
+    expect(verify).not.toHaveBeenCalled();
+  });
+  it("does not restore an unverified purchase recovered after a refresh failure", async () => {
+    native.restore.mockRejectedValue(new Error("Restore was not completed. Please try again."));
+    native.getTransactions.mockResolvedValue({ transactions: [transaction] });
+    verify.mockRejectedValue(new Error("Purchase belongs to another account"));
+    await expect(syncAppleTransactions(true)).rejects.toThrow("Purchase belongs to another account");
+    expect(native.finish).not.toHaveBeenCalled();
+  });
+  it("does not read fallback transactions after a successful restore", async () => {
+    native.restore.mockResolvedValue({ transactions: [transaction] });
+    expect(await syncAppleTransactions(true)).toBe(1);
+    expect(native.getTransactions).not.toHaveBeenCalled();
   });
   it("does not expose the plugin to the existing 1.0 binary or a website", () => {
     vi.stubGlobal("Capacitor", { isNativePlatform: () => true, getPlatform: () => "ios" });
