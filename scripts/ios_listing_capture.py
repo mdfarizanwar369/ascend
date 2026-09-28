@@ -14,7 +14,7 @@ def capture_listing(device, container, folder):
     documents = container / 'Documents'
     sequence = 0
     helpers = """
-      const text = document.body.innerText;
+      const text = document.body.innerText; const has = needle => text.toLowerCase().includes(needle.toLowerCase());
       const button = label => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === label);
       const heading = label => [...document.querySelectorAll('h1,h2,h3,p')].find(e => e.textContent.trim() === label);
       const enter = (input, value) => {
@@ -64,7 +64,7 @@ def capture_listing(device, container, folder):
     def navigate(path, ready_text):
         command('''
           if (location.pathname !== PATH) { location.assign(PATH); return 'Opening screen'; }
-          if (!text.includes(EXPECTED)) return 'Waiting for screen';
+          if (!has(EXPECTED)) return 'Waiting for screen';
           window.scrollTo(0,0); return 'READY';
         '''.replace('PATH', json.dumps(path)).replace('EXPECTED', json.dumps(ready_text)), path.strip('/'))
 
@@ -74,13 +74,13 @@ def capture_listing(device, container, folder):
     navigate('/food-log', 'Log a meal')
     meal = base64.b64encode(Path('scripts/fixtures/listing-meal.jpg').read_bytes()).decode()
     command('''
-      if (text.includes('AI estimate ready.')) {
-        const result = document.querySelector('form.ascend-food-result');
-        if (!result) return 'Waiting for meal result';
+      if (has("couldn't estimate") || has('AI data sharing is off')) return 'ERROR: ' + text.slice(-1800);
+      const result = document.querySelector('form.ascend-food-result');
+      const save = button('Save meal');
+      if (result && save && !save.disabled && has('Estimated nutrition')) {
         result.scrollIntoView({block:'start'});
         return 'READY';
       }
-      if (text.includes("couldn't estimate") || text.includes('AI data sharing is off')) return 'ERROR: ' + text.slice(-1800);
       if (!window.__listingFoodSubmitted) {
         const input = document.querySelector('input[type="file"][accept="image/*"]');
         if (!input) return 'Waiting for file control';
@@ -94,18 +94,23 @@ def capture_listing(device, container, folder):
       return 'Waiting for real meal estimate: ' + text.slice(-400);
     '''.replace('MEAL', json.dumps(meal)), 'food-estimate')
     screenshot('01-food-estimate')
-    command("const save = button('Save meal'); if (save && !save.disabled) {save.click(); return 'Saving';} if (text.includes('Meal saved')) return 'READY'; return 'Waiting for saved meal';", 'save-meal')
+    command("const save = button('Save meal'); if (save && !save.disabled) {save.click(); return 'Saving';} if (has('Meal saved')) return 'READY'; return 'Waiting for saved meal';", 'save-meal')
     screenshot('07-meal-saved')
 
     navigate('/coach', 'Quick Coach Actions')
     command('''
-      const result = [...document.querySelectorAll('section')].find(e => e.innerText.includes("Today's workout") && e.innerText.includes('Warm'));
+      const notice = [...document.querySelectorAll('p')].find(e => e.className.includes('border-amber/40'));
+      if (notice && notice.textContent.trim()) return 'ERROR: ' + notice.textContent;
+      const result = [...document.querySelectorAll('section')].find(e => e.textContent.includes("Today's workout") && e.textContent.includes('Warm'));
       if (result) { result.scrollIntoView({block:'start'}); return 'READY'; }
-      if (text.includes('Where are you training?')) { button('Home')?.click(); return 'Choosing home'; }
-      if (text.includes('How much time do you have?')) { button('20 minutes')?.click(); return 'Choosing 20 minutes'; }
-      if (text.includes("Today's goal?")) { button('General Fitness')?.click(); return 'Choosing general fitness'; }
-      if (text.includes('Equipment available?')) { button('Bodyweight')?.click(); return 'Choosing bodyweight'; }
-      if (text.includes('Building today')) return 'Waiting for real workout';
+      if (has('Where are you training?')) { button('Home')?.click(); return 'Choosing home'; }
+      if (has('How much time do you have?')) { button('20 minutes')?.click(); return 'Choosing 20 minutes'; }
+      if (has("Today's goal?")) { button('General Fitness')?.click(); return 'Choosing general fitness'; }
+      if (has('Equipment available?') && !window.__listingWorkoutGenerating) {
+        window.__listingWorkoutGenerating = true;
+        button('Bodyweight')?.click(); return 'Choosing bodyweight';
+      }
+      if (has('Building today')) return 'Waiting for real workout';
       if (!window.__listingWorkoutStarted) {
         const start = button("Generate Today's Workout") || button("Open Today's Workout");
         if (start && !start.disabled) { window.__listingWorkoutStarted = true; start.click(); }
@@ -128,7 +133,7 @@ def capture_listing(device, container, folder):
         if (send && !send.disabled) {window.__listingChatSent=true; send.click();}
         return 'Sending question';
       }
-      if (text.includes('Coach is thinking...')) return 'Waiting for real Zoe reply';
+      if (has('Coach is thinking...')) return 'Waiting for real Zoe reply';
       if (conversation.children.length < 3) return 'Waiting for reply';
       input.blur(); conversation.scrollIntoView({block:'start'}); return 'READY';
     ''', 'zoe-chat')
@@ -139,6 +144,6 @@ def capture_listing(device, container, folder):
     navigate('/water-log', 'Water')
     screenshot('06-water')
     navigate('/food-log', 'Log a meal')
-    command("const history = button('Meal History'); if (history) history.click(); if (text.includes('Meal history filters')) {window.scrollTo(0,0); return 'READY';} return 'Opening history';", 'food-history')
+    command("const history = button('Meal History'); if (history) history.click(); if (has('Meal history filters')) {window.scrollTo(0,0); return 'READY';} return 'Opening history';", 'food-history')
     screenshot('08-food-history')
     print('Native listing gallery complete. All values are fictional demonstration records.', flush=True)
