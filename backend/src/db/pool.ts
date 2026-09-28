@@ -3,7 +3,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { env } from "../config/env";
 
 export const pool = new Pool({
-  connectionString: env.DATABASE_URL
+  connectionString: env.DATABASE_URL,
+  max: env.DATABASE_POOL_MAX,
+  connectionTimeoutMillis: env.DATABASE_CONNECT_TIMEOUT_MS,
+  idleTimeoutMillis: 30_000
+});
+
+pool.on("error", () => {
+  console.error("[database] idle connection failed; pool will replace it");
 });
 
 const queryClients = new AsyncLocalStorage<PoolClient>();

@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 
 const { pooled } = vi.hoisted(() => ({ pooled: vi.fn(async () => ({ rows: ["pool"] })) }));
-vi.mock("pg", () => ({ Pool: class { query = pooled; } }));
+vi.mock("pg", () => ({ Pool: class { query = pooled; on = vi.fn(); } }));
 import { query, withQueryClient } from "../db/pool";
 
 beforeEach(() => vi.clearAllMocks());

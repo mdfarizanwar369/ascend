@@ -22,9 +22,11 @@ import { buildWorkoutCapturePrompt, createFallbackWorkoutCapture, normalizeWorko
 import { dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dailyCoachingTelemetry";
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "../utils/images";
 import { fetchPublicHttpUrl, readResponseBufferLimited } from "../utils/outboundUrl";
+import { AiWorkBusyError, createAiProviderGate, withAiWorkLease } from "../services/aiWorkLeaseService";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
+const providerGate = createAiProviderGate(env.AI_PROVIDER_MAX_CONCURRENT ?? 8);
 
 type GeminiPart = { text: string } | { inlineData: { mimeType: string; data: string } };
 type GeminiResponse = {
@@ -526,6 +528,10 @@ function geminiFailureReason(error: unknown) {
 }
 
 async function callGeminiOnce(model: string, parts: GeminiPart[], maxOutputTokens = 700, options: GeminiCallOptions = {}) {
+  return providerGate("provider:gemini", () => callGeminiOnceReserved(model, parts, maxOutputTokens, options));
+}
+
+async function callGeminiOnceReserved(model: string, parts: GeminiPart[], maxOutputTokens = 700, options: GeminiCallOptions = {}) {
   if (!env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not configured.");
   }
@@ -642,6 +648,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
         });
         return result;
       } catch (error) {
+        if (error instanceof AiWorkBusyError) throw error;
         const endedAtEpochMs = Date.now();
         recordGeminiAttempt(options.performanceTrace, {
           attempt: attemptNumber,
@@ -1075,7 +1082,13 @@ function shouldUseFoodFallback(estimate: FoodEstimate) {
   return estimate.confidence <= 0.35 && /mixed|snack plate|meal or snack plate|food item/i.test(estimate.foodName);
 }
 
-export async function estimateFoodFromImage(
+export async function estimateFoodFromImage(imageUrl: string, context: Parameters<typeof estimateFoodFromImageReserved>[1] = {}) {
+  return context.userId
+    ? withAiWorkLease(`food-ai:${context.userId}`, () => estimateFoodFromImageReserved(imageUrl, context))
+    : estimateFoodFromImageReserved(imageUrl, context);
+}
+
+async function estimateFoodFromImageReserved(
   imageUrl: string,
   context: {
     userId?: string | null;
@@ -1187,6 +1200,7 @@ export async function estimateFoodFromImage(
 
     return estimate;
   } catch (error) {
+    if (error instanceof AiWorkBusyError) throw error;
     const classified = classifyFoodAiError(error);
     foodAiErrorLog("food_analysis_failed", {
       category: classified.category,
@@ -1209,7 +1223,13 @@ export async function estimateFoodFromImage(
 
 }
 
-export async function estimateFoodFromText(
+export async function estimateFoodFromText(description: string, context: Parameters<typeof estimateFoodFromTextReserved>[1] = {}) {
+  return context.userId
+    ? withAiWorkLease(`food-ai:${context.userId}`, () => estimateFoodFromTextReserved(description, context))
+    : estimateFoodFromTextReserved(description, context);
+}
+
+async function estimateFoodFromTextReserved(
   description: string,
   context: { userId?: string | null; gymId?: string | null; timezoneOffsetMinutes?: number } = {}
 ): Promise<FoodEstimate> {
@@ -1256,6 +1276,7 @@ export async function estimateFoodFromText(
     });
     return estimate;
   } catch (error) {
+    if (error instanceof AiWorkBusyError) throw error;
     const classified = classifyFoodAiError(error);
     foodAiErrorLog("food_text_analysis_failed", {
       category: classified.category,

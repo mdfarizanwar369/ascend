@@ -1,6 +1,7 @@
 import { access, readdir, readFile } from "fs/promises";
 import path from "path";
 import { pool } from "./pool";
+import { ensureRuntimeSchema } from "./bootstrap";
 
 async function migrate() {
   const candidates = [path.resolve(__dirname, "../../migrations"), path.resolve(__dirname, "../../../migrations")];
@@ -45,6 +46,7 @@ async function migrate() {
       client.release();
     }
   }
+  await ensureRuntimeSchema();
   await pool.end();
   console.log("Database migration complete");
 }

@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../services/aiWorkLeaseService", () => ({
+  withAiWorkLease: (_key: string, work: () => Promise<unknown>) => work(),
+  assertAiWorkOwnership: async () => undefined
+}));
 
 const { dbQuery, clientQuery, release, withClient } = vi.hoisted(() => ({
   dbQuery: vi.fn(), clientQuery: vi.fn(), release: vi.fn(),
@@ -34,13 +38,13 @@ describe("native daily workout allowance", () => {
     const args = input();
     const result = await generateIosDailyWorkout(args, now);
     expect(result).toMatchObject({ workout, request, completed: false, resetsAt: "2026-09-23T16:00:00.000Z" });
-    expect(withClient).toHaveBeenCalledWith(expect.anything(), args.generate);
+    expect(withClient).not.toHaveBeenCalled();
     const writes = clientQuery.mock.calls.filter(([sql]) => sql.startsWith("insert"));
     expect(writes).toHaveLength(2);
     expect(writes[0][1]).toEqual([result.workoutCompletionKey, "member", request, workout, now.toISOString(), result.resetsAt]);
     expect(writes[1][1].at(-1)).toMatchObject({ feature: "coach_zoe_workout_planner", edition: "ios" });
     expect(clientQuery.mock.calls.at(-1)).toEqual(["commit"]);
-    expect(release).toHaveBeenCalledOnce();
+    expect(release).toHaveBeenCalledTimes(2);
   });
 
   it("reuses today's plan even if equipment or device timezone changes", async () => {
@@ -64,7 +68,7 @@ describe("native daily workout allowance", () => {
     const args = input(vi.fn().mockRejectedValueOnce(new Error("provider unavailable")).mockResolvedValueOnce(workout));
     await expect(generateIosDailyWorkout(args, now)).rejects.toThrow("provider unavailable");
     expect(clientQuery.mock.calls.some(([sql]) => sql.startsWith("insert"))).toBe(false);
-    expect(clientQuery).toHaveBeenCalledWith("rollback");
+    expect(release).toHaveBeenCalled();
     await expect(generateIosDailyWorkout(args, now)).resolves.toMatchObject({ workout });
   });
 
@@ -75,7 +79,15 @@ describe("native daily workout allowance", () => {
     });
     await expect(generateIosDailyWorkout(input(), now)).rejects.toThrow("storage error");
     expect(clientQuery).toHaveBeenCalledWith("rollback");
-    expect(clientQuery).not.toHaveBeenCalledWith("commit");
+    expect(clientQuery.mock.calls.filter(([sql]) => sql === "commit")).toHaveLength(1);
+  });
+
+  it("releases the preflight connection before waiting for the provider", async () => {
+    await generateIosDailyWorkout(input(vi.fn(async () => {
+      expect(release).toHaveBeenCalledOnce();
+      expect(clientQuery.mock.calls.at(-1)).toEqual(["commit"]);
+      return workout;
+    })), now);
   });
 
   it("reads the persisted completion state and scopes completion lookup to the account", async () => {
