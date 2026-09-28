@@ -123,7 +123,13 @@ for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (
     folder = output / label
     folder.mkdir(exist_ok=True)
     try:
-        run('xcrun', 'simctl', 'boot', device)
+        # Boot can leave simulator children holding a captured stdout pipe open.
+        # Inherit stdout so a slow startup cannot trap check_output's cleanup.
+        print('Booting simulator ' + device, flush=True)
+        try:
+            subprocess.run(['xcrun', 'simctl', 'boot', device], check=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            print('Boot command is slow; checking simulator boot status.', flush=True)
         subprocess.run(['xcrun', 'simctl', 'bootstatus', device, '-b'], check=True, timeout=600)
         run('xcrun', 'simctl', 'status_bar', device, 'override', '--time', '9:41',
             '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3',
