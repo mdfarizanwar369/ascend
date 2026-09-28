@@ -18,7 +18,7 @@ output = temp / 'store-screenshots'
 output.mkdir(exist_ok=True)
 config = plistlib.loads(pathlib.Path('ios/App/App/GoogleService-Info.plist').read_bytes())
 assert config['PROJECT_ID'] == 'ascend-b2850'
-email = 'getascend.fit+shots-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT'] + '-' + os.environ['SCREENSHOT_DEVICE'] + '@gmail.com'
+email = 'alex.' + secrets.token_hex(3) + '@getascend.fit'
 password = secrets.token_hex(16)
 print('::add-mask::' + password, flush=True)
 base = 'https://ascend-backend-production-b515.up.railway.app/api/v1'
@@ -53,6 +53,15 @@ post(base + '/water-logs', {'amountMl': 750}, token)
 post(base + '/burn-logs', {'activityType': 'Walking', 'durationMinutes': 30, 'caloriesBurned': 130}, token)
 post(base + '/weight-logs', {'weightKg': 75}, token)
 print('Synthetic screenshot profile prepared.', flush=True)
+if os.environ.get('LISTING_CAPTURE') == '1':
+    request = urllib.request.Request(base + '/me/ai-consent', headers={'Authorization': 'Bearer ' + token})
+    with urllib.request.urlopen(request, timeout=45) as response:
+        consent = json.load(response)['consent']
+    request = urllib.request.Request(base + '/me/ai-consent', json.dumps({
+        'provider': consent['provider'], 'version': consent['version'], 'allowed': True
+    }).encode(), {'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'}, method='PUT')
+    with urllib.request.urlopen(request, timeout=45) as response:
+        assert json.load(response)['consent']['allowed'] is True
 
 def run(*args):
     print('Simulator command: ' + ' '.join(args), flush=True)
@@ -130,7 +139,11 @@ for label, prefix in [('iphone', 'iPhone 14 Plus'), ('ipad', 'iPad Pro 13-inch (
             if ready.exists():
                 break
         if ready.exists():
-            run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / '01-ipad-dashboard.png'))
+            if os.environ.get('LISTING_CAPTURE') == '1':
+                from ios_listing_capture import capture_listing
+                capture_listing(device, container, folder)
+            else:
+                run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / '01-ipad-dashboard.png'))
         else:
             failures.append(label)
             run('xcrun', 'simctl', 'io', device, 'screenshot', str(folder / 'capture-failed.png'))
