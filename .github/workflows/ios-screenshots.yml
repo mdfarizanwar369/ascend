@@ -22,7 +22,7 @@ jobs:
       matrix:
         device: [iphone, ipad]
     if: github.ref == 'refs/heads/main'
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 45
     environment: apple-testflight
     env:
