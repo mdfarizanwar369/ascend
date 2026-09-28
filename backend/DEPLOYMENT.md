@@ -16,7 +16,10 @@ Before deploying a release with schema changes:
    `backend/scripts/runtime-role-grants.sql` as the schema owner. Verify that
    `PUBLIC` does not grant CREATE on the application schema. Set only this role's
    connection string as the HTTP service's `DATABASE_URL`.
-4. Use `backend/railway.json` as the backend service's Railway config file.
+4. Configure the backend service's deployment settings using the values in
+   `backend/railway.json`. This nested file is a reference; the current Railway
+   API rejects new legacy config-as-code file settings. The production service
+   stores these settings through Railway's environment configuration instead.
    Readiness must pass before traffic moves. The deployment overlaps for 120
    seconds and permits 120 seconds of draining; the server stops accepting new
    requests and gives existing requests up to 110 seconds after SIGTERM.
