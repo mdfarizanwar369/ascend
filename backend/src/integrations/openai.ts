@@ -783,6 +783,7 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
   try {
     return await generateEstimate([env.GEMINI_MODEL], "application/json");
   } catch (error) {
+    if (error instanceof AiWorkBusyError) throw error;
     foodAiErrorLog("primary_json_attempt_failed", {
       model: env.GEMINI_MODEL,
       error: error instanceof Error ? error.message : "Unknown error"
@@ -796,6 +797,7 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
       notes: `${estimate.notes} Ascend retried the scan with a more flexible response format.`
     };
   } catch (error) {
+    if (error instanceof AiWorkBusyError) throw error;
     foodAiErrorLog("primary_flexible_attempt_failed", {
       model: env.GEMINI_MODEL,
       error: error instanceof Error ? error.message : "Unknown error"
@@ -809,6 +811,7 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
       notes: `${estimate.notes} Ascend used a stronger backup AI model because the first scan was unclear.`
     };
   } catch (error) {
+    if (error instanceof AiWorkBusyError) throw error;
     foodAiErrorLog("backup_json_attempt_failed", {
       models: strongerModels,
       error: error instanceof Error ? error.message : "Unknown error"
