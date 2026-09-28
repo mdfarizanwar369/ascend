@@ -12,6 +12,7 @@ import time
 import subprocess
 import urllib.request
 import urllib.error
+from datetime import datetime, timedelta, timezone
 
 temp = pathlib.Path(os.environ['RUNNER_TEMP'])
 output = temp / 'store-screenshots'
@@ -54,6 +55,14 @@ post(base + '/burn-logs', {'activityType': 'Walking', 'durationMinutes': 30, 'ca
 post(base + '/weight-logs', {'weightKg': 75}, token)
 print('Synthetic screenshot profile prepared.', flush=True)
 if os.environ.get('LISTING_CAPTURE') == '1':
+    # Fictional history demonstrates the real Journey view without a weight-loss
+    # claim. Never seed an existing customer or review account.
+    for days_ago in (3, 2, 1):
+        logged_at = (datetime.now(timezone.utc) - timedelta(days=days_ago)).isoformat().replace('+00:00', 'Z')
+        post(base + '/food-logs', {'mealType': 'breakfast', 'estimatedFoodName': 'Oats, yogurt and berries',
+             'calories': 420, 'proteinG': 25, 'carbsG': 55, 'fatG': 11, 'wasEditedByUser': True, 'loggedAt': logged_at}, token)
+        post(base + '/water-logs', {'amountMl': 1500, 'loggedAt': logged_at}, token)
+        post(base + '/weight-logs', {'weightKg': 75, 'loggedAt': logged_at}, token)
     request = urllib.request.Request(base + '/me/ai-consent', headers={'Authorization': 'Bearer ' + token})
     with urllib.request.urlopen(request, timeout=45) as response:
         consent = json.load(response)['consent']
