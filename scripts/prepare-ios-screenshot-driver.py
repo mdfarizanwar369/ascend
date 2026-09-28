@@ -4,6 +4,7 @@ This file is called only by ios-screenshots.yml. Release builds do not run it.
 The helper uses the existing form controls and never changes app content.
 """
 from pathlib import Path
+import sys
 
 path = Path('ios/App/App/AppDelegate.swift')
 source = path.read_text()
@@ -46,4 +47,23 @@ extension AppDelegate {
 #endif
 '''
 path.write_text(source)
+if '--listing' in sys.argv:
+    # Commands are installed in this disposable simulator's Documents directory.
+    # They interact with real controls; no app data or responses are substituted.
+    source = source.replace('webView.evaluateJavaScript(script) { result, error in', '''let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            if let data = try? Data(contentsOf: documents.appendingPathComponent("listing-command.json")),
+               let command = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+               let code = command["script"], let identifier = command["id"] {
+                webView.evaluateJavaScript(code) { result, error in
+                    let status = result as? String ?? "Waiting for page"
+                    let value = ["id": identifier, "status": status]
+                    if let encoded = try? JSONSerialization.data(withJSONObject: value) {
+                        try? encoded.write(to: documents.appendingPathComponent("listing-status.json"), options: .atomic)
+                    }
+                }
+                return
+            }
+            webView.evaluateJavaScript(script) { result, error in''')
+    source = source.replace('                    timer.invalidate()', '                    // Keep polling for the next listing capture command.')
+    path.write_text(source)
 print('Simulator-only screenshot helper prepared; release sources remain unchanged in git.')
