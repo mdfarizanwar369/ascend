@@ -136,3 +136,8 @@ describe("Portion-Aware Nutrition Production V1 provider calls", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+vi.mock("../services/aiWorkLeaseService", async importOriginal => ({
+  ...await importOriginal<typeof import("../services/aiWorkLeaseService")>(),
+  withAiWorkLease: (_key: string, work: () => Promise<unknown>) => work(),
+  createAiProviderGate: () => (_key: string, work: () => Promise<unknown>) => work()
+}));

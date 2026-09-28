@@ -5,6 +5,7 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { Role, SubscriptionPlan } from "@ascend/shared";
 import { localDayStartUtc, localWeekStartUtc, normalizeTimezoneOffsetMinutes } from "./memberTimeService";
+import { withAiWorkTransaction } from "./aiWorkLeaseService";
 
 export type AiEventType = "food_image_analysis" | "ai_chat_message" | "weekly_report_generation" | "memory_reflection" | "workout_capture_analysis" | "workout_debrief_generation" | "today_priority_analysis" | "body_scan_explanation" | "body_scan_followup";
 export type AiStatus = "success" | "error" | "cache_hit" | "fallback";
@@ -148,7 +149,7 @@ export async function logAiUsage(input: {
   metadata?: Record<string, unknown>;
 }) {
   const estimatedCostCents = input.cacheHit ? 0 : eventCostCents[input.eventType];
-  await query(
+  await withAiWorkTransaction(() => query(
     `
     insert into ai_usage_events (
       user_id, gym_id, event_type, provider, model, status, cache_hit,
@@ -169,7 +170,7 @@ export async function logAiUsage(input: {
       input.outputUnits ?? 0,
       input.metadata ?? {}
     ]
-  );
+  ));
 }
 
 function parseRoles(roles: Role[] | string | null | undefined): Role[] {

@@ -78,3 +78,8 @@ describe("daily workout AI success requirement", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "Internal server error", detail: undefined });
   });
 });
+vi.mock("../services/aiWorkLeaseService", async importOriginal => ({
+  ...await importOriginal<typeof import("../services/aiWorkLeaseService")>(),
+  withAiWorkLease: (_key: string, work: () => Promise<unknown>) => work(),
+  createAiProviderGate: () => (_key: string, work: () => Promise<unknown>) => work()
+}));

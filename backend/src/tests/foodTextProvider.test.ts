@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("../services/aiWorkLeaseService", async importOriginal => ({
+  ...await importOriginal<typeof import("../services/aiWorkLeaseService")>(),
+  withAiWorkLease: (_key: string, work: () => Promise<unknown>) => work(),
+  createAiProviderGate: () => (_key: string, work: () => Promise<unknown>) => work()
+}));
 
 const completeEstimate = {
   foodName: "Banana and two boiled eggs",

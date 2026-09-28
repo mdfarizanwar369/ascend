@@ -10,6 +10,7 @@ import { usesIosDailyWorkout } from "../services/aiUsageService";
 import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
 import { estimateFoodFromImage, estimateFoodFromText } from "../integrations/openai";
 import { FoodAiLimitError, getFoodAiAllowance } from "../services/aiUsageService";
+import { AiWorkBusyError } from "../services/aiWorkLeaseService";
 import { aiRateLimit, uploadRateLimit, workoutDebriefRateLimit } from "../middleware/rateLimits";
 import { imageDataUrlSchema } from "../utils/images";
 import { UnsafeOutboundUrlError, validatePublicHttpUrl } from "../utils/outboundUrl";
@@ -285,6 +286,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireAiConsent, aiRateLimi
   } catch (error) {
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
+    if (error instanceof AiWorkBusyError) { next(error); return; }
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
       return;
@@ -327,6 +329,7 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireAiConsent, a
   } catch (error) {
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
+    if (error instanceof AiWorkBusyError) { next(error); return; }
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
       return;
@@ -346,6 +349,7 @@ logsRouter.post("/food-logs/estimate-text", requireAuth, requireAiConsent, aiRat
     const allowance = await getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes);
     res.json({ estimate, allowance });
   } catch (error) {
+    if (error instanceof AiWorkBusyError) { next(error); return; }
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance });
       return;
