@@ -20,6 +20,9 @@ Before deploying a release with schema changes:
    `backend/railway.json`. This nested file is a reference; the current Railway
    API rejects new legacy config-as-code file settings. The production service
    stores these settings through Railway's environment configuration instead.
+   Start Node directly from the repository root with
+   `node backend/dist/src/server.js` so shutdown signals reach the server without
+   an npm workspace wrapper.
    Readiness must pass before traffic moves. The deployment overlaps for 120
    seconds and permits 120 seconds of draining; the server stops accepting new
    requests and gives existing requests up to 110 seconds after SIGTERM.
