@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AppStoreServerAPIClient, Environment, SignedDataVerifier, Status, VerificationException, VerificationStatus } from "@apple/app-store-server-library";
+import { AppStoreServerAPIClient, Environment, OfferType, SignedDataVerifier, Status, VerificationException, VerificationStatus } from "@apple/app-store-server-library";
 
 const { db, connection, release } = vi.hoisted(() => ({ db: vi.fn(), connection: vi.fn(), release: vi.fn() }));
 vi.mock("../db/pool", () => ({ query: db, pool: { connect: async () => ({ query: connection, release }) } }));
@@ -39,6 +39,23 @@ describe("Apple entitlement rules", () => {
     const { normalizeAppleSubscription } = await import("../services/appleSubscriptionService");
     const actual = normalizeAppleSubscription({ ...transaction, ...tx }, { ...renewal, ...re }, status, userId, "Production", now);
     expect(actual).toMatchObject({ status: expected, plan: "premium", amountCents: 1999, currency: "MYR" });
+  });
+  it("recognizes Apple's zero-price introductory period as a trial", async () => {
+    const { normalizeAppleSubscription } = await import("../services/appleSubscriptionService");
+    const actual = normalizeAppleSubscription({
+      ...transaction,
+      productId: "fit.getascend.app.trainerpro.monthly",
+      price: 0,
+      offerType: OfferType.INTRODUCTORY_OFFER,
+      offerIdentifier: "trainer-pro-14-day-trial"
+    }, renewal, Status.ACTIVE, userId, "Production", now);
+    expect(actual).toMatchObject({
+      plan: "trainer_pro",
+      status: "trialing",
+      amountCents: 0,
+      offerType: OfferType.INTRODUCTORY_OFFER,
+      offerIdentifier: "trainer-pro-14-day-trial"
+    });
   });
   it.each([
     { bundleId: "another.app" }, { environment: Environment.SANDBOX }, { productId: "unapproved.product" },

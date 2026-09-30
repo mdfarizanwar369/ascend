@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { api, native, confirm, sync } = vi.hoisted(() => ({
-  api: { getAppleBillingConfig: vi.fn(), getMySubscription: vi.fn() },
+  api: { getAppleBillingConfig: vi.fn(), getMySubscription: vi.fn(), saveTrainerOnboardingIntent: vi.fn() },
   native: { getProducts: vi.fn(), purchase: vi.fn(), manageSubscriptions: vi.fn(), getPurchaseIntent: vi.fn(), clearPurchaseIntent: vi.fn() }, confirm: vi.fn(), sync: vi.fn()
 }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
@@ -13,8 +13,9 @@ beforeEach(() => {
   vi.clearAllMocks(); api.getAppleBillingConfig.mockResolvedValue(config);
   native.getPurchaseIntent.mockResolvedValue({}); native.clearPurchaseIntent.mockResolvedValue(undefined);
   api.getMySubscription.mockResolvedValue({ subscription: { plan: "free", status: "active", provider: "manual" } });
-  native.getProducts.mockResolvedValue({ products: [{ id: config.productIds[0], title: "Ascend Premium", description: "Your personal fitness coach.", displayPrice: "RM19.99" }] });
+  native.getProducts.mockResolvedValue({ products: [{ id: config.productIds[0], title: "Ascend Premium", description: "Your personal fitness coach.", displayPrice: "RM29.99" }] });
   native.manageSubscriptions.mockResolvedValue(undefined); confirm.mockResolvedValue({}); sync.mockResolvedValue(1);
+  api.saveTrainerOnboardingIntent.mockResolvedValue({ onboarding: { mode: "independent", status: "pending" } });
 });
 afterEach(cleanup);
 describe("Apple subscription screen", () => {
@@ -23,7 +24,7 @@ describe("Apple subscription screen", () => {
     render(<AppleSubscriptionClient />);
     await screen.findByText(/not available right now/);
     fireEvent.click(screen.getByRole("button", { name: "Retry Apple prices" }));
-    expect(await screen.findByText("RM19.99 / month")).toBeInTheDocument();
+    expect(await screen.findByText("RM29.99 / month")).toBeInTheDocument();
     expect(native.getProducts).toHaveBeenCalledTimes(2);
     expect(native.purchase).not.toHaveBeenCalled();
   });
@@ -33,6 +34,45 @@ describe("Apple subscription screen", () => {
     render(<AppleSubscriptionClient />);
     expect(await screen.findByRole("button", { name: "Subscribe to Trainer Pro" })).toBeDisabled();
     expect(native.purchase).not.toHaveBeenCalled();
+  });
+  it("lets an eligible member configure an independent workspace before starting the 14-day Trainer Pro trial", async () => {
+    const trainerProduct = {
+      id: "fit.getascend.app.trainerpro.monthly",
+      title: "Trainer Pro",
+      description: "Trainer workspace",
+      displayPrice: "RM99.90",
+      introductoryOffer: {
+        eligible: true,
+        displayPrice: "Free",
+        paymentMode: "freeTrial",
+        period: { value: 2, unit: "week" },
+        periodCount: 1
+      }
+    };
+    api.getAppleBillingConfig.mockResolvedValue({
+      ...config,
+      canPurchaseTrainerPro: true,
+      canStartTrainerOnboarding: true,
+      trainerOnboarding: null,
+      productIds: [trainerProduct.id]
+    });
+    native.getProducts.mockResolvedValue({ products: [trainerProduct] });
+    native.purchase.mockResolvedValue({ outcome: "cancelled" });
+    render(<AppleSubscriptionClient />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start 14 days Free Trial" }));
+    const setupHeading = await screen.findByRole("heading", { name: "Set up Trainer Pro" });
+    const setup = setupHeading.closest("section")!;
+    fireEvent.change(within(setup).getByPlaceholderText("Your name or coaching business"), { target: { value: "Aisha Coaching" } });
+    fireEvent.click(within(setup).getByRole("button", { name: "Start 14 days Free Trial" }));
+
+    await waitFor(() => expect(api.saveTrainerOnboardingIntent).toHaveBeenCalledWith({
+      mode: "independent",
+      workspaceName: "Aisha Coaching",
+      country: "Malaysia",
+      timezone: "Asia/Kuala_Lumpur"
+    }));
+    expect(native.purchase).toHaveBeenCalledWith({ productId: trainerProduct.id, appAccountToken: "account-uuid" });
   });
   it("requires an explicit confirmation for a product selected outside the app", async () => {
     native.getPurchaseIntent.mockResolvedValue({ productId: config.productIds[0] });

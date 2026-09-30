@@ -1738,7 +1738,86 @@ export function getMessageContacts() {
 }
 
 export function getAppleBillingConfig() {
-  return authed<{ enabled: boolean; purchaseBlocked: boolean; canPurchaseTrainerPro: boolean; appAccountToken: string; productIds: string[] }>("/subscriptions/apple/config");
+  return authed<{
+    enabled: boolean;
+    purchaseBlocked: boolean;
+    canStartTrainerOnboarding: boolean;
+    canPurchaseTrainerPro: boolean;
+    trainerOnboarding: TrainerOnboardingStatus | null;
+    appAccountToken: string;
+    productIds: string[];
+  }>("/subscriptions/apple/config");
+}
+
+export type TrainerOnboardingStatus = {
+  mode?: "independent" | "gym" | null;
+  workspace_name?: string | null;
+  country?: string | null;
+  timezone?: string | null;
+  gym_name?: string | null;
+  status?: "pending" | "activated" | "expired" | "failed" | null;
+  activated_at?: string | null;
+  trainer_id?: string | null;
+  trainer_status?: string | null;
+  referral_code?: string | null;
+};
+
+export function saveTrainerOnboardingIntent(input: {
+  mode: "independent" | "gym";
+  workspaceName?: string;
+  country?: string;
+  timezone?: string;
+  invitationCode?: string;
+}) {
+  return authed<{ onboarding: TrainerOnboardingStatus }>("/trainer-onboarding/intent", {
+    method: "POST", body: JSON.stringify(input)
+  });
+}
+
+export function validateTrainerGymInvitation(code: string) {
+  return authed<{ invitation: { gymName: string; expiresAt: string } }>("/trainer-onboarding/gym-invitation/validate", {
+    method: "POST", body: JSON.stringify({ code })
+  });
+}
+
+export function getTrainerOnboardingStatus() {
+  return authed<{ onboarding: TrainerOnboardingStatus | null }>("/trainer-onboarding/status");
+}
+
+export function createTrainerReferralCode() {
+  return authed<{ referral: { code: string } }>("/trainer/referral-code", { method: "POST" });
+}
+
+export type TrainerConnectionPreview = {
+  code: string;
+  trainerId: string;
+  trainerName: string;
+  workspaceName: string;
+  workspaceType: "gym" | "independent";
+  consentVersion: string;
+  sharedCategories: string[];
+};
+
+export function previewTrainerConnection(code: string) {
+  return authed<{ connection: TrainerConnectionPreview }>("/me/trainer-connection/preview", {
+    method: "POST", body: JSON.stringify({ code })
+  });
+}
+
+export async function confirmTrainerConnection(code: string, consentVersion: string) {
+  const result = await authed<{ connection: { trainerId: string; trainerName: string; workspaceName: string } }>("/me/trainer-connection/confirm", {
+    method: "POST", body: JSON.stringify({ code, consentVersion })
+  });
+  invalidateCached("me:");
+  invalidateDashboardReadCaches();
+  return result;
+}
+
+export async function disconnectTrainerConnection() {
+  const result = await authed<{ disconnected: boolean }>("/me/trainer-connection", { method: "DELETE" });
+  invalidateCached("me:");
+  invalidateDashboardReadCaches();
+  return result;
 }
 
 export async function verifyAppleSubscription(input: { signedTransaction: string; environment?: "Production" | "Sandbox" }) {

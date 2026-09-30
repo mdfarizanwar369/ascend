@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { AppStoreServerAPIClient, Environment, SignedDataVerifier, Status, VerificationException, VerificationStatus, APIException, type JWSTransactionDecodedPayload, type JWSRenewalInfoDecodedPayload } from "@apple/app-store-server-library";
+import { AppStoreServerAPIClient, Environment, SignedDataVerifier, Status, VerificationException, VerificationStatus, APIException, OfferType, type JWSTransactionDecodedPayload, type JWSRenewalInfoDecodedPayload } from "@apple/app-store-server-library";
 import { env } from "../config/env";
-import { pool, query } from "../db/pool";
+import { pool, query, withQueryClient } from "../db/pool";
+import { activateTrainerWorkspaceForEntitlement } from "./trainerOnboardingService";
 
 export const APPLE_PRODUCTS = {
   "fit.getascend.app.premium.monthly": "premium",
@@ -89,14 +90,17 @@ export function normalizeAppleSubscription(transaction: JWSTransactionDecodedPay
   if (!Number.isFinite(expiry) || !Number.isFinite(transaction.purchaseDate)) throw failure("Apple did not return a valid subscription period.");
   const usable = !transaction.revocationDate && !transaction.isUpgraded && (status === Status.ACTIVE || status === Status.BILLING_GRACE_PERIOD) && expiry! > now;
   const autoRenew = renewal.autoRenewStatus === 1;
+  const introductoryTrial = transaction.offerType === OfferType.INTRODUCTORY_OFFER && (transaction.price ?? 0) === 0;
   return {
     plan: APPLE_PRODUCTS[productId], productId, originalId: transaction.originalTransactionId,
     transactionId: transaction.transactionId, environment, autoRenew,
-    status: usable ? (autoRenew ? "active" : "canceled") : (status === Status.BILLING_RETRY ? "past_due" : "expired"),
+    status: usable ? (autoRenew ? (introductoryTrial ? "trialing" : "active") : "canceled") : (status === Status.BILLING_RETRY ? "past_due" : "expired"),
     start: new Date(transaction.purchaseDate!).toISOString(),
     end: new Date(transaction.revocationDate ? Math.min(expiry!, transaction.revocationDate) : expiry!).toISOString(),
     // Apple signs prices in milliunits; Ascend stores hundredths of the currency.
-    amountCents: Math.round((transaction.price ?? 0) / 10), currency: transaction.currency ?? "MYR"
+    amountCents: Math.round((transaction.price ?? 0) / 10), currency: transaction.currency ?? "MYR",
+    offerType: transaction.offerType ?? null,
+    offerIdentifier: transaction.offerIdentifier ?? null
   };
 }
 
@@ -124,18 +128,25 @@ async function syncOriginal(originalId: string, userId: string, environment: App
     const result = await client.query(`
       insert into subscriptions (user_id, plan, provider, provider_subscription_id, status, amount_cents, currency,
         current_period_start, current_period_end, apple_environment, apple_original_transaction_id,
-        apple_transaction_id, apple_product_id, apple_auto_renew, apple_checked_at)
-      values ($1, $2, 'app_store', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
+        apple_transaction_id, apple_product_id, apple_auto_renew, apple_checked_at,
+        apple_offer_type, apple_offer_identifier)
+      values ($1, $2, 'app_store', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now(), $14, $15)
       on conflict (provider, provider_subscription_id) do update set
         plan=excluded.plan, status=excluded.status, amount_cents=excluded.amount_cents, currency=excluded.currency,
         current_period_start=excluded.current_period_start, current_period_end=excluded.current_period_end,
         apple_transaction_id=excluded.apple_transaction_id, apple_product_id=excluded.apple_product_id,
-        apple_auto_renew=excluded.apple_auto_renew, apple_checked_at=now(), updated_at=now()
+        apple_auto_renew=excluded.apple_auto_renew, apple_checked_at=now(),
+        apple_offer_type=excluded.apple_offer_type, apple_offer_identifier=excluded.apple_offer_identifier,
+        updated_at=now()
       where subscriptions.user_id=excluded.user_id
       returning id, plan, provider, status, current_period_end, apple_auto_renew, apple_environment
     `, [userId, purchase.plan, `${environment}:${originalId}`, purchase.status, purchase.amountCents, purchase.currency,
-      purchase.start, purchase.end, environment, originalId, purchase.transactionId, purchase.productId, purchase.autoRenew]);
+      purchase.start, purchase.end, environment, originalId, purchase.transactionId, purchase.productId, purchase.autoRenew,
+      purchase.offerType, purchase.offerIdentifier]);
     if (!result.rows[0]) throw failure("This subscription is already linked to another account.", 409);
+    if (purchase.plan === "trainer_pro" && ["active", "trialing", "canceled"].includes(purchase.status)) {
+      await withQueryClient(client, () => activateTrainerWorkspaceForEntitlement(userId));
+    }
     // Other payment providers retain their own status: changing a database row cannot cancel a Stripe charge.
     await client.query("commit");
     return result.rows[0];

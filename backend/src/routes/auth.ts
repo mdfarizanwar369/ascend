@@ -128,9 +128,9 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
     const isBootstrapOwner = matchesBootstrapOwner && firebaseUser.emailVerified;
     const primaryRole = isBootstrapOwner ? "owner" : input.primaryRole;
     const referral = input.referralCode
-      ? await query<{ id: string; gym_id: string | null; trainer_id: string | null }>(
+      ? await query<{ id: string; type: "gym" | "trainer"; gym_id: string | null; trainer_id: string | null }>(
           `
-          select rc.id, coalesce(rc.gym_id, referred_trainer.gym_id) as gym_id, rc.trainer_id
+          select rc.id, rc.type, coalesce(rc.gym_id, referred_trainer.gym_id) as gym_id, rc.trainer_id
           from referral_codes rc
           left join trainers referred_trainer on referred_trainer.id = rc.trainer_id
           where rc.code = $1 and rc.active = true
@@ -142,8 +142,11 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
     if (primaryRole === "trainer" && !referralRow?.gym_id) {
       return res.status(400).json({ error: "Trainer signup requires a valid gym or trainer referral code" });
     }
-    const gymId = referralRow?.gym_id ?? null;
-    const assignedTrainerId = primaryRole === "client" ? referralRow?.trainer_id ?? null : null;
+    // Trainer referral codes record attribution here, but client assignment only
+    // happens after the separate trainer identity preview and consent step.
+    const trainerConnectionRequiresConsent = primaryRole === "client" && Boolean(referralRow?.trainer_id);
+    const gymId = trainerConnectionRequiresConsent ? null : referralRow?.gym_id ?? null;
+    const assignedTrainerId = null;
 
     const { isExistingUser, user } = await upsertProvisionedUser({
       assignedTrainerId,
@@ -177,7 +180,12 @@ authRouter.post("/auth/provision", authRateLimit, requireFirebaseToken, async (r
       );
     }
 
-    res.status(201).json({ user, referralApplied: Boolean(referralRow) });
+    res.status(201).json({
+      user,
+      referralApplied: Boolean(referralRow),
+      trainerConnectionRequiresConsent,
+      trainerReferralCode: trainerConnectionRequiresConsent ? input.referralCode?.toUpperCase() : null
+    });
   } catch (error) {
     next(error);
   }

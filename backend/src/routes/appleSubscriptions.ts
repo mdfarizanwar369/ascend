@@ -3,6 +3,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth";
 import { APPLE_PRODUCTS, appleBillingAvailableForUser, appleRequestError, hasOtherPaidSubscription, processAppleNotification, verifyApplePurchase } from "../services/appleSubscriptionService";
+import { getTrainerOnboardingStatus } from "../services/trainerOnboardingService";
 
 export const appleSubscriptionsRouter = Router();
 function handleAppleError(error: unknown, res: Response, next: NextFunction) {
@@ -15,8 +16,17 @@ function handleAppleError(error: unknown, res: Response, next: NextFunction) {
 appleSubscriptionsRouter.get("/subscriptions/apple/config", requireAuth, async (req, res, next) => {
   try {
     const enabled = appleBillingAvailableForUser(req.user!.id);
-    const canPurchaseTrainerPro = Boolean(req.user!.trainerId) || req.user!.roles.some(role => role === "owner" || role === "admin");
-    res.json({ enabled, purchaseBlocked: enabled && await hasOtherPaidSubscription(req.user!.id), canPurchaseTrainerPro, appAccountToken: req.user!.id, productIds: Object.keys(APPLE_PRODUCTS) });
+    const purchaseBlocked = enabled && await hasOtherPaidSubscription(req.user!.id);
+    const trainerOnboarding = await getTrainerOnboardingStatus(req.user!.id);
+    res.json({
+      enabled,
+      purchaseBlocked,
+      canStartTrainerOnboarding: enabled && !purchaseBlocked,
+      canPurchaseTrainerPro: enabled && !purchaseBlocked,
+      trainerOnboarding,
+      appAccountToken: req.user!.id,
+      productIds: Object.keys(APPLE_PRODUCTS)
+    });
   } catch (error) { next(error); }
 });
 appleSubscriptionsRouter.post("/subscriptions/apple/verify", requireAuth, rateLimit({ windowMs: 60_000, limit: 30 }), async (req, res, next) => {

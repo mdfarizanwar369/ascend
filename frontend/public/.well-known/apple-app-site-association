@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["76N75VT6A7.fit.getascend.app"],
+        "components": [
+          {
+            "/": "/",
+            "?": { "trainer": "*" },
+            "comment": "Open Ascend trainer referral links in the installed app."
+          }
+        ]
+      }
+    ]
+  }
+}

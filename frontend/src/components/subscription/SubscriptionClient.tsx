@@ -338,7 +338,7 @@ function WebSubscriptionClient() {
                     <h2 className="text-lg font-semibold">{PLANS[plan].label}</h2>
                     <p className="mt-1 text-sm text-zinc-400">{PLANS[plan].audience}</p>
                   </div>
-                  <p className="text-right text-xl font-semibold text-lime">RM{PLANS[plan].priceRm}/mo</p>
+                  <p className="text-right text-xl font-semibold text-lime">RM{PLANS[plan].priceRm.toFixed(2)}/mo</p>
                 </div>
                 <div className="mt-4 space-y-2">
                   {features[plan].map((feature) => (

@@ -36,6 +36,7 @@ type SignupRole = "client" | "trainer";
 type GoogleAuthMethod = "popup" | "redirect" | "native";
 const authDraftKey = "ascend.authDraft.v1";
 const googleRedirectPendingKey = "ascend.googleRedirectPending.v1";
+const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1";
 const authDebugEnabled = process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_AUTH_DEBUG === "true";
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
@@ -225,21 +226,27 @@ export function AuthPanel() {
   useEffect(() => {
     try {
       const draft = window.sessionStorage.getItem(authDraftKey);
-      if (!draft) return;
-      const parsed = JSON.parse(draft) as Partial<{
-        mode: Mode;
-        signupRole: SignupRole;
-        fullName: string;
-        email: string;
-        referralCode: string;
-      }>;
-      if (parsed.mode === "signup" || parsed.mode === "login") setMode(parsed.mode);
-      if (!isIosFreeEdition() && (parsed.signupRole === "client" || parsed.signupRole === "trainer")) setSignupRole(parsed.signupRole);
-      if (typeof parsed.fullName === "string") setFullName(parsed.fullName);
-      if (typeof parsed.email === "string") setEmail(parsed.email);
-      if (typeof parsed.referralCode === "string") setReferralCode(parsed.referralCode);
+      if (draft) {
+        const parsed = JSON.parse(draft) as Partial<{
+          mode: Mode;
+          signupRole: SignupRole;
+          fullName: string;
+          email: string;
+          referralCode: string;
+        }>;
+        if (parsed.mode === "signup" || parsed.mode === "login") setMode(parsed.mode);
+        if (!isIosFreeEdition() && (parsed.signupRole === "client" || parsed.signupRole === "trainer")) setSignupRole(parsed.signupRole);
+        if (typeof parsed.fullName === "string") setFullName(parsed.fullName);
+        if (typeof parsed.email === "string") setEmail(parsed.email);
+        if (typeof parsed.referralCode === "string") setReferralCode(parsed.referralCode);
+      }
     } catch {
       window.sessionStorage.removeItem(authDraftKey);
+    }
+    const linkedTrainerCode = new URLSearchParams(window.location.search).get("trainer")?.trim().toUpperCase();
+    if (linkedTrainerCode && /^[A-Z0-9][A-Z0-9-]{3,63}$/.test(linkedTrainerCode)) {
+      setReferralCode(linkedTrainerCode);
+      setMode("signup");
     }
   }, []);
 
@@ -293,6 +300,10 @@ export function AuthPanel() {
           ? `${provisionPayload.error}${typeof provisionPayload?.detail === "string" ? ` ${provisionPayload.detail}` : ""}`
           : `Profile setup failed with status ${provisionResponse.status}.`;
       throw new Error(detail);
+    }
+
+    if (provisionPayload?.trainerConnectionRequiresConsent && typeof provisionPayload?.trainerReferralCode === "string") {
+      window.sessionStorage.setItem(pendingTrainerReferralKey, provisionPayload.trainerReferralCode);
     }
 
     markInstallEligible("signup");
@@ -469,8 +480,11 @@ export function AuthPanel() {
 
       const token = await credential.user.getIdToken();
       setStatus("Setting up your Ascend profile...");
-      await withTimeout(
-        api(
+      const provisionResponse = await withTimeout(
+        api<{
+          trainerConnectionRequiresConsent?: boolean;
+          trainerReferralCode?: string | null;
+        }>(
         "/auth/provision",
         {
           method: "POST",
@@ -484,6 +498,10 @@ export function AuthPanel() {
         ),
         "Ascend profile setup is taking too long. Please try logging in again."
       );
+
+      if (provisionResponse.trainerConnectionRequiresConsent && provisionResponse.trainerReferralCode) {
+        window.sessionStorage.setItem(pendingTrainerReferralKey, provisionResponse.trainerReferralCode);
+      }
 
       window.sessionStorage.removeItem(authDraftKey);
 
@@ -834,7 +852,7 @@ export function AuthPanel() {
                   autoComplete="off"
                   className={inputClass}
                   value={referralCode}
-                  placeholder={signupRole === "trainer" ? "PPF-CENTRAL" : "Optional"}
+                  placeholder={signupRole === "trainer" ? "PPF-CENTRAL" : "Optional — confirm after signup"}
                   onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
                 />
               </Field>
