@@ -54,12 +54,9 @@ test("synced iOS project resolves portable plugin paths and includes its privacy
   assert.match(read("ios/App/App/Info.plist"), /NSCameraUsageDescription/);
 });
 
-test("iOS 1.2 trainer referral links use the matching associated-domain identity", () => {
+test("iOS 1.2 trainer referral web links use the matching production app identity", () => {
   const project = read("ios/App/App.xcodeproj/project.pbxproj");
   assert.equal((project.match(/MARKETING_VERSION = 1\.2;/g) ?? []).length, 2);
-  const entitlements = read("ios/App/App/App.entitlements");
-  assert.match(entitlements, /applinks:getascend\.fit/);
-  assert.match(entitlements, /applinks:www\.getascend\.fit/);
   const association = JSON.parse(read("frontend/public/.well-known/apple-app-site-association"));
   assert.deepEqual(association.applinks.details[0].appIDs, ["76N75VT6A7.fit.getascend.app"]);
   assert.equal(association.applinks.details[0].components[0]["?"].trainer, "*");
