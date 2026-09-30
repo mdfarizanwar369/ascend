@@ -2,7 +2,7 @@ import { LegalPage } from "./LegalPage";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
 
 export function IosPrivacyPolicy() {
-  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="25 September 2026"
+  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="30 September 2026"
     introduction="This policy describes Ascend's iPhone and iPad app: personal fitness tracking and optional AI guidance. It explains what we collect, how we use it, and your choices."
     sections={[
       { title: "Information we collect", bullets: [
@@ -13,7 +13,7 @@ export function IosPrivacyPolicy() {
         "Your AI sharing choice, including its provider, disclosure version and date; technical and usage information needed for security, troubleshooting, service performance and aggregate analytics."
       ] },
       { title: "How we use information", paragraphs: [
-        "We use this information to provide, personalize, secure and improve Ascend, maintain your logs, calculate fitness estimates and consistency guidance, support you, prevent abuse and comply with legal obligations. Version 1.1 offers optional Apple subscriptions. We use Apple transaction identifiers, product, purchase, renewal, expiry and refund information to verify and maintain access. Apple processes payment details; Ascend does not receive your payment card number. Earlier free editions continue to provide their included features."
+        "We use this information to provide, personalize, secure and improve Ascend, maintain your logs, calculate fitness estimates and consistency guidance, support you, prevent abuse and comply with legal obligations. Version 1.2 offers optional Apple subscriptions. We use Apple transaction identifiers, product, offer, purchase, renewal, expiry and refund information to verify and maintain access. Apple processes payment details; Ascend does not receive your payment card number. Earlier free editions continue to provide their included features."
       ] },
       { title: "AI sharing is your choice", paragraphs: [
         "AI features use Google Gemini, provided by Google, or OpenAI when configured. Before sharing personal data, the AI privacy screen names the current provider, explains the data and purpose, and asks you to allow or decline. Registration or agreeing to this policy does not grant AI permission. A provider change or material disclosure change requires a new choice.",
@@ -26,6 +26,9 @@ export function IosPrivacyPolicy() {
       ] },
       { title: "Existing account relationships", paragraphs: [
         "If your account already has a trainer or gym relationship, authorized participants may continue to see account records needed for that relationship, including logs, activity summaries, progress and messages. Self-Coached accounts are not automatically assigned to a trainer. You may disconnect from a trainer or contact support about those relationships. Signing in does not create a trainer relationship or automatically purchase a subscription."
+      ] },
+      { title: "Trainer connections", paragraphs: [
+        "A Trainer Pro referral code does not by itself give a trainer access to your records. Ascend first shows the trainer identity, workspace and categories of information that will be shared. The connection begins only after you confirm. You can disconnect in Profile, which ends the trainer's access to your coaching records."
       ] },
       { title: "Retention and security", paragraphs: [
         "We retain information while your account is active and as reasonably required for service delivery, security, dispute resolution, accounting and legal compliance. Access controls and reasonable technical safeguards protect information, but no online system can guarantee absolute security. International processing may occur where our providers operate, with reasonable safeguards applied."
@@ -43,10 +46,11 @@ export function IosPrivacyPolicy() {
 }
 
 export function IosTerms() {
-  return <LegalPage iosEdition eyebrow="Using Ascend" title="Terms of Service" updatedAt="25 September 2026"
+  return <LegalPage iosEdition eyebrow="Using Ascend" title="Terms of Service" updatedAt="30 September 2026"
     introduction="These Terms cover Ascend's iPhone and iPad app. Use Ascend responsibly and understand the limits of fitness estimates and AI guidance."
     sections={[
-      { title: "The free Ascend app", paragraphs: ["This edition includes personal meal, water, weight and activity tracking, recent progress, and optional AI estimates and Zoe guidance within the allowances shown under Included with Ascend. Earlier free editions give every account the included free limits. Version 1.1 offers optional Premium and Trainer Pro monthly subscriptions through Apple, with the localized price and included features shown before purchase. Payments are charged to your Apple Account. Subscriptions renew automatically unless canceled at least 24 hours before the current period ends. Manage or cancel through Profile > Subscriptions > Manage Apple Subscriptions, and restore with Restore Purchases. Cancellation retains access until the paid period ends."] },
+      { title: "The free Ascend app", paragraphs: ["This edition includes personal meal, water, weight and activity tracking, recent progress, and optional AI estimates and Zoe guidance within the allowances shown under Included with Ascend. Earlier free editions give every account the included free limits. Version 1.2 offers optional Premium and Trainer Pro monthly subscriptions through Apple, with the localized price and included features shown before purchase. Eligible customers may receive the free-trial duration shown by Apple; when that trial ends, the subscription renews at the displayed monthly price unless canceled. Otherwise, payment is charged when the purchase is confirmed. Manage or cancel through Profile > Subscriptions > Manage Apple Subscriptions, and restore with Restore Purchases. Cancellation retains access until the current trial or paid period ends."] },
+      { title: "Trainer Pro", paragraphs: ["Trainer Pro includes personal Premium features and trainer workspace tools. Independent trainers do not require manual approval. A client must review and confirm a trainer connection before the trainer can access that client's coaching records, and the client may disconnect at any time. Trial and paid plans may have different active-client limits as shown in the app."] },
       { title: "Accounts and eligibility", bullets: ["You must be at least 18 years old, provide accurate information, keep login credentials secure and notify us of unauthorized access.", "We may suspend accounts used for abuse, fraud, harassment, unlawful activity, security interference or deliberate misuse."] },
       { title: "Health and AI guidance", paragraphs: ["Ascend provides general fitness accountability and educational guidance. It does not provide medical diagnosis, treatment, emergency services or individualized clinical nutrition advice. Consult a qualified professional before significant changes, particularly if pregnant, injured, taking medication or living with a health condition.", "Calories, macros, activity burn, AI responses and progress calculations are estimates that may be incomplete or inaccurate. Review estimates before saving them. You remain responsible for real-world decisions. AI sharing is optional and can be withdrawn in Profile → AI privacy."] },
       { title: "Your content", paragraphs: ["You retain ownership of content you upload. You grant Ascend limited permission to host, process, display and transmit it as needed to operate the service and provide access you have authorized. You must have the right to upload all submitted content."] },
@@ -56,8 +60,8 @@ export function IosTerms() {
 }
 
 export function IosRefundPolicy() {
-  return <LegalPage iosEdition eyebrow="Your account" title="Subscriptions and cancellation" updatedAt="25 September 2026"
-    introduction="Ascend is free to download. Version 1.1 offers optional subscriptions through Apple. Earlier free editions have no purchases."
+  return <LegalPage iosEdition eyebrow="Your account" title="Subscriptions and cancellation" updatedAt="30 September 2026"
+    introduction="Ascend is free to download. Version 1.2 offers optional subscriptions and eligible introductory trials through Apple. Earlier free editions have no purchases."
     sections={[
       { title: "Apple subscriptions", paragraphs: ["Manage or cancel an Apple subscription through Profile > Subscriptions > Manage Apple Subscriptions or your Apple Account subscription settings. Cancellation stops future renewal; access continues until the paid period ends. For refund requests, use Apple at https://reportaproblem.apple.com. Apple evaluates refund eligibility under its policies and applicable law. Deleting your Ascend account does not cancel your Apple subscription; cancel it separately before deletion."] },
       { title: "Close your account", paragraphs: ["You can stop using Ascend at any time. To delete your account and account-linked records, open Profile → Open Account Settings → Delete Account. The public account deletion page provides a support route if you cannot sign in."] },

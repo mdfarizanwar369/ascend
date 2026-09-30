@@ -165,6 +165,35 @@ describe("Food Log voice entry", () => {
   });
 });
 
+describe("Food AI recovery", () => {
+  it("explains a sharing refusal and links to privacy without retrying or saving a meal", async () => {
+    api.estimateFoodFromText.mockRejectedValueOnce(new Error("AI data sharing is off. Open Profile → AI privacy to review and allow sharing. If you are coaching a client, they must also allow sharing of their data."));
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "two boiled eggs" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+
+    expect(await screen.findByRole("link", { name: "Open AI privacy" })).toHaveAttribute("href", "/ai-privacy");
+    expect(screen.getByText("AI data sharing is off. Open AI privacy to review your choice. You can still enter this meal manually.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try AI again" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Detected foods")).toHaveValue("two boiled eggs");
+    expect(screen.getByRole("button", { name: "Save meal" })).toBeDisabled();
+    expect(api.estimateFoodFromText).toHaveBeenCalledTimes(1);
+    expect(api.saveFoodLog).not.toHaveBeenCalled();
+  });
+
+  it("keeps retry available for a temporary provider failure", async () => {
+    api.estimateFoodFromText.mockRejectedValueOnce(new Error("Food AI estimate is temporarily unavailable."));
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "two boiled eggs" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+
+    expect(await screen.findByRole("button", { name: "Try AI again" })).toBeEnabled();
+    expect(screen.queryByRole("link", { name: "Open AI privacy" })).not.toBeInTheDocument();
+  });
+});
+
 describe("Portion-aware meal review", () => {
   it("recalculates an item adjustment without another AI request and preserves original and final quantities on save", async () => {
     api.estimateFoodFromText.mockResolvedValueOnce({

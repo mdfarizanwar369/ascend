@@ -40,7 +40,8 @@ export function isPublicNetworkAddress(address: string) {
   // Normalize mapped addresses before classification, including their hexadecimal form.
   const parsed = ipaddr.process(normalized);
   if (parsed.kind() === "ipv4") return isPublicIpv4(parsed.toString());
-  return parsed.range() === "unicast" && parsed.match(ipaddr.parseCIDR("2000::/3"));
+  const ipv6 = parsed as ipaddr.IPv6;
+  return ipv6.range() === "unicast" && ipv6.match(ipaddr.IPv6.parseCIDR("2000::/3"));
 }
 
 const resolveHost: HostResolver = async (hostname) => {

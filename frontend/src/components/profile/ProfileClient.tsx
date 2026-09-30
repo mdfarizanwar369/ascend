@@ -10,13 +10,15 @@ import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { InstallAscendButton } from "@/components/InstallAscendButton";
 import { EnableCoachNotificationsButton } from "@/components/EnableCoachNotificationsButton";
-import { cancelSubscription, getBillingPortal, getMe, getMySubscription, removeProfilePhoto, saveProfilePhoto } from "@/lib/ascendApi";
+import { cancelSubscription, confirmTrainerConnection, disconnectTrainerConnection, getBillingPortal, getMe, getMySubscription, previewTrainerConnection, removeProfilePhoto, saveProfilePhoto, type TrainerConnectionPreview } from "@/lib/ascendApi";
 import { compressProfileImage } from "@/lib/profileImage";
 import { formatPlan, usablePlan } from "@/lib/subscriptionPlan";
 import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/PerceivedLoading";
 import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayBilling } from "@/lib/billingPlatform";
 import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
 import { AppleBilling, supportsAppleBilling } from "@/lib/appleBilling";
+
+const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1";
 
 function formatBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -46,6 +48,8 @@ export function ProfileClient() {
   const [billingStatus, setBillingStatus] = useState("");
   const [isWorking, setIsWorking] = useState(false);
   const [isBillingWorking, setIsBillingWorking] = useState(false);
+  const [trainerCode, setTrainerCode] = useState("");
+  const [trainerPreview, setTrainerPreview] = useState<TrainerConnectionPreview | null>(null);
 
   async function loadProfile() {
     const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
@@ -61,10 +65,15 @@ export function ProfileClient() {
 
   useEffect(() => {
     let mounted = true;
+    const pendingTrainerCode = window.sessionStorage.getItem(pendingTrainerReferralKey);
+    if (pendingTrainerCode) {
+      setTrainerCode(pendingTrainerCode);
+      setStatus("Review your trainer invitation below before connecting.");
+    }
     loadProfile()
       .then(() => {
         if (!mounted) return;
-        setStatus("");
+        if (!pendingTrainerCode) setStatus("");
       })
       .catch((error) => mounted && setStatus(error instanceof Error ? error.message : "Could not load your profile."));
     return () => { mounted = false; };
@@ -216,6 +225,49 @@ export function ProfileClient() {
     } finally {
       setIsBillingWorking(false);
     }
+  }
+
+  async function previewTrainer() {
+    if (!trainerCode.trim() || isWorking) return;
+    setIsWorking(true);
+    try {
+      const response = await previewTrainerConnection(trainerCode.trim().toUpperCase());
+      setTrainerPreview(response.connection);
+      setStatus("");
+    } catch (error) {
+      setTrainerPreview(null);
+      setStatus(error instanceof Error ? error.message : "Could not find that trainer code.");
+    } finally { setIsWorking(false); }
+  }
+
+  async function connectTrainer() {
+    if (!trainerPreview || isWorking) return;
+    setIsWorking(true);
+    try {
+      await confirmTrainerConnection(trainerPreview.code, trainerPreview.consentVersion);
+      window.sessionStorage.removeItem(pendingTrainerReferralKey);
+      const trainerName = trainerPreview.trainerName;
+      await loadProfile();
+      setTrainerPreview(null);
+      setTrainerCode("");
+      setStatus(`Connected to ${trainerName}.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not connect to this trainer.");
+    } finally { setIsWorking(false); }
+  }
+
+  async function disconnectTrainer() {
+    if (isWorking) return;
+    const confirmed = window.confirm("Disconnect this trainer? They will immediately lose access to your Ascend coaching records.");
+    if (!confirmed) return;
+    setIsWorking(true);
+    try {
+      await disconnectTrainerConnection();
+      await loadProfile();
+      setStatus("Trainer disconnected.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not disconnect this trainer.");
+    } finally { setIsWorking(false); }
   }
 
   if (isInitialLoading) {
@@ -389,6 +441,29 @@ export function ProfileClient() {
           </p>
         </section>
         </>}
+
+        <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Trainer connection</p>
+        <section className="mt-2 rounded-xl border border-line bg-surface p-4">
+          {user?.assigned_trainer_id ? <>
+            <p className="text-sm font-semibold">Connected to {user.assigned_trainer_name || "your trainer"}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Your assigned trainer can access the coaching information you agreed to share. AI sharing remains controlled separately under AI privacy.</p>
+            <button type="button" onClick={() => void disconnectTrainer()} disabled={isWorking} className="mt-4 min-h-11 w-full rounded-lg border border-amber/40 bg-amber/10 font-semibold text-amber disabled:opacity-60">Disconnect trainer</button>
+          </> : <>
+            <p className="text-sm font-semibold">Connect to a trainer</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Enter a Trainer Pro referral code. You will review the trainer and shared information before connecting.</p>
+            <div className="mt-4 flex gap-2">
+              <input value={trainerCode} onChange={event => { setTrainerCode(event.target.value.toUpperCase()); setTrainerPreview(null); }} maxLength={64} placeholder="Trainer code" className="min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-ink px-3 text-white" />
+              <button type="button" onClick={() => void previewTrainer()} disabled={isWorking || trainerCode.trim().length < 4} className="rounded-lg bg-calm px-4 font-semibold text-ink disabled:opacity-60">Review</button>
+            </div>
+            {trainerPreview ? <div className="mt-4 rounded-lg border border-calm/40 bg-calm/10 p-4">
+              <p className="font-semibold">{trainerPreview.trainerName}</p>
+              <p className="mt-1 text-sm text-zinc-300">{trainerPreview.workspaceName}</p>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">Connecting shares: {trainerPreview.sharedCategories.join(", ")}. You can disconnect at any time.</p>
+              <button type="button" onClick={() => void connectTrainer()} disabled={isWorking} className="mt-4 min-h-11 w-full rounded-lg bg-lime font-semibold text-ink disabled:opacity-60">Confirm and connect</button>
+            </div> : null}
+          </>}
+        </section>
+
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Connected services</p>
         <section className="mt-2 rounded-xl border border-line bg-surface p-4">
           <p className="text-sm font-semibold">App settings</p>

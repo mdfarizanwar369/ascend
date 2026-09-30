@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import QRCode from "qrcode";
 import { calculateNutritionTargets } from "@ascend/shared";
-import { AlertTriangle, Check, MessageSquare, Search, TrendingUp } from "lucide-react";
-import { getMe, getTrainerClients, getTrainerRiskAlerts, sendTrainerClientPraise, updateTrainerRiskAlert } from "@/lib/ascendApi";
+import { AlertTriangle, Check, Copy, MessageSquare, Search, Share2, TrendingUp } from "lucide-react";
+import { createTrainerReferralCode, getMe, getMySubscription, getTrainerClients, getTrainerOnboardingStatus, getTrainerRiskAlerts, sendTrainerClientPraise, updateTrainerRiskAlert } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { DelightEmptyState } from "@/components/Delight";
@@ -307,6 +309,9 @@ export function TrainerDashboardClient() {
   const [trainerName, setTrainerName] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [clientFilter, setClientFilter] = useState<"all" | "attention" | "unread" | "on_track">("all");
+  const [referralCode, setReferralCode] = useState("");
+  const [referralQr, setReferralQr] = useState("");
+  const [clientLimit, setClientLimit] = useState(5);
 
   useEffect(() => {
     let isMounted = true;
@@ -323,12 +328,16 @@ export function TrainerDashboardClient() {
           return;
         }
 
-        const [clientResponse, alertResponse] = await Promise.all([
+        const [clientResponse, alertResponse, onboardingResponse, subscriptionResponse] = await Promise.all([
           getTrainerClients(),
-          getTrainerRiskAlerts().catch(() => null)
+          getTrainerRiskAlerts().catch(() => null),
+          getTrainerOnboardingStatus().catch(() => null),
+          getMySubscription().catch(() => null)
         ]);
         if (!isMounted) return;
         setClients(clientResponse.clients);
+        setReferralCode(onboardingResponse?.onboarding?.referral_code ?? "");
+        setClientLimit(subscriptionResponse?.subscription?.status === "trialing" ? 2 : 5);
         setStatus("");
 
         if (alertResponse) {
@@ -346,6 +355,18 @@ export function TrainerDashboardClient() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (!referralCode) { setReferralQr(""); return; }
+    const url = `https://www.getascend.fit/?trainer=${encodeURIComponent(referralCode)}`;
+    void QRCode.toDataURL(url, {
+      width: 320,
+      margin: 2,
+      color: { dark: "#07111B", light: "#FFFFFF" }
+    }).then(value => { if (active) setReferralQr(value); }).catch(() => { if (active) setReferralQr(""); });
+    return () => { active = false; };
+  }, [referralCode]);
 
   const activeToday = useMemo(() => countActiveToday(clients), [clients]);
   const highRisk = useMemo(() => countHighRiskClients(clients, alerts), [alerts, clients]);
@@ -420,6 +441,27 @@ export function TrainerDashboardClient() {
     }
   }
 
+  async function ensureReferralCode() {
+    try {
+      const response = await createTrainerReferralCode();
+      setReferralCode(response.referral.code);
+      setStatus("Your client referral code is ready.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not create a referral code.");
+    }
+  }
+
+  async function shareReferral() {
+    const code = referralCode || (await createTrainerReferralCode()).referral.code;
+    setReferralCode(code);
+    const url = `https://www.getascend.fit/?trainer=${encodeURIComponent(code)}`;
+    if (navigator.share) await navigator.share({ title: "Train with me on Ascend", text: `Use my trainer code ${code} when you join Ascend.`, url });
+    else {
+      await navigator.clipboard.writeText(`${url}\nTrainer code: ${code}`);
+      setStatus("Referral link copied.");
+    }
+  }
+
   if (isPendingApproval) {
     return (
       <section className="ascend-workspace-section mt-4 border-amber/40 bg-amber/10 p-4">
@@ -466,6 +508,26 @@ export function TrainerDashboardClient() {
       />
 
       {status ? <p className="ascend-workspace-inset mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
+
+      <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
+        <p className="text-sm font-semibold text-calm">Invite your clients</p>
+        <h2 className="mt-1 text-xl font-semibold">Your Trainer Pro referral</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-300">Clients see your identity and confirm before any fitness information is shared.</p>
+        {referralCode ? <div className="mt-4 rounded-xl border border-line bg-ink p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.18em] text-zinc-500">Trainer code</p>
+              <p className="mt-1 text-2xl font-bold tracking-wider text-lime">{referralCode}</p>
+              <p className="mt-2 text-sm text-zinc-400">{clients.length} of {clientLimit} active client places used</p>
+            </div>
+            {referralQr ? <Image src={referralQr} alt={`QR code for trainer referral ${referralCode}`} width={112} height={112} unoptimized className="rounded-lg bg-white p-1" /> : null}
+          </div>
+        </div> : null}
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button onClick={() => void (referralCode ? navigator.clipboard.writeText(referralCode).then(() => setStatus("Referral code copied.")) : ensureReferralCode())} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-line font-semibold"><Copy size={17} />{referralCode ? "Copy code" : "Create code"}</button>
+          <button onClick={() => void shareReferral().catch(() => setStatus("Could not share the referral link."))} className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-calm font-semibold text-ink"><Share2 size={17} />Share link</button>
+        </div>
+      </section>
 
       <section className="ascend-workspace-section mt-4 p-4 sm:p-5">
         <div className="grid grid-cols-2 gap-3">

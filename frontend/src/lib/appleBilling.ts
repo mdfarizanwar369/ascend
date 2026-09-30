@@ -5,7 +5,23 @@ import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { getAppleBillingConfig, verifyAppleSubscription } from "./ascendApi";
 import { getNativeCapacitorPlatform, isNativeCapacitorPlatform } from "./nativePlatform";
 
-export type AppleProduct = { id: string; title: string; description: string; displayPrice: string };
+export type AppleSubscriptionPeriod = { value: number; unit: "day" | "week" | "month" | "year" };
+export type AppleIntroductoryOffer = {
+  eligible: boolean;
+  displayPrice: string;
+  paymentMode: "freeTrial" | "payAsYouGo" | "payUpFront" | "unknown";
+  period: AppleSubscriptionPeriod;
+  periodCount: number;
+};
+export type AppleProduct = {
+  id: string;
+  title: string;
+  description: string;
+  displayPrice: string;
+  subscriptionPeriod?: AppleSubscriptionPeriod;
+  subscriptionGroupId?: string;
+  introductoryOffer?: AppleIntroductoryOffer;
+};
 export type AppleTransaction = { transactionId: string; signedTransaction: string; environment?: "Production" | "Sandbox" };
 type AppleBillingPlugin = {
   getProducts(): Promise<{ products: AppleProduct[] }>;

@@ -85,6 +85,27 @@ public class AppleBillingPlugin: CAPPlugin, CAPBridgedPlugin, SKPaymentTransacti
         return ["transactionId": String(transaction.id), "signedTransaction": result.jwsRepresentation]
     }
 
+    private func periodPayload(_ period: Product.SubscriptionPeriod) -> JSObject {
+        let unit: String
+        switch period.unit {
+        case .day: unit = "day"
+        case .week: unit = "week"
+        case .month: unit = "month"
+        case .year: unit = "year"
+        @unknown default: unit = "day"
+        }
+        return ["value": period.value, "unit": unit]
+    }
+
+    private func paymentModeName(_ mode: Product.SubscriptionOffer.PaymentMode) -> String {
+        switch mode {
+        case .freeTrial: return "freeTrial"
+        case .payAsYouGo: return "payAsYouGo"
+        case .payUpFront: return "payUpFront"
+        default: return "unknown"
+        }
+    }
+
     private func transactions() async -> [JSObject] {
         var results: [String: JSObject] = [:]
         // Include unfinished transactions so a network failure after payment can recover on next launch.
@@ -101,8 +122,28 @@ public class AppleBillingPlugin: CAPPlugin, CAPBridgedPlugin, SKPaymentTransacti
         Task {
             do {
                 let products = try await Product.products(for: productIDs)
-                let items: [JSObject] = products.filter { $0.type == .autoRenewable }.map {
-                    ["id": $0.id, "title": $0.displayName, "description": $0.description, "displayPrice": $0.displayPrice]
+                var items: [JSObject] = []
+                for product in products where product.type == .autoRenewable {
+                    var item: JSObject = [
+                        "id": product.id,
+                        "title": product.displayName,
+                        "description": product.description,
+                        "displayPrice": product.displayPrice
+                    ]
+                    if let subscription = product.subscription {
+                        item["subscriptionPeriod"] = self.periodPayload(subscription.subscriptionPeriod)
+                        item["subscriptionGroupId"] = subscription.subscriptionGroupID
+                        if let offer = subscription.introductoryOffer {
+                            item["introductoryOffer"] = [
+                                "eligible": await subscription.isEligibleForIntroOffer,
+                                "displayPrice": offer.displayPrice,
+                                "paymentMode": self.paymentModeName(offer.paymentMode),
+                                "period": self.periodPayload(offer.period),
+                                "periodCount": offer.periodCount
+                            ] as JSObject
+                        }
+                    }
+                    items.append(item)
                 }
                 call.resolve(["products": items])
             } catch { call.reject("Could not load Apple subscription prices. Please try again.") }

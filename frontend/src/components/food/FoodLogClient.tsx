@@ -228,6 +228,9 @@ function shouldRetryEstimate(error: unknown) {
 }
 
 function estimateFailureMessage(error: unknown) {
+  if (error instanceof Error && error.message.startsWith("AI data sharing is off.")) {
+    return "AI data sharing is off. Open AI privacy to review your choice. You can still enter this meal manually.";
+  }
   if (error instanceof Error && /Premium plan required/i.test(error.message)) {
     return "Premium access is required for AI food estimates. Ask your trainer or gym owner for approved access, or open plans.";
   }
@@ -1703,10 +1706,16 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
               {aiFailed ? (
                 <div className="mt-4 rounded-lg border border-amber/40 bg-amber/10 p-3">
                   <p className="text-sm leading-6 text-amber">{status}</p>
-                  <button className="ascend-pressable mt-3 flex h-11 w-full items-center justify-center rounded-xl bg-amber font-semibold text-ink disabled:opacity-60" disabled={isEstimating} onClick={selectedFile ? handleEstimate : handleTextEstimate} type="button">
-                    <Sparkles className="mr-2" size={18} />
-                    {isEstimating ? "Trying again..." : "Try AI again"}
-                  </button>
+                  {status.startsWith("AI data sharing is off.") ? (
+                    <Link href="/ai-privacy" className="ascend-pressable mt-3 flex min-h-11 w-full items-center justify-center rounded-xl bg-amber font-semibold text-ink">
+                      Open AI privacy
+                    </Link>
+                  ) : (
+                    <button className="ascend-pressable mt-3 flex h-11 w-full items-center justify-center rounded-xl bg-amber font-semibold text-ink disabled:opacity-60" disabled={isEstimating} onClick={selectedFile ? handleEstimate : handleTextEstimate} type="button">
+                      <Sparkles className="mr-2" size={18} />
+                      {isEstimating ? "Trying again..." : "Try AI again"}
+                    </button>
+                  )}
                 </div>
               ) : null}
 
