@@ -9,6 +9,8 @@ on:
       - 'scripts/ios-store-screenshots.py'
       - 'scripts/ios-store-screenshots.yaml'
       - 'scripts/prepare-ios-screenshot-driver.py'
+      - 'scripts/ios_listing_capture.py'
+      - 'scripts/fixtures/listing-meal.jpg'
 
 permissions:
   contents: read
@@ -18,13 +20,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        device: [ipad]
+        device: [iphone, ipad]
     if: github.ref == 'refs/heads/main'
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 45
     environment: apple-testflight
     env:
       SCREENSHOT_DEVICE: ${{ matrix.device }}
+      LISTING_CAPTURE: '1'
       MAESTRO_CLI_NO_ANALYTICS: 1
       MAESTRO_DRIVER_STARTUP_TIMEOUT: 300000
       IOS_GOOGLE_SERVICE_INFO_BASE64: ${{ secrets.IOS_GOOGLE_SERVICE_INFO_BASE64 }}
@@ -40,7 +43,7 @@ jobs:
           java-version: 17
       - run: npm ci
       - run: npm run ios:prepare
-      - run: python3 scripts/prepare-ios-screenshot-driver.py
+      - run: python3 scripts/prepare-ios-screenshot-driver.py --listing
       - name: Build the current iOS app for screenshots
         run: |
           set -o pipefail

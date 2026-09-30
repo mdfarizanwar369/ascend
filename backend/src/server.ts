@@ -36,15 +36,8 @@ import { trainerSessionsRouter } from "./routes/trainerSessions";
 import { trainerOnboardingRouter } from "./routes/trainerOnboarding";
 import { clientErrorsRouter } from "./routes/clientErrors";
 import { errorHandler } from "./middleware/errors";
-import { ensureAiUsageSchema } from "./services/aiUsageService";
-import { ensureCoachPresenceSchema } from "./services/coachPresenceService";
-import { ensureAscendMemorySchema } from "./services/ascendMemoryService";
-import { ensureUserProfileSchema } from "./services/userService";
-import { ensureWaitlistSchema } from "./services/waitlistService";
-import { ensureSubscriptionSchema } from "./services/subscriptionSchemaService";
-import { ensureNotificationSchema } from "./services/notificationService";
-import { ensureHealthSyncSchema } from "./services/healthSyncService";
-import { ensureClientErrorSchema } from "./services/clientErrorService";
+import { verifyRuntimeSchema } from "./db/bootstrap";
+import { pool } from "./db/pool";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -55,20 +48,24 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 app.use(cors({ origin: corsOrigins.length > 1 ? corsOrigins : corsOrigins[0], credentials: true }));
-app.use(express.json({
-  limit: "10mb",
-  verify: (req, _res, buffer) => {
-    (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
-  }
-}));
-app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 app.use(rateLimit({
   windowMs: 60_000,
   limit: 120,
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  skip: req => req.path === "/api/v1/health/ready",
   message: { error: "Too many requests. Please wait a moment and try again." }
 }));
+app.use(express.json({
+  limit: "10mb",
+  verify: (req, _res, buffer) => {
+    const path = (req.url ?? "").split("?")[0];
+    if (["/api/v1/webhooks/stripe", "/api/v1/webhooks/lemonsqueezy"].includes(path)) {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buffer;
+    }
+  }
+}));
+app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 app.use("/api/v1", (_req, res, next) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.set("Pragma", "no-cache");
@@ -110,22 +107,24 @@ app.use("/api/v1", athleteRouter);
 app.use("/api/v1", bodyCompositionRouter);
 app.use(errorHandler);
 
-Promise.all([
-  ensureAiUsageSchema(),
-  ensureUserProfileSchema(),
-  ensureWaitlistSchema(),
-  ensureSubscriptionSchema(),
-  ensureNotificationSchema(),
-  ensureCoachPresenceSchema(),
-  ensureAscendMemorySchema(),
-  ensureHealthSyncSchema(),
-  ensureClientErrorSchema()
-])
-  .catch((error) => {
-    console.error("Schema setup failed", error);
-  })
-  .finally(() => {
-    app.listen(env.PORT, () => {
+verifyRuntimeSchema()
+  .then(() => {
+    const server = app.listen(env.PORT, () => {
       console.log(`Ascend API listening on ${env.PORT}`);
     });
+    let stopping = false;
+    const stop = () => {
+      if (stopping) return;
+      stopping = true;
+      const deadline = setTimeout(() => process.exit(1), 110_000);
+      deadline.unref();
+      server.close(() => { void pool.end().finally(() => process.exit(0)); });
+    };
+    process.once("SIGTERM", stop);
+    process.once("SIGINT", stop);
+  })
+  .catch(async () => {
+    console.error("[startup] database readiness check failed; refusing traffic");
+    await pool.end().catch(() => undefined);
+    process.exitCode = 1;
   });

@@ -1,5 +1,6 @@
 import { isIosFreeEdition, isIosNativeEdition } from "../services/appEdition";
 import { requireAiConsent } from "../middleware/aiConsent";
+import { withAiWorkLease } from "../services/aiWorkLeaseService";
 import { Router } from "express";
 import {
   createCoachWorkoutPlan,
@@ -285,6 +286,7 @@ function summarizeDataConfidence(input: {
 
 aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
+    return await withAiWorkLease(`zoe-chat:${req.user!.id}`, async () => {
     const { message, mode, timezoneOffsetMinutes } = coachChatSchema.parse(req.body);
     const coachAccess = await getCoachZoeAccess(req.user!.id, timezoneOffsetMinutes);
     if ((isIosNativeEdition() || mode === "general") && coachAccess.dailyAskZoeLimit !== null && (coachAccess.dailyAskZoeRemaining ?? 0) <= 0) {
@@ -635,6 +637,7 @@ aiRouter.post("/ai/chat", requireAuth, requireAiConsent, aiRateLimit, async (req
     ]);
 
     res.json({ reply });
+    });
   } catch (error) {
     next(error);
   }

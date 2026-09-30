@@ -43,6 +43,9 @@ export function errorHandler(error: Error, _req: Request, res: Response, _next: 
   }
 
   const status = (error as Error & { status?: number }).status;
+  if (error.name === "AiWorkBusyError") {
+    return res.status(429).set("Retry-After", "3").json({ error: error.message });
+  }
   // Only this known, sanitized provider error exposes a retry message for 5xx.
   if (status === 503 && error.name === "WorkoutGenerationError") {
     return res.status(503).json({ error: error.message });

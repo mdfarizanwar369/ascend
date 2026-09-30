@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { QueryResultRow } from "pg";
-import { pool, query } from "../db/pool";
+import { query } from "../db/pool";
+import { AiWorkBusyError, withAiWorkLease, withAiWorkTransaction } from "./aiWorkLeaseService";
 import {
   buildTodayPriorityCandidates,
   deterministicTodayPriority,
@@ -518,15 +519,22 @@ async function resolveWithDistributedLock(
   fingerprint: string,
   resolutionMode: DailyCoachingResolutionMode
 ) {
-  const client = await pool.connect();
-  const firstLockKey = `${input.userId}:${input.localDate}`;
-  const secondLockKey = `${fingerprint}:${resolutionMode}`;
-  try {
-    await client.query("select pg_advisory_lock(hashtext($1), hashtext($2))", [firstLockKey, secondLockKey]);
-    const lockedStore = createPostgresDecisionStore(async <T extends QueryResultRow = QueryResultRow>(sql: string, values: unknown[] = []) => {
-      const result = await client.query<T>(sql, values);
-      return { rows: result.rows, rowCount: result.rowCount };
+  return withAiWorkLease(`daily-coaching:${input.userId}:${input.localDate}:${resolutionMode}`, async () => {
+    // Respect work still running on the preceding release during a rolling deploy.
+    // This lock is held only for the cache read/write, never for AI generation.
+    const withLegacyLock = <T>(work: () => Promise<T>) => withAiWorkTransaction(async () => {
+      const lock = await query<{ locked: boolean }>(
+        "select pg_try_advisory_xact_lock(hashtext($1), hashtext($2)) as locked",
+        [`${input.userId}:${input.localDate}`, `${fingerprint}:${resolutionMode}`]
+      );
+      if (!lock.rows[0]?.locked) throw new AiWorkBusyError();
+      return work();
     });
+    const lockedStore: DailyCoachingDecisionStore = {
+      ...postgresDecisionStore,
+      findCached: data => withLegacyLock(() => postgresDecisionStore.findCached(data)),
+      save: data => withLegacyLock(() => postgresDecisionStore.save(data))
+    };
     return await resolveDailyCoachingDecisionUncoalesced(
       input,
       dependencies,
@@ -534,10 +542,7 @@ async function resolveWithDistributedLock(
       fingerprint,
       resolutionMode
     );
-  } finally {
-    await client.query("select pg_advisory_unlock(hashtext($1), hashtext($2))", [firstLockKey, secondLockKey]).catch(() => undefined);
-    client.release();
-  }
+  });
 }
 
 export async function getLatestCachedDailyCoachingInsight(

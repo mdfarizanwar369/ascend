@@ -5,6 +5,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 const queryMock = vi.fn();
 const refineMock = vi.fn();
 const legacyRefineMock = vi.fn();
+const leaseMock = vi.fn(async (_key: string, work: () => Promise<unknown>) => work());
+vi.mock("../services/aiWorkLeaseService", () => ({
+  AiWorkBusyError: class extends Error {},
+  withAiWorkLease: leaseMock,
+  withAiWorkTransaction: (work: () => Promise<unknown>) => work()
+}));
 let isPlatformOwner = true;
 
 vi.mock("../config/env", () => ({
@@ -72,6 +78,7 @@ function previousLocalEvening(timezoneOffsetMinutes: number, daysAgo = 1) {
 function configureQueries(timezoneOffsetMinutes: number, options: { failDecisionWrite?: boolean; ambiguous?: boolean } = {}) {
   queryMock.mockImplementation(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, " ").trim();
+    if (normalized.includes("pg_try_advisory_xact_lock")) return { rows: [{ locked: true }], rowCount: 1 };
     if (normalized.startsWith("select pg_advisory_")) return { rows: [], rowCount: 1 };
     if (normalized.includes("from food_logs where user_id")) {
       return { rows: [{ meals: options.ambiguous ? 0 : 2, protein_g: options.ambiguous ? 0 : 130 }] };
@@ -113,6 +120,7 @@ describe("daily coaching decision route", () => {
     queryMock.mockReset();
     refineMock.mockReset();
     legacyRefineMock.mockReset();
+    leaseMock.mockClear();
     isPlatformOwner = true;
   });
 
@@ -141,7 +149,7 @@ describe("daily coaching decision route", () => {
     expect(refineMock).not.toHaveBeenCalled();
   });
 
-  it("takes a database advisory lock before an ambiguous active AI refinement", async () => {
+  it("reserves ambiguous AI refinement without holding a database connection", async () => {
     const timezoneOffsetMinutes = -480;
     configureQueries(timezoneOffsetMinutes, { ambiguous: true });
     refineMock.mockImplementation(async ({ candidates }: any) => candidates.find((candidate: any) => candidate.key === "Movement"));
@@ -154,8 +162,8 @@ describe("daily coaching decision route", () => {
 
     expect(response.status).toBe(200);
     expect(refineMock).toHaveBeenCalledTimes(1);
-    expect(queryMock.mock.calls.some(([sql]) => String(sql).includes("pg_advisory_lock"))).toBe(true);
-    expect(queryMock.mock.calls.some(([sql]) => String(sql).includes("pg_advisory_unlock"))).toBe(true);
+    expect(leaseMock).toHaveBeenCalledWith(expect.stringContaining("daily-coaching:"), expect.any(Function));
+    expect(queryMock.mock.calls.some(([sql]) => String(sql).includes("pg_advisory_lock"))).toBe(false);
   });
 
   it("keeps the legacy response contract for a normal member while shadow recording remains background-only", async () => {

@@ -1,5 +1,8 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import ipaddr from "ipaddr.js";
 
 type ResolvedAddress = { address: string; family: number };
 export type HostResolver = (hostname: string) => Promise<ResolvedAddress[]>;
@@ -33,17 +36,12 @@ function isPublicIpv4(address: string) {
 
 export function isPublicNetworkAddress(address: string) {
   const normalized = address.toLowerCase().replace(/^\[|\]$/g, "");
-  const family = isIP(normalized);
-  if (family === 4) return isPublicIpv4(normalized);
-  if (family !== 6) return false;
-
-  const mappedIpv4 = normalized.match(/^(?:::ffff:)(\d+\.\d+\.\d+\.\d+)$/)?.[1];
-  if (mappedIpv4) return isPublicIpv4(mappedIpv4);
-  if (normalized === "::" || normalized === "::1") return false;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return false;
-  if (/^fe[89ab]/.test(normalized)) return false;
-  if (normalized.startsWith("ff") || normalized.startsWith("2001:db8")) return false;
-  return true;
+  if (!isIP(normalized) || normalized.includes("%")) return false;
+  // Normalize mapped addresses before classification, including their hexadecimal form.
+  const parsed = ipaddr.process(normalized);
+  if (parsed.kind() === "ipv4") return isPublicIpv4(parsed.toString());
+  const ipv6 = parsed as ipaddr.IPv6;
+  return ipv6.range() === "unicast" && ipv6.match(ipaddr.IPv6.parseCIDR("2000::/3"));
 }
 
 const resolveHost: HostResolver = async (hostname) => {
@@ -51,7 +49,7 @@ const resolveHost: HostResolver = async (hostname) => {
   return addresses.map(({ address, family }) => ({ address, family }));
 };
 
-export async function validatePublicHttpUrl(rawUrl: string, resolver: HostResolver = resolveHost) {
+async function resolvePublicHttpUrl(rawUrl: string, resolver: HostResolver) {
   let url: URL;
   try {
     url = new URL(rawUrl);
@@ -75,20 +73,93 @@ export async function validatePublicHttpUrl(rawUrl: string, resolver: HostResolv
     throw new UnsafeOutboundUrlError();
   }
 
-  return url;
+  return { url, addresses };
+}
+
+export async function validatePublicHttpUrl(rawUrl: string, resolver: HostResolver = resolveHost) {
+  return (await resolvePublicHttpUrl(rawUrl, resolver)).url;
+}
+
+function withinDeadline<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+    work.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+  });
+}
+
+// Use the checked DNS results for the actual socket while retaining the original
+// hostname for Host and TLS certificate verification. Never resolve a second time.
+async function requestPinnedUrl(url: URL, addresses: ResolvedAddress[], init: RequestInit, maxBytes: number, signal: AbortSignal) {
+  const method = (init.method ?? "GET").toUpperCase();
+  if (!["GET", "HEAD"].includes(method) || init.body) throw new UnsafeOutboundUrlError();
+  const headers = new Headers(init.headers);
+  headers.set("accept-encoding", "identity");
+  headers.delete("host");
+  return new Promise<Response>((resolve, reject) => {
+    const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
+      method,
+      headers: Object.fromEntries(headers.entries()),
+      agent: false,
+      signal,
+      lookup: (_hostname, options, callback) => {
+        if (options.all) callback(null, addresses);
+        else callback(null, addresses[0].address, addresses[0].family);
+      }
+    }, (incoming) => {
+      const status = incoming.statusCode ?? 502;
+      if (status < 200 || status > 599) {
+        incoming.destroy();
+        reject(new Error("Unexpected response status."));
+        return;
+      }
+      const responseHeaders = new Headers();
+      for (let i = 0; i < incoming.rawHeaders.length; i += 2) {
+        responseHeaders.append(incoming.rawHeaders[i], incoming.rawHeaders[i + 1]);
+      }
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        incoming.destroy();
+        resolve(new Response(null, { status, headers: responseHeaders }));
+        return;
+      }
+      const chunks: Buffer[] = [];
+      let size = 0;
+      incoming.on("error", reject);
+      incoming.on("data", (chunk: Buffer) => {
+        size += chunk.length;
+        if (size > maxBytes) {
+          const error = new Error("Response is too large.");
+          incoming.destroy(error);
+          reject(error);
+        } else chunks.push(chunk);
+      });
+      incoming.on("end", () => {
+        const body = method === "HEAD" || [204, 205, 304].includes(status) ? null : new Uint8Array(Buffer.concat(chunks));
+        resolve(new Response(body, { status, headers: responseHeaders }));
+      });
+      if (Number(responseHeaders.get("content-length")) > maxBytes) incoming.destroy(new Error("Response is too large."));
+    });
+    request.on("error", reject);
+    request.end();
+  });
 }
 
 export async function fetchPublicHttpUrl(
   rawUrl: string,
   init: RequestInit = {},
-  options: { maxRedirects?: number; resolver?: HostResolver } = {}
+  options: { maxRedirects?: number; resolver?: HostResolver; maxResponseBytes?: number } = {}
 ) {
   const maxRedirects = options.maxRedirects ?? 5;
+  const maxBytes = options.maxResponseBytes ?? 5 * 1024 * 1024;
+  const deadline = AbortSignal.timeout(20_000);
+  const signal = init.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
   let nextUrl = rawUrl;
 
   for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-    const safeUrl = await validatePublicHttpUrl(nextUrl, options.resolver ?? resolveHost);
-    const response = await fetch(safeUrl, { ...init, redirect: "manual" });
+    const { url: safeUrl, addresses } = await withinDeadline(resolvePublicHttpUrl(nextUrl, options.resolver ?? resolveHost), signal);
+    signal.throwIfAborted();
+    const response = await requestPinnedUrl(safeUrl, addresses, init, maxBytes, signal);
 
     if (![301, 302, 303, 307, 308].includes(response.status)) return response;
 
@@ -104,6 +175,7 @@ export async function fetchPublicHttpUrl(
 export async function readResponseBufferLimited(response: Response, maxBytes: number) {
   const contentLength = Number(response.headers.get("content-length") ?? 0);
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    await response.body?.cancel();
     throw new Error("Response is too large.");
   }
 

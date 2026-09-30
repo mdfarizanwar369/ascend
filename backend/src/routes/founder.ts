@@ -87,7 +87,7 @@ async function fetchWebsiteText(url: string) {
       headers: {
         "user-agent": "Ascend founder lead research bot; contact: founder@getascend.fit"
       }
-    });
+    }, { maxResponseBytes: 1_000_000 });
     if (!response.ok) throw new Error(`Website returned ${response.status}`);
     const text = (await readResponseBufferLimited(response, 1_000_000)).toString("utf8");
     return text
