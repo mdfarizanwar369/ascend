@@ -1,3 +1,8 @@
 # False positive: appAccountToken in this test is a public account UUID, not an API credential.
 # Restrict this exception to the reviewed historical finding; keep all other secret scanning enabled.
 15b887b9485a07482b99578f0770638650c138d1:backend/src/tests/appleSubscriptionService.test.ts:generic-api-key:43
+
+# False positives: this value is a sessionStorage key name for a pending referral code, not a credential.
+# Restrict the exceptions to the reviewed historical findings in the iOS 1.2 feature commit.
+c641185114c845949f9d0e924ce51b49510e55a1:frontend/src/components/auth/AuthPanel.tsx:generic-api-key:39
+c641185114c845949f9d0e924ce51b49510e55a1:frontend/src/components/profile/ProfileClient.tsx:generic-api-key:21
