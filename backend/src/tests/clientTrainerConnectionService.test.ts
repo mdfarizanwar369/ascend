@@ -30,7 +30,7 @@ beforeEach(() => {
   mocks.clientQuery.mockImplementation(async (sql: string) => {
     const normalized = sql.replace(/\s+/g, " ").trim().toLowerCase();
     if (normalized.includes("from referral_codes rc")) return { rows: [trainer], rowCount: 1 };
-    if (normalized.includes("select assigned_trainer_id")) return { rows: [{ assigned_trainer_id: null }], rowCount: 1 };
+    if (normalized.includes("select assigned_trainer_id")) return { rows: [{ assigned_trainer_id: null, privileged: false }], rowCount: 1 };
     if (normalized.includes("select count(*)::text")) return { rows: [{ count: "1" }], rowCount: 1 };
     return { rows: [], rowCount: 1 };
   });
@@ -61,7 +61,7 @@ describe("client-to-trainer consent and trial limits", () => {
     mocks.clientQuery.mockImplementation(async (sql: string) => {
       const normalized = sql.replace(/\s+/g, " ").trim().toLowerCase();
       if (normalized.includes("from referral_codes rc")) return { rows: [trainer], rowCount: 1 };
-      if (normalized.includes("select assigned_trainer_id")) return { rows: [{ assigned_trainer_id: null }], rowCount: 1 };
+      if (normalized.includes("select assigned_trainer_id")) return { rows: [{ assigned_trainer_id: null, privileged: false }], rowCount: 1 };
       if (normalized.includes("select count(*)::text")) return { rows: [{ count: "2" }], rowCount: 1 };
       return { rows: [], rowCount: 1 };
     });
@@ -72,5 +72,17 @@ describe("client-to-trainer consent and trial limits", () => {
     });
     expect(mocks.clientQuery).toHaveBeenCalledWith("rollback");
     expect(mocks.clientQuery.mock.calls.some(([sql]) => String(sql).includes("insert into client_trainer_connections"))).toBe(false);
+  });
+
+  it("blocks privileged accounts from joining another gym through a trainer code", async () => {
+    mocks.clientQuery.mockImplementation(async (sql: string) => {
+      const normalized = sql.replace(/\s+/g, " ").trim().toLowerCase();
+      if (normalized.includes("from referral_codes rc")) return { rows: [trainer], rowCount: 1 };
+      if (normalized.includes("select assigned_trainer_id")) return { rows: [{ assigned_trainer_id: null, privileged: true }], rowCount: 1 };
+      return { rows: [], rowCount: 1 };
+    });
+    const { connectClientToTrainer, TRAINER_CONNECTION_CONSENT_VERSION } = await import("../services/clientTrainerConnectionService");
+    await expect(connectClientToTrainer("admin-1", "AISHA-123", TRAINER_CONNECTION_CONSENT_VERSION)).rejects.toMatchObject({ status: 403 });
+    expect(mocks.clientQuery.mock.calls.some(([sql]) => String(sql).includes("update users set assigned_trainer_id"))).toBe(false);
   });
 });
