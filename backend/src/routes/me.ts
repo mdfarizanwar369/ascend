@@ -3,7 +3,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { query } from "../db/pool";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, type AuthUser } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
 import { uploadRateLimit } from "../middleware/rateLimits";
 import { acknowledgeGoalMilestone, completeOnboarding, getGoalStatus, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
@@ -16,8 +16,52 @@ import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNutritionPreference } from "../services/nutritionTargetService";
 import { claimReturnMode, recordReturnModeContinued } from "../services/returnModeService";
 import { env } from "../config/env";
+import { buildTodayPriorityDayContext } from "../services/todayPriorityContextService";
 
 export const meRouter = Router();
+
+function voiceBetaEnabled(user: AuthUser) {
+  return env.VOICE_BETA_ENABLED && (user.isPlatformOwner || env.VOICE_BETA_USER_IDS.split(",").map((id) => id.trim()).includes(user.id));
+}
+
+const voiceTodayQuery = z.object({
+  intent: z.enum(["calories_consumed", "calories_remaining", "protein_remaining", "water_logged", "today_summary"]),
+  timezoneOffsetMinutes: z.coerce.number().int().min(-840).max(840)
+});
+
+meRouter.get("/me/voice/today", requireAuth, async (req, res, next) => {
+  try {
+    if (!voiceBetaEnabled(req.user!)) return res.status(404).json({ error: "Not found" });
+    const { intent, timezoneOffsetMinutes } = voiceTodayQuery.parse(req.query);
+    const { dayStartUtc, dayEndUtc } = buildTodayPriorityDayContext(timezoneOffsetMinutes);
+    const range = [req.user!.id, dayStartUtc.toISOString(), dayEndUtc.toISOString()];
+    const [food, water, targets] = await Promise.all([
+      query<{ calories: number | string; protein_g: number | string; meals: number }>(
+        `select coalesce(sum(calories), 0) as calories, coalesce(sum(protein_g), 0) as protein_g, count(*)::int as meals
+         from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3`, range),
+      query<{ water_ml: number | string }>(
+        `select coalesce(sum(amount_ml), 0) as water_ml from water_logs
+         where user_id = $1 and logged_at >= $2 and logged_at < $3`, range),
+      resolveNutritionTargets(req.user!.id)
+    ]);
+    const calories = Math.round(Number(food.rows[0]?.calories ?? 0));
+    const proteinG = Math.round(Number(food.rows[0]?.protein_g ?? 0));
+    const waterMl = Math.round(Number(water.rows[0]?.water_ml ?? 0));
+    const calorieRemaining = Math.round(targets.calories - calories);
+    const proteinRemaining = Math.round(targets.proteinG - proteinG);
+    const spokenText = intent === "calories_consumed"
+      ? `You've logged ${calories} calories today.`
+      : intent === "calories_remaining"
+        ? calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left in today's guide.` : `You're ${Math.abs(calorieRemaining)} calories above today's guide.`
+        : intent === "protein_remaining"
+          ? proteinRemaining >= 0 ? `You have ${proteinRemaining} grams of protein left in today's guide.` : `You're ${Math.abs(proteinRemaining)} grams above today's protein guide.`
+          : intent === "water_logged"
+            ? `You've logged ${waterMl} millilitres of water today.`
+            : `Today you've logged ${calories} calories, ${proteinG} grams of protein, and ${waterMl} millilitres of water. ${calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left in your guide.` : `You're ${Math.abs(calorieRemaining)} calories above your guide.`}`;
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ intent, spokenText, totals: { calories, proteinG, waterMl, meals: food.rows[0]?.meals ?? 0 }, targets: { calories: targets.calories, proteinG: targets.proteinG, waterMl: targets.waterMl } });
+  } catch (error) { next(error); }
+});
 
 const accountDeletionSchema = z.object({
   confirmationText: z.string().trim().max(20)
@@ -62,6 +106,7 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     user: {
       ...user,
       is_platform_owner: req.user!.isPlatformOwner,
+      voice_beta_enabled: voiceBetaEnabled(req.user!),
       body_scan_owner_preview_enabled: env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner,
       body_scan_introductory_enabled: !isIosFreeEdition() && (env.BODY_SCAN_UNIVERSAL_PUBLIC
         || (env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner))

@@ -48,6 +48,7 @@ import { AscendRiseMomentum } from "@/components/dashboard/AscendRiseMomentum";
 import { getAscendMorphV22Timing, useAscendLaunchMorphV22 } from "@/components/dashboard/AscendLaunchMorphV22";
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 import { isIosFreeEdition } from "@/lib/appEdition";
+import { AscendVoiceBeta } from "@/components/dashboard/AscendVoiceBeta";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -1871,6 +1872,7 @@ export function ClientDashboard() {
               isOpen={openSections.todaysNumbers}
               onToggle={() => setSectionOpen("todaysNumbers", !openSections.todaysNumbers)}
             >
+              {user?.voice_beta_enabled && <AscendVoiceBeta />}
               {hasTodaysNumbers ? (
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                   {[

@@ -16,6 +16,8 @@ const schema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),
   BOOTSTRAP_OWNER_EMAIL: z.string().optional(),
+  VOICE_BETA_ENABLED: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  VOICE_BETA_USER_IDS: z.string().default(""),
   CRON_SECRET: z.string().optional(),
   AWS_REGION: z.string().default("ap-southeast-1"),
   AWS_S3_ENDPOINT: z.string().optional(),

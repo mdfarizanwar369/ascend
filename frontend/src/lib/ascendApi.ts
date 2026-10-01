@@ -328,6 +328,7 @@ export function getMe() {
       trainer_status?: string | null;
       profile_photo_url?: string | null;
       is_platform_owner?: boolean;
+      voice_beta_enabled?: boolean;
       body_scan_owner_preview_enabled?: boolean;
       body_scan_introductory_enabled?: boolean;
       athlete_mode_enabled?: boolean;
@@ -338,6 +339,18 @@ export function getMe() {
     };
     roles: string[];
   }>("me:profile", "/me", 15_000);
+}
+
+export type VoiceTodayIntent = "calories_consumed" | "calories_remaining" | "protein_remaining" | "water_logged" | "today_summary";
+
+export function getVoiceToday(intent: VoiceTodayIntent) {
+  const offset = new Date().getTimezoneOffset();
+  return authed<{
+    intent: VoiceTodayIntent;
+    spokenText: string;
+    totals: { calories: number; proteinG: number; waterMl: number; meals: number };
+    targets: { calories: number; proteinG: number; waterMl: number };
+  }>(`/me/voice/today?intent=${encodeURIComponent(intent)}&timezoneOffsetMinutes=${offset}`);
 }
 
 export function claimReturnMode() {

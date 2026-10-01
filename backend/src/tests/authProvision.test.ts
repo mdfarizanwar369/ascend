@@ -19,6 +19,27 @@ describe("Google auth provisioning", () => {
     dbQuery.mockReset();
   });
 
+  it("does not let an existing admin join another gym through provisioning", async () => {
+    dbQuery
+      .mockResolvedValueOnce({ rows: [{ id: "admin-1", firebase_uid: "firebase-admin", email: "admin@example.com" }] })
+      .mockResolvedValueOnce({ rows: [{ id: "admin-1", firebase_uid: "firebase-admin", email: "admin@example.com" }] })
+      .mockResolvedValueOnce({ rows: [{ privileged: true }] });
+
+    await expect(upsertProvisionedUser({
+      assignedTrainerId: null,
+      currentEmail: "admin@example.com",
+      firebaseUid: "firebase-admin",
+      fullName: "Admin",
+      gymId: "another-gym",
+      emailVerified: true,
+      isBootstrapOwner: false,
+      primaryRole: "client",
+      referredByGymId: "another-gym",
+      referredByTrainerId: null
+    })).rejects.toMatchObject({ status: 403 });
+    expect(dbQuery.mock.calls.some(([sql]) => String(sql).includes("update users"))).toBe(false);
+  });
+
   it("adopts an existing user when the email already exists", async () => {
     dbQuery
       .mockResolvedValueOnce({ rows: [] })
