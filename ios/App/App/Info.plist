@@ -6,6 +6,10 @@
     <array><dict><key>CFBundleURLSchemes</key><array><string>com.googleusercontent.apps.790770085471-emd8ftl5bgepj8tutqu7oglue784ud85</string></array></dict></array>
     <key>NSCameraUsageDescription</key>
     <string>Take photos of meals and progress to add to your Ascend journal.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Listen to your spoken nutrition questions when you tap Ascend Voice.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Turn spoken nutrition questions into text on your iPhone.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Choose meal and progress photos for your Ascend journal.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>

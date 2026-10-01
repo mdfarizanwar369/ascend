@@ -55,6 +55,18 @@ export async function upsertProvisionedUser(options: {
   const matchedExistingUser = existingUidUser ?? existingEmailUser;
 
   if (matchedExistingUser) {
+    if (options.gymId || options.assignedTrainerId || options.referredByGymId || options.referredByTrainerId) {
+      const privileged = await query<{ privileged: boolean }>(
+        `select (primary_role in ('admin', 'owner') or exists (
+          select 1 from user_roles where user_id = $1 and role in ('admin', 'owner')
+        )) as privileged from users where id = $1`, [matchedExistingUser.id]
+      );
+      if (privileged.rows[0]?.privileged) {
+        const error = new Error("Admin and owner accounts cannot change gym through a referral code");
+        (error as Error & { status?: number }).status = 403;
+        throw error;
+      }
+    }
     const updatedUser = await query(
       `
       update users

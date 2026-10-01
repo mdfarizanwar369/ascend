@@ -73,11 +73,14 @@ export async function connectClientToTrainer(userId: string, code: string, conse
     }
     if (trainer.trainer_user_id === userId) throw Object.assign(new Error("A trainer cannot connect themselves as a client."), { status: 400 });
 
-    const client = await db.query<{ assigned_trainer_id: string | null }>(
-      "select assigned_trainer_id from users where id=$1 and status='active' for update",
+    const client = await db.query<{ assigned_trainer_id: string | null; privileged: boolean }>(
+      `select assigned_trainer_id, (primary_role in ('admin', 'owner') or exists (
+        select 1 from user_roles where user_id=$1 and role in ('admin', 'owner')
+      )) as privileged from users where id=$1 and status='active' for update`,
       [userId]
     );
     if (!client.rows[0]) throw Object.assign(new Error("Ascend account not found."), { status: 404 });
+    if (client.rows[0].privileged) throw Object.assign(new Error("Admin and owner accounts cannot join a trainer workspace."), { status: 403 });
 
     const cap = trainer.subscription_status === "trialing" || trainer.introductory_trial ? 2 : 5;
     const clientCount = await db.query<{ count: string }>(

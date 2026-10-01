@@ -1,0 +1,25 @@
+"use client";
+
+import { registerPlugin } from "@capacitor/core";
+import type { VoiceTodayIntent } from "./ascendApi";
+
+const plugin = registerPlugin<{
+  isAvailable(): Promise<{ available: boolean }>;
+  listen(options: { locale: string }): Promise<{ transcript: string }>;
+  cancel(): Promise<void>;
+  speak(options: { text: string }): Promise<void>;
+  stopSpeaking(): Promise<void>;
+}>("AscendVoice");
+
+export const ascendVoice = plugin;
+
+export function parseVoiceTodayIntent(transcript: string): VoiceTodayIntent | null {
+  const text = transcript.toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  if (/\b(water|hydration|drink|drank)\b/.test(text)) return "water_logged";
+  if (/\bprotein\b/.test(text)) return "protein_remaining";
+  if (/\b(calor(?:ie|ies)|kcal)\b/.test(text)) {
+    return /\b(left|remaining|remain|more|can i|allowance)\b/.test(text) ? "calories_remaining" : "calories_consumed";
+  }
+  if (/\b(today|summary|progress|doing)\b/.test(text)) return "today_summary";
+  return null;
+}

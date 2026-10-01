@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A13000000000000000000002 /* AscendVoicePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13000000000000000000001 /* AscendVoicePlugin.swift */; };
 		A12000000000000000000013 /* AscendViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12000000000000000000012 /* AscendViewController.swift */; };
 		A12000000000000000000011 /* AppleBillingPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12000000000000000000010 /* AppleBillingPlugin.swift */; };
 		A11000000000000000000003 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A11000000000000000000004 /* GoogleService-Info.plist */; };
@@ -22,6 +23,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A13000000000000000000001 /* AscendVoicePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendVoicePlugin.swift; sourceTree = "<group>"; };
 		A12000000000000000000012 /* AscendViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendViewController.swift; sourceTree = "<group>"; };
 		A12000000000000000000010 /* AppleBillingPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleBillingPlugin.swift; sourceTree = "<group>"; };
 		A11000000000000000000004 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
@@ -76,6 +78,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				A12000000000000000000012 /* AscendViewController.swift */,
 				A12000000000000000000010 /* AppleBillingPlugin.swift */,
+				A13000000000000000000001 /* AscendVoicePlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -172,6 +175,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				A12000000000000000000013 /* AscendViewController.swift in Sources */,
 				A12000000000000000000011 /* AppleBillingPlugin.swift in Sources */,
+				A13000000000000000000002 /* AscendVoicePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
