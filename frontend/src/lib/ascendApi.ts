@@ -1518,6 +1518,10 @@ export function getTodayWorkout() {
   return authed<{ dailyWorkout: DailyWorkout | null }>("/ai/workout/today");
 }
 
+export function getWorkoutVisualAccess() {
+  return authed<{ enabled: boolean }>("/ai/workout/visual-access");
+}
+
 export function generateTodayWorkout(input: {
   location: WorkoutPlannerLocation;
   timeAvailable: "20" | "30" | "45" | "60";
