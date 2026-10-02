@@ -9,6 +9,7 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "listen", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stopListening", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "speak", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "playAudio", returnType: CAPPluginReturnPromise),
@@ -18,12 +19,16 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     private let audioEngine = AVAudioEngine()
     private let synthesizer = AVSpeechSynthesizer()
     private var audioPlayer: AVAudioPlayer?
+    private var activeRecognizer: SFSpeechRecognizer?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var listeningCall: CAPPluginCall?
     private var lastTranscript = ""
     private var timeout: Timer?
     private var silenceTimeout: Timer?
+    private var finalizationTimeout: Timer?
+    private var finishingCapture = false
+    private var captureEnded = false
     private var tapInstalled = false
 
     @objc func isAvailable(_ call: CAPPluginCall) {
@@ -74,31 +79,62 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             audioEngine.prepare()
             try audioEngine.start()
             listeningCall = call
+            activeRecognizer = recognizer
             recognitionRequest = request
             lastTranscript = ""
+            finishingCapture = false
+            captureEnded = false
             recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
                 DispatchQueue.main.async {
                     guard let self, self.listeningCall != nil else { return }
                     if let result {
-                        self.lastTranscript = result.bestTranscription.formattedString
+                        let transcript = result.bestTranscription.formattedString
+                        if !transcript.isEmpty {
+                            self.lastTranscript = transcript
+                            self.notifyListeners("partialTranscript", data: ["transcript": transcript])
+                        }
                         if result.isFinal { self.finishListening() }
-                        else if !self.lastTranscript.isEmpty {
+                        else if !self.lastTranscript.isEmpty && !self.finishingCapture {
                             self.silenceTimeout?.invalidate()
                             self.silenceTimeout = Timer.scheduledTimer(withTimeInterval: 1.25, repeats: false) { [weak self] _ in
-                                self?.finishListening()
+                                self?.requestFinalTranscript()
                             }
                         }
                     } else if let error {
-                        self.failListening(error.localizedDescription)
+                        if self.finishingCapture && !self.lastTranscript.isEmpty { self.finishListening() }
+                        else { self.failListening(error.localizedDescription) }
                     }
                 }
             }
             timeout = Timer.scheduledTimer(withTimeInterval: 12, repeats: false) { [weak self] _ in
-                DispatchQueue.main.async { self?.finishListening() }
+                DispatchQueue.main.async { self?.requestFinalTranscript() }
             }
         } catch {
             cleanupListening()
             call.reject("Could not start the microphone. Please try again.")
+        }
+    }
+
+    private func stopCapture() {
+        if audioEngine.isRunning { audioEngine.stop() }
+        if tapInstalled { audioEngine.inputNode.removeTap(onBus: 0); tapInstalled = false }
+        if !captureEnded {
+            recognitionRequest?.endAudio()
+            captureEnded = true
+        }
+    }
+
+    private func requestFinalTranscript() {
+        guard listeningCall != nil, !finishingCapture else { return }
+        finishingCapture = true
+        timeout?.invalidate()
+        timeout = nil
+        silenceTimeout?.invalidate()
+        silenceTimeout = nil
+        stopCapture()
+        let finalizationWait = lastTranscript.isEmpty ? 4.0 : 2.0
+        finalizationTimeout = Timer.scheduledTimer(withTimeInterval: finalizationWait, repeats: false) { [weak self] _ in
+            self?.finishListening()
         }
     }
 
@@ -107,12 +143,15 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         timeout = nil
         silenceTimeout?.invalidate()
         silenceTimeout = nil
-        if audioEngine.isRunning { audioEngine.stop() }
-        if tapInstalled { audioEngine.inputNode.removeTap(onBus: 0); tapInstalled = false }
-        recognitionRequest?.endAudio()
+        finalizationTimeout?.invalidate()
+        finalizationTimeout = nil
+        stopCapture()
         recognitionTask?.cancel()
         recognitionRequest = nil
         recognitionTask = nil
+        activeRecognizer = nil
+        finishingCapture = false
+        captureEnded = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
@@ -130,6 +169,18 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         listeningCall = nil
         cleanupListening()
         call.reject(message)
+    }
+
+    @objc func stopListening(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard self.listeningCall != nil else {
+                call.reject("The microphone is still starting. Please try again in a moment.")
+                return
+            }
+            self.requestFinalTranscript()
+            call.resolve()
+        }
     }
 
     @objc func cancel(_ call: CAPPluginCall) {
