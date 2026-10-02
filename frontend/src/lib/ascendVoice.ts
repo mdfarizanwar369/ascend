@@ -1,11 +1,13 @@
 "use client";
 
-import { registerPlugin } from "@capacitor/core";
+import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import type { VoiceTodayIntent } from "./ascendApi";
 
 const plugin = registerPlugin<{
   isAvailable(): Promise<{ available: boolean; naturalAudioAvailable?: boolean }>;
   listen(options: { locale: string }): Promise<{ transcript: string }>;
+  stopListening(): Promise<void>;
+  addListener(event: "partialTranscript", callback: (event: { transcript: string }) => void): Promise<PluginListenerHandle>;
   cancel(): Promise<void>;
   speak(options: { text: string }): Promise<void>;
   playAudio(options: { audioBase64: string }): Promise<void>;
