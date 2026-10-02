@@ -19,6 +19,7 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     private let audioEngine = AVAudioEngine()
     private let synthesizer = AVSpeechSynthesizer()
     private var audioPlayer: AVAudioPlayer?
+    private var activeRecognizer: SFSpeechRecognizer?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var listeningCall: CAPPluginCall?
@@ -78,6 +79,7 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             audioEngine.prepare()
             try audioEngine.start()
             listeningCall = call
+            activeRecognizer = recognizer
             recognitionRequest = request
             lastTranscript = ""
             finishingCapture = false
@@ -130,7 +132,8 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         silenceTimeout?.invalidate()
         silenceTimeout = nil
         stopCapture()
-        finalizationTimeout = Timer.scheduledTimer(withTimeInterval: 2, repeats: false) { [weak self] _ in
+        let finalizationWait = lastTranscript.isEmpty ? 4.0 : 2.0
+        finalizationTimeout = Timer.scheduledTimer(withTimeInterval: finalizationWait, repeats: false) { [weak self] _ in
             self?.finishListening()
         }
     }
@@ -146,6 +149,7 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         recognitionTask?.cancel()
         recognitionRequest = nil
         recognitionTask = nil
+        activeRecognizer = nil
         finishingCapture = false
         captureEnded = false
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
