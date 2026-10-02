@@ -903,6 +903,10 @@ aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+aiRouter.get("/ai/workout/visual-access", requireAuth, async (req, res) => {
+  res.json({ enabled: hasExerciseVisualAccess(req.user!) });
+});
+
 aiRouter.post("/ai/workout/visual-event", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
   try {
     if (!hasExerciseVisualAccess(req.user!)) return res.status(404).json({ error: "Not found" });

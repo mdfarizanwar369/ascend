@@ -8,11 +8,12 @@ vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => null, StaggerItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("next/image", () => ({ default: () => null }));
 vi.mock("@/lib/accountSession", () => ({
-  loadAccountProfile: async () => ({ isPlatformOwner: false, roles: [], exerciseVisualsEnabled: mocks.visuals })
+  loadAccountProfile: async () => ({ isPlatformOwner: false, roles: [], exerciseVisualsEnabled: false })
 }));
 vi.mock("@/lib/dataSync", () => ({ rememberDashboardRecord: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({
   getTodayWorkout: mocks.today, generateTodayWorkout: mocks.generate, saveCompletedWorkout: mocks.save,
+  getWorkoutVisualAccess: async () => ({ enabled: mocks.visuals }),
   recordWorkoutVisualEvent: vi.fn().mockResolvedValue(undefined),
   getCoachPresence: async () => ({ latest: null }), getMyStreak: async () => ({ streak: { current: 0 } }),
   getBurnLogs: async () => ({ burnLogs: [] }), getFoodLogs: async () => ({ foodLogs: [] }),

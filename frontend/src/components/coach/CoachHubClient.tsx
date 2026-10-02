@@ -28,6 +28,7 @@ import {
   getMyStreak,
   getMySubscription,
   getTodayPriorityRecommendation,
+  getWorkoutVisualAccess,
   generateWorkoutDebrief,
   saveCompletedWorkout,
   sendCoachMessage,
@@ -487,12 +488,18 @@ export function CoachHubClient() {
   }, [iosApp, freeEdition]);
   useEffect(() => {
     let active = true;
-    void loadAccountProfile()
-      .then((profile) => {
-        if (active) setExerciseVisualsEnabled(profile.exerciseVisualsEnabled === true);
+    void getWorkoutVisualAccess()
+      .then(({ enabled }) => {
+        if (active) setExerciseVisualsEnabled(enabled === true);
       })
       .catch(() => {
-        if (active) setExerciseVisualsEnabled(false);
+        void loadAccountProfile()
+          .then((profile) => {
+            if (active) setExerciseVisualsEnabled(profile.exerciseVisualsEnabled === true);
+          })
+          .catch(() => {
+            if (active) setExerciseVisualsEnabled(false);
+          });
       });
     return () => { active = false; };
   }, []);
