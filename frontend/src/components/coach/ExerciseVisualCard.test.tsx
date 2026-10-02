@@ -15,6 +15,7 @@ describe("exercise visual pilot resolver", () => {
   it("matches only a reviewed exact name, alias, and capitalization variation", () => {
     expect(resolveExerciseVisual("Bodyweight Squat")).toMatchObject({ status: "resolved", match: "exact", exercise: { id: "bodyweight-squat" } });
     expect(resolveExerciseVisual("  BODYWEIGHT   SQUATS ")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "bodyweight-squat" } });
+    expect(resolveExerciseVisual("Controlled Bodyweight Squats")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "bodyweight-squat" } });
     expect(resolveExerciseVisual("Child’s pose breathing")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "childs-pose" } });
   });
   it.each([
