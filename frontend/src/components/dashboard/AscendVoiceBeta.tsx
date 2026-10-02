@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Mic, Volume2 } from "lucide-react";
 import { getVoiceToday, getVoiceTodayAudio, type VoiceTodayIntent } from "@/lib/ascendApi";
@@ -24,6 +24,8 @@ export function AscendVoiceBeta() {
   const [heard, setHeard] = useState("");
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState("");
+  const [replySeconds, setReplySeconds] = useState<number | null>(null);
+  const stopStartedAt = useRef<number | null>(null);
 
   useEffect(() => {
     if (getNativeCapacitorPlatform() !== "ios") return;
@@ -46,23 +48,22 @@ export function AscendVoiceBeta() {
     };
   }, []);
 
-  async function ask(intent: VoiceTodayIntent) {
+  async function ask(intent: VoiceTodayIntent, startedAt = performance.now()) {
     setError("");
     setWorking(true);
+    setReplySeconds(null);
     try {
       await ascendVoice.stopSpeaking();
-      // Start speech generation immediately, while the short text request fills the UI.
-      const audioPromise = getVoiceTodayAudio(intent).then(
-        (audio) => ({ audio, error: null }),
-        (error: unknown) => ({ audio: null, error })
-      );
-      const result = await getVoiceToday(intent);
-      setAnswer(result.spokenText);
-      const { audio, error } = await audioPromise;
-      if (error) throw error;
-      if (!audio) throw new Error("Natural voice is unavailable. Your answer is shown above.");
+      // Show the text when ready, but never hold back speech while this separate request finishes.
+      let audioReady = false;
+      void getVoiceToday(intent).then((result) => {
+        if (!audioReady) setAnswer(result.spokenText);
+      }).catch(() => undefined);
+      const audio = await getVoiceTodayAudio(intent);
+      audioReady = true;
       setAnswer(audio.spokenText);
       await ascendVoice.playAudio({ audioBase64: audio.audioBase64 });
+      setReplySeconds(Math.round((performance.now() - startedAt) / 100) / 10);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Natural voice is unavailable. Your answer is shown above.");
     } finally { setWorking(false); }
@@ -72,6 +73,7 @@ export function AscendVoiceBeta() {
     if (listening) {
       if (stopping) return;
       setStopping(true);
+      stopStartedAt.current = performance.now();
       try { await ascendVoice.stopListening(); }
       catch (cause) {
         setStopping(false);
@@ -84,7 +86,8 @@ export function AscendVoiceBeta() {
       setError("Update Ascend to the latest TestFlight build to use natural voice.");
       return;
     }
-    setError(""); setAnswer(""); setHeard(""); setListening(true); setStopping(false);
+    setError(""); setAnswer(""); setHeard(""); setReplySeconds(null); setListening(true); setStopping(false);
+    stopStartedAt.current = null;
     try {
       await ascendVoice.stopSpeaking();
       const { transcript } = await ascendVoice.listen({ locale: "en-US" });
@@ -96,7 +99,7 @@ export function AscendVoiceBeta() {
         setError("Try asking about calories eaten, calories left, protein left, or water logged today.");
         return;
       }
-      await ask(intent);
+      await ask(intent, stopStartedAt.current ?? performance.now());
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       if (message !== "Listening cancelled") setError(message);
@@ -117,6 +120,7 @@ export function AscendVoiceBeta() {
     <div className="mt-3 flex flex-wrap gap-2">{prompts.map((prompt) => <button key={prompt.intent} type="button" disabled={!naturalAudioAvailable || working} onClick={() => void ask(prompt.intent)} className="min-h-10 rounded-full border border-white/15 px-3 text-xs text-zinc-200 disabled:opacity-50">{prompt.label}</button>)}</div>
     {heard && <p className="mt-3 text-xs text-zinc-400">Heard: {heard}</p>}
     {answer && <p className="mt-2 text-sm text-white" role="status">{answer}</p>}
+    {replySeconds !== null && <p className="mt-1 text-[11px] text-zinc-500">Voice started in {replySeconds.toFixed(1)}s</p>}
     {error && <p className="mt-2 text-xs text-amber-300" role="alert">{error}</p>}
   </div>;
 }

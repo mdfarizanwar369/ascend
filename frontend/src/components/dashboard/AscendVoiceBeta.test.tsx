@@ -47,15 +47,16 @@ describe("private Ascend Voice controls", () => {
     expect(mocks.getVoiceTodayAudio).toHaveBeenCalledWith("calories_remaining");
   });
 
-  it("starts the audio request before the text response finishes", async () => {
+  it("starts speaking even if the separate text response is still pending", async () => {
     let finishText!: (value: { spokenText: string }) => void;
     mocks.getVoiceToday.mockReturnValue(new Promise((resolve) => { finishText = resolve; }));
     render(<AscendVoiceBeta />);
     fireEvent.click(await screen.findByRole("button", { name: "Calories left" }));
     await waitFor(() => expect(mocks.getVoiceTodayAudio).toHaveBeenCalledWith("calories_remaining"));
-    expect(mocks.playAudio).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.playAudio).toHaveBeenCalledWith({ audioBase64: "UklGRg==" }));
+    expect(screen.getByText(/Voice started in .*s/)).toBeInTheDocument();
     finishText({ spokenText: "You have 800 calories left today." });
-    await waitFor(() => expect(mocks.playAudio).toHaveBeenCalled());
+    expect(screen.getByText("You have 800 calories left today.")).toBeInTheDocument();
   });
 
   it("answers the captured question when the user taps Stop listening", async () => {

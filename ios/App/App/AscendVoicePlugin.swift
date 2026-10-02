@@ -132,7 +132,9 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         silenceTimeout?.invalidate()
         silenceTimeout = nil
         stopCapture()
-        let finalizationWait = lastTranscript.isEmpty ? 4.0 : 2.0
+        // The partial transcript is already usable for Ascend's short questions.
+        // Give Speech a brief chance to supply the final wording after endAudio().
+        let finalizationWait = lastTranscript.isEmpty ? 2.5 : 0.75
         finalizationTimeout = Timer.scheduledTimer(withTimeInterval: finalizationWait, repeats: false) { [weak self] _ in
             self?.finishListening()
         }
