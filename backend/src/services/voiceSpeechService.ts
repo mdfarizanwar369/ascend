@@ -3,8 +3,8 @@ import { assertAiProviderConsent, withAiDataSubject } from "./aiConsentService";
 import { withAiWorkLease } from "./aiWorkLeaseService";
 import { readResponseBufferLimited } from "../utils/outboundUrl";
 
-const GEMINI_TTS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
 const VOICE_MODEL = "gemini-3.8-flash-lite-tts";
+const GEMINI_TTS_URL = `https://generativelanguage.googleapis.com/v1beta/models/${VOICE_MODEL}:streamGenerateContent?alt=sse`;
 const MAX_RESPONSE_BYTES = 3_000_000;
 const MAX_AUDIO_BYTES = 2_000_000;
 const AUDIO_CACHE_MS = 60_000;
@@ -12,25 +12,54 @@ const MAX_CACHED_REPLIES = 32;
 const MAX_CACHED_AUDIO_CHARS = 350_000;
 const audioCache = new Map<string, { audio: string; expiresAt: number }>();
 
-type AudioPart = { type?: string; data?: string };
-type GeminiSpeechResponse = {
-  steps?: Array<{ type?: string; content?: AudioPart[] }>;
-  output_audio?: { data?: string };
+type GeminiSpeechStreamEvent = {
+  candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { mimeType?: string; data?: string } }> } }>;
+  error?: { message?: string };
 };
 
-export function readGeminiSpeechAudio(payload: GeminiSpeechResponse): string {
-  const parts = payload.steps?.flatMap((step) => step.type === "model_output" ? step.content ?? [] : []) ?? [];
-  const encoded = parts.filter((part) => part.type === "audio" && typeof part.data === "string").at(-1)?.data
-    ?? payload.output_audio?.data;
-  if (!encoded || encoded.length > Math.ceil(MAX_AUDIO_BYTES * 4 / 3) + 8) {
-    throw new Error("Natural voice is unavailable right now.");
+export function readGeminiSpeechStream(raw: Buffer): string {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+  for (const eventBlock of raw.toString("utf8").split(/\r?\n\r?\n/)) {
+    const data = eventBlock.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart()).join("\n");
+    if (!data || data === "[DONE]") continue;
+    let event: GeminiSpeechStreamEvent;
+    try { event = JSON.parse(data) as GeminiSpeechStreamEvent; }
+    catch { throw new Error("Natural voice returned an invalid audio stream."); }
+    if (event.error) throw new Error("Natural voice is unavailable right now. The answer is shown on screen.");
+    for (const part of event.candidates?.[0]?.content?.parts ?? []) {
+      const inline = part.inlineData;
+      if (!inline?.data) continue;
+      const [format, ...parameters] = (inline.mimeType ?? "").toLowerCase().replace(/\s+/g, "").split(";");
+      if (format !== "audio/l16" || !parameters.includes("rate=24000")
+        || (parameters.some((parameter) => parameter.startsWith("channels=")) && !parameters.includes("channels=1"))) {
+        throw new Error("Natural voice returned an unsupported audio format.");
+      }
+      const chunk = Buffer.from(inline.data, "base64");
+      totalBytes += chunk.length;
+      if (!chunk.length || chunk.length % 2 !== 0 || totalBytes + 44 > MAX_AUDIO_BYTES) {
+        throw new Error("Natural voice returned an unsupported audio format.");
+      }
+      chunks.push(chunk);
+    }
   }
-  const audio = Buffer.from(encoded, "base64");
-  if (audio.length < 44 || audio.length > MAX_AUDIO_BYTES || audio.toString("ascii", 0, 4) !== "RIFF"
-    || audio.toString("ascii", 8, 12) !== "WAVE") {
-    throw new Error("Natural voice returned an unsupported audio format.");
-  }
-  return encoded;
+  if (!totalBytes) throw new Error("Natural voice is unavailable right now.");
+  const wav = Buffer.allocUnsafe(44 + totalBytes);
+  wav.write("RIFF", 0, "ascii");
+  wav.writeUInt32LE(36 + totalBytes, 4);
+  wav.write("WAVEfmt ", 8, "ascii");
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(24_000, 24);
+  wav.writeUInt32LE(48_000, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write("data", 36, "ascii");
+  wav.writeUInt32LE(totalBytes, 40);
+  let position = 44;
+  for (const chunk of chunks) { chunk.copy(wav, position); position += chunk.length; }
+  return wav.toString("base64");
 }
 
 export async function synthesizeVoiceReply(userId: string, spokenText: string): Promise<string> {
@@ -49,14 +78,11 @@ export async function synthesizeVoiceReply(userId: string, spokenText: string): 
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY! },
         body: JSON.stringify({
-          model: VOICE_MODEL,
-          input: [{ type: "user_input", content: [{
-            type: "text",
+          contents: [{ role: "user", parts: [{
             text: spokenText,
-            annotations: [{ type: "speech_metadata", style: "Warm, smooth, natural and conversational. Speak clearly at a relaxed pace, like a helpful personal coach." }]
+            speech_metadata: { style: "Warm, smooth, natural and conversational. Speak clearly at a relaxed pace, like a helpful personal coach." }
           }] }],
-          response_format: { type: "audio" },
-          generation_config: { speech_config: [{ voice: "Algieba" }] }
+          generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { voice: "Algieba" } } }
         }),
         signal: AbortSignal.timeout(15_000)
       });
@@ -66,8 +92,7 @@ export async function synthesizeVoiceReply(userId: string, spokenText: string): 
         throw new Error("Natural voice is unavailable right now. The answer is shown on screen.");
       }
       const raw = await readResponseBufferLimited(response, MAX_RESPONSE_BYTES);
-      const payload = JSON.parse(raw.toString("utf8")) as GeminiSpeechResponse;
-      const audio = readGeminiSpeechAudio(payload);
+      const audio = readGeminiSpeechStream(raw);
       if (audio.length <= MAX_CACHED_AUDIO_CHARS) {
         if (audioCache.size >= MAX_CACHED_REPLIES) audioCache.delete(audioCache.keys().next().value!);
         audioCache.set(cacheKey, { audio, expiresAt: Date.now() + AUDIO_CACHE_MS });
