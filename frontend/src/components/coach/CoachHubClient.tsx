@@ -8,6 +8,8 @@ import { BackButton } from "@/components/BackButton";
 import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import type { WorkoutDebriefView } from "@ascend/shared";
+import { resolveExerciseVisual } from "@ascend/shared";
+import { ExerciseVisualCard } from "@/components/coach/ExerciseVisualCard";
 import {
   CoachChatMode,
   GeneratedWorkout,
@@ -16,6 +18,7 @@ import {
   WorkoutPlannerLocation,
   getAscendMemory,
   generateTodayWorkout,
+  recordWorkoutVisualEvent,
   getTodayWorkout,
   getBurnLogs,
   getCoachPresence,
@@ -326,6 +329,7 @@ function WorkoutPlannerCard({
             {workout.exercises.map((exercise, index) => {
               const complete = checkedExercises.has(index);
               const expanded = expandedExerciseIndex === index;
+              const visual = resolveExerciseVisual(exercise.name);
               return (
                 <article
                   key={`${exercise.name}-${index}`}
@@ -348,7 +352,12 @@ function WorkoutPlannerCard({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setExpandedExerciseIndex(expanded ? null : index)}
+                    onClick={() => {
+                      setExpandedExerciseIndex(expanded ? null : index);
+                      if (!expanded && visual.status === "resolved") {
+                        void recordWorkoutVisualEvent("detail_opened", visual.exercise.id).catch(() => undefined);
+                      }
+                    }}
                     aria-expanded={expanded}
                     className="flex min-w-0 flex-1 items-start justify-between gap-2 text-left"
                   >
@@ -363,6 +372,7 @@ function WorkoutPlannerCard({
                     {expanded ? <ChevronUp className="mt-1 shrink-0 text-zinc-500" size={18} /> : <ChevronDown className="mt-1 shrink-0 text-zinc-500" size={18} />}
                   </button>
                   </div>
+                  {expanded && visual.status === "resolved" ? <div className="ml-[52px]"><ExerciseVisualCard key={visual.exercise.id} exercise={visual.exercise} /></div> : null}
                   {expanded && exercise.note ? <p className="ascend-soft-enter ml-[52px] mt-2 text-xs leading-5 text-zinc-400">{exercise.note}</p> : null}
                 </article>
               );

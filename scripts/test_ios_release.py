@@ -28,6 +28,12 @@ class ReleaseContextTests(unittest.TestCase):
             release.validate_release_context(context, self.config())
         release.validate_release_context(context, self.config(release.RELEASE_ORIGINS[context["GITHUB_REF"]]))
 
+    def test_exercise_visual_beta_requires_its_isolated_origin(self):
+        context = self.context("codex/exercise-visual-testflight")
+        with self.assertRaises(SystemExit):
+            release.validate_release_context(context, self.config())
+        release.validate_release_context(context, self.config(release.RELEASE_ORIGINS[context["GITHUB_REF"]]))
+
     def test_automatic_runs_other_branches_and_forks_cannot_sign(self):
         for override in ({"GITHUB_EVENT_NAME": "pull_request"}, {"GITHUB_EVENT_NAME": "push"},
                          {"GITHUB_REF": "refs/heads/unapproved"}, {"GITHUB_REF": "refs/tags/main"},

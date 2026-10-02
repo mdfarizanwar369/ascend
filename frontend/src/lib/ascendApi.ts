@@ -1529,6 +1529,13 @@ export function generateTodayWorkout(input: {
   });
 }
 
+export function recordWorkoutVisualEvent(eventType: "detail_opened" | "image_load_failure" | "incorrect_mapping_report", registryId: string) {
+  return authed<{ recorded: boolean }>("/ai/workout/visual-event", {
+    method: "POST",
+    body: JSON.stringify({ eventType, registryId })
+  });
+}
+
 export function generateTrainerHomeworkPreview(clientId: string, input: {
   location: "home" | "commercial_gym" | "hotel_gym" | "outdoor" | "minimal_equipment";
   timeAvailable: "20" | "30" | "45" | "60";

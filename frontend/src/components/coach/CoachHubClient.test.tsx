@@ -11,6 +11,7 @@ vi.mock("@/lib/accountSession", () => ({ loadAccountProfile: async () => ({ isPl
 vi.mock("@/lib/dataSync", () => ({ rememberDashboardRecord: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({
   getTodayWorkout: mocks.today, generateTodayWorkout: mocks.generate, saveCompletedWorkout: mocks.save,
+  recordWorkoutVisualEvent: vi.fn().mockResolvedValue(undefined),
   getCoachPresence: async () => ({ latest: null }), getMyStreak: async () => ({ streak: { current: 0 } }),
   getBurnLogs: async () => ({ burnLogs: [] }), getFoodLogs: async () => ({ foodLogs: [] }),
   getHealthSyncStatus: async () => ({ status: {} }), getGoalStatus: async () => ({}), getAscendMemory: async () => ({ timeline: [] })
@@ -89,5 +90,20 @@ describe("iPhone daily workout builder", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument());
     expect(mocks.today).not.toHaveBeenCalled();
     expect(screen.queryByText(/1 free workout per day/)).not.toBeInTheDocument();
+  });
+  it("opens a historical mixed workout with one visual and unchanged text-only exercise", async () => {
+    mocks.today.mockResolvedValue({ dailyWorkout: {
+      ...daily, workout: { ...daily.workout, exercises: [
+        { name: "Glute Bridge", sets: 3, reps: "12", note: "Original saved note" },
+        { name: "Goblet Squat", sets: 2, reps: "10", note: "Use a dumbbell" }
+      ] }
+    } });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    expect(await screen.findByText("Exercise data by RepDB")).toBeInTheDocument();
+    expect(screen.getByText("Original saved note")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Goblet Squat/ }).find(button => button.hasAttribute("aria-expanded"))!);
+    expect(screen.getByText("Use a dumbbell")).toBeInTheDocument();
+    expect(screen.queryByText("Exercise data by RepDB")).not.toBeInTheDocument();
   });
 });
