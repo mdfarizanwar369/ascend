@@ -18,6 +18,7 @@ import { claimReturnMode, recordReturnModeContinued } from "../services/returnMo
 import { env } from "../config/env";
 import { buildTodayPriorityDayContext } from "../services/todayPriorityContextService";
 import { synthesizeVoiceReply } from "../services/voiceSpeechService";
+import { hasExerciseVisualAccess } from "../services/exerciseVisualAccess";
 
 export const meRouter = Router();
 
@@ -125,6 +126,7 @@ meRouter.get("/me", requireAuth, async (req, res) => {
       ...user,
       is_platform_owner: req.user!.isPlatformOwner,
       voice_beta_enabled: voiceBetaEnabled(req.user!),
+      exercise_visuals_enabled: hasExerciseVisualAccess(req.user!),
       body_scan_owner_preview_enabled: env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner,
       body_scan_introductory_enabled: !isIosFreeEdition() && (env.BODY_SCAN_UNIVERSAL_PUBLIC
         || (env.BODY_SCAN_UNIVERSAL_OWNER_PREVIEW && req.user!.isPlatformOwner))

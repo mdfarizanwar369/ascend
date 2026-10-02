@@ -8,6 +8,7 @@ export type AccountProfileSnapshot = {
   fullName: string;
   roles: string[];
   isPlatformOwner?: boolean;
+  exerciseVisualsEnabled?: boolean;
   profilePhotoUrl?: string | null;
 };
 
@@ -38,6 +39,7 @@ function normalizeProfile(response: Awaited<ReturnType<typeof getMe>>): AccountP
     fullName: response.user.full_name,
     roles: response.roles ?? [],
     isPlatformOwner: response.user.is_platform_owner === true,
+    exerciseVisualsEnabled: response.user.exercise_visuals_enabled === true,
     profilePhotoUrl: response.user.profile_photo_url
   };
 }
@@ -49,6 +51,7 @@ function readStoredProfile() {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { value?: AccountProfileSnapshot; cachedAt?: number };
     if (!parsed.value || !parsed.cachedAt) return null;
+    if (typeof parsed.value.exerciseVisualsEnabled !== "boolean") return null;
     if (Date.now() - parsed.cachedAt > PROFILE_CACHE_TTL_MS) return null;
     return { value: parsed.value, cachedAt: parsed.cachedAt };
   } catch {

@@ -29,6 +29,7 @@ export * from "./workoutCapture";
 export * from "./workoutProgression";
 export * from "./workoutProgressionV3";
 export * from "./workoutDebrief";
+export * from "./exerciseVisuals";
 export * from "./trainerSession";
 export * from "./todayExperience";
 export * from "./returnMode";

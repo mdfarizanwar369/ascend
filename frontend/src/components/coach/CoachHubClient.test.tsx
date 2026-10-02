@@ -2,15 +2,18 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyWorkout } from "@/lib/ascendApi";
 
-const mocks = vi.hoisted(() => ({ ios: true, today: vi.fn(), generate: vi.fn(), save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ios: true, visuals: false, today: vi.fn(), generate: vi.fn(), save: vi.fn() }));
 vi.mock("@/lib/appEdition", () => ({ useIosFreeEdition: () => mocks.ios, useIosApp: () => mocks.ios }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => null, StaggerItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("next/image", () => ({ default: () => null }));
-vi.mock("@/lib/accountSession", () => ({ loadAccountProfile: async () => ({ isPlatformOwner: false }) }));
+vi.mock("@/lib/accountSession", () => ({
+  loadAccountProfile: async () => ({ isPlatformOwner: false, roles: [], exerciseVisualsEnabled: mocks.visuals })
+}));
 vi.mock("@/lib/dataSync", () => ({ rememberDashboardRecord: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({
   getTodayWorkout: mocks.today, generateTodayWorkout: mocks.generate, saveCompletedWorkout: mocks.save,
+  recordWorkoutVisualEvent: vi.fn().mockResolvedValue(undefined),
   getCoachPresence: async () => ({ latest: null }), getMyStreak: async () => ({ streak: { current: 0 } }),
   getBurnLogs: async () => ({ burnLogs: [] }), getFoodLogs: async () => ({ foodLogs: [] }),
   getHealthSyncStatus: async () => ({ status: {} }), getGoalStatus: async () => ({}), getAscendMemory: async () => ({ timeline: [] })
@@ -27,7 +30,7 @@ const daily: DailyWorkout = {
   }
 };
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.ios = true;
+  vi.clearAllMocks(); mocks.ios = true; mocks.visuals = false;
   mocks.today.mockResolvedValue({ dailyWorkout: null });
   mocks.generate.mockResolvedValue({ workout: daily.workout, dailyWorkout: daily });
 });
@@ -89,5 +92,30 @@ describe("iPhone daily workout builder", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Regenerate" })).toBeInTheDocument());
     expect(mocks.today).not.toHaveBeenCalled();
     expect(screen.queryByText(/1 free workout per day/)).not.toBeInTheDocument();
+  });
+  it("opens a historical mixed workout with one visual and unchanged text-only exercise", async () => {
+    mocks.visuals = true;
+    mocks.today.mockResolvedValue({ dailyWorkout: {
+      ...daily, workout: { ...daily.workout, exercises: [
+        { name: "Glute Bridge", sets: 3, reps: "12", note: "Original saved note" },
+        { name: "Goblet Squat", sets: 2, reps: "10", note: "Use a dumbbell" }
+      ] }
+    } });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    expect(await screen.findByText("Exercise data by RepDB")).toBeInTheDocument();
+    expect(screen.getByText("Original saved note")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Goblet Squat/ }).find(button => button.hasAttribute("aria-expanded"))!);
+    expect(screen.getByText("Use a dumbbell")).toBeInTheDocument();
+    expect(screen.queryByText("Exercise data by RepDB")).not.toBeInTheDocument();
+  });
+  it("keeps exercise visuals hidden for accounts outside the pilot", async () => {
+    mocks.today.mockResolvedValue({ dailyWorkout: {
+      ...daily, workout: { ...daily.workout, exercises: [{ name: "Glute Bridge", sets: 3, reps: "12" }] }
+    } });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    expect(await screen.findByRole("heading", { name: "Home mobility" })).toBeInTheDocument();
+    expect(screen.queryByText("Exercise data by RepDB")).not.toBeInTheDocument();
   });
 });

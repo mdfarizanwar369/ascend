@@ -73,6 +73,10 @@ const nextConfig = {
         ]
       },
       {
+        source: "/exercise-visuals/repdb-free-9ed9357/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
+      },
+      {
         source: "/dashboard",
         headers: [
           {

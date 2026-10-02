@@ -18,6 +18,8 @@ const schema = z.object({
   BOOTSTRAP_OWNER_EMAIL: z.string().optional(),
   VOICE_BETA_ENABLED: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   VOICE_BETA_USER_IDS: z.string().default(""),
+  EXERCISE_VISUALS_ENABLED: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  EXERCISE_VISUALS_USER_IDS: z.string().default(""),
   CRON_SECRET: z.string().optional(),
   AWS_REGION: z.string().default("ap-southeast-1"),
   AWS_S3_ENDPOINT: z.string().optional(),
