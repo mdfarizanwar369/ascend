@@ -3,7 +3,15 @@ import { afterEach, expect, it, vi } from "vitest";
 import { ProfileClient } from "./ProfileClient";
 
 vi.mock("@/lib/ascendApi", () => ({
-  getMe: async () => ({ user: { full_name: "Test member", email: "demo@example.test" }, roles: ["client"] }),
+  getMe: async () => ({
+    user: {
+      full_name: "Test member",
+      email: "demo@example.test",
+      athlete_mode_enabled: true,
+      body_scan_introductory_enabled: true
+    },
+    roles: ["client"]
+  }),
   getMySubscription: async () => ({ subscription: { plan: "free", status: "active" } }),
   cancelSubscription: vi.fn(), getBillingPortal: vi.fn(), removeProfilePhoto: vi.fn(), saveProfilePhoto: vi.fn()
 }));
@@ -27,4 +35,11 @@ it.each(["Mozilla AscendAndroid/1 Capacitor", "Mozilla iPhone Safari"])("preserv
   render(<ProfileClient />);
   await screen.findByText("Test member");
   expect(screen.getByRole("link", { name: "Health Sync" })).toHaveAttribute("href", "/profile/health-sync");
+});
+
+it("does not expose Body Scan from Profile even when body-scan account flags are enabled", async () => {
+  vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Mozilla AscendAndroid/1 Capacitor");
+  render(<ProfileClient />);
+  await screen.findByText("Test member");
+  expect(screen.queryByRole("link", { name: "Body Scan" })).not.toBeInTheDocument();
 });
