@@ -11,11 +11,13 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "listen", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "speak", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "playAudio", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stopSpeaking", returnType: CAPPluginReturnPromise)
     ]
 
     private let audioEngine = AVAudioEngine()
     private let synthesizer = AVSpeechSynthesizer()
+    private var audioPlayer: AVAudioPlayer?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var listeningCall: CAPPluginCall?
@@ -25,7 +27,10 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-        call.resolve(["available": recognizer?.isAvailable == true && recognizer?.supportsOnDeviceRecognition == true])
+        call.resolve([
+            "available": recognizer?.isAvailable == true && recognizer?.supportsOnDeviceRecognition == true,
+            "naturalAudioAvailable": true
+        ])
     }
 
     @objc func listen(_ call: CAPPluginCall) {
@@ -137,9 +142,37 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
+    @objc func playAudio(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard let encoded = call.getString("audioBase64"),
+                  let data = Data(base64Encoded: encoded),
+                  data.count >= 44, data.count <= 2_000_000,
+                  data.starts(with: Data("RIFF".utf8)) else {
+                call.reject("The natural voice audio could not be played.")
+                return
+            }
+            do {
+                self.synthesizer.stopSpeaking(at: .immediate)
+                self.audioPlayer?.stop()
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+                try AVAudioSession.sharedInstance().setActive(true)
+                let player = try AVAudioPlayer(data: data)
+                player.prepareToPlay()
+                guard player.play() else { call.reject("The natural voice audio could not be played."); return }
+                self.audioPlayer = player
+                call.resolve()
+            } catch {
+                call.reject("The natural voice audio could not be played.")
+            }
+        }
+    }
+
     @objc func stopSpeaking(_ call: CAPPluginCall) {
         DispatchQueue.main.async { [weak self] in
             self?.synthesizer.stopSpeaking(at: .immediate)
+            self?.audioPlayer?.stop()
+            self?.audioPlayer = nil
             call.resolve()
         }
     }

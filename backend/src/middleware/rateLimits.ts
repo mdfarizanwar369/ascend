@@ -12,6 +12,22 @@ function createLimiter(windowMs: number, limit: number, message: string) {
 
 export const authRateLimit = createLimiter(15 * 60_000, 30, "Too many account requests. Please try again shortly.");
 export const aiRateLimit = createLimiter(60_000, 20, "Too many AI requests. Please wait a moment and try again.");
+export const voiceTtsRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 6,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "authenticated-user",
+  message: { error: "Voice has been used several times. Please wait a moment before asking again." }
+});
+export const voiceTtsDailyRateLimit = rateLimit({
+  windowMs: 24 * 60 * 60_000,
+  limit: 60,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "authenticated-user",
+  message: { error: "Today's voice beta limit has been reached. Please try again tomorrow." }
+});
 export const todayPriorityRateLimit = rateLimit({
   windowMs: 60_000,
   limit: 60,

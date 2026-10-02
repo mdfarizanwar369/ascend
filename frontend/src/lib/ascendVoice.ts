@@ -4,10 +4,11 @@ import { registerPlugin } from "@capacitor/core";
 import type { VoiceTodayIntent } from "./ascendApi";
 
 const plugin = registerPlugin<{
-  isAvailable(): Promise<{ available: boolean }>;
+  isAvailable(): Promise<{ available: boolean; naturalAudioAvailable?: boolean }>;
   listen(options: { locale: string }): Promise<{ transcript: string }>;
   cancel(): Promise<void>;
   speak(options: { text: string }): Promise<void>;
+  playAudio(options: { audioBase64: string }): Promise<void>;
   stopSpeaking(): Promise<void>;
 }>("AscendVoice");
 
