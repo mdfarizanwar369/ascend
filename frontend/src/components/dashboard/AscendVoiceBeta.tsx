@@ -39,9 +39,16 @@ export function AscendVoiceBeta() {
     setWorking(true);
     try {
       await ascendVoice.stopSpeaking();
+      // Start speech generation immediately, while the short text request fills the UI.
+      const audioPromise = getVoiceTodayAudio(intent).then(
+        (audio) => ({ audio, error: null }),
+        (error: unknown) => ({ audio: null, error })
+      );
       const result = await getVoiceToday(intent);
       setAnswer(result.spokenText);
-      const audio = await getVoiceTodayAudio(intent);
+      const { audio, error } = await audioPromise;
+      if (error) throw error;
+      if (!audio) throw new Error("Natural voice is unavailable. Your answer is shown above.");
       setAnswer(audio.spokenText);
       await ascendVoice.playAudio({ audioBase64: audio.audioBase64 });
     } catch (cause) {
@@ -51,6 +58,10 @@ export function AscendVoiceBeta() {
 
   async function listen() {
     if (listening) { await ascendVoice.cancel().catch(() => undefined); setListening(false); return; }
+    if (!naturalAudioAvailable) {
+      setError("Update Ascend to the latest TestFlight build to use natural voice.");
+      return;
+    }
     setError(""); setAnswer(""); setHeard(""); setListening(true);
     try {
       await ascendVoice.stopSpeaking();
@@ -73,11 +84,13 @@ export function AscendVoiceBeta() {
   return <div className="ascend-inset my-3 p-4" aria-label="Ascend Voice beta">
     <div className="flex items-center gap-2 text-sm font-semibold text-white"><Volume2 size={17} /> Ascend Voice <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-300">Private beta</span></div>
     <p className="mt-1 text-xs text-zinc-400">An add-on to Today&apos;s Numbers. Tap to ask about today&apos;s calories, protein, or water.</p>
-    <p className="mt-1 text-[11px] text-zinc-500">AI-generated voice. Answer text is sent to Google Gemini for natural speech only when AI sharing is enabled. <Link href="/ai-privacy" className="text-calm underline">AI privacy</Link></p>
-    <button type="button" onClick={() => void listen()} disabled={!available || !naturalAudioAvailable || working} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-calm px-5 text-sm font-semibold text-black disabled:opacity-50">
+    <p className="mt-1 text-[11px] text-zinc-500">iPhone Speech Recognition turns your question into text, using on-device recognition when available. Otherwise Apple may process the audio. Your answer is sent to Google Gemini for natural speech only when AI sharing is enabled. <Link href="/ai-privacy" className="text-calm underline">AI privacy</Link></p>
+    <button type="button" onClick={() => void listen()} disabled={working} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full bg-calm px-5 text-sm font-semibold text-black disabled:opacity-50">
       <Mic size={17} /> {listening ? "Stop listening" : working ? "Checking today…" : "Ask Ascend"}
     </button>
-    {(!available || !naturalAudioAvailable) && <p className="mt-2 text-xs text-amber-300">Natural voice needs the latest Ascend TestFlight build and on-device English speech support.</p>}
+    {listening && <p className="mt-2 text-xs text-calm" role="status">Listening… ask your question now.</p>}
+    {!naturalAudioAvailable && <p className="mt-2 text-xs text-amber-300">Natural voice needs the latest Ascend TestFlight build.</p>}
+    {!available && naturalAudioAvailable && <p className="mt-2 text-xs text-amber-300">Tap Ask Ascend to check iPhone speech access.</p>}
     <div className="mt-3 flex flex-wrap gap-2">{prompts.map((prompt) => <button key={prompt.intent} type="button" disabled={!naturalAudioAvailable || working} onClick={() => void ask(prompt.intent)} className="min-h-10 rounded-full border border-white/15 px-3 text-xs text-zinc-200 disabled:opacity-50">{prompt.label}</button>)}</div>
     {heard && <p className="mt-3 text-xs text-zinc-400">Heard: {heard}</p>}
     {answer && <p className="mt-2 text-sm text-white" role="status">{answer}</p>}

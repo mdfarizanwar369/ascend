@@ -49,11 +49,11 @@ async function getVoiceTodayData(userId: string, input: z.infer<typeof voiceToda
     const calorieRemaining = Math.round(targets.calories - calories);
     const proteinRemaining = Math.round(targets.proteinG - proteinG);
     const spokenText = intent === "calories_consumed"
-      ? `You've logged ${calories} calories today.`
+      ? `You've eaten ${calories} calories today.`
       : intent === "calories_remaining"
-        ? calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left in today's guide.` : `You're ${Math.abs(calorieRemaining)} calories above today's guide.`
+        ? calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left today.` : `You're ${Math.abs(calorieRemaining)} calories above today's guide.`
         : intent === "protein_remaining"
-          ? proteinRemaining >= 0 ? `You have ${proteinRemaining} grams of protein left in today's guide.` : `You're ${Math.abs(proteinRemaining)} grams above today's protein guide.`
+          ? proteinRemaining >= 0 ? `You have ${proteinRemaining} grams of protein left today.` : `You're ${Math.abs(proteinRemaining)} grams above today's protein guide.`
           : intent === "water_logged"
             ? `You've logged ${waterMl} millilitres of water today.`
             : `Today you've logged ${calories} calories, ${proteinG} grams of protein, and ${waterMl} millilitres of water. ${calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left in your guide.` : `You're ${Math.abs(calorieRemaining)} calories above your guide.`}`;

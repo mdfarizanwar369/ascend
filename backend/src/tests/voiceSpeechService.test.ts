@@ -44,9 +44,24 @@ describe("private natural voice", () => {
       const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(url).toBe("https://generativelanguage.googleapis.com/v1beta/interactions");
       const body = JSON.parse(String(options.body));
-      expect(body.model).toBe("gemini-3.8-flash-tts");
+      expect(body.model).toBe("gemini-3.8-flash-lite-tts");
       expect(body.input[0].content[0].text).toBe("You have 800 calories left.");
       expect(body.generation_config.speech_config[0].voice).toBe("Algieba");
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it("reuses a recent answer while checking AI consent on every request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ steps: [{ type: "model_output", content: [{ type: "audio", data: encoded }] }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const text = "You have 123 calories left today.";
+      expect(await synthesizeVoiceReply("cache-test-owner", text)).toBe(encoded);
+      expect(await synthesizeVoiceReply("cache-test-owner", text)).toBe(encoded);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(consent).toHaveBeenCalledTimes(2);
+      consent.mockRejectedValueOnce(new Error("AI sharing is off"));
+      await expect(synthesizeVoiceReply("cache-test-owner", text)).rejects.toThrow("AI sharing is off");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally { vi.unstubAllGlobals(); }
   });
 });

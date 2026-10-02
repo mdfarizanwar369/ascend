@@ -9,7 +9,7 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Listen to your spoken nutrition questions when you tap Ascend Voice.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Turn spoken nutrition questions into text on your iPhone.</string>
+    <string>Turn spoken nutrition questions into text on your iPhone, or through Apple when on-device recognition is unavailable.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Choose meal and progress photos for your Ascend journal.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>

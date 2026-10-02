@@ -23,12 +23,15 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     private var listeningCall: CAPPluginCall?
     private var lastTranscript = ""
     private var timeout: Timer?
+    private var silenceTimeout: Timer?
     private var tapInstalled = false
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         call.resolve([
-            "available": recognizer?.isAvailable == true && recognizer?.supportsOnDeviceRecognition == true,
+            // Availability can be false before the first authorization prompt, and it can
+            // change while the app is open. Let the user tap and get a useful result.
+            "available": recognizer != nil,
             "naturalAudioAvailable": true
         ])
     }
@@ -38,16 +41,20 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             guard let self else { return }
             guard self.listeningCall == nil else { call.reject("Already listening"); return }
             let locale = Locale(identifier: call.getString("locale") ?? "en-US")
-            let recognizer = SFSpeechRecognizer(locale: locale)
-            guard recognizer?.isAvailable == true, recognizer?.supportsOnDeviceRecognition == true else {
-                call.reject("On-device speech recognition is unavailable for this language. Try English.")
-                return
-            }
             SFSpeechRecognizer.requestAuthorization { status in
-                guard status == .authorized else { call.reject("Allow Speech Recognition in iPhone Settings to use Ascend Voice."); return }
+                guard status == .authorized else {
+                    call.reject("Allow Speech Recognition in iPhone Settings to use Ascend Voice.")
+                    return
+                }
                 AVAudioSession.sharedInstance().requestRecordPermission { allowed in
                     guard allowed else { call.reject("Allow microphone access in iPhone Settings to use Ascend Voice."); return }
-                    DispatchQueue.main.async { self.beginListening(call, recognizer: recognizer!) }
+                    DispatchQueue.main.async {
+                        guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
+                            call.reject("iPhone speech recognition is unavailable right now. Check your connection and try again.")
+                            return
+                        }
+                        self.beginListening(call, recognizer: recognizer)
+                    }
                 }
             }
         }
@@ -58,7 +65,7 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
             try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
             try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
             let request = SFSpeechAudioBufferRecognitionRequest()
-            request.requiresOnDeviceRecognition = true
+            request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
             request.shouldReportPartialResults = true
             let input = audioEngine.inputNode
             let format = input.outputFormat(forBus: 0)
@@ -75,6 +82,12 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
                     if let result {
                         self.lastTranscript = result.bestTranscription.formattedString
                         if result.isFinal { self.finishListening() }
+                        else if !self.lastTranscript.isEmpty {
+                            self.silenceTimeout?.invalidate()
+                            self.silenceTimeout = Timer.scheduledTimer(withTimeInterval: 1.25, repeats: false) { [weak self] _ in
+                                self?.finishListening()
+                            }
+                        }
                     } else if let error {
                         self.failListening(error.localizedDescription)
                     }
@@ -92,6 +105,8 @@ public class AscendVoicePlugin: CAPPlugin, CAPBridgedPlugin {
     private func cleanupListening() {
         timeout?.invalidate()
         timeout = nil
+        silenceTimeout?.invalidate()
+        silenceTimeout = nil
         if audioEngine.isRunning { audioEngine.stop() }
         if tapInstalled { audioEngine.inputNode.removeTap(onBus: 0); tapInstalled = false }
         recognitionRequest?.endAudio()

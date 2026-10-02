@@ -4,8 +4,13 @@ import { withAiWorkLease } from "./aiWorkLeaseService";
 import { readResponseBufferLimited } from "../utils/outboundUrl";
 
 const GEMINI_TTS_URL = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const VOICE_MODEL = "gemini-3.8-flash-lite-tts";
 const MAX_RESPONSE_BYTES = 3_000_000;
 const MAX_AUDIO_BYTES = 2_000_000;
+const AUDIO_CACHE_MS = 60_000;
+const MAX_CACHED_REPLIES = 32;
+const MAX_CACHED_AUDIO_CHARS = 350_000;
+const audioCache = new Map<string, { audio: string; expiresAt: number }>();
 
 type AudioPart = { type?: string; data?: string };
 type GeminiSpeechResponse = {
@@ -35,11 +40,15 @@ export async function synthesizeVoiceReply(userId: string, spokenText: string): 
   }
   return withAiWorkLease(`voice-tts:${userId}`, () => withAiDataSubject(userId, async () => {
     await assertAiProviderConsent("gemini");
+    const cacheKey = `${userId}\u0000${spokenText}`;
+    const cached = audioCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.audio;
+    if (cached) audioCache.delete(cacheKey);
     const response = await fetch(GEMINI_TTS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY! },
       body: JSON.stringify({
-        model: "gemini-3.8-flash-tts",
+        model: VOICE_MODEL,
         input: [{ type: "user_input", content: [{
           type: "text",
           text: spokenText,
@@ -57,6 +66,11 @@ export async function synthesizeVoiceReply(userId: string, spokenText: string): 
     }
     const raw = await readResponseBufferLimited(response, MAX_RESPONSE_BYTES);
     const payload = JSON.parse(raw.toString("utf8")) as GeminiSpeechResponse;
-    return readGeminiSpeechAudio(payload);
+    const audio = readGeminiSpeechAudio(payload);
+    if (audio.length <= MAX_CACHED_AUDIO_CHARS) {
+      if (audioCache.size >= MAX_CACHED_REPLIES) audioCache.delete(audioCache.keys().next().value!);
+      audioCache.set(cacheKey, { audio, expiresAt: Date.now() + AUDIO_CACHE_MS });
+    }
+    return audio;
   }));
 }
