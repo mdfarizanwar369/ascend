@@ -26,7 +26,7 @@ const image = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
-    id: "bodyweight-squat", canonicalName: "Bodyweight Squat", aliases: ["Bodyweight Squats"],
+    id: "bodyweight-squat", canonicalName: "Bodyweight Squat", aliases: ["Bodyweight Squats", "Controlled Bodyweight Squat", "Controlled Bodyweight Squats"],
     equipment: "Bodyweight", movementPattern: "Squat", targetMuscles: "Quads and glutes",
     repdbId: "bodyweight-squat",
     images: { kind: "pair", start: image("bodyweight-squat-start.webp"), peak: image("bodyweight-squat-peak.webp") },
