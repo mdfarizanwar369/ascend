@@ -329,6 +329,7 @@ export function getMe() {
       profile_photo_url?: string | null;
       is_platform_owner?: boolean;
       voice_beta_enabled?: boolean;
+      exercise_visuals_enabled?: boolean;
       body_scan_owner_preview_enabled?: boolean;
       body_scan_introductory_enabled?: boolean;
       athlete_mode_enabled?: boolean;
@@ -1526,6 +1527,13 @@ export function generateTodayWorkout(input: {
   return authed<{ workout: GeneratedWorkout; dailyWorkout?: DailyWorkout }>("/ai/workout", {
     method: "POST",
     body: JSON.stringify({ ...input, timezoneOffsetMinutes: new Date().getTimezoneOffset() })
+  });
+}
+
+export function recordWorkoutVisualEvent(eventType: "detail_opened" | "image_load_failure" | "incorrect_mapping_report", registryId: string) {
+  return authed<{ recorded: boolean }>("/ai/workout/visual-event", {
+    method: "POST",
+    body: JSON.stringify({ eventType, registryId })
   });
 }
 

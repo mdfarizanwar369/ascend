@@ -31,6 +31,8 @@ import { dailyCoachingCorrelation, dailyCoachingTelemetry, safeDailyCoachingErro
 import { loadTodayPriorityFacts } from "../services/todayPriorityContextService";
 import { localDateKeyAtOffset, localDateKeyDaysAgo, localWeekKeyAtOffset } from "../services/memberTimeService";
 import { bodyCompositionScanFromDb, buildBodyCompositionSummary, getTrustedBodyCompositionHistory } from "../services/bodyCompositionService";
+import { recordGeneratedWorkoutVisuals, recordVisualUiEvent } from "../services/exerciseVisualTelemetry";
+import { hasExerciseVisualAccess } from "../services/exerciseVisualAccess";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -51,6 +53,11 @@ const workoutPlannerSchema = z.object({
   equipment: z.string().trim().min(2).max(80),
   timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
+
+const visualEventSchema = z.object({
+  eventType: z.enum(["detail_opened", "image_load_failure", "incorrect_mapping_report"]),
+  registryId: z.string().min(1).max(80)
+}).strict();
 
 function asNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
@@ -896,6 +903,15 @@ aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+aiRouter.post("/ai/workout/visual-event", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
+  try {
+    if (!hasExerciseVisualAccess(req.user!)) return res.status(404).json({ error: "Not found" });
+    const { eventType, registryId } = visualEventSchema.parse(req.body);
+    if (!await recordVisualUiEvent(eventType, registryId)) return res.status(400).json({ error: "Unknown exercise visual" });
+    return res.json({ recorded: true });
+  } catch (error) { next(error); }
+});
+
 aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (req, res, next) => {
   try {
     const input = workoutPlannerSchema.parse(req.body);
@@ -1041,6 +1057,9 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         equipment: input.equipment,
         context: promptContext
       }, { requireAiSuccess: isIosNativeEdition() });
+
+      // Best effort: telemetry never blocks the workout response or changes generation.
+      if (hasExerciseVisualAccess(req.user!)) void recordGeneratedWorkoutVisuals(workout).catch(() => undefined);
 
       if (!dailyLimited) await logAiUsage({
         userId: req.user!.id,
