@@ -353,6 +353,13 @@ export function getVoiceToday(intent: VoiceTodayIntent) {
   }>(`/me/voice/today?intent=${encodeURIComponent(intent)}&timezoneOffsetMinutes=${offset}`);
 }
 
+export function getVoiceTodayAudio(intent: VoiceTodayIntent) {
+  return authed<{ spokenText: string; audioBase64: string; mimeType: "audio/wav" }>("/me/voice/today/audio", {
+    method: "POST",
+    body: JSON.stringify({ intent, timezoneOffsetMinutes: new Date().getTimezoneOffset() })
+  });
+}
+
 export function claimReturnMode() {
   return authed<{
     returnMode: {

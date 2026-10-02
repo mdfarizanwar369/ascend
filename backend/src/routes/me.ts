@@ -5,7 +5,7 @@ import { z } from "zod";
 import { query } from "../db/pool";
 import { requireAuth, type AuthUser } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { uploadRateLimit } from "../middleware/rateLimits";
+import { uploadRateLimit, voiceTtsDailyRateLimit, voiceTtsRateLimit } from "../middleware/rateLimits";
 import { acknowledgeGoalMilestone, completeOnboarding, getGoalStatus, guideProfileSchema, onboardingSchema, updateGuideProfile } from "../services/userService";
 import { getProgressComparison } from "../services/progressComparisonService";
 import { createReadUrl, deleteStoredObjects, uploadDataUrl } from "../integrations/s3";
@@ -17,6 +17,7 @@ import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNut
 import { claimReturnMode, recordReturnModeContinued } from "../services/returnModeService";
 import { env } from "../config/env";
 import { buildTodayPriorityDayContext } from "../services/todayPriorityContextService";
+import { synthesizeVoiceReply } from "../services/voiceSpeechService";
 
 export const meRouter = Router();
 
@@ -29,12 +30,10 @@ const voiceTodayQuery = z.object({
   timezoneOffsetMinutes: z.coerce.number().int().min(-840).max(840)
 });
 
-meRouter.get("/me/voice/today", requireAuth, async (req, res, next) => {
-  try {
-    if (!voiceBetaEnabled(req.user!)) return res.status(404).json({ error: "Not found" });
-    const { intent, timezoneOffsetMinutes } = voiceTodayQuery.parse(req.query);
+async function getVoiceTodayData(userId: string, input: z.infer<typeof voiceTodayQuery>) {
+    const { intent, timezoneOffsetMinutes } = input;
     const { dayStartUtc, dayEndUtc } = buildTodayPriorityDayContext(timezoneOffsetMinutes);
-    const range = [req.user!.id, dayStartUtc.toISOString(), dayEndUtc.toISOString()];
+    const range = [userId, dayStartUtc.toISOString(), dayEndUtc.toISOString()];
     const [food, water, targets] = await Promise.all([
       query<{ calories: number | string; protein_g: number | string; meals: number }>(
         `select coalesce(sum(calories), 0) as calories, coalesce(sum(protein_g), 0) as protein_g, count(*)::int as meals
@@ -42,7 +41,7 @@ meRouter.get("/me/voice/today", requireAuth, async (req, res, next) => {
       query<{ water_ml: number | string }>(
         `select coalesce(sum(amount_ml), 0) as water_ml from water_logs
          where user_id = $1 and logged_at >= $2 and logged_at < $3`, range),
-      resolveNutritionTargets(req.user!.id)
+      resolveNutritionTargets(userId)
     ]);
     const calories = Math.round(Number(food.rows[0]?.calories ?? 0));
     const proteinG = Math.round(Number(food.rows[0]?.protein_g ?? 0));
@@ -58,8 +57,27 @@ meRouter.get("/me/voice/today", requireAuth, async (req, res, next) => {
           : intent === "water_logged"
             ? `You've logged ${waterMl} millilitres of water today.`
             : `Today you've logged ${calories} calories, ${proteinG} grams of protein, and ${waterMl} millilitres of water. ${calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left in your guide.` : `You're ${Math.abs(calorieRemaining)} calories above your guide.`}`;
+    return { intent, spokenText, totals: { calories, proteinG, waterMl, meals: food.rows[0]?.meals ?? 0 }, targets: { calories: targets.calories, proteinG: targets.proteinG, waterMl: targets.waterMl } };
+}
+
+meRouter.get("/me/voice/today", requireAuth, async (req, res, next) => {
+  try {
+    if (!voiceBetaEnabled(req.user!)) return res.status(404).json({ error: "Not found" });
+    const data = await getVoiceTodayData(req.user!.id, voiceTodayQuery.parse(req.query));
     res.setHeader("Cache-Control", "private, no-store");
-    res.json({ intent, spokenText, totals: { calories, proteinG, waterMl, meals: food.rows[0]?.meals ?? 0 }, targets: { calories: targets.calories, proteinG: targets.proteinG, waterMl: targets.waterMl } });
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+meRouter.post("/me/voice/today/audio", requireAuth, (req, res, next) => {
+  if (!voiceBetaEnabled(req.user!)) return res.status(404).json({ error: "Not found" });
+  next();
+}, voiceTtsRateLimit, voiceTtsDailyRateLimit, async (req, res, next) => {
+  try {
+    const data = await getVoiceTodayData(req.user!.id, voiceTodayQuery.parse(req.body));
+    const audioBase64 = await synthesizeVoiceReply(req.user!.id, data.spokenText);
+    res.setHeader("Cache-Control", "private, no-store");
+    res.json({ spokenText: data.spokenText, audioBase64, mimeType: "audio/wav" });
   } catch (error) { next(error); }
 });
 
