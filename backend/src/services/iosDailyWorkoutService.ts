@@ -5,6 +5,7 @@ import type { CoachWorkoutPlan } from "../integrations/openai";
 import { localDayStartUtc } from "./memberTimeService";
 import { env } from "../config/env";
 import { assertAiWorkOwnership, withAiWorkLease } from "./aiWorkLeaseService";
+import { rotateWorkoutExercise } from "./workoutPlanQualityService";
 
 export type DailyWorkoutRequest = {
   location: "gym" | "home" | "hotel" | "outdoors";
@@ -43,6 +44,31 @@ export async function getIosWorkoutForCompletion(userId: string, completionKey: 
   const result = await query<StoredWorkout>(`${selectWorkout}
     where w.user_id = $1 and w.completion_key = $2`, [userId, completionKey]);
   return result.rows[0] ? toDailyWorkout(result.rows[0]) : null;
+}
+
+export async function swapIosDailyWorkoutExercise(userId: string, completionKey: string, exerciseIndex: number) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await client.query<StoredWorkout>(`select * from ios_daily_workouts
+      where user_id = $1 and completion_key = $2 and resets_at > now() for update`, [userId, completionKey]);
+    const stored = result.rows[0];
+    if (!stored) throw Object.assign(new Error("Today's workout is no longer available."), { status: 404 });
+    const completed = await client.query(`select 1 from analytics_events where user_id = $1
+      and event_name = 'burn_log' and metadata->>'workoutCompletionKey' = $2 limit 1`, [userId, completionKey]);
+    if (completed.rowCount) throw Object.assign(new Error("This workout is already complete."), { status: 409 });
+    const workout = rotateWorkoutExercise(stored.workout, exerciseIndex);
+    if (!workout) throw Object.assign(new Error("No suitable swap is available for that exercise."), { status: 400 });
+    await client.query(`update ios_daily_workouts set workout = $3 where user_id = $1 and completion_key = $2`,
+      [userId, completionKey, workout]);
+    await client.query("commit");
+    return toDailyWorkout({ ...stored, workout, completed: false });
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // Reserve generation across instances without holding a connection while AI runs.

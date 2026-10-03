@@ -161,7 +161,8 @@ const completedWorkoutSchema = z.object({
     rest: z.string().trim().max(40).nullable().optional(),
     note: z.string().trim().max(160).nullable().optional()
   })).min(1).max(20),
-  healthProviderCaloriesBurned: z.number().int().positive().optional().nullable()
+  healthProviderCaloriesBurned: z.number().int().positive().optional().nullable(),
+  effortRating: z.enum(["too_easy", "about_right", "too_hard"]).optional()
 });
 
 const capturedWorkoutSchema = z.object({
@@ -644,6 +645,10 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       const { getIosWorkoutForCompletion } = await import("../services/iosDailyWorkoutService");
       const stored = await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
       if (!stored) return res.status(404).json({ error: "Open your generated workout in Zoe before saving it." });
+      if (stored.workout.experienceVersion === 2 && (
+        input.exercises.length !== stored.workout.exercises.length ||
+        input.exercises.some((exercise, index) => exercise.name !== stored.workout.exercises[index]?.name)
+      )) return res.status(409).json({ error: "Today's workout changed. Reopen it in Zoe before saving." });
       // Use the account-owned plan, never a caller-supplied paid/custom workout.
       input.workoutTitle = stored.workout.title;
       input.workoutType = stored.workout.focus;
@@ -662,7 +667,8 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       completedAt: input.completedAt ?? null,
       exercises: input.exercises,
       healthProviderCaloriesBurned: input.healthProviderCaloriesBurned ?? null,
-      source: "coach_zoe_workout_planner"
+      source: "coach_zoe_workout_planner",
+      extraMetadata: input.effortRating ? { effortRating: input.effortRating } : undefined
     });
 
     const initializedDebrief = await initializeWorkoutDebrief({

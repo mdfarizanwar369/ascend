@@ -20,6 +20,7 @@ import {
   generateTodayWorkout,
   recordWorkoutVisualEvent,
   getTodayWorkout,
+  swapTodayWorkoutExercise,
   getBurnLogs,
   getCoachPresence,
   getFoodLogs,
@@ -201,6 +202,7 @@ function WorkoutPlannerCard({
   onCancel,
   onGenerate,
   onToggleExercise,
+  onSwapExercise,
   onRegenerate,
   setMessage,
   showExistingChoice,
@@ -216,6 +218,7 @@ function WorkoutPlannerCard({
   onCancel: () => void;
   onGenerate: (finalEquipment: string) => void;
   onToggleExercise: (index: number) => void;
+  onSwapExercise: (index: number) => void;
   onRegenerate: () => void;
   setMessage: (message: string) => void;
   showExistingChoice: boolean;
@@ -238,7 +241,7 @@ function WorkoutPlannerCard({
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold">You already have today&apos;s workout.</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">{allowRegenerate ? "Keep it, regenerate it, or ask Zoe to adjust it in chat." : "Your daily workout is ready. You can build a new one after midnight, or ask Zoe for guidance in chat."}</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">{allowRegenerate ? workout.experienceVersion === 2 ? "Keep it, refresh its exercises, or ask Zoe to adjust it in chat." : "Keep it, regenerate it, or ask Zoe to adjust it in chat." : "Your daily workout is ready. You can build a new one after midnight, or ask Zoe for guidance in chat."}</p>
           </div>
         </div>
         <div className="mt-4 grid gap-2">
@@ -250,7 +253,7 @@ function WorkoutPlannerCard({
             onClick={onRegenerate}
             className="rounded-xl border border-line bg-ink px-4 py-3 text-sm font-semibold text-zinc-100"
           >
-            Regenerate
+            {workout.experienceVersion === 2 ? "Refresh exercises" : "Regenerate"}
           </button> : null}
           <button
             type="button"
@@ -289,6 +292,20 @@ function WorkoutPlannerCard({
 
         <div className="p-4">
         <p className="text-sm leading-6 text-zinc-300">{workout.intro}</p>
+        {workout.experienceVersion === 2 && workout.whyToday ? (
+          <div className="mt-4 rounded-xl border border-lime/30 bg-lime/10 p-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-lime">Why this workout today</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-200">{workout.whyToday}</p>
+          </div>
+        ) : null}
+        {workout.experienceVersion === 2 && workout.sessionRoadmap?.length ? (
+          <div className="mt-3 grid grid-cols-3 gap-2" aria-label="Training roadmap">
+            {workout.sessionRoadmap.map(({ step, focus }) => <div key={step} className="rounded-xl border border-line bg-ink/60 p-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-purple-300">{step}</p>
+              <p className="mt-1 text-xs leading-4 text-zinc-200">{focus}</p>
+            </div>)}
+          </div>
+        ) : null}
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-xl border border-line bg-ink/70 p-3">
@@ -377,6 +394,11 @@ function WorkoutPlannerCard({
                   </div>
                   {exerciseVisualsEnabled && expanded && visual.status === "resolved" ? <div className="ml-[52px]"><ExerciseVisualCard key={visual.exercise.id} exercise={visual.exercise} /></div> : null}
                   {expanded && exercise.note ? <p className="ascend-soft-enter ml-[52px] mt-2 text-xs leading-5 text-zinc-400">{exercise.note}</p> : null}
+                  {workout.experienceVersion === 2 && !workoutSaved && !complete && exercise.alternatives?.length ? (
+                    <button type="button" onClick={() => onSwapExercise(index)} className="ml-[52px] mt-2 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-purple-200 hover:border-violet/60">
+                      Swap exercise
+                    </button>
+                  ) : null}
                 </article>
               );
             })}
@@ -517,6 +539,7 @@ export function CoachHubClient() {
   const [dailyWorkoutCompleted, setDailyWorkoutCompleted] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
+  const [effortRating, setEffortRating] = useState<"too_easy" | "about_right" | "too_hard" | null>(null);
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
   const [isRequestingDebrief, setIsRequestingDebrief] = useState(false);
   const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
@@ -630,6 +653,7 @@ export function CoachHubClient() {
     setWorkoutCompletionKey(daily.workoutCompletionKey);
     setDailyWorkoutCompleted(daily.completed);
     if (changed || daily.completed) {
+      setEffortRating(null);
       setCheckedExercises(new Set(daily.completed ? daily.workout.exercises.map((_, index) => index) : []));
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
@@ -700,6 +724,7 @@ export function CoachHubClient() {
         return;
       }
       setWorkout(response.workout);
+      setEffortRating(null);
       setCheckedExercises(new Set());
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
@@ -711,6 +736,37 @@ export function CoachHubClient() {
     } finally {
       setIsGeneratingWorkout(false);
     }
+  }
+
+  async function swapWorkoutExercise(index: number) {
+    if (workout?.experienceVersion !== 2 || checkedExercises.has(index) || savedWorkoutSummary || dailyWorkoutCompleted) return;
+    if (iosFree) {
+      if (!workoutCompletionKey) return;
+      try {
+        const response = await swapTodayWorkoutExercise(workoutCompletionKey, index);
+        applyDailyWorkout(response.dailyWorkout);
+      } catch (error) {
+        setStatus(error instanceof Error ? error.message : "Could not swap this exercise. Please try again.");
+      }
+      return;
+    }
+    setWorkout((current) => {
+      if (current?.experienceVersion !== 2) return current;
+      const exercise = current.exercises[index];
+      const alternatives = exercise?.alternatives ?? [];
+      const replacementIndex = alternatives.findIndex(candidate => candidate.name && !current.exercises.some((other, otherIndex) =>
+        otherIndex !== index && other.name.toLowerCase() === candidate.name.toLowerCase()));
+      if (!exercise || replacementIndex < 0) return current;
+      const replacement = alternatives[replacementIndex];
+      const nextExercises = [...current.exercises];
+      nextExercises[index] = {
+        ...replacement,
+        alternatives: [...alternatives.slice(replacementIndex + 1), ...alternatives.slice(0, replacementIndex), {
+          name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note
+        }]
+      };
+      return { ...current, exercises: nextExercises };
+    });
   }
 
   async function saveWorkoutCompletion() {
@@ -727,7 +783,8 @@ export function CoachHubClient() {
         workoutDifficulty: workout.intensity,
         durationMinutes: workout.estimatedDurationMinutes,
         completedAt: new Date().toISOString(),
-        exercises: workout.exercises
+        exercises: workout.exercises,
+        ...(workout.experienceVersion === 2 && effortRating ? { effortRating } : {})
       });
 
       rememberDashboardRecord("burn", response.burnLog);
@@ -876,6 +933,26 @@ export function CoachHubClient() {
               onCancel={closeWorkoutPlanner}
               onGenerate={generateWorkout}
               onRegenerate={() => {
+                if (workout?.experienceVersion === 2) {
+                  setWorkout((current) => {
+                    if (current?.experienceVersion !== 2) return current;
+                    const originalNames = new Set(current.exercises.map(exercise => exercise.name.toLowerCase()));
+                    const exercises = current.exercises.map((exercise) => {
+                      const alternatives = exercise.alternatives ?? [];
+                      const index = alternatives.findIndex(candidate => !originalNames.has(candidate.name.toLowerCase()));
+                      if (index < 0) return exercise;
+                      const replacement = alternatives[index];
+                      return { ...replacement, alternatives: [...alternatives.slice(index + 1), ...alternatives.slice(0, index), {
+                        name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note
+                      }] };
+                    });
+                    return { ...current, exercises };
+                  });
+                  setCheckedExercises(new Set());
+                  setEffortRating(null);
+                  setShowExistingChoice(false);
+                  return;
+                }
                 setWorkout(null);
                 setCheckedExercises(new Set());
                 setAnswers({});
@@ -892,6 +969,7 @@ export function CoachHubClient() {
                   return next;
                 })
               }
+              onSwapExercise={(index) => void swapWorkoutExercise(index)}
               setMessage={setMessage}
               showExistingChoice={showExistingChoice}
               exerciseVisualsEnabled={exerciseVisualsEnabled}
@@ -966,14 +1044,27 @@ export function CoachHubClient() {
               ) : dailyWorkoutCompleted ? (
                 <p className="mt-4 rounded-xl bg-lime/10 p-4 text-sm text-lime">This workout is already saved in your activity log.</p>
               ) : allExercisesCompleted ? (
+                <div className="mt-4 space-y-3">
+                {workout.experienceVersion === 2 ? <div>
+                  <p className="mb-2 text-sm font-semibold text-zinc-200">How did that feel? <span className="font-normal text-zinc-500">Optional</span></p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([ ["too_easy", "Too easy"], ["about_right", "About right"], ["too_hard", "Too hard"] ] as const).map(([value, label]) => (
+                      <button key={value} type="button" onClick={() => setEffortRating(value)} aria-pressed={effortRating === value}
+                        className={`rounded-xl border px-2 py-2 text-xs font-semibold ${effortRating === value ? "border-lime bg-lime/10 text-lime" : "border-line text-zinc-300"}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div> : null}
                 <button
                   type="button"
                   onClick={saveWorkoutCompletion}
                   disabled={isSavingWorkout}
-                  className="mt-4 flex h-14 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(61,230,209,1),rgba(109,246,220,0.92))] text-base font-bold text-ink shadow-[0_18px_44px_rgba(61,230,209,0.24)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="flex h-14 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(61,230,209,1),rgba(109,246,220,0.92))] text-base font-bold text-ink shadow-[0_18px_44px_rgba(61,230,209,0.24)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isSavingWorkout ? "Saving workout..." : "Complete & Save Workout"}
                 </button>
+                </div>
               ) : (
                 <div className="mt-4 rounded-xl border border-white/5 bg-ink/55 px-4 py-3 text-sm text-zinc-400">
                   Check off every exercise to unlock workout save.

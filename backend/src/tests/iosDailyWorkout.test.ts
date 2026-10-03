@@ -12,7 +12,7 @@ vi.mock("../db/pool", () => ({
   query: dbQuery, withQueryClient: withClient,
   pool: { connect: async () => ({ query: clientQuery, release }) }
 }));
-import { generateIosDailyWorkout, getIosDailyWorkout, getIosWorkoutForCompletion } from "../services/iosDailyWorkoutService";
+import { generateIosDailyWorkout, getIosDailyWorkout, getIosWorkoutForCompletion, swapIosDailyWorkoutExercise } from "../services/iosDailyWorkoutService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
 
 const now = new Date("2026-09-23T15:30:00Z");
@@ -102,5 +102,20 @@ describe("native daily workout allowance", () => {
   it("starts a new allowance at midnight", async () => {
     const result = await generateIosDailyWorkout(input(), new Date("2026-09-23T16:00:00Z"));
     expect(result.resetsAt).toBe("2026-09-24T16:00:00.000Z");
+  });
+
+  it("saves an account-owned exercise swap without another AI call", async () => {
+    const v2 = { ...workout, experienceVersion: 2 as const, exercises: [{
+      name: "Bodyweight Squat", sets: 2, reps: "10", alternatives: [{ name: "Chair Squat", sets: 2, reps: "8", note: "Use a sturdy chair." }]
+    }] };
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [{ ...saved, workout: v2 }], rowCount: 1 };
+      if (sql.includes("from analytics_events")) return { rows: [], rowCount: 0 };
+      return { rows: [], rowCount: 1 };
+    });
+    const result = await swapIosDailyWorkoutExercise("member", "saved-key", 0);
+    expect(result.workout.exercises[0]).toMatchObject({ name: "Chair Squat", reps: "8" });
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("update ios_daily_workouts"), ["member", "saved-key", result.workout]);
+    expect(clientQuery.mock.calls.at(-1)).toEqual(["commit"]);
   });
 });
