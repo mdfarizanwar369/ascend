@@ -104,11 +104,11 @@ describe("iPhone daily workout builder", () => {
     } });
     render(<CoachHubClient />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
-    expect(await screen.findByText("Exercise data by RepDB")).toBeInTheDocument();
+    expect(await screen.findByText("Original Ascend exercise visual")).toBeInTheDocument();
     expect(screen.getByText("Original saved note")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: /Goblet Squat/ }).find(button => button.hasAttribute("aria-expanded"))!);
     expect(screen.getByText("Use a dumbbell")).toBeInTheDocument();
-    expect(screen.queryByText("Exercise data by RepDB")).not.toBeInTheDocument();
+    expect(screen.queryByText("Original Ascend exercise visual")).not.toBeInTheDocument();
   });
   it("keeps exercise visuals hidden for accounts outside the pilot", async () => {
     mocks.today.mockResolvedValue({ dailyWorkout: {
@@ -117,6 +117,6 @@ describe("iPhone daily workout builder", () => {
     render(<CoachHubClient />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
     expect(await screen.findByRole("heading", { name: "Home mobility" })).toBeInTheDocument();
-    expect(screen.queryByText("Exercise data by RepDB")).not.toBeInTheDocument();
+    expect(screen.queryByText("Original Ascend exercise visual")).not.toBeInTheDocument();
   });
 });

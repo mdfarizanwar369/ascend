@@ -17,17 +17,16 @@ describe("exercise visual pilot resolver", () => {
     expect(resolveExerciseVisual("  BODYWEIGHT   SQUATS ")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "bodyweight-squat" } });
     expect(resolveExerciseVisual("Controlled Bodyweight Squats")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "bodyweight-squat" } });
     expect(resolveExerciseVisual("Child’s pose breathing")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "childs-pose" } });
+    expect(resolveExerciseVisual("Forearm Plank")).toMatchObject({ status: "resolved", match: "exact", exercise: { id: "forearm-plank" } });
+    expect(resolveExerciseVisual("Low Plank")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "forearm-plank" } });
   });
   it.each([
     ["Dumbbell Goblet Squat (light weight)", "ambiguous"],
-    ["Dumbbell Goblet Squat", "ambiguous"],
     ["Goblet Squat", "ambiguous"],
     ["Reverse Lunge", "ambiguous"],
-    ["Bench Dips (knees bent)", "ambiguous"],
     ["Downward Dog to Cobra Flow", "ambiguous"],
     ["Plank", "ambiguous"],
     ["Plank Hold", "ambiguous"],
-    ["Forearm Plank", "unresolved"],
     ["Side Plank", "ambiguous"],
     ["Walking Lunge", "ambiguous"],
     ["Leg Press", "ambiguous"],
@@ -38,8 +37,9 @@ describe("exercise visual pilot resolver", () => {
     ["Kettlebell Goblet Squat", "unresolved"],
     ["Dumbbell Romanian Deadlift or Barbell Deadlift", "unresolved"],
     ["Unsupported Split Squat", "unresolved"],
-    ["Cat-Cow", "unresolved"],
-    ["Lat Pulldown", "unresolved"]
+    ["Single-Arm Dumbbell Row", "unresolved"],
+    ["Band Chest Press (Anchor or Standing)", "unresolved"],
+    ["Incline Push-Ups (Bench or Ledge)", "unresolved"]
   ])("never substitutes %s", (name, status) => {
     expect(resolveExerciseVisual(name).status).toBe(status);
   });
@@ -50,6 +50,14 @@ describe("exercise visual pilot resolver", () => {
     expect(resolveExerciseVisual("45 Degree Leg Press")).toMatchObject({ status: "resolved", exercise: { id: "45-degree-leg-press" } });
     expect(resolveExerciseVisual("Machine chest press")).toMatchObject({ status: "resolved", exercise: { id: "machine-chest-press" } });
     expect(resolveExerciseVisual("Bodyweight Walking Lunges")).toMatchObject({ status: "resolved", exercise: { id: "bodyweight-walking-lunge" } });
+    expect(resolveExerciseVisual("Dumbbell Goblet Squats")).toMatchObject({ status: "resolved", exercise: { id: "dumbbell-goblet-squat" } });
+    expect(resolveExerciseVisual("Lat Pulldown")).toMatchObject({ status: "resolved", exercise: { id: "lat-pulldown" } });
+    expect(resolveExerciseVisual("Banded Pull-Aparts")).toMatchObject({ status: "resolved", exercise: { id: "band-pull-apart" } });
+    expect(resolveExerciseVisual("Band Bent-Over Rows")).toMatchObject({ status: "resolved", exercise: { id: "band-bent-over-row" } });
+    expect(resolveExerciseVisual("Standing Band Paloff Press")).toMatchObject({ status: "resolved", exercise: { id: "standing-band-pallof-press" } });
+    expect(resolveExerciseVisual("Bench Step-Ups")).toMatchObject({ status: "resolved", exercise: { id: "bench-step-up" } });
+    expect(resolveExerciseVisual("Cat-Cow Stretch")).toMatchObject({ status: "resolved", exercise: { id: "cat-cow" } });
+    expect(resolveExerciseVisual("Australian Pull-Ups / Inverted Rows")).toMatchObject({ status: "resolved", exercise: { id: "inverted-row" } });
     expect(resolveExerciseVisual("DB Bench Press or Floor Press").status).not.toBe("resolved");
     expect(resolveExerciseVisual("Rope Tricep Pushdown").status).not.toBe("resolved");
     expect(resolveExerciseVisual("Single-Arm Dumbbell Row").status).not.toBe("resolved");
@@ -58,14 +66,17 @@ describe("exercise visual pilot resolver", () => {
     expect(resolveExerciseVisual(name).status).toBe("unresolved");
   });
   it("keeps the pilot small and all entries unique", () => {
-    expect(PILOT_EXERCISE_VISUALS).toHaveLength(32);
-    expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(32);
+    expect(PILOT_EXERCISE_VISUALS).toHaveLength(49);
+    expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(49);
   });
   it("has a valid local WebP file for every approved pose", () => {
     const paths = PILOT_EXERCISE_VISUALS.flatMap(item => item.images.kind === "pair"
       ? [item.images.start, item.images.peak] : [item.images.main]);
-    expect(paths).toHaveLength(56);
-    for (const assetPath of paths) {
+    expect(paths).toHaveLength(89); // High Plank and Hanging Knee Raise reuse approved start poses.
+    const uniquePaths = new Set(paths);
+    expect(uniquePaths.size).toBe(87);
+    for (const assetPath of uniquePaths) {
+      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[12]\/[^/]+\.webp$/);
       const bytes = readFileSync(path.join(process.cwd(), "public", assetPath.replace(/^\//, "")));
       expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
       expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");
@@ -74,7 +85,7 @@ describe("exercise visual pilot resolver", () => {
 });
 
 describe("exercise visual card", () => {
-  it("shows a single reviewed pose and visible source attribution", () => {
+  it("shows a single reviewed pose and Ascend ownership", () => {
     const exercise = PILOT_EXERCISE_VISUALS.find(item => item.id === "childs-pose")!;
     render(<ExerciseVisualCard exercise={exercise} />);
     expect(screen.getAllByRole("img")).toHaveLength(1);
@@ -83,22 +94,23 @@ describe("exercise visual card", () => {
     expect(screen.queryByText("Loading visual…")).not.toBeInTheDocument();
     expect(screen.getByRole("img")).toHaveAttribute("loading", "lazy");
     expect(screen.getByText("Position")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Exercise data by RepDB" })).toHaveAttribute("href", "https://repdb.co");
+    expect(screen.getByText("Original Ascend exercise visual")).toBeInTheDocument();
+    expect(screen.queryByText("Exercise data by RepDB")).not.toBeInTheDocument();
   });
-  it("shows a reviewed start/peak pair including corrected floor press ordering", () => {
+  it("shows a reviewed start/peak floor press pair", () => {
     const exercise = PILOT_EXERCISE_VISUALS.find(item => item.id === "dumbbell-floor-press")!;
     render(<ExerciseVisualCard exercise={exercise} />);
     const images = screen.getAllByRole("img");
     expect(images).toHaveLength(2);
-    expect(images[0]).toHaveAttribute("src", expect.stringContaining("dumbbell-floor-press-peak.webp"));
-    expect(images[1]).toHaveAttribute("src", expect.stringContaining("dumbbell-floor-press-start.webp"));
+    expect(images[0]).toHaveAttribute("src", expect.stringContaining("dumbbell-floor-press-start.webp"));
+    expect(images[1]).toHaveAttribute("src", expect.stringContaining("dumbbell-floor-press-peak.webp"));
   });
-  it("corrects the standard push-up pose labels without changing the source files", () => {
+  it("shows the Ascend push-up start and peak in order", () => {
     const exercise = PILOT_EXERCISE_VISUALS.find(item => item.id === "push-up")!;
     render(<ExerciseVisualCard exercise={exercise} />);
     const images = screen.getAllByRole("img");
-    expect(images[0]).toHaveAttribute("src", expect.stringContaining("push-up-peak.webp"));
-    expect(images[1]).toHaveAttribute("src", expect.stringContaining("push-up-start.webp"));
+    expect(images[0]).toHaveAttribute("src", expect.stringContaining("push-up-start.webp"));
+    expect(images[1]).toHaveAttribute("src", expect.stringContaining("push-up-peak.webp"));
   });
   it("falls back to no visual when either asset fails and sends one aggregate event", () => {
     const exercise = PILOT_EXERCISE_VISUALS.find(item => item.id === "glute-bridge")!;

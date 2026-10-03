@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { EXERCISE_VISUAL_SOURCE, type ExerciseVisual } from "@ascend/shared";
+import type { ExerciseVisual } from "@ascend/shared";
 import { recordWorkoutVisualEvent } from "@/lib/ascendApi";
 
 type Props = { exercise: ExerciseVisual };
@@ -48,7 +48,7 @@ export function ExerciseVisualCard({ exercise }: Props) {
         <p className="mt-1 text-zinc-400"><span className="font-semibold text-zinc-100">Form cue:</span> {exercise.cue}</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-[11px]">
-        <a href={EXERCISE_VISUAL_SOURCE} target="_blank" rel="noopener noreferrer" className="text-zinc-400 underline underline-offset-2">Exercise data by RepDB</a>
+        <span className="text-zinc-400">Original Ascend exercise visual</span>
         <button type="button" disabled={reported} className="text-zinc-400 underline underline-offset-2 disabled:no-underline" onClick={() => {
           void recordWorkoutVisualEvent("incorrect_mapping_report", exercise.id).then(() => setReported(true)).catch(() => undefined);
         }}>{reported ? "Report sent" : "Report incorrect visual"}</button>
