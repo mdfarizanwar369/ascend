@@ -47,6 +47,20 @@ describe("Zoe workout engine V2", () => {
     expect(yesterday.focus).toBe("Recovery and mobility");
   });
 
+  it("remembers a generated plan without treating it as a completed workout", () => {
+    const first = buildWorkoutBlueprint({ ...base, recentWorkouts: [] });
+    const planned = [{
+      metadata: { evidenceType: "planned", exercises: first.exercises.map(exercise => ({ name: exercise.name })) },
+      created_at: "2026-10-03T08:00:00.000Z"
+    }];
+    const second = buildWorkoutBlueprint({ ...base, recentWorkouts: planned });
+    expect(second.history[0].evidence).toBe("planned");
+    expect(second.focus).not.toBe("Recovery and mobility");
+    expect(second.exercises.map(exercise => exercise.name)).not.toEqual(first.exercises.map(exercise => exercise.name));
+    expect(second.whyToday).toContain("recently planned");
+    expect(second.whyToday).not.toContain("logged a workout");
+  });
+
   it("uses recent effort conservatively and ignores stale effort", () => {
     const recentWorkouts = [{ metadata: { exercises: [{ name: "Goblet Squat" }], effortRating: "too_easy" }, created_at: "2026-10-02T08:00:00.000Z" }];
     const ready = buildWorkoutBlueprint({ ...base, timeAvailable: "45", recentWorkouts });

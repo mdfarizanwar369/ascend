@@ -1,6 +1,6 @@
 # Coach Zoe workout engine V2
 
-V2 uses the existing Gemini workout call. It reads completed exercise names from recent `burn_log` events, chooses a session locally from reviewed movements, and gives Gemini a compact session blueprint. The server enforces that blueprint after Gemini responds. Exercise swaps and the three-session roadmap use local logic; they do not call Gemini.
+V2 uses the existing Gemini workout call. It reads completed exercise names from recent `burn_log` events and names from recently generated plans, chooses a session locally from reviewed movements, and gives Gemini a compact session blueprint. The server enforces that blueprint after Gemini responds. Exercise swaps and the three-session roadmap use local logic; they do not call Gemini.
 
 ## Rollout
 
@@ -13,7 +13,7 @@ V2 uses the existing Gemini workout call. It reads completed exercise names from
 
 Generation still makes one Gemini request. Swaps and refreshes use local alternatives. V2 sends a compact history and blueprint instead of the legacy broad context; it does not add a model, provider, database table, or background job. Exact provider billing may vary with request and response tokens, so usage should be compared during the owner pilot.
 
-Completed workouts record exercise names and optional effort (`too_easy`, `about_right`, `too_hard`) in the existing event metadata. A checked Zoe plan is treated as a completed plan, not proof of performed sets or lifted weight. The next plan uses only recent effort and rotates away from repeated movements. The roadmap is a preview that adapts after later workouts.
+Completed workouts record exercise names and optional effort (`too_easy`, `about_right`, `too_hard`) in the existing event metadata. A checked Zoe plan is treated as a completed plan, not proof of performed sets or lifted weight. Web plans save only their prescribed exercise names in existing event storage; iOS daily plans are read from their existing saved workout rows. Planned exercises influence variety, but never count as completed training or trigger recovery. The next plan uses only recent completed-workout effort and rotates away from repeated movements. The roadmap is a preview that adapts after later workouts.
 
 ## Verification
 

@@ -13,7 +13,7 @@ export type WorkoutBlueprint = {
   whyToday: string;
   nextSessionPreview: string;
   sessionRoadmap: Array<{ step: "Today" | "Next" | "Then"; focus: string }>;
-  history: Array<{ date: string; names: string[]; patterns: Pattern[]; effort: string | null; evidence: "observed" | "completed" }>;
+  history: Array<{ date: string; names: string[]; patterns: Pattern[]; effort: string | null; evidence: "observed" | "completed" | "planned" }>;
 };
 
 export function workoutEngineV2Enabled(input: { globallyEnabled: boolean; ownerPilotEnabled: boolean; isPlatformOwner: boolean; provider: string }) {
@@ -101,7 +101,8 @@ export function summarizeWorkoutExerciseHistory(rows: WorkoutHistoryRow[], timez
       names,
       patterns: [...new Set(names.map(patternFor).filter((value): value is Pattern => value !== null))],
       effort: ["too_easy", "about_right", "too_hard"].includes(String(metadata.effortRating)) ? String(metadata.effortRating) : null,
-      evidence: metadata.evidenceType === "observed_performance" ? "observed" as const : "completed" as const
+      evidence: metadata.evidenceType === "planned" ? "planned" as const
+        : metadata.evidenceType === "observed_performance" ? "observed" as const : "completed" as const
     };
   }).filter(session => session.names.length > 0).slice(0, 12);
 }
@@ -136,8 +137,9 @@ export function buildWorkoutBlueprint(input: {
 }): WorkoutBlueprint {
   const history = summarizeWorkoutExerciseHistory(input.recentWorkouts, input.timezoneOffsetMinutes);
   const today = input.today ?? localDateKeyAtOffset(new Date(), input.timezoneOffsetMinutes);
-  const latestAgeMs = history[0] ? Date.parse(`${today}T00:00:00Z`) - Date.parse(`${history[0].date}T00:00:00Z`) : Number.NaN;
-  const latest = latestAgeMs >= 0 && latestAgeMs <= 7 * 86_400_000 ? history[0] : null;
+  const latestCompleted = history.find(session => session.evidence !== "planned");
+  const latestAgeMs = latestCompleted ? Date.parse(`${today}T00:00:00Z`) - Date.parse(`${latestCompleted.date}T00:00:00Z`) : Number.NaN;
+  const latest = latestAgeMs >= 0 && latestAgeMs <= 7 * 86_400_000 ? latestCompleted : null;
   const trainedToday = latest?.date === today;
   const recentTooHard = latest?.effort === "too_hard";
   const recovery = /recovery|mobility/.test(input.goal) || trainedToday || (recentTooHard && latest?.date === localDateKeyAtOffset(new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000), 0));
@@ -195,6 +197,7 @@ export function buildWorkoutBlueprint(input: {
     : latest && latestLower > latestUpper ? "Your last session included more lower-body work, so today shifts toward upper body."
       : latest && latestUpper > latestLower ? "Your last session included more upper-body work, so today shifts toward lower body."
         : latest ? "Today's movements rotate from your recent sessions while keeping a few familiar patterns."
+          : history.some(session => session.evidence === "planned") ? "Today's movements rotate from the workouts Zoe recently planned for you."
           : "This session starts with manageable movements matched to your time and equipment.";
   const whyToday = latest?.effort === "too_easy" && !recovery && !input.conservative && Number.parseInt(input.timeAvailable, 10) >= 45
     ? `${whyTodayBase} Your last workout felt too easy, so this one adds a little volume.` : whyTodayBase;
