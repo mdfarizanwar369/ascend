@@ -31,6 +31,16 @@ describe("daily workout AI success requirement", () => {
       maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json"
     });
   });
+  it("uses the same Gemini JSON budget for web workouts instead of silently returning a fallback", async () => {
+    const generated = { ...complete, title: "Gemini gym session", exercises: [{ name: "Goblet Squat", sets: 3, reps: "10" }] };
+    const fetchMock = vi.fn<typeof fetch>(async () => response(JSON.stringify(generated)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan(request)).resolves.toMatchObject(generated);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).generationConfig).toMatchObject({
+      maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json"
+    });
+  });
   it.each([
     [JSON.stringify(complete), "MAX_TOKENS"], ["{ broken", "STOP"],
     [JSON.stringify({ ...complete, exercises: [] }), "STOP"], ["null", "STOP"]
