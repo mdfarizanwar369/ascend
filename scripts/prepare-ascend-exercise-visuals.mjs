@@ -4,7 +4,7 @@ import sharp from "sharp";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
 let total = 0;
-for (const version of ["ascend-original-v1", "ascend-original-v2"]) {
+for (const version of ["ascend-original-v1", "ascend-original-v2", "ascend-original-v3"]) {
   const sourceRoot = path.join(projectRoot, "docs", "exercise-visual-source", version);
   const outputRoot = path.join(projectRoot, "frontend", "public", "exercise-visuals", version);
   const sourceNames = (await fs.readdir(sourceRoot)).filter(name => name.endsWith(".png")).sort();

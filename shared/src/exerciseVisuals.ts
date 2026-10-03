@@ -4,6 +4,7 @@
  */
 export const EXERCISE_VISUAL_ASSET_ROOT = "/exercise-visuals/ascend-original-v1";
 export const EXERCISE_VISUAL_ASSET_ROOT_V2 = "/exercise-visuals/ascend-original-v2";
+export const EXERCISE_VISUAL_ASSET_ROOT_V3 = "/exercise-visuals/ascend-original-v3";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -23,6 +24,7 @@ export type ExerciseVisual = {
 
 const image = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT}/${filename}`;
 const imageV2 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V2}/${filename}`;
+const imageV3 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V3}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -47,11 +49,11 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     cue: "Ease out if your knees or shoulders feel uncomfortable."
   },
   {
-    id: "bird-dog", canonicalName: "Bird-Dog", aliases: [],
+    id: "bird-dog", canonicalName: "Bird-Dog", aliases: ["Bird Dog", "Bird Dogs", "Bird-Dogs"],
     equipment: "Bodyweight", movementPattern: "Quadruped anti-rotation", targetMuscles: "Core and back",
-    images: { kind: "pair", start: image("bird-dog-start.webp"), peak: image("bird-dog-peak.webp") },
-    instructions: "Start on hands and knees. Extend the opposite arm and leg, pause, then return and switch sides.",
-    cue: "Keep your hips level instead of twisting."
+    images: { kind: "pair", start: imageV3("bird-dog-start.webp"), peak: imageV3("bird-dog-peak.webp") },
+    instructions: "Start on hands and knees. Reach one arm straight forward and the opposite leg straight back, pause, then return and switch sides.",
+    cue: "Keep your hips level and back neutral; straighten the raised knee instead of doing a bent-knee kickback."
   },
   {
     id: "kneeling-hip-flexor-stretch", canonicalName: "Kneeling Hip Flexor Stretch",
@@ -266,7 +268,7 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   },
   {
     id: "dumbbell-goblet-squat", canonicalName: "Dumbbell Goblet Squat",
-    aliases: ["Dumbbell Goblet Squats"], equipment: "One dumbbell", movementPattern: "Loaded squat", targetMuscles: "Quads and glutes",
+    aliases: ["Dumbbell Goblet Squats", "Dumbbell Goblet Squat (light weight)"], equipment: "One dumbbell", movementPattern: "Loaded squat", targetMuscles: "Quads and glutes",
     images: { kind: "pair", start: imageV2("goblet-squat-start.webp"), peak: imageV2("goblet-squat-peak.webp") },
     instructions: "Hold one dumbbell vertically at your chest. Sit your hips down and back, then push through your feet to stand.",
     cue: "Keep heels down and knees in line with your toes."
@@ -375,19 +377,47 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "pair", start: imageV2("bench-step-up-start.webp"), peak: imageV2("bench-step-up-peak.webp") },
     instructions: "Place one foot on a stable, low bench. Push through that foot to stand on the bench, then step down with control.",
     cue: "Check that the bench is secure and keep your knee over your foot."
+  },
+  {
+    id: "dumbbell-reverse-lunge", canonicalName: "Dumbbell Reverse Lunge", aliases: ["Dumbbell Reverse Lunges"],
+    equipment: "Two dumbbells", movementPattern: "Loaded reverse lunge", targetMuscles: "Quads and glutes",
+    images: { kind: "pair", start: imageV3("dumbbell-reverse-lunge-start.webp"), peak: imageV3("dumbbell-reverse-lunge-peak.webp") },
+    instructions: "Hold a dumbbell by each side. Step one leg backward, lower with control, then push through the front foot to stand. Switch sides.",
+    cue: "Keep your torso upright and the front knee aligned with your toes."
+  },
+  {
+    id: "seated-dumbbell-calf-raise", canonicalName: "Seated Dumbbell Calf Raise", aliases: ["Seated Calf Raise (with dumbbell)", "Seated Dumbbell Calf Raises"],
+    equipment: "One dumbbell and bench", movementPattern: "Seated ankle plantarflexion", targetMuscles: "Calves",
+    images: { kind: "pair", start: imageV3("seated-dumbbell-calf-raise-start.webp"), peak: imageV3("seated-dumbbell-calf-raise-peak.webp") },
+    instructions: "Sit on a bench with knees bent. Hold one dumbbell across your lower thighs above the knees. Keep the balls of your feet down while you raise and lower your heels.",
+    cue: "Move through your ankles with control; avoid bouncing."
+  },
+  {
+    id: "dumbbell-floor-glute-bridge", canonicalName: "Dumbbell Floor Glute Bridge", aliases: ["Dumbbell Glute Bridge"],
+    equipment: "One dumbbell", movementPattern: "Weighted hip extension", targetMuscles: "Glutes and hamstrings",
+    images: { kind: "pair", start: imageV3("dumbbell-floor-glute-bridge-start.webp"), peak: imageV3("dumbbell-floor-glute-bridge-peak.webp") },
+    instructions: "Lie on your back with knees bent and feet flat. Hold one dumbbell securely across your hip crease, lift your hips by squeezing your glutes, then lower slowly.",
+    cue: "Keep the weight stable with both hands and avoid arching your lower back."
+  },
+  {
+    id: "wall-push-up", canonicalName: "Wall Push-Up", aliases: ["Wall Push-Ups", "Wall Pushups"],
+    equipment: "Wall", movementPattern: "Incline horizontal push", targetMuscles: "Chest, shoulders and triceps",
+    images: { kind: "pair", start: imageV3("wall-push-up-start.webp"), peak: imageV3("wall-push-up-peak.webp") },
+    instructions: "Stand an arm's length from a wall with palms at chest height. Bend your elbows to bring your chest toward the wall, then press away.",
+    cue: "Keep a straight line from head to heels and both palms flat on the wall."
   }
 ] as const;
 
 const reviewedNames = new Map<string, { exercise: ExerciseVisual; kind: "exact" | "alias" }>();
 const knownAmbiguousNames = [
-  "Goblet Squat", "Dumbbell Goblet Squat (light weight)", "Reverse Lunge", "Reverse Lunges",
+  "Goblet Squat", "Reverse Lunge", "Reverse Lunges",
   "Plank", "Plank Hold", "Plank (Forearms on Bed or Floor)",
   "Downward Dog to Cobra Flow",
   "Dumbbell Bench Press or Floor Press", "Hamstring Stretch (Standing or Seated)",
   "Incline Push-Up", "Incline Push-ups (against a wall or sturdy surface)",
   "Incline Push-Ups (Hands on Desk or Bed)",
   "Walking Lunge", "Walking Lunges", "Side Plank", "Leg Press", "Assisted Pull-Up", "Assisted Pull-Ups",
-  "Cable Tricep Pushdown", "Rope Tricep Pushdown", "Barbell Bench Press", "Bench Press", "Wall Push-Ups"
+  "Cable Tricep Pushdown", "Rope Tricep Pushdown", "Barbell Bench Press", "Bench Press"
 ];
 
 /** Only case, surrounding/duplicate spaces and typographic apostrophes are normalized. */

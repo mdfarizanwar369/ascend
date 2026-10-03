@@ -19,9 +19,13 @@ describe("exercise visual pilot resolver", () => {
     expect(resolveExerciseVisual("Child’s pose breathing")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "childs-pose" } });
     expect(resolveExerciseVisual("Forearm Plank")).toMatchObject({ status: "resolved", match: "exact", exercise: { id: "forearm-plank" } });
     expect(resolveExerciseVisual("Low Plank")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "forearm-plank" } });
+    expect(resolveExerciseVisual("Bird Dog")).toMatchObject({ status: "resolved", match: "alias", exercise: { id: "bird-dog" } });
+    expect(resolveExerciseVisual("Dumbbell Reverse Lunge")).toMatchObject({ status: "resolved", exercise: { id: "dumbbell-reverse-lunge" } });
+    expect(resolveExerciseVisual("Seated Calf Raise (with dumbbell)")).toMatchObject({ status: "resolved", exercise: { id: "seated-dumbbell-calf-raise" } });
+    expect(resolveExerciseVisual("Dumbbell Floor Glute Bridge")).toMatchObject({ status: "resolved", exercise: { id: "dumbbell-floor-glute-bridge" } });
+    expect(resolveExerciseVisual("Wall Push-Ups")).toMatchObject({ status: "resolved", exercise: { id: "wall-push-up" } });
   });
   it.each([
-    ["Dumbbell Goblet Squat (light weight)", "ambiguous"],
     ["Goblet Squat", "ambiguous"],
     ["Reverse Lunge", "ambiguous"],
     ["Downward Dog to Cobra Flow", "ambiguous"],
@@ -33,7 +37,6 @@ describe("exercise visual pilot resolver", () => {
     ["Assisted Pull-Ups", "ambiguous"],
     ["Cable Tricep Pushdown", "ambiguous"],
     ["Barbell Bench Press", "ambiguous"],
-    ["Wall Push-Ups", "ambiguous"],
     ["Kettlebell Goblet Squat", "unresolved"],
     ["Dumbbell Romanian Deadlift or Barbell Deadlift", "unresolved"],
     ["Unsupported Split Squat", "unresolved"],
@@ -51,6 +54,7 @@ describe("exercise visual pilot resolver", () => {
     expect(resolveExerciseVisual("Machine chest press")).toMatchObject({ status: "resolved", exercise: { id: "machine-chest-press" } });
     expect(resolveExerciseVisual("Bodyweight Walking Lunges")).toMatchObject({ status: "resolved", exercise: { id: "bodyweight-walking-lunge" } });
     expect(resolveExerciseVisual("Dumbbell Goblet Squats")).toMatchObject({ status: "resolved", exercise: { id: "dumbbell-goblet-squat" } });
+    expect(resolveExerciseVisual("Dumbbell Goblet Squat (light weight)")).toMatchObject({ status: "resolved", exercise: { id: "dumbbell-goblet-squat" } });
     expect(resolveExerciseVisual("Lat Pulldown")).toMatchObject({ status: "resolved", exercise: { id: "lat-pulldown" } });
     expect(resolveExerciseVisual("Banded Pull-Aparts")).toMatchObject({ status: "resolved", exercise: { id: "band-pull-apart" } });
     expect(resolveExerciseVisual("Band Bent-Over Rows")).toMatchObject({ status: "resolved", exercise: { id: "band-bent-over-row" } });
@@ -66,17 +70,17 @@ describe("exercise visual pilot resolver", () => {
     expect(resolveExerciseVisual(name).status).toBe("unresolved");
   });
   it("keeps the pilot small and all entries unique", () => {
-    expect(PILOT_EXERCISE_VISUALS).toHaveLength(49);
-    expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(49);
+    expect(PILOT_EXERCISE_VISUALS).toHaveLength(53);
+    expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(53);
   });
   it("has a valid local WebP file for every approved pose", () => {
     const paths = PILOT_EXERCISE_VISUALS.flatMap(item => item.images.kind === "pair"
       ? [item.images.start, item.images.peak] : [item.images.main]);
-    expect(paths).toHaveLength(89); // High Plank and Hanging Knee Raise reuse approved start poses.
+    expect(paths).toHaveLength(97); // High Plank and Hanging Knee Raise reuse approved start poses.
     const uniquePaths = new Set(paths);
-    expect(uniquePaths.size).toBe(87);
+    expect(uniquePaths.size).toBe(95);
     for (const assetPath of uniquePaths) {
-      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[12]\/[^/]+\.webp$/);
+      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[123]\/[^/]+\.webp$/);
       const bytes = readFileSync(path.join(process.cwd(), "public", assetPath.replace(/^\//, "")));
       expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
       expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");
@@ -89,9 +93,7 @@ describe("exercise visual card", () => {
     const exercise = PILOT_EXERCISE_VISUALS.find(item => item.id === "childs-pose")!;
     render(<ExerciseVisualCard exercise={exercise} />);
     expect(screen.getAllByRole("img")).toHaveLength(1);
-    expect(screen.getByText("Loading visual…")).toBeInTheDocument();
-    fireEvent.load(screen.getByRole("img"));
-    expect(screen.queryByText("Loading visual…")).not.toBeInTheDocument();
+    expect(screen.getByRole("img")).not.toHaveClass("opacity-0");
     expect(screen.getByRole("img")).toHaveAttribute("loading", "lazy");
     expect(screen.getByText("Position")).toBeInTheDocument();
     expect(screen.getByText("Original Ascend exercise visual")).toBeInTheDocument();

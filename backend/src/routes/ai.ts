@@ -1060,7 +1060,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         goal: input.goal,
         equipment: input.equipment,
         context: promptContext
-      }, { requireAiSuccess: isIosNativeEdition() });
+      }, { requireAiSuccess: isIosNativeEdition(), preferReviewedVisualNames: hasExerciseVisualAccess(req.user!) });
 
       // Best effort: telemetry never blocks the workout response or changes generation.
       if (hasExerciseVisualAccess(req.user!)) void recordGeneratedWorkoutVisuals(workout).catch(() => undefined);

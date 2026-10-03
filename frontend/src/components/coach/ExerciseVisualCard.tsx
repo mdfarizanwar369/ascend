@@ -10,7 +10,6 @@ type Props = { exercise: ExerciseVisual };
 export function ExerciseVisualCard({ exercise }: Props) {
   const [failed, setFailed] = useState(false);
   const [reported, setReported] = useState(false);
-  const [loadedImages, setLoadedImages] = useState<string[]>([]);
   const failureReported = useRef(false);
   if (failed) return null;
 
@@ -34,9 +33,8 @@ export function ExerciseVisualCard({ exercise }: Props) {
             <div className="relative aspect-square">
             <Image src={src} alt={`${exercise.canonicalName}${label === "Position" ? " position" : `: ${label.toLowerCase()} position`}`} width={512} height={512}
               sizes={images.length === 2 ? "(max-width: 480px) 38vw, 180px" : "(max-width: 480px) 76vw, 360px"}
-              className={`mx-auto aspect-square max-h-64 w-full object-contain ${loadedImages.includes(src) ? "opacity-100" : "opacity-0"}`}
-              loading="lazy" unoptimized onLoad={() => setLoadedImages(previous => previous.includes(src) ? previous : [...previous, src])} onError={handleError} />
-            {!loadedImages.includes(src) ? <span aria-hidden="true" className="absolute inset-0 grid place-items-center bg-ink/70 text-[11px] text-zinc-400">Loading visual…</span> : null}
+              className="mx-auto aspect-square max-h-64 w-full object-contain"
+              loading="lazy" unoptimized onError={handleError} />
             </div>
             <figcaption className="bg-surface px-2 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400">{label}</figcaption>
           </figure>
