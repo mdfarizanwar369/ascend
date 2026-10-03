@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyWorkout } from "@/lib/ascendApi";
 
-const mocks = vi.hoisted(() => ({ ios: true, visuals: false, today: vi.fn(), generate: vi.fn(), save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ios: true, visuals: false, today: vi.fn(), generate: vi.fn(), save: vi.fn(), swap: vi.fn() }));
 vi.mock("@/lib/appEdition", () => ({ useIosFreeEdition: () => mocks.ios, useIosApp: () => mocks.ios }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => null, StaggerItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
@@ -12,7 +12,7 @@ vi.mock("@/lib/accountSession", () => ({
 }));
 vi.mock("@/lib/dataSync", () => ({ rememberDashboardRecord: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({
-  getTodayWorkout: mocks.today, generateTodayWorkout: mocks.generate, saveCompletedWorkout: mocks.save,
+  getTodayWorkout: mocks.today, generateTodayWorkout: mocks.generate, saveCompletedWorkout: mocks.save, swapTodayWorkoutExercise: mocks.swap,
   getWorkoutVisualAccess: async () => ({ enabled: mocks.visuals }),
   recordWorkoutVisualEvent: vi.fn().mockResolvedValue(undefined),
   getCoachPresence: async () => ({ latest: null }), getMyStreak: async () => ({ streak: { current: 0 } }),
@@ -118,5 +118,35 @@ describe("iPhone daily workout builder", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
     expect(await screen.findByRole("heading", { name: "Home mobility" })).toBeInTheDocument();
     expect(screen.queryByText("Original Ascend exercise visual")).not.toBeInTheDocument();
+  });
+  it("shows the V2 roadmap and saves an iPhone swap without generating again", async () => {
+    const v2Daily: DailyWorkout = { ...daily, workout: {
+      ...daily.workout, experienceVersion: 2, whyToday: "Your last session was lower body.",
+      sessionRoadmap: [{ step: "Today", focus: "Upper body" }, { step: "Next", focus: "Lower body" }, { step: "Then", focus: "Recovery" }],
+      exercises: [{ name: "Wall Push-Up", sets: 2, reps: "10", alternatives: [{ name: "Incline Push-Up", sets: 2, reps: "8" }] }]
+    } };
+    mocks.today.mockResolvedValue({ dailyWorkout: v2Daily });
+    mocks.swap.mockResolvedValue({ dailyWorkout: { ...v2Daily, workout: { ...v2Daily.workout, exercises: [{ name: "Incline Push-Up", sets: 2, reps: "8", alternatives: [{ name: "Wall Push-Up", sets: 2, reps: "10" }] }] } } });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    expect(await screen.findByText("Your last session was lower body.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Training roadmap")).toHaveTextContent("Upper body");
+    fireEvent.click(screen.getByRole("button", { name: "Swap exercise" }));
+    expect(await screen.findByText("Incline Push-Up")).toBeInTheDocument();
+    expect(mocks.swap).toHaveBeenCalledWith("saved-server-key", 0);
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("refreshes V2 exercises locally on web without another Gemini request", async () => {
+    mocks.ios = false;
+    mocks.generate.mockResolvedValue({ workout: { ...daily.workout, experienceVersion: 2, exercises: [{
+      name: "Wall Push-Up", sets: 2, reps: "10", alternatives: [{ name: "Incline Push-Up", sets: 2, reps: "8" }]
+    }] } });
+    render(<CoachHubClient />);
+    await chooseWorkout();
+    expect(await screen.findByText("Wall Push-Up")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh exercises" }));
+    expect(await screen.findByText("Incline Push-Up")).toBeInTheDocument();
+    expect(mocks.generate).toHaveBeenCalledOnce();
   });
 });

@@ -22,8 +22,9 @@ import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
+import { buildWorkoutBlueprint, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
-import { generateIosDailyWorkout, getIosDailyWorkout } from "../services/iosDailyWorkoutService";
+import { generateIosDailyWorkout, getIosDailyWorkout, swapIosDailyWorkoutExercise } from "../services/iosDailyWorkoutService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
 import { deterministicTodayPriority } from "../services/todayPriorityService";
 import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
@@ -903,6 +904,19 @@ aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
+  try {
+    if (!workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2, ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT, isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER }) || !await usesIosDailyWorkout(req.user!.id)) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    const input = z.object({
+      workoutCompletionKey: z.string().uuid(),
+      exerciseIndex: z.number().int().min(0).max(7)
+    }).parse(req.body);
+    return res.json({ dailyWorkout: await swapIosDailyWorkoutExercise(req.user!.id, input.workoutCompletionKey, input.exerciseIndex) });
+  } catch (error) { next(error); }
+});
+
 aiRouter.get("/ai/workout/visual-access", requireAuth, async (req, res) => {
   res.json({ enabled: hasExerciseVisualAccess(req.user!) });
 });
@@ -920,8 +934,9 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
   try {
     const input = workoutPlannerSchema.parse(req.body);
     const dailyLimited = await usesIosDailyWorkout(req.user!.id);
+    const workoutV2 = workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2, ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT, isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER });
     const generate = async () => {
-      const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
+      const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, recentPlanResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
         await Promise.all([
           getCoachZoeAccess(req.user!.id, input.timezoneOffsetMinutes),
           query(
@@ -961,10 +976,28 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
             where user_id = $1
               and event_name = 'burn_log'
             order by created_at desc
-            limit 5
+            limit $2
+            `,
+            [req.user!.id, workoutV2 ? 30 : 5]
+          ),
+          workoutV2 ? query(
+            `
+            select metadata, created_at from (
+              select metadata, created_at
+              from analytics_events
+              where user_id = $1 and event_name = 'zoe_workout_plan_generated'
+                and created_at >= now() - interval '30 days'
+              union all
+              select jsonb_build_object('exercises', workout->'exercises', 'evidenceType', 'planned') as metadata,
+                created_at
+              from ios_daily_workouts
+              where user_id = $1 and created_at >= now() - interval '30 days'
+            ) planned_workouts
+            order by created_at desc
+            limit 20
             `,
             [req.user!.id]
-          ),
+          ) : Promise.resolve({ rows: [] }),
           query(
             `
             select enabled, sport, division, competition_name, competition_date, goal_weight_kg
@@ -1023,8 +1056,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
           }
         : null;
 
-      const promptContext = JSON.stringify(
-        buildWorkoutPlannerContext({
+      const plannerContext = buildWorkoutPlannerContext({
           coachAccess,
           profile: profileResult.rows[0] ?? null,
           latestWeightKg: latestWeightResult.rows[0]?.weight_kg ? Number(latestWeightResult.rows[0].weight_kg) : null,
@@ -1051,8 +1083,40 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
             equipment: input.equipment
           },
           timezoneOffsetMinutes: input.timezoneOffsetMinutes
-        })
-      );
+        });
+      const blueprint = workoutV2 ? buildWorkoutBlueprint({
+        goal: input.goal,
+        location: input.location,
+        equipment: input.equipment,
+        timeAvailable: input.timeAvailable,
+        recentWorkouts: [...recentBurnResult.rows, ...recentPlanResult.rows].sort((a, b) =>
+          Date.parse(String(b.created_at ?? "")) - Date.parse(String(a.created_at ?? ""))),
+        timezoneOffsetMinutes: input.timezoneOffsetMinutes,
+        conservative: plannerContext.personalization.coachingProfiles.volumeProfile === "conservative"
+      }) : null;
+      // The V2 prompt replaces broad context with the facts used for planning. It is
+      // smaller than the legacy prompt and still makes only one Gemini request.
+      const promptContext = JSON.stringify(blueprint ? {
+        profile: {
+          goal: plannerContext.profile.goalType,
+          activityLevel: plannerContext.profile.activityLevel,
+          ageYears: plannerContext.profile.ageYears
+        },
+        trainingProfile: plannerContext.personalization.coachingProfiles,
+        recentWorkouts: blueprint.history.slice(0, 4).map(session => ({
+          date: session.date,
+          exercises: session.names.slice(0, 6),
+          effort: session.effort,
+          evidence: session.evidence
+        })),
+        workoutMemory: {
+          recommendation: workoutMemory.recommendation,
+          latestVerifiedProgression: workoutMemory.latestVerifiedProgression
+        },
+        prescribedSession: { focus: blueprint.focus, whyToday: blueprint.whyToday, exercises: blueprint.exercises.map(exercise => ({
+          name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest
+        })) }
+      } : plannerContext);
 
       const workout = await createCoachWorkoutPlan({
         location: input.location,
@@ -1060,7 +1124,18 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         goal: input.goal,
         equipment: input.equipment,
         context: promptContext
-      }, { requireAiSuccess: isIosNativeEdition(), preferReviewedVisualNames: hasExerciseVisualAccess(req.user!) });
+      }, { requireAiSuccess: isIosNativeEdition(), preferReviewedVisualNames: hasExerciseVisualAccess(req.user!), blueprint: blueprint ?? undefined });
+
+      // Web plans have no daily-workout row. Save the names so a second request
+      // can rotate them without mistaking a planned workout for a completed one.
+      if (workoutV2 && !dailyLimited) await query(
+        `insert into analytics_events (user_id, gym_id, event_name, metadata)
+         values ($1, $2, 'zoe_workout_plan_generated', $3)`,
+        [req.user!.id, req.user!.gymId ?? null, {
+          evidenceType: "planned",
+          exercises: workout.exercises.map(exercise => ({ name: exercise.name }))
+        }]
+      );
 
       // Best effort: telemetry never blocks the workout response or changes generation.
       if (hasExerciseVisualAccess(req.user!)) void recordGeneratedWorkoutVisuals(workout).catch(() => undefined);
@@ -1073,8 +1148,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
         status: "success",
         inputUnits: JSON.stringify(input).length + promptContext.length,
-        outputUnits: JSON.stringify(workout).length,
-        metadata: { feature: "coach_zoe_workout_planner", mode: "workout", coachTier: coachAccess.tier }
+        outputUnits: JSON.stringify(blueprint ? { ...workout, exercises: workout.exercises.map(({ alternatives, ...exercise }) => exercise) } : workout).length,
+        metadata: { feature: "coach_zoe_workout_planner", mode: "workout", coachTier: coachAccess.tier, engineVersion: workout.experienceVersion ?? 1 }
       });
 
       return workout;

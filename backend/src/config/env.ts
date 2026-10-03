@@ -87,6 +87,8 @@ const schema = z.object({
   GMAIL_TOKEN_ENCRYPTION_KEY: z.string().optional(),
   TRAINER_HOMEWORK_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  COACH_ZOE_WORKOUT_ENGINE_V2: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_PROGRESSION_INTELLIGENCE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_PROGRESSION_INTELLIGENCE_V3: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   COACH_ZOE_WORKOUT_DEBRIEF_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),

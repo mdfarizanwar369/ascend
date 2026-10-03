@@ -902,6 +902,7 @@ export function saveCompletedWorkout(input: {
   completedAt?: string;
   exercises: GeneratedWorkout["exercises"];
   healthProviderCaloriesBurned?: number | null;
+  effortRating?: "too_easy" | "about_right" | "too_hard";
 }) {
   invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
@@ -1468,10 +1469,15 @@ export type GeneratedWorkout = {
     duration?: string | null;
     rest?: string | null;
     note?: string | null;
+    alternatives?: Array<{ name: string; sets?: number | null; reps?: string | null; duration?: string | null; rest?: string | null; note?: string | null }>;
   }>;
   cooldown: string[];
   coachTip: string;
   disclaimer: string;
+  whyToday?: string;
+  nextSessionPreview?: string;
+  sessionRoadmap?: Array<{ step: "Today" | "Next" | "Then"; focus: string }>;
+  experienceVersion?: 2;
 };
 
 export type CoachHomeworkWorkout = GeneratedWorkout & {
@@ -1516,6 +1522,13 @@ export type DailyWorkout = {
 
 export function getTodayWorkout() {
   return authed<{ dailyWorkout: DailyWorkout | null }>("/ai/workout/today");
+}
+
+export function swapTodayWorkoutExercise(workoutCompletionKey: string, exerciseIndex: number) {
+  return authed<{ dailyWorkout: DailyWorkout }>("/ai/workout/today/swap", {
+    method: "POST",
+    body: JSON.stringify({ workoutCompletionKey, exerciseIndex })
+  });
 }
 
 export function getWorkoutVisualAccess() {

@@ -41,6 +41,18 @@ describe("daily workout AI success requirement", () => {
       maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json"
     });
   });
+  it("uses one Gemini call and enforces the locally selected exercises for V2", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => response(JSON.stringify(complete)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    const { buildWorkoutBlueprint } = await import("../services/workoutPlanQualityService");
+    const blueprint = buildWorkoutBlueprint({ goal: "strength", location: "home", equipment: "Bodyweight", timeAvailable: "20", recentWorkouts: [], today: "2026-10-03" });
+    const result = await createCoachWorkoutPlan(request, { blueprint, requireAiSuccess: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.exercises.map(exercise => exercise.name)).toEqual(blueprint.exercises.map(exercise => exercise.name));
+    expect(result.experienceVersion).toBe(2);
+    expect(result.whyToday).toBe(blueprint.whyToday);
+  });
   it("offers exact reviewed names to eligible workout clients without forcing an unsuitable exercise", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => response(JSON.stringify(complete)));
     vi.stubGlobal("fetch", fetchMock);

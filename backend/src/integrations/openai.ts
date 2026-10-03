@@ -1753,6 +1753,7 @@ export type CoachWorkoutExercise = {
   duration?: string | null;
   rest?: string | null;
   note?: string | null;
+  alternatives?: Array<Omit<CoachWorkoutExercise, "alternatives">>;
 };
 
 export type CoachWorkoutPlan = {
@@ -1766,6 +1767,10 @@ export type CoachWorkoutPlan = {
   cooldown: string[];
   coachTip: string;
   disclaimer: string;
+  whyToday?: string;
+  nextSessionPreview?: string;
+  sessionRoadmap?: Array<{ step: "Today" | "Next" | "Then"; focus: string }>;
+  experienceVersion?: 2;
 };
 
 export type TrainerHomeworkWorkoutPlan = CoachWorkoutPlan & {
@@ -1890,8 +1895,11 @@ function normalizeWorkoutPlan(raw: unknown, input: WorkoutPlannerInput): CoachWo
   };
 }
 
-export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options: { requireAiSuccess?: boolean; preferReviewedVisualNames?: boolean } = {}): Promise<CoachWorkoutPlan> {
-  if (!providerConfigured() && !options.requireAiSuccess) return fallbackWorkoutPlan(input);
+export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options: { requireAiSuccess?: boolean; preferReviewedVisualNames?: boolean; blueprint?: import("../services/workoutPlanQualityService").WorkoutBlueprint } = {}): Promise<CoachWorkoutPlan> {
+  if (!providerConfigured() && !options.requireAiSuccess) {
+    const fallback = fallbackWorkoutPlan(input);
+    return options.blueprint ? (await import("../services/workoutPlanQualityService")).applyWorkoutBlueprint(fallback, options.blueprint) : fallback;
+  }
 
   try {
     const useStructuredResponse = env.AI_PROVIDER === "gemini" || options.requireAiSuccess === true;
@@ -1902,7 +1910,7 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
         timeAvailable: input.timeAvailable,
         goal: input.goal,
         equipment: input.equipment
-      })}\n\nAscend context: ${input.context}${options.preferReviewedVisualNames ? `\n\nWhen an exercise is equally suitable for this member and available equipment, prefer its exact name from these reviewed visual exercises: ${PILOT_EXERCISE_VISUALS.map(item => item.canonicalName).join(", ")}. Do not choose an unsuitable exercise merely to get a visual.` : ""}\n\nGenerate today's workout as strict JSON now.`,
+      })}\n\nAscend context: ${input.context}${options.blueprint ? `\n\nThe prescribedSession in Ascend context is binding. Use its exact exercise names and order. Write concise coaching and do not add exercises.` : options.preferReviewedVisualNames ? `\n\nWhen an exercise is equally suitable for this member and available equipment, prefer its exact name from these reviewed visual exercises: ${PILOT_EXERCISE_VISUALS.map(item => item.canonicalName).join(", ")}. Do not choose an unsuitable exercise merely to get a visual.` : ""}\n\nGenerate today's workout as strict JSON now.`,
       JSON.stringify(fallbackWorkoutPlan(input)),
       useStructuredResponse ? 4096 : undefined,
       useStructuredResponse
@@ -1917,12 +1925,14 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
       || !("exercises" in parsed) || !Array.isArray(parsed.exercises) || !parsed.exercises.length
       || !parsed.exercises.every(exercise => typeof exercise?.name === "string" && exercise.name.trim() && (exercise.reps || exercise.duration))
     )) throw new Error("Incomplete workout response");
-    return normalizeWorkoutPlan(parsed, input);
+    const normalized = normalizeWorkoutPlan(parsed, input);
+    return options.blueprint ? (await import("../services/workoutPlanQualityService")).applyWorkoutBlueprint(normalized, options.blueprint) : normalized;
   } catch (error) {
     if (options.requireAiSuccess) throw Object.assign(new Error("Zoe couldn't build your workout. Please try again; your daily workout is still available."), {
       name: "WorkoutGenerationError", status: 503
     });
-    return fallbackWorkoutPlan(input);
+    const fallback = fallbackWorkoutPlan(input);
+    return options.blueprint ? (await import("../services/workoutPlanQualityService")).applyWorkoutBlueprint(fallback, options.blueprint) : fallback;
   }
 }
 
