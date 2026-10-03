@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { assertAiProviderConsent } from "../services/aiConsentService";
 import { createHash } from "crypto";
-import { FoodEstimate, LOCAL_FOODS, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
+import { FoodEstimate, LOCAL_FOODS, PILOT_EXERCISE_VISUALS, WorkoutCaptureDraft, WorkoutCaptureSourceMode } from "@ascend/shared";
 import { env } from "../config/env";
 import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, logAiUsage, saveFoodEstimateCache } from "../services/aiUsageService";
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
@@ -1890,19 +1890,19 @@ function normalizeWorkoutPlan(raw: unknown, input: WorkoutPlannerInput): CoachWo
   };
 }
 
-export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options: { requireAiSuccess?: boolean } = {}): Promise<CoachWorkoutPlan> {
+export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options: { requireAiSuccess?: boolean; preferReviewedVisualNames?: boolean } = {}): Promise<CoachWorkoutPlan> {
   if (!providerConfigured() && !options.requireAiSuccess) return fallbackWorkoutPlan(input);
 
   try {
     const useStructuredResponse = env.AI_PROVIDER === "gemini" || options.requireAiSuccess === true;
     const reply = await createTextReply(
-      "You are Coach Zoe inside Ascend, a premium fitness accountability app. Generate one safe workout for today only. Use the provided workout request, profile, personalization signals, recent activity, recent workouts, workout memory summary, Health Connect, athlete data, body scan data, food consistency, and conversation context if available. The workout memory summary is important: avoid nearly identical sessions, avoid repeating the same muscle group on consecutive days when the context supports that, and if the latest workout was completed today prefer recovery, mobility, or easy cardio instead of another full session unless the request strongly demands otherwise. Age, current body weight, height, recent training history, activity level, and any explicit limitations must influence exercise selection, total volume, intensity, rest periods, and impact level. If the personalization signals say to use beginner-friendly defaults, stay conservative and mention that better profile details will improve future workouts. If limitations are missing, do not invent them. If the context suggests lower impact, avoid high-skill or high-impact choices. If the context suggests stronger training capacity, you may use slightly more volume or shorter rest while staying safe. Do not build a program. Do not prescribe maximal lifts. Do not give medical advice. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer. exercises must be an array of objects with name, sets, reps, duration, rest, note. Keep it concise, practical, beginner-friendly, and coach-like.",
+      "You are Coach Zoe inside Ascend, a premium fitness accountability app. Generate one safe workout for today only. Use the provided workout request, profile, personalization signals, recent activity, recent workouts, workout memory summary, Health Connect, athlete data, body scan data, food consistency, and conversation context if available. The workout memory summary is important: avoid nearly identical sessions, avoid repeating the same muscle group on consecutive days when the context supports that, and if the latest workout was completed today prefer recovery, mobility, or easy cardio instead of another full session unless the request strongly demands otherwise. Age, current body weight, height, recent training history, activity level, and any explicit limitations must influence exercise selection, total volume, intensity, rest periods, and impact level. If the personalization signals say to use beginner-friendly defaults, stay conservative and mention that better profile details will improve future workouts. If limitations are missing, do not invent them. If the context suggests lower impact, avoid high-skill or high-impact choices. If the context suggests stronger training capacity, you may use slightly more volume or shorter rest while staying safe. Do not build a program. Do not prescribe maximal lifts. Do not give medical advice. Give each exercise one precise name for one movement and one equipment setup; put alternatives or modifications in its note instead of joining them with 'or' or '/'. Return strict JSON only with keys: title, intro, estimatedDurationMinutes, focus, intensity, warmup, exercises, cooldown, coachTip, disclaimer. exercises must be an array of objects with name, sets, reps, duration, rest, note. Keep it concise, practical, beginner-friendly, and coach-like.",
       `Workout request: ${JSON.stringify({
         location: input.location,
         timeAvailable: input.timeAvailable,
         goal: input.goal,
         equipment: input.equipment
-      })}\n\nAscend context: ${input.context}\n\nGenerate today's workout as strict JSON now.`,
+      })}\n\nAscend context: ${input.context}${options.preferReviewedVisualNames ? `\n\nWhen an exercise is equally suitable for this member and available equipment, prefer its exact name from these reviewed visual exercises: ${PILOT_EXERCISE_VISUALS.map(item => item.canonicalName).join(", ")}. Do not choose an unsuitable exercise merely to get a visual.` : ""}\n\nGenerate today's workout as strict JSON now.`,
       JSON.stringify(fallbackWorkoutPlan(input)),
       useStructuredResponse ? 4096 : undefined,
       useStructuredResponse

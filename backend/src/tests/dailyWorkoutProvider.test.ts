@@ -41,6 +41,20 @@ describe("daily workout AI success requirement", () => {
       maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json"
     });
   });
+  it("offers exact reviewed names to eligible workout clients without forcing an unsuitable exercise", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => response(JSON.stringify(complete)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await createCoachWorkoutPlan(request, { preferReviewedVisualNames: true });
+    const pilotRequest = String(fetchMock.mock.calls[0]?.[1]?.body);
+    expect(pilotRequest).toContain("Bird-Dog");
+    expect(pilotRequest).toContain("Dumbbell Reverse Lunge");
+    expect(pilotRequest).toContain("Do not choose an unsuitable exercise merely to get a visual");
+    expect(pilotRequest).toContain("put alternatives or modifications in its note");
+    fetchMock.mockClear();
+    await createCoachWorkoutPlan(request);
+    expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain("these reviewed visual exercises");
+  });
   it.each([
     [JSON.stringify(complete), "MAX_TOKENS"], ["{ broken", "STOP"],
     [JSON.stringify({ ...complete, exercises: [] }), "STOP"], ["null", "STOP"]
