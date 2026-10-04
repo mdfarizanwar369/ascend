@@ -946,11 +946,12 @@ export function ClientDashboard() {
   const lowCaloriesDays3 = recentFoodDayStats.filter((day) => day.count > 0 && day.calories < calorieTarget * 0.65).length;
   const healthSyncSummary = healthSyncStatus?.summary ?? null;
   const hasSyncedActivity = Boolean(healthSyncSummary?.connected);
-  const syncedSteps = healthSyncSummary?.todaySteps ?? 0;
+  const activitySummary = healthSyncStatus?.activitySummary ?? null;
+  const syncedSteps = activitySummary?.steps ?? healthSyncSummary?.todaySteps ?? 0;
   const syncedActiveCalories = healthSyncSummary?.todayActiveCalories ?? 0;
   const syncedWorkoutCompleted = healthSyncSummary?.workoutCompletedToday === true;
   const syncedWorkoutCount = healthSyncSummary?.workoutsThisWeek ?? 0;
-  const todayActivityCalories = combineTodayActivityCalories(todaysBurnCalories, syncedActiveCalories);
+  const todayActivityCalories = activitySummary ? Math.round(activitySummary.displayedCalories ?? 0) : combineTodayActivityCalories(todaysBurnCalories, syncedActiveCalories);
   const hasActivityCalories = todayActivityCalories > 0;
   const manualMovementLogged = todaysBurnCalories > 0;
   const syncedMovementUnderway = syncedActiveCalories >= 80 || syncedSteps >= 2500 || syncedWorkoutCompleted;
@@ -1899,8 +1900,8 @@ export function ClientDashboard() {
                     },
                     {
                       key: "activity",
-                      label: "Calories Burned",
-                      value: hasActivityCalories ? `${todayActivityCalories.toLocaleString()} kcal` : "No activity yet",
+                      label: activitySummary?.energyBasis === "mixed_estimate" ? "Estimated Activity" : activitySummary ? "Active Calories" : "Calories Burned",
+                      value: activitySummary?.displayedCalories === 0 ? "0 kcal" : hasActivityCalories ? `${todayActivityCalories.toLocaleString()} kcal` : activitySummary ? "No readable energy" : "No activity yet",
                       target: hasActivityCalories
                         ? hasSyncedActivity && syncedActiveCalories >= todaysBurnCalories
                           ? "Synced active calories"

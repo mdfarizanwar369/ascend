@@ -6,6 +6,8 @@ import { BackButton } from "@/components/BackButton";
 import { getHealthSyncStatus, HealthSyncStatus } from "@/lib/ascendApi";
 import { canUseHealthConnect, getNativeHealthConnectStatus } from "@/lib/healthConnect";
 import { disconnectHealthConnectFromAscend, runHealthConnectSync } from "@/lib/healthSyncClient";
+import { hasAppleHealthBridge } from "@/lib/appleHealth";
+import { AppleHealthClient } from "./AppleHealthClient";
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "Not yet synced";
@@ -28,6 +30,10 @@ function permissionLabel(permission: string) {
 }
 
 export function HealthSyncClient() {
+  return hasAppleHealthBridge() ? <AppleHealthClient /> : <HealthConnectClient />;
+}
+
+function HealthConnectClient() {
   const [backendStatus, setBackendStatus] = useState<HealthSyncStatus | null>(null);
   const [nativeStatus, setNativeStatus] = useState<Awaited<ReturnType<typeof getNativeHealthConnectStatus>> | null>(null);
   const [status, setStatus] = useState("Loading Health Sync...");

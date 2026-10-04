@@ -24,6 +24,7 @@ import {
 } from "@ascend/shared";
 import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
+import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus } from "@ascend/shared";
 
 export interface ProgressComparison {
   periodDays: number;
@@ -52,6 +53,7 @@ export type HealthSyncStatus = {
   timezone: string | null;
   lastSyncedAt: string | null;
   summary: HealthSyncSummary | null;
+  activitySummary?: DailyActivitySummary | null;
 };
 
 export type ImportedHealthSyncRecord = {
@@ -782,8 +784,39 @@ export function getCoachPresence() {
   }>("coach:presence", "/coach-presence", 20_000);
 }
 
-export function getHealthSyncStatus() {
-  return authedCached<{ status: HealthSyncStatus }>("health-sync:status", "/health-sync/status", 20_000);
+export async function getHealthSyncStatus() {
+  const [legacy,activity] = await Promise.all([
+    authedCached<{ status: HealthSyncStatus }>("health-sync:status", "/health-sync/status", 20_000),
+    getHealthActivityStatus().catch(() => null)
+  ]);
+  return { status: { ...legacy.status,activitySummary:activity?.status.summary ?? null } };
+}
+
+export function getHealthActivityStatus() {
+  return authed<{ status: HealthActivityStatus }>("/health-sync/v2/status");
+}
+export function connectHealthActivity(input: { installationId: string; timezone: string; consentVersion: string; consented: true; select: boolean }) {
+  return authed<{ connection: HealthActivityConnection; timezone: string; calendarGeneration: string }>("/health-sync/v2/connect",{ method:"POST",body:JSON.stringify(input) });
+}
+export async function importHealthActivity(input: HealthActivityImport) {
+  const result = await authed<{ accepted: boolean; requestId: string }>("/health-sync/v2/import",{ method:"POST",body:JSON.stringify(input) });
+  invalidateCached();
+  return result;
+}
+export async function disconnectHealthActivity(installationId: string, deleteHistory = false) {
+  const result = await authed("/health-sync/v2/" + (deleteHistory ? "history" : "disconnect"), {
+    method:deleteHistory ? "DELETE" : "POST",body:JSON.stringify({ installationId,...(deleteHistory ? { confirmation:"DELETE IMPORTED HISTORY" } : {}) })
+  });
+  invalidateCached();
+  return result;
+}
+export async function saveHealthManualAdjustment(activityId: string, activeCalories: number | null, untracked: boolean, matchedWorkoutId: string | null = null) {
+  const result = await authed(`/activity/manual/${encodeURIComponent(activityId)}`,{ method:"PATCH",body:JSON.stringify({ activeCalories,untracked,matchedWorkoutId }) });
+  invalidateCached();
+  return result;
+}
+export function getDailyActivity(day?: string) {
+  return authed<{ summary: DailyActivitySummary | null }>(`/activity/daily${day ? `?day=${encodeURIComponent(day)}` : ""}`);
 }
 
 export function importHealthSync(input: {

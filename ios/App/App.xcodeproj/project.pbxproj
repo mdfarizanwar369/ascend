@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A15000000000000000000002 /* AscendHealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000001 /* AscendHealthService.swift */; };
+		A15000000000000000000004 /* AscendHealthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000003 /* AscendHealthPlugin.swift */; };
+		A15000000000000000000006 /* AscendHealthSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000005 /* AscendHealthSyncStore.swift */; };
 		A14000000000000000000002 /* AscendSiriService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000000000000000000001 /* AscendSiriService.swift */; };
 		A14000000000000000000004 /* AscendSiriPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000000000000000000003 /* AscendSiriPlugin.swift */; };
 		A14000000000000000000006 /* AscendSiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000000000000000000005 /* AscendSiriIntents.swift */; };
@@ -26,6 +29,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A15000000000000000000001 /* AscendHealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthService.swift; sourceTree = "<group>"; };
+		A15000000000000000000003 /* AscendHealthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthPlugin.swift; sourceTree = "<group>"; };
+		A15000000000000000000005 /* AscendHealthSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthSyncStore.swift; sourceTree = "<group>"; };
 		A14000000000000000000001 /* AscendSiriService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSiriService.swift; sourceTree = "<group>"; };
 		A14000000000000000000003 /* AscendSiriPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSiriPlugin.swift; sourceTree = "<group>"; };
 		A14000000000000000000005 /* AscendSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSiriIntents.swift; sourceTree = "<group>"; };
@@ -88,6 +94,9 @@
 				A14000000000000000000001 /* AscendSiriService.swift */,
 				A14000000000000000000003 /* AscendSiriPlugin.swift */,
 				A14000000000000000000005 /* AscendSiriIntents.swift */,
+				A15000000000000000000001 /* AscendHealthService.swift */,
+				A15000000000000000000003 /* AscendHealthPlugin.swift */,
+				A15000000000000000000005 /* AscendHealthSyncStore.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -188,6 +197,9 @@
 				A14000000000000000000002 /* AscendSiriService.swift in Sources */,
 				A14000000000000000000004 /* AscendSiriPlugin.swift in Sources */,
 				A14000000000000000000006 /* AscendSiriIntents.swift in Sources */,
+				A15000000000000000000002 /* AscendHealthService.swift in Sources */,
+				A15000000000000000000004 /* AscendHealthPlugin.swift in Sources */,
+				A15000000000000000000006 /* AscendHealthSyncStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

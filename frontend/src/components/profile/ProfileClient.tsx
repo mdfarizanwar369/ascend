@@ -17,6 +17,7 @@ import { SectionShell, SkeletonBlock, SkeletonStatGrid } from "@/components/Perc
 import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayBilling } from "@/lib/billingPlatform";
 import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
 import { AppleBilling, supportsAppleBilling } from "@/lib/appleBilling";
+import { useAppleHealthCapability } from "@/lib/appleHealth";
 
 const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1";
 
@@ -34,6 +35,7 @@ function formatBillingDate(value: string | null | undefined) {
 export function ProfileClient() {
   const iosFree = useIosFreeEdition();
   const iosApp = useIosApp();
+  const appleHealth = useAppleHealthCapability();
   const [user, setUser] = useState<Awaited<ReturnType<typeof getMe>>["user"] | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro">("free");
@@ -471,8 +473,8 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
-            {!iosApp && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
-              <Activity size={17} /> Health Sync
+            {(!iosApp || appleHealth) && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+              <Activity size={17} /> {appleHealth ? "Apple Health" : "Health Sync"}
             </Link>}
           </div>
         </section>
