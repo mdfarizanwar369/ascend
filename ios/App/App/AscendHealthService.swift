@@ -19,6 +19,7 @@ actor AscendHealthService {
             "installationId": storage.installationId, "connected": state.configuration != nil,
             "accountId": state.configuration?.accountId as Any? ?? NSNull(),
             "connectionGeneration": state.configuration?.connectionGeneration as Any? ?? NSNull(),
+            "calendarGeneration": state.configuration?.calendarGeneration as Any? ?? NSNull(),
             "paused": state.paused == true,
             "pendingCount": state.pending.count, "lastReadAt": state.lastReadAt as Any? ?? NSNull()]
     }
@@ -40,9 +41,17 @@ actor AscendHealthService {
             UUID(uuidString: config.calendarGeneration) != nil, TimeZone(identifier: config.timezone) != nil,
             config.installationId == storage.installationId else { throw AscendHealthError.invalidConfiguration }
         var state = try storage.load()
-        if state.configuration?.accountId != config.accountId || state.configuration?.connectionGeneration != config.connectionGeneration
-            || state.configuration?.calendarGeneration != config.calendarGeneration {
+        if state.configuration?.accountId != config.accountId || state.configuration?.connectionGeneration != config.connectionGeneration {
             state = AscendHealthStoreState()
+        } else if state.configuration?.calendarGeneration != config.calendarGeneration {
+            // Replay unacknowledged workout changes, including deletes, using
+            // the old acknowledged checkpoint in the new reporting calendar.
+            state.workoutAnchor = state.acknowledgedWorkoutAnchor
+            if let rebuild = state.pending.first?.workoutRebuild {
+                state.workoutRebuildId = rebuild.id
+                state.workoutRebuildSince = rebuild.since
+            }
+            state.pending.removeAll()
         }
         state.configuration = config
         state.paused = false
@@ -127,7 +136,19 @@ actor AscendHealthService {
         var state = try storage.load()
         guard let config = state.configuration else { throw AscendHealthError.disconnected }
         guard state.paused != true else { return try peek(accountId: config.accountId) }
-        if !state.pending.isEmpty { return try peek(accountId: config.accountId) }
+        if !state.pending.isEmpty {
+            let queuedAt = state.lastReadAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+            if let queuedAt, Date().timeIntervalSince(queuedAt) > 7 * 24 * 3600 {
+                // Do not expire tombstones independently: roll back and replay
+                // their query checkpoint before atomically replacing the outbox.
+                state.workoutAnchor = state.acknowledgedWorkoutAnchor
+                if let rebuild = state.pending.first?.workoutRebuild {
+                    state.workoutRebuildId = rebuild.id
+                    state.workoutRebuildSince = rebuild.since
+                }
+                state.pending.removeAll()
+            } else { return try peek(accountId: config.accountId) }
+        }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: config.timezone)!
         let today = calendar.startOfDay(for: Date())
@@ -157,13 +178,30 @@ actor AscendHealthService {
         }
         var anchor: HKQueryAnchor?
         if let data = state.workoutAnchor {
-            anchor = try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data)
+            do { anchor = try NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data) }
+            catch {
+                state.workoutRebuildId = UUID().uuidString.lowercased()
+                state.workoutRebuildSince = iso(anchoredStart)
+            }
         }
         var workouts: [AscendHealthWorkout] = []
         var deletedIds: [String] = []
+        var reachedEnd = false
         // Bound each query and each collection. A remaining page is picked up on the next sync.
         for _ in 0..<10 {
-            let page = try await workoutPage(anchor: anchor, start: anchoredStart)
+            let page: (workouts: [HKWorkout], deleted: [HKDeletedObject], anchor: HKQueryAnchor?)
+            do { page = try await workoutPage(anchor: anchor, start: anchoredStart) }
+            catch {
+                guard anchor != nil, (error as NSError).domain == HKErrorDomain,
+                    (error as NSError).code == HKError.Code.errorInvalidArgument.rawValue else { throw error }
+                // Replay from the stable bounded history predicate after an
+                // invalid anchor. The reset and results are durably queued together.
+                workouts.removeAll()
+                deletedIds.removeAll()
+                page = try await workoutPage(anchor: nil, start: anchoredStart)
+                state.workoutRebuildId = UUID().uuidString.lowercased()
+                state.workoutRebuildSince = iso(anchoredStart)
+            }
             for workout in page.workouts {
                 var calories: Double?
                 if #available(iOS 16.0, *) {
@@ -177,10 +215,13 @@ actor AscendHealthService {
             }
             deletedIds.append(contentsOf: page.deleted.map { $0.uuid.uuidString.lowercased() })
             anchor = page.anchor
-            if page.workouts.count + page.deleted.count < 200 { break }
+            if page.workouts.count + page.deleted.count < 200 { reachedEnd = true; break }
         }
         // Recheck after asynchronous queries: disconnect or an account change must cancel the read.
         let current = try storage.load()
+        // Empty reads cannot distinguish revoked read access from no records.
+        // Never use that ambiguity as authority to erase earlier history.
+        let rebuildComplete = reachedEnd && (!workouts.isEmpty || !deletedIds.isEmpty)
         guard current.configuration?.accountId == config.accountId,
             current.configuration?.connectionGeneration == config.connectionGeneration,
             current.configuration?.calendarGeneration == config.calendarGeneration,
@@ -195,12 +236,19 @@ actor AscendHealthService {
             remainingWorkouts.removeFirst(workoutChunk.count)
             let deleteChunk = Array(remainingDeletes.prefix(200-dailyChunk.count-workoutChunk.count))
             remainingDeletes.removeFirst(deleteChunk.count)
+            var rebuild: AscendHealthWorkoutRebuild?
+            if let id = state.workoutRebuildId, let since = state.workoutRebuildSince {
+                rebuild = AscendHealthWorkoutRebuild(id: id, since: since,
+                    complete: rebuildComplete && remainingSnapshots.isEmpty && remainingWorkouts.isEmpty && remainingDeletes.isEmpty)
+            }
             state.sequence += 1
             state.pending.append(AscendHealthPacket(schemaVersion: 2, requestId: UUID().uuidString.lowercased(),
                 installationId: config.installationId, connectionGeneration: config.connectionGeneration,
                 calendarGeneration: config.calendarGeneration, sequence: state.sequence,
-                snapshots: dailyChunk, workouts: workoutChunk, deletedWorkoutIds: deleteChunk))
+                snapshots: dailyChunk, workouts: workoutChunk, deletedWorkoutIds: deleteChunk,
+                workoutRebuild: rebuild))
         }
+        if rebuildComplete { state.workoutRebuildId = nil; state.workoutRebuildSince = nil }
         if let anchor { state.workoutAnchor = try NSKeyedArchiver.archivedData(withRootObject: anchor, requiringSecureCoding: true) }
         state.lastReadAt = observedAt
         try storage.save(state)

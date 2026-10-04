@@ -39,6 +39,13 @@ struct AscendHealthPacket: Codable {
     let snapshots: [AscendHealthSnapshot]
     let workouts: [AscendHealthWorkout]
     let deletedWorkoutIds: [String]
+    let workoutRebuild: AscendHealthWorkoutRebuild?
+}
+
+struct AscendHealthWorkoutRebuild: Codable {
+    let id: String
+    let since: String
+    let complete: Bool
 }
 
 struct AscendHealthStoreState: Codable {
@@ -49,6 +56,8 @@ struct AscendHealthStoreState: Codable {
     var pending: [AscendHealthPacket] = []
     var lastReadAt: String?
     var historyStartAt: String?
+    var workoutRebuildId: String?
+    var workoutRebuildSince: String?
     var paused: Bool? = false
 }
 

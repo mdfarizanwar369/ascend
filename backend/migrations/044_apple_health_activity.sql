@@ -17,6 +17,8 @@ create table health_activity_sources (
   pending_selection boolean not null default false,
   last_sequence bigint not null default -1,
   last_uploaded_at timestamptz,
+  workout_rebuild_id uuid,
+  workout_rebuild_since timestamptz,
   disconnected_at timestamptz,
   created_at timestamptz not null default now(),
   unique (user_id,provider,installation_id)
@@ -46,6 +48,7 @@ create table health_activity_workouts (
   active_calories numeric check (active_calories >= 0),
   source_name text,
   deleted boolean not null default false,
+  last_seen_rebuild_id uuid,
   primary key (source_id,external_id)
 );
 

@@ -34,6 +34,7 @@ export interface HealthActivityImport {
   snapshots: HealthDailySnapshot[];
   workouts: HealthExternalWorkout[];
   deletedWorkoutIds: string[];
+  workoutRebuild?: { id: string; since: string; complete: boolean };
 }
 
 export interface HealthActivityConnection {
@@ -44,6 +45,7 @@ export interface HealthActivityConnection {
   connected: boolean;
   selected: boolean;
   pendingSelection: boolean;
+  workoutHistoryRefreshing?: boolean;
   lastUploadedAt: string | null;
   disconnectedAt: string | null;
 }
@@ -71,6 +73,7 @@ export interface DailyActivitySummary {
   energyBasis: "active" | "mixed_estimate";
   coverage: "provider_daily" | "stale_provider_daily" | "workouts_only" | "manual_only" | "unavailable";
   workoutCount: number;
+  workoutCountAmbiguous: boolean;
   observedAt: string | null;
   excludedManual: Array<{ id: string; label: string; reason: "already_included" | "overlap_unknown" | "unknown_energy_basis" }>;
   manualAdjustments: Array<{ id: string; label: string; activeCalories: number }>;
@@ -163,6 +166,7 @@ export function reconcileDailyActivity(input: {
     manualActiveCalories, displayedCalories,
     energyBasis: hasLegacyBasis ? "mixed_estimate" : "active",
     coverage, workoutCount: uniqueWorkouts.length + manualCount,
+    workoutCountAmbiguous: uniqueWorkouts.length > 0 && input.manual.some(manual => !manual.untracked && (!manual.matchedWorkoutId || !workoutIds.has(manual.matchedWorkoutId))),
     observedAt: snapshot?.observedAt ?? null, excludedManual, manualAdjustments, ruleVersion: "daily-active-v1"
   };
 }

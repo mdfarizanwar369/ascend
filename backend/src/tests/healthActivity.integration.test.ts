@@ -132,4 +132,45 @@ describe.skipIf(!testUrl)("Apple activity ledger in isolated PostgreSQL",() => {
     expect((await db.query("select id from health_activity_sources where id=$1",[source.connection.id])).rows).toEqual([]);
     expect((await db.query("select source_id from health_activity_snapshots where source_id=$1",[source.connection.id])).rows).toEqual([]);
   });
+  it("rotates reporting calendars without rebucketing completed historical days",async () => {
+    const id=await account(),source=await connection(id),input=packet(source); input.snapshots.push(snapshot(450,1));
+    await service.importHealthActivity(id,input);
+    await service.changeHealthReportingTimezone(id,"UTC",source.calendarGeneration);
+    await expect(service.importHealthActivity(id,packet(source,2))).rejects.toThrow("connection changed");
+    const status=await service.getHealthActivityStatus(id);
+    expect(status.calendarGeneration).not.toBe(source.calendarGeneration);
+    const updated=packet(source,3,300); updated.calendarGeneration=status.calendarGeneration!;
+    updated.snapshots=updated.snapshots.map(day => ({ ...day,timezone:"UTC",windowStart:`${day.day}T00:00:00.000Z`,windowEnd:new Date(Date.parse(`${day.day}T00:00:00Z`)+86400_000).toISOString() }));
+    updated.snapshots.push({ ...snapshot(900,1),timezone:"UTC" });
+    await service.importHealthActivity(id,updated);
+    expect(await service.getDailyHealthActivity(id,snapshot(0,1).day)).toMatchObject({ displayedCalories:450,timezone:"Asia/Singapore" });
+    expect(await service.getDailyHealthActivity(id)).toMatchObject({ displayedCalories:300,timezone:"UTC" });
+  });
+  it("rebuilds workout identity state transactionally after an explicit anchor reset",async () => {
+    const id=await account(),source=await connection(id),input=packet(source);
+    const workout={ externalId:"stale-workout",startAt:new Date(Date.now()-3600_000).toISOString(),endAt:new Date().toISOString(),activityType:"Walk",activeCalories:150,sourceName:"Fixture Watch" };
+    input.workouts=[workout]; await service.importHealthActivity(id,input);
+    const reset={ ...packet(source,2),workoutRebuild:{ id:randomUUID(),since:new Date(Date.now()-86400_000).toISOString(),complete:true },workouts:[{ ...workout,externalId:"current-workout" }] };
+    await service.importHealthActivity(id,reset); await service.importHealthActivity(id,reset);
+    expect((await service.exportHealthActivity(id)).workouts.map(row => row.external_id)).toEqual(["current-workout"]);
+    expect((await service.getDailyHealthActivity(id))?.displayedCalories).toBe(600);
+  });
+  it("retains existing workouts until the final page of an interrupted anchor rebuild",async () => {
+    const id=await account(),source=await connection(id),input=packet(source);
+    const workout={ externalId:"retained-workout",startAt:new Date(Date.now()-3600_000).toISOString(),endAt:new Date().toISOString(),activityType:"Walk",activeCalories:150,sourceName:"Fixture Watch" };
+    input.workouts=[workout]; await service.importHealthActivity(id,input);
+    const rebuild={ id:randomUUID(),since:new Date(Date.now()-86400_000).toISOString(),complete:false };
+    await service.importHealthActivity(id,{ ...packet(source,2),workoutRebuild:rebuild,workouts:[{ ...workout,externalId:"first-page" }] });
+    expect((await service.exportHealthActivity(id)).workouts).toHaveLength(2);
+    await expect(service.importHealthActivity(id,{ ...packet(source,3),workoutRebuild:{ ...rebuild,since:new Date(Date.now()-1000).toISOString() } })).rejects.toThrow("original interval");
+    await service.importHealthActivity(id,{ ...packet(source,4),workoutRebuild:{ ...rebuild,complete:true },workouts:[workout] });
+    expect((await service.exportHealthActivity(id)).workouts.map(row => row.external_id).sort()).toEqual(["first-page","retained-workout"]);
+  });
+  it("returns only the signed-in member's selected workout history",async () => {
+    const owner=await account(),other=await account(),source=await connection(owner),input=packet(source);
+    input.workouts=[{ externalId:"private-workout",startAt:new Date(Date.now()-3600_000).toISOString(),endAt:new Date().toISOString(),activityType:"Strength",activeCalories:350,sourceName:"Fixture Watch" }];
+    await service.importHealthActivity(owner,input);
+    expect((await service.getHealthWorkoutHistory(owner,snapshot().day)).workouts).toHaveLength(1);
+    expect((await service.getHealthWorkoutHistory(other,snapshot().day)).workouts).toHaveLength(0);
+  });
 });

@@ -9,7 +9,7 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Your data"
       title="Privacy Policy"
-      updatedAt="15 September 2026"
+      updatedAt="4 October 2026"
       introduction="Ascend helps members, trainers, and gym owners stay aligned between sessions. This policy explains what information we collect, how we use it, and the choices available to you."
       sections={[
         {
@@ -39,6 +39,14 @@ export default function PrivacyPage() {
           paragraphs: [
             "Health Connect syncing is optional. If you connect it, Ascend reads only steps, exercise sessions, and active calories burned. We do not read sleep, heart rate, blood pressure, medical records, location, or nutrition from Health Connect.",
             "Health Connect data is sent securely to Ascend so it can appear in your dashboard, support Coach Zoe, and help your assigned trainer understand your activity when you are on a coached plan. You can disconnect Health Connect from Ascend in Settings. You can also revoke device permissions from Android Health Connect settings."
+          ]
+        },
+        {
+          title: "Apple Health imports",
+          paragraphs: [
+            "Supported iPhone and iPad releases offer an optional, read-only Apple Health connection for steps, active energy and workouts. You choose readable categories in Apple's permission screen and separately consent to storing imported daily totals, workout identifiers, timing, type, energy estimates and source names in your Ascend account. No subscription is required. Your food target does not automatically change.",
+            "The initial Apple Health release uses imports and derived consistency scores only in your private dashboard and activity history. They are excluded from AI, trainer, gym and marketing views; existing sharing choices do not silently authorize these new categories. Pending native updates are protected on the device and excluded from backups.",
+            "Disconnect stops future sync and retains history. Export or delete imported history in the connection screen. Deletion preserves manual logs and does not change Apple Health records. Account deletion removes account-linked imports, subject to normal backup and legal retention limits. Device read access remains controlled separately in Apple's Health settings. See /privacy/ios for the iPhone and iPad disclosure."
           ]
         },
         {

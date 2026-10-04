@@ -4,6 +4,7 @@ import { AppleHealthClient } from "./AppleHealthClient";
 const mocks=vi.hoisted(() => ({ status:vi.fn(),native:vi.fn(),connect:vi.fn(),sync:vi.fn(),disconnect:vi.fn(),adjust:vi.fn(),select:vi.fn(),export:vi.fn() }));
 vi.mock("@/components/BackButton",() => ({ BackButton:() => null }));
 vi.mock("./PrivateActivityHistory",() => ({ PrivateActivityHistory:() => null }));
+vi.mock("./HealthWorkoutHistory",() => ({ HealthWorkoutHistory:() => null }));
 vi.mock("@/lib/appleHealth",() => ({ AppleHealth:{ status:mocks.native },connectAppleHealth:mocks.connect,runAppleHealthSync:mocks.sync,disconnectAppleHealth:mocks.disconnect }));
 vi.mock("@/lib/ascendApi",() => ({ getHealthActivityStatus:mocks.status,saveHealthManualAdjustment:mocks.adjust,selectHealthActivitySource:mocks.select,exportHealthActivity:mocks.export }));
 const connection={ id:"source",installationId:"phone",generation:"generation",provider:"apple_health",connected:true,selected:true,pendingSelection:false,lastUploadedAt:null,disconnectedAt:null };

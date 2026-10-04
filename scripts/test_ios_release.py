@@ -24,7 +24,8 @@ class ReleaseContextTests(unittest.TestCase):
         release.validate_release_context(self.context("codex/ios-1.2-public-trainer-pro"), self.config())
 
     def test_manual_apple_health_candidate(self):
-        release.validate_release_context(self.context("codex/apple-health-v1"), self.config())
+        with self.assertRaises(SystemExit):
+            release.validate_release_context(self.context("codex/apple-health-v1"), self.config())
 
     def test_payment_beta_requires_its_isolated_origin(self):
         context = self.context("codex/ios-subscriptions-1-1")

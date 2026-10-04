@@ -6,7 +6,7 @@ vi.mock("./nativePlatform",() => ({ isNativeCapacitorPlatform:() => true,getNati
 vi.mock("./firebase",() => ({ getFirebaseClientAuth:() => mocks.auth }));
 vi.mock("./ascendApi",() => ({ connectHealthActivity:mocks.connect,getHealthActivityStatus:mocks.serverStatus,getMe:mocks.me,importHealthActivity:mocks.import,disconnectHealthActivity:mocks.serverDisconnect }));
 import { connectAppleHealth,runAppleHealthSync } from "./appleHealth";
-const native={ available:true,capability:"appleHealthReadV1",installationId:"phone",connected:true,accountId:"account",connectionGeneration:"generation",pendingCount:0,paused:false };
+const native={ available:true,capability:"appleHealthReadV1",installationId:"phone",connected:true,accountId:"account",connectionGeneration:"generation",calendarGeneration:"calendar",pendingCount:0,paused:false };
 const connection={ installationId:"phone",connected:true,generation:"generation" };
 const status={ enabled:true,connections:[connection],timezone:"Asia/Singapore",calendarGeneration:"calendar" };
 beforeEach(() => {

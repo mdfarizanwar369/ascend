@@ -16,7 +16,6 @@ RELEASE_ORIGINS = {
     "refs/heads/main": "https://www.getascend.fit/",
     "refs/heads/codex/ios-subscriptions-1-1": "https://ascend-ios-payments-web-ascend-ios-payments.up.railway.app/",
     "refs/heads/codex/ios-1.2-public-trainer-pro": "https://www.getascend.fit/",
-    "refs/heads/codex/apple-health-v1": "https://www.getascend.fit/",
 }
 
 

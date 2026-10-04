@@ -949,9 +949,9 @@ export function ClientDashboard() {
   const healthSyncSummary = healthSyncStatus?.summary ?? null;
   const hasSyncedActivity = Boolean(healthSyncSummary?.connected);
   const activitySummary = healthSyncStatus?.activitySummary ?? null;
-  const syncedSteps = activitySummary?.steps ?? healthSyncSummary?.todaySteps ?? 0;
-  const syncedActiveCalories = healthSyncSummary?.todayActiveCalories ?? 0;
-  const syncedWorkoutCompleted = healthSyncSummary?.workoutCompletedToday === true;
+  const syncedSteps = activitySummary ? activitySummary.steps ?? 0 : healthSyncSummary?.todaySteps ?? 0;
+  const syncedActiveCalories = activitySummary ? activitySummary.displayedCalories ?? 0 : healthSyncSummary?.todayActiveCalories ?? 0;
+  const syncedWorkoutCompleted = activitySummary ? activitySummary.workoutCount > 0 : healthSyncSummary?.workoutCompletedToday === true;
   const syncedWorkoutCount = healthSyncSummary?.workoutsThisWeek ?? 0;
   const todayActivityCalories = activitySummary ? Math.round(activitySummary.displayedCalories ?? 0) : combineTodayActivityCalories(todaysBurnCalories, syncedActiveCalories);
   const hasActivityCalories = todayActivityCalories > 0;
@@ -1905,7 +1905,7 @@ export function ClientDashboard() {
                       label: activitySummary?.energyBasis === "mixed_estimate" ? "Estimated Activity" : activitySummary ? "Active Calories" : "Calories Burned",
                       value: activitySummary?.displayedCalories === 0 ? "0 kcal" : hasActivityCalories ? `${todayActivityCalories.toLocaleString()} kcal` : activitySummary ? "No readable energy" : "No activity yet",
                       target: activitySummary
-                        ? activitySummary.coverage === "provider_daily" ? "Apple Health · active energy"
+                        ? activitySummary.coverage === "provider_daily" ? `Apple Health · ${activitySummary.observedAt ? new Date(activitySummary.observedAt).toLocaleTimeString([],{ hour:"2-digit",minute:"2-digit" }) : "active energy"}`
                           : activitySummary.coverage === "stale_provider_daily" ? "Last recorded energy · sync pending"
                           : activitySummary.coverage === "workouts_only" ? "Recorded workouts only · partial day"
                           : "Eligible manual estimates"

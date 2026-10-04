@@ -3,9 +3,10 @@
 import { useEffect,useState } from "react";
 import type { HealthActivityStatus } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
-import { AppleHealth,connectAppleHealth,disconnectAppleHealth,runAppleHealthSync,type AppleHealthNativeStatus } from "@/lib/appleHealth";
+import { AppleHealth,connectAppleHealth,disconnectAppleHealth,runAppleHealthSync,alignAppleHealthTimezone,type AppleHealthNativeStatus } from "@/lib/appleHealth";
 import { getHealthActivityStatus,saveHealthManualAdjustment,selectHealthActivitySource,exportHealthActivity } from "@/lib/ascendApi";
 import { PrivateActivityHistory } from "./PrivateActivityHistory";
+import { HealthWorkoutHistory } from "./HealthWorkoutHistory";
 
 export function AppleHealthClient() {
   const [server,setServer] = useState<HealthActivityStatus | null>(null);
@@ -30,7 +31,7 @@ export function AppleHealthClient() {
   },[]);
   async function act(action: () => Promise<unknown>,success: string) {
     setWorking(true); setMessage("");
-    try { await action(); await refresh(); setMessage(success); }
+    try { await action(); await refresh(); window.dispatchEvent(new Event("ascend:health-updated")); setMessage(success); }
     catch (error) { setMessage(error instanceof Error ? error.message : "Apple Health could not sync."); }
     finally { setWorking(false); }
   }
@@ -55,7 +56,9 @@ export function AppleHealthClient() {
       <p className="mt-2 text-xs text-zinc-400">Last device read: {format(native?.lastReadAt)}</p>
       <p className="mt-1 text-xs text-zinc-400">Last account upload: {format(current?.lastUploadedAt)}</p>
       {server?.timezone && <p className="mt-1 text-xs text-zinc-400">Reporting timezone: {server.timezone}. Travelling does not silently move your existing daily history.</p>}
+      {connected && server?.timezone !== Intl.DateTimeFormat().resolvedOptions().timeZone && <button type="button" disabled={working} onClick={() => void act(alignAppleHealthTimezone,"Reporting timezone aligned. Completed historical windows are preserved.")} className="mt-3 min-h-11 w-full rounded-lg border border-line px-3 text-sm">Use my current timezone for today's activity</button>}
       {current?.pendingSelection && <p className="mt-2 text-sm text-amber">Waiting for readable daily energy before switching this account's source.</p>}
+      {current?.workoutHistoryRefreshing && <p className="mt-2 text-sm text-amber">Workout history is being recovered. Earlier records stay visible until a readable recovery completes; empty reads do not erase them. Daily energy is reconciled separately.</p>}
       {(native?.pendingCount ?? 0) > 0 && <p className="mt-2 text-sm text-amber">Updates are waiting to upload. Open Ascend with an internet connection to sync.</p>}
       {!connected && <>
         <label className="mt-5 flex items-start gap-3 text-sm leading-6"><input type="checkbox" checked={uploadConsent} onChange={event => setUploadConsent(event.target.checked)} className="mt-1" />I agree to store these imported records in my Ascend account for my dashboard and reports. This does not authorize sharing them with AI, trainers or advertising services.</label>
@@ -75,6 +78,7 @@ export function AppleHealthClient() {
       <p className="mt-2 text-xs text-zinc-400">No readable data can mean no records or restricted access. Ascend cannot determine which read switches you declined.</p>
       {summary?.excludedManual.map(entry => <div key={entry.id} className="mt-4 rounded-xl border border-line p-3">
         <p className="text-sm font-semibold">{entry.label}</p><p className="mt-1 text-xs text-zinc-400">{entry.reason === "already_included" ? "Already included in Apple Health." : "Not added separately to avoid double counting."}</p>
+        {entry.reason === "already_included" && <button type="button" disabled={working} onClick={() => void act(() => saveHealthManualAdjustment(entry.id,null,false),"Workout link removed. Your manual log remains; uncertain overlap will not add calories automatically.")} className="mt-2 min-h-11 rounded-lg border border-line px-3 text-sm">Remove workout link</button>}
         {entry.reason !== "already_included" && <>
           <label className="mt-3 block text-xs text-zinc-400">Estimated active kcal only if this activity was not recorded in Apple Health<input type="number" min="0" max="100000" value={adjustments[entry.id] ?? ""} onChange={event => setAdjustments(values => ({ ...values,[entry.id]:event.target.value }))} className="mt-2 min-h-11 w-full rounded-lg border border-line bg-ink px-3 text-white" /></label>
           <button type="button" disabled={working || adjustments[entry.id] === undefined || adjustments[entry.id] === "" || !Number.isFinite(Number(adjustments[entry.id])) || Number(adjustments[entry.id]) < 0} onClick={() => void act(() => saveHealthManualAdjustment(entry.id,Number(adjustments[entry.id]),true),"Untracked estimate added. If a device recorded it, remove this adjustment to avoid overstating energy.")} className="mt-3 min-h-11 rounded-lg border border-line px-3 text-sm">Confirm this activity was untracked</button>
@@ -84,6 +88,7 @@ export function AppleHealthClient() {
       {summary?.manualAdjustments?.map(entry => <div key={entry.id} className="mt-3 rounded-xl border border-line p-3"><p className="text-sm">{entry.label} · {Math.round(entry.activeCalories)} estimated active kcal</p><button type="button" disabled={working} onClick={() => void act(() => saveHealthManualAdjustment(entry.id,null,false),"Untracked adjustment removed. Your manual log is unchanged.")} className="mt-2 min-h-11 rounded-lg border border-line px-3 text-sm">Remove untracked adjustment</button></div>)}
     </section>
     <PrivateActivityHistory />
+    {summary && <HealthWorkoutHistory today={summary} onChanged={refresh} />}
     <section className="mt-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">Privacy and connection</h2>
       <p className="mt-3 text-sm leading-6 text-zinc-400">This release does not send Apple Health imports to AI or trainer views. Background updates may wait until you open Ascend to upload. You can review Ascend's access in Apple's Health settings.</p>
       <p className="mt-2 text-xs text-zinc-400">Disconnect stops future sync but keeps imported history. Deleting imported history preserves your manual logs and does not delete anything from Apple Health.</p>

@@ -24,7 +24,7 @@ import {
 } from "@ascend/shared";
 import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
-import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown } from "@ascend/shared";
+import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
 
 export interface ProgressComparison {
   periodDays: number;
@@ -836,6 +836,13 @@ export async function selectHealthActivitySource(installationId: string) {
 }
 export function exportHealthActivity() {
   return authed<Record<string,unknown>>("/health-sync/v2/export");
+}
+export function getHealthWorkoutHistory(day: string,after?: string) {
+  return authed<{ workouts:HealthExternalWorkout[]; nextCursor:string | null; timezone:string | null }>(`/activity/workouts?day=${encodeURIComponent(day)}${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+}
+export async function changeHealthReportingTimezone(timezone: string,calendarGeneration: string) {
+  const result=await authed<{ saved:boolean }>("/health-sync/v2/timezone",{ method:"POST",body:JSON.stringify({ timezone,calendarGeneration }) });
+  invalidateCached(); return result;
 }
 
 export function importHealthSync(input: {

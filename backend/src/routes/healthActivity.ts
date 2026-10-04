@@ -4,7 +4,7 @@ import { HEALTH_ACTIVITY_CONSENT_VERSION, healthDateKey, validHealthTimezone } f
 import { requireAuth } from "../middleware/auth";
 import {
   connectHealthActivity, disconnectHealthActivity, exportHealthActivity, getDailyHealthActivity,
-  getHealthActivityStatus, healthActivityEnabled, healthActivityError, importHealthActivity, saveHealthManualLink,selectHealthActivitySource
+  getHealthActivityStatus, healthActivityEnabled, healthActivityError, importHealthActivity, saveHealthManualLink,selectHealthActivitySource,getHealthWorkoutHistory,changeHealthReportingTimezone
 } from "../services/healthActivityService";
 import { getPrivateHealthInsights } from "../services/privateHealthInsightsService";
 
@@ -31,10 +31,12 @@ export const healthActivityImportSchema = z.object({
     externalId: z.string().min(1).max(200),startAt: instant,endAt: instant,
     activityType: z.string().min(1).max(100),activeCalories: energy,sourceName: z.string().max(200).nullable()
   })).max(200),
-  deletedWorkoutIds: z.array(z.string().min(1).max(200)).max(200)
+  deletedWorkoutIds: z.array(z.string().min(1).max(200)).max(200),
+  workoutRebuild:z.object({ id:uuid,since:instant,complete:z.boolean() }).optional()
 }).superRefine((input,ctx) => {
   if (input.snapshots.length + input.workouts.length + input.deletedWorkoutIds.length > 200) ctx.addIssue({ code:"custom",message:"Import at most 200 records per chunk" });
   const now = Date.now();
+  if (input.workoutRebuild && (Date.parse(input.workoutRebuild.since)<Date.UTC(2000,0,1) || Date.parse(input.workoutRebuild.since)>now+300_000)) ctx.addIssue({ code:"custom",message:"Invalid workout reset interval" });
   for (const [index,snapshot] of input.snapshots.entries()) {
     const start = new Date(snapshot.windowStart).getTime();
     const end = new Date(snapshot.windowEnd).getTime();
@@ -91,9 +93,20 @@ healthActivityRouter.get("/activity/daily",requireAuth,async (req,res,next) => {
 healthActivityRouter.get("/activity/private-insights",requireAuth,async (req,res,next) => {
   try { res.json(await getPrivateHealthInsights(req.user!.id)); } catch (error) { next(error); }
 });
+healthActivityRouter.get("/activity/workouts",requireAuth,async (req,res,next) => {
+  try {
+    res.json(await getHealthWorkoutHistory(req.user!.id,date.parse(req.query.day),req.query.after ? z.string().min(1).max(200).parse(req.query.after) : undefined));
+  } catch (error) { next(error); }
+});
 healthActivityRouter.post("/health-sync/v2/select-source",requireAuth,async (req,res,next) => {
   try { requireEnabled(req.user!.id); res.json(await selectHealthActivitySource(req.user!.id,uuid.parse(req.body.installationId))); }
   catch (error) { next(error); }
+});
+healthActivityRouter.post("/health-sync/v2/timezone",requireAuth,async (req,res,next) => {
+  try {
+    requireEnabled(req.user!.id); const input=z.object({ timezone,calendarGeneration:uuid }).parse(req.body);
+    res.json(await changeHealthReportingTimezone(req.user!.id,input.timezone,input.calendarGeneration));
+  } catch (error) { next(error); }
 });
 healthActivityRouter.patch("/activity/manual/:activityId",requireAuth,async (req,res,next) => {
   try {
