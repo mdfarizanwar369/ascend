@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A14000000000000000000002 /* AscendSiriService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000000000000000000001 /* AscendSiriService.swift */; };
+		A14000000000000000000004 /* AscendSiriPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000000000000000000003 /* AscendSiriPlugin.swift */; };
+		A14000000000000000000006 /* AscendSiriIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14000000000000000000005 /* AscendSiriIntents.swift */; };
 		A13000000000000000000002 /* AscendVoicePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13000000000000000000001 /* AscendVoicePlugin.swift */; };
 		A12000000000000000000013 /* AscendViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12000000000000000000012 /* AscendViewController.swift */; };
 		A12000000000000000000011 /* AppleBillingPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A12000000000000000000010 /* AppleBillingPlugin.swift */; };
@@ -23,6 +26,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A14000000000000000000001 /* AscendSiriService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSiriService.swift; sourceTree = "<group>"; };
+		A14000000000000000000003 /* AscendSiriPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSiriPlugin.swift; sourceTree = "<group>"; };
+		A14000000000000000000005 /* AscendSiriIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSiriIntents.swift; sourceTree = "<group>"; };
 		A13000000000000000000001 /* AscendVoicePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendVoicePlugin.swift; sourceTree = "<group>"; };
 		A12000000000000000000012 /* AscendViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendViewController.swift; sourceTree = "<group>"; };
 		A12000000000000000000010 /* AppleBillingPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleBillingPlugin.swift; sourceTree = "<group>"; };
@@ -79,6 +85,9 @@
 				A12000000000000000000012 /* AscendViewController.swift */,
 				A12000000000000000000010 /* AppleBillingPlugin.swift */,
 				A13000000000000000000001 /* AscendVoicePlugin.swift */,
+				A14000000000000000000001 /* AscendSiriService.swift */,
+				A14000000000000000000003 /* AscendSiriPlugin.swift */,
+				A14000000000000000000005 /* AscendSiriIntents.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -176,6 +185,9 @@
 				A12000000000000000000013 /* AscendViewController.swift in Sources */,
 				A12000000000000000000011 /* AppleBillingPlugin.swift in Sources */,
 				A13000000000000000000002 /* AscendVoicePlugin.swift in Sources */,
+				A14000000000000000000002 /* AscendSiriService.swift in Sources */,
+				A14000000000000000000004 /* AscendSiriPlugin.swift in Sources */,
+				A14000000000000000000006 /* AscendSiriIntents.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

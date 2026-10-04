@@ -49,6 +49,7 @@ import { getAscendMorphV22Timing, useAscendLaunchMorphV22 } from "@/components/d
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 import { isIosFreeEdition } from "@/lib/appEdition";
 import { AscendVoiceBeta } from "@/components/dashboard/AscendVoiceBeta";
+import { AscendSiriSetup } from "@/components/dashboard/AscendSiriSetup";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -1951,6 +1952,7 @@ export function ClientDashboard() {
             </CollapsibleSection>
 
             {user?.voice_beta_enabled && <AscendVoiceBeta />}
+            {user?.is_platform_owner && <AscendSiriSetup />}
 
             <section className="ascend-stagger-enter ascend-branded-surface ascend-today-coach my-5 overflow-hidden rounded-2xl border border-purple-400/25 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.92)_52%,rgba(53,242,208,0.05))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.22),0_0_30px_rgba(139,92,246,0.08)]" style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
