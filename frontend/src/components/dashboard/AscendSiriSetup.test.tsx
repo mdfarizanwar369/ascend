@@ -29,7 +29,7 @@ it("connects the signed-in owner and offers example Siri questions", async () =>
     firebaseUid: "owner-uid"
   }));
   expect(await screen.findByText("Connected on this iPhone.")).toBeInTheDocument();
-  expect(screen.getByText(/how much water I have drunk/)).toBeInTheDocument();
+  expect(screen.getByText(/ask Ascend a question/i)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Disconnect Siri" }));
   await waitFor(() => expect(mocks.disconnect).toHaveBeenCalledOnce());
   expect(await screen.findByRole("button", { name: "Enable Siri" })).toBeInTheDocument();

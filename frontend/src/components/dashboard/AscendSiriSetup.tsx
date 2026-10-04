@@ -46,10 +46,10 @@ export function AscendSiriSetup() {
   const connected = status?.connected && status.firebaseUid === getFirebaseClientAuth().currentUser?.uid;
   return <section className="ascend-inset my-3 p-4" aria-label="Siri with Ascend">
     <h2 className="text-sm font-semibold text-white">Siri with Ascend <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-300">Owner test</span></h2>
-    <p className="mt-1 text-xs leading-5 text-zinc-400">Ask Siri about your logged calories, water, protein, or today&apos;s summary. Your iPhone must be unlocked to hear private answers.</p>
+    <p className="mt-1 text-xs leading-5 text-zinc-400">Ask Siri about food, water, macros, workouts, weight, goals, and more from your Ascend records. Your iPhone must be unlocked to hear private answers.</p>
     {connected ? <>
       <p className="mt-2 text-xs text-calm" role="status">Connected on this iPhone.</p>
-      <p className="mt-2 text-xs text-zinc-300">Try “Hey Siri, ask Ascend how many calories I can eat now” or “Hey Siri, ask Ascend how much water I have drunk.”</p>
+      <p className="mt-2 text-xs text-zinc-300">Try “Hey Siri, ask Ascend a question,” then ask in your own words. You can also say “Hey Siri, ask Ascend how many calories I have left” or “Hey Siri, ask Ascend what my workout is today.”</p>
       <button type="button" onClick={() => void disconnect()} disabled={busy} className="mt-3 min-h-10 rounded-full border border-white/15 px-4 text-xs text-zinc-200 disabled:opacity-50">Disconnect Siri</button>
     </> : <>
       <button type="button" onClick={() => void connect()} disabled={busy || status?.supported === false} className="mt-3 min-h-10 rounded-full bg-calm px-4 text-xs font-semibold text-black disabled:opacity-50">{busy ? "Connecting…" : "Enable Siri"}</button>

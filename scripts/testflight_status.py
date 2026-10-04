@@ -143,7 +143,7 @@ for build in builds:
         }, sort_keys=True))
         if os.environ.get("ASC_ASSIGN_INTERNAL_BUILD") == "true" and (
             version == "1.4"
-            and attrs.get("version") == "66.1"
+            and attrs.get("version") == build_number
             and attrs.get("processingState") == "VALID"
             and detail.get("internalBuildState") == "READY_FOR_BETA_TESTING"
             and group_attrs.get("name") == "Ascend Internal"
@@ -160,7 +160,7 @@ for build in builds:
     print("OWNER_TESTER_MATCHES", len(matching_owner_testers))
     if os.environ.get("ASC_ASSIGN_OWNER_BUILD") == "true" and (
         version == "1.4"
-        and attrs.get("version") == "66.1"
+        and attrs.get("version") == build_number
         and attrs.get("processingState") == "VALID"
         and detail.get("internalBuildState") == "READY_FOR_BETA_TESTING"
         and len(matching_owner_testers) == 1
