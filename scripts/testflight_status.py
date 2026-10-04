@@ -148,7 +148,7 @@ for build in builds:
             and detail.get("internalBuildState") == "READY_FOR_BETA_TESTING"
             and group_attrs.get("name") == "Ascend Internal"
             and group_attrs.get("isInternalGroup") is True
-            and len(testers) == 1
+            and sorted(tester.get("attributes", {}).get("state") for tester in testers) == ["INSTALLED", "INVITED"]
             and build_id not in assigned_ids
         ):
             status = assign_build_to_group(group_id, build_id)

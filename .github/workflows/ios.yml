@@ -26,7 +26,7 @@ on:
         type: string
         default: '66.1'
       assign_internal_build:
-        description: Assign the valid build to the single-tester Ascend Internal group
+        description: Assign build 66.1 to the existing two-tester Ascend Internal group
         type: boolean
         default: false
       assign_owner_build:
