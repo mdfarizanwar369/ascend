@@ -49,7 +49,7 @@ export function AscendSiriSetup() {
     <p className="mt-1 text-xs leading-5 text-zinc-400">Ask Siri about food, water, macros, workouts, weight, goals, and more from your Ascend records. Your iPhone must be unlocked to hear private answers.</p>
     {connected ? <>
       <p className="mt-2 text-xs text-calm" role="status">Connected on this iPhone.</p>
-      <p className="mt-2 text-xs text-zinc-300">Ask in one go: “Hey Siri, ask Ascend how much water I drank” or “Hey Siri, ask Ascend how many calories I have left.” You can also ask Ascend about meals, workouts, weight, sleep, steps, and other saved information. Include “Ascend” so Siri knows which app to ask.</p>
+      <p className="mt-2 text-xs text-zinc-300">Ask in one go: “Hey Siri, ask Ascend how much more water do I need today,” “Hey Siri, ask Ascend have I logged any workout today,” or “Hey Siri, ask Ascend have I logged any food today.” You can also ask about calories, meals, macros, weight, sleep, steps, and other saved information. Include “Ascend” so Siri knows which app to ask.</p>
       <button type="button" onClick={() => void disconnect()} disabled={busy} className="mt-3 min-h-10 rounded-full border border-white/15 px-4 text-xs text-zinc-200 disabled:opacity-50">Disconnect Siri</button>
     </> : <>
       <button type="button" onClick={() => void connect()} disabled={busy || status?.supported === false} className="mt-3 min-h-10 rounded-full bg-calm px-4 text-xs font-semibold text-black disabled:opacity-50">{busy ? "Connecting…" : "Enable Siri"}</button>

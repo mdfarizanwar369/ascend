@@ -70,6 +70,12 @@ test("Siri intents are packaged in the iPhone app with private, device-authentic
   assert.ok(intents.includes('case waterDrank = "How much water did I drink today?"'));
   assert.ok(intents.includes('Ask \\(.applicationName) how much water I drank'));
   assert.ok(intents.includes('Check how much water I drank in \\(.applicationName)'));
+  assert.ok(intents.includes('Ask \\(.applicationName) \\(\\.$topic)'), "question topics must work in a single Siri utterance");
+  assert.ok(intents.includes('Ask \\(.applicationName) how much more water do I need today'));
+  assert.ok(intents.includes('Ask \\(.applicationName) have I logged any workout today'));
+  assert.ok(intents.includes('Ask \\(.applicationName) have I logged any food today'));
+  assert.match(intents, /struct AscendWorkoutLoggedIntent: AppIntent/);
+  assert.match(intents, /struct AscendFoodLoggedIntent: AppIntent/);
   assert.ok(!intents.includes('Ask \\(.applicationName) \\(\\.$question)'), "App Shortcuts only interpolate AppEntity or AppEnum parameters");
   assert.match(intents, /struct AscendWorkoutIntent: AppIntent/);
   assert.equal((intents.match(/AppShortcut\(intent:/g) ?? []).length, 10);

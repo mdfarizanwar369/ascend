@@ -37,6 +37,41 @@ describe("Siri answers from the owner's records", () => {
     expect(mocks.query).not.toHaveBeenCalled();
   });
 
+  it("answers whether a workout was logged from today's saved activity events", async () => {
+    mocks.query.mockResolvedValueOnce({ rows: [{ count: 1 }] }).mockResolvedValueOnce({ rows: [{ count: 0 }] });
+    expect((await ask("Have I logged any workout today?")).spokenText).toBe("Yes, you've logged a workout today.");
+    expect((await ask("Did I log a workout today?")).spokenText).toBe("You haven't logged a workout in Ascend today.");
+    expect(mocks.query.mock.calls[0][1][0]).toBe("owner-id");
+    expect(mocks.workout).not.toHaveBeenCalled();
+  });
+
+  it("checks actual Zoe plan completion separately from manual workout logs", async () => {
+    mocks.workout.mockResolvedValue({ workout: { title: "Strength" }, completed: false });
+    expect((await ask("Did I complete my workout today?")).spokenText).toContain("haven't completed today's Zoe workout");
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("answers food and water yes-or-no questions from today's records", async () => {
+    mocks.query.mockResolvedValueOnce({ rows: [{ count: 2 }] }).mockResolvedValueOnce({ rows: [{ count: 0 }] });
+    expect((await ask("Have I logged any food today?")).spokenText).toBe("Yes, you've logged food in Ascend today.");
+    expect((await ask("Have I logged any water today?")).spokenText).toBe("You haven't logged any water in Ascend today.");
+    expect(mocks.query.mock.calls[0][0]).toContain("food_logs");
+    expect(mocks.query.mock.calls[1][0]).toContain("water_logs");
+  });
+
+  it("gets remaining water from Ascend's existing daily guide", async () => {
+    mocks.today.mockResolvedValue({ spokenText: "You have 600 millilitres left to reach today's water guide." });
+    expect((await ask("How much more water do I need today?")).spokenText).toContain("600 millilitres left");
+    expect(mocks.today).toHaveBeenCalledWith("owner-id", { intent: "water_remaining", timezoneOffsetMinutes: -480 });
+  });
+
+  it("uses logged workout calories rather than synced active calories for a workout burn question", async () => {
+    mocks.query.mockResolvedValue({ rows: [{ calories: "275.4" }] });
+    expect((await ask("How many calories did I burn in my workout?")).spokenText).toContain("275 calories burned in workouts today");
+    expect(mocks.query.mock.calls[0][0]).toContain("caloriesBurned");
+    expect(mocks.health).not.toHaveBeenCalled();
+  });
+
   it("reads weight only for the signed-in owner", async () => {
     mocks.query.mockResolvedValue({ rows: [{ latest_weight_kg: "73.5", starting_weight_kg: "78", target_weight_kg: "70", goal_type: "fat_loss" }] });
     expect((await ask("What is my latest weight?")).spokenText).toContain("73.5 kilograms");
