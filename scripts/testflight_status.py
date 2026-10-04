@@ -213,8 +213,10 @@ for build in builds:
         and len(matching_owner_testers) == 1
     ):
         owner_tester = next(iter(matching_owner_testers.values()))
-        if owner_tester.get("attributes", {}).get("state") not in {"INSTALLED", "ACCEPTED"}:
-            raise SystemExit("Account holder has not accepted the TestFlight invitation")
+        # Apple can attach a ready build to an invited individual tester. The
+        # tester still needs to accept their invitation before installing it.
+        if owner_tester.get("attributes", {}).get("state") not in {"INSTALLED", "ACCEPTED", "INVITED"}:
+            raise SystemExit("Account holder is not eligible for TestFlight assignment")
         existing_ids = {
             item["id"] for item in get(f"/v1/builds/{build_id}/relationships/individualTesters", limit=200)["data"]
         }
