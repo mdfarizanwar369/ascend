@@ -5,6 +5,7 @@
 export const EXERCISE_VISUAL_ASSET_ROOT = "/exercise-visuals/ascend-original-v1";
 export const EXERCISE_VISUAL_ASSET_ROOT_V2 = "/exercise-visuals/ascend-original-v2";
 export const EXERCISE_VISUAL_ASSET_ROOT_V3 = "/exercise-visuals/ascend-original-v3";
+export const EXERCISE_VISUAL_ASSET_ROOT_V4 = "/exercise-visuals/ascend-original-v4";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -25,6 +26,7 @@ export type ExerciseVisual = {
 const image = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT}/${filename}`;
 const imageV2 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V2}/${filename}`;
 const imageV3 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V3}/${filename}`;
+const imageV4 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V4}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -405,6 +407,125 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "pair", start: imageV3("wall-push-up-start.webp"), peak: imageV3("wall-push-up-peak.webp") },
     instructions: "Stand an arm's length from a wall with palms at chest height. Bend your elbows to bring your chest toward the wall, then press away.",
     cue: "Keep a straight line from head to heels and both palms flat on the wall."
+  },
+  {
+    id: "chair-squat", canonicalName: "Chair Squat", aliases: [],
+    equipment: "Sturdy chair", movementPattern: "Supported squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV4("chair-squat-main.webp") },
+    instructions: "Stand just in front of a sturdy chair with feet about shoulder-width apart. Send your hips back until you lightly touch the seat, then push through your feet to stand again.",
+    cue: "Keep the chair stable, your heels down and your knees in line with your toes."
+  },
+  {
+    id: "dumbbell-front-squat", canonicalName: "Dumbbell Front Squat", aliases: [],
+    equipment: "Two dumbbells", movementPattern: "Front-loaded squat", targetMuscles: "Quads, glutes and core",
+    images: { kind: "single", main: imageV4("dumbbell-front-squat-main.webp") },
+    instructions: "Hold one dumbbell at each shoulder with elbows forward. Squat to a depth you can control, then drive through your feet to stand tall.",
+    cue: "Keep your chest upright and both dumbbells secure at shoulder height."
+  },
+  {
+    id: "single-leg-glute-bridge", canonicalName: "Single-Leg Glute Bridge", aliases: [],
+    equipment: "Exercise mat", movementPattern: "Single-leg hip extension", targetMuscles: "Glutes, hamstrings and core",
+    images: { kind: "single", main: imageV4("single-leg-glute-bridge-main.webp") },
+    instructions: "Lie on your back with one foot flat near your hip and the other leg raised. Press through the planted foot to lift your hips, lower slowly, then switch sides.",
+    cue: "Keep your hips level and stop lifting before your lower back arches."
+  },
+  {
+    id: "band-good-morning", canonicalName: "Band Good Morning", aliases: [],
+    equipment: "Loop resistance band", movementPattern: "Banded hip hinge", targetMuscles: "Hamstrings and glutes",
+    images: { kind: "single", main: imageV4("band-good-morning-main.webp") },
+    instructions: "Stand on the middle of a loop band and hold the upper part securely at shoulder height. Soften your knees, push your hips back to hinge, then squeeze your glutes to stand.",
+    cue: "Keep the band away from your neck and your back neutral throughout."
+  },
+  {
+    id: "cable-pull-through", canonicalName: "Cable Pull-Through", aliases: [],
+    equipment: "Low cable pulley and rope attachment", movementPattern: "Cable hip hinge", targetMuscles: "Glutes and hamstrings",
+    images: { kind: "single", main: imageV4("cable-pull-through-main.webp") },
+    instructions: "Face away from a low cable with the rope held between your legs. Step forward for tension, hinge your hips back with arms long, then stand by driving your hips forward.",
+    cue: "Keep the cable behind you and move through your hips without rounding your back."
+  },
+  {
+    id: "prone-w-raise", canonicalName: "Prone W Raise", aliases: [],
+    equipment: "Exercise mat", movementPattern: "Prone scapular retraction", targetMuscles: "Upper back and rear shoulders",
+    images: { kind: "single", main: imageV4("prone-w-raise-main.webp") },
+    instructions: "Lie face down and bend your elbows out to make a W shape with your arms. Gently lift your hands and elbows off the mat, squeeze your shoulder blades, then lower slowly.",
+    cue: "Keep your neck long and lift only as high as you can without shrugging."
+  },
+  {
+    id: "reverse-snow-angel", canonicalName: "Reverse Snow Angel", aliases: [],
+    equipment: "Exercise mat", movementPattern: "Prone shoulder sweep", targetMuscles: "Upper back and rear shoulders",
+    images: { kind: "single", main: imageV4("reverse-snow-angel-main.webp") },
+    instructions: "Lie face down with arms near your sides. Lift them slightly and sweep them out and toward overhead in a wide arc, then return with control.",
+    cue: "Keep the movement gentle and avoid forcing your shoulders or lower back."
+  },
+  {
+    id: "supported-split-squat", canonicalName: "Supported Split Squat", aliases: [],
+    equipment: "Sturdy chair or rail", movementPattern: "Supported split squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV4("supported-split-squat-main.webp") },
+    instructions: "Take a staggered stance and lightly hold a stable support at your side. Lower straight down by bending both knees, then press through your front foot to rise; switch legs.",
+    cue: "Keep your front heel down and use the support for balance rather than pulling yourself up."
+  },
+  {
+    id: "low-step-up", canonicalName: "Low Step-Up", aliases: [],
+    equipment: "Stable low step", movementPattern: "Low step-up", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV4("low-step-up-main.webp") },
+    instructions: "Place one whole foot on a stable low step. Push through that foot to rise, step back down slowly, and repeat before switching legs.",
+    cue: "Start with a low height and keep your knee aligned over your foot."
+  },
+  {
+    id: "easy-walk", canonicalName: "Easy Walk", aliases: [],
+    equipment: "Comfortable shoes", movementPattern: "Easy walking", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV4("walking-main.webp") },
+    instructions: "Walk at a relaxed pace for the prescribed time, letting your arms swing naturally. Choose a safe, level route and slow down if your breathing becomes strained.",
+    cue: "Keep your shoulders relaxed and maintain a pace at which you can talk easily."
+  },
+  {
+    id: "brisk-walk", canonicalName: "Brisk Walk", aliases: [],
+    equipment: "Comfortable shoes", movementPattern: "Brisk walking", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV4("walking-main.webp") },
+    instructions: "Walk with purposeful, quicker steps for the prescribed time while keeping a natural stride. Ease the pace if you cannot maintain control or comfortable breathing.",
+    cue: "Stay tall and swing your arms; brisk should still feel sustainable."
+  },
+  {
+    id: "stationary-bike", canonicalName: "Stationary Bike", aliases: [],
+    equipment: "Stationary exercise bike", movementPattern: "Cycling", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV4("stationary-bike-main.webp") },
+    instructions: "Adjust the seat so your knee stays slightly bent at the bottom of the pedal stroke. Pedal smoothly at a comfortable resistance for the prescribed time.",
+    cue: "Keep your shoulders relaxed and avoid rocking your hips."
+  },
+  {
+    id: "treadmill-walk", canonicalName: "Treadmill Walk", aliases: [],
+    equipment: "Treadmill", movementPattern: "Treadmill walking", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV4("treadmill-walk-main.webp") },
+    instructions: "Start the treadmill at a slow speed before stepping onto the belt. Walk upright at a comfortable pace and use only a gentle incline if it feels steady.",
+    cue: "Look forward and stay centered on the belt rather than leaning on the rails."
+  },
+  {
+    id: "march-in-place", canonicalName: "March in Place", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Low-impact march", targetMuscles: "Cardiovascular system, hip flexors and legs",
+    images: { kind: "single", main: imageV4("march-in-place-main.webp") },
+    instructions: "Stand tall and alternate lifting one knee at a time as your arms swing naturally. Keep a comfortable rhythm for the prescribed time.",
+    cue: "Land softly and hold a stable support if balance feels uncertain."
+  },
+  {
+    id: "standing-calf-stretch", canonicalName: "Standing Calf Stretch", aliases: [],
+    equipment: "Wall", movementPattern: "Standing calf stretch", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV4("standing-calf-stretch-main.webp") },
+    instructions: "Place both hands on a wall, step one leg back and keep its heel on the floor. Bend the front knee gently until you feel a calf stretch, then switch sides.",
+    cue: "Keep your back toes pointed forward and never bounce into the stretch."
+  },
+  {
+    id: "single-arm-dumbbell-row", canonicalName: "Single-Arm Dumbbell Row", aliases: [],
+    equipment: "One dumbbell", movementPattern: "Unilateral horizontal pull", targetMuscles: "Upper back and lats",
+    images: { kind: "single", main: imageV4("single-arm-dumbbell-row-main.webp") },
+    instructions: "Take a staggered stance, hinge at your hips and brace your free hand on your front thigh. Pull one dumbbell toward your hip, lower it slowly, then switch sides.",
+    cue: "Keep your back neutral and your torso steady; do not twist to lift the weight."
+  },
+  {
+    id: "anchored-standing-band-row", canonicalName: "Anchored Standing Band Row", aliases: [],
+    equipment: "Long resistance band and secure chest-height anchor", movementPattern: "Standing band horizontal pull", targetMuscles: "Upper back and lats",
+    images: { kind: "single", main: imageV4("anchored-band-row-main.webp") },
+    instructions: "Secure a long band at chest height and face the anchor, holding an end in each hand. Step back for light tension, pull your elbows toward your ribs, then return slowly.",
+    cue: "Check the anchor before starting and keep your shoulders down as you row."
   }
 ] as const;
 
@@ -447,4 +568,25 @@ export function resolveExerciseVisual(name: unknown): ExerciseVisualResolution {
   if (reviewed) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
   if (ambiguousNames.has(key)) return { status: "ambiguous", match: null, exercise: null };
   return { status: "unresolved", match: null, exercise: null };
+}
+
+// Older V2 workouts were saved with broad labels before the reviewed catalog used
+// precise variant names. Apply these mappings only to V2; the original resolver
+// remains intentionally conservative for legacy and AI-generated plans.
+const legacyV2VisualNames: Record<string, string> = {
+  "goblet squat": "Dumbbell Goblet Squat",
+  "leg press": "45-Degree Leg Press",
+  "incline push-up": "Bench Incline Push-Up",
+  "band chest press": "Standing Band Chest Press",
+  "dumbbell row": "Single-Arm Dumbbell Row",
+  "band row": "Anchored Standing Band Row",
+  "reverse lunge": "Bodyweight Reverse Lunge",
+  "pallof press": "Standing Band Pallof Press",
+  "side plank": "Forearm Side Plank",
+  "hip flexor stretch": "Kneeling Hip Flexor Stretch"
+};
+
+export function resolveV2WorkoutExerciseVisual(name: unknown): ExerciseVisualResolution {
+  const normalized = normalizeExerciseVisualName(name);
+  return resolveExerciseVisual(normalized ? legacyV2VisualNames[normalized] ?? name : name);
 }

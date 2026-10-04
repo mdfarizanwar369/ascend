@@ -20,41 +20,41 @@ export function workoutEngineV2Enabled(input: { globallyEnabled: boolean; ownerP
   return input.provider === "gemini" && (input.globallyEnabled || input.ownerPilotEnabled && input.isPlatformOwner);
 }
 
-// This small, reviewed pool is deliberately independent of the optional visual pilot.
-// A visual is a bonus, never a reason to prescribe unsuitable equipment.
-const CATALOG: CatalogExercise[] = [
+// Every V2 movement has a reviewed visual and coaching instructions. Keep equipment
+// requirements accurate so visual coverage never overrides suitability.
+export const V2_WORKOUT_CATALOG: CatalogExercise[] = [
   { name: "Bodyweight Squat", pattern: "squat", kit: ["bodyweight"], reps: "8-12", note: "Move through a comfortable range." },
   { name: "Chair Squat", pattern: "squat", kit: ["household"], reps: "8-12", note: "Tap a sturdy chair lightly before standing." },
   { name: "Wall Sit", pattern: "squat", kit: ["household"], duration: "20-40 sec", note: "Keep the hold comfortable." },
-  { name: "Goblet Squat", pattern: "squat", kit: ["dumbbells", "gym"], reps: "8-12", note: "Keep the weight close to your chest." },
+  { name: "Dumbbell Goblet Squat", pattern: "squat", kit: ["dumbbells", "gym"], reps: "8-12", note: "Keep the weight close to your chest." },
   { name: "Dumbbell Front Squat", pattern: "squat", kit: ["dumbbells", "gym"], reps: "8-10", note: "Use a controlled depth.", advanced: true },
-  { name: "Leg Press", pattern: "squat", kit: ["gym"], reps: "10-12", note: "Do not lock your knees." },
+  { name: "45-Degree Leg Press", pattern: "squat", kit: ["gym"], reps: "10-12", note: "Do not lock your knees." },
   { name: "Glute Bridge", pattern: "hinge", kit: ["bodyweight"], reps: "10-15", note: "Pause briefly at the top." },
   { name: "Single-Leg Glute Bridge", pattern: "hinge", kit: ["bodyweight"], reps: "8 each side", note: "Keep your hips level.", advanced: true },
   { name: "Dumbbell Romanian Deadlift", pattern: "hinge", kit: ["dumbbells", "gym"], reps: "8-12", note: "Hinge at the hips with a neutral back." },
   { name: "Band Good Morning", pattern: "hinge", kit: ["bands"], reps: "10-12", note: "Keep the movement controlled." },
   { name: "Cable Pull-Through", pattern: "hinge", kit: ["gym"], reps: "10-12", note: "Drive through your hips." },
-  { name: "Incline Push-Up", pattern: "push", kit: ["bodyweight"], reps: "6-12", note: "Raise your hands higher if needed." },
+  { name: "Bench Incline Push-Up", pattern: "push", kit: ["household", "gym"], reps: "6-12", note: "Use a stable bench and raise your hands higher if needed." },
   { name: "Wall Push-Up", pattern: "push", kit: ["bodyweight"], reps: "10-15", note: "Keep a straight line through your body." },
   { name: "Push-Up", pattern: "push", kit: ["bodyweight"], reps: "6-12", note: "Stop before form breaks down.", advanced: true },
   { name: "Dumbbell Floor Press", pattern: "push", kit: ["dumbbells", "gym"], reps: "8-12", note: "Keep elbows at a comfortable angle." },
   { name: "Dumbbell Bench Press", pattern: "push", kit: ["gym"], reps: "8-12", note: "Use a weight you can control." },
   { name: "Machine Chest Press", pattern: "push", kit: ["gym"], reps: "8-12", note: "Keep shoulders down and back." },
-  { name: "Band Chest Press", pattern: "push", kit: ["bands"], reps: "10-15", note: "Press smoothly without snapping the band." },
+  { name: "Standing Band Chest Press", pattern: "push", kit: ["bands"], reps: "10-15", note: "Secure the band across your upper back and press smoothly." },
   { name: "Prone W Raise", pattern: "pull", kit: ["bodyweight"], reps: "10-12", note: "Squeeze shoulder blades gently." },
   { name: "Reverse Snow Angel", pattern: "pull", kit: ["bodyweight"], reps: "8-12", note: "Move slowly and stay comfortable." },
-  { name: "Dumbbell Row", pattern: "pull", kit: ["dumbbells", "gym"], reps: "8-12 each side", note: "Pull the elbow toward your hip." },
-  { name: "Band Row", pattern: "pull", kit: ["bands"], reps: "10-15", note: "Anchor the band securely." },
+  { name: "Bent-Over Dumbbell Row", pattern: "pull", kit: ["dumbbells", "gym"], reps: "8-12", note: "Hinge at your hips and pull both elbows toward your ribs." },
+  { name: "Band Bent-Over Row", pattern: "pull", kit: ["bands"], reps: "10-15", note: "Stand on the band and pull both elbows toward your ribs." },
   { name: "Seated Cable Row", pattern: "pull", kit: ["gym"], reps: "10-12", note: "Avoid swinging your torso." },
   { name: "Lat Pulldown", pattern: "pull", kit: ["gym"], reps: "8-12", note: "Pull to the upper chest." },
   { name: "Supported Split Squat", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Hold a stable support if needed." },
-  { name: "Reverse Lunge", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Step back far enough to stay balanced." },
+  { name: "Bodyweight Reverse Lunge", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Step back far enough to stay balanced." },
   { name: "Low Step-Up", pattern: "single_leg", kit: ["household"], reps: "8 each side", note: "Use a sturdy low step." },
   { name: "Dumbbell Reverse Lunge", pattern: "single_leg", kit: ["dumbbells", "gym"], reps: "8 each side", note: "Start light and stay balanced.", advanced: true },
-  { name: "Pallof Press", pattern: "core", kit: ["bands", "gym"], reps: "10 each side", note: "Resist rotation as you press." },
+  { name: "Standing Band Pallof Press", pattern: "core", kit: ["bands"], reps: "10 each side", note: "Secure the band at chest height and resist rotation as you press." },
   { name: "Dead Bug", pattern: "core", kit: ["bodyweight"], reps: "8 each side", note: "Keep your lower back comfortable." },
   { name: "Bird-Dog", pattern: "core", kit: ["bodyweight"], reps: "8 each side", note: "Reach long without twisting." },
-  { name: "Side Plank", pattern: "core", kit: ["bodyweight"], duration: "20-30 sec each side", note: "Bend the lower knee if needed.", advanced: true },
+  { name: "Forearm Side Plank", pattern: "core", kit: ["bodyweight"], duration: "20-30 sec each side", note: "Bend the lower knee if needed.", advanced: true },
   { name: "Forearm Plank", pattern: "core", kit: ["bodyweight"], duration: "20-40 sec", note: "Breathe steadily." },
   { name: "Easy Walk", pattern: "cardio", kit: ["bodyweight", "outdoor"], duration: "8-15 min", note: "Keep a conversational pace." },
   { name: "Brisk Walk", pattern: "cardio", kit: ["bodyweight", "outdoor"], duration: "8-15 min", note: "Walk at a sustainable pace." },
@@ -63,18 +63,30 @@ const CATALOG: CatalogExercise[] = [
   { name: "March in Place", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Move at a comfortable pace." },
   { name: "Cat-Cow", pattern: "mobility", kit: ["bodyweight"], reps: "6-10", note: "Move gently with your breath." },
   { name: "Thread the Needle", pattern: "mobility", kit: ["bodyweight"], reps: "6 each side", note: "Rotate only as far as comfortable." },
-  { name: "Hip Flexor Stretch", pattern: "mobility", kit: ["bodyweight"], duration: "30 sec each side", note: "Keep the stretch gentle." },
+  { name: "Kneeling Hip Flexor Stretch", pattern: "mobility", kit: ["bodyweight"], duration: "30 sec each side", note: "Keep the stretch gentle." },
   { name: "Child's Pose", pattern: "mobility", kit: ["bodyweight"], duration: "30-60 sec", note: "Breathe slowly." },
   { name: "Standing Calf Stretch", pattern: "mobility", kit: ["bodyweight"], duration: "30 sec each side", note: "Keep the heel down." }
 ];
 
 function key(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
     .replace(/^bodyweight /, "").replace(/^dumbbell /, "").replace(/^band /, "");
+  // Retain history and avoid-list matching for V2 plans saved before variants
+  // received precise names and reviewed illustrations.
+  return ({
+    "45 degree leg press": "leg press",
+    "bench incline push up": "incline push up",
+    "standing band chest press": "chest press",
+    "bent over dumbbell row": "row",
+    "band bent over row": "row",
+    "standing band pallof press": "pallof press",
+    "forearm side plank": "side plank",
+    "kneeling hip flexor stretch": "hip flexor stretch"
+  } as Record<string, string>)[normalized] ?? normalized;
 }
 
 function patternFor(name: string): Pattern | null {
-  const known = CATALOG.find(item => key(item.name) === key(name));
+  const known = V2_WORKOUT_CATALOG.find(item => key(item.name) === key(name));
   if (known) return known.pattern;
   const value = name.toLowerCase();
   if (/squat|leg press|wall sit/.test(value)) return "squat";
@@ -171,7 +183,7 @@ export function buildWorkoutBlueprint(input: {
     note: item.note
   });
   const exercises = patterns.map((pattern, index) => {
-    const choices = CATALOG.filter(item => item.pattern === pattern && item.kit.some(value => kit.has(value)) && (!input.conservative || !item.advanced));
+    const choices = V2_WORKOUT_CATALOG.filter(item => item.pattern === pattern && item.kit.some(value => kit.has(value)) && (!input.conservative || !item.advanced));
     const ranked = choices.map(item => ({ item, score:
       (selected.has(key(item.name)) ? 1000 : 0) +
       (avoided.has(key(item.name)) ? 200 : 0) +
@@ -180,7 +192,7 @@ export function buildWorkoutBlueprint(input: {
       (!recovery && item.kit.includes(preferredKit) ? -8 : 0) +
       (hash(`${today}:${pattern}:${item.name}`) % 7)
     })).sort((a, b) => a.score - b.score || a.item.name.localeCompare(b.item.name));
-    const chosen = ranked[0]?.item ?? CATALOG.find(item => item.pattern === pattern)!;
+    const chosen = ranked[0]?.item ?? V2_WORKOUT_CATALOG.find(item => item.pattern === pattern)!;
     selected.add(key(chosen.name));
     const alternatives = ranked.slice(1).filter(choice => !selected.has(key(choice.item.name))).slice(0, 3).map(choice => prescribe(choice.item));
     const recentAnchor = allNames.includes(key(chosen.name)) && !recentNames.includes(key(chosen.name));

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { applyWorkoutBlueprint, buildWorkoutBlueprint, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
+import { applyWorkoutBlueprint, buildWorkoutBlueprint, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, V2_WORKOUT_CATALOG, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
+import { resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 
 const base = { goal: "strength", location: "home", equipment: "Bodyweight", timeAvailable: "30", today: "2026-10-03" };
 const plan: CoachWorkoutPlan = {
@@ -10,6 +11,35 @@ const plan: CoachWorkoutPlan = {
 };
 
 describe("Zoe workout engine V2", () => {
+  it("has reviewed pictures and coaching instructions for every plan and swap movement", () => {
+    expect(V2_WORKOUT_CATALOG).toHaveLength(43);
+    for (const item of V2_WORKOUT_CATALOG) {
+      const visual = resolveExerciseVisual(item.name);
+      expect(visual.status, item.name).toBe("resolved");
+      if (visual.status !== "resolved") continue;
+      expect(visual.exercise.instructions.length, item.name).toBeGreaterThan(60);
+      expect(visual.exercise.cue.length, item.name).toBeGreaterThan(15);
+      expect(visual.exercise.equipment.length, item.name).toBeGreaterThan(0);
+      expect(visual.exercise.targetMuscles.length, item.name).toBeGreaterThan(0);
+      expect(visual.exercise.images.kind === "single" ? visual.exercise.images.main : visual.exercise.images.start, item.name).toMatch(/^\/exercise-visuals\/.+\.webp$/);
+    }
+  });
+
+  it("also illustrates older saved V2 workouts without broadening V1 exercise matching", () => {
+    for (const name of ["Goblet Squat", "Leg Press", "Incline Push-Up", "Band Chest Press", "Dumbbell Row", "Band Row", "Reverse Lunge", "Pallof Press", "Side Plank", "Hip Flexor Stretch"]) {
+      expect(resolveV2WorkoutExerciseVisual(name).status, name).toBe("resolved");
+    }
+    expect(resolveExerciseVisual("Leg Press").status).toBe("ambiguous");
+    expect(resolveExerciseVisual("Dumbbell Row").status).toBe("unresolved");
+  });
+
+  it("keeps old and precise exercise names equivalent in the rotation avoid list", () => {
+    const options = { ...base, location: "gym", equipment: "Full Gym", recentWorkouts: [] };
+    const oldNames = buildWorkoutBlueprint({ ...options, avoidExercises: ["Leg Press", "Dumbbell Row", "Goblet Squat"] });
+    const preciseNames = buildWorkoutBlueprint({ ...options, avoidExercises: ["45-Degree Leg Press", "Bent-Over Dumbbell Row", "Dumbbell Goblet Squat"] });
+    expect(oldNames.exercises.map(exercise => exercise.name)).toEqual(preciseNames.exercises.map(exercise => exercise.name));
+  });
+
   it("stays off for everyone by default and only runs on Gemini", () => {
     expect(workoutEngineV2Enabled({ globallyEnabled: false, ownerPilotEnabled: false, isPlatformOwner: true, provider: "gemini" })).toBe(false);
     expect(workoutEngineV2Enabled({ globallyEnabled: false, ownerPilotEnabled: true, isPlatformOwner: false, provider: "gemini" })).toBe(false);
@@ -76,7 +106,7 @@ describe("Zoe workout engine V2", () => {
     const blueprint = buildWorkoutBlueprint({ ...base, location: "outdoors", recentWorkouts: [] });
     const allChoices = blueprint.exercises.flatMap(exercise => [exercise, ...(exercise.alternatives ?? [])]);
     expect(allChoices.length).toBeGreaterThan(blueprint.exercises.length);
-    expect(allChoices.map(exercise => exercise.name)).not.toEqual(expect.arrayContaining(["Leg Press", "Chair Squat", "Dumbbell Row", "Band Row"]));
+    expect(allChoices.map(exercise => exercise.name)).not.toEqual(expect.arrayContaining(["45-Degree Leg Press", "Chair Squat", "Bent-Over Dumbbell Row", "Band Bent-Over Row"]));
     expect(allChoices.every(exercise => Boolean(exercise.reps || exercise.duration))).toBe(true);
   });
 
@@ -85,7 +115,7 @@ describe("Zoe workout engine V2", () => {
     expect(full.exercises.filter(exercise => /Dumbbell|Press|Cable|Pulldown/.test(exercise.name)).length).toBeGreaterThanOrEqual(2);
     const limited = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Limited Gym", recentWorkouts: [] });
     expect(limited.exercises.flatMap(exercise => [exercise.name, ...(exercise.alternatives ?? []).map(item => item.name)])).not.toEqual(
-      expect.arrayContaining(["Leg Press", "Seated Cable Row", "Lat Pulldown", "Machine Chest Press"])
+      expect.arrayContaining(["45-Degree Leg Press", "Seated Cable Row", "Lat Pulldown", "Machine Chest Press"])
     );
   });
 
