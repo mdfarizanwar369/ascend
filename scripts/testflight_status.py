@@ -158,11 +158,14 @@ for build in builds:
             print("ASSIGNMENT", json.dumps({"status": status, "verified": build_id in new_ids}))
     matching_owner_testers = {tester["id"]: tester for tester in matching_owner_testers}
     print("OWNER_TESTER_MATCHES", len(matching_owner_testers))
+    print("OWNER_TESTER_STATES", sorted(
+        tester.get("attributes", {}).get("state", "UNKNOWN") for tester in matching_owner_testers.values()
+    ))
     if os.environ.get("ASC_ASSIGN_OWNER_BUILD") == "true" and (
         version == "1.4"
         and attrs.get("version") == build_number
         and attrs.get("processingState") == "VALID"
-        and detail.get("internalBuildState") == "READY_FOR_BETA_TESTING"
+        and detail.get("internalBuildState") in {"READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}
         and len(matching_owner_testers) == 1
     ):
         owner_tester = next(iter(matching_owner_testers.values()))
