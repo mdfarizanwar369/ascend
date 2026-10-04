@@ -123,8 +123,7 @@ struct AscendSiriShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: AscendAskIntent(), phrases: [
             "Ask \(.applicationName) a question",
-            "Ask \(.applicationName) about my day",
-            "Ask \(.applicationName) \(\.$question)"
+            "Ask \(.applicationName) about my day"
         ], shortTitle: "Ask Ascend", systemImageName: "questionmark.bubble")
         AppShortcut(intent: AscendCaloriesLeftIntent(), phrases: [
             "Ask \(.applicationName) how many calories I can eat now",
