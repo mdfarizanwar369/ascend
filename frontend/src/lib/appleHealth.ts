@@ -16,6 +16,7 @@ export interface AppleHealthNativeStatus {
   connectionGeneration: string | null;
   lastReadAt: string | null;
   pendingCount: number;
+  paused: boolean;
 }
 export const AppleHealth = registerPlugin<{
   status(): Promise<AppleHealthNativeStatus>;
@@ -25,6 +26,7 @@ export const AppleHealth = registerPlugin<{
   peek(input: { accountId: string }): Promise<{ packet: HealthActivityImport | null; pendingCount: number }>;
   acknowledge(input: { accountId: string; requestId: string }): Promise<void>;
   disconnect(): Promise<void>;
+  pause(): Promise<void>;
 }>("AscendHealth");
 
 export function hasAppleHealthBridge() {
@@ -50,6 +52,7 @@ export async function connectAppleHealth(select = false) {
   const [native,me] = await Promise.all([AppleHealth.status(),getMe()]);
   if (!uid || getFirebaseClientAuth().currentUser?.uid !== uid) throw new Error("Sign in before connecting Apple Health.");
   await AppleHealth.requestAccess();
+  if (getFirebaseClientAuth().currentUser?.uid !== uid) throw new Error("Your account changed. Connect again.");
   const connected = await connectHealthActivity({ installationId:native.installationId,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
     consentVersion:HEALTH_ACTIVITY_CONSENT_VERSION,consented:true,select });
   if (getFirebaseClientAuth().currentUser?.uid !== uid) throw new Error("Your account changed. Connect again.");
@@ -65,12 +68,18 @@ export function runAppleHealthSync(force = false): Promise<void> {
     const uid = getFirebaseClientAuth().currentUser?.uid;
     if (!uid) { await AppleHealth.disconnect(); return; }
     const [native,server,me] = await Promise.all([AppleHealth.status(),getHealthActivityStatus(),getMe()]);
-    if (!server.status.enabled) { await AppleHealth.disconnect(); return; }
+    // A rollout pause stops uploads without destroying the protected outbox.
+    if (!server.status.enabled) { await AppleHealth.pause(); return; }
     if (!native.connected) return;
     const connection = server.status.connections.find(item => item.installationId === native.installationId && item.connected);
     if (native.accountId !== me.user.id || !connection || native.connectionGeneration !== connection.generation) {
       await AppleHealth.disconnect();
       return;
+    }
+    if (getFirebaseClientAuth().currentUser?.uid !== uid) { await AppleHealth.disconnect(); return; }
+    if (native.paused && server.status.calendarGeneration && server.status.timezone) {
+      await AppleHealth.configure({ accountId:me.user.id,installationId:native.installationId,connectionGeneration:connection.generation,
+        calendarGeneration:server.status.calendarGeneration,timezone:server.status.timezone });
     }
     await AppleHealth.collect();
     for (let chunk = 0; chunk < 20; chunk++) {

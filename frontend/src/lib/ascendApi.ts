@@ -24,7 +24,7 @@ import {
 } from "@ascend/shared";
 import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
-import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus } from "@ascend/shared";
+import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown } from "@ascend/shared";
 
 export interface ProgressComparison {
   periodDays: number;
@@ -651,8 +651,8 @@ export function saveHabitLog(input: { habitId: string; completed?: boolean; logg
   });
 }
 
-export function getComplianceToday() {
-  return authedCached<{
+export async function getComplianceToday() {
+  const [base,privateActivity] = await Promise.all([authedCached<{
     compliance: {
       id: string;
       score: number;
@@ -674,7 +674,16 @@ export function getComplianceToday() {
       score_version?: "v2";
       calculated_for_date: string;
     } | null;
-  }>("dashboard:compliance-today", "/compliance/today", 15_000);
+  }>("dashboard:compliance-today", "/compliance/today", 15_000),getPrivateHealthInsights().catch(() => null)]);
+  const score = privateActivity?.momentum;
+  if (!score || !base.compliance) return base;
+  // This override is for the signed-in member's own screen only. No Health-
+  // derived score is written into the shared server/trainer/AI score tables.
+  return { compliance:{ ...base.compliance,score:score.score,fuel_score:score.fuelScore,move_score:score.moveScore,
+    recover_score:score.recoverScore,focus_score:score.focusScore,fuel_status:score.fuelStatus,move_status:score.moveStatus,
+    recover_status:score.recoverStatus,focus_status:score.focusStatus,focus_active:score.focusActive,
+    food_score:score.fuelScore,weight_score:score.moveScore,water_score:score.recoverScore,habit_score:score.focusScore ?? 0,
+    period_start:score.periodStart,period_end:score.periodEnd,score_version:score.scoreVersion,calculated_for_date:score.periodEnd } };
 }
 
 export function getMyStreak() {
@@ -817,6 +826,16 @@ export async function saveHealthManualAdjustment(activityId: string, activeCalor
 }
 export function getDailyActivity(day?: string) {
   return authed<{ summary: DailyActivitySummary | null }>(`/activity/daily${day ? `?day=${encodeURIComponent(day)}` : ""}`);
+}
+export function getPrivateHealthInsights() {
+  return authedCached<{ days:DailyActivitySummary[]; momentum:MomentumV2Breakdown | null }>("health:private-insights","/activity/private-insights",15_000);
+}
+export async function selectHealthActivitySource(installationId: string) {
+  const result = await authed<{ requested:boolean }>("/health-sync/v2/select-source",{ method:"POST",body:JSON.stringify({ installationId }) });
+  clearAscendResponseCache(); return result;
+}
+export function exportHealthActivity() {
+  return authed<Record<string,unknown>>("/health-sync/v2/export");
 }
 
 export function importHealthSync(input: {

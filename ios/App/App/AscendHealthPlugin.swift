@@ -12,6 +12,7 @@ public class AscendHealthPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "collect", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "peek", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "acknowledge", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "pause", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise)
     ]
 
@@ -50,5 +51,8 @@ public class AscendHealthPlugin: CAPPlugin, CAPBridgedPlugin {
     }
     @objc func disconnect(_ call: CAPPluginCall) {
         Task { do { try await AscendHealthService.shared.disconnect(); call.resolve() } catch { fail(call,error) } }
+    }
+    @objc func pause(_ call: CAPPluginCall) {
+        Task { do { try await AscendHealthService.shared.pause(); call.resolve() } catch { fail(call,error) } }
     }
 }

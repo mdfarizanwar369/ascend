@@ -102,6 +102,26 @@ test("App Store icon is 1024px and opaque", async () => {
   assert.equal(icon.hasAlpha, false);
 });
 
+test("Apple Health bridge is read-only, private and registered in the native app", () => {
+  const project = read("ios/App/App.xcodeproj/project.pbxproj");
+  for (const file of ["AscendHealthService.swift", "AscendHealthPlugin.swift", "AscendHealthSyncStore.swift"]) {
+    assert.match(project,new RegExp(`${file.replace(".","\\.")} in Sources`));
+  }
+  assert.match(read("ios/App/App/App.entitlements"),/com.apple.developer.healthkit.background-delivery/);
+  const info = read("ios/App/App/Info.plist");
+  assert.match(info,/NSHealthShareUsageDescription/);
+  assert.doesNotMatch(info,/NSHealthUpdateUsageDescription/);
+  const service = read("ios/App/App/AscendHealthService.swift");
+  assert.match(service,/requestAuthorization\(toShare: \[\], read: readTypes\)/);
+  assert.doesNotMatch(service,/\.heartRate|\.sleepAnalysis|\.basalEnergyBurned|\.dietaryEnergyConsumed/);
+  assert.match(service,/completion\(\)/);
+  const store = read("ios/App/App/AscendHealthSyncStore.swift");
+  assert.match(store,/completeFileProtection/);
+  assert.match(store,/isExcludedFromBackup = true/);
+  assert.match(read("ios/App/App/AscendViewController.swift"),/AscendHealthPlugin\(\)/);
+  assert.match(read("ios/App/App/AppDelegate.swift"),/AscendHealthService.shared.restore/);
+});
+
 test("iOS packages its own startup/offline copy without other-platform promotion", () => {
   const ios = config({ CAPACITOR_PLATFORM: "ios" });
   const android = config({});

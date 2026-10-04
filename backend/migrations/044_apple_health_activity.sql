@@ -14,6 +14,7 @@ create table health_activity_sources (
   consent_version text not null,
   connected boolean not null default true,
   selected boolean not null default false,
+  pending_selection boolean not null default false,
   last_sequence bigint not null default -1,
   last_uploaded_at timestamptz,
   disconnected_at timestamptz,

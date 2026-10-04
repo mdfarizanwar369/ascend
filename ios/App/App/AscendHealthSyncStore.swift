@@ -49,6 +49,7 @@ struct AscendHealthStoreState: Codable {
     var pending: [AscendHealthPacket] = []
     var lastReadAt: String?
     var historyStartAt: String?
+    var paused: Bool? = false
 }
 
 // No Firebase token, Apple identifier, raw sensor series or analytics data is stored here.

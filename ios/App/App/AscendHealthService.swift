@@ -19,6 +19,7 @@ actor AscendHealthService {
             "installationId": storage.installationId, "connected": state.configuration != nil,
             "accountId": state.configuration?.accountId as Any? ?? NSNull(),
             "connectionGeneration": state.configuration?.connectionGeneration as Any? ?? NSNull(),
+            "paused": state.paused == true,
             "pendingCount": state.pending.count, "lastReadAt": state.lastReadAt as Any? ?? NSNull()]
     }
 
@@ -44,12 +45,13 @@ actor AscendHealthService {
             state = AscendHealthStoreState()
         }
         state.configuration = config
+        state.paused = false
         try storage.save(state)
         installObservers()
     }
 
     func restore() {
-        guard HKHealthStore.isHealthDataAvailable(), let state = try? storage.load(), state.configuration != nil else { return }
+        guard HKHealthStore.isHealthDataAvailable(), let state = try? storage.load(), state.configuration != nil, state.paused != true else { return }
         installObservers()
     }
 
@@ -71,12 +73,23 @@ actor AscendHealthService {
     }
 
     func disconnect() async throws {
+        stopObservers()
+        try storage.clear()
+    }
+
+    func pause() throws {
+        var state = try storage.load()
+        state.paused = true
+        try storage.save(state)
+        stopObservers()
+    }
+
+    private func stopObservers() {
         for observer in observers { health.stop(observer) }
         observers.removeAll()
         for type in readTypes {
             health.disableBackgroundDelivery(for: type) { _, _ in }
         }
-        try storage.clear()
     }
 
     func peek(accountId: String) throws -> [String: Any] {
@@ -113,6 +126,7 @@ actor AscendHealthService {
         defer { collecting = false }
         var state = try storage.load()
         guard let config = state.configuration else { throw AscendHealthError.disconnected }
+        guard state.paused != true else { return try peek(accountId: config.accountId) }
         if !state.pending.isEmpty { return try peek(accountId: config.accountId) }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: config.timezone)!
@@ -135,7 +149,7 @@ actor AscendHealthService {
             let start = calendar.date(byAdding: .day, value: offset, to: firstDay)!
             let end = calendar.date(byAdding: .day, value: 1, to: start)!
             let key = dayFormat.string(from: start)
-            let step = values.0[key]
+            let step = values.0[key].map { $0.rounded() }
             let energy = values.1[key]
             snapshots.append(AscendHealthSnapshot(day: key, timezone: config.timezone, windowStart: iso(start),
                 windowEnd: iso(end), observedAt: observedAt, steps: step, stepsState: step == nil ? "unavailable" : "observed",
@@ -168,7 +182,9 @@ actor AscendHealthService {
         // Recheck after asynchronous queries: disconnect or an account change must cancel the read.
         let current = try storage.load()
         guard current.configuration?.accountId == config.accountId,
-            current.configuration?.connectionGeneration == config.connectionGeneration else { throw AscendHealthError.accountChanged }
+            current.configuration?.connectionGeneration == config.connectionGeneration,
+            current.configuration?.calendarGeneration == config.calendarGeneration,
+            current.paused != true else { throw AscendHealthError.accountChanged }
         var remainingSnapshots = snapshots
         var remainingWorkouts = workouts
         var remainingDeletes = deletedIds
@@ -194,8 +210,11 @@ actor AscendHealthService {
     private func dailyValues(type: HKQuantityType, unit: HKUnit, start: Date, end: Date, calendar: Calendar) async throws -> [String: Double] {
         try await withCheckedThrowingContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: [])
+            var interval = DateComponents(day: 1)
+            interval.calendar = calendar
+            interval.timeZone = calendar.timeZone
             let query = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate,
-                options: .cumulativeSum, anchorDate: start, intervalComponents: DateComponents(day: 1))
+                options: .cumulativeSum, anchorDate: start, intervalComponents: interval)
             query.initialResultsHandler = { _, collection, error in
                 if let error {
                     if (error as NSError).domain == HKErrorDomain && (error as NSError).code == HKError.Code.errorAuthorizationDenied.rawValue {
@@ -224,7 +243,12 @@ actor AscendHealthService {
         try await withCheckedThrowingContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(withStart: start, end: nil, options: [.strictStartDate])
             let query = HKAnchoredObjectQuery(type: .workoutType(), predicate: predicate, anchor: anchor, limit: 200) { _, samples, deleted, nextAnchor, error in
-                if let error { continuation.resume(throwing: error); return }
+                if let error {
+                    if (error as NSError).domain == HKErrorDomain && (error as NSError).code == HKError.Code.errorAuthorizationDenied.rawValue {
+                        continuation.resume(returning: ([], [], anchor))
+                    } else { continuation.resume(throwing: error) }
+                    return
+                }
                 continuation.resume(returning: (samples as? [HKWorkout] ?? [], deleted ?? [], nextAnchor))
             }
             health.execute(query)

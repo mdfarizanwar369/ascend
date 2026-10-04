@@ -4,7 +4,8 @@ import { useEffect,useState } from "react";
 import type { HealthActivityStatus } from "@ascend/shared";
 import { BackButton } from "@/components/BackButton";
 import { AppleHealth,connectAppleHealth,disconnectAppleHealth,runAppleHealthSync,type AppleHealthNativeStatus } from "@/lib/appleHealth";
-import { getHealthActivityStatus,saveHealthManualAdjustment } from "@/lib/ascendApi";
+import { getHealthActivityStatus,saveHealthManualAdjustment,selectHealthActivitySource,exportHealthActivity } from "@/lib/ascendApi";
+import { PrivateActivityHistory } from "./PrivateActivityHistory";
 
 export function AppleHealthClient() {
   const [server,setServer] = useState<HealthActivityStatus | null>(null);
@@ -20,7 +21,13 @@ export function AppleHealthClient() {
     const [backend,device] = await Promise.all([getHealthActivityStatus(),AppleHealth.status()]);
     setServer(backend.status); setNative(device);
   }
-  useEffect(() => { void refresh().then(() => setMessage("")).catch(() => setMessage("Could not load Apple Health. Please try again.")); },[]);
+  useEffect(() => {
+    const updated = () => { void refresh().catch(() => setMessage("Could not load Apple Health. Please try again.")); };
+    const failed = () => setMessage("Automatic Health sync could not complete. Unlock your device, check your connection and try Sync now. Last uploaded values are retained.");
+    void refresh().then(() => setMessage("")).catch(failed);
+    window.addEventListener("ascend:health-updated",updated); window.addEventListener("ascend:health-sync-error",failed);
+    return () => { window.removeEventListener("ascend:health-updated",updated); window.removeEventListener("ascend:health-sync-error",failed); };
+  },[]);
   async function act(action: () => Promise<unknown>,success: string) {
     setWorking(true); setMessage("");
     try { await action(); await refresh(); setMessage(success); }
@@ -32,6 +39,12 @@ export function AppleHealthClient() {
   const selectedElsewhere = server?.connections.some(connection => connection.selected && connection.installationId !== native?.installationId);
   const summary = server?.summary;
   const format = (date: string | null | undefined) => date ? new Date(date).toLocaleString() : "Not yet synced";
+  async function exportHistory() {
+    const data = await exportHealthActivity();
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{ type:"application/json" }));
+    const link = document.createElement("a"); link.href=url; link.download="ascend-private-health-export.json"; link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url),1000);
+  }
 
   return <main className="min-h-screen bg-ink px-4 py-5 text-white"><div className="mx-auto max-w-md">
     <header className="flex items-center gap-3 py-3"><BackButton fallbackHref="/profile" /><h1 className="text-2xl font-semibold">Apple Health</h1></header>
@@ -41,6 +54,8 @@ export function AppleHealthClient() {
       <p className="mt-4 font-semibold">{connected ? current?.selected ? "Connected on this device" : "Connected · another device supplies the daily total" : "Not connected"}</p>
       <p className="mt-2 text-xs text-zinc-400">Last device read: {format(native?.lastReadAt)}</p>
       <p className="mt-1 text-xs text-zinc-400">Last account upload: {format(current?.lastUploadedAt)}</p>
+      {server?.timezone && <p className="mt-1 text-xs text-zinc-400">Reporting timezone: {server.timezone}. Travelling does not silently move your existing daily history.</p>}
+      {current?.pendingSelection && <p className="mt-2 text-sm text-amber">Waiting for readable daily energy before switching this account's source.</p>}
       {(native?.pendingCount ?? 0) > 0 && <p className="mt-2 text-sm text-amber">Updates are waiting to upload. Open Ascend with an internet connection to sync.</p>}
       {!connected && <>
         <label className="mt-5 flex items-start gap-3 text-sm leading-6"><input type="checkbox" checked={uploadConsent} onChange={event => setUploadConsent(event.target.checked)} className="mt-1" />I agree to store these imported records in my Ascend account for my dashboard and reports. This does not authorize sharing them with AI, trainers or advertising services.</label>
@@ -48,6 +63,7 @@ export function AppleHealthClient() {
         <button type="button" disabled={working || !uploadConsent || !server?.enabled || !native?.available} onClick={() => void act(() => connectAppleHealth(selectDevice),"Connection saved. Available records are synced; missing categories may have no readable data.")} className="mt-5 min-h-12 w-full rounded-xl bg-lime px-3 font-semibold text-ink disabled:opacity-50">Connect Apple Health</button>
       </>}
       {connected && <button type="button" disabled={working} onClick={() => void act(() => runAppleHealthSync(true),"Available Health records refreshed.")} className="mt-5 min-h-12 w-full rounded-xl bg-lime font-semibold text-ink disabled:opacity-50">{working ? "Syncing…" : "Sync now"}</button>}
+      {connected && !current?.selected && !current?.pendingSelection && <button type="button" disabled={working} onClick={() => void act(async () => { await selectHealthActivitySource(native!.installationId); await runAppleHealthSync(true); },"Source switch requested. Your old total stays until this device supplies readable daily energy.")} className="mt-3 min-h-11 w-full rounded-xl border border-line px-3 text-sm">Use this device for daily activity</button>}
       {!server?.enabled && server !== null && <p className="mt-3 text-sm text-amber">Apple Health is not enabled for this account yet.</p>}
     </section>
     <section className="mt-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">Today's activity</h2>
@@ -65,10 +81,13 @@ export function AppleHealthClient() {
         </>}
       </div>)}
       {(summary?.manualActiveCalories ?? 0) > 0 && <p className="mt-3 text-sm text-zinc-300">Includes {Math.round(summary!.manualActiveCalories)} estimated kcal from eligible manual activity.</p>}
+      {summary?.manualAdjustments?.map(entry => <div key={entry.id} className="mt-3 rounded-xl border border-line p-3"><p className="text-sm">{entry.label} · {Math.round(entry.activeCalories)} estimated active kcal</p><button type="button" disabled={working} onClick={() => void act(() => saveHealthManualAdjustment(entry.id,null,false),"Untracked adjustment removed. Your manual log is unchanged.")} className="mt-2 min-h-11 rounded-lg border border-line px-3 text-sm">Remove untracked adjustment</button></div>)}
     </section>
+    <PrivateActivityHistory />
     <section className="mt-4 rounded-2xl border border-line bg-surface p-5"><h2 className="font-semibold">Privacy and connection</h2>
       <p className="mt-3 text-sm leading-6 text-zinc-400">This release does not send Apple Health imports to AI or trainer views. Background updates may wait until you open Ascend to upload. You can review Ascend's access in Apple's Health settings.</p>
       <p className="mt-2 text-xs text-zinc-400">Disconnect stops future sync but keeps imported history. Deleting imported history preserves your manual logs and does not delete anything from Apple Health.</p>
+      <button type="button" disabled={working || !current} onClick={() => void act(exportHistory,"Imported history exported. Keep this private file secure.")} className="mt-4 min-h-11 w-full rounded-xl border border-line text-sm disabled:opacity-50">Export imported history</button>
       <button type="button" disabled={working || !current?.connected} onClick={() => void act(() => disconnectAppleHealth(),"Disconnected. Imported history is retained.")} className="mt-4 min-h-11 w-full rounded-xl border border-amber/40 text-amber disabled:opacity-50">Disconnect</button>
       <label className="mt-5 flex items-start gap-3 text-sm"><input type="checkbox" checked={deleteConfirm} onChange={event => setDeleteConfirm(event.target.checked)} />Delete this device's imported history from Ascend and stop syncing. Manual logs remain.</label>
       <button type="button" disabled={working || !deleteConfirm || !current} onClick={() => void act(() => disconnectAppleHealth(true),"Imported history deleted from Ascend. Apple Health and manual logs are unchanged.")} className="mt-3 min-h-11 w-full rounded-xl border border-rose-400/40 text-rose-300 disabled:opacity-50">Delete imported history</button>

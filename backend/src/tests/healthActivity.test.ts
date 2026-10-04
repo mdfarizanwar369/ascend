@@ -22,7 +22,10 @@ describe("daily active calorie reconciliation",() => {
   it("preserves distinct overlapping workouts",() => expect(summary({ workouts:[workout,{ ...workout,externalId:"other" }] }).workoutCount).toBe(2));
   it("does not add an estimate of unknown energy basis",() => expect(summary({ manual:[{ ...manual,untracked:true,activeCalories:null }] }).displayedCalories).toBe(600));
   it("retains labelled legacy estimates in manual-only mode",() => expect(summary({ snapshot:null,workouts:[],manual:[{ ...manual,activeCalories:null }] })).toMatchObject({ displayedCalories:350,energyBasis:"mixed_estimate" }));
-  it("allows only post-disconnect manual additions",() => expect(summary({ disconnectedAt:"2026-10-04T07:00:00Z",manual:[manual,{ ...manual,id:"later",occurredAt:"2026-10-04T08:00:00Z" }] }).displayedCalories).toBe(900));
+  it("allows only proven post-disconnect manual additions",() => expect(summary({ disconnectedAt:"2026-10-04T07:00:00Z",manual:[manual,{ ...manual,id:"later",occurredAt:"2026-10-04T08:00:00Z",startedAt:"2026-10-04T07:30:00Z" }] }).displayedCalories).toBe(900));
+  it("does not mistake a late manual log for activity after disconnect",() => expect(summary({ disconnectedAt:"2026-10-04T07:00:00Z",manual:[{ ...manual,occurredAt:"2026-10-04T08:00:00Z" }] }).displayedCalories).toBe(600));
+  it("conservatively excludes uncertain manual overlap in workout-only mode",() => expect(summary({ snapshot:null,manual:[manual] })).toMatchObject({ displayedCalories:350,workoutCount:1,coverage:"workouts_only" }));
+  it("exposes confirmed adjustments so they can be removed",() => expect(summary({ manual:[{ ...manual,untracked:true }] }).manualAdjustments).toEqual([{ id:manual.id,label:manual.label,activeCalories:300 }]));
   it("handles no records without fabricating observations",() => expect(summary({ snapshot:null,workouts:[] })).toMatchObject({ displayedCalories:null,coverage:"unavailable" }));
 });
 describe("energy and calendar utilities",() => {
@@ -39,4 +42,8 @@ describe("import validation",() => {
   it("rejects too many combined records",() => expect(healthActivityImportSchema.safeParse({ ...base(),deletedWorkoutIds:Array.from({ length:201 },(_,i) => String(i)) }).success).toBe(false));
   it("rejects a fictional date and timezone",() => expect(healthActivityImportSchema.safeParse({ ...base(),snapshots:[{ ...snapshot,day:"2026-02-30",timezone:"fiction" }] }).success).toBe(false));
   it("rejects incomplete observed states",() => expect(healthActivityImportSchema.safeParse({ ...base(),snapshots:[{ ...snapshot,activeCalories:null }] }).success).toBe(false));
+  it("rejects a partial 23-hour window in a non-DST timezone",() => expect(healthActivityImportSchema.safeParse({ ...base(),snapshots:[{ ...snapshot,windowStart:"2026-10-03T17:00:00Z" }] }).success).toBe(false));
+  it("accepts an original offline observation without altering its payload",() => expect(healthActivityImportSchema.safeParse({ ...base(),snapshots:[{ ...snapshot,day:"2026-08-01",windowStart:"2026-07-31T16:00:00Z",windowEnd:"2026-08-01T16:00:00Z",observedAt:"2026-08-01T08:00:00Z" }] }).success).toBe(true));
+  it("accepts a real 23-hour spring DST day",() => expect(healthActivityImportSchema.safeParse({ ...base(),snapshots:[{ ...snapshot,day:"2026-03-08",timezone:"America/New_York",windowStart:"2026-03-08T05:00:00Z",windowEnd:"2026-03-09T04:00:00Z",observedAt:"2026-03-09T03:00:00Z" }] }).success).toBe(true));
+  it("accepts a real 25-hour autumn DST day",() => expect(healthActivityImportSchema.safeParse({ ...base(),snapshots:[{ ...snapshot,day:"2025-11-02",timezone:"America/New_York",windowStart:"2025-11-02T04:00:00Z",windowEnd:"2025-11-03T05:00:00Z",observedAt:"2025-11-03T03:00:00Z" }] }).success).toBe(true));
 });

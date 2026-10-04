@@ -797,10 +797,12 @@ export function ClientDashboard() {
 
     window.addEventListener("focus", refreshDashboard);
     window.addEventListener("pageshow", refreshDashboard);
+    window.addEventListener("ascend:health-updated", refreshDashboard);
 
     return () => {
       window.removeEventListener("focus", refreshDashboard);
       window.removeEventListener("pageshow", refreshDashboard);
+      window.removeEventListener("ascend:health-updated", refreshDashboard);
     };
   }, [loadDashboard]);
 
@@ -1902,7 +1904,12 @@ export function ClientDashboard() {
                       key: "activity",
                       label: activitySummary?.energyBasis === "mixed_estimate" ? "Estimated Activity" : activitySummary ? "Active Calories" : "Calories Burned",
                       value: activitySummary?.displayedCalories === 0 ? "0 kcal" : hasActivityCalories ? `${todayActivityCalories.toLocaleString()} kcal` : activitySummary ? "No readable energy" : "No activity yet",
-                      target: hasActivityCalories
+                      target: activitySummary
+                        ? activitySummary.coverage === "provider_daily" ? "Apple Health · active energy"
+                          : activitySummary.coverage === "stale_provider_daily" ? "Last recorded energy · sync pending"
+                          : activitySummary.coverage === "workouts_only" ? "Recorded workouts only · partial day"
+                          : "Eligible manual estimates"
+                        : hasActivityCalories
                         ? hasSyncedActivity && syncedActiveCalories >= todaysBurnCalories
                           ? "Synced active calories"
                           : "Estimated calories burned"

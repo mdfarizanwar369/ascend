@@ -6,7 +6,7 @@ import { isPublicPath } from "@/components/AuthStateGuard";
 afterEach(cleanup);
 it.each([IosPrivacyPolicy, IosTerms, IosRefundPolicy])("keeps Apple policy pages relevant and links within the same edition", Component => {
   const { container } = render(<Component />);
-  expect(container.textContent).not.toMatch(/android|google play|health connect|play store/i);
+  expect(container.textContent).not.toMatch(/android|google play|\bhealth connect\b|play store/i);
   expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute("href", "/privacy/ios");
   expect(screen.getByRole("link", { name: "Terms" })).toHaveAttribute("href", "/terms/ios");
   expect(screen.getByRole("link", { name: "Refunds" })).toHaveAttribute("href", "/refund-policy/ios");

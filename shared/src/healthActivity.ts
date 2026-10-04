@@ -43,6 +43,7 @@ export interface HealthActivityConnection {
   generation: string;
   connected: boolean;
   selected: boolean;
+  pendingSelection: boolean;
   lastUploadedAt: string | null;
   disconnectedAt: string | null;
 }
@@ -51,6 +52,8 @@ export interface HealthManualActivity {
   id: string;
   label: string;
   occurredAt: string;
+  // Logging time is not evidence that the activity happened after disconnect.
+  startedAt?: string | null;
   activeCalories: number | null;
   legacyCalories: number;
   untracked: boolean;
@@ -70,6 +73,7 @@ export interface DailyActivitySummary {
   workoutCount: number;
   observedAt: string | null;
   excludedManual: Array<{ id: string; label: string; reason: "already_included" | "overlap_unknown" | "unknown_energy_basis" }>;
+  manualAdjustments: Array<{ id: string; label: string; activeCalories: number }>;
   ruleVersion: "daily-active-v1";
 }
 
@@ -119,6 +123,8 @@ export function reconcileDailyActivity(input: {
   const uniqueWorkouts = [...new Map(input.workouts.map(workout => [workout.externalId, workout])).values()];
   const workoutIds = new Set(uniqueWorkouts.map(workout => workout.externalId));
   const excludedManual: DailyActivitySummary["excludedManual"] = [];
+  const manualAdjustments: DailyActivitySummary["manualAdjustments"] = [];
+  const hasWorkoutEnergy = uniqueWorkouts.some(workout => nonnegative(workout.activeCalories));
   let manualActiveCalories = 0;
   let hasLegacyBasis = false;
   let manualCount = 0;
@@ -128,14 +134,17 @@ export function reconcileDailyActivity(input: {
       excludedManual.push({ id: manual.id, label: manual.label, reason: "already_included" });
       continue;
     }
-    manualCount++;
-    const afterDisconnect = Boolean(input.disconnectedAt && new Date(manual.occurredAt) > new Date(input.disconnectedAt));
-    if (hasDailyEnergy && !manual.untracked && !afterDisconnect) {
+    const afterDisconnect = Boolean(input.disconnectedAt && manual.startedAt && new Date(manual.startedAt) > new Date(input.disconnectedAt));
+    if ((hasDailyEnergy || hasWorkoutEnergy) && !manual.untracked && !afterDisconnect) {
       excludedManual.push({ id: manual.id, label: manual.label, reason: "overlap_unknown" });
       continue;
     }
-    if (nonnegative(manual.activeCalories)) manualActiveCalories += manual.activeCalories;
-    else if (!hasDailyEnergy && nonnegative(manual.legacyCalories)) {
+    manualCount++;
+    if (nonnegative(manual.activeCalories)) {
+      manualActiveCalories += manual.activeCalories;
+      if (manual.untracked) manualAdjustments.push({ id:manual.id,label:manual.label,activeCalories:manual.activeCalories });
+    }
+    else if (!hasDailyEnergy && !hasWorkoutEnergy && nonnegative(manual.legacyCalories)) {
       manualActiveCalories += manual.legacyCalories;
       hasLegacyBasis = true;
     } else excludedManual.push({ id: manual.id, label: manual.label, reason: "unknown_energy_basis" });
@@ -154,6 +163,6 @@ export function reconcileDailyActivity(input: {
     manualActiveCalories, displayedCalories,
     energyBasis: hasLegacyBasis ? "mixed_estimate" : "active",
     coverage, workoutCount: uniqueWorkouts.length + manualCount,
-    observedAt: snapshot?.observedAt ?? null, excludedManual, ruleVersion: "daily-active-v1"
+    observedAt: snapshot?.observedAt ?? null, excludedManual, manualAdjustments, ruleVersion: "daily-active-v1"
   };
 }

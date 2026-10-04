@@ -4,8 +4,9 @@ import { HEALTH_ACTIVITY_CONSENT_VERSION, healthDateKey, validHealthTimezone } f
 import { requireAuth } from "../middleware/auth";
 import {
   connectHealthActivity, disconnectHealthActivity, exportHealthActivity, getDailyHealthActivity,
-  getHealthActivityStatus, healthActivityEnabled, healthActivityError, importHealthActivity, saveHealthManualLink
+  getHealthActivityStatus, healthActivityEnabled, healthActivityError, importHealthActivity, saveHealthManualLink,selectHealthActivitySource
 } from "../services/healthActivityService";
+import { getPrivateHealthInsights } from "../services/privateHealthInsightsService";
 
 export const healthActivityRouter = Router();
 const uuid = z.string().uuid();
@@ -38,12 +39,16 @@ export const healthActivityImportSchema = z.object({
     const start = new Date(snapshot.windowStart).getTime();
     const end = new Date(snapshot.windowEnd).getTime();
     const duration = end - start;
+    const time = new Intl.DateTimeFormat("en-GB",{ timeZone:validHealthTimezone(snapshot.timezone) ? snapshot.timezone : "UTC",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23" });
     const validWindow = validHealthTimezone(snapshot.timezone) && duration >= 23 * 3600_000 && duration <= 25 * 3600_000
       && healthDateKey(snapshot.windowStart,snapshot.timezone) === snapshot.day
       && healthDateKey(new Date(end-1),snapshot.timezone) === snapshot.day
       && healthDateKey(snapshot.windowEnd,snapshot.timezone) !== snapshot.day;
-    if (!validWindow) ctx.addIssue({ code:"custom",message:"Invalid reporting-day window",path:["snapshots",index] });
-    if (start > now || start < now - 32 * 86400_000 || new Date(snapshot.observedAt).getTime() > now+300_000) {
+    if (!validWindow || time.format(new Date(start)) !== "00:00:00" || time.format(new Date(end)) !== "00:00:00") ctx.addIssue({ code:"custom",message:"Invalid reporting-day window",path:["snapshots",index] });
+    const observed = new Date(snapshot.observedAt).getTime();
+    // An immutable offline retry may arrive weeks later. Validate its original
+    // 30-day read window against observation time, not the upload wall clock.
+    if (start > observed || start < observed - 32 * 86400_000 || observed > now+300_000 || observed < Date.UTC(2000,0,1)) {
       ctx.addIssue({ code:"custom",message:"Observation is outside the supported import range",path:["snapshots",index] });
     }
     if ((snapshot.stepsState === "observed") !== (snapshot.steps !== null) || (snapshot.energyState === "observed") !== (snapshot.activeCalories !== null)) {
@@ -81,6 +86,13 @@ healthActivityRouter.post("/health-sync/v2/import",requireAuth,async (req,res,ne
 });
 healthActivityRouter.get("/activity/daily",requireAuth,async (req,res,next) => {
   try { res.json({ summary:await getDailyHealthActivity(req.user!.id,req.query.day ? date.parse(req.query.day) : undefined) }); }
+  catch (error) { next(error); }
+});
+healthActivityRouter.get("/activity/private-insights",requireAuth,async (req,res,next) => {
+  try { res.json(await getPrivateHealthInsights(req.user!.id)); } catch (error) { next(error); }
+});
+healthActivityRouter.post("/health-sync/v2/select-source",requireAuth,async (req,res,next) => {
+  try { requireEnabled(req.user!.id); res.json(await selectHealthActivitySource(req.user!.id,uuid.parse(req.body.installationId))); }
   catch (error) { next(error); }
 });
 healthActivityRouter.patch("/activity/manual/:activityId",requireAuth,async (req,res,next) => {

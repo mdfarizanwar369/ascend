@@ -6,6 +6,7 @@ import { BackButton } from "@/components/BackButton";
 import { generateWeeklyReport, getCurrentWeeklyReport } from "@/lib/ascendApi";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { SectionShell, SkeletonBlock, SkeletonText } from "@/components/PerceivedLoading";
+import { PrivateActivityHistory } from "@/components/profile/PrivateActivityHistory";
 
 type WeeklyReport = NonNullable<Awaited<ReturnType<typeof getCurrentWeeklyReport>>["report"]>;
 
@@ -104,6 +105,7 @@ export function WeeklyReportClient() {
         </button>
 
         {status ? <p className="ascend-surface-subtle mt-4 p-3 text-sm text-zinc-300">{status}</p> : null}
+        <PrivateActivityHistory />
 
         {report ? (
           <section className="ascend-surface mt-4 overflow-hidden">
@@ -113,7 +115,7 @@ export function WeeklyReportClient() {
               <div className="mt-6 flex items-end justify-between gap-4">
                 <div>
                   <p className="text-5xl font-semibold text-white">{report.compliance_score ?? "--"}</p>
-                  <p className="mt-1 text-sm text-zinc-400">Weekly momentum</p>
+                  <p className="mt-1 text-sm text-zinc-400">Weekly reflection · Ascend logs only</p>
                 </div>
                 <div className="grid flex-1 grid-cols-10 gap-1.5" role="img" aria-label={`Weekly momentum score ${report.compliance_score ?? "not available"} out of 100 for ${formatDate(report.week_start)} through ${formatDate(report.week_end)}.`}>
                   {Array.from({ length: 10 }, (_, index) => (

@@ -2,13 +2,13 @@ import { LegalPage } from "./LegalPage";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
 
 export function IosPrivacyPolicy() {
-  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="30 September 2026"
+  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="4 October 2026"
     introduction="This policy describes Ascend's iPhone and iPad app: personal fitness tracking and optional AI guidance. It explains what we collect, how we use it, and your choices."
     sections={[
       { title: "Information we collect", bullets: [
         "Account information such as your name, email address and authentication identifier, provided when you register or sign in.",
         "Fitness profile information such as goals, age, sex selection, height, weight, target weight and activity level.",
-        "Information you choose to enter or upload, including meals, water, activity, habits, workout notes, weight and AI conversations. Existing account records, including relevant images and activity imported from connected services, may be used to personalize guidance. This app does not connect device health-data services.",
+        "Information you choose to enter or upload, including meals, water, activity, habits, workout notes, weight and AI conversations. Existing account records, including relevant images and activity imported from connected services, may be used to personalize guidance. Apple Health imports described below are excluded from AI and trainer sharing in their initial release.",
         "If you choose Speak meal, your microphone is used only while speaking. Your device or browser speech-recognition service converts audio into editable text; Ascend does not store the audio recording.",
         "Your AI sharing choice, including its provider, disclosure version and date; technical and usage information needed for security, troubleshooting, service performance and aggregate analytics."
       ] },
@@ -26,6 +26,12 @@ export function IosPrivacyPolicy() {
       ] },
       { title: "Existing account relationships", paragraphs: [
         "If your account already has a trainer or gym relationship, authorized participants may continue to see account records needed for that relationship, including logs, activity summaries, progress and messages. Self-Coached accounts are not automatically assigned to a trainer. You may disconnect from a trainer or contact support about those relationships. Signing in does not create a trainer relationship or automatically purchase a subscription."
+      ] },
+      { title: "Optional Apple Health connection", paragraphs: [
+        "In supported releases and eligible accounts, you may connect Apple Health under Profile → Connected Devices. Ascend requests read-only access to steps, active energy and workouts. Apple asks which categories you allow. Ascend separately asks permission to store imported daily totals, workout identifiers, timing, type, energy estimates and source names in your account for your private dashboard, activity history and consistency calculations. No subscription is required.",
+        "Ascend does not request Health write access, heart rate, sleep, location, medical records or nutrition. Imported energy is an estimate of activity, not total metabolism, and does not automatically increase your food target. Missing data can mean there are no readable records or access is restricted; Ascend cannot determine which read switches you declined.",
+        "The initial Apple Health release does not send imported Health records or derived scores to AI providers, trainers, marketing systems or advertising services. Native pending updates are protected on the device and excluded from backups. Uploads use the same authenticated Ascend hosting and database infrastructure described below.",
+        "Disconnect stops future sync but keeps imported history. Delete imported history removes that device's Ascend imports and their derived summaries, not your manual logs or anything in Apple Health. Account deletion removes account-linked imports, subject to normal backup and legal retention limits. Export imported history is available in the connection screen. Apple's Health settings separately control read access."
       ] },
       { title: "Trainer connections", paragraphs: [
         "A Trainer Pro referral code does not by itself give a trainer access to your records. Ascend first shows the trainer identity, workspace and categories of information that will be shared. The connection begins only after you confirm. You can disconnect in Profile, which ends the trainer's access to your coaching records."

@@ -10,14 +10,14 @@ import { pool, query } from "../db/pool";
 
 type Source = {
   id: string; user_id: string; provider: "apple_health" | "health_connect"; installation_id: string;
-  generation: string; connected: boolean; selected: boolean; last_sequence: string;
+  generation: string; connected: boolean; selected: boolean; pending_selection: boolean; last_sequence: string;
   last_uploaded_at: Date | null; disconnected_at: Date | null;
 };
 type Settings = { timezone: string; calendar_generation: string };
 const iso = (value: unknown) => value ? new Date(String(value)).toISOString() : null;
 const connection = (row: Source): HealthActivityConnection => ({
   id: row.id, provider: row.provider, installationId: row.installation_id, generation: row.generation,
-  connected: row.connected, selected: row.selected, lastUploadedAt: iso(row.last_uploaded_at), disconnectedAt: iso(row.disconnected_at)
+  connected: row.connected, selected: row.selected, pendingSelection: row.pending_selection, lastUploadedAt: iso(row.last_uploaded_at), disconnectedAt: iso(row.disconnected_at)
 });
 export function healthActivityEnabled(userId: string) {
   const cohort = env.APPLE_HEALTH_USER_IDS.split(",").map(value => value.trim()).filter(Boolean);
@@ -55,18 +55,19 @@ export async function connectHealthActivity(userId: string, input: { installatio
   return transaction(userId, async db => {
     await db.query("insert into health_activity_settings(user_id,timezone) values($1,$2) on conflict(user_id) do nothing", [userId,input.timezone]);
     const existing = await db.query<Source>("select * from health_activity_sources where user_id=$1 and provider='apple_health' and installation_id=$2", [userId,input.installationId]);
-    if (input.select) await db.query("update health_activity_sources set selected=false where user_id=$1", [userId]);
     const selected = await db.query("select id from health_activity_sources where user_id=$1 and selected", [userId]);
+    if (input.select) await db.query("update health_activity_sources set pending_selection=false where user_id=$1", [userId]);
+    const selectNow = !selected.rows.length || selected.rows[0].id === existing.rows[0]?.id;
     const generation = existing.rows[0]?.connected ? existing.rows[0].generation : randomUUID();
     const row = await db.query<Source>(`
-      insert into health_activity_sources(user_id,provider,installation_id,generation,consent_version,selected)
-      values($1,'apple_health',$2,$3,$4,$5)
+      insert into health_activity_sources(user_id,provider,installation_id,generation,consent_version,selected,pending_selection)
+      values($1,'apple_health',$2,$3,$4,$5,$6)
       on conflict(user_id,provider,installation_id) do update set connected=true,
         generation=excluded.generation, consent_version=excluded.consent_version,
-        selected=case when $6 then true else health_activity_sources.selected end,
+        selected=excluded.selected, pending_selection=excluded.pending_selection,
         last_sequence=case when health_activity_sources.generation=excluded.generation then health_activity_sources.last_sequence else -1 end,
         disconnected_at=null returning *`,
-      [userId,input.installationId,generation,input.consentVersion,input.select || !selected.rows.length,input.select]);
+      [userId,input.installationId,generation,input.consentVersion,selectNow,input.select && !selectNow]);
     const config = await db.query<Settings>("select * from health_activity_settings where user_id=$1", [userId]);
     return { connection: connection(row.rows[0]), timezone: config.rows[0].timezone, calendarGeneration: config.rows[0].calendar_generation };
   });
@@ -108,13 +109,27 @@ export async function importHealthActivity(userId: string, input: HealthActivity
     }
     await db.query("update health_activity_sources set last_sequence=$2,last_uploaded_at=now() where id=$1", [source.id,input.sequence]);
     await db.query("insert into health_activity_import_requests(source_id,generation,request_id,payload_hash) values($1,$2,$3,$4)", [source.id,source.generation,input.requestId,hash]);
-    // Persist each accepted reporting day before source selection can change.
-    if (source.selected) {
+    const today = healthDateKey(new Date(),settings.timezone);
+    // Keep the old reader until a usable full-day energy observation from the
+    // requested reader arrives. Never add either reader's totals together.
+    if (source.pending_selection && input.snapshots.some(snapshot => snapshot.day === today && snapshot.energyState === "observed")) {
+      await db.query("update health_activity_sources set selected=false where user_id=$1", [userId]);
+      await db.query("update health_activity_sources set selected=true,pending_selection=false where id=$1", [source.id]);
+      source.selected = true;
+    }
+    {
       const affected = new Set(input.snapshots.map(snapshot => snapshot.day));
       for (const workout of input.workouts) affected.add(healthDateKey(workout.startAt,settings.timezone));
       const deletedDays = await db.query<{ day: string }>("select distinct (start_at at time zone $2)::date::text as day from health_activity_workouts where source_id=$1 and external_id=any($3::text[])", [source.id,settings.timezone,input.deletedWorkoutIds]);
       deletedDays.rows.forEach(row => affected.add(row.day));
-      for (const day of affected) await calculateDaily(db,userId,day,settings.timezone,source);
+      for (const day of affected) {
+        const saved = (await db.query<{ source_id:string | null }>("select source_id from health_activity_daily_summaries where user_id=$1 and day=$2",[userId,day])).rows[0];
+        // Corrections stay with the historical owner; switching today's reader
+        // does not replace previously saved days with another phone's backfill.
+        if ((day < today && saved?.source_id === source.id) || (source.selected && (day >= today || !saved))) {
+          await calculateDaily(db,userId,day,settings.timezone,source);
+        }
+      }
     }
     return { accepted: true, duplicate: false, requestId: input.requestId };
   });
@@ -144,7 +159,8 @@ async function calculateDaily(db: Pick<PoolClient,"query">, userId: string, day:
     const activeCalories = row.adjustment_calories !== null && row.adjustment_calories !== undefined ? Number(row.adjustment_calories)
       : metadata.calorieBasis === "active" ? Number(metadata.caloriesBurned) : calculated;
     return { id: row.id,label: String(metadata.workoutTitle ?? metadata.activityType ?? "Manual activity"),occurredAt: iso(row.created_at)!,
-      activeCalories,legacyCalories: Number(metadata.caloriesBurned ?? 0),untracked: row.confirmed_untracked === true,
+      startedAt: metadata.actualStartedAt ? iso(metadata.actualStartedAt) : null,
+      activeCalories,legacyCalories: Number(metadata.caloriesBurned ?? 0),untracked: row.confirmed_untracked === true && row.linked_source_id === source?.id,
       matchedWorkoutId: row.linked_source_id === source?.id ? row.matched_workout_id ?? null : null };
   });
   const summary = reconcileDailyActivity({ day,timezone,provider: source?.provider ?? null,snapshot,workouts: external,manual: entries,
@@ -163,7 +179,7 @@ export async function getDailyHealthActivity(userId: string, day?: string) {
     const today = healthDateKey(new Date(),settings.timezone);
     const date = day ?? today;
     const saved = (await db.query<{ source_id: string | null; summary: DailyActivitySummary }>("select source_id,summary from health_activity_daily_summaries where user_id=$1 and day=$2", [userId,date])).rows[0];
-    const source = (await db.query<Source>(date < today && saved?.source_id
+    const source = date < today && saved && !saved.source_id ? null : (await db.query<Source>(date < today && saved?.source_id
       ? "select * from health_activity_sources where id=$2 and user_id=$1"
       : "select * from health_activity_sources where user_id=$1 and selected", [userId,...(date < today && saved?.source_id ? [saved.source_id] : [])])).rows[0] ?? null;
     const effectiveSource = source?.disconnected_at && date > healthDateKey(source.disconnected_at,settings.timezone) ? null : source;
@@ -175,7 +191,7 @@ export async function disconnectHealthActivity(userId: string, installationId: s
   return transaction(userId, async db => {
     const source = (await db.query<Source>("select * from health_activity_sources where user_id=$1 and installation_id=$2 and provider='apple_health'", [userId,installationId])).rows[0];
     if (!source) return { disconnected: true };
-    await db.query("update health_activity_sources set connected=false,disconnected_at=coalesce(disconnected_at,now()),generation=gen_random_uuid(),last_sequence=-1 where id=$1", [source.id]);
+    await db.query("update health_activity_sources set connected=false,pending_selection=false,disconnected_at=coalesce(disconnected_at,now()),generation=gen_random_uuid(),last_sequence=-1 where id=$1", [source.id]);
     if (deleteHistory) {
       await db.query("delete from health_activity_daily_summaries where user_id=$1 and source_id=$2", [userId,source.id]);
       await db.query("delete from health_activity_manual_links where user_id=$1 and source_id=$2", [userId,source.id]);
@@ -213,4 +229,31 @@ export async function exportHealthActivity(userId: string) {
     query("select w.* from health_activity_workouts w join health_activity_sources s on s.id=w.source_id where s.user_id=$1 and not w.deleted",[userId])
   ]);
   return { schemaVersion: 2,sources: sources.rows,snapshots: snapshots.rows,workouts: workouts.rows };
+}
+
+export async function selectHealthActivitySource(userId: string, installationId: string) {
+  return transaction(userId,async db => {
+    const source = (await db.query<Source>("select * from health_activity_sources where user_id=$1 and provider='apple_health' and installation_id=$2 and connected",[userId,installationId])).rows[0];
+    if (!source) throw healthActivityError("Connect this device before selecting it.",404);
+    await db.query("update health_activity_sources set pending_selection=false where user_id=$1",[userId]);
+    await db.query("update health_activity_sources set pending_selection=not selected where id=$1",[source.id]);
+    return { requested:true };
+  });
+}
+
+export async function getPrivateHealthActivityDays(userId: string) {
+  if (!healthActivityEnabled(userId)) return [];
+  const settings = (await query<Settings>("select * from health_activity_settings where user_id=$1",[userId])).rows[0];
+  if (!settings) return [];
+  const today = healthDateKey(new Date(),settings.timezone);
+  const dates = Array.from({ length:7 },(_,index) => {
+    const value = new Date(`${today}T12:00:00Z`); value.setUTCDate(value.getUTCDate()-6+index);
+    return value.toISOString().slice(0,10);
+  });
+  const days: DailyActivitySummary[] = [];
+  for (const day of dates) {
+    const result = await getDailyHealthActivity(userId,day);
+    if (result) days.push(result);
+  }
+  return days;
 }

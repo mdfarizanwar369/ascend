@@ -16,6 +16,7 @@ RELEASE_ORIGINS = {
     "refs/heads/main": "https://www.getascend.fit/",
     "refs/heads/codex/ios-subscriptions-1-1": "https://ascend-ios-payments-web-ascend-ios-payments.up.railway.app/",
     "refs/heads/codex/ios-1.2-public-trainer-pro": "https://www.getascend.fit/",
+    "refs/heads/codex/apple-health-v1": "https://www.getascend.fit/",
 }
 
 
@@ -33,6 +34,31 @@ def validate_release_context(environ, config):
 
 def run(*args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
+
+
+def validate_profile(profile, required_entitlements):
+    entitlements = profile.get("Entitlements", {})
+    if profile.get("TeamIdentifier") != [TEAM] or entitlements.get("application-identifier") != f"{TEAM}.{BUNDLE}":
+        raise SystemExit("Provisioning profile does not match Ascend's team and bundle ID.")
+    if "Default" not in entitlements.get("com.apple.developer.applesignin", []):
+        raise SystemExit("Regenerate the provisioning profile with Sign in with Apple enabled.")
+    for capability in ("com.apple.developer.healthkit", "com.apple.developer.healthkit.background-delivery"):
+        if required_entitlements.get(capability) is True and entitlements.get(capability) is not True:
+            raise SystemExit("Regenerate Ascend's App Store provisioning profile with HealthKit and background delivery enabled.")
+    if profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices") or entitlements.get("get-task-allow"):
+        raise SystemExit("An App Store distribution profile is required.")
+    if profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc):
+        raise SystemExit("Provisioning profile has expired.")
+
+
+def validate_signed_entitlements(entitlements, required):
+    if entitlements.get("application-identifier") != f"{TEAM}.{BUNDLE}" or entitlements.get("get-task-allow"):
+        raise SystemExit("Archived app identity or distribution signing is incorrect.")
+    if "Default" not in entitlements.get("com.apple.developer.applesignin", []):
+        raise SystemExit("Archived app is missing Sign in with Apple.")
+    for capability in ("com.apple.developer.healthkit", "com.apple.developer.healthkit.background-delivery"):
+        if required.get(capability) is True and entitlements.get(capability) is not True:
+            raise SystemExit("Archived app is missing the required HealthKit entitlement.")
 
 
 def main():
@@ -57,14 +83,8 @@ def main():
             certificate.write_bytes(base64.b64decode(os.environ["IOS_CERTIFICATE_BASE64"], validate=True))
             profile_file.write_bytes(base64.b64decode(os.environ["IOS_PROFILE_BASE64"], validate=True))
             profile = plistlib.loads(run("security", "cms", "-D", "-i", str(profile_file), capture_output=True).stdout)
-            if profile.get("TeamIdentifier") != [TEAM] or profile["Entitlements"].get("application-identifier") != f"{TEAM}.{BUNDLE}":
-                raise SystemExit("Provisioning profile does not match Ascend's team and bundle ID.")
-            if "Default" not in profile["Entitlements"].get("com.apple.developer.applesignin", []):
-                raise SystemExit("Regenerate the provisioning profile with Sign in with Apple enabled.")
-            if profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices") or profile["Entitlements"].get("get-task-allow"):
-                raise SystemExit("An App Store distribution profile is required.")
-            if profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc):
-                raise SystemExit("Provisioning profile has expired.")
+            required = plistlib.loads((root / "ios/App/App/App.entitlements").read_bytes())
+            validate_profile(profile, required)
             run("security", "create-keychain", "-p", password, str(keychain), capture_output=True)
             run("security", "set-keychain-settings", "-lut", "3600", str(keychain), capture_output=True)
             run("security", "unlock-keychain", "-p", password, str(keychain), capture_output=True)
@@ -84,6 +104,10 @@ def main():
                 # Only the App target consumes this custom setting. A global
                 # provisioning override incorrectly applies to Swift packages.
                 f"ASCEND_PROFILE_UUID={profile['UUID']}", f"CURRENT_PROJECT_VERSION={build_number}", "archive")
+            archived_app = archive / "Products/Applications/App.app"
+            run("codesign", "--verify", "--deep", "--strict", str(archived_app), capture_output=True)
+            signed = run("codesign", "-d", "--entitlements", ":-", str(archived_app), capture_output=True)
+            validate_signed_entitlements(plistlib.loads(signed.stdout), required)
             export = temp / "ExportOptions.plist"
             export.write_bytes(plistlib.dumps({"method": "app-store-connect", "teamID": TEAM,
                 "signingStyle": "manual", "signingCertificate": "Apple Distribution", "manageAppVersionAndBuildNumber": False,
