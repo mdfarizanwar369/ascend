@@ -1,5 +1,5 @@
 import { appEditionHeaders } from "./appEdition";
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 
 function apiTimingEnabled() {
   if (process.env.NEXT_PUBLIC_API_TIMING === "1") return true;

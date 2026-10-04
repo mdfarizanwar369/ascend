@@ -16,49 +16,14 @@ import { submitSelfAccountDeletion } from "../services/accountDeletionService";
 import { memberNutritionPreferenceSchema, resolveNutritionTargets, saveMemberNutritionPreference } from "../services/nutritionTargetService";
 import { claimReturnMode, recordReturnModeContinued } from "../services/returnModeService";
 import { env } from "../config/env";
-import { buildTodayPriorityDayContext } from "../services/todayPriorityContextService";
 import { synthesizeVoiceReply } from "../services/voiceSpeechService";
 import { hasExerciseVisualAccess } from "../services/exerciseVisualAccess";
+import { getVoiceTodayData, voiceTodayQuery } from "../services/voiceTodayService";
 
 export const meRouter = Router();
 
 function voiceBetaEnabled(user: AuthUser) {
   return env.VOICE_BETA_ENABLED && (user.isPlatformOwner || env.VOICE_BETA_USER_IDS.split(",").map((id) => id.trim()).includes(user.id));
-}
-
-const voiceTodayQuery = z.object({
-  intent: z.enum(["calories_consumed", "calories_remaining", "protein_remaining", "water_logged", "today_summary"]),
-  timezoneOffsetMinutes: z.coerce.number().int().min(-840).max(840)
-});
-
-async function getVoiceTodayData(userId: string, input: z.infer<typeof voiceTodayQuery>) {
-    const { intent, timezoneOffsetMinutes } = input;
-    const { dayStartUtc, dayEndUtc } = buildTodayPriorityDayContext(timezoneOffsetMinutes);
-    const range = [userId, dayStartUtc.toISOString(), dayEndUtc.toISOString()];
-    const [food, water, targets] = await Promise.all([
-      query<{ calories: number | string; protein_g: number | string; meals: number }>(
-        `select coalesce(sum(calories), 0) as calories, coalesce(sum(protein_g), 0) as protein_g, count(*)::int as meals
-         from food_logs where user_id = $1 and logged_at >= $2 and logged_at < $3`, range),
-      query<{ water_ml: number | string }>(
-        `select coalesce(sum(amount_ml), 0) as water_ml from water_logs
-         where user_id = $1 and logged_at >= $2 and logged_at < $3`, range),
-      resolveNutritionTargets(userId)
-    ]);
-    const calories = Math.round(Number(food.rows[0]?.calories ?? 0));
-    const proteinG = Math.round(Number(food.rows[0]?.protein_g ?? 0));
-    const waterMl = Math.round(Number(water.rows[0]?.water_ml ?? 0));
-    const calorieRemaining = Math.round(targets.calories - calories);
-    const proteinRemaining = Math.round(targets.proteinG - proteinG);
-    const spokenText = intent === "calories_consumed"
-      ? `You've eaten ${calories} calories today.`
-      : intent === "calories_remaining"
-        ? calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left today.` : `You're ${Math.abs(calorieRemaining)} calories above today's guide.`
-        : intent === "protein_remaining"
-          ? proteinRemaining >= 0 ? `You have ${proteinRemaining} grams of protein left today.` : `You're ${Math.abs(proteinRemaining)} grams above today's protein guide.`
-          : intent === "water_logged"
-            ? `You've logged ${waterMl} millilitres of water today.`
-            : `Today you've logged ${calories} calories, ${proteinG} grams of protein, and ${waterMl} millilitres of water. ${calorieRemaining >= 0 ? `You have ${calorieRemaining} calories left in your guide.` : `You're ${Math.abs(calorieRemaining)} calories above your guide.`}`;
-    return { intent, spokenText, totals: { calories, proteinG, waterMl, meals: food.rows[0]?.meals ?? 0 }, targets: { calories: targets.calories, proteinG: targets.proteinG, waterMl: targets.waterMl } };
 }
 
 meRouter.get("/me/voice/today", requireAuth, async (req, res, next) => {

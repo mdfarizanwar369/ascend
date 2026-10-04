@@ -54,6 +54,23 @@ test("synced iOS project resolves portable plugin paths and includes its privacy
   assert.match(read("ios/App/App/Info.plist"), /NSCameraUsageDescription/);
 });
 
+test("Siri intents are packaged in the iPhone app with private, device-authenticated answers", () => {
+  const project = read("ios/App/App.xcodeproj/project.pbxproj");
+  for (const file of ["AscendSiriService.swift", "AscendSiriPlugin.swift", "AscendSiriIntents.swift"]) {
+    assert.match(project, new RegExp(`${file.replace(".", "\\.")} in Sources`));
+  }
+  const intents = read("ios/App/App/AscendSiriIntents.swift");
+  assert.match(intents, /requiresLocalDeviceAuthentication/);
+  assert.match(intents, /calories_remaining/);
+  assert.match(intents, /water_status/);
+  assert.match(intents, /protein_status/);
+  assert.match(intents, /today_summary/);
+  assert.match(read("ios/App/App/AppDelegate.swift"), /updateAppShortcutParameters/);
+  const service = read("ios/App/App/AscendSiriService.swift");
+  assert.match(service, /kSecAttrAccessibleWhenUnlockedThisDeviceOnly/);
+  assert.doesNotMatch(service, /gemini|voice\/today\/audio/i);
+});
+
 test("iOS 1.3 trainer referral web links use the matching production app identity", () => {
   const project = read("ios/App/App.xcodeproj/project.pbxproj");
   assert.equal((project.match(/MARKETING_VERSION = 1\.3;/g) ?? []).length, 2);

@@ -32,6 +32,12 @@ export async function clearLocalAscendSession() {
       cleanupTasks.unshift(withTimeout(FirebaseAuthentication.signOut(), 4_000).catch(() => undefined));
     }
 
+    const { getNativeCapacitorPlatform } = await import("@/lib/nativePlatform");
+    if (getNativeCapacitorPlatform() === "ios") {
+      const { ascendSiri } = await import("@/lib/ascendSiri");
+      cleanupTasks.unshift(withTimeout(ascendSiri.disconnect(), 4_000).catch(() => undefined));
+    }
+
     await Promise.allSettled(cleanupTasks);
   } catch {
     await Promise.allSettled([
