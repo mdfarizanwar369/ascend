@@ -280,6 +280,7 @@ for build in builds:
         if len(owner_groups) > 1:
             raise SystemExit("More than one Ascend Owner TestFlight group exists")
         owner_group = owner_groups[0] if owner_groups else create_owner_group(app_id)
+        owner_group = get(f"/v1/betaGroups/{owner_group['id']}")["data"]
         group_attrs = owner_group["attributes"]
         if group_attrs.get("isInternalGroup") is not True or group_attrs.get("hasAccessToAllBuilds") is not False:
             raise SystemExit("Ascend Owner group is not limited to selected internal builds")
