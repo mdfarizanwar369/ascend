@@ -5,9 +5,9 @@ import Image from "next/image";
 import type { ExerciseVisual } from "@ascend/shared";
 import { recordWorkoutVisualEvent } from "@/lib/ascendApi";
 
-type Props = { exercise: ExerciseVisual };
+type Props = { exercise: ExerciseVisual; variationOf?: string; reportingEnabled?: boolean };
 
-export function ExerciseVisualCard({ exercise }: Props) {
+export function ExerciseVisualCard({ exercise, variationOf, reportingEnabled = true }: Props) {
   const [failed, setFailed] = useState(false);
   const [reported, setReported] = useState(false);
   const failureReported = useRef(false);
@@ -15,7 +15,7 @@ export function ExerciseVisualCard({ exercise }: Props) {
 
   function handleError() {
     setFailed(true);
-    if (!failureReported.current) {
+    if (reportingEnabled && !failureReported.current) {
       failureReported.current = true;
       void recordWorkoutVisualEvent("image_load_failure", exercise.id).catch(() => undefined);
     }
@@ -41,15 +41,16 @@ export function ExerciseVisualCard({ exercise }: Props) {
         ))}
       </div>
       <div className="mt-2 text-xs leading-5 text-zinc-300">
+        {variationOf && variationOf.toLocaleLowerCase("en-US") !== exercise.canonicalName.toLocaleLowerCase("en-US") ? <p className="mb-1 text-zinc-400">Illustrated variation: {exercise.canonicalName}</p> : null}
         <p><span className="font-semibold text-zinc-100">Equipment:</span> {exercise.equipment} · <span className="font-semibold text-zinc-100">Targets:</span> {exercise.targetMuscles}</p>
         <p className="mt-1">{exercise.instructions}</p>
         <p className="mt-1 text-zinc-400"><span className="font-semibold text-zinc-100">Form cue:</span> {exercise.cue}</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-[11px]">
         <span className="text-zinc-400">Original Ascend exercise visual</span>
-        <button type="button" disabled={reported} className="text-zinc-400 underline underline-offset-2 disabled:no-underline" onClick={() => {
+        {reportingEnabled ? <button type="button" disabled={reported} className="text-zinc-400 underline underline-offset-2 disabled:no-underline" onClick={() => {
           void recordWorkoutVisualEvent("incorrect_mapping_report", exercise.id).then(() => setReported(true)).catch(() => undefined);
-        }}>{reported ? "Report sent" : "Report incorrect visual"}</button>
+        }}>{reported ? "Report sent" : "Report incorrect visual"}</button> : null}
       </div>
     </div>
   );

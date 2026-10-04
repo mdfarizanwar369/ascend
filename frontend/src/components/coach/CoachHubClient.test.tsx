@@ -119,6 +119,22 @@ describe("iPhone daily workout builder", () => {
     expect(await screen.findByRole("heading", { name: "Home mobility" })).toBeInTheDocument();
     expect(screen.queryByText("Original Ascend exercise visual")).not.toBeInTheDocument();
   });
+  it("shows pictures and full instructions for an older saved V2 workout even without the visual pilot", async () => {
+    mocks.visuals = false;
+    mocks.today.mockResolvedValue({ dailyWorkout: {
+      ...daily, workout: { ...daily.workout, experienceVersion: 2, exercises: [
+        { name: "Leg Press", sets: 2, reps: "10-12", note: "Do not lock your knees." },
+        { name: "Dumbbell Row", sets: 2, reps: "8-12 each side" }
+      ] }
+    } });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    expect(await screen.findByText("Illustrated variation: 45-Degree Leg Press")).toBeInTheDocument();
+    expect(screen.getByText(/Sit in the sled with feet on the platform/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: /Dumbbell Row/ }).find(button => button.hasAttribute("aria-expanded"))!);
+    expect(screen.getByText("Illustrated variation: Single-Arm Dumbbell Row")).toBeInTheDocument();
+    expect(screen.getByText(/Pull one dumbbell toward your hip/)).toBeInTheDocument();
+  });
   it("shows the V2 roadmap and saves an iPhone swap without generating again", async () => {
     const v2Daily: DailyWorkout = { ...daily, workout: {
       ...daily.workout, experienceVersion: 2, whyToday: "Your last session was lower body.",

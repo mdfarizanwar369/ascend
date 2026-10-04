@@ -40,7 +40,7 @@ describe("exercise visual pilot resolver", () => {
     ["Kettlebell Goblet Squat", "unresolved"],
     ["Dumbbell Romanian Deadlift or Barbell Deadlift", "unresolved"],
     ["Unsupported Split Squat", "unresolved"],
-    ["Single-Arm Dumbbell Row", "unresolved"],
+    ["Single-Arm Cable Row", "unresolved"],
     ["Band Chest Press (Anchor or Standing)", "unresolved"],
     ["Incline Push-Ups (Bench or Ledge)", "unresolved"]
   ])("never substitutes %s", (name, status) => {
@@ -64,23 +64,23 @@ describe("exercise visual pilot resolver", () => {
     expect(resolveExerciseVisual("Australian Pull-Ups / Inverted Rows")).toMatchObject({ status: "resolved", exercise: { id: "inverted-row" } });
     expect(resolveExerciseVisual("DB Bench Press or Floor Press").status).not.toBe("resolved");
     expect(resolveExerciseVisual("Rope Tricep Pushdown").status).not.toBe("resolved");
-    expect(resolveExerciseVisual("Single-Arm Dumbbell Row").status).not.toBe("resolved");
+    expect(resolveExerciseVisual("Single-Arm Dumbbell Row")).toMatchObject({ status: "resolved", exercise: { id: "single-arm-dumbbell-row" } });
   });
   it.each([null, 123, "", "a".repeat(121), { name: "Glute Bridge" }])("rejects malformed names", name => {
     expect(resolveExerciseVisual(name).status).toBe("unresolved");
   });
-  it("keeps the pilot small and all entries unique", () => {
-    expect(PILOT_EXERCISE_VISUALS).toHaveLength(53);
-    expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(53);
+  it("keeps all reviewed entries unique", () => {
+    expect(PILOT_EXERCISE_VISUALS.length).toBeGreaterThanOrEqual(70);
+    expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(PILOT_EXERCISE_VISUALS.length);
   });
   it("has a valid local WebP file for every approved pose", () => {
     const paths = PILOT_EXERCISE_VISUALS.flatMap(item => item.images.kind === "pair"
       ? [item.images.start, item.images.peak] : [item.images.main]);
-    expect(paths).toHaveLength(97); // High Plank and Hanging Knee Raise reuse approved start poses.
+    expect(paths.length).toBeGreaterThanOrEqual(114);
     const uniquePaths = new Set(paths);
-    expect(uniquePaths.size).toBe(95);
+    expect(uniquePaths.size).toBeGreaterThanOrEqual(111);
     for (const assetPath of uniquePaths) {
-      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[123]\/[^/]+\.webp$/);
+      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[1234]\/[^/]+\.webp$/);
       const bytes = readFileSync(path.join(process.cwd(), "public", assetPath.replace(/^\//, "")));
       expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
       expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");

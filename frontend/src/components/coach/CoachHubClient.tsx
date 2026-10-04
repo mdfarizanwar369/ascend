@@ -8,7 +8,7 @@ import { BackButton } from "@/components/BackButton";
 import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import type { WorkoutDebriefView } from "@ascend/shared";
-import { resolveExerciseVisual } from "@ascend/shared";
+import { resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { ExerciseVisualCard } from "@/components/coach/ExerciseVisualCard";
 import {
   CoachChatMode,
@@ -349,7 +349,10 @@ function WorkoutPlannerCard({
             {workout.exercises.map((exercise, index) => {
               const complete = checkedExercises.has(index);
               const expanded = expandedExerciseIndex === index;
-              const visual = resolveExerciseVisual(exercise.name);
+              const visual = workout.experienceVersion === 2
+                ? resolveV2WorkoutExerciseVisual(exercise.name)
+                : resolveExerciseVisual(exercise.name);
+              const showVisual = exerciseVisualsEnabled || workout.experienceVersion === 2;
               return (
                 <article
                   key={`${exercise.name}-${index}`}
@@ -392,7 +395,7 @@ function WorkoutPlannerCard({
                     {expanded ? <ChevronUp className="mt-1 shrink-0 text-zinc-500" size={18} /> : <ChevronDown className="mt-1 shrink-0 text-zinc-500" size={18} />}
                   </button>
                   </div>
-                  {exerciseVisualsEnabled && expanded && visual.status === "resolved" ? <div className="ml-[52px]"><ExerciseVisualCard key={visual.exercise.id} exercise={visual.exercise} /></div> : null}
+                  {showVisual && expanded && visual.status === "resolved" ? <div className="ml-[52px]"><ExerciseVisualCard key={visual.exercise.id} exercise={visual.exercise} variationOf={workout.experienceVersion === 2 ? exercise.name : undefined} reportingEnabled={exerciseVisualsEnabled} /></div> : null}
                   {expanded && exercise.note ? <p className="ascend-soft-enter ml-[52px] mt-2 text-xs leading-5 text-zinc-400">{exercise.note}</p> : null}
                   {workout.experienceVersion === 2 && !workoutSaved && !complete && exercise.alternatives?.length ? (
                     <button type="button" onClick={() => onSwapExercise(index)} className="ml-[52px] mt-2 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-purple-200 hover:border-violet/60">
