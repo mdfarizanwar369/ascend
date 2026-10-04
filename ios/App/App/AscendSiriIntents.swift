@@ -10,6 +10,78 @@ private func ascendQuestion(_ question: String) async -> IntentDialog {
     IntentDialog(stringLiteral: await AscendSiriService.ask(question))
 }
 
+// A fixed vocabulary lets Siri include the question in a single App Shortcut
+// phrase. Free-form String parameters cannot be interpolated into those phrases.
+@available(iOS 16.0, *)
+enum AscendTopic: String, AppEnum {
+    case caloriesLeft = "How many calories do I have left?"
+    case caloriesEaten = "How many calories have I eaten today?"
+    case calorieGoal = "What is my calorie target?"
+    case waterDrank = "How much water did I drink today?"
+    case waterLeft = "How much water do I have left today?"
+    case waterGoal = "What is my water goal?"
+    case proteinEaten = "How much protein have I eaten today?"
+    case proteinLeft = "How much protein do I have left?"
+    case proteinGoal = "What is my protein target?"
+    case carbsEaten = "How many carbs have I eaten today?"
+    case carbsLeft = "How many carbs do I have left?"
+    case carbGoal = "What is my carb target?"
+    case fatEaten = "How much fat have I eaten today?"
+    case fatLeft = "How much fat do I have left?"
+    case fatGoal = "What is my fat target?"
+    case macros = "How are my macros today?"
+    case mealCount = "How many meals have I logged today?"
+    case latestMeal = "What is my latest meal?"
+    case mealsToday = "What have I eaten today?"
+    case workoutToday = "What is my workout today?"
+    case workoutExercises = "Which exercises are in my workout?"
+    case workoutCompleted = "Did I complete my workout today?"
+    case workoutsThisWeek = "How many workouts this week?"
+    case workoutsToday = "How many workouts have I done today?"
+    case latestWeight = "What is my latest weight?"
+    case weightGoal = "What is my target weight?"
+    case weightChange = "How much has my weight changed?"
+    case fitnessGoal = "What is my fitness goal?"
+    case sleep = "How did I sleep today?"
+    case steps = "How many steps today?"
+    case activeCalories = "How many active calories did I burn today?"
+    case membership = "What is my Ascend membership?"
+    case dailySummary = "How am I doing today?"
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation { "Ascend information" }
+    static var caseDisplayRepresentations: [Self: DisplayRepresentation] { [
+        .caloriesLeft: "calories left", .caloriesEaten: "calories eaten", .calorieGoal: "calorie goal",
+        .waterDrank: "water drank", .waterLeft: "water left", .waterGoal: "water goal",
+        .proteinEaten: "protein eaten", .proteinLeft: "protein left", .proteinGoal: "protein goal",
+        .carbsEaten: "carbs eaten", .carbsLeft: "carbs left", .carbGoal: "carb goal",
+        .fatEaten: "fat eaten", .fatLeft: "fat left", .fatGoal: "fat goal",
+        .macros: "macros", .mealCount: "meal count", .latestMeal: "latest meal", .mealsToday: "meals today",
+        .workoutToday: "workout today", .workoutExercises: "workout exercises",
+        .workoutCompleted: "workout completed", .workoutsThisWeek: "workouts this week",
+        .workoutsToday: "workouts today", .latestWeight: "latest weight", .weightGoal: "weight goal",
+        .weightChange: "weight change", .fitnessGoal: "fitness goal", .sleep: "sleep",
+        .steps: "steps", .activeCalories: "active calories", .membership: "membership",
+        .dailySummary: "daily summary"
+    ] }
+}
+
+@available(iOS 16.0, *)
+struct AscendTopicIntent: AppIntent {
+    static var title: LocalizedStringResource = "Check Ascend information"
+    static var description = IntentDescription("Ask directly about an Ascend number or record.")
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresLocalDeviceAuthentication
+
+    @Parameter(title: "Information") var topic: AscendTopic
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Check \(\.$topic) in Ascend")
+    }
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        .result(dialog: await ascendQuestion(topic.rawValue))
+    }
+}
+
 @available(iOS 16.0, *)
 struct AscendAskIntent: AppIntent {
     static var title: LocalizedStringResource = "Ask Ascend"
@@ -121,10 +193,11 @@ struct AscendSleepIntent: AppIntent {
 @available(iOS 16.0, *)
 struct AscendSiriShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        AppShortcut(intent: AscendAskIntent(), phrases: [
-            "Ask \(.applicationName) a question",
-            "Ask \(.applicationName) about my day"
-        ], shortTitle: "Ask Ascend", systemImageName: "questionmark.bubble")
+        AppShortcut(intent: AscendTopicIntent(), phrases: [
+            "Check \(\.$topic) in \(.applicationName)",
+            "Ask \(.applicationName) about my \(\.$topic)",
+            "Tell me my \(\.$topic) in \(.applicationName)"
+        ], shortTitle: "Check Ascend", systemImageName: "questionmark.bubble")
         AppShortcut(intent: AscendCaloriesLeftIntent(), phrases: [
             "Ask \(.applicationName) how many calories I can eat now",
             "Ask \(.applicationName) how many calories I have left",
@@ -136,6 +209,8 @@ struct AscendSiriShortcuts: AppShortcutsProvider {
         ], shortTitle: "Calories logged", systemImageName: "fork.knife")
         AppShortcut(intent: AscendWaterIntent(), phrases: [
             "Ask \(.applicationName) how much water I have drunk",
+            "Ask \(.applicationName) how much water I drank",
+            "Check how much water I drank in \(.applicationName)",
             "How much water have I logged in \(.applicationName)",
             "Ask \(.applicationName) how much water I have left"
         ], shortTitle: "Water today", systemImageName: "drop")
