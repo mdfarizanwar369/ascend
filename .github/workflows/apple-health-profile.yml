@@ -1,0 +1,53 @@
+name: Prepare Ascend Health signing profile
+
+on:
+  workflow_dispatch:
+    inputs:
+      prepare_health_profile:
+        description: Enable Ascend HealthKit and create a new matching App Store profile
+        type: boolean
+        default: false
+      encryption_key_id:
+        description: Existing apple-testflight environment public encryption key ID
+        type: string
+        required: true
+      encryption_public_key:
+        description: Existing apple-testflight environment public encryption key
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ascend-health-profile
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.prepare_health_profile
+    runs-on: macos-26
+    timeout-minutes: 8
+    environment: apple-testflight
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'PyJWT[crypto]==2.10.1' 'PyNaCl==1.5.0'
+      - run: python -m unittest discover -s scripts -p test_health_profile_prepare.py
+      - name: Prepare and validate profile without revoking existing signing resources
+        env:
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_APPLE_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          PROFILE_PREPARATION_APPROVED: 'true'
+          PROFILE_ENCRYPTION_KEY_ID: ${{ inputs.encryption_key_id }}
+          PROFILE_ENCRYPTION_PUBLIC_KEY: ${{ inputs.encryption_public_key }}
+        run: python scripts/apple-health-profile-prepare.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ascend-Health-profile-encrypted
+          path: ${{ runner.temp }}/ascend-health-profile-encrypted.json
+          retention-days: 1
