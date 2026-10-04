@@ -211,7 +211,7 @@ for build in builds:
             version == "1.4"
             and attrs.get("version") == build_number
             and attrs.get("processingState") == "VALID"
-            and detail.get("internalBuildState") == "READY_FOR_BETA_TESTING"
+            and detail.get("internalBuildState") in {"READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}
             and group_attrs.get("name") == "Ascend Internal"
             and group_attrs.get("isInternalGroup") is True
             and sorted(tester.get("attributes", {}).get("state") for tester in testers) == ["INSTALLED", "INVITED"]
