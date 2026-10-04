@@ -7,14 +7,6 @@ on:
         description: Enable Ascend HealthKit and create a new matching App Store profile
         type: boolean
         default: false
-      encryption_key_id:
-        description: Existing apple-testflight environment public encryption key ID
-        type: string
-        required: true
-      encryption_public_key:
-        description: Existing apple-testflight environment public encryption key
-        type: string
-        required: true
 
 permissions:
   contents: read
@@ -43,8 +35,10 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           PROFILE_PREPARATION_APPROVED: 'true'
-          PROFILE_ENCRYPTION_KEY_ID: ${{ inputs.encryption_key_id }}
-          PROFILE_ENCRYPTION_PUBLIC_KEY: ${{ inputs.encryption_public_key }}
+          # Public encryption metadata, not credentials. The destination is
+          # pinned so a dispatch input cannot redirect the encrypted profile.
+          PROFILE_ENCRYPTION_KEY_ID: '3380204578043523366'
+          PROFILE_ENCRYPTION_PUBLIC_KEY: 'qDweWVfdKsdPOhQc8uE8CCC7l4oC803z3zrpBwDPY08='
         run: python scripts/apple-health-profile-prepare.py
       - uses: actions/upload-artifact@v4
         with:

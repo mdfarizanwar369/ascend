@@ -57,6 +57,14 @@ class HealthProfilePreparationTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 profile.validate_context({**approved, key: value})
 
+    def test_encrypted_export_cannot_be_redirected_to_another_key(self):
+        target = {"PROFILE_ENCRYPTION_KEY_ID": profile.GITHUB_ENVIRONMENT_KEY_ID,
+            "PROFILE_ENCRYPTION_PUBLIC_KEY": profile.GITHUB_ENVIRONMENT_PUBLIC_KEY}
+        profile.validate_encryption_target(target)
+        for key in target:
+            with self.assertRaises(SystemExit):
+                profile.validate_encryption_target({**target, key: "another-key"})
+
 
 if __name__ == "__main__":
     unittest.main()

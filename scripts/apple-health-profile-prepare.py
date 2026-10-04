@@ -16,6 +16,8 @@ import urllib.request
 BUNDLE = "fit.getascend.app"
 TEAM = "76N75VT6A7"
 HEALTH_KEYS = ("com.apple.developer.healthkit", "com.apple.developer.healthkit.background-delivery")
+GITHUB_ENVIRONMENT_KEY_ID = "3380204578043523366"
+GITHUB_ENVIRONMENT_PUBLIC_KEY = "qDweWVfdKsdPOhQc8uE8CCC7l4oC803z3zrpBwDPY08="
 
 
 def validate_context(environ):
@@ -24,6 +26,12 @@ def validate_context(environ):
             or environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
             or environ.get("PROFILE_PREPARATION_APPROVED") != "true"):
         raise SystemExit("Profile preparation requires the authorized manual main workflow.")
+
+
+def validate_encryption_target(environ):
+    if (environ.get("PROFILE_ENCRYPTION_KEY_ID") != GITHUB_ENVIRONMENT_KEY_ID
+            or environ.get("PROFILE_ENCRYPTION_PUBLIC_KEY") != GITHUB_ENVIRONMENT_PUBLIC_KEY):
+        raise SystemExit("Profile export is restricted to the existing apple-testflight environment key.")
 
 
 def validate_profile(profile, original, require_health=True):
@@ -55,6 +63,7 @@ def validate_profile(profile, original, require_health=True):
 
 def main():
     validate_context(os.environ)
+    validate_encryption_target(os.environ)
     import jwt
     from nacl.public import PublicKey, SealedBox
     encryption_key = PublicKey(base64.b64decode(os.environ["PROFILE_ENCRYPTION_PUBLIC_KEY"], validate=True))
