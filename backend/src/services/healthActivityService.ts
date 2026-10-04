@@ -15,10 +15,10 @@ type Source = {
   workout_rebuild_id: string | null; workout_rebuild_since: Date | null;
 };
 type Settings = { timezone: string; calendar_generation: string };
-const iso = (value: unknown) => value ? new Date(String(value)).toISOString() : null;
+const iso = (value: unknown) => value ? (value instanceof Date ? value : new Date(String(value))).toISOString() : null;
 const connection = (row: Source): HealthActivityConnection => ({
   id: row.id, provider: row.provider, installationId: row.installation_id, generation: row.generation,
-  connected: row.connected, selected: row.selected, pendingSelection: row.pending_selection,workoutHistoryRefreshing:row.workout_rebuild_id !== null,
+  connected: row.connected, selected: row.selected, pendingSelection: row.pending_selection,workoutHistoryRefreshing:Boolean(row.workout_rebuild_id),
   lastUploadedAt: iso(row.last_uploaded_at), disconnectedAt: iso(row.disconnected_at)
 });
 export function healthActivityEnabled(userId: string) {
