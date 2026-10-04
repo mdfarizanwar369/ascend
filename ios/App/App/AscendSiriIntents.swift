@@ -13,14 +13,6 @@ private func ascendQuestion(_ question: String) async -> IntentDialog {
 // A fixed vocabulary lets Siri include the question in a single App Shortcut
 // phrase. Free-form String parameters cannot be interpolated into those phrases.
 @available(iOS 16.0, *)
-private func ascendTopicDisplay(_ title: LocalizedStringResource, _ synonyms: [LocalizedStringResource]) -> DisplayRepresentation {
-    if #available(iOS 17.0, *) {
-        return DisplayRepresentation(title: title, synonyms: synonyms)
-    }
-    return DisplayRepresentation(title: title)
-}
-
-@available(iOS 16.0, *)
 enum AscendTopic: String, AppEnum {
     case caloriesLeft = "How many calories do I have left?"
     case caloriesEaten = "How many calories have I eaten today?"
@@ -62,43 +54,43 @@ enum AscendTopic: String, AppEnum {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Ascend information" }
     static var caseDisplayRepresentations: [Self: DisplayRepresentation] { [
-        .caloriesLeft: ascendTopicDisplay("how many calories do I have left", ["how many calories can I eat now", "how much can I eat today"]),
-        .caloriesEaten: ascendTopicDisplay("how many calories have I eaten today", ["how many calories have I logged today"]),
-        .calorieGoal: ascendTopicDisplay("what is my calorie target", ["what is my calorie budget today"]),
-        .waterDrank: ascendTopicDisplay("how much water have I had today", ["how much water did I drink today", "how much water have I logged today"]),
-        .waterLeft: ascendTopicDisplay("how much more water do I need today", ["how much water do I have left today", "how much water should I still drink today"]),
-        .waterGoal: ascendTopicDisplay("what is my water goal", ["what is my daily water target"]),
-        .waterLoggedAny: ascendTopicDisplay("have I logged any water today", ["did I drink any water today"]),
-        .proteinEaten: ascendTopicDisplay("how much protein have I eaten today", ["how much protein have I logged today"]),
-        .proteinLeft: ascendTopicDisplay("how much protein do I have left", ["how much more protein do I need today"]),
-        .proteinGoal: ascendTopicDisplay("what is my protein target", ["what is my protein goal"]),
-        .carbsEaten: ascendTopicDisplay("how many carbs have I eaten today", ["how many carbs have I logged"]),
-        .carbsLeft: ascendTopicDisplay("how many carbs do I have left", ["how many more carbs can I eat"]),
-        .carbGoal: ascendTopicDisplay("what is my carb target", ["what is my carb goal"]),
-        .fatEaten: ascendTopicDisplay("how much fat have I eaten today", ["how much fat have I logged"]),
-        .fatLeft: ascendTopicDisplay("how much fat do I have left", ["how much more fat can I eat"]),
-        .fatGoal: ascendTopicDisplay("what is my fat target", ["what is my fat goal"]),
-        .macros: ascendTopicDisplay("how are my macros today", ["what are my macros so far"]),
-        .mealCount: ascendTopicDisplay("how many meals have I logged today", ["how many times have I eaten today"]),
-        .foodLogged: ascendTopicDisplay("have I logged any food today", ["did I log any food today", "have I eaten anything today"]),
-        .latestMeal: ascendTopicDisplay("what was my latest meal", ["what did I eat last"]),
-        .mealsToday: ascendTopicDisplay("what have I eaten today", ["what food have I logged today"]),
-        .workoutToday: ascendTopicDisplay("what is my workout today", ["what workout did Zoe make for me"]),
-        .workoutExercises: ascendTopicDisplay("what exercises are in my workout", ["what moves are in my workout today"]),
-        .workoutCompleted: ascendTopicDisplay("did I finish my Zoe workout today", ["did I complete my workout today"]),
-        .workoutLogged: ascendTopicDisplay("have I logged a workout today", ["did I log any workout today", "have I worked out today"]),
-        .workoutCaloriesBurned: ascendTopicDisplay("how many calories did I burn in workouts today", ["how many workout calories have I logged today"]),
-        .workoutsThisWeek: ascendTopicDisplay("how many workouts have I logged this week", ["how many workouts in the last seven days"]),
-        .workoutsToday: ascendTopicDisplay("how many workouts have I done today", ["how many workouts did I log today"]),
-        .latestWeight: ascendTopicDisplay("what is my latest weight", ["how much do I weigh"]),
-        .weightGoal: ascendTopicDisplay("what is my target weight", ["what is my weight goal"]),
-        .weightChange: ascendTopicDisplay("how much has my weight changed", ["how much weight have I lost"]),
-        .fitnessGoal: ascendTopicDisplay("what is my fitness goal", ["what am I working towards"]),
-        .sleep: ascendTopicDisplay("how did I sleep today", ["what was my sleep check in"]),
-        .steps: ascendTopicDisplay("how many steps have I taken today", ["what is my step count today"]),
-        .activeCalories: ascendTopicDisplay("how many active calories did I burn today", ["how much energy did I burn today"]),
-        .membership: ascendTopicDisplay("what is my Ascend membership", ["what plan am I on"]),
-        .dailySummary: ascendTopicDisplay("how am I doing today", ["give me my daily summary"])
+        .caloriesLeft: DisplayRepresentation(title: "how many calories do I have left"),
+        .caloriesEaten: DisplayRepresentation(title: "how many calories have I eaten today"),
+        .calorieGoal: DisplayRepresentation(title: "what is my calorie target"),
+        .waterDrank: DisplayRepresentation(title: "how much water have I had today"),
+        .waterLeft: DisplayRepresentation(title: "how much more water do I need today"),
+        .waterGoal: DisplayRepresentation(title: "what is my water goal"),
+        .waterLoggedAny: DisplayRepresentation(title: "have I logged any water today"),
+        .proteinEaten: DisplayRepresentation(title: "how much protein have I eaten today"),
+        .proteinLeft: DisplayRepresentation(title: "how much protein do I have left"),
+        .proteinGoal: DisplayRepresentation(title: "what is my protein target"),
+        .carbsEaten: DisplayRepresentation(title: "how many carbs have I eaten today"),
+        .carbsLeft: DisplayRepresentation(title: "how many carbs do I have left"),
+        .carbGoal: DisplayRepresentation(title: "what is my carb target"),
+        .fatEaten: DisplayRepresentation(title: "how much fat have I eaten today"),
+        .fatLeft: DisplayRepresentation(title: "how much fat do I have left"),
+        .fatGoal: DisplayRepresentation(title: "what is my fat target"),
+        .macros: DisplayRepresentation(title: "how are my macros today"),
+        .mealCount: DisplayRepresentation(title: "how many meals have I logged today"),
+        .foodLogged: DisplayRepresentation(title: "have I logged any food today"),
+        .latestMeal: DisplayRepresentation(title: "what was my latest meal"),
+        .mealsToday: DisplayRepresentation(title: "what have I eaten today"),
+        .workoutToday: DisplayRepresentation(title: "what is my workout today"),
+        .workoutExercises: DisplayRepresentation(title: "what exercises are in my workout"),
+        .workoutCompleted: DisplayRepresentation(title: "did I finish my Zoe workout today"),
+        .workoutLogged: DisplayRepresentation(title: "have I logged a workout today"),
+        .workoutCaloriesBurned: DisplayRepresentation(title: "how many calories did I burn in workouts today"),
+        .workoutsThisWeek: DisplayRepresentation(title: "how many workouts have I logged this week"),
+        .workoutsToday: DisplayRepresentation(title: "how many workouts have I done today"),
+        .latestWeight: DisplayRepresentation(title: "what is my latest weight"),
+        .weightGoal: DisplayRepresentation(title: "what is my target weight"),
+        .weightChange: DisplayRepresentation(title: "how much has my weight changed"),
+        .fitnessGoal: DisplayRepresentation(title: "what is my fitness goal"),
+        .sleep: DisplayRepresentation(title: "how did I sleep today"),
+        .steps: DisplayRepresentation(title: "how many steps have I taken today"),
+        .activeCalories: DisplayRepresentation(title: "how many active calories did I burn today"),
+        .membership: DisplayRepresentation(title: "what is my Ascend membership"),
+        .dailySummary: DisplayRepresentation(title: "how am I doing today")
     ] }
 }
 
