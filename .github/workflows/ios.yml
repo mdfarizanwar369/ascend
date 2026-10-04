@@ -17,6 +17,14 @@ on:
         description: Sign and upload to TestFlight (requires configured Apple secrets)
         type: boolean
         default: false
+      check_testflight:
+        description: Check build processing and tester group assignment
+        type: boolean
+        default: false
+      build_number:
+        description: Build number to check
+        type: string
+        default: '66.1'
 
 permissions:
   contents: read
@@ -31,7 +39,7 @@ concurrency:
 
 jobs:
   testflight-status:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/diag/testflight-build-66-status'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.check_testflight
     runs-on: ubuntu-latest
     timeout-minutes: 5
     environment: apple-testflight
@@ -46,6 +54,7 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          ASC_BUILD_NUMBER: ${{ inputs.build_number }}
         run: python scripts/testflight_status.py
 
   simulator:

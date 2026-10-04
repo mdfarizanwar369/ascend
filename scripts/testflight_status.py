@@ -49,11 +49,12 @@ try:
 except RuntimeError as error:
     print("UPLOAD_QUERY_ERROR", str(error))
 
+build_number = os.environ.get("ASC_BUILD_NUMBER", "66.1")
 builds = get(
     "/v1/builds",
-    **{"filter[app]": app_id, "filter[version]": "66.1", "include": "preReleaseVersion", "limit": 20},
+    **{"filter[app]": app_id, "filter[version]": build_number, "include": "preReleaseVersion", "limit": 20},
 )["data"]
-print("MATCHING_BUILDS", len(builds))
+print("MATCHING_BUILDS", build_number, len(builds))
 groups = get(f"/v1/apps/{app_id}/betaGroups", limit=200)["data"]
 for build in builds:
     attrs = build.get("attributes", {})
