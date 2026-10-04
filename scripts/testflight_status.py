@@ -41,6 +41,41 @@ def assign_build_to_group(group_id, build_id):
         raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
 
 
+def create_owner_group(app_id):
+    path = "/v1/betaGroups"
+    payload = {"data": {"type": "betaGroups", "attributes": {
+        "name": "Ascend Owner", "isInternalGroup": True, "hasAccessToAllBuilds": False,
+    }, "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}}
+    request = urllib.request.Request(
+        "https://api.appstoreconnect.apple.com" + path,
+        data=json.dumps(payload).encode(),
+        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.load(response)["data"]
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", "replace")
+        raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
+
+
+def add_owner_to_group(group_id, tester_id):
+    path = f"/v1/betaGroups/{group_id}/relationships/betaTesters"
+    request = urllib.request.Request(
+        "https://api.appstoreconnect.apple.com" + path,
+        data=json.dumps({"data": [{"type": "betaTesters", "id": tester_id}]}).encode(),
+        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", "replace")
+        raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
+
+
 def assign_build_to_tester(build_id, tester_id):
     path = f"/v1/builds/{build_id}/relationships/individualTesters"
     request = urllib.request.Request(
@@ -230,4 +265,40 @@ for build in builds:
         print("OWNER_ASSIGNMENT", json.dumps({
             "status": status,
             "verified": owner_tester["id"] in assigned_ids,
+        }))
+    if os.environ.get("ASC_ASSIGN_OWNER_GROUP_BUILD") == "true" and (
+        version == "1.4"
+        and attrs.get("version") == build_number
+        and attrs.get("processingState") == "VALID"
+        and detail.get("internalBuildState") in {"READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}
+        and len(matching_owner_testers) == 1
+    ):
+        owner_tester = next(iter(matching_owner_testers.values()))
+        if owner_tester.get("attributes", {}).get("state") not in {"INSTALLED", "ACCEPTED", "INVITED"}:
+            raise SystemExit("Account holder is not eligible for TestFlight")
+        owner_groups = [group for group in groups if group["attributes"].get("name") == "Ascend Owner"]
+        if len(owner_groups) > 1:
+            raise SystemExit("More than one Ascend Owner TestFlight group exists")
+        owner_group = owner_groups[0] if owner_groups else create_owner_group(app_id)
+        owner_group = get(f"/v1/betaGroups/{owner_group['id']}")["data"]
+        group_attrs = owner_group["attributes"]
+        if group_attrs.get("isInternalGroup") is not True or group_attrs.get("hasAccessToAllBuilds") is not False:
+            raise SystemExit("Ascend Owner group is not limited to selected internal builds")
+        group_id = owner_group["id"]
+        tester_ids = {item["id"] for item in get(f"/v1/betaGroups/{group_id}/relationships/betaTesters", limit=200)["data"]}
+        if tester_ids - {owner_tester["id"]}:
+            raise SystemExit("Ascend Owner group includes another tester")
+        if owner_tester["id"] not in tester_ids:
+            add_owner_to_group(group_id, owner_tester["id"])
+        tester_ids = {item["id"] for item in get(f"/v1/betaGroups/{group_id}/relationships/betaTesters", limit=200)["data"]}
+        if tester_ids != {owner_tester["id"]}:
+            raise SystemExit("Could not verify owner-only TestFlight group membership")
+        assigned_ids = {item["id"] for item in get(f"/v1/betaGroups/{group_id}/relationships/builds", limit=200)["data"]}
+        if build_id not in assigned_ids:
+            assign_build_to_group(group_id, build_id)
+        assigned_ids = {item["id"] for item in get(f"/v1/betaGroups/{group_id}/relationships/builds", limit=200)["data"]}
+        if build_id not in assigned_ids:
+            raise SystemExit("Could not verify owner-only TestFlight build assignment")
+        print("OWNER_GROUP_ASSIGNMENT", json.dumps({
+            "group": group_attrs["name"], "testerCount": len(tester_ids), "verified": True,
         }))
