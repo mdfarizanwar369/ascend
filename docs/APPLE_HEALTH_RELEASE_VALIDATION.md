@@ -1,6 +1,6 @@
 # Ascend Apple Health Release Validation
 
-Updated 4 October 2026. This checklist records the implementation evidence and work required before Ascend can submit or advertise Apple Health support. The feature is in [draft PR 55](https://github.com/mdfarizanwar369/ascend/pull/55), not a submitted release. Production activation has not occurred.
+Updated 4 October 2026. This checklist records the implementation evidence and work required before Ascend can submit or advertise Apple Health support. The feature is in [draft PR 55](https://github.com/mdfarizanwar369/ascend/pull/55), not a submitted release. Production activation has not occurred. The immediate signing blocker is verified: Apple's API returned HTTP 403 for enabling HealthKit with the existing key. Chrome control remains unavailable, so neither route can currently complete provisioning.
 
 ## Implemented scope
 
@@ -19,11 +19,12 @@ Workout checkpoint recovery keeps earlier records while pages upload and removes
 | Current Apple release | Apple's read-only API reports 1.3 as READY_FOR_SALE. No 1.4 App Store version was returned; existing 1.4 TestFlight uploads are separate evidence. |
 | Existing provisioning profile | Correct Ascend team and bundle; unexpired App Store distribution with Sign in with Apple. HealthKit and Health background delivery are both absent. |
 | Automated reconciliation | 33 backend unit tests cover missing versus zero, lower corrections, source ownership, duplicate accounting, net estimates and conservative manual overlap. |
-| Database integration | The earlier CI run passed 12 isolated PostgreSQL cases, including concurrent retries, corrections, account isolation, source switching, deletion and privacy-table separation. Expanded recovery and timezone cases are awaiting the latest CI result. |
-| Frontend | Full local suite passed 266 tests before the workout-history additions. The latest focused connection, coordinator and workout-history suite passed 23 tests. |
+| Database integration | Latest CI passed all 16 isolated PostgreSQL cases, including concurrent retries, corrections, account isolation, source switching, deletion, privacy-table separation, timezone rotation and multi-chunk recovery. A millisecond-loss checkpoint comparison was fixed before this run passed. |
+| Application tests | Latest full CI passed 271 frontend tests and 738 backend tests; 14 backend cases unrelated to these database checks remained skipped. The latest focused connection, coordinator and workout-history suite passed 23 tests locally. |
 | Signing and packaging | Ten Python signing-boundary tests and nine native packaging tests passed locally. These do not prove a correctly signed Health-enabled archive. |
-| Build | Local lint and production builds pass. The preceding feature commit compiled successfully on a GitHub macOS Xcode runner. Latest native changes still require that final CI result. |
-| Production | No new migration, deploy or feature-flag activation performed. |
+| Build | Local lint and production builds pass. The latest application commit passed the complete macOS simulator build. This checks native compilation, not Health authorization or background operation on a device. |
+| Signing preparation | Six profile safety tests passed. The authorized protected-main preparation failed at POST /v1/bundleIdCapabilities with HTTP 403 before creating or exporting a profile. No existing certificate, profile or secret was replaced or revoked. |
+| Production | No Health migration, Health application deployment or feature-flag activation performed. Auxiliary signing workflows merged to main caused normal automatic deployments with no application feature changes. |
 | Physical devices | No signed-device or three-day pilot evidence supplied. |
 | Browser and visuals | Chrome connection still fails after the user toggled its extension. No visual screenshot verification or App Store privacy UI update has been claimed. |
 
@@ -31,8 +32,8 @@ Read-only Apple inspection uses the existing protected `main` environment. No re
 
 ## Remaining engineering checks
 
-- [ ] Latest isolated database tests, including multi-chunk checkpoint recovery, must pass.
-- [ ] Latest Swift changes must compile on the Mac runner.
+- [x] Latest isolated database tests passed, including multi-chunk checkpoint recovery.
+- [x] Latest Swift changes compiled on the Mac runner.
 - [ ] Render the real connection and history screens at supported phone and tablet sizes; inspect clipping, long labels, empty and failure states.
 - [ ] Add a controllable native query test adapter or equivalent native tests for interrupted reads, durable queue replay and permission ambiguity. JavaScript mocks do not validate HealthKit behavior.
 - [ ] Validate long and cross-midnight manual activity handling. Current unknown intervals are excluded conservatively; a complete interval editor and proportional allocation are not implemented.
@@ -48,6 +49,8 @@ Read-only Apple inspection uses the existing protected `main` environment. No re
 5. Deploy backward-compatible backend and hosted frontend with both flags off. Verify old native iOS, Android and browser access before enabling any pilot account.
 6. Sign and upload through the existing trusted main workflow. Verify signed entitlements, Apple processing status and owner TestFlight availability.
 7. Enable only designated pilot account IDs with `APPLE_HEALTH_SYNC_V1=true`, `DAILY_ACTIVITY_LEDGER_V1=true` and a nonempty `APPLE_HEALTH_USER_IDS` allowlist. These settings are not yet applied. A blank allowlist means all accounts when both flags are enabled, so it must not be used for the initial pilot.
+
+The existing key can read the app, bundle ID and distribution certificate, but cannot enable the capability. Do not infer write access from successful reads or grant the key broader authority as a workaround. Restore Chrome control with the account holder signed into Apple Developer, then continue the exact Ascend capability and profile change through the authorized account. If another credential is proposed instead, its provisioning authority and secure setup need an explicit decision. The encrypted preparation workflow is pinned to the existing GitHub environment's public encryption key; it cannot redirect a profile to a caller-supplied key and publishes no plaintext signing file.
 
 ## Required physical device evidence
 

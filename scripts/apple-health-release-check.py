@@ -42,8 +42,8 @@ def main():
         print("APP_STORE_VERSION", json.dumps({"version": attrs.get("versionString"), "state": attrs.get("appStoreState"), "platform": attrs.get("platform")}))
     bundles = get("/v1/bundleIds", **{"filter[identifier]": release.BUNDLE, "limit": 5})
     if len(bundles) == 1:
-        for capability in get(f"/v1/bundleIds/{bundles[0]['id']}/bundleIdCapabilities", limit=100):
-            if capability["attributes"].get("capabilityType") in ("HEALTHKIT", "SIGN_IN_WITH_APPLE"):
+        for capability in get(f"/v1/bundleIds/{bundles[0]['id']}/bundleIdCapabilities"):
+            if capability["attributes"].get("capabilityType") in ("HEALTHKIT", "APPLE_ID_AUTH"):
                 print("BUNDLE_CAPABILITY", json.dumps(capability["attributes"]))
     required = plistlib.loads(Path("ios/App/App/App.entitlements").read_bytes())
     with tempfile.TemporaryDirectory(prefix="ascend-profile-check-") as directory:

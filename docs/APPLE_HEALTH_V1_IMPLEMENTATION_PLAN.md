@@ -1,6 +1,6 @@
 # Ascend Apple Health Implementation Plan
 
-Prepared and updated 4 October 2026. Status: implementation in draft PR 55; automated checks are underway, and signed-device verification has not started. Production activation and App Store submission have not happened. See [the release validation checklist](APPLE_HEALTH_RELEASE_VALIDATION.md) for current evidence and remaining gates.
+Prepared and updated 4 October 2026. Status: implementation in draft PR 55; application quality checks and Mac compilation passed. Apple rejected the signing capability change because the existing API key lacks provisioning write access, and the Chrome connection is unavailable. Signed-device verification, production activation and App Store submission have not happened. See [the release validation checklist](APPLE_HEALTH_RELEASE_VALIDATION.md) for current evidence and remaining gates.
 
 This plan adds optional Apple Health integration to Ascend so members can automatically see steps, imported workouts, and daily active calories. The first release will use Apple Health as the daily activity energy source, reconcile manual logs without counting the same activity twice, and leave nutrition targets unchanged. It will be available to Free members as well as subscribers.
 
