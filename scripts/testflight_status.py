@@ -57,6 +57,31 @@ def assign_build_to_tester(build_id, tester_id):
         raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
 
 
+def resend_owner_invitation(app_id, tester_id):
+    path = "/v1/betaTesterInvitations"
+    payload = {
+        "data": {
+            "type": "betaTesterInvitations",
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": app_id}},
+                "betaTester": {"data": {"type": "betaTesters", "id": tester_id}},
+            },
+        }
+    }
+    request = urllib.request.Request(
+        "https://api.appstoreconnect.apple.com" + path,
+        data=json.dumps(payload).encode(),
+        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", "replace")
+        raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
+
+
 now = int(time.time())
 private_key = base64.b64decode(os.environ["ASC_PRIVATE_KEY_BASE64"], validate=True)
 TOKEN = jwt.encode(
@@ -118,6 +143,7 @@ for build in builds:
         "externalBuildState": detail.get("externalBuildState"),
     }, sort_keys=True))
     matching_owner_testers = []
+    owner_in_assigned_internal_group = False
     for group in groups:
         group_id = group["id"]
         testers = get(f"/v1/betaGroups/{group_id}/betaTesters", limit=200)["data"]
@@ -133,6 +159,11 @@ for build in builds:
             tester for tester in testers
             if tester.get("attributes", {}).get("email", "").strip().lower() in account_holder_emails
         )
+        if (group_attrs.get("name") == "Ascend Internal" and group_attrs.get("isInternalGroup") is True
+                and build_id in assigned_ids
+                and any(tester.get("attributes", {}).get("email", "").strip().lower() in account_holder_emails
+                        for tester in testers)):
+            owner_in_assigned_internal_group = True
         print("GROUP", json.dumps({
             "name": group_attrs.get("name"),
             "internal": group_attrs.get("isInternalGroup"),
@@ -161,6 +192,19 @@ for build in builds:
     print("OWNER_TESTER_STATES", sorted(
         tester.get("attributes", {}).get("state", "UNKNOWN") for tester in matching_owner_testers.values()
     ))
+    if os.environ.get("ASC_RESEND_OWNER_INVITE") == "true" and (
+        version == "1.4"
+        and attrs.get("version") == build_number
+        and attrs.get("processingState") == "VALID"
+        and detail.get("internalBuildState") == "IN_BETA_TESTING"
+        and owner_in_assigned_internal_group
+        and len(matching_owner_testers) == 1
+    ):
+        owner_tester = next(iter(matching_owner_testers.values()))
+        if owner_tester.get("attributes", {}).get("state") == "INVITED":
+            print("OWNER_INVITATION", json.dumps({
+                "status": resend_owner_invitation(app_id, owner_tester["id"])
+            }))
     if os.environ.get("ASC_ASSIGN_OWNER_BUILD") == "true" and (
         version == "1.4"
         and attrs.get("version") == build_number

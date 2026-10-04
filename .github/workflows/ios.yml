@@ -33,6 +33,10 @@ on:
         description: Assign the valid build only to the App Store Connect account holder
         type: boolean
         default: false
+      resend_owner_invite:
+        description: Resend the selected internal build's invitation to the account holder
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,6 +69,7 @@ jobs:
           ASC_BUILD_NUMBER: ${{ inputs.build_number }}
           ASC_ASSIGN_INTERNAL_BUILD: ${{ inputs.assign_internal_build }}
           ASC_ASSIGN_OWNER_BUILD: ${{ inputs.assign_owner_build }}
+          ASC_RESEND_OWNER_INVITE: ${{ inputs.resend_owner_invite }}
         run: python scripts/testflight_status.py
 
   simulator:
