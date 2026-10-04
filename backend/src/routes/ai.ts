@@ -906,7 +906,9 @@ aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
 
 aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
   try {
-    if (!workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2, ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT, isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER }) || !await usesIosDailyWorkout(req.user!.id)) {
+    // A saved V2 workout must remain swappable even if the rollout is turned
+    // off after it was generated. The service checks ownership and V2 status.
+    if (!await usesIosDailyWorkout(req.user!.id)) {
       return res.status(404).json({ error: "Not found" });
     }
     const input = z.object({

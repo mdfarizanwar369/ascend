@@ -114,12 +114,16 @@ describe("exercise visual card", () => {
     expect(images[0]).toHaveAttribute("src", expect.stringContaining("push-up-start.webp"));
     expect(images[1]).toHaveAttribute("src", expect.stringContaining("push-up-peak.webp"));
   });
-  it("falls back to no visual when either asset fails and sends one aggregate event", () => {
+  it("keeps coaching instructions when either image fails and sends one aggregate event", () => {
     const exercise = PILOT_EXERCISE_VISUALS.find(item => item.id === "glute-bridge")!;
     render(<ExerciseVisualCard exercise={exercise} />);
     fireEvent.error(screen.getAllByRole("img")[0]);
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(screen.queryByText("Position")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Illustration unavailable");
+    expect(screen.getByText(exercise.instructions)).toBeInTheDocument();
+    expect(screen.getByText(exercise.cue)).toBeInTheDocument();
+    expect(screen.queryByText("Original Ascend exercise visual")).not.toBeInTheDocument();
     expect(mocks.event).toHaveBeenCalledWith("image_load_failure", "glute-bridge");
     expect(mocks.event).toHaveBeenCalledTimes(1);
   });

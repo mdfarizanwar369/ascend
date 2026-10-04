@@ -118,4 +118,25 @@ describe("native daily workout allowance", () => {
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("update ios_daily_workouts"), ["member", "saved-key", result.workout]);
     expect(clientQuery.mock.calls.at(-1)).toEqual(["commit"]);
   });
+
+  it("does not swap an older workout when the route accepts saved workout requests", async () => {
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [{ ...saved, completed: false }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    await expect(swapIosDailyWorkoutExercise("member", "saved-key", 0)).rejects.toMatchObject({ status: 400 });
+    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("update ios_daily_workouts"))).toBe(false);
+    expect(clientQuery).toHaveBeenCalledWith("rollback");
+  });
+
+  it("does not swap a completed V2 workout", async () => {
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [{ ...saved, workout: { ...workout, experienceVersion: 2 } }], rowCount: 1 };
+      if (sql.includes("from analytics_events")) return { rows: [{}], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    await expect(swapIosDailyWorkoutExercise("member", "saved-key", 0)).rejects.toMatchObject({ status: 409 });
+    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("update ios_daily_workouts"))).toBe(false);
+    expect(clientQuery).toHaveBeenCalledWith("rollback");
+  });
 });

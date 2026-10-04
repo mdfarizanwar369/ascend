@@ -91,6 +91,52 @@ describe("Zoe workout engine V2", () => {
     expect(second.whyToday).not.toContain("logged a workout");
   });
 
+  it("chooses an older suitable movement over one used on the previous day", () => {
+    const blueprint = buildWorkoutBlueprint({
+      ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", today: "2026-10-04",
+      recentWorkouts: [
+        { metadata: { evidenceType: "planned", exercises: [{ name: "Dumbbell Reverse Lunge" }] }, created_at: "2026-10-03T08:00:00Z" },
+        { metadata: { evidenceType: "planned", exercises: [{ name: "Supported Split Squat" }] }, created_at: "2026-10-02T08:00:00Z" }
+      ]
+    });
+    expect(blueprint.exercises.map(exercise => exercise.name)).not.toContain("Dumbbell Reverse Lunge");
+    expect(blueprint.exercises.some(exercise => exercise.name === "Supported Split Squat" || exercise.name === "Bodyweight Reverse Lunge")).toBe(true);
+  });
+
+  it("rotates the lower-body pattern instead of repeating the only available squat", () => {
+    const first = buildWorkoutBlueprint({ ...base, location: "outdoors", timeAvailable: "20", recentWorkouts: [] });
+    expect(first.exercises.map(exercise => exercise.name)).toContain("Bodyweight Squat");
+    const second = buildWorkoutBlueprint({
+      ...base, location: "outdoors", timeAvailable: "20", today: "2026-10-04",
+      recentWorkouts: [{
+        metadata: { evidenceType: "planned", exercises: first.exercises.map(exercise => ({ name: exercise.name })) },
+        created_at: "2026-10-03T08:00:00Z"
+      }]
+    });
+    expect(second.exercises.map(exercise => exercise.name)).not.toContain("Bodyweight Squat");
+    expect(second.exercises.map(exercise => exercise.name)).toEqual(expect.arrayContaining([expect.stringMatching(/Lunge|Split Squat/)]));
+  });
+
+  it("avoids back-to-back exercise repeats across a week of planned sessions", () => {
+    for (const setting of [
+      { location: "outdoors", equipment: "Bodyweight" },
+      { location: "home", equipment: "Dumbbells" },
+      { location: "home", equipment: "Resistance Bands" },
+      { location: "gym", equipment: "Full Gym" }
+    ]) {
+      const recentWorkouts: Array<{ metadata: { evidenceType: "planned"; exercises: Array<{ name: string }> }; created_at: string }> = [];
+      let previous = new Set<string>();
+      for (let day = 1; day <= 7; day++) {
+        const date = `2026-10-${String(day).padStart(2, "0")}`;
+        const blueprint = buildWorkoutBlueprint({ ...base, ...setting, timeAvailable: "45", today: date, recentWorkouts });
+        const names = blueprint.exercises.map(exercise => exercise.name);
+        expect(names.filter(name => previous.has(name)), `${setting.location} ${setting.equipment} on ${date}`).toEqual([]);
+        previous = new Set(names);
+        recentWorkouts.unshift({ metadata: { evidenceType: "planned", exercises: names.map(name => ({ name })) }, created_at: `${date}T08:00:00Z` });
+      }
+    }
+  });
+
   it("uses recent effort conservatively and ignores stale effort", () => {
     const recentWorkouts = [{ metadata: { exercises: [{ name: "Goblet Squat" }], effortRating: "too_easy" }, created_at: "2026-10-02T08:00:00.000Z" }];
     const ready = buildWorkoutBlueprint({ ...base, timeAvailable: "45", recentWorkouts });
