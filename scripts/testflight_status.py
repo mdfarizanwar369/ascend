@@ -41,6 +41,22 @@ def assign_build_to_group(group_id, build_id):
         raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
 
 
+def assign_build_to_tester(build_id, tester_id):
+    path = f"/v1/builds/{build_id}/relationships/individualTesters"
+    request = urllib.request.Request(
+        "https://api.appstoreconnect.apple.com" + path,
+        data=json.dumps({"data": [{"type": "betaTesters", "id": tester_id}]}).encode(),
+        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", "replace")
+        raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
+
+
 now = int(time.time())
 private_key = base64.b64decode(os.environ["ASC_PRIVATE_KEY_BASE64"], validate=True)
 TOKEN = jwt.encode(
@@ -72,6 +88,15 @@ builds = get(
 )["data"]
 print("MATCHING_BUILDS", build_number, len(builds))
 groups = get(f"/v1/apps/{app_id}/betaGroups", limit=200)["data"]
+try:
+    account_holders = get("/v1/users", **{"filter[roles]": "ACCOUNT_HOLDER", "limit": 200})["data"]
+    account_holder_emails = {
+        user.get("attributes", {}).get("username", "").strip().lower() for user in account_holders
+    }
+    print("ACCOUNT_HOLDERS", len(account_holder_emails))
+except RuntimeError as error:
+    print("ACCOUNT_HOLDER_QUERY_ERROR", str(error))
+    account_holder_emails = set()
 for build in builds:
     attrs = build.get("attributes", {})
     build_id = build["id"]
@@ -92,6 +117,7 @@ for build in builds:
         "internalBuildState": detail.get("internalBuildState"),
         "externalBuildState": detail.get("externalBuildState"),
     }, sort_keys=True))
+    matching_owner_testers = []
     for group in groups:
         group_id = group["id"]
         testers = get(f"/v1/betaGroups/{group_id}/betaTesters", limit=200)["data"]
@@ -103,6 +129,10 @@ for build in builds:
             print("GROUP_BUILDS_QUERY_ERROR", str(error))
             assigned_ids = set()
         group_attrs = group["attributes"]
+        matching_owner_testers.extend(
+            tester for tester in testers
+            if tester.get("attributes", {}).get("email", "").strip().lower() in account_holder_emails
+        )
         print("GROUP", json.dumps({
             "name": group_attrs.get("name"),
             "internal": group_attrs.get("isInternalGroup"),
@@ -126,3 +156,29 @@ for build in builds:
                 item["id"] for item in get(f"/v1/betaGroups/{group_id}/relationships/builds", limit=200)["data"]
             }
             print("ASSIGNMENT", json.dumps({"status": status, "verified": build_id in new_ids}))
+    matching_owner_testers = {tester["id"]: tester for tester in matching_owner_testers}
+    print("OWNER_TESTER_MATCHES", len(matching_owner_testers))
+    if os.environ.get("ASC_ASSIGN_OWNER_BUILD") == "true" and (
+        version == "1.4"
+        and attrs.get("version") == "66.1"
+        and attrs.get("processingState") == "VALID"
+        and detail.get("internalBuildState") == "READY_FOR_BETA_TESTING"
+        and len(matching_owner_testers) == 1
+    ):
+        owner_tester = next(iter(matching_owner_testers.values()))
+        if owner_tester.get("attributes", {}).get("state") not in {"INSTALLED", "ACCEPTED"}:
+            raise SystemExit("Account holder has not accepted the TestFlight invitation")
+        existing_ids = {
+            item["id"] for item in get(f"/v1/builds/{build_id}/relationships/individualTesters", limit=200)["data"]
+        }
+        if owner_tester["id"] not in existing_ids:
+            status = assign_build_to_tester(build_id, owner_tester["id"])
+        else:
+            status = "already assigned"
+        assigned_ids = {
+            item["id"] for item in get(f"/v1/builds/{build_id}/relationships/individualTesters", limit=200)["data"]
+        }
+        print("OWNER_ASSIGNMENT", json.dumps({
+            "status": status,
+            "verified": owner_tester["id"] in assigned_ids,
+        }))

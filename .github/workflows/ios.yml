@@ -29,6 +29,10 @@ on:
         description: Assign the valid build to the single-tester Ascend Internal group
         type: boolean
         default: false
+      assign_owner_build:
+        description: Assign the valid build only to the App Store Connect account holder
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -60,6 +64,7 @@ jobs:
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           ASC_BUILD_NUMBER: ${{ inputs.build_number }}
           ASC_ASSIGN_INTERNAL_BUILD: ${{ inputs.assign_internal_build }}
+          ASC_ASSIGN_OWNER_BUILD: ${{ inputs.assign_owner_build }}
         run: python scripts/testflight_status.py
 
   simulator:
