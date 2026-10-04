@@ -123,7 +123,9 @@ struct AscendSiriShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: AscendAskIntent(), phrases: [
             "Ask \(.applicationName) a question",
-            "Ask \(.applicationName) about my day"
+            "Ask \(.applicationName) about my day",
+            "Check my information in \(.applicationName)",
+            "Check with \(.applicationName)"
         ], shortTitle: "Ask Ascend", systemImageName: "questionmark.bubble")
         AppShortcut(intent: AscendCaloriesLeftIntent(), phrases: [
             "Ask \(.applicationName) how many calories I can eat now",
@@ -136,6 +138,8 @@ struct AscendSiriShortcuts: AppShortcutsProvider {
         ], shortTitle: "Calories logged", systemImageName: "fork.knife")
         AppShortcut(intent: AscendWaterIntent(), phrases: [
             "Ask \(.applicationName) how much water I have drunk",
+            "Ask \(.applicationName) how much water I drank",
+            "Check how much water I drank in \(.applicationName)",
             "How much water have I logged in \(.applicationName)",
             "Ask \(.applicationName) how much water I have left"
         ], shortTitle: "Water today", systemImageName: "drop")

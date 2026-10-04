@@ -13,6 +13,7 @@ describe("Siri question variations", () => {
     ["What is my calorie budget?", "calories_target"],
     ["How many calories have I eaten so far?", "calories_consumed"],
     ["How much water have I drunk?", "water_logged"],
+    ["Can you check how much water I drank?", "water_logged"],
     ["How much more water do I need to drink?", "water_remaining"],
     ["What is my water goal?", "water_target"],
     ["How much protein is left?", "protein_remaining"],

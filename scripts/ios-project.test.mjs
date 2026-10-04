@@ -67,6 +67,8 @@ test("Siri intents are packaged in the iPhone app with private, device-authentic
   assert.match(intents, /today_summary/);
   assert.match(intents, /struct AscendAskIntent: AppIntent/);
   assert.ok(intents.includes('Ask \\(.applicationName) a question'));
+  assert.ok(intents.includes('Ask \\(.applicationName) how much water I drank'));
+  assert.ok(intents.includes('Check how much water I drank in \\(.applicationName)'));
   assert.ok(!intents.includes('Ask \\(.applicationName) \\(\\.$question)'), "App Shortcuts only interpolate AppEntity or AppEnum parameters");
   assert.match(intents, /struct AscendWorkoutIntent: AppIntent/);
   assert.equal((intents.match(/AppShortcut\(intent:/g) ?? []).length, 10);
