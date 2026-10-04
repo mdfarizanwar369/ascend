@@ -34,7 +34,7 @@ export function resolveVoiceQuestion(question: string): VoiceQuestionIntent {
   }
   if (includes(text, /\b(weight|weigh)\b/)) {
     if (includes(text, /\b(goal|target|aim|want to)\b/)) return "weight_goal";
-    if (includes(text, /\b(change|progress|lost|gained|difference|since start)\b/)) return "weight_change";
+    if (includes(text, /\b(change|changed|progress|lost|gained|difference|since start)\b/)) return "weight_change";
     return "latest_weight";
   }
   if (includes(text, /\b(fat loss|muscle gain|general fitness|maintenance)\b/) && includes(text, /\b(goal|focus|objective)\b/)) return "fitness_goal";

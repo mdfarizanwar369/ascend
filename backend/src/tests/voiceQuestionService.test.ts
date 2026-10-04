@@ -32,6 +32,7 @@ describe("Siri question variations", () => {
     ["What is my current weight?", "latest_weight"],
     ["What is my target weight?", "weight_goal"],
     ["How much weight have I lost?", "weight_change"],
+    ["How much has my weight changed?", "weight_change"],
     ["How did I sleep?", "sleep_quality"],
     ["How many steps today?", "steps_today"],
     ["How many active calories did I burn?", "active_calories"],
