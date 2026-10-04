@@ -25,6 +25,22 @@ def get(path, **params):
         raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
 
 
+def assign_build_to_group(group_id, build_id):
+    path = f"/v1/betaGroups/{group_id}/relationships/builds"
+    request = urllib.request.Request(
+        "https://api.appstoreconnect.apple.com" + path,
+        data=json.dumps({"data": [{"type": "builds", "id": build_id}]}).encode(),
+        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.status
+    except urllib.error.HTTPError as error:
+        body = error.read().decode("utf-8", "replace")
+        raise RuntimeError(f"App Store Connect {path}: HTTP {error.code}: {body[:1200]}") from error
+
+
 now = int(time.time())
 private_key = base64.b64decode(os.environ["ASC_PRIVATE_KEY_BASE64"], validate=True)
 TOKEN = jwt.encode(
@@ -78,6 +94,7 @@ for build in builds:
     }, sort_keys=True))
     for group in groups:
         group_id = group["id"]
+        testers = get(f"/v1/betaGroups/{group_id}/betaTesters", limit=200)["data"]
         try:
             assigned_ids = {
                 item["id"] for item in get(f"/v1/betaGroups/{group_id}/relationships/builds", limit=200)["data"]
@@ -91,4 +108,21 @@ for build in builds:
             "internal": group_attrs.get("isInternalGroup"),
             "allBuilds": group_attrs.get("hasAccessToAllBuilds"),
             "buildAssigned": build_id in assigned_ids,
+            "testerCount": len(testers),
+            "testerStates": [tester.get("attributes", {}).get("state") for tester in testers],
         }, sort_keys=True))
+        if os.environ.get("ASC_ASSIGN_INTERNAL_BUILD") == "true" and (
+            version == "1.4"
+            and attrs.get("version") == "66.1"
+            and attrs.get("processingState") == "VALID"
+            and detail.get("internalBuildState") == "READY_FOR_BETA_TESTING"
+            and group_attrs.get("name") == "Ascend Internal"
+            and group_attrs.get("isInternalGroup") is True
+            and len(testers) == 1
+            and build_id not in assigned_ids
+        ):
+            status = assign_build_to_group(group_id, build_id)
+            new_ids = {
+                item["id"] for item in get(f"/v1/betaGroups/{group_id}/relationships/builds", limit=200)["data"]
+            }
+            print("ASSIGNMENT", json.dumps({"status": status, "verified": build_id in new_ids}))

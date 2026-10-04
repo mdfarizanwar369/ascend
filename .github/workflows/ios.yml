@@ -25,6 +25,10 @@ on:
         description: Build number to check
         type: string
         default: '66.1'
+      assign_internal_build:
+        description: Assign the valid build to the single-tester Ascend Internal group
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -55,6 +59,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           ASC_BUILD_NUMBER: ${{ inputs.build_number }}
+          ASC_ASSIGN_INTERNAL_BUILD: ${{ inputs.assign_internal_build }}
         run: python scripts/testflight_status.py
 
   simulator:
