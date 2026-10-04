@@ -6,6 +6,7 @@ export const EXERCISE_VISUAL_ASSET_ROOT = "/exercise-visuals/ascend-original-v1"
 export const EXERCISE_VISUAL_ASSET_ROOT_V2 = "/exercise-visuals/ascend-original-v2";
 export const EXERCISE_VISUAL_ASSET_ROOT_V3 = "/exercise-visuals/ascend-original-v3";
 export const EXERCISE_VISUAL_ASSET_ROOT_V4 = "/exercise-visuals/ascend-original-v4";
+export const EXERCISE_VISUAL_ASSET_ROOT_V5 = "/exercise-visuals/ascend-original-v5";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -27,6 +28,7 @@ const image = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT}/${filename}`;
 const imageV2 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V2}/${filename}`;
 const imageV3 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V3}/${filename}`;
 const imageV4 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V4}/${filename}`;
+const imageV5 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V5}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -526,6 +528,55 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "single", main: imageV4("anchored-band-row-main.webp") },
     instructions: "Secure a long band at chest height and face the anchor, holding an end in each hand. Step back for light tension, pull your elbows toward your ribs, then return slowly.",
     cue: "Check the anchor before starting and keep your shoulders down as you row."
+  },
+  {
+    id: "standing-torso-rotation", canonicalName: "Standing Torso Rotation", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing trunk rotation", targetMuscles: "Upper back and trunk",
+    images: { kind: "single", main: imageV5("standing-torso-rotation-main.webp") },
+    instructions: "Stand tall with feet shoulder-width apart and cross your arms over your chest. Gently turn your shoulders left and right while keeping your hips mostly forward.",
+    cue: "Rotate only through a comfortable range; do not force your lower back."
+  },
+  {
+    id: "standing-side-bend", canonicalName: "Standing Side Bend", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing lateral trunk stretch", targetMuscles: "Sides of trunk and shoulders",
+    images: { kind: "single", main: imageV5("standing-side-bend-main.webp") },
+    instructions: "Stand with feet hip-width apart. Reach one arm gently overhead and lean a little to the opposite side, then return upright and switch sides.",
+    cue: "Keep both feet planted and avoid leaning forward or twisting."
+  },
+  {
+    id: "standing-chest-opener", canonicalName: "Standing Chest Opener", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing chest stretch", targetMuscles: "Chest and front shoulders",
+    images: { kind: "single", main: imageV5("standing-chest-opener-main.webp") },
+    instructions: "Stand tall and gently clasp your hands behind your lower back. Let your arms move slightly back until you feel a comfortable stretch across your chest.",
+    cue: "Keep your shoulders relaxed and do not arch your lower back."
+  },
+  {
+    id: "standing-hamstring-hinge", canonicalName: "Standing Hamstring Hinge", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hamstring stretch", targetMuscles: "Hamstrings",
+    images: { kind: "single", main: imageV5("standing-hamstring-hinge-main-v2.webp") },
+    instructions: "Place one heel a short step forward with toes lifted and bend your back knee slightly. Hinge gently at your hips with a long back, then switch legs.",
+    cue: "Keep the front heel down and stop before your back starts rounding."
+  },
+  {
+    id: "standing-cross-body-shoulder-stretch", canonicalName: "Standing Cross-Body Shoulder Stretch", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing shoulder stretch", targetMuscles: "Rear shoulder and upper back",
+    images: { kind: "single", main: imageV5("standing-cross-body-shoulder-stretch-main.webp") },
+    instructions: "Stand tall and bring one straight arm across your chest. Use the opposite hand to support it gently above the elbow, then switch arms.",
+    cue: "Keep your shoulders relaxed and never pull directly on the elbow."
+  },
+  {
+    id: "standing-hip-flexor-stretch", canonicalName: "Standing Hip Flexor Stretch", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hip flexor stretch", targetMuscles: "Front of hips",
+    images: { kind: "single", main: imageV5("standing-hip-flexor-stretch-main.webp") },
+    instructions: "Take a short split stance with one foot behind. Bend the front knee slightly, keep your torso tall, and gently tuck your pelvis until you feel a stretch at the front of the back hip. Switch sides.",
+    cue: "Keep the movement small and avoid arching your lower back."
+  },
+  {
+    id: "standing-lateral-hip-shift", canonicalName: "Standing Lateral Hip Shift", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing lateral hip mobility", targetMuscles: "Inner thighs and hips",
+    images: { kind: "single", main: imageV5("standing-lateral-hip-shift-main.webp") },
+    instructions: "Stand with feet wider than your shoulders. Shift your hips gently toward one side by bending that knee a little while keeping the other leg comfortably straight, then switch sides.",
+    cue: "Keep both feet flat and make the shift shallow and controlled."
   }
 ] as const;
 

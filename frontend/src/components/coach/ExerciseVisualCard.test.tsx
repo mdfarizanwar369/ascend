@@ -80,7 +80,7 @@ describe("exercise visual pilot resolver", () => {
     const uniquePaths = new Set(paths);
     expect(uniquePaths.size).toBeGreaterThanOrEqual(111);
     for (const assetPath of uniquePaths) {
-      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[1234]\/[^/]+\.webp$/);
+      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[12345]\/[^/]+\.webp$/);
       const bytes = readFileSync(path.join(process.cwd(), "public", assetPath.replace(/^\//, "")));
       expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
       expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");

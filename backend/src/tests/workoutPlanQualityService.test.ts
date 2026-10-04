@@ -12,7 +12,7 @@ const plan: CoachWorkoutPlan = {
 
 describe("Zoe workout engine V2", () => {
   it("has reviewed pictures and coaching instructions for every plan and swap movement", () => {
-    expect(V2_WORKOUT_CATALOG).toHaveLength(43);
+    expect(V2_WORKOUT_CATALOG).toHaveLength(58);
     for (const item of V2_WORKOUT_CATALOG) {
       const visual = resolveExerciseVisual(item.name);
       expect(visual.status, item.name).toBe("resolved");
@@ -91,16 +91,16 @@ describe("Zoe workout engine V2", () => {
     expect(second.whyToday).not.toContain("logged a workout");
   });
 
-  it("chooses an older suitable movement over one used on the previous day", () => {
+  it("chooses a different suitable movement over one used on the previous day", () => {
     const blueprint = buildWorkoutBlueprint({
-      ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", today: "2026-10-04",
+      ...base, location: "gym", equipment: "Full Gym", timeAvailable: "60", today: "2026-10-04",
       recentWorkouts: [
         { metadata: { evidenceType: "planned", exercises: [{ name: "Dumbbell Reverse Lunge" }] }, created_at: "2026-10-03T08:00:00Z" },
         { metadata: { evidenceType: "planned", exercises: [{ name: "Supported Split Squat" }] }, created_at: "2026-10-02T08:00:00Z" }
       ]
     });
     expect(blueprint.exercises.map(exercise => exercise.name)).not.toContain("Dumbbell Reverse Lunge");
-    expect(blueprint.exercises.some(exercise => exercise.name === "Supported Split Squat" || exercise.name === "Bodyweight Reverse Lunge")).toBe(true);
+    expect(blueprint.exercises.some(exercise => /Lunge|Split Squat|Step-Up/.test(exercise.name))).toBe(true);
   });
 
   it("rotates the lower-body pattern instead of repeating the only available squat", () => {
@@ -137,11 +137,11 @@ describe("Zoe workout engine V2", () => {
     }
   });
 
-  it("uses recent effort conservatively and ignores stale effort", () => {
+  it("does not inflate every exercise after one too-easy response, and ignores stale effort", () => {
     const recentWorkouts = [{ metadata: { exercises: [{ name: "Goblet Squat" }], effortRating: "too_easy" }, created_at: "2026-10-02T08:00:00.000Z" }];
     const ready = buildWorkoutBlueprint({ ...base, timeAvailable: "45", recentWorkouts });
-    expect(ready.exercises.filter(exercise => exercise.sets).every(exercise => exercise.sets === 4)).toBe(true);
-    expect(ready.whyToday).toContain("adds a little volume");
+    expect(ready.exercises.filter(exercise => exercise.sets).every(exercise => exercise.sets === 3)).toBe(true);
+    expect(ready.whyToday).not.toContain("adds a little volume");
     const conservative = buildWorkoutBlueprint({ ...base, timeAvailable: "45", recentWorkouts, conservative: true });
     expect(conservative.exercises.filter(exercise => exercise.sets).every(exercise => exercise.sets === 2)).toBe(true);
     const stale = buildWorkoutBlueprint({ ...base, timeAvailable: "45", recentWorkouts: [{ ...recentWorkouts[0], created_at: "2026-09-01T08:00:00.000Z" }] });
@@ -175,5 +175,101 @@ describe("Zoe workout engine V2", () => {
     expect(swapped?.exercises[0].alternatives?.map(item => item.name)).toContain(checked.exercises[0].name);
     expect(rotateWorkoutExercise(checked, -1)).toBeNull();
     expect(rotateWorkoutExercise(plan, 0)).toBeNull();
+  });
+
+  it("makes the selected goal change the actual prescription without extra builder questions", () => {
+    const options = { ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", recentWorkouts: [] };
+    const strength = buildWorkoutBlueprint({ ...options, goal: "strength" });
+    const muscle = buildWorkoutBlueprint({ ...options, goal: "muscle_gain" });
+    const fatLoss = buildWorkoutBlueprint({ ...options, goal: "fat_loss" });
+    const general = buildWorkoutBlueprint({ ...options, goal: "general_fitness" });
+    const recovery = buildWorkoutBlueprint({ ...options, goal: "recovery" });
+    const mobility = buildWorkoutBlueprint({ ...options, goal: "mobility" });
+
+    expect(strength.focus).toBe("Full body strength");
+    expect(strength.exercises.some(exercise => exercise.reps === "6-10" && exercise.rest === "90-120 sec")).toBe(true);
+    expect(strength.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(false);
+    expect(muscle.focus).toBe("Full body muscle building");
+    expect(muscle.exercises.filter(exercise => exercise.rest === "60-90 sec")).toHaveLength(5);
+    expect(muscle.exercises.map(exercise => exercise.name)).not.toEqual(strength.exercises.map(exercise => exercise.name));
+    expect(fatLoss.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
+    expect(fatLoss.exercises.some(exercise => /Row|Pulldown|Pull-Up/.test(exercise.name))).toBe(true);
+    expect(general.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
+    expect(general.exercises.some(exercise => /Bug|Bird-Dog|Plank/.test(exercise.name))).toBe(true);
+    expect(recovery.exercises[0].name).not.toBe("Brisk Walk");
+    expect(recovery.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
+    expect(mobility.focus).toBe("Mobility and range of motion");
+    expect(mobility.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(false);
+    expect(applyWorkoutBlueprint(plan, mobility).intensity).toBe("easy");
+  });
+
+  it("avoids redundant push variants in a bodyweight muscle-gain session", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, goal: "muscle_gain", timeAvailable: "60", recentWorkouts: [] });
+    expect(blueprint.exercises.filter(exercise => /Push-Up/.test(exercise.name))).toHaveLength(1);
+    expect(blueprint.exercises.some(exercise => /Lunge|Split Squat/.test(exercise.name))).toBe(true);
+  });
+
+  it("keeps each-side instructions when strength targets are adjusted", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, equipment: "Dumbbells", timeAvailable: "60", recentWorkouts: [] });
+    const unilateral = blueprint.exercises.flatMap(exercise => [exercise, ...(exercise.alternatives ?? [])])
+      .filter(exercise => /Single-Arm Dumbbell Row|Dumbbell Reverse Lunge/.test(exercise.name));
+    expect(unilateral.length).toBeGreaterThan(0);
+    expect(unilateral.every(exercise => exercise.reps === "6-10 each side")).toBe(true);
+  });
+
+  it("uses standing movements for outdoor recovery and mobility without assuming a mat or wall", () => {
+    for (const goal of ["recovery", "mobility"]) {
+      const blueprint = buildWorkoutBlueprint({ ...base, goal, location: "outdoors", equipment: "Bodyweight", timeAvailable: "60", recentWorkouts: [] });
+      const names = blueprint.exercises.map(exercise => exercise.name);
+      expect(names).not.toEqual(expect.arrayContaining(["Child's Pose", "Cat-Cow", "Thread the Needle", "Kneeling Hip Flexor Stretch", "Standing Calf Stretch", "Dead Bug", "Bird-Dog"]));
+      expect(names.filter(name => name.startsWith("Standing "))).toHaveLength(goal === "mobility" ? 5 : 4);
+      expect(blueprint.estimatedDurationMinutes).toBeLessThan(60);
+    }
+  });
+
+  it("offers varied outdoor mobility across consecutive days without a new input", () => {
+    const recentWorkouts: Array<{ metadata: { evidenceType: "planned"; exercises: Array<{ name: string }> }; created_at: string }> = [];
+    let previous = new Set<string>();
+    for (let day = 1; day <= 7; day++) {
+      const date = `2026-10-${String(day).padStart(2, "0")}`;
+      const blueprint = buildWorkoutBlueprint({ ...base, goal: "mobility", location: "outdoors", equipment: "Bodyweight", timeAvailable: "45", today: date, recentWorkouts });
+      const names = blueprint.exercises.map(exercise => exercise.name);
+      expect(names.filter(name => previous.has(name)), date).toEqual([]);
+      previous = new Set(names);
+      recentWorkouts.unshift({ metadata: { evidenceType: "planned", exercises: names.map(name => ({ name })) }, created_at: `${date}T08:00:00Z` });
+    }
+  });
+
+  it("keeps all goal, time, equipment, and conservative combinations illustrated and executable", () => {
+    const settings = [
+      { location: "outdoors", equipment: "Bodyweight" },
+      { location: "outdoors", equipment: "Walking or Running Route" },
+      { location: "outdoors", equipment: "Park Bench or Bars" },
+      { location: "home", equipment: "Bodyweight" },
+      { location: "home", equipment: "Dumbbells" },
+      { location: "home", equipment: "Resistance Bands" },
+      { location: "hotel", equipment: "Bodyweight" },
+      { location: "hotel", equipment: "Dumbbells" },
+      { location: "hotel", equipment: "Resistance Bands" },
+      { location: "gym", equipment: "Limited Gym" },
+      { location: "gym", equipment: "Full Gym" }
+    ];
+    for (const goal of ["strength", "muscle_gain", "fat_loss", "general_fitness", "recovery", "mobility"]) {
+      for (const timeAvailable of ["20", "30", "45", "60"]) {
+        for (const setting of settings) {
+          for (const conservative of [false, true]) {
+            const blueprint = buildWorkoutBlueprint({ ...base, ...setting, goal, timeAvailable, conservative, recentWorkouts: [] });
+            const label = `${goal} ${timeAvailable} ${setting.location} ${setting.equipment} conservative=${conservative}`;
+            expect(new Set(blueprint.exercises.map(exercise => exercise.name)).size, label).toBe(blueprint.exercises.length);
+            expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable));
+            for (const exercise of blueprint.exercises.flatMap(item => [item, ...(item.alternatives ?? [])])) {
+              expect(exercise.reps || exercise.duration, `${label} ${exercise.name}`).toBeTruthy();
+              expect(resolveExerciseVisual(exercise.name).status, `${label} ${exercise.name}`).toBe("resolved");
+              expect(exercise.name, label).not.toBe("Standing Band Pallof Press");
+            }
+          }
+        }
+      }
+    }
   });
 });
