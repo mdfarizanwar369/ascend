@@ -174,6 +174,20 @@ export function buildWorkoutBlueprint(input: {
   const selected = new Set<string>();
   const recentNames = history.slice(0, 2).flatMap(session => session.names.map(key));
   const allNames = history.flatMap(session => session.names.map(key));
+  const mostRecentDay = history.find(session => session.date && session.date <= today)?.date;
+  const mostRecentDayAgeMs = mostRecentDay
+    ? Date.parse(`${today}T00:00:00Z`) - Date.parse(`${mostRecentDay}T00:00:00Z`)
+    : Number.NaN;
+  const mostRecentDayNames = new Set(mostRecentDayAgeMs >= 0 && mostRecentDayAgeMs <= 7 * 86_400_000
+    ? history.filter(session => session.date === mostRecentDay).flatMap(session => session.names.map(key))
+    : []);
+  const availableSquats = V2_WORKOUT_CATALOG.filter(item => item.pattern === "squat" && item.kit.some(value => kit.has(value)) && (!input.conservative || !item.advanced));
+  if (patterns.includes("squat") && availableSquats.length === 1 && mostRecentDayNames.has(key(availableSquats[0].name))) {
+    // A single suitable squat would otherwise repeat every day. Rotate that
+    // slot to another lower-body pattern, or cardio if both are already in the plan.
+    patterns[patterns.indexOf("squat")] = !patterns.includes("single_leg") ? "single_leg"
+      : !patterns.includes("hinge") ? "hinge" : "cardio";
+  }
   const prescribe = (item: CatalogExercise): Omit<CoachWorkoutExercise, "alternatives"> => ({
     name: item.name,
     sets: item.duration ? null : input.conservative || recovery || recentTooHard ? 2 : latest?.effort === "too_easy" && Number.parseInt(input.timeAvailable, 10) >= 45 ? 4 : 3,
@@ -187,6 +201,9 @@ export function buildWorkoutBlueprint(input: {
     const ranked = choices.map(item => ({ item, score:
       (selected.has(key(item.name)) ? 1000 : 0) +
       (avoided.has(key(item.name)) ? 200 : 0) +
+      // Prefer a different movement from the last training day whenever the
+      // available equipment offers one. An explicit avoid still ranks higher.
+      (mostRecentDayNames.has(key(item.name)) ? 90 : 0) +
       (recentNames.includes(key(item.name)) ? 35 : 0) +
       (allNames.includes(key(item.name)) ? index === 0 ? -12 : 5 : 0) +
       (!recovery && item.kit.includes(preferredKit) ? -8 : 0) +
@@ -195,7 +212,7 @@ export function buildWorkoutBlueprint(input: {
     const chosen = ranked[0]?.item ?? V2_WORKOUT_CATALOG.find(item => item.pattern === pattern)!;
     selected.add(key(chosen.name));
     const alternatives = ranked.slice(1).filter(choice => !selected.has(key(choice.item.name))).slice(0, 3).map(choice => prescribe(choice.item));
-    const recentAnchor = allNames.includes(key(chosen.name)) && !recentNames.includes(key(chosen.name));
+    const recentAnchor = allNames.includes(key(chosen.name)) && !recentNames.includes(key(chosen.name)) && !mostRecentDayNames.has(key(chosen.name));
     return {
       ...prescribe(chosen),
       note: recentAnchor ? `Familiar movement to build consistency. ${chosen.note}` : chosen.note,

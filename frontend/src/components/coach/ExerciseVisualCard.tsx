@@ -11,7 +11,6 @@ export function ExerciseVisualCard({ exercise, variationOf, reportingEnabled = t
   const [failed, setFailed] = useState(false);
   const [reported, setReported] = useState(false);
   const failureReported = useRef(false);
-  if (failed) return null;
 
   function handleError() {
     setFailed(true);
@@ -27,7 +26,7 @@ export function ExerciseVisualCard({ exercise, variationOf, reportingEnabled = t
 
   return (
     <div className="mt-3 rounded-xl border border-line bg-surface/80 p-2.5 text-zinc-200">
-      <div className={`grid gap-2 ${images.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+      {failed ? <p role="status" className="text-xs text-zinc-400">Illustration unavailable. Follow the instructions below.</p> : <div className={`grid gap-2 ${images.length === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
         {images.map(({ src, label }) => (
           <figure key={src} className="min-w-0 overflow-hidden rounded-lg bg-surface">
             <div className="relative aspect-square">
@@ -39,7 +38,7 @@ export function ExerciseVisualCard({ exercise, variationOf, reportingEnabled = t
             <figcaption className="bg-surface px-2 py-1 text-center text-[10px] font-bold uppercase tracking-widest text-zinc-400">{label}</figcaption>
           </figure>
         ))}
-      </div>
+      </div>}
       <div className="mt-2 text-xs leading-5 text-zinc-300">
         {variationOf && variationOf.toLocaleLowerCase("en-US") !== exercise.canonicalName.toLocaleLowerCase("en-US") ? <p className="mb-1 text-zinc-400">Illustrated variation: {exercise.canonicalName}</p> : null}
         <p><span className="font-semibold text-zinc-100">Equipment:</span> {exercise.equipment} · <span className="font-semibold text-zinc-100">Targets:</span> {exercise.targetMuscles}</p>
@@ -47,8 +46,8 @@ export function ExerciseVisualCard({ exercise, variationOf, reportingEnabled = t
         <p className="mt-1 text-zinc-400"><span className="font-semibold text-zinc-100">Form cue:</span> {exercise.cue}</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-[11px]">
-        <span className="text-zinc-400">Original Ascend exercise visual</span>
-        {reportingEnabled ? <button type="button" disabled={reported} className="text-zinc-400 underline underline-offset-2 disabled:no-underline" onClick={() => {
+        <span className="text-zinc-400">{failed ? "Ascend exercise coaching" : "Original Ascend exercise visual"}</span>
+        {reportingEnabled && !failed ? <button type="button" disabled={reported} className="text-zinc-400 underline underline-offset-2 disabled:no-underline" onClick={() => {
           void recordWorkoutVisualEvent("incorrect_mapping_report", exercise.id).then(() => setReported(true)).catch(() => undefined);
         }}>{reported ? "Report sent" : "Report incorrect visual"}</button> : null}
       </div>
