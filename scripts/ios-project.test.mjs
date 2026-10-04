@@ -65,10 +65,15 @@ test("Siri intents are packaged in the iPhone app with private, device-authentic
   assert.match(intents, /water_status/);
   assert.match(intents, /protein_status/);
   assert.match(intents, /today_summary/);
+  assert.match(intents, /struct AscendAskIntent: AppIntent/);
+  assert.ok(intents.includes('Ask \\(.applicationName) a question'));
+  assert.match(intents, /struct AscendWorkoutIntent: AppIntent/);
+  assert.equal((intents.match(/AppShortcut\(intent:/g) ?? []).length, 10);
   assert.match(read("ios/App/App/AppDelegate.swift"), /updateAppShortcutParameters/);
   const service = read("ios/App/App/AscendSiriService.swift");
   assert.match(service, /kSecAttrAccessibleWhenUnlockedThisDeviceOnly/);
   assert.doesNotMatch(service, /gemini|voice\/today\/audio/i);
+  assert.match(service, /endpoint\("siri\/ask"/);
 });
 
 test("iOS 1.4 trainer referral web links use the matching production app identity", () => {

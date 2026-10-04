@@ -142,4 +142,37 @@ enum AscendSiriService {
             return AscendSiriError.unavailable.localizedDescription
         }
     }
+
+    static func ask(_ question: String) async -> String {
+        guard let credential = AscendSiriCredentialStore.load() else { return AscendSiriError.notConnected.localizedDescription }
+        guard credential.expiresAt > Date() else {
+            AscendSiriCredentialStore.clear()
+            return AscendSiriError.expiredSession.localizedDescription
+        }
+        let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 250 else {
+            return "Please ask a shorter question about your Ascend information."
+        }
+        var request = URLRequest(url: endpoint("siri/ask", base: credential.apiBaseUrl), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 12)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(credential.token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "question": trimmed,
+            "timezoneOffsetMinutes": -TimeZone.current.secondsFromGMT(for: Date()) / 60
+        ])
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return AscendSiriError.unavailable.localizedDescription }
+            if http.statusCode == 401 {
+                AscendSiriCredentialStore.clear()
+                return AscendSiriError.expiredSession.localizedDescription
+            }
+            guard http.statusCode == 200 else { return AscendSiriError.server.localizedDescription }
+            struct Answer: Decodable { let spokenText: String }
+            return try JSONDecoder().decode(Answer.self, from: data).spokenText
+        } catch {
+            return AscendSiriError.unavailable.localizedDescription
+        }
+    }
 }

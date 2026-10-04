@@ -2,6 +2,7 @@ import { Router, type NextFunction, type Request, type Response } from "express"
 import { parseBearerToken, requireAuth, requirePlatformOwner } from "../middleware/auth";
 import { findSiriSessionUser, issueSiriSession, revokeSiriSession } from "../services/siriSessionService";
 import { getVoiceTodayData, voiceTodayQuery } from "../services/voiceTodayService";
+import { getVoiceQuestionData, voiceQuestionQuery } from "../services/voiceQuestionService";
 
 export const siriRouter = Router();
 
@@ -25,6 +26,14 @@ async function requireSiriSession(req: Request, res: Response, next: NextFunctio
 siriRouter.get("/siri/today", requireSiriSession, async (req, res, next) => {
   try {
     const data = await getVoiceTodayData(res.locals.siriUserId as string, voiceTodayQuery.parse(req.query));
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+siriRouter.post("/siri/ask", requireSiriSession, async (req, res, next) => {
+  try {
+    const data = await getVoiceQuestionData(res.locals.siriUserId as string, voiceQuestionQuery.parse(req.body));
+    res.setHeader("Cache-Control", "private, no-store");
     res.json(data);
   } catch (error) { next(error); }
 });
