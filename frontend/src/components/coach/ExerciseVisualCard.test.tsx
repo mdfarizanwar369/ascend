@@ -73,9 +73,11 @@ describe("exercise visual pilot resolver", () => {
     expect(PILOT_EXERCISE_VISUALS.length).toBeGreaterThanOrEqual(70);
     expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(PILOT_EXERCISE_VISUALS.length);
   });
-  it("keeps new machine art in V2 while legacy plans retain their current visual coverage", () => {
+  it("keeps new machine and setting art in V2 while legacy plans retain their current visual coverage", () => {
     expect(resolveExerciseVisual("Seated Leg Curl").status).toBe("unresolved");
     expect(resolveV2WorkoutExerciseVisual("Seated Leg Curl").status).toBe("resolved");
+    expect(resolveExerciseVisual("Bench Sit-to-Stand").status).toBe("unresolved");
+    expect(resolveV2WorkoutExerciseVisual("Bench Sit-to-Stand").status).toBe("resolved");
   });
   it("has a valid local WebP file for every approved pose", () => {
     const paths = PILOT_EXERCISE_VISUALS.flatMap(item => item.images.kind === "pair"
@@ -84,7 +86,7 @@ describe("exercise visual pilot resolver", () => {
     const uniquePaths = new Set(paths);
     expect(uniquePaths.size).toBeGreaterThanOrEqual(111);
     for (const assetPath of uniquePaths) {
-      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[123456]\/[^/]+\.webp$/);
+      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[1234567]\/[^/]+\.webp$/);
       const bytes = readFileSync(path.join(process.cwd(), "public", assetPath.replace(/^\//, "")));
       expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
       expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");

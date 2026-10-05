@@ -1532,7 +1532,7 @@ export function swapTodayWorkoutExercise(workoutCompletionKey: string, exerciseI
 }
 
 export function getWorkoutVisualAccess() {
-  return authed<{ enabled: boolean }>("/ai/workout/visual-access");
+  return authed<{ enabled: boolean; workoutEngineV2Enabled: boolean }>("/ai/workout/visual-access");
 }
 
 export function generateTodayWorkout(input: {

@@ -8,6 +8,7 @@ export const EXERCISE_VISUAL_ASSET_ROOT_V3 = "/exercise-visuals/ascend-original-
 export const EXERCISE_VISUAL_ASSET_ROOT_V4 = "/exercise-visuals/ascend-original-v4";
 export const EXERCISE_VISUAL_ASSET_ROOT_V5 = "/exercise-visuals/ascend-original-v5";
 export const EXERCISE_VISUAL_ASSET_ROOT_V6 = "/exercise-visuals/ascend-original-v6";
+export const EXERCISE_VISUAL_ASSET_ROOT_V7 = "/exercise-visuals/ascend-original-v7";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -31,6 +32,7 @@ const imageV3 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V3}/${filena
 const imageV4 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V4}/${filename}`;
 const imageV5 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V5}/${filename}`;
 const imageV6 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V6}/${filename}`;
+const imageV7 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V7}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -663,6 +665,55 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "single", main: imageV6("seated-leg-press-main.webp") },
     instructions: "Adjust the seat so your knees start comfortably bent. Place both feet on the platform, press it away through your whole feet, then return slowly without letting your hips lift.",
     cue: "Keep your knees tracking with your toes and avoid locking them hard."
+  },
+  {
+    id: "bench-sit-to-stand", canonicalName: "Bench Sit-to-Stand", aliases: [],
+    equipment: "Fixed park bench", movementPattern: "Bench-assisted squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV7("bench-sit-to-stand-main.webp") },
+    instructions: "Sit near the front of a fixed, stable park bench with feet flat. Lean slightly forward, stand through your feet, then sit down slowly with control.",
+    cue: "Choose a comfortable bench height and keep your knees aligned with your feet."
+  },
+  {
+    id: "standing-bodyweight-hip-hinge", canonicalName: "Standing Bodyweight Hip Hinge", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hip hinge", targetMuscles: "Hamstrings and glutes",
+    images: { kind: "single", main: imageV7("standing-bodyweight-hip-hinge-main.webp") },
+    instructions: "Stand with feet hip-width apart and knees soft. Push your hips backward while your torso leans forward, then drive through your feet to stand tall.",
+    cue: "Keep your back long and stop before it starts to round."
+  },
+  {
+    id: "standing-knee-raise", canonicalName: "Standing Knee Raise", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing core and balance", targetMuscles: "Core and hip flexors",
+    images: { kind: "single", main: imageV7("standing-knee-raise-main.webp") },
+    instructions: "Stand tall on level ground. Lift one knee slowly toward hip height without leaning back, lower it with control, then switch legs.",
+    cue: "Move slowly and keep the knee lower if balance feels uncertain."
+  },
+  {
+    id: "walk-intervals", canonicalName: "Walk Intervals", aliases: [],
+    equipment: "Safe walking route", movementPattern: "Alternating walking pace", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV4("walking-main.webp") },
+    instructions: "Walk easily for two minutes, then walk briskly for one minute. Repeat on a safe, level route for the prescribed time and ease off if needed.",
+    cue: "The brisk sections should feel purposeful while still allowing controlled breathing."
+  },
+  {
+    id: "walk-jog-intervals", canonicalName: "Walk-Jog Intervals", aliases: [],
+    equipment: "Safe walking or running route", movementPattern: "Walk-jog intervals", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV7("walk-jog-intervals-main.webp") },
+    instructions: "Walk for two minutes, then jog easily for thirty seconds. Repeat on a safe, level route for the prescribed time and return to walking if form or breathing becomes strained.",
+    cue: "Keep the jog gentle and land under your body rather than sprinting."
+  },
+  {
+    id: "side-step-touch", canonicalName: "Side Step Touch", aliases: [],
+    equipment: "Bodyweight and a small clear space", movementPattern: "Low-impact lateral step", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV7("side-step-touch-main.webp") },
+    instructions: "Step to one side and lightly tap the other foot beside it. Repeat to the other side at a comfortable pace without hopping.",
+    cue: "Keep your knees soft, steps quiet, and torso upright."
+  },
+  {
+    id: "short-bar-hang", canonicalName: "Short Bar Hang", aliases: [],
+    equipment: "Fixed pull-up bar", movementPattern: "Grip and shoulder hang", targetMuscles: "Grip, shoulders and upper back",
+    images: { kind: "single", main: image("pull-up-hanging-start.webp") },
+    instructions: "Hold a fixed pull-up bar with an overhand grip and let your feet lift only if you can safely reach and leave the bar. Keep your shoulders gently engaged for a short hold, then lower carefully.",
+    cue: "Stop the hold before your grip slips; never jump to an uncertain bar."
   }
 ] as const;
 
@@ -712,7 +763,7 @@ export function resolveExerciseVisual(name: unknown): ExerciseVisualResolution {
 
 function visualIsV2Only(exercise: ExerciseVisual): boolean {
   const asset = exercise.images.kind === "single" ? exercise.images.main : exercise.images.start;
-  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`);
+  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V7}/`);
 }
 
 // Older V2 workouts were saved with broad labels before the reviewed catalog used

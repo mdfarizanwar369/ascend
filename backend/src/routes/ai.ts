@@ -920,7 +920,15 @@ aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, asy
 });
 
 aiRouter.get("/ai/workout/visual-access", requireAuth, async (req, res) => {
-  res.json({ enabled: hasExerciseVisualAccess(req.user!) });
+  res.json({
+    enabled: hasExerciseVisualAccess(req.user!),
+    workoutEngineV2Enabled: workoutEngineV2Enabled({
+      globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+      ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      provider: env.AI_PROVIDER
+    })
+  });
 });
 
 aiRouter.post("/ai/workout/visual-event", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
