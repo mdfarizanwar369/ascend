@@ -8,7 +8,7 @@ import { BackButton } from "@/components/BackButton";
 import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import type { WorkoutDebriefView } from "@ascend/shared";
-import { estimateWorkoutDurationMinutes, estimateWorkoutDurationRange, optionalWorkoutTimeSuggestion, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, preserveTimedSwapDuration, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { ExerciseVisualCard } from "@/components/coach/ExerciseVisualCard";
 import {
   CoachChatMode,
@@ -283,8 +283,6 @@ function WorkoutPlannerCard({
   }
 
   if (workout) {
-    const optionalTimeSuggestion = workout.experienceVersion === 2 && answers.timeAvailable && Number(answers.timeAvailable) < 60 && answers.location
-      ? optionalWorkoutTimeSuggestion(workout.exercises, Number(answers.timeAvailable), answers.location) : null;
     return (
       <section className="overflow-hidden rounded-2xl border border-lime/25 bg-surface shadow-soft">
         <div className="relative aspect-[16/9] overflow-hidden bg-ink">
@@ -325,7 +323,7 @@ function WorkoutPlannerCard({
           <div className="rounded-xl border border-line bg-ink/70 p-3">
             <p className="text-zinc-500">{workout.experienceVersion === 2 ? "About" : "Duration"}</p>
             <p className="mt-1 font-bold text-zinc-100">{workout.experienceVersion === 2
-              ? `${estimateWorkoutDurationRange(workout.exercises).min}–${estimateWorkoutDurationRange(workout.exercises).max} min`
+              ? `${estimateWorkoutDurationMinutes(workout.exercises)} min`
               : `${workout.estimatedDurationMinutes} min`}</p>
           </div>
           <div className="rounded-xl border border-line bg-ink/70 p-3">
@@ -430,7 +428,6 @@ function WorkoutPlannerCard({
             <p className="text-sm font-semibold text-zinc-100">Cooldown</p>
             <p className="mt-2 text-sm leading-6 text-zinc-400">{workout.cooldown.join(" / ")}</p>
           </div>
-          {optionalTimeSuggestion ? <p className="rounded-xl border border-line bg-ink/55 p-3 text-xs leading-5 text-zinc-300">{optionalTimeSuggestion}</p> : null}
 
           <div className="rounded-xl border border-violet/30 bg-violet/10 p-3">
             <p className="text-sm font-semibold text-purple-200">Coach tip</p>
@@ -797,7 +794,7 @@ export function CoachHubClient() {
       const replacementIndex = alternatives.findIndex(candidate => candidate.name && !current.exercises.some((other, otherIndex) =>
         otherIndex !== index && other.name.toLowerCase() === candidate.name.toLowerCase()));
       if (!exercise || replacementIndex < 0) return current;
-      const replacement = alternatives[replacementIndex];
+      const replacement = preserveTimedSwapDuration(exercise, alternatives[replacementIndex]);
       const nextExercises = [...current.exercises];
       nextExercises[index] = {
         ...replacement,
@@ -1026,7 +1023,7 @@ export function CoachHubClient() {
                       const alternatives = exercise.alternatives ?? [];
                       const index = alternatives.findIndex(candidate => !usedNames.has(candidate.name.toLowerCase()));
                       if (index < 0) return exercise;
-                      const replacement = alternatives[index];
+                      const replacement = preserveTimedSwapDuration(exercise, alternatives[index]);
                       usedNames.add(replacement.name.toLowerCase());
                       return { ...replacement, alternatives: [...alternatives.slice(index + 1), ...alternatives.slice(0, index), {
                         name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note

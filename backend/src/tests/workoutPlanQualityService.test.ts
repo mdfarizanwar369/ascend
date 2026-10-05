@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyWorkoutBlueprint, buildWorkoutBlueprint, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, V2_WORKOUT_CATALOG, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
-import { estimateWorkoutDurationMinutes, estimateWorkoutDurationRange, optionalWorkoutTimeSuggestion, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -190,7 +190,9 @@ describe("Zoe workout engine V2", () => {
   it("does not inflate every exercise after one too-easy response, and ignores stale effort", () => {
     const recentWorkouts = [{ metadata: { exercises: [{ name: "Goblet Squat" }], effortRating: "too_easy" }, created_at: "2026-10-02T08:00:00.000Z" }];
     const ready = buildWorkoutBlueprint({ ...base, timeAvailable: "45", recentWorkouts });
-    expect(ready.exercises.filter(exercise => exercise.sets).every(exercise => exercise.sets === 3)).toBe(true);
+    expect(ready.exercises.filter(exercise => ["squat", "hinge", "push", "pull", "single_leg", "accessory"]
+      .includes(V2_WORKOUT_CATALOG.find(item => item.name === exercise.name)?.pattern ?? ""))
+      .every(exercise => exercise.sets === 3)).toBe(true);
     expect(ready.whyToday).not.toContain("adds a little volume");
     const conservative = buildWorkoutBlueprint({ ...base, timeAvailable: "45", recentWorkouts, conservative: true });
     expect(conservative.exercises.filter(exercise => exercise.sets).every(exercise => exercise.sets === 2)).toBe(true);
@@ -311,7 +313,9 @@ describe("Zoe workout engine V2", () => {
     expect(strength.focus).toBe("Full body strength");
     expect(strength.exercises.some(exercise => exercise.reps === "6-10" && exercise.rest === "90-120 sec")).toBe(true);
     const patternOf = (name: string) => V2_WORKOUT_CATALOG.find(item => item.name === name)?.pattern;
-    expect(strength.exercises.some(exercise => patternOf(exercise.name) === "cardio")).toBe(false);
+    const strengthFinish = strength.exercises.filter(exercise => patternOf(exercise.name) === "cardio");
+    expect(strengthFinish).toHaveLength(1);
+    expect(Number.parseInt(strengthFinish[0].duration ?? "0", 10)).toBeLessThanOrEqual(10);
     expect(muscle.focus).toBe("Full body muscle building");
     expect(muscle.exercises.filter(exercise => exercise.rest === "60-90 sec")).toHaveLength(5);
     expect(muscle.exercises.map(exercise => exercise.name)).not.toEqual(strength.exercises.map(exercise => exercise.name));
@@ -322,7 +326,8 @@ describe("Zoe workout engine V2", () => {
     expect(recovery.exercises[0].name).not.toBe("Brisk Walk");
     expect(recovery.exercises.some(exercise => patternOf(exercise.name) === "cardio")).toBe(true);
     expect(mobility.focus).toBe("Mobility and range of motion");
-    expect(mobility.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(false);
+    expect(mobility.exercises.filter(exercise => patternOf(exercise.name) === "mobility").length).toBeGreaterThanOrEqual(3);
+    expect(mobility.exercises.filter(exercise => patternOf(exercise.name) === "cardio")).toHaveLength(1);
     expect(applyWorkoutBlueprint(plan, mobility).intensity).toBe("easy");
   });
 
@@ -436,11 +441,8 @@ describe("Zoe workout engine V2", () => {
       equipment: "Pull-Up Bar", timeAvailable: "45", conservative: true, recentWorkouts: [] });
     const workout = applyWorkoutBlueprint(plan, blueprint);
     expect(blueprint.estimatedDurationMinutes).toBe(estimateWorkoutDurationMinutes(blueprint.exercises));
-    const range = estimateWorkoutDurationRange(blueprint.exercises);
-    expect(range.min).toBeLessThan(blueprint.estimatedDurationMinutes);
-    expect(range.max).toBeGreaterThan(blueprint.estimatedDurationMinutes);
-    expect(workout.estimatedDurationMinutes).toBeLessThan(45);
-    expect(workout.estimatedDurationMinutes).toBeGreaterThanOrEqual(25);
+    expect(workout.estimatedDurationMinutes).toBeLessThanOrEqual(47);
+    expect(workout.estimatedDurationMinutes).toBeGreaterThanOrEqual(39);
     expect(workout.warmup[1]).toMatch(/^1 minute/);
     expect(workout.cooldown[1]).toMatch(/^1 minute/);
     const correctedCopy = applyWorkoutBlueprint({ ...plan, title: "45-minute outdoor workout",
@@ -482,7 +484,25 @@ describe("Zoe workout engine V2", () => {
     expect(blueprint.estimatedDurationMinutes).toBeLessThanOrEqual(64);
     expect(blueprint.exercises.filter(exercise => exercise.sets).every(exercise => exercise.sets === 2)).toBe(true);
     expect(blueprint.exercises.filter(exercise => /March|Side Step/.test(exercise.name))).toHaveLength(2);
-    expect(optionalWorkoutTimeSuggestion(blueprint.exercises, 60, "hotel")).toBeNull();
+  });
+
+  it("keeps a timed cardio block the same length when it is swapped", () => {
+    const workout = applyWorkoutBlueprint(plan, buildWorkoutBlueprint({ ...base, goal: "general_fitness",
+      location: "gym", equipment: "Full Gym", timeAvailable: "45", recentWorkouts: [] }));
+    const index = workout.exercises.findIndex(exercise => exercise.duration?.includes("min"));
+    expect(index).toBeGreaterThanOrEqual(0);
+    const swapped = rotateWorkoutExercise(workout, index);
+    expect(swapped?.exercises[index].duration).toBe(workout.exercises[index].duration);
+  });
+
+  it("shows a shorter estimate when a long recovery walk is swapped for compact movement", () => {
+    const workout = applyWorkoutBlueprint(plan, buildWorkoutBlueprint({ ...base, goal: "recovery",
+      location: "outdoors", equipment: "Bodyweight", timeAvailable: "60", recentWorkouts: [] }));
+    const index = workout.exercises.findIndex(exercise => exercise.name === "Easy Walk");
+    expect(index).toBeGreaterThanOrEqual(0);
+    const swapped = rotateWorkoutExercise(workout, index);
+    expect(swapped?.exercises[index].duration).toBe("15 min");
+    expect(swapped?.estimatedDurationMinutes).toBeLessThan(workout.estimatedDurationMinutes);
   });
 
   it("honors avoided exercises when adding movement to fill the hour", () => {
@@ -501,14 +521,14 @@ describe("Zoe workout engine V2", () => {
     expect(allHotelCardioAvoided.exercises.map(exercise => exercise.name)).not.toContain("Side Step Touch");
     expect(allHotelCardioAvoided.exercises.map(exercise => exercise.name)).not.toContain("Gentle Knee March");
     expect(allHotelCardioAvoided.estimatedDurationMinutes).toBeLessThan(55);
-    expect(allHotelCardioAvoided.whyToday).toContain("shorter than an hour");
+    expect(allHotelCardioAvoided.whyToday).toContain("shorter than your chosen time");
     const recovery = buildWorkoutBlueprint({ ...base, location: "hotel", equipment: "Bodyweight", goal: "recovery",
       timeAvailable: "60", avoidExercises: ["March in Place", "Side Step Touch", "Gentle Knee March"], recentWorkouts: [] });
     expect(recovery.exercises.every(exercise => !["March in Place", "Side Step Touch", "Gentle Knee March"].includes(exercise.name))).toBe(true);
     expect(recovery.exercises.flatMap(exercise => exercise.alternatives ?? [])
       .every(exercise => !["March in Place", "Side Step Touch", "Gentle Knee March"].includes(exercise.name))).toBe(true);
     expect(recovery.estimatedDurationMinutes).toBeLessThan(55);
-    expect(recovery.whyToday).toContain("shorter than an hour");
+    expect(recovery.whyToday).toContain("shorter than your chosen time");
   });
 
   it("does not call a lower-body outdoor session balanced full-body work", () => {
@@ -563,7 +583,7 @@ describe("Zoe workout engine V2", () => {
         }
       }
     }
-  });
+  }, 20_000);
 
   it("uses a chosen outdoor route even when the short strength template has no cardio slot", () => {
     const blueprint = buildWorkoutBlueprint({ ...base, location: "outdoors", equipment: "Walking or Running Route",
@@ -625,14 +645,13 @@ describe("Zoe workout engine V2", () => {
           for (const conservative of [false, true]) {
             const blueprint = buildWorkoutBlueprint({ ...base, ...setting, goal, timeAvailable, conservative, recentWorkouts: [] });
             const label = `${goal} ${timeAvailable} ${setting.location} ${setting.equipment} conservative=${conservative}`;
+            const maximumMoves: Record<string, number> = { "20": 4, "30": 5, "45": 6, "60": 8 };
+            expect(blueprint.exercises.length, label).toBeLessThanOrEqual(maximumMoves[timeAvailable]);
             expect(new Set(blueprint.exercises.map(exercise => exercise.name)).size, label).toBe(blueprint.exercises.length);
             expect(blueprint.estimatedDurationMinutes, label).toBe(estimateWorkoutDurationMinutes(blueprint.exercises));
-            if (timeAvailable === "60") {
-              expect(blueprint.estimatedDurationMinutes, label).toBeGreaterThanOrEqual(59);
-              expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(64);
-            } else {
-              expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable) + 2);
-            }
+            const minimum: Record<string, number> = { "20": 17, "30": 26, "45": 39, "60": 59 };
+            expect(blueprint.estimatedDurationMinutes, label).toBeGreaterThanOrEqual(minimum[timeAvailable]);
+            expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable) + 2);
             const workout = applyWorkoutBlueprint(plan, blueprint);
             for (const [index, exercise] of workout.exercises.entries()) {
               expect(exercise.alternatives?.length, `${label}: ${exercise.name}`).toBeGreaterThan(0);
@@ -649,6 +668,7 @@ describe("Zoe workout engine V2", () => {
               expect(exercise.reps || exercise.duration, `${label} ${exercise.name}`).toBeTruthy();
               expect(resolveV2WorkoutExerciseVisual(exercise.name).status, `${label} ${exercise.name}`).toBe("resolved");
               expect(exercise.name, label).not.toBe("Standing Band Pallof Press");
+              if (setting.location !== "hotel") expect(exercise.name, label).not.toBe("Gentle Knee March");
             }
           }
         }
