@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyWorkoutBlueprint, buildWorkoutBlueprint, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, V2_WORKOUT_CATALOG, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
-import { estimateWorkoutDurationMinutes, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, estimateWorkoutDurationRange, optionalWorkoutTimeSuggestion, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -407,6 +407,20 @@ describe("Zoe workout engine V2", () => {
     expect(experienced.exercises.map(item => item.name)).toContain("Pull-Up");
   });
 
+  it("keeps a small number of completed movements familiar after recovery while rotating the rest", () => {
+    const options = { ...base, location: "gym", equipment: "Full Gym", goal: "strength", timeAvailable: "45", today: "2026-10-05" };
+    const first = buildWorkoutBlueprint({ ...options, recentWorkouts: [] });
+    const previousNames = first.exercises.map(exercise => exercise.name);
+    const next = buildWorkoutBlueprint({ ...options, recentWorkouts: [{
+      metadata: { evidenceType: "completed_plan", exercises: previousNames.map(name => ({ name })), effortRating: "about_right" },
+      created_at: "2026-10-03T08:00:00Z"
+    }] });
+    const retained = next.exercises.filter(exercise => previousNames.includes(exercise.name));
+    expect(retained.length).toBeGreaterThanOrEqual(1);
+    expect(retained.length).toBeLessThanOrEqual(2);
+    expect(next.whyToday).toContain("familiar movement returns");
+  });
+
   it("shows a workout estimate based on the actual prescription instead of the selected time window", () => {
     expect(estimateWorkoutDurationMinutes([
       { sets: 2, reps: "10", rest: "60 sec" },
@@ -417,6 +431,9 @@ describe("Zoe workout engine V2", () => {
       equipment: "Pull-Up Bar", timeAvailable: "45", conservative: true, recentWorkouts: [] });
     const workout = applyWorkoutBlueprint(plan, blueprint);
     expect(blueprint.estimatedDurationMinutes).toBe(estimateWorkoutDurationMinutes(blueprint.exercises));
+    const range = estimateWorkoutDurationRange(blueprint.exercises);
+    expect(range.min).toBeLessThan(blueprint.estimatedDurationMinutes);
+    expect(range.max).toBeGreaterThan(blueprint.estimatedDurationMinutes);
     expect(workout.estimatedDurationMinutes).toBeLessThan(45);
     expect(workout.estimatedDurationMinutes).toBeGreaterThanOrEqual(25);
     expect(workout.warmup[1]).toMatch(/^1 minute/);
@@ -436,6 +453,28 @@ describe("Zoe workout engine V2", () => {
     expect(bar?.note).toContain("never jump");
     expect(blueprint.exercises.map(exercise => exercise.name)).not.toContain("Pull-Up");
     expect(blueprint.whyToday).toContain("bar is used for a short hold");
+  });
+
+  it("progresses a bar hold only after confirmed seconds and eases it after a too-hard report", () => {
+    const recentWorkouts = [{ metadata: { evidenceType: "observed_performance", effortRating: "about_right",
+      completedPlanExercises: [{ name: "Short Bar Hang" }],
+      exercises: [{ name: "Short Bar Hang", durationValue: 12, durationUnit: "seconds" }] },
+    created_at: "2026-10-01T08:00:00Z" }];
+    const options = { ...base, location: "outdoors", equipment: "Pull-Up Bar", goal: "general_fitness", timeAvailable: "45" };
+    const progressed = buildWorkoutBlueprint({ ...options, recentWorkouts });
+    expect(progressed.exercises.find(exercise => exercise.name === "Short Bar Hang"))
+      .toMatchObject({ duration: "10-15 sec", note: expect.stringContaining("Last logged: 12 sec") });
+    const eased = buildWorkoutBlueprint({ ...options, recentWorkouts: [{ ...recentWorkouts[0], metadata: {
+      ...recentWorkouts[0].metadata, effortRating: "too_hard"
+    } }] });
+    expect(eased.exercises.find(exercise => exercise.name === "Short Bar Hang")?.duration).toBe("5-10 sec");
+  });
+
+  it("suggests an optional easy finish when a cautious long session ends early", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, location: "hotel", equipment: "Bodyweight", goal: "strength",
+      timeAvailable: "60", conservative: true, recentWorkouts: [] });
+    expect(blueprint.estimatedDurationMinutes).toBeLessThan(45);
+    expect(optionalWorkoutTimeSuggestion(blueprint.exercises, 60, "hotel")).toContain("quiet marching or side steps");
   });
 
   it("does not call a lower-body outdoor session balanced full-body work", () => {

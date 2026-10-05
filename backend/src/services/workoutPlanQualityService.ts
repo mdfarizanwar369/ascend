@@ -210,7 +210,8 @@ function recentObservedNote(name: string, rows: WorkoutHistoryRow[], prescribedR
     Array.isArray(row.metadata.exercises) && row.metadata.exercises.some(value => value && typeof value === "object" &&
       key(String((value as Record<string, unknown>).name ?? "")) === key(name) &&
       (typeof (value as Record<string, unknown>).reps === "string" || typeof (value as Record<string, unknown>).load === "number" ||
-        typeof (value as Record<string, unknown>).durationMinutes === "number")));
+        typeof (value as Record<string, unknown>).durationMinutes === "number" ||
+        (value as Record<string, unknown>).durationUnit === "seconds")));
   if (!recent || !Array.isArray(recent.metadata?.exercises)) return null;
   const exercise = recent.metadata.exercises.find(value => value && typeof value === "object" &&
     key(String((value as Record<string, unknown>).name ?? "")) === key(name)) as Record<string, unknown> | undefined;
@@ -219,9 +220,11 @@ function recentObservedNote(name: string, rows: WorkoutHistoryRow[], prescribedR
     ? exercise.reps : null;
   const load = typeof exercise.load === "number" && Number.isFinite(exercise.load) ? exercise.load : null;
   const minutes = typeof exercise.durationMinutes === "number" && Number.isFinite(exercise.durationMinutes) ? exercise.durationMinutes : null;
-  if (!reps && load === null && minutes === null) return null;
+  const seconds = exercise.durationUnit === "seconds" && typeof exercise.durationValue === "number" && Number.isFinite(exercise.durationValue)
+    ? exercise.durationValue : null;
+  if (!reps && load === null && minutes === null && seconds === null) return null;
   const sets = typeof exercise.sets === "number" && Number.isInteger(exercise.sets) ? `${exercise.sets} sets, ` : "";
-  const lastTime = `${sets}${reps ? `${reps} reps` : minutes !== null ? `${minutes} min` : "reps not recorded"}${load !== null ? ` at ${load} ${exercise.loadUnit === "lb" ? "lb" : "kg"}` : ""}`;
+  const lastTime = `${sets}${reps ? `${reps} reps` : seconds !== null ? `${seconds} sec` : minutes !== null ? `${minutes} min` : "reps not recorded"}${load !== null ? ` at ${load} ${exercise.loadUnit === "lb" ? "lb" : "kg"}` : ""}`;
   const upper = prescribedReps?.match(/^\d+\s*[-–]\s*(\d+)/)?.[1];
   const actualReps = reps && /^\d{1,3}$/.test(reps) ? Number(reps) : null;
   const effort = recent.metadata.effortRating;
@@ -234,7 +237,8 @@ function recentObservedNote(name: string, rows: WorkoutHistoryRow[], prescribedR
         previous.loadUnit === exercise.loadUnit && typeof previous.reps === "string" &&
         /^\d{1,3}$/.test(previous.reps) && Number(previous.reps) >= Number(upper);
     })));
-  const next = effort === "too_hard" ? "Use a comfortable load and focus on form today."
+  const next = effort === "too_hard" ? "Keep the effort comfortable and focus on form today."
+    : seconds !== null ? "Add a few seconds only when the hold feels controlled and comfortable."
     : upper && actualReps !== null && actualReps < Number(upper)
       ? `${load !== null ? "With the same load, aim" : "Aim"} for one more rep per set, up to ${upper}, if form stays good.`
       : upper && actualReps !== null && actualReps >= Number(upper) && load !== null
@@ -242,6 +246,19 @@ function recentObservedNote(name: string, rows: WorkoutHistoryRow[], prescribedR
           : "Repeat this load once with good form before increasing it."
         : "Use it as a reference and keep the movement controlled.";
   return `Last logged: ${lastTime}. ${next}`;
+}
+
+function recentObservedHoldSeconds(name: string, rows: WorkoutHistoryRow[]) {
+  for (const row of rows) {
+    if (row.metadata?.evidenceType !== "observed_performance" || !Array.isArray(row.metadata.exercises)) continue;
+    const exercise = row.metadata.exercises.find(value => value && typeof value === "object" &&
+      key(String((value as Record<string, unknown>).name ?? "")) === key(name)) as Record<string, unknown> | undefined;
+    if (exercise?.durationUnit === "seconds" && typeof exercise.durationValue === "number" &&
+      Number.isFinite(exercise.durationValue)) {
+      return { seconds: exercise.durationValue, effort: row.metadata.effortRating };
+    }
+  }
+  return null;
 }
 
 function availableKit(equipment: string, location: string): Set<Kit> {
@@ -408,6 +425,9 @@ export function buildWorkoutBlueprint(input: {
   const recentNames = history.slice(0, 2).flatMap(session => session.names.map(key));
   const allNames = history.flatMap(session => session.names.map(key));
   const completedNames = new Set(history.filter(session => session.evidence !== "planned").flatMap(session => session.names.map(key)));
+  const anchorNames = new Set(!gentle && latest && latestAgeMs >= 2 * 86_400_000 && latest.effort !== "too_hard"
+    ? latest.names.filter(name => ["squat", "hinge", "push", "pull", "single_leg"].includes(patternFor(name) ?? "")).slice(0, 2).map(key)
+    : []);
   const hasRunningHistory = history.some(session => session.evidence !== "planned" && session.names.some(name => /\brun(?:ning)?\b|\bjog(?:ging)?\b/i.test(name)));
   const eligibleChoices = (pattern: Pattern) => V2_WORKOUT_CATALOG.filter(item => item.pattern === pattern
     && suitableForSetting(item, kit, input.location)
@@ -456,12 +476,17 @@ export function buildWorkoutBlueprint(input: {
   }
   const prescribe = (item: CatalogExercise): Omit<CoachWorkoutExercise, "alternatives"> => ({
     name: item.name,
-    sets: item.duration ? gentle && item.pattern === "mobility" ? 2 : null : input.conservative || gentle || minutes <= 20 ? 2
-      : goal === "muscle_gain" || minutes >= 45 ? 3 : 2,
+    sets: item.duration ? gentle && item.pattern === "mobility" ? 2 : null
+      : latest?.effort === "too_hard" && latest.names.some(name => key(name) === key(item.name)) ? 2
+      : input.conservative || gentle || minutes <= 20 ? 2 : goal === "muscle_gain" || minutes >= 45 ? 3 : 2,
     reps: goal === "strength" && !input.conservative && item.reps && ["squat", "hinge", "push", "pull", "single_leg"].includes(item.pattern)
       && item.kit.some(value => value === "dumbbells" || value === "gym")
       ? item.reps.includes("each side") ? "6-10 each side" : "6-10" : item.reps ?? null,
-    duration: item.name === "Short Bar Hang" && input.conservative ? "5-10 sec"
+    duration: item.name === "Short Bar Hang" ? (() => {
+      const hold = recentObservedHoldSeconds(item.name, input.recentWorkouts);
+      return hold && hold.effort !== "too_hard" ? hold.seconds >= 15 ? "15-20 sec" : hold.seconds >= 10 ? "10-15 sec" : "5-10 sec"
+        : "5-10 sec";
+    })()
       : item.pattern === "cardio" ? minutes <= 20 ? "5-8 min" : goal === "recovery" ? "10-15 min" : minutes >= 60 ? "12-20 min" : "8-15 min" : item.duration ?? null,
     rest: item.pattern === "cardio" ? null : gentle ? "As needed" : goal === "strength" ? "90-120 sec" : goal === "fat_loss" || goal === "general_fitness" ? "45-75 sec" : "60-90 sec",
     note: [item.note, recentObservedNote(item.name, input.recentWorkouts, item.reps)].filter(Boolean).join(" ")
@@ -474,6 +499,7 @@ export function buildWorkoutBlueprint(input: {
       // Prefer a different movement from the last training day whenever the
       // available equipment offers one. An explicit avoid still ranks higher.
       (mostRecentDayNames.has(key(item.name)) ? 90 : 0) +
+      (anchorNames.has(key(item.name)) ? -180 : 0) +
       // Prefer a different angle after the last session, while keeping each
       // movement family available again once enough recovery time has passed.
       (mostRecentDayFamilies.has(movementFamily(item)) ? 14 : 0) +
@@ -517,6 +543,15 @@ export function buildWorkoutBlueprint(input: {
       const bounds = cardio.duration.match(/(\d+)(?:-(\d+))?/);
       const midpoint = bounds ? (Number(bounds[1]) + Number(bounds[2] ?? bounds[1])) / 2 : 0;
       cardio.duration = `${Math.max(5, Math.floor(midpoint - (projectedMinutes - minutes)))} min`;
+    }
+  }
+  if (!gentle && !input.conservative && estimateWorkoutDurationMinutes(exercises) < Math.ceil(minutes * 0.75)) {
+    const cardio = exercises.find(exercise => catalogItemFor(exercise.name)?.pattern === "cardio" && exercise.duration?.includes("min"));
+    if (cardio?.duration) {
+      const bounds = cardio.duration.match(/(\d+)(?:-(\d+))?/);
+      const currentMinutes = bounds ? Math.round((Number(bounds[1]) + Number(bounds[2] ?? bounds[1])) / 2) : 0;
+      const extraMinutes = Math.ceil(minutes * 0.8) - estimateWorkoutDurationMinutes(exercises);
+      cardio.duration = `${Math.min(20, currentMinutes + Math.max(0, extraMinutes))} min`;
     }
   }
   const strengthGoal = goal === "strength" || goal === "muscle_gain";
@@ -564,19 +599,22 @@ export function buildWorkoutBlueprint(input: {
           : `Your ${input.equipment.toLowerCase()} is available, but this short session prioritizes other movements.`;
   const barIntroduction = kit.has("pullup_bar") && exercises.some(exercise => exercise.name === "Short Bar Hang") && !completedNames.has(key("Pull-Up"))
     ? "The bar is used for a short hold; Zoe has no completed pull-up on record yet." : "";
+  const anchorReason = exercises.some(exercise => anchorNames.has(key(exercise.name)))
+    ? "A familiar movement returns so you can build on it, while the rest of the session varies." : "";
   const goalExplanation = limitedOutdoorResistance
     ? "Today's equipment supports lower-body work and conditioning, with limited upper-body resistance."
     : limitedIndoorBodyweightResistance
       ? "This equipment supports strength practice, but not a resisted back pull."
     : goalReason[goal];
-  const whyToday = `${whyTodayBase} ${goalExplanation}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}`;
+  const whyToday = `${whyTodayBase} ${goalExplanation}${anchorReason ? ` ${anchorReason}` : ""}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}`;
   const upcoming = gentle ? ["Balanced strength", "Mobility or easy cardio"]
     : focus.startsWith("Upper") ? ["Lower body and core", "Recovery and mobility"]
       : focus.startsWith("Lower") ? ["Upper body and easy conditioning", "Recovery and mobility"]
         : ["Recovery and mobility", "Strength with rotated movements"];
+  const coreMinutes = estimateWorkoutDurationMinutes(exercises);
   return {
     exercises, location: input.location, equipment: input.equipment, timeAvailableMinutes: minutes, focus, whyToday,
-    estimatedDurationMinutes: estimateWorkoutDurationMinutes(exercises),
+    estimatedDurationMinutes: coreMinutes,
     conservative: input.conservative === true,
     nextSessionPreview: `Next: ${upcoming[0].toLowerCase()}. This may change with your next check-in.`,
     sessionRoadmap: [{ step: "Today", focus }, { step: "Next", focus: upcoming[0] }, { step: "Then", focus: upcoming[1] }],

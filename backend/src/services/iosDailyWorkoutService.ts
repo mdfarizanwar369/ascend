@@ -19,6 +19,7 @@ type StoredWorkout = {
   workout: CoachWorkoutPlan;
   resets_at: Date | string;
   completed?: boolean;
+  completed_exercise_indexes?: number[] | null;
 };
 function toDailyWorkout(row: StoredWorkout) {
   return {
@@ -26,13 +27,20 @@ function toDailyWorkout(row: StoredWorkout) {
     request: row.request,
     workout: row.workout,
     resetsAt: new Date(row.resets_at).toISOString(),
-    completed: row.completed === true
+    completed: row.completed === true,
+    completedExerciseIndexes: Array.isArray(row.completed_exercise_indexes)
+      ? row.completed_exercise_indexes.filter(index => Number.isInteger(index) && index >= 0 && index < row.workout.exercises.length)
+      : null
   };
 }
 const selectWorkout = `select w.*, exists (
   select 1 from analytics_events e where e.user_id = w.user_id
     and e.event_name = 'burn_log' and e.metadata->>'workoutCompletionKey' = w.completion_key::text
-) as completed from ios_daily_workouts w`;
+) as completed, (
+  select e.metadata->'completedExerciseIndexes' from analytics_events e where e.user_id = w.user_id
+    and e.event_name = 'burn_log' and e.metadata->>'workoutCompletionKey' = w.completion_key::text
+  order by e.created_at desc limit 1
+) as completed_exercise_indexes from ios_daily_workouts w`;
 
 export async function getIosDailyWorkout(userId: string, now = new Date()) {
   const result = await query<StoredWorkout>(`${selectWorkout}

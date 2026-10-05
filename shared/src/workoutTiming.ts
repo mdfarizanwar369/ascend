@@ -28,3 +28,18 @@ export function estimateWorkoutDurationMinutes(exercises: TimedWorkoutExercise[]
   }
   return Math.max(1, Math.round(seconds / 60));
 }
+
+/** A provisional pace range for display; actual time is collected separately. */
+export function estimateWorkoutDurationRange(exercises: TimedWorkoutExercise[]) {
+  const estimate = estimateWorkoutDurationMinutes(exercises);
+  return { min: Math.max(1, Math.floor(estimate * 0.9)), max: Math.ceil(estimate * 1.1) };
+}
+
+export function optionalWorkoutTimeSuggestion(exercises: TimedWorkoutExercise[], timeAvailableMinutes: number,
+  location: "gym" | "home" | "hotel" | "outdoors") {
+  const optionalMinutes = Math.min(20, Math.max(0, timeAvailableMinutes - estimateWorkoutDurationMinutes(exercises) - 2));
+  if (optionalMinutes < 8) return null;
+  const movement = location === "hotel" ? "quiet marching or side steps"
+    : location === "outdoors" ? "easy walking nearby" : "easy walking or marching";
+  return `If you want to use more of your time, add up to ${optionalMinutes} minutes of ${movement}. Keep it comfortable.`;
+}

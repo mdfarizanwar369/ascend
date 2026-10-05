@@ -99,6 +99,14 @@ describe("native daily workout allowance", () => {
     expect(dbQuery).toHaveBeenLastCalledWith(expect.stringContaining("w.user_id = $1 and w.completion_key = $2"), ["other-member", "saved-key"]);
   });
 
+  it("returns the actual checked indexes when a partial daily workout is reopened", async () => {
+    dbQuery.mockResolvedValue({ rows: [{ ...saved, workout: { ...workout, exercises: [
+      { name: "Bodyweight Squat" }, { name: "Dumbbell Row" }
+    ] }, completed_exercise_indexes: [1] }] });
+    expect(await getIosDailyWorkout("member", now)).toMatchObject({ completed: true, completedExerciseIndexes: [1] });
+    expect(dbQuery).toHaveBeenCalledWith(expect.stringContaining("completedExerciseIndexes"), ["member", now.toISOString()]);
+  });
+
   it("starts a new allowance at midnight", async () => {
     const result = await generateIosDailyWorkout(input(), new Date("2026-09-23T16:00:00Z"));
     expect(result.resetsAt).toBe("2026-09-24T16:00:00.000Z");

@@ -188,6 +188,57 @@ describe("workout debrief route isolation", () => {
     expect(initializeWorkoutDebriefMock).toHaveBeenCalledTimes(1);
   });
 
+  it("saves only checked exercises from the owner's iPhone daily workout", async () => {
+    ownerStatus.value = true;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = true;
+    const previousProvider = env.AI_PROVIDER;
+    env.AI_PROVIDER = "gemini";
+    const plan = {
+      title: "Stored daily workout", focus: "Strength", intensity: "easy", estimatedDurationMinutes: 20, experienceVersion: 2,
+      exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "10" }, { name: "Short Bar Hang", duration: "5-10 sec" }]
+    };
+    dailyForCompletion.mockResolvedValue({ workout: plan });
+    try {
+      const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+        method: "POST", headers: { "content-type": "application/json", "X-Ascend-Edition": "ios-free-v1" },
+        body: JSON.stringify({ workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+          workoutTitle: "Caller title", workoutType: "Other", workoutDifficulty: "challenging", durationMinutes: 60,
+          exercises: plan.exercises, completedExerciseIndexes: [1], actualDurationMinutes: 9,
+          observedExercises: [{ exerciseIndex: 1, durationSeconds: 8 }] })
+      });
+      expect(response.status).toBe(201);
+      expect(premiumGate).not.toHaveBeenCalled();
+      expect(persistCompletedWorkoutMock).toHaveBeenCalledWith(expect.objectContaining({
+        workoutTitle: plan.title, durationMinutes: 9, source: "coach_zoe_workout_observed",
+        exercises: [expect.objectContaining({ name: "Short Bar Hang", durationValue: 8, durationUnit: "seconds" })],
+        extraMetadata: expect.objectContaining({ completionStatus: "partial", completedExerciseIndexes: [1],
+          completedPlanExercises: [{ name: "Short Bar Hang" }] })
+      }));
+    } finally { env.AI_PROVIDER = previousProvider; }
+  });
+
+  it("records reported minutes when all daily exercises are completed without explicit indexes", async () => {
+    ownerStatus.value = true;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = true;
+    const previousProvider = env.AI_PROVIDER;
+    env.AI_PROVIDER = "gemini";
+    const plan = { title: "Stored daily workout", focus: "Strength", intensity: "easy", estimatedDurationMinutes: 20,
+      experienceVersion: 2, exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "10" }] };
+    dailyForCompletion.mockResolvedValue({ workout: plan });
+    try {
+      const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+        method: "POST", headers: { "content-type": "application/json", "X-Ascend-Edition": "ios-free-v1" },
+        body: JSON.stringify({ workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+          workoutTitle: "Stored daily workout", workoutType: "Strength", workoutDifficulty: "easy",
+          durationMinutes: 20, exercises: plan.exercises, actualDurationMinutes: 13 })
+      });
+      expect(response.status).toBe(201);
+      expect(persistCompletedWorkoutMock).toHaveBeenCalledWith(expect.objectContaining({ durationMinutes: 13,
+        extraMetadata: expect.objectContaining({ completionStatus: "complete", completedExerciseIndexes: [0],
+          durationSource: "user_reported" }) }));
+    } finally { env.AI_PROVIDER = previousProvider; }
+  });
+
   it("links owner-entered actuals to one verified Zoe plan and saves observed performance", async () => {
     ownerStatus.value = true;
     env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = true;
@@ -217,6 +268,60 @@ describe("workout debrief route isolation", () => {
     } finally {
       env.AI_PROVIDER = previousProvider;
     }
+  });
+
+  it("saves only checked exercises from a verified partial Zoe plan", async () => {
+    ownerStatus.value = true;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = true;
+    const previousProvider = env.AI_PROVIDER;
+    env.AI_PROVIDER = "gemini";
+    queryMock.mockResolvedValueOnce({ rows: [{ workout: {
+      title: "Stored Zoe plan", focus: "Strength", intensity: "moderate", estimatedDurationMinutes: 20, experienceVersion: 2,
+      exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "8-12" }, { name: "Dumbbell Row", sets: 2, reps: "8-12" }]
+    } }] });
+    try {
+      const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+          workoutTitle: "Caller title", workoutType: "Other", workoutDifficulty: "challenging", durationMinutes: 90,
+          exercises: [{ name: "Bodyweight Squat" }, { name: "Dumbbell Row" }],
+          completedExerciseIndexes: [1], actualDurationMinutes: 12,
+          observedExercises: [{ exerciseIndex: 1, sets: 2, reps: "10, 9", load: 10 }]
+        })
+      });
+      expect(response.status).toBe(201);
+      expect(persistCompletedWorkoutMock).toHaveBeenCalledWith(expect.objectContaining({
+        workoutTitle: "Stored Zoe plan", durationMinutes: 12, source: "coach_zoe_workout_observed",
+        exercises: [expect.objectContaining({ name: "Dumbbell Row", reps: "10, 9" })],
+        extraMetadata: expect.objectContaining({ completionStatus: "partial", completedExerciseCount: 1,
+          completedExerciseIndexes: [1],
+          plannedExerciseCount: 2, completedPlanExercises: [{ name: "Dumbbell Row" }],
+          plannedDurationMinutes: expect.any(Number), durationSource: "user_reported" })
+      }));
+    } finally { env.AI_PROVIDER = previousProvider; }
+  });
+
+  it("rejects details for an exercise that was not checked in a partial session", async () => {
+    ownerStatus.value = true;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = true;
+    const previousProvider = env.AI_PROVIDER;
+    env.AI_PROVIDER = "gemini";
+    queryMock.mockResolvedValueOnce({ rows: [{ workout: {
+      title: "Stored Zoe plan", focus: "Strength", intensity: "moderate", estimatedDurationMinutes: 20, experienceVersion: 2,
+      exercises: [{ name: "Bodyweight Squat" }, { name: "Dumbbell Row" }]
+    } }] });
+    try {
+      const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+          workoutTitle: "Workout", workoutType: "Strength", workoutDifficulty: "moderate", durationMinutes: 20,
+          exercises: [{ name: "Bodyweight Squat" }, { name: "Dumbbell Row" }], completedExerciseIndexes: [0],
+          observedExercises: [{ exerciseIndex: 1, reps: "10" }] })
+      });
+      expect(response.status).toBe(400);
+      expect(persistCompletedWorkoutMock).not.toHaveBeenCalled();
+    } finally { env.AI_PROVIDER = previousProvider; }
   });
 
   it("keeps actual-performance logging within the enabled V2 rollout", async () => {

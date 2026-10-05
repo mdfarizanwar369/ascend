@@ -903,6 +903,8 @@ export function saveCompletedWorkout(input: {
   exercises: GeneratedWorkout["exercises"];
   healthProviderCaloriesBurned?: number | null;
   effortRating?: "too_easy" | "about_right" | "too_hard";
+  completedExerciseIndexes?: number[];
+  actualDurationMinutes?: number;
   observedExercises?: Array<{
     exerciseIndex: number;
     sets?: number;
@@ -910,6 +912,7 @@ export function saveCompletedWorkout(input: {
     load?: number;
     loadUnit?: "kg" | "lb";
     durationMinutes?: number;
+    durationSeconds?: number;
   }>;
 }) {
   invalidateDashboardReadCaches();
@@ -1521,6 +1524,7 @@ export type DailyWorkout = {
   workoutCompletionKey: string;
   resetsAt: string;
   completed: boolean;
+  completedExerciseIndexes?: number[] | null;
   request: {
     location: WorkoutPlannerLocation;
     timeAvailable: "20" | "30" | "45" | "60";

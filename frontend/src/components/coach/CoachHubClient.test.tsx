@@ -194,6 +194,18 @@ describe("iPhone daily workout builder", () => {
     expect(await screen.findByText("Incline Push-Up")).toBeInTheDocument();
     expect(mocks.generate).toHaveBeenCalledOnce();
   });
+  it("reopens a partial daily workout with only the movements actually completed checked", async () => {
+    mocks.today.mockResolvedValue({ dailyWorkout: { ...daily, completed: true, completedExerciseIndexes: [1], workout: {
+      ...daily.workout, experienceVersion: 2, exercises: [
+        { name: "Bodyweight Squat", sets: 2, reps: "10" }, { name: "Dumbbell Row", sets: 2, reps: "10" }
+      ]
+    } } });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    expect(await screen.findByText("1/2 exercises checked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark complete: Bodyweight Squat" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Mark incomplete: Dumbbell Row" })).toBeDisabled();
+  });
   it("does not choose the same alternative for two refreshed exercises", async () => {
     mocks.ios = false;
     mocks.generate.mockResolvedValue({ workout: { ...daily.workout, experienceVersion: 2, exercises: [
@@ -237,5 +249,74 @@ describe("iPhone daily workout builder", () => {
       workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
       observedExercises: [{ exerciseIndex: 0, sets: 2, reps: "10, 9", load: 25, loadUnit: "kg" }]
     })));
+  });
+
+  it("lets an owner save an honest partial workout without checking every exercise", async () => {
+    mocks.ios = false;
+    mocks.workoutV2 = true;
+    mocks.pilot = true;
+    mocks.generate.mockResolvedValue({ workout: {
+      ...daily.workout, experienceVersion: 2, planCompletionKey: "55555555-5555-4555-8555-555555555555",
+      exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "8-12" }, { name: "Dumbbell Row", sets: 2, reps: "8-12" }]
+    } });
+    mocks.save.mockResolvedValue({
+      burnLog: { id: "burn-id", metadata: { caloriesBurned: 50 }, created_at: new Date().toISOString() },
+      summary: { workoutTitle: "Home mobility", durationMinutes: 12, workoutType: "Strength", difficulty: "Moderate",
+        estimatedCaloriesBurned: 50, caloriesLabel: "Estimated Calories Burned", coachMessage: "Saved", momentumEarned: 8 },
+      debrief: null
+    });
+    render(<CoachHubClient />);
+    await chooseWorkout();
+    await screen.findByText("Bodyweight Squat");
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Dumbbell Row" }));
+    expect(screen.getByRole("button", { name: "Save what I did" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Minutes actually spent"), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save what I did" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      completedExerciseIndexes: [1], actualDurationMinutes: 12
+    })));
+  });
+
+  it("records seconds for a short bar hold instead of asking for minutes", async () => {
+    mocks.workoutV2 = true;
+    mocks.pilot = true;
+    mocks.today.mockResolvedValue({ dailyWorkout: { ...daily, workout: {
+      ...daily.workout, experienceVersion: 2,
+      exercises: [{ name: "Short Bar Hang", duration: "5-10 sec", note: "Keep your feet grounded if possible." }]
+    } } });
+    mocks.save.mockResolvedValue({
+      burnLog: { id: "burn-id", metadata: { caloriesBurned: 30 }, created_at: new Date().toISOString() },
+      summary: { workoutTitle: "Home mobility", durationMinutes: 8, workoutType: "Strength", difficulty: "Easy",
+        estimatedCaloriesBurned: 30, caloriesLabel: "Estimated Calories Burned", coachMessage: "Saved", momentumEarned: 8 },
+      debrief: null
+    });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    await screen.findByText("Short Bar Hang");
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Short Bar Hang" }));
+    fireEvent.click(screen.getByRole("button", { name: /Add your actual reps or weight/ }));
+    expect(screen.queryByLabelText("Short Bar Hang minutes done")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Short Bar Hang seconds done"), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Complete & Save Workout" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      observedExercises: [{ exerciseIndex: 0, durationSeconds: 12 }]
+    })));
+  });
+
+  it("lets a member skip an unsuitable bar move without recording it as completed", async () => {
+    mocks.workoutV2 = true;
+    mocks.today.mockResolvedValue({ dailyWorkout: { ...daily, workout: {
+      ...daily.workout, experienceVersion: 2, exercises: [
+        { name: "Bodyweight Squat", sets: 2, reps: "10" },
+        { name: "Short Bar Hang", duration: "5-10 sec" }
+      ]
+    } } });
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    await screen.findByText("Short Bar Hang");
+    fireEvent.click(screen.getAllByRole("button", { name: "Skip this move" })[1]);
+    expect(screen.getByText("Skipped for today")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Bodyweight Squat" }));
+    expect(screen.getByRole("button", { name: "Save what I did" })).toBeInTheDocument();
   });
 });

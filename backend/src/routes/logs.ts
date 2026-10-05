@@ -164,15 +164,18 @@ const completedWorkoutSchema = z.object({
   })).min(1).max(20),
   healthProviderCaloriesBurned: z.number().int().positive().optional().nullable(),
   effortRating: z.enum(["too_easy", "about_right", "too_hard"]).optional(),
+  completedExerciseIndexes: z.array(z.number().int().min(0).max(19)).min(1).max(20).optional(),
+  actualDurationMinutes: z.number().int().min(1).max(180).optional(),
   observedExercises: z.array(z.object({
     exerciseIndex: z.number().int().min(0).max(19),
     sets: z.number().int().min(1).max(10).optional(),
     reps: z.string().trim().regex(/^\d{1,3}(?:\s*[,/]\s*\d{1,3})*$/).max(80).optional(),
     load: z.number().min(0).max(2_000).optional(),
     loadUnit: z.enum(["kg", "lb"]).optional(),
-    durationMinutes: z.number().int().min(1).max(180).optional()
-  }).refine(value => value.reps !== undefined || value.durationMinutes !== undefined, {
-    message: "Enter actual reps or minutes for each logged exercise."
+    durationMinutes: z.number().int().min(1).max(180).optional(),
+    durationSeconds: z.number().int().min(1).max(3600).optional()
+  }).refine(value => value.reps !== undefined || value.durationMinutes !== undefined || value.durationSeconds !== undefined, {
+    message: "Enter actual reps, minutes or seconds for each logged exercise."
   })).min(1).max(20).optional()
 });
 
@@ -664,6 +667,12 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
   try {
     const input = completedWorkoutSchema.parse(req.body);
     const isDailyWorkout = await usesIosDailyWorkout(req.user!.id);
+    const v2Enabled = workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+      ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
+      isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER });
+    if ((input.completedExerciseIndexes || input.actualDurationMinutes !== undefined) && !v2Enabled) {
+      return res.status(403).json({ error: "Partial workout logging is not available for this account yet." });
+    }
     if (isDailyWorkout) {
       const { getIosWorkoutForCompletion } = await import("../services/iosDailyWorkoutService");
       const stored = await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
@@ -679,15 +688,16 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       input.durationMinutes = stored.workout.experienceVersion === 2
         ? estimateWorkoutDurationMinutes(stored.workout.exercises) : stored.workout.estimatedDurationMinutes;
       input.exercises = stored.workout.exercises;
+      if ((input.completedExerciseIndexes || input.actualDurationMinutes !== undefined) && stored.workout.experienceVersion !== 2) {
+        return res.status(400).json({ error: "This workout does not support partial logging." });
+      }
     }
-    if (input.observedExercises) {
-      if (!workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
-        ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
-        isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER })) {
+    if (input.observedExercises || input.completedExerciseIndexes || input.actualDurationMinutes !== undefined) {
+      if (!v2Enabled) {
         return res.status(403).json({ error: "Workout detail logging is not available for this account yet." });
       }
-      if (new Set(input.observedExercises.map(exercise => exercise.exerciseIndex)).size !== input.observedExercises.length ||
-        input.observedExercises.some(exercise => exercise.exerciseIndex >= input.exercises.length)) {
+      if (input.observedExercises && (new Set(input.observedExercises.map(exercise => exercise.exerciseIndex)).size !== input.observedExercises.length ||
+        input.observedExercises.some(exercise => exercise.exerciseIndex >= input.exercises.length))) {
         return res.status(400).json({ error: "The logged exercises do not match this workout." });
       }
       if (!isDailyWorkout) {
@@ -724,15 +734,28 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
         input.durationMinutes = estimateWorkoutDurationMinutes(input.exercises);
       }
     }
-    const plannedExercises = input.exercises;
+    const verifiedExercises = input.exercises;
+    const completedIndexes = input.completedExerciseIndexes ?? verifiedExercises.map((_, index) => index);
+    if (new Set(completedIndexes).size !== completedIndexes.length ||
+      completedIndexes.some(index => index >= verifiedExercises.length) ||
+      input.observedExercises?.some(exercise => !completedIndexes.includes(exercise.exerciseIndex))) {
+      return res.status(400).json({ error: "Choose only exercises you actually completed." });
+    }
+    const plannedExercises = completedIndexes.map(index => verifiedExercises[index]);
+    const plannedDurationMinutes = input.durationMinutes;
+    if (input.completedExerciseIndexes) input.durationMinutes = estimateWorkoutDurationMinutes(plannedExercises);
+    if (input.actualDurationMinutes !== undefined) input.durationMinutes = input.actualDurationMinutes;
     const loggedExercises = input.observedExercises?.map(observed => ({
-      name: plannedExercises[observed.exerciseIndex].name,
+      name: verifiedExercises[observed.exerciseIndex].name,
       sets: observed.sets ?? null,
       reps: observed.reps ?? null,
       load: observed.load ?? null,
       loadUnit: observed.load !== undefined ? observed.loadUnit ?? "kg" : null,
       durationMinutes: observed.durationMinutes ?? null,
-      duration: observed.durationMinutes ? `${observed.durationMinutes} min` : null,
+      durationValue: observed.durationSeconds ?? null,
+      durationUnit: observed.durationSeconds !== undefined ? "seconds" as const : null,
+      duration: observed.durationSeconds ? `${observed.durationSeconds} sec`
+        : observed.durationMinutes ? `${observed.durationMinutes} min` : null,
       confidence: 1,
       exerciseOrder: observed.exerciseIndex + 1
     }));
@@ -750,6 +773,15 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       source: loggedExercises ? "coach_zoe_workout_observed" : "coach_zoe_workout_planner",
       extraMetadata: {
         ...(input.effortRating ? { effortRating: input.effortRating } : {}),
+        ...(input.completedExerciseIndexes || input.actualDurationMinutes !== undefined ? {
+          completionStatus: completedIndexes.length === verifiedExercises.length ? "complete" : "partial",
+          completedExerciseIndexes: completedIndexes,
+          completedExerciseCount: completedIndexes.length,
+          plannedExerciseCount: verifiedExercises.length,
+          completedPlanExercises: plannedExercises.map(exercise => ({ name: exercise.name })),
+          plannedDurationMinutes,
+          durationSource: input.actualDurationMinutes !== undefined ? "user_reported" : "estimated"
+        } : {}),
         ...(loggedExercises ? { completedPlanExercises: plannedExercises.map(exercise => ({ name: exercise.name })) } : {})
       }
     });

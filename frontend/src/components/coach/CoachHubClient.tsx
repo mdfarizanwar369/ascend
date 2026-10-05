@@ -8,7 +8,7 @@ import { BackButton } from "@/components/BackButton";
 import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import type { WorkoutDebriefView } from "@ascend/shared";
-import { estimateWorkoutDurationMinutes, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, estimateWorkoutDurationRange, optionalWorkoutTimeSuggestion, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { ExerciseVisualCard } from "@/components/coach/ExerciseVisualCard";
 import {
   CoachChatMode,
@@ -62,8 +62,8 @@ type WorkoutSaveSuccess = {
   momentumEarned: number;
 };
 
-type ObservedExerciseDraft = { sets: string; reps: string; load: string; loadUnit: "kg" | "lb"; durationMinutes: string };
-const emptyObservedExercise = (): ObservedExerciseDraft => ({ sets: "", reps: "", load: "", loadUnit: "kg", durationMinutes: "" });
+type ObservedExerciseDraft = { sets: string; reps: string; load: string; loadUnit: "kg" | "lb"; durationMinutes: string; durationSeconds: string };
+const emptyObservedExercise = (): ObservedExerciseDraft => ({ sets: "", reps: "", load: "", loadUnit: "kg", durationMinutes: "", durationSeconds: "" });
 
 type WorkoutPlannerTime = NonNullable<WorkoutAnswers["timeAvailable"]>;
 
@@ -207,11 +207,13 @@ function OptionButton({ imageUrl, label, onClick }: { imageUrl?: string; label: 
 function WorkoutPlannerCard({
   answers,
   checkedExercises,
+  skippedExercises,
   isGenerating,
   onAnswer,
   onCancel,
   onGenerate,
   onToggleExercise,
+  onSkipExercise,
   onSwapExercise,
   onRegenerate,
   setMessage,
@@ -224,11 +226,13 @@ function WorkoutPlannerCard({
 }: {
   answers: WorkoutAnswers;
   checkedExercises: Set<number>;
+  skippedExercises: Set<number>;
   isGenerating: boolean;
   onAnswer: (next: Partial<WorkoutAnswers>) => void;
   onCancel: () => void;
   onGenerate: (finalEquipment: string) => void;
   onToggleExercise: (index: number) => void;
+  onSkipExercise: (index: number) => void;
   onSwapExercise: (index: number) => void;
   onRegenerate: () => void;
   setMessage: (message: string) => void;
@@ -283,6 +287,8 @@ function WorkoutPlannerCard({
   }
 
   if (workout) {
+    const optionalTimeSuggestion = workout.experienceVersion === 2 && answers.timeAvailable && answers.location
+      ? optionalWorkoutTimeSuggestion(workout.exercises, Number(answers.timeAvailable), answers.location) : null;
     return (
       <section className="overflow-hidden rounded-2xl border border-lime/25 bg-surface shadow-soft">
         <div className="relative aspect-[16/9] overflow-hidden bg-ink">
@@ -322,7 +328,9 @@ function WorkoutPlannerCard({
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-xl border border-line bg-ink/70 p-3">
             <p className="text-zinc-500">{workout.experienceVersion === 2 ? "About" : "Duration"}</p>
-            <p className="mt-1 font-bold text-zinc-100">{workout.experienceVersion === 2 ? estimateWorkoutDurationMinutes(workout.exercises) : workout.estimatedDurationMinutes} min</p>
+            <p className="mt-1 font-bold text-zinc-100">{workout.experienceVersion === 2
+              ? `${estimateWorkoutDurationRange(workout.exercises).min}–${estimateWorkoutDurationRange(workout.exercises).max} min`
+              : `${workout.estimatedDurationMinutes} min`}</p>
           </div>
           <div className="rounded-xl border border-line bg-ink/70 p-3">
             <p className="text-zinc-500">Focus</p>
@@ -360,6 +368,7 @@ function WorkoutPlannerCard({
             <div className="space-y-2">
             {workout.exercises.map((exercise, index) => {
               const complete = checkedExercises.has(index);
+              const skipped = skippedExercises.has(index);
               const expanded = expandedExerciseIndex === index;
               const visual = workout.experienceVersion === 2
                 ? resolveV2WorkoutExerciseVisual(exercise.name)
@@ -371,7 +380,7 @@ function WorkoutPlannerCard({
                 <article
                   key={`${exercise.name}-${index}`}
                   className={`ascend-stagger-enter rounded-xl border p-3 transition-colors ${
-                    complete ? "border-lime/50 bg-lime/10" : "border-line bg-ink/75"
+                    complete ? "border-lime/50 bg-lime/10" : skipped ? "border-line bg-ink/35 opacity-70" : "border-line bg-ink/75"
                   }`}
                   style={{ animationDelay: `${Math.min(index, 7) * 45}ms` }}
                 >
@@ -416,6 +425,13 @@ function WorkoutPlannerCard({
                       Swap exercise
                     </button>
                   ) : null}
+                  {workout.experienceVersion === 2 && !workoutSaved && !complete && !hasValidSwap ? (
+                    <button type="button" onClick={() => onSkipExercise(index)}
+                      className="ml-[52px] mt-2 text-xs font-semibold text-zinc-400 underline decoration-zinc-600 underline-offset-4">
+                      {skipped ? "Undo skip" : "Skip this move"}
+                    </button>
+                  ) : null}
+                  {skipped ? <p className="ml-[52px] mt-1 text-xs text-zinc-500">Skipped for today</p> : null}
                 </article>
               );
             })}
@@ -426,6 +442,7 @@ function WorkoutPlannerCard({
             <p className="text-sm font-semibold text-zinc-100">Cooldown</p>
             <p className="mt-2 text-sm leading-6 text-zinc-400">{workout.cooldown.join(" / ")}</p>
           </div>
+          {optionalTimeSuggestion ? <p className="rounded-xl border border-line bg-ink/55 p-3 text-xs leading-5 text-zinc-300">{optionalTimeSuggestion}</p> : null}
 
           <div className="rounded-xl border border-violet/30 bg-violet/10 p-3">
             <p className="text-sm font-semibold text-purple-200">Coach tip</p>
@@ -557,12 +574,14 @@ export function CoachHubClient() {
   const [answers, setAnswers] = useState<WorkoutAnswers>({});
   const [workout, setWorkout] = useState<GeneratedWorkout | null>(null);
   const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set());
+  const [skippedExercises, setSkippedExercises] = useState<Set<number>>(new Set());
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
   const [isLoadingWorkout, setIsLoadingWorkout] = useState(false);
   const [dailyWorkoutCompleted, setDailyWorkoutCompleted] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
   const [effortRating, setEffortRating] = useState<"too_easy" | "about_right" | "too_hard" | null>(null);
+  const [actualWorkoutMinutes, setActualWorkoutMinutes] = useState("");
   const [showWorkoutDetails, setShowWorkoutDetails] = useState(false);
   const [observedExercises, setObservedExercises] = useState<Record<number, ObservedExerciseDraft>>({});
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
@@ -574,6 +593,7 @@ export function CoachHubClient() {
 
   const completedCount = useMemo(() => checkedExercises.size, [checkedExercises]);
   const allExercisesCompleted = Boolean(workout && workout.exercises.length > 0 && completedCount === workout.exercises.length);
+  const canSaveWorkout = allExercisesCompleted || (workout?.experienceVersion === 2 && completedCount > 0);
 
   useEffect(() => {
     let active = true;
@@ -681,7 +701,11 @@ export function CoachHubClient() {
       setShowWorkoutDetails(false);
       setObservedExercises({});
       setEffortRating(null);
-      setCheckedExercises(new Set(daily.completed ? daily.workout.exercises.map((_, index) => index) : []));
+      setActualWorkoutMinutes("");
+      setCheckedExercises(new Set(daily.completed
+        ? daily.completedExerciseIndexes ?? daily.workout.exercises.map((_, index) => index)
+        : []));
+      setSkippedExercises(new Set());
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
     }
@@ -706,6 +730,7 @@ export function CoachHubClient() {
         setWorkoutDebrief(null);
         setDailyWorkoutCompleted(false);
         setCheckedExercises(new Set());
+        setSkippedExercises(new Set());
         setAnswers({});
         setShowExistingChoice(false);
         setPlannerOpen(true);
@@ -754,7 +779,9 @@ export function CoachHubClient() {
       setShowWorkoutDetails(false);
       setObservedExercises({});
       setEffortRating(null);
+      setActualWorkoutMinutes("");
       setCheckedExercises(new Set());
+      setSkippedExercises(new Set());
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
       setWorkoutCompletionKey(response.workout.planCompletionKey ?? nextWorkoutCompletionKey());
@@ -799,35 +826,45 @@ export function CoachHubClient() {
   }
 
   async function saveWorkoutCompletion() {
-    if (!workout || !allExercisesCompleted || !workoutCompletionKey || saveWorkoutLockRef.current) return;
+    if (!workout || !canSaveWorkout || !workoutCompletionKey || saveWorkoutLockRef.current) return;
     saveWorkoutLockRef.current = true;
     setIsSavingWorkout(true);
     setStatus("");
 
     try {
+      const completedExerciseIndexes = [...checkedExercises].sort((a, b) => a - b);
+      const actualDurationMinutes = actualWorkoutMinutes.trim() ? Number(actualWorkoutMinutes) : undefined;
+      if (actualDurationMinutes !== undefined && (!Number.isInteger(actualDurationMinutes) || actualDurationMinutes < 1 || actualDurationMinutes > 180)) {
+        setStatus("Enter whole minutes between 1 and 180, or leave the time blank for an estimate.");
+        return;
+      }
       const observed = Object.entries(observedExercises).flatMap(([index, draft]) => {
+        if (!checkedExercises.has(Number(index))) return [];
         const reps = draft.reps.trim();
         const durationMinutes = draft.durationMinutes.trim();
-        if (!reps && !durationMinutes) return [];
+        const durationSeconds = draft.durationSeconds.trim();
+        if (!reps && !durationMinutes && !durationSeconds) return [];
         return [{
           exerciseIndex: Number(index),
           ...(draft.sets.trim() ? { sets: Number(draft.sets) } : {}),
           ...(reps ? { reps } : {}),
           ...(draft.load.trim() ? { load: Number(draft.load), loadUnit: draft.loadUnit } : {}),
-          ...(durationMinutes ? { durationMinutes: Number(durationMinutes) } : {})
+          ...(durationMinutes ? { durationMinutes: Number(durationMinutes) } : {}),
+          ...(durationSeconds ? { durationSeconds: Number(durationSeconds) } : {})
         }];
       });
-      if (showWorkoutDetails && Object.values(observedExercises).some(draft =>
-        (draft.sets.trim() || draft.load.trim()) && !draft.reps.trim() && !draft.durationMinutes.trim())) {
-        setStatus("Add the reps or minutes you did for any exercise with a weight or set entry.");
+      if (showWorkoutDetails && Object.entries(observedExercises).some(([index, draft]) => checkedExercises.has(Number(index)) &&
+        (draft.sets.trim() || draft.load.trim()) && !draft.reps.trim() && !draft.durationMinutes.trim() && !draft.durationSeconds.trim())) {
+        setStatus("Add the reps, minutes or seconds you did for any exercise with a weight or set entry.");
         return;
       }
       if (observed.some(exercise =>
         exercise.reps && !/^\d{1,3}(?:\s*[,/]\s*\d{1,3})*$/.test(exercise.reps) ||
         exercise.sets !== undefined && (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 10) ||
         exercise.load !== undefined && (!Number.isFinite(exercise.load) || exercise.load < 0 || exercise.load > 2000) ||
-        exercise.durationMinutes !== undefined && (!Number.isInteger(exercise.durationMinutes) || exercise.durationMinutes < 1 || exercise.durationMinutes > 180))) {
-        setStatus("Check your workout details. Use numbers for actual reps, sets, weight and minutes.");
+        exercise.durationMinutes !== undefined && (!Number.isInteger(exercise.durationMinutes) || exercise.durationMinutes < 1 || exercise.durationMinutes > 180) ||
+        exercise.durationSeconds !== undefined && (!Number.isInteger(exercise.durationSeconds) || exercise.durationSeconds < 1 || exercise.durationSeconds > 3600))) {
+        setStatus("Check your workout details. Use numbers for actual reps, sets, weight and time.");
         return;
       }
       const response = await saveCompletedWorkout({
@@ -839,6 +876,8 @@ export function CoachHubClient() {
         completedAt: new Date().toISOString(),
         exercises: workout.exercises,
         ...(workout.experienceVersion === 2 && effortRating ? { effortRating } : {}),
+        ...(workout.experienceVersion === 2 ? { completedExerciseIndexes,
+          ...(actualDurationMinutes !== undefined ? { actualDurationMinutes } : {}) } : {}),
         ...(planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey) && observed.length ? { observedExercises: observed } : {})
       });
 
@@ -983,6 +1022,7 @@ export function CoachHubClient() {
             <WorkoutPlannerCard
               answers={answers}
               checkedExercises={checkedExercises}
+              skippedExercises={skippedExercises}
               isGenerating={isGeneratingWorkout}
               onAnswer={(next) => setAnswers((current) => ({ ...current, ...next }))}
               onCancel={closeWorkoutPlanner}
@@ -1005,26 +1045,47 @@ export function CoachHubClient() {
                     return { ...current, exercises };
                   });
                   setCheckedExercises(new Set());
+                  setSkippedExercises(new Set());
                   setEffortRating(null);
+                  setActualWorkoutMinutes("");
                   setShowExistingChoice(false);
                   return;
                 }
                 setWorkout(null);
                 setCheckedExercises(new Set());
+                setSkippedExercises(new Set());
                 setAnswers({});
                 setShowExistingChoice(false);
                 setSavedWorkoutSummary(null);
                 setWorkoutDebrief(null);
                 setWorkoutCompletionKey(null);
               }}
-              onToggleExercise={(index) =>
+              onToggleExercise={(index) => {
+                setSkippedExercises(current => {
+                  const next = new Set(current);
+                  next.delete(index);
+                  return next;
+                });
                 setCheckedExercises((current) => {
                   const next = new Set(current);
                   if (next.has(index)) next.delete(index);
                   else next.add(index);
                   return next;
-                })
-              }
+                });
+              }}
+              onSkipExercise={(index) => {
+                setCheckedExercises(current => {
+                  const next = new Set(current);
+                  next.delete(index);
+                  return next;
+                });
+                setSkippedExercises(current => {
+                  const next = new Set(current);
+                  if (next.has(index)) next.delete(index);
+                  else next.add(index);
+                  return next;
+                });
+              }}
               onSwapExercise={(index) => void swapWorkoutExercise(index)}
               setMessage={setMessage}
               showExistingChoice={showExistingChoice}
@@ -1063,7 +1124,7 @@ export function CoachHubClient() {
                         <Check size={20} />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-lime">Workout complete</p>
+                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-lime">Workout saved</p>
                         <h3 className="mt-1 truncate text-xl font-semibold text-white">{savedWorkoutSummary.workoutTitle}</h3>
                       </div>
                     </div>
@@ -1100,8 +1161,9 @@ export function CoachHubClient() {
                 </div>
               ) : dailyWorkoutCompleted ? (
                 <p className="mt-4 rounded-xl bg-lime/10 p-4 text-sm text-lime">This workout is already saved in your activity log.</p>
-              ) : allExercisesCompleted ? (
+              ) : canSaveWorkout ? (
                 <div className="mt-4 space-y-3">
+                {workout.experienceVersion === 2 && !allExercisesCompleted ? <p className="text-sm leading-5 text-zinc-300">You can stop here. Zoe will remember only the exercises you checked.</p> : null}
                 {planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey) ? <div className="rounded-xl border border-line bg-ink/55 p-3">
                   <button type="button" onClick={() => setShowWorkoutDetails(value => !value)} aria-expanded={showWorkoutDetails}
                     className="flex w-full items-center justify-between text-left text-sm font-semibold text-zinc-200">
@@ -1111,6 +1173,7 @@ export function CoachHubClient() {
                   {showWorkoutDetails ? <div className="mt-3 space-y-3">
                     <p className="text-xs leading-5 text-zinc-400">Only enter what you actually did. Leave an exercise blank to save it as completed without performance details.</p>
                     {workout.exercises.map((exercise, index) => {
+                      if (!checkedExercises.has(index)) return null;
                       const draft = observedExercises[index] ?? emptyObservedExercise();
                       const update = (change: Partial<ObservedExerciseDraft>) => setObservedExercises(current => ({
                         ...current, [index]: { ...(current[index] ?? emptyObservedExercise()), ...change }
@@ -1123,12 +1186,20 @@ export function CoachHubClient() {
                           <label className="text-xs text-zinc-300">Reps done<input aria-label={`${exercise.name} reps done`} inputMode="text" value={draft.reps} onChange={event => update({ reps: event.target.value })} placeholder="10 or 10, 9, 8" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label>
                           <label className="text-xs text-zinc-300">Weight<input aria-label={`${exercise.name} weight`} inputMode="decimal" value={draft.load} onChange={event => update({ load: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label>
                           <label className="text-xs text-zinc-300">Unit<select aria-label={`${exercise.name} weight unit`} value={draft.loadUnit} onChange={event => update({ loadUnit: event.target.value as "kg" | "lb" })} className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base"><option value="kg">kg</option><option value="lb">lb</option></select></label>
-                          {exercise.duration ? <label className="col-span-2 text-xs text-zinc-300">Minutes done<input aria-label={`${exercise.name} minutes done`} inputMode="numeric" value={draft.durationMinutes} onChange={event => update({ durationMinutes: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label> : null}
+                          {exercise.duration && /\bsec(?:ond)?s?\b/i.test(exercise.duration)
+                            ? <label className="col-span-2 text-xs text-zinc-300">Seconds per set<input aria-label={`${exercise.name} seconds done`} inputMode="numeric" value={draft.durationSeconds} onChange={event => update({ durationSeconds: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label>
+                            : exercise.duration ? <label className="col-span-2 text-xs text-zinc-300">Minutes done<input aria-label={`${exercise.name} minutes done`} inputMode="numeric" value={draft.durationMinutes} onChange={event => update({ durationMinutes: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label> : null}
                         </div>
                       </div>;
                     })}
                   </div> : null}
                 </div> : null}
+                {workout.experienceVersion === 2 ? <label className="block text-xs text-zinc-400">Minutes actually spent <span className="text-zinc-500">Optional</span>
+                  <input aria-label="Minutes actually spent" inputMode="numeric" value={actualWorkoutMinutes}
+                    onChange={event => setActualWorkoutMinutes(event.target.value)}
+                    placeholder={`About ${estimateWorkoutDurationMinutes(workout.exercises.filter((_, index) => checkedExercises.has(index)))} min`}
+                    className="ascend-field mt-1 w-full rounded-lg px-3 py-2 text-base" />
+                </label> : null}
                 {workout.experienceVersion === 2 ? <div>
                   <p className="mb-2 text-sm font-semibold text-zinc-200">How did that feel? <span className="font-normal text-zinc-500">Optional</span></p>
                   <div className="grid grid-cols-3 gap-2">
@@ -1146,12 +1217,12 @@ export function CoachHubClient() {
                   disabled={isSavingWorkout}
                   className="flex h-14 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(61,230,209,1),rgba(109,246,220,0.92))] text-base font-bold text-ink shadow-[0_18px_44px_rgba(61,230,209,0.24)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isSavingWorkout ? "Saving workout..." : "Complete & Save Workout"}
+                  {isSavingWorkout ? "Saving workout..." : allExercisesCompleted ? "Complete & Save Workout" : "Save what I did"}
                 </button>
                 </div>
               ) : (
                 <div className="mt-4 rounded-xl border border-white/5 bg-ink/55 px-4 py-3 text-sm text-zinc-400">
-                  Check off every exercise to unlock workout save.
+                  Check off an exercise when you finish it. You can save a shorter session too.
                 </div>
               )}
             </div>
