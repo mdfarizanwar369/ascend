@@ -159,10 +159,31 @@ const completedWorkoutSchema = z.object({
     reps: z.string().trim().max(40).nullable().optional(),
     duration: z.string().trim().max(40).nullable().optional(),
     rest: z.string().trim().max(40).nullable().optional(),
-    note: z.string().trim().max(160).nullable().optional()
+    note: z.string().trim().max(500).nullable().optional()
   })).min(1).max(20),
   healthProviderCaloriesBurned: z.number().int().positive().optional().nullable(),
-  effortRating: z.enum(["too_easy", "about_right", "too_hard"]).optional()
+  effortRating: z.enum(["too_easy", "about_right", "too_hard"]).optional(),
+  observedExercises: z.array(z.object({
+    exerciseIndex: z.number().int().min(0).max(19),
+    sets: z.number().int().min(1).max(10).optional(),
+    reps: z.string().trim().regex(/^\d{1,3}(?:\s*[,/]\s*\d{1,3})*$/).max(80).optional(),
+    load: z.number().min(0).max(2_000).optional(),
+    loadUnit: z.enum(["kg", "lb"]).optional(),
+    durationMinutes: z.number().int().min(1).max(180).optional()
+  }).refine(value => value.reps !== undefined || value.durationMinutes !== undefined, {
+    message: "Enter actual reps or minutes for each logged exercise."
+  })).min(1).max(20).optional()
+});
+
+const storedOwnerPlanSchema = z.object({
+  title: z.string(),
+  focus: z.string(),
+  intensity: z.enum(["easy", "moderate", "challenging"]),
+  estimatedDurationMinutes: z.number().int(),
+  experienceVersion: z.literal(2),
+  exercises: z.array(completedWorkoutSchema.shape.exercises.element.extend({
+    alternatives: z.array(completedWorkoutSchema.shape.exercises.element).optional()
+  }))
 });
 
 const capturedWorkoutSchema = z.object({
@@ -641,7 +662,8 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
 }, async (req, res, next) => {
   try {
     const input = completedWorkoutSchema.parse(req.body);
-    if (await usesIosDailyWorkout(req.user!.id)) {
+    const isDailyWorkout = await usesIosDailyWorkout(req.user!.id);
+    if (isDailyWorkout) {
       const { getIosWorkoutForCompletion } = await import("../services/iosDailyWorkoutService");
       const stored = await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
       if (!stored) return res.status(404).json({ error: "Open your generated workout in Zoe before saving it." });
@@ -656,6 +678,60 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       input.durationMinutes = stored.workout.estimatedDurationMinutes;
       input.exercises = stored.workout.exercises;
     }
+    if (input.observedExercises) {
+      if (!req.user!.isPlatformOwner || !(env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT || env.COACH_ZOE_WORKOUT_ENGINE_V2) || env.AI_PROVIDER !== "gemini") {
+        return res.status(403).json({ error: "Workout detail logging is not available for this account yet." });
+      }
+      if (new Set(input.observedExercises.map(exercise => exercise.exerciseIndex)).size !== input.observedExercises.length ||
+        input.observedExercises.some(exercise => exercise.exerciseIndex >= input.exercises.length)) {
+        return res.status(400).json({ error: "The logged exercises do not match this workout." });
+      }
+      if (!isDailyWorkout) {
+        const planResult = await query<{ workout: unknown }>(
+          `select metadata->'workout' as workout from analytics_events
+           where user_id = $1 and event_name = 'zoe_workout_plan_generated'
+             and metadata->>'workoutCompletionKey' = $2
+           order by created_at desc limit 1`,
+          [req.user!.id, input.workoutCompletionKey]
+        );
+        const storedPlan = storedOwnerPlanSchema.safeParse(planResult.rows[0]?.workout);
+        if (!storedPlan.success) return res.status(404).json({ error: "Open a newly generated Zoe workout before logging details." });
+        if (input.exercises.length !== storedPlan.data.exercises.length) {
+          return res.status(409).json({ error: "This workout changed. Reopen it in Zoe before saving." });
+        }
+        const selected = input.exercises.map((exercise, index) => {
+          const original = storedPlan.data.exercises[index];
+          return [original, ...(original.alternatives ?? [])].find(option => option.name === exercise.name);
+        });
+        if (selected.some(exercise => !exercise) || new Set(selected.map(exercise => exercise?.name)).size !== selected.length) {
+          return res.status(409).json({ error: "The exercises no longer match the generated workout." });
+        }
+        input.workoutTitle = storedPlan.data.title;
+        input.workoutType = storedPlan.data.focus;
+        input.workoutDifficulty = storedPlan.data.intensity;
+        input.durationMinutes = storedPlan.data.estimatedDurationMinutes;
+        input.exercises = selected.map(exercise => ({
+          name: exercise!.name,
+          sets: exercise!.sets,
+          reps: exercise!.reps,
+          duration: exercise!.duration,
+          rest: exercise!.rest,
+          note: exercise!.note
+        }));
+      }
+    }
+    const plannedExercises = input.exercises;
+    const loggedExercises = input.observedExercises?.map(observed => ({
+      name: plannedExercises[observed.exerciseIndex].name,
+      sets: observed.sets ?? null,
+      reps: observed.reps ?? null,
+      load: observed.load ?? null,
+      loadUnit: observed.load !== undefined ? observed.loadUnit ?? "kg" : null,
+      durationMinutes: observed.durationMinutes ?? null,
+      duration: observed.durationMinutes ? `${observed.durationMinutes} min` : null,
+      confidence: 1,
+      exerciseOrder: observed.exerciseIndex + 1
+    }));
     const result = await persistCompletedWorkout({
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,
@@ -665,17 +741,20 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       workoutDifficulty: input.workoutDifficulty,
       durationMinutes: input.durationMinutes,
       completedAt: input.completedAt ?? null,
-      exercises: input.exercises,
+      exercises: loggedExercises ?? plannedExercises,
       healthProviderCaloriesBurned: input.healthProviderCaloriesBurned ?? null,
-      source: "coach_zoe_workout_planner",
-      extraMetadata: input.effortRating ? { effortRating: input.effortRating } : undefined
+      source: loggedExercises ? "coach_zoe_workout_observed" : "coach_zoe_workout_planner",
+      extraMetadata: {
+        ...(input.effortRating ? { effortRating: input.effortRating } : {}),
+        ...(loggedExercises ? { completedPlanExercises: plannedExercises.map(exercise => ({ name: exercise.name })) } : {})
+      }
     });
 
     const initializedDebrief = await initializeWorkoutDebrief({
       workoutEventId: result.burnLog.id,
       userId: req.user!.id,
       isPlatformOwner: req.user!.isPlatformOwner,
-      source: "coach_zoe_workout_planner",
+      source: loggedExercises ? "coach_zoe_workout_observed" : "coach_zoe_workout_planner",
       metadata: result.burnLog.metadata,
       createdAt: result.burnLog.created_at
     }).catch((error) => {

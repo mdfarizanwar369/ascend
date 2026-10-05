@@ -183,7 +183,8 @@ function patternFor(name: string): Pattern | null {
 export function summarizeWorkoutExerciseHistory(rows: WorkoutHistoryRow[], timezoneOffsetMinutes = 0) {
   return rows.map(row => {
     const metadata = row.metadata ?? {};
-    const exercises = Array.isArray(metadata.exercises) ? metadata.exercises : [];
+    const exercises = Array.isArray(metadata.completedPlanExercises) ? metadata.completedPlanExercises
+      : Array.isArray(metadata.exercises) ? metadata.exercises : [];
     const names = exercises.map(value => typeof value === "string" ? value : value && typeof value === "object" ? (value as Record<string, unknown>).name : null)
       .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
       .map(value => value.trim().slice(0, 80)).slice(0, 12);
@@ -197,6 +198,45 @@ export function summarizeWorkoutExerciseHistory(rows: WorkoutHistoryRow[], timez
         : metadata.evidenceType === "observed_performance" ? "observed" as const : "completed" as const
     };
   }).filter(session => session.names.length > 0).slice(0, 12);
+}
+
+function recentObservedNote(name: string, rows: WorkoutHistoryRow[], prescribedReps: string | null | undefined) {
+  const recent = rows.find(row => row.metadata?.evidenceType === "observed_performance" &&
+    Array.isArray(row.metadata.exercises) && row.metadata.exercises.some(value => value && typeof value === "object" &&
+      key(String((value as Record<string, unknown>).name ?? "")) === key(name) &&
+      (typeof (value as Record<string, unknown>).reps === "string" || typeof (value as Record<string, unknown>).load === "number" ||
+        typeof (value as Record<string, unknown>).durationMinutes === "number")));
+  if (!recent || !Array.isArray(recent.metadata?.exercises)) return null;
+  const exercise = recent.metadata.exercises.find(value => value && typeof value === "object" &&
+    key(String((value as Record<string, unknown>).name ?? "")) === key(name)) as Record<string, unknown> | undefined;
+  if (!exercise) return null;
+  const reps = typeof exercise.reps === "string" && /^\d{1,3}(?:\s*[,/]\s*\d{1,3})*$/.test(exercise.reps)
+    ? exercise.reps : null;
+  const load = typeof exercise.load === "number" && Number.isFinite(exercise.load) ? exercise.load : null;
+  const minutes = typeof exercise.durationMinutes === "number" && Number.isFinite(exercise.durationMinutes) ? exercise.durationMinutes : null;
+  if (!reps && load === null && minutes === null) return null;
+  const sets = typeof exercise.sets === "number" && Number.isInteger(exercise.sets) ? `${exercise.sets} sets, ` : "";
+  const lastTime = `${sets}${reps ? `${reps} reps` : minutes !== null ? `${minutes} min` : "reps not recorded"}${load !== null ? ` at ${load} ${exercise.loadUnit === "lb" ? "lb" : "kg"}` : ""}`;
+  const upper = prescribedReps?.match(/^\d+\s*[-–]\s*(\d+)/)?.[1];
+  const actualReps = reps && /^\d{1,3}$/.test(reps) ? Number(reps) : null;
+  const effort = recent.metadata.effortRating;
+  const repeatedAtTop = Boolean(upper && load !== null && rows.some(row => row !== recent &&
+    row.metadata?.evidenceType === "observed_performance" && row.metadata.effortRating !== "too_hard" &&
+    Array.isArray(row.metadata.exercises) && row.metadata.exercises.some(value => {
+      if (!value || typeof value !== "object") return false;
+      const previous = value as Record<string, unknown>;
+      return key(String(previous.name ?? "")) === key(name) && previous.load === load &&
+        previous.loadUnit === exercise.loadUnit && typeof previous.reps === "string" &&
+        /^\d{1,3}$/.test(previous.reps) && Number(previous.reps) >= Number(upper);
+    })));
+  const next = effort === "too_hard" ? "Use a comfortable load and focus on form today."
+    : upper && actualReps !== null && actualReps < Number(upper)
+      ? `${load !== null ? "With the same load, aim" : "Aim"} for one more rep per set, up to ${upper}, if form stays good.`
+      : upper && actualReps !== null && actualReps >= Number(upper) && load !== null
+        ? repeatedAtTop ? "If that felt controlled, try the next small weight increase; otherwise repeat it."
+          : "Repeat this load once with good form before increasing it."
+        : "Use it as a reference and keep the movement controlled.";
+  return `Last logged: ${lastTime}. ${next}`;
 }
 
 function availableKit(equipment: string, location: string): Set<Kit> {
@@ -411,7 +451,7 @@ export function buildWorkoutBlueprint(input: {
       ? item.reps.includes("each side") ? "6-10 each side" : "6-10" : item.reps ?? null,
     duration: item.pattern === "cardio" ? minutes <= 20 ? "5-8 min" : goal === "recovery" ? "10-15 min" : minutes >= 60 ? "12-20 min" : "8-15 min" : item.duration ?? null,
     rest: item.pattern === "cardio" ? null : gentle ? "As needed" : goal === "strength" ? "90-120 sec" : goal === "fat_loss" || goal === "general_fitness" ? "45-75 sec" : "60-90 sec",
-    note: item.note
+    note: [item.note, recentObservedNote(item.name, input.recentWorkouts, item.reps)].filter(Boolean).join(" ")
   });
   const exercises = patterns.map((pattern, index) => {
     const choices = eligibleChoices(pattern);
@@ -444,9 +484,10 @@ export function buildWorkoutBlueprint(input: {
     const alternatives = ranked.filter(choice => primaryEligible(choice.item) && !selected.has(key(choice.item.name))
       && (pattern !== "accessory" || choice.item.target === chosen.target)).slice(0, 3).map(choice => prescribe(choice.item));
     const recentAnchor = allNames.includes(key(chosen.name)) && !recentNames.includes(key(chosen.name)) && !mostRecentDayNames.has(key(chosen.name));
+    const prescription = prescribe(chosen);
     return {
-      ...prescribe(chosen),
-      note: recentAnchor ? `Familiar movement to build consistency. ${chosen.note}` : chosen.note,
+      ...prescription,
+      note: recentAnchor ? `Familiar movement to build consistency. ${prescription.note}` : prescription.note,
       alternatives
     };
   });

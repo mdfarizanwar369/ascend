@@ -2,6 +2,9 @@ import express from "express";
 import { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { appEditionMiddleware } from "../services/appEdition";
+import { env } from "../config/env";
+
+const { ownerStatus } = vi.hoisted(() => ({ ownerStatus: { value: false } }));
 
 const { dailyForCompletion, premiumGate } = vi.hoisted(() => ({ dailyForCompletion: vi.fn(), premiumGate: vi.fn() }));
 vi.mock("../services/iosDailyWorkoutService", () => ({ getIosWorkoutForCompletion: dailyForCompletion }));
@@ -26,7 +29,7 @@ vi.mock("../middleware/auth", () => ({
       gymId: null,
       primaryRole: "client",
       roles: ["client"],
-      isPlatformOwner: false
+      isPlatformOwner: ownerStatus.value
     };
     next();
   }
@@ -74,6 +77,8 @@ describe("workout debrief route isolation", () => {
   });
 
   beforeEach(() => {
+    ownerStatus.value = false;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = false;
     dailyForCompletion.mockReset();
     premiumGate.mockReset().mockImplementation((_req, _res, next) => next());
     persistCompletedWorkoutMock.mockReset().mockResolvedValue({
@@ -181,6 +186,72 @@ describe("workout debrief route isolation", () => {
     });
     expect(persistCompletedWorkoutMock).toHaveBeenCalledTimes(1);
     expect(initializeWorkoutDebriefMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("links owner-entered actuals to one verified Zoe plan and saves observed performance", async () => {
+    ownerStatus.value = true;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = true;
+    const previousProvider = env.AI_PROVIDER;
+    env.AI_PROVIDER = "gemini";
+    queryMock.mockResolvedValueOnce({ rows: [{ workout: {
+      title: "Stored Zoe plan", focus: "Strength", intensity: "moderate", estimatedDurationMinutes: 30, experienceVersion: 2,
+      exercises: [{ name: "Dumbbell Row", sets: 2, reps: "8-12", alternatives: [{ name: "Cable Row", sets: 2, reps: "8-12", note: "Repeat with controlled form. ".repeat(8) }] }]
+    } }] });
+    try {
+      const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+          workoutTitle: "Caller title", workoutType: "Other", workoutDifficulty: "challenging", durationMinutes: 90,
+          exercises: [{ name: "Cable Row", sets: 3, reps: "99" }],
+          observedExercises: [{ exerciseIndex: 0, sets: 2, reps: "10, 9", load: 25, loadUnit: "kg" }]
+        })
+      });
+      expect(response.status).toBe(201);
+      expect(persistCompletedWorkoutMock).toHaveBeenCalledOnce();
+      expect(persistCompletedWorkoutMock).toHaveBeenCalledWith(expect.objectContaining({
+        workoutTitle: "Stored Zoe plan", durationMinutes: 30, source: "coach_zoe_workout_observed",
+        exercises: [expect.objectContaining({ name: "Cable Row", sets: 2, reps: "10, 9", load: 25 })],
+        extraMetadata: expect.objectContaining({ completedPlanExercises: [{ name: "Cable Row" }] })
+      }));
+    } finally {
+      env.AI_PROVIDER = previousProvider;
+    }
+  });
+
+  it("keeps actual-performance logging owner-only", async () => {
+    const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+        workoutTitle: "Workout", workoutType: "Strength", workoutDifficulty: "moderate", durationMinutes: 30,
+        exercises: [{ name: "Dumbbell Row" }], observedExercises: [{ exerciseIndex: 0, reps: "10" }]
+      })
+    });
+    expect(response.status).toBe(403);
+    expect(persistCompletedWorkoutMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects observed details without an account-owned generated plan", async () => {
+    ownerStatus.value = true;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT = true;
+    const previousProvider = env.AI_PROVIDER;
+    env.AI_PROVIDER = "gemini";
+    queryMock.mockResolvedValueOnce({ rows: [] });
+    try {
+      const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+          workoutTitle: "Workout", workoutType: "Strength", workoutDifficulty: "moderate", durationMinutes: 30,
+          exercises: [{ name: "Dumbbell Row" }], observedExercises: [{ exerciseIndex: 0, reps: "10" }]
+        })
+      });
+      expect(response.status).toBe(404);
+      expect(persistCompletedWorkoutMock).not.toHaveBeenCalled();
+    } finally {
+      env.AI_PROVIDER = previousProvider;
+    }
   });
 
   it("starts eligible generation on the server without delaying the saved-workout response", async () => {

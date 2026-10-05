@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyWorkout } from "@/lib/ascendApi";
 
-const mocks = vi.hoisted(() => ({ ios: true, visuals: false, workoutV2: false, today: vi.fn(), generate: vi.fn(), save: vi.fn(), swap: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ios: true, visuals: false, workoutV2: false, pilot: false, today: vi.fn(), generate: vi.fn(), save: vi.fn(), swap: vi.fn() }));
 vi.mock("@/lib/appEdition", () => ({ useIosFreeEdition: () => mocks.ios, useIosApp: () => mocks.ios }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => null, StaggerItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
@@ -13,7 +13,7 @@ vi.mock("@/lib/accountSession", () => ({
 vi.mock("@/lib/dataSync", () => ({ rememberDashboardRecord: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({
   getTodayWorkout: mocks.today, generateTodayWorkout: mocks.generate, saveCompletedWorkout: mocks.save, swapTodayWorkoutExercise: mocks.swap,
-  getWorkoutVisualAccess: async () => ({ enabled: mocks.visuals, workoutEngineV2Enabled: mocks.workoutV2 }),
+  getWorkoutVisualAccess: async () => ({ enabled: mocks.visuals, workoutEngineV2Enabled: mocks.workoutV2, planLoggingPilotEnabled: mocks.pilot }),
   recordWorkoutVisualEvent: vi.fn().mockResolvedValue(undefined),
   getCoachPresence: async () => ({ latest: null }), getMyStreak: async () => ({ streak: { current: 0 } }),
   getBurnLogs: async () => ({ burnLogs: [] }), getFoodLogs: async () => ({ foodLogs: [] }),
@@ -31,7 +31,7 @@ const daily: DailyWorkout = {
   }
 };
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.ios = true; mocks.visuals = false; mocks.workoutV2 = false;
+  vi.clearAllMocks(); mocks.ios = true; mocks.visuals = false; mocks.workoutV2 = false; mocks.pilot = false;
   mocks.today.mockResolvedValue({ dailyWorkout: null });
   mocks.generate.mockResolvedValue({ workout: daily.workout, dailyWorkout: daily });
 });
@@ -183,5 +183,32 @@ describe("iPhone daily workout builder", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Refresh exercises" }));
     expect(await screen.findByText("Incline Push-Up")).toBeInTheDocument();
     expect(mocks.generate).toHaveBeenCalledOnce();
+  });
+  it("lets the owner optionally log actuals with the same Zoe workout key", async () => {
+    mocks.ios = false;
+    mocks.workoutV2 = true;
+    mocks.pilot = true;
+    mocks.generate.mockResolvedValue({ workout: {
+      ...daily.workout, experienceVersion: 2, planCompletionKey: "55555555-5555-4555-8555-555555555555",
+      exercises: [{ name: "Dumbbell Row", sets: 2, reps: "8-12" }]
+    } });
+    mocks.save.mockResolvedValue({
+      burnLog: { id: "burn-id", metadata: { caloriesBurned: 120 }, created_at: new Date().toISOString() },
+      summary: { workoutTitle: "Home mobility", durationMinutes: 20, workoutType: "Strength", difficulty: "Moderate", estimatedCaloriesBurned: 120, caloriesLabel: "Estimated Calories Burned", coachMessage: "Saved", momentumEarned: 8 },
+      debrief: null
+    });
+    render(<CoachHubClient />);
+    await chooseWorkout();
+    expect(await screen.findByText("Dumbbell Row")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Dumbbell Row" }));
+    fireEvent.click(screen.getByRole("button", { name: /Add your actual reps or weight/ }));
+    fireEvent.change(screen.getByLabelText("Dumbbell Row sets done"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Dumbbell Row reps done"), { target: { value: "10, 9" } });
+    fireEvent.change(screen.getByLabelText("Dumbbell Row weight"), { target: { value: "25" } });
+    fireEvent.click(screen.getByRole("button", { name: "Complete & Save Workout" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+      observedExercises: [{ exerciseIndex: 0, sets: 2, reps: "10, 9", load: 25, loadUnit: "kg" }]
+    })));
   });
 });

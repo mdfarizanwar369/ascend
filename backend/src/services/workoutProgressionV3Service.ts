@@ -505,7 +505,7 @@ export async function backfillWorkoutExerciseObservations(userId: string, limit 
   const result = await query<{ id: string; user_id: string; metadata: Record<string, unknown>; created_at: string }>(
     `select id, user_id, metadata, created_at from analytics_events
      where user_id = $1 and event_name = 'burn_log' and jsonb_typeof(metadata->'exercises') = 'array'
-       and metadata->>'source' in ('ai_workout_capture', 'trainer_logged_session')
+       and metadata->>'source' in ('ai_workout_capture', 'trainer_logged_session', 'coach_zoe_workout_observed')
      order by created_at desc limit $2`,
     [userId, clamp(Math.round(limit), 1, 2_000)]
   );

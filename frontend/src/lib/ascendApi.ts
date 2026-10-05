@@ -903,6 +903,14 @@ export function saveCompletedWorkout(input: {
   exercises: GeneratedWorkout["exercises"];
   healthProviderCaloriesBurned?: number | null;
   effortRating?: "too_easy" | "about_right" | "too_hard";
+  observedExercises?: Array<{
+    exerciseIndex: number;
+    sets?: number;
+    reps?: string;
+    load?: number;
+    loadUnit?: "kg" | "lb";
+    durationMinutes?: number;
+  }>;
 }) {
   invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
@@ -1456,6 +1464,7 @@ export function getTodayPriorityRecommendation() {
 export type WorkoutPlannerLocation = "gym" | "home" | "hotel" | "outdoors";
 export type WorkoutPlannerGoal = "fat_loss" | "muscle_gain" | "strength" | "general_fitness" | "recovery" | "mobility";
 export type GeneratedWorkout = {
+  planCompletionKey?: string;
   title: string;
   intro: string;
   estimatedDurationMinutes: number;
@@ -1532,7 +1541,7 @@ export function swapTodayWorkoutExercise(workoutCompletionKey: string, exerciseI
 }
 
 export function getWorkoutVisualAccess() {
-  return authed<{ enabled: boolean; workoutEngineV2Enabled: boolean }>("/ai/workout/visual-access");
+  return authed<{ enabled: boolean; workoutEngineV2Enabled: boolean; planLoggingPilotEnabled: boolean }>("/ai/workout/visual-access");
 }
 
 export function generateTodayWorkout(input: {

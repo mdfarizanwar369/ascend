@@ -1,4 +1,5 @@
 import { isIosFreeEdition, isIosNativeEdition } from "../services/appEdition";
+import { randomUUID } from "node:crypto";
 import { requireAiConsent } from "../middleware/aiConsent";
 import { withAiWorkLease } from "../services/aiWorkLeaseService";
 import { Router } from "express";
@@ -922,6 +923,12 @@ aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, asy
 aiRouter.get("/ai/workout/visual-access", requireAuth, async (req, res) => {
   res.json({
     enabled: hasExerciseVisualAccess(req.user!),
+    planLoggingPilotEnabled: req.user!.isPlatformOwner && workoutEngineV2Enabled({
+      globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+      ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      provider: env.AI_PROVIDER
+    }),
     workoutEngineV2Enabled: workoutEngineV2Enabled({
       globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
       ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
@@ -1136,6 +1143,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         context: promptContext
       }, { requireAiSuccess: isIosNativeEdition(), preferReviewedVisualNames: hasExerciseVisualAccess(req.user!), blueprint: blueprint ?? undefined });
 
+      const planCompletionKey = workoutV2 && req.user!.isPlatformOwner && !dailyLimited ? randomUUID() : null;
       // Web plans have no daily-workout row. Save the names so a second request
       // can rotate them without mistaking a planned workout for a completed one.
       if (workoutV2 && !dailyLimited) await query(
@@ -1143,7 +1151,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
          values ($1, $2, 'zoe_workout_plan_generated', $3)`,
         [req.user!.id, req.user!.gymId ?? null, {
           evidenceType: "planned",
-          exercises: workout.exercises.map(exercise => ({ name: exercise.name }))
+          exercises: workout.exercises.map(exercise => ({ name: exercise.name })),
+          ...(planCompletionKey ? { workoutCompletionKey: planCompletionKey, workout } : {})
         }]
       );
 
@@ -1162,7 +1171,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         metadata: { feature: "coach_zoe_workout_planner", mode: "workout", coachTier: coachAccess.tier, engineVersion: workout.experienceVersion ?? 1 }
       });
 
-      return workout;
+      return planCompletionKey ? { ...workout, planCompletionKey } : workout;
     };
     if (dailyLimited) {
       const dailyWorkout = await generateIosDailyWorkout({

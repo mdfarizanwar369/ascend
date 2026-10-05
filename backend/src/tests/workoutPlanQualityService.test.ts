@@ -69,6 +69,34 @@ describe("Zoe workout engine V2", () => {
     expect(blueprint.whyToday).toContain("last session");
   });
 
+  it("uses the whole completed Zoe plan for recovery while carrying confirmed reps into a later prescription", () => {
+    const target = "Dumbbell Bench Press";
+    const recentWorkouts = [{
+      metadata: {
+        evidenceType: "observed_performance", source: "coach_zoe_workout_observed", effortRating: "about_right",
+        completedPlanExercises: [{ name: "Dumbbell Goblet Squat" }, { name: "Dumbbell Romanian Deadlift" }, { name: target }, { name: "Dumbbell Row" }],
+        exercises: [{ name: target, sets: 2, reps: "8", load: 12, loadUnit: "kg" }]
+      }, created_at: "2026-09-28T08:00:00.000Z"
+    }];
+    expect(summarizeWorkoutExerciseHistory(recentWorkouts)[0]).toMatchObject({
+      names: ["Dumbbell Goblet Squat", "Dumbbell Romanian Deadlift", target, "Dumbbell Row"], evidence: "observed"
+    });
+    const blueprint = buildWorkoutBlueprint({
+      ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", recentWorkouts,
+      avoidExercises: V2_WORKOUT_CATALOG.filter(item => item.pattern === "push" && item.name !== target).map(item => item.name)
+    });
+    expect(blueprint.exercises.find(exercise => exercise.name === target)?.note).toContain("Last logged: 2 sets, 8 reps at 12 kg");
+    const atTop = [{ ...recentWorkouts[0], metadata: {
+      ...recentWorkouts[0].metadata, exercises: [{ name: target, sets: 2, reps: "12", load: 12, loadUnit: "kg" }]
+    } }];
+    const options = { ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45",
+      avoidExercises: V2_WORKOUT_CATALOG.filter(item => item.pattern === "push" && item.name !== target).map(item => item.name) };
+    expect(buildWorkoutBlueprint({ ...options, recentWorkouts: atTop }).exercises.find(exercise => exercise.name === target)?.note)
+      .toContain("Repeat this load once");
+    expect(buildWorkoutBlueprint({ ...options, recentWorkouts: [atTop[0], { ...atTop[0], created_at: "2026-09-25T08:00:00.000Z" }] })
+      .exercises.find(exercise => exercise.name === target)?.note).toContain("next small weight increase");
+  });
+
   it("recognizes rowing workouts as cardio history rather than a back-row exercise", () => {
     const history = summarizeWorkoutExerciseHistory([{
       metadata: { exercises: [{ name: "Indoor Rowing" }, { name: "Seated Cable Row" }] }, created_at: "2026-10-02T08:00:00Z"
