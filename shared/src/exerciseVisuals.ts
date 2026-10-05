@@ -9,6 +9,7 @@ export const EXERCISE_VISUAL_ASSET_ROOT_V4 = "/exercise-visuals/ascend-original-
 export const EXERCISE_VISUAL_ASSET_ROOT_V5 = "/exercise-visuals/ascend-original-v5";
 export const EXERCISE_VISUAL_ASSET_ROOT_V6 = "/exercise-visuals/ascend-original-v6";
 export const EXERCISE_VISUAL_ASSET_ROOT_V7 = "/exercise-visuals/ascend-original-v7";
+export const EXERCISE_VISUAL_ASSET_ROOT_V8 = "/exercise-visuals/ascend-original-v8";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -33,6 +34,7 @@ const imageV4 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V4}/${filena
 const imageV5 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V5}/${filename}`;
 const imageV6 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V6}/${filename}`;
 const imageV7 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V7}/${filename}`;
+const imageV8 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V8}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -714,6 +716,132 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "single", main: image("pull-up-hanging-start.webp") },
     instructions: "Hold a fixed pull-up bar with an overhand grip and let your feet lift only if you can safely reach and leave the bar. Keep your shoulders gently engaged for a short hold, then lower carefully.",
     cue: "Stop the hold before your grip slips; never jump to an uncertain bar."
+  },
+  {
+    id: "standing-calf-raise", canonicalName: "Standing Calf Raise", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing calf raise", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV8("standing-calf-raise-main.webp") },
+    instructions: "Stand on flat ground with feet hip-width apart. Rise onto the balls of both feet, pause briefly, then lower your heels slowly.",
+    cue: "Stay tall and avoid rolling onto the outside of your feet."
+  },
+  {
+    id: "tandem-stand", canonicalName: "Tandem Stand", aliases: [],
+    equipment: "Bodyweight with nearby stable support", movementPattern: "Static balance", targetMuscles: "Balance and stabilizing muscles",
+    images: { kind: "single", main: imageV8("tandem-stand-main.webp") },
+    instructions: "Stand near a stable wall or counter. Place one foot directly ahead of the other, hold your balance for the prescribed time, then switch which foot leads.",
+    cue: "Keep support within reach and step out of the stance if unsteady."
+  },
+  {
+    id: "supported-single-leg-stand", canonicalName: "Supported Single-Leg Stand", aliases: [],
+    equipment: "Bodyweight and stable wall", movementPattern: "Supported single-leg balance", targetMuscles: "Balance, hips and ankles",
+    images: { kind: "single", main: imageV8("supported-single-leg-stand-main.webp") },
+    instructions: "Stand beside a stable wall and touch it lightly with your fingertips. Lift one foot a little off the floor, hold, then switch legs.",
+    cue: "Keep your hips level and use more hand support whenever needed."
+  },
+  {
+    id: "seated-band-row", canonicalName: "Seated Band Row", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Seated horizontal pull", targetMuscles: "Upper back and arms",
+    images: { kind: "single", main: imageV8("seated-band-row-main.webp") },
+    instructions: "Sit with legs forward and knees softly bent. Loop the middle of a long band under both feet, hold one end in each hand, pull elbows back, then return slowly.",
+    cue: "Check the band is secure under your feet before every pull."
+  },
+  {
+    id: "standing-band-biceps-curl", canonicalName: "Standing Band Biceps Curl", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Elbow flexion", targetMuscles: "Biceps",
+    images: { kind: "single", main: imageV8("standing-band-biceps-curl-main.webp") },
+    instructions: "Stand on the middle of a long band with both feet and hold an end in each hand. Curl your hands toward your shoulders, then lower with control.",
+    cue: "Keep your elbows near your ribs and your wrists straight."
+  },
+  {
+    id: "band-overhead-triceps-extension", canonicalName: "Band Overhead Triceps Extension", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Overhead elbow extension", targetMuscles: "Triceps",
+    images: { kind: "single", main: imageV8("band-overhead-triceps-extension-main.webp") },
+    instructions: "Stand on the middle of a long band with one foot, bring both ends behind your head, then straighten your elbows overhead and return slowly.",
+    cue: "Keep the band secured under your foot and stop if your shoulders feel uncomfortable."
+  },
+  {
+    id: "standing-band-lateral-raise", canonicalName: "Standing Band Lateral Raise", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Shoulder abduction", targetMuscles: "Side shoulders",
+    images: { kind: "single", main: imageV8("standing-band-lateral-raise-main.webp") },
+    instructions: "Stand on the middle of a long band and hold the ends at your sides. Raise your arms outward toward shoulder height, then lower slowly.",
+    cue: "Keep a soft elbow bend and avoid shrugging or arching your back."
+  },
+  {
+    id: "dumbbell-suitcase-hold", canonicalName: "Dumbbell Suitcase Hold", aliases: [],
+    equipment: "One dumbbell", movementPattern: "Static anti-lateral-flexion hold", targetMuscles: "Core and grip",
+    images: { kind: "single", main: imageV8("dumbbell-suitcase-hold-main.webp") },
+    instructions: "Hold one dumbbell beside one thigh and stand tall with shoulders level. Breathe normally for the prescribed time, then switch hands.",
+    cue: "Do not lean toward or away from the weight."
+  },
+  {
+    id: "standing-dumbbell-calf-raise", canonicalName: "Standing Dumbbell Calf Raise", aliases: [],
+    equipment: "Dumbbells", movementPattern: "Loaded standing calf raise", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV8("standing-dumbbell-calf-raise-main.webp") },
+    instructions: "Hold light dumbbells at your sides on flat ground. Raise both heels, pause at the top, then lower slowly without bouncing.",
+    cue: "Stay upright and keep weight centered over both feet."
+  },
+  {
+    id: "barbell-back-squat", canonicalName: "Barbell Back Squat", aliases: [],
+    equipment: "Barbell, rack and safeties", movementPattern: "Loaded squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV8("barbell-back-squat-main.webp") },
+    instructions: "Set rack safeties and place the bar across your upper back. Unrack with control, squat to a depth you can manage with flat feet, then stand through your whole feet.",
+    cue: "Use a spotter or safeties and keep the bar over midfoot."
+  },
+  {
+    id: "barbell-romanian-deadlift", canonicalName: "Barbell Romanian Deadlift", aliases: [],
+    equipment: "Barbell", movementPattern: "Loaded hip hinge", targetMuscles: "Hamstrings and glutes",
+    images: { kind: "single", main: imageV8("barbell-romanian-deadlift-main.webp") },
+    instructions: "Hold a barbell in front of your thighs. With soft knees, push your hips back and slide the bar close to your legs, then stand tall by driving through your feet.",
+    cue: "Stop the descent before your back rounds; the bar need not touch the floor."
+  },
+  {
+    id: "barbell-bench-press", canonicalName: "Barbell Bench Press", aliases: [],
+    equipment: "Barbell, flat bench and rack safeties", movementPattern: "Horizontal press", targetMuscles: "Chest, shoulders and triceps",
+    images: { kind: "single", main: imageV8("barbell-bench-press-main.webp") },
+    instructions: "Set rack safeties or use a spotter. Lie on a flat bench with feet planted, lower the bar toward your mid chest, then press it upward with control.",
+    cue: "Keep wrists stacked over your forearms and avoid bouncing the bar."
+  },
+  {
+    id: "hip-thrust-machine", canonicalName: "Hip Thrust Machine", aliases: [],
+    equipment: "Dedicated hip thrust or glute drive machine", movementPattern: "Supported hip extension", targetMuscles: "Glutes and hamstrings",
+    images: { kind: "single", main: imageV8("hip-thrust-machine-main.webp") },
+    instructions: "Set the machine pad or belt across your pelvis and keep feet flat. Raise your hips until your torso is level, pause briefly, then lower with control.",
+    cue: "Keep your ribs down and avoid over-arching your lower back."
+  },
+  {
+    id: "lying-leg-curl", canonicalName: "Lying Leg Curl", aliases: [],
+    equipment: "Prone leg curl machine", movementPattern: "Knee flexion", targetMuscles: "Hamstrings",
+    images: { kind: "single", main: imageV8("lying-leg-curl-main.webp") },
+    instructions: "Lie face down on the machine with the roller above your heels. Curl your heels toward your glutes while keeping hips on the pad, then lower slowly.",
+    cue: "Avoid lifting your hips or swinging the weight."
+  },
+  {
+    id: "standing-calf-raise-machine", canonicalName: "Standing Calf Raise Machine", aliases: [],
+    equipment: "Standing calf raise machine", movementPattern: "Loaded ankle plantar flexion", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV8("standing-calf-raise-machine-main.webp") },
+    instructions: "Place the shoulder pads securely and stand with the balls of your feet on the platform. Raise your heels, pause, then lower through a comfortable range.",
+    cue: "Keep your torso upright and avoid bouncing at the bottom."
+  },
+  {
+    id: "cable-pallof-press", canonicalName: "Cable Pallof Press", aliases: [],
+    equipment: "Adjustable cable tower", movementPattern: "Standing anti-rotation press", targetMuscles: "Core",
+    images: { kind: "single", main: imageV8("cable-pallof-press-main.webp") },
+    instructions: "Set a cable handle at chest height and stand sideways to the tower. Hold it with both hands, press straight forward without turning, return, then switch sides.",
+    cue: "Keep hips and shoulders facing forward as the cable pulls sideways."
+  },
+  {
+    id: "elliptical-trainer", canonicalName: "Elliptical Trainer", aliases: [],
+    equipment: "Elliptical trainer", movementPattern: "Low-impact aerobic conditioning", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV8("elliptical-trainer-main.webp") },
+    instructions: "Step onto the elliptical with both feet on the pedals, hold the handles, and move with a smooth stride at a comfortable effort for the prescribed time.",
+    cue: "Keep your feet on the pedals and avoid leaning heavily on the handles."
+  },
+  {
+    id: "rowing-machine", canonicalName: "Rowing Machine", aliases: [],
+    equipment: "Indoor rowing machine", movementPattern: "Seated aerobic rowing", targetMuscles: "Cardiovascular system, legs and back",
+    images: { kind: "single", main: imageV8("rowing-machine-main.webp") },
+    instructions: "Sit on the rower with feet strapped in. Push with your legs, then draw the handle to your lower ribs; extend your arms before bending your knees on the return.",
+    cue: "Keep the stroke smooth and avoid yanking with your lower back."
   }
 ] as const;
 
@@ -756,14 +884,14 @@ export function resolveExerciseVisual(name: unknown): ExerciseVisualResolution {
   // New V2 equipment art stays in the owner workout pilot. Legacy Gemini
   // plans retain their existing text-only behavior until V2 is public.
   if (reviewed && !visualIsV2Only(reviewed.exercise)) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
-  if (reviewed) return { status: "unresolved", match: null, exercise: null };
+  if (reviewed) return { status: ambiguousNames.has(key) ? "ambiguous" : "unresolved", match: null, exercise: null };
   if (ambiguousNames.has(key)) return { status: "ambiguous", match: null, exercise: null };
   return { status: "unresolved", match: null, exercise: null };
 }
 
 function visualIsV2Only(exercise: ExerciseVisual): boolean {
   const asset = exercise.images.kind === "single" ? exercise.images.main : exercise.images.start;
-  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V7}/`);
+  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V7}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V8}/`);
 }
 
 // Older V2 workouts were saved with broad labels before the reviewed catalog used

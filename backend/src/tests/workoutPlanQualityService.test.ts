@@ -14,7 +14,7 @@ const plan: CoachWorkoutPlan = {
 
 describe("Zoe workout engine V2", () => {
   it("has reviewed pictures and coaching instructions for every plan and swap movement", () => {
-    expect(V2_WORKOUT_CATALOG).toHaveLength(87);
+    expect(V2_WORKOUT_CATALOG).toHaveLength(105);
     for (const item of V2_WORKOUT_CATALOG) {
       if (item.pattern === "accessory") expect(item.target, item.name).toBeTruthy();
       const visual = resolveV2WorkoutExerciseVisual(item.name);
@@ -67,6 +67,13 @@ describe("Zoe workout engine V2", () => {
     expect(blueprint.exercises.map(exercise => exercise.name)).not.toContain("Dumbbell Romanian Deadlift");
     expect(new Set(blueprint.exercises.map(exercise => exercise.name)).size).toBe(blueprint.exercises.length);
     expect(blueprint.whyToday).toContain("last session");
+  });
+
+  it("recognizes rowing workouts as cardio history rather than a back-row exercise", () => {
+    const history = summarizeWorkoutExerciseHistory([{
+      metadata: { exercises: [{ name: "Indoor Rowing" }, { name: "Seated Cable Row" }] }, created_at: "2026-10-02T08:00:00Z"
+    }]);
+    expect(history[0].patterns).toEqual(["cardio", "pull"]);
   });
 
   it("prescribes recovery after a same-day workout and after a too-hard previous day", () => {
@@ -201,17 +208,35 @@ describe("Zoe workout engine V2", () => {
 
   it("avoids first-time automatic bar exercises but allows known movements", () => {
     const fresh = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", recentWorkouts: [] });
-    expect(fresh.exercises.map(item => item.name)).not.toEqual(expect.arrayContaining(["Pull-Up", "Hanging Knee Raise"]));
+    const freshChoices = fresh.exercises.flatMap(item => [item.name, ...(item.alternatives ?? []).map(alternative => alternative.name)]);
+    for (const name of ["Pull-Up", "Hanging Knee Raise", "Barbell Back Squat", "Barbell Romanian Deadlift", "Barbell Bench Press"]) {
+      expect(freshChoices).not.toContain(name);
+    }
     const previous = [{ metadata: { evidenceType: "completed_plan", exercises: [{ name: "Pull-Up" }] }, created_at: "2026-09-25T08:00:00Z" }];
     const otherPulls = V2_WORKOUT_CATALOG.filter(item => item.pattern === "pull" && item.name !== "Pull-Up").map(item => item.name);
     const experienced = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", recentWorkouts: previous, avoidExercises: otherPulls });
     expect(experienced.exercises.map(item => item.name)).toContain("Pull-Up");
+    const familiarBarbell = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", avoidExercises: V2_WORKOUT_CATALOG.filter(item => item.pattern === "squat" && item.name !== "Barbell Back Squat").map(item => item.name), recentWorkouts: [{
+      metadata: { evidenceType: "completed_plan", exercises: [{ name: "Barbell Back Squat" }] }, created_at: "2026-09-25T08:00:00Z"
+    }] });
+    expect(familiarBarbell.exercises.flatMap(item => [item.name, ...(item.alternatives ?? []).map(alternative => alternative.name)])).toContain("Barbell Back Squat");
+  });
+
+  it("describes bodyweight strength honestly when no resisted back pull is available", () => {
+    for (const location of ["home", "hotel", "outdoors"]) {
+      const blueprint = buildWorkoutBlueprint({ ...base, goal: "muscle_gain", location, equipment: "Bodyweight", timeAvailable: "45", recentWorkouts: [] });
+      expect(blueprint.focus, location).not.toBe("Full body muscle building");
+      expect(blueprint.whyToday, location).toMatch(/limited upper-body resistance|not a resisted back pull/);
+    }
+    const withDumbbells = buildWorkoutBlueprint({ ...base, goal: "muscle_gain", location: "home", equipment: "Dumbbells", timeAvailable: "45", recentWorkouts: [] });
+    expect(withDumbbells.focus).toBe("Full body muscle building");
   });
 
   it("makes every new Full Gym machine or cable exercise reachable", () => {
     const added = ["Seated Leg Curl", "Leg Extension", "Machine Shoulder Press", "Chest-Supported Machine Row", "Pec Deck Fly",
       "Reverse Pec Deck", "Hip Abduction Machine", "Seated Calf Raise Machine", "Hack Squat Machine", "Cable Face Pull",
-      "Cable Chest Fly", "Seated Leg Press"];
+      "Cable Chest Fly", "Seated Leg Press", "Hip Thrust Machine", "Lying Leg Curl", "Standing Calf Raise Machine",
+      "Cable Pallof Press", "Elliptical Trainer", "Rowing Machine"];
     const reachable = new Set<string>();
     for (const goal of ["strength", "muscle_gain", "fat_loss", "general_fitness"]) {
       for (const timeAvailable of ["20", "30", "45", "60"]) {
@@ -248,16 +273,17 @@ describe("Zoe workout engine V2", () => {
 
     expect(strength.focus).toBe("Full body strength");
     expect(strength.exercises.some(exercise => exercise.reps === "6-10" && exercise.rest === "90-120 sec")).toBe(true);
-    expect(strength.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(false);
+    const patternOf = (name: string) => V2_WORKOUT_CATALOG.find(item => item.name === name)?.pattern;
+    expect(strength.exercises.some(exercise => patternOf(exercise.name) === "cardio")).toBe(false);
     expect(muscle.focus).toBe("Full body muscle building");
     expect(muscle.exercises.filter(exercise => exercise.rest === "60-90 sec")).toHaveLength(5);
     expect(muscle.exercises.map(exercise => exercise.name)).not.toEqual(strength.exercises.map(exercise => exercise.name));
-    expect(fatLoss.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
-    expect(fatLoss.exercises.some(exercise => /Row|Pulldown|Pull-Up/.test(exercise.name))).toBe(true);
-    expect(general.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
-    expect(general.exercises.some(exercise => /Bug|Bird-Dog|Plank|Knee Raise/.test(exercise.name))).toBe(true);
+    expect(fatLoss.exercises.some(exercise => patternOf(exercise.name) === "cardio")).toBe(true);
+    expect(fatLoss.exercises.some(exercise => patternOf(exercise.name) === "pull")).toBe(true);
+    expect(general.exercises.some(exercise => patternOf(exercise.name) === "cardio")).toBe(true);
+    expect(general.exercises.some(exercise => patternOf(exercise.name) === "core")).toBe(true);
     expect(recovery.exercises[0].name).not.toBe("Brisk Walk");
-    expect(recovery.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
+    expect(recovery.exercises.some(exercise => patternOf(exercise.name) === "cardio")).toBe(true);
     expect(mobility.focus).toBe("Mobility and range of motion");
     expect(mobility.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(false);
     expect(applyWorkoutBlueprint(plan, mobility).intensity).toBe("easy");
