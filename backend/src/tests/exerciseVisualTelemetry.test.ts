@@ -18,6 +18,13 @@ describe("privacy-safe visual pilot counters", () => {
     expect(args).toContainEqual(["unresolved", "box squat", "", 1]);
     expect(JSON.stringify(args)).not.toMatch(/user_id|workout_id|note/i);
   });
+  it("counts new machine visuals as resolved only for V2 workouts", async () => {
+    await recordGeneratedWorkoutVisuals({ experienceVersion: 2, exercises: [{ name: "Seated Leg Curl" }] });
+    expect(mocks.query.mock.calls[0][1]).toEqual(["resolved", "seated leg curl", "seated-leg-curl", 1]);
+    mocks.query.mockClear();
+    await recordGeneratedWorkoutVisuals({ exercises: [{ name: "Seated Leg Curl" }] });
+    expect(mocks.query.mock.calls[0][1]).toEqual(["unresolved", "seated leg curl", "", 1]);
+  });
   it("redacts any unsupported name that might contain personal or health details", () => {
     expect(safeAggregateExerciseName("Jane's rehab for diabetes")).toBe("[redacted]");
     expect(safeAggregateExerciseName("contact me at jane@example.com")).toBe("[redacted]");

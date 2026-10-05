@@ -7,6 +7,7 @@ export const EXERCISE_VISUAL_ASSET_ROOT_V2 = "/exercise-visuals/ascend-original-
 export const EXERCISE_VISUAL_ASSET_ROOT_V3 = "/exercise-visuals/ascend-original-v3";
 export const EXERCISE_VISUAL_ASSET_ROOT_V4 = "/exercise-visuals/ascend-original-v4";
 export const EXERCISE_VISUAL_ASSET_ROOT_V5 = "/exercise-visuals/ascend-original-v5";
+export const EXERCISE_VISUAL_ASSET_ROOT_V6 = "/exercise-visuals/ascend-original-v6";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -29,6 +30,7 @@ const imageV2 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V2}/${filena
 const imageV3 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V3}/${filename}`;
 const imageV4 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V4}/${filename}`;
 const imageV5 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V5}/${filename}`;
+const imageV6 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V6}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -577,6 +579,90 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "single", main: imageV5("standing-lateral-hip-shift-main.webp") },
     instructions: "Stand with feet wider than your shoulders. Shift your hips gently toward one side by bending that knee a little while keeping the other leg comfortably straight, then switch sides.",
     cue: "Keep both feet flat and make the shift shallow and controlled."
+  },
+  {
+    id: "seated-leg-curl", canonicalName: "Seated Leg Curl", aliases: [],
+    equipment: "Seated leg curl machine", movementPattern: "Knee flexion", targetMuscles: "Hamstrings",
+    images: { kind: "single", main: imageV6("seated-leg-curl-main.webp") },
+    instructions: "Adjust the seat so your knees line up with the machine pivot. Secure the thigh pad, place your lower legs against the ankle roller, curl your heels down and back, then return slowly.",
+    cue: "Keep your hips on the seat and move only at the knees."
+  },
+  {
+    id: "leg-extension", canonicalName: "Leg Extension", aliases: [],
+    equipment: "Leg extension machine", movementPattern: "Knee extension", targetMuscles: "Quadriceps",
+    images: { kind: "single", main: imageV6("leg-extension-main.webp") },
+    instructions: "Adjust the seat so your knees line up with the machine pivot and the roller rests above your ankles. Straighten your legs in a controlled range, then lower slowly.",
+    cue: "Keep your hips against the seat and avoid snapping your knees straight."
+  },
+  {
+    id: "machine-shoulder-press", canonicalName: "Machine Shoulder Press", aliases: [],
+    equipment: "Shoulder press machine", movementPattern: "Vertical press", targetMuscles: "Shoulders and triceps",
+    images: { kind: "single", main: imageV6("machine-shoulder-press-main.webp") },
+    instructions: "Set the seat so the handles begin around shoulder height. Sit with your back supported, press the handles upward without shrugging, then lower with control.",
+    cue: "Keep your ribs down and wrists stacked over your elbows."
+  },
+  {
+    id: "chest-supported-machine-row", canonicalName: "Chest-Supported Machine Row", aliases: [],
+    equipment: "Chest-supported row machine", movementPattern: "Supported horizontal pull", targetMuscles: "Upper back and lats",
+    images: { kind: "single", main: imageV6("chest-supported-machine-row-main.webp") },
+    instructions: "Set the seat so the chest pad supports your torso. Brace your feet, pull both handles toward your lower ribs, then let your arms extend slowly without lifting off the pad.",
+    cue: "Keep your chest against the pad and your shoulders away from your ears."
+  },
+  {
+    id: "pec-deck-fly", canonicalName: "Pec Deck Fly", aliases: [],
+    equipment: "Pec deck fly machine", movementPattern: "Chest fly", targetMuscles: "Chest",
+    images: { kind: "single", main: imageV6("pec-deck-fly-main.webp") },
+    instructions: "Adjust the seat so the handles are near chest height. Sit tall with a slight elbow bend, bring both handles together in front of your chest, then open slowly to a comfortable stretch.",
+    cue: "Keep your shoulders down and avoid forcing your arms far behind you."
+  },
+  {
+    id: "reverse-pec-deck", canonicalName: "Reverse Pec Deck", aliases: [],
+    equipment: "Reverse pec deck machine", movementPattern: "Rear delt fly", targetMuscles: "Rear shoulders and upper back",
+    images: { kind: "single", main: imageV6("reverse-pec-deck-main.webp") },
+    instructions: "Face the machine with your chest against the pad. Hold the reverse-fly handles at shoulder height, open your arms out to the sides, then return slowly without twisting.",
+    cue: "Keep a soft bend in your elbows and avoid shrugging."
+  },
+  {
+    id: "hip-abduction-machine", canonicalName: "Hip Abduction Machine", aliases: [],
+    equipment: "Seated hip abduction machine", movementPattern: "Hip abduction", targetMuscles: "Side glutes",
+    images: { kind: "single", main: imageV6("hip-abduction-machine-main.webp") },
+    instructions: "Sit with your back supported and the pads against the outside of your thighs. Press your knees apart within a comfortable range, pause briefly, then return with control.",
+    cue: "Keep your torso still and avoid bouncing the pads."
+  },
+  {
+    id: "seated-calf-raise-machine", canonicalName: "Seated Calf Raise Machine", aliases: [],
+    equipment: "Seated calf raise machine", movementPattern: "Ankle plantar flexion", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV6("seated-calf-raise-machine-main.webp") },
+    instructions: "Sit with the thigh pad resting above your knees and the balls of your feet on the platform. Raise your heels as high as comfortable, pause, then lower slowly.",
+    cue: "Move through your ankles while keeping your knees under the pad."
+  },
+  {
+    id: "hack-squat-machine", canonicalName: "Hack Squat Machine", aliases: [],
+    equipment: "Hack squat machine", movementPattern: "Supported squat", targetMuscles: "Quadriceps and glutes",
+    images: { kind: "single", main: imageV6("hack-squat-machine-main.webp") },
+    instructions: "Set your back and shoulders against the sled pads with feet about shoulder-width on the platform. Bend your knees to a controlled depth, then push through your whole feet to stand.",
+    cue: "Keep your heels down and do not lock your knees hard at the top."
+  },
+  {
+    id: "cable-face-pull", canonicalName: "Cable Face Pull", aliases: [],
+    equipment: "Cable tower and rope handle", movementPattern: "High horizontal pull", targetMuscles: "Rear shoulders and upper back",
+    images: { kind: "single", main: imageV6("cable-face-pull-main.webp") },
+    instructions: "Set the rope around face height and step back to tension the cable. Pull the rope toward your forehead with elbows out, then extend your arms slowly.",
+    cue: "Keep your neck relaxed and do not lean back to move the weight."
+  },
+  {
+    id: "cable-chest-fly", canonicalName: "Cable Chest Fly", aliases: [],
+    equipment: "Dual adjustable cable machine", movementPattern: "Chest fly", targetMuscles: "Chest",
+    images: { kind: "single", main: imageV6("cable-chest-fly-main.webp") },
+    instructions: "Set both pulleys around chest height, take a staggered stance, and keep a soft bend in your elbows. Bring the handles together in front of your chest, then return slowly.",
+    cue: "Keep your shoulders down and your torso steady throughout."
+  },
+  {
+    id: "seated-leg-press", canonicalName: "Seated Leg Press", aliases: [],
+    equipment: "Horizontal seated leg press machine", movementPattern: "Supported leg press", targetMuscles: "Quadriceps and glutes",
+    images: { kind: "single", main: imageV6("seated-leg-press-main.webp") },
+    instructions: "Adjust the seat so your knees start comfortably bent. Place both feet on the platform, press it away through your whole feet, then return slowly without letting your hips lift.",
+    cue: "Keep your knees tracking with your toes and avoid locking them hard."
   }
 ] as const;
 
@@ -616,9 +702,17 @@ export function resolveExerciseVisual(name: unknown): ExerciseVisualResolution {
   const key = normalizeExerciseVisualName(name);
   if (!key) return { status: "unresolved", match: null, exercise: null };
   const reviewed = reviewedNames.get(key);
-  if (reviewed) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
+  // New V2 equipment art stays in the owner workout pilot. Legacy Gemini
+  // plans retain their existing text-only behavior until V2 is public.
+  if (reviewed && !visualIsV2Only(reviewed.exercise)) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
+  if (reviewed) return { status: "unresolved", match: null, exercise: null };
   if (ambiguousNames.has(key)) return { status: "ambiguous", match: null, exercise: null };
   return { status: "unresolved", match: null, exercise: null };
+}
+
+function visualIsV2Only(exercise: ExerciseVisual): boolean {
+  const asset = exercise.images.kind === "single" ? exercise.images.main : exercise.images.start;
+  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`);
 }
 
 // Older V2 workouts were saved with broad labels before the reviewed catalog used
@@ -639,5 +733,11 @@ const legacyV2VisualNames: Record<string, string> = {
 
 export function resolveV2WorkoutExerciseVisual(name: unknown): ExerciseVisualResolution {
   const normalized = normalizeExerciseVisualName(name);
-  return resolveExerciseVisual(normalized ? legacyV2VisualNames[normalized] ?? name : name);
+  const lookupName = normalized ? legacyV2VisualNames[normalized] ?? name : name;
+  const key = normalizeExerciseVisualName(lookupName);
+  if (!key) return { status: "unresolved", match: null, exercise: null };
+  const reviewed = reviewedNames.get(key);
+  if (reviewed) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
+  if (ambiguousNames.has(key)) return { status: "ambiguous", match: null, exercise: null };
+  return { status: "unresolved", match: null, exercise: null };
 }

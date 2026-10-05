@@ -1,4 +1,4 @@
-import { PILOT_EXERCISE_VISUALS, resolveExerciseVisual, normalizeExerciseVisualName } from "@ascend/shared";
+import { PILOT_EXERCISE_VISUALS, resolveExerciseVisual, resolveV2WorkoutExerciseVisual, normalizeExerciseVisualName } from "@ascend/shared";
 import { query } from "../db/pool";
 
 export type VisualUiEvent = "detail_opened" | "image_load_failure" | "incorrect_mapping_report";
@@ -23,10 +23,11 @@ export async function incrementVisualCounter(eventType: string, exerciseName: st
   `, [eventType, exerciseName, registryId]);
 }
 
-export async function recordGeneratedWorkoutVisuals(workout: { exercises?: Array<{ name?: string }> }) {
+export async function recordGeneratedWorkoutVisuals(workout: { experienceVersion?: number; exercises?: Array<{ name?: string }> }) {
   const counts = new Map<string, { eventType: string; name: string; registryId: string; count: number }>();
   for (const item of workout.exercises ?? []) {
-    const resolution = resolveExerciseVisual(item.name);
+    const resolution = workout.experienceVersion === 2
+      ? resolveV2WorkoutExerciseVisual(item.name) : resolveExerciseVisual(item.name);
     const eventType = resolution.status === "resolved" ? "resolved" : resolution.status;
     const name = resolution.status === "resolved"
       ? resolution.exercise.canonicalName.toLowerCase()

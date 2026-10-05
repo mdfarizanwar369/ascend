@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { applyWorkoutBlueprint, buildWorkoutBlueprint, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, V2_WORKOUT_CATALOG, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
 import { resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 const base = { goal: "strength", location: "home", equipment: "Bodyweight", timeAvailable: "30", today: "2026-10-03" };
 const plan: CoachWorkoutPlan = {
@@ -12,9 +14,10 @@ const plan: CoachWorkoutPlan = {
 
 describe("Zoe workout engine V2", () => {
   it("has reviewed pictures and coaching instructions for every plan and swap movement", () => {
-    expect(V2_WORKOUT_CATALOG).toHaveLength(58);
+    expect(V2_WORKOUT_CATALOG).toHaveLength(79);
     for (const item of V2_WORKOUT_CATALOG) {
-      const visual = resolveExerciseVisual(item.name);
+      if (item.pattern === "accessory") expect(item.target, item.name).toBeTruthy();
+      const visual = resolveV2WorkoutExerciseVisual(item.name);
       expect(visual.status, item.name).toBe("resolved");
       if (visual.status !== "resolved") continue;
       expect(visual.exercise.instructions.length, item.name).toBeGreaterThan(60);
@@ -22,6 +25,10 @@ describe("Zoe workout engine V2", () => {
       expect(visual.exercise.equipment.length, item.name).toBeGreaterThan(0);
       expect(visual.exercise.targetMuscles.length, item.name).toBeGreaterThan(0);
       expect(visual.exercise.images.kind === "single" ? visual.exercise.images.main : visual.exercise.images.start, item.name).toMatch(/^\/exercise-visuals\/.+\.webp$/);
+      const paths = visual.exercise.images.kind === "single" ? [visual.exercise.images.main] : [visual.exercise.images.start, visual.exercise.images.peak];
+      for (const path of paths) {
+        expect(existsSync(resolve(__dirname, "../../../frontend/public", path.slice(1))), `${item.name}: ${path}`).toBe(true);
+      }
     }
   });
 
@@ -160,9 +167,62 @@ describe("Zoe workout engine V2", () => {
     const full = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Full Gym", recentWorkouts: [] });
     expect(full.exercises.filter(exercise => /Dumbbell|Press|Cable|Pulldown/.test(exercise.name)).length).toBeGreaterThanOrEqual(2);
     const limited = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Limited Gym", recentWorkouts: [] });
-    expect(limited.exercises.flatMap(exercise => [exercise.name, ...(exercise.alternatives ?? []).map(item => item.name)])).not.toEqual(
-      expect.arrayContaining(["45-Degree Leg Press", "Seated Cable Row", "Lat Pulldown", "Machine Chest Press"])
-    );
+    const gymOnly = new Set(V2_WORKOUT_CATALOG.filter(item => item.kit.every(kit => kit === "gym")).map(item => item.name));
+    expect(limited.exercises.flatMap(exercise => [exercise.name, ...(exercise.alternatives ?? []).map(item => item.name)])
+      .filter(name => gymOnly.has(name))).toEqual([]);
+  });
+
+  it("uses Full Gym accessories without offering unrelated accessory swaps", () => {
+    const byName = new Map(V2_WORKOUT_CATALOG.map(item => [item.name, item]));
+    const longer = buildWorkoutBlueprint({ ...base, goal: "muscle_gain", location: "gym", equipment: "Full Gym", timeAvailable: "60", recentWorkouts: [] });
+    const longerTargets = longer.exercises.map(item => byName.get(item.name)?.target).filter(Boolean);
+    expect(longerTargets).toHaveLength(2);
+    expect(new Set(longerTargets).size).toBe(2);
+    const recentWorkouts: Array<{ metadata: { evidenceType: "planned"; exercises: Array<{ name: string }> }; created_at: string }> = [];
+    const accessoryTargets = new Set<string>();
+    for (let day = 1; day <= 12; day++) {
+      const date = `2026-10-${String(day).padStart(2, "0")}`;
+      const blueprint = buildWorkoutBlueprint({ ...base, goal: "muscle_gain", location: "gym", equipment: "Full Gym", timeAvailable: "45", today: date, recentWorkouts });
+      expect(blueprint.exercises.map(item => item.name), date).not.toEqual(expect.arrayContaining(["Wall Push-Up", "Knee Push-Up"]));
+      const accessory = blueprint.exercises.filter(item => byName.get(item.name)?.pattern === "accessory");
+      expect(accessory, date).toHaveLength(1);
+      for (const exercise of accessory) {
+        const target = byName.get(exercise.name)?.target;
+        expect(target).toBeTruthy();
+        accessoryTargets.add(target!);
+        for (const alternative of exercise.alternatives ?? []) {
+          expect(byName.get(alternative.name)?.target, `${exercise.name} -> ${alternative.name}`).toBe(target);
+        }
+      }
+      recentWorkouts.unshift({ metadata: { evidenceType: "planned", exercises: blueprint.exercises.map(item => ({ name: item.name })) }, created_at: `${date}T08:00:00Z` });
+    }
+    expect(accessoryTargets.size).toBeGreaterThanOrEqual(4);
+  });
+
+  it("avoids first-time automatic bar exercises but allows known movements", () => {
+    const fresh = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", recentWorkouts: [] });
+    expect(fresh.exercises.map(item => item.name)).not.toEqual(expect.arrayContaining(["Pull-Up", "Hanging Knee Raise"]));
+    const previous = [{ metadata: { evidenceType: "completed_plan", exercises: [{ name: "Pull-Up" }] }, created_at: "2026-09-25T08:00:00Z" }];
+    const otherPulls = V2_WORKOUT_CATALOG.filter(item => item.pattern === "pull" && item.name !== "Pull-Up").map(item => item.name);
+    const experienced = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Full Gym", timeAvailable: "45", recentWorkouts: previous, avoidExercises: otherPulls });
+    expect(experienced.exercises.map(item => item.name)).toContain("Pull-Up");
+  });
+
+  it("makes every new Full Gym machine or cable exercise reachable", () => {
+    const added = ["Seated Leg Curl", "Leg Extension", "Machine Shoulder Press", "Chest-Supported Machine Row", "Pec Deck Fly",
+      "Reverse Pec Deck", "Hip Abduction Machine", "Seated Calf Raise Machine", "Hack Squat Machine", "Cable Face Pull",
+      "Cable Chest Fly", "Seated Leg Press"];
+    const reachable = new Set<string>();
+    for (const goal of ["strength", "muscle_gain", "fat_loss", "general_fitness"]) {
+      for (const timeAvailable of ["20", "30", "45", "60"]) {
+        for (let day = 1; day <= 28; day++) {
+          const today = `2026-10-${String(day).padStart(2, "0")}`;
+          const blueprint = buildWorkoutBlueprint({ ...base, goal, location: "gym", equipment: "Full Gym", timeAvailable, today, recentWorkouts: [] });
+          for (const exercise of blueprint.exercises.flatMap(item => [item, ...(item.alternatives ?? [])])) reachable.add(exercise.name);
+        }
+      }
+    }
+    expect(added.filter(name => !reachable.has(name))).toEqual([]);
   });
 
   it("rotates a prescribed movement locally with its own reps and notes", () => {
@@ -195,7 +255,7 @@ describe("Zoe workout engine V2", () => {
     expect(fatLoss.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
     expect(fatLoss.exercises.some(exercise => /Row|Pulldown|Pull-Up/.test(exercise.name))).toBe(true);
     expect(general.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
-    expect(general.exercises.some(exercise => /Bug|Bird-Dog|Plank/.test(exercise.name))).toBe(true);
+    expect(general.exercises.some(exercise => /Bug|Bird-Dog|Plank|Knee Raise/.test(exercise.name))).toBe(true);
     expect(recovery.exercises[0].name).not.toBe("Brisk Walk");
     expect(recovery.exercises.some(exercise => /Walk|Bike/.test(exercise.name))).toBe(true);
     expect(mobility.focus).toBe("Mobility and range of motion");
@@ -264,7 +324,7 @@ describe("Zoe workout engine V2", () => {
             expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable));
             for (const exercise of blueprint.exercises.flatMap(item => [item, ...(item.alternatives ?? [])])) {
               expect(exercise.reps || exercise.duration, `${label} ${exercise.name}`).toBeTruthy();
-              expect(resolveExerciseVisual(exercise.name).status, `${label} ${exercise.name}`).toBe("resolved");
+              expect(resolveV2WorkoutExerciseVisual(exercise.name).status, `${label} ${exercise.name}`).toBe("resolved");
               expect(exercise.name, label).not.toBe("Standing Band Pallof Press");
             }
           }

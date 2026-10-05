@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PILOT_EXERCISE_VISUALS, resolveExerciseVisual } from "@ascend/shared";
+import { PILOT_EXERCISE_VISUALS, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { ExerciseVisualCard } from "./ExerciseVisualCard";
 
 const mocks = vi.hoisted(() => ({ event: vi.fn().mockResolvedValue(undefined) }));
@@ -73,6 +73,10 @@ describe("exercise visual pilot resolver", () => {
     expect(PILOT_EXERCISE_VISUALS.length).toBeGreaterThanOrEqual(70);
     expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(PILOT_EXERCISE_VISUALS.length);
   });
+  it("keeps new machine art in V2 while legacy plans retain their current visual coverage", () => {
+    expect(resolveExerciseVisual("Seated Leg Curl").status).toBe("unresolved");
+    expect(resolveV2WorkoutExerciseVisual("Seated Leg Curl").status).toBe("resolved");
+  });
   it("has a valid local WebP file for every approved pose", () => {
     const paths = PILOT_EXERCISE_VISUALS.flatMap(item => item.images.kind === "pair"
       ? [item.images.start, item.images.peak] : [item.images.main]);
@@ -80,7 +84,7 @@ describe("exercise visual pilot resolver", () => {
     const uniquePaths = new Set(paths);
     expect(uniquePaths.size).toBeGreaterThanOrEqual(111);
     for (const assetPath of uniquePaths) {
-      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[12345]\/[^/]+\.webp$/);
+      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[123456]\/[^/]+\.webp$/);
       const bytes = readFileSync(path.join(process.cwd(), "public", assetPath.replace(/^\//, "")));
       expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
       expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");
