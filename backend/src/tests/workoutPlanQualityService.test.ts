@@ -399,6 +399,74 @@ describe("Zoe workout engine V2", () => {
     expect(experienced.exercises.map(item => item.name)).toContain("Pull-Up");
   });
 
+  it("uses a safe short bar hold for a conservative first-time outdoor bar choice", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, location: "outdoors", equipment: "Pull-Up Bar",
+      goal: "general_fitness", timeAvailable: "45", conservative: true, recentWorkouts: [] });
+    const bar = blueprint.exercises.find(exercise => exercise.name === "Short Bar Hang");
+    expect(bar?.duration).toBe("5-10 sec");
+    expect(bar?.note).toContain("never jump");
+    expect(blueprint.exercises.map(exercise => exercise.name)).not.toContain("Pull-Up");
+    expect(blueprint.whyToday).toContain("bar is used for a short hold");
+  });
+
+  it("makes every selected equipment choice meaningful across goals, durations, and conservative profiles", () => {
+    const choices = [
+      { location: "gym", equipment: "Full Gym", kit: "gym" },
+      { location: "gym", equipment: "Limited Gym", kit: "dumbbells" },
+      { location: "home", equipment: "Dumbbells", kit: "dumbbells" },
+      { location: "home", equipment: "Long Resistance Band", kit: "bands" },
+      { location: "home", equipment: "Sturdy Chair", kit: "chair" },
+      { location: "home", equipment: "Low Step", kit: "low_step" },
+      { location: "hotel", equipment: "Dumbbells", kit: "dumbbells" },
+      { location: "hotel", equipment: "Long Resistance Band", kit: "bands" },
+      { location: "outdoors", equipment: "Walking or Running Route", kit: "route" },
+      { location: "outdoors", equipment: "Park Bench", kit: "park_bench" },
+      { location: "outdoors", equipment: "Low Exercise Bar", kit: "low_bar" },
+      { location: "outdoors", equipment: "Pull-Up Bar", kit: "pullup_bar" },
+      { location: "outdoors", equipment: "Exercise Mat", kit: "mat" }
+    ];
+    for (const { location, equipment, kit } of choices) {
+      for (const goal of ["strength", "muscle_gain", "fat_loss", "general_fitness", "recovery", "mobility"]) {
+        for (const timeAvailable of ["20", "30", "45", "60"]) {
+          for (const conservative of [false, true]) {
+            const blueprint = buildWorkoutBlueprint({ ...base, location, equipment, goal, timeAvailable, conservative, recentWorkouts: [] });
+            const usesEquipment = blueprint.exercises.some(exercise => {
+              const item = V2_WORKOUT_CATALOG.find(candidate => candidate.name === exercise.name);
+              return kit === "mat" ? item?.requiresFloor === true : item?.kit.some(value => value === kit) === true;
+            });
+            const label = `${location}/${equipment}/${goal}/${timeAvailable}/${conservative}`;
+            if (!usesEquipment) {
+              expect(blueprint.whyToday.toLowerCase(), label).toContain(equipment.toLowerCase() === "walking or running route" ? "chosen route" : equipment.toLowerCase());
+            }
+            if (!["recovery", "mobility"].includes(goal) && !(timeAvailable === "20" &&
+              equipment === "Walking or Running Route" && ["strength", "muscle_gain"].includes(goal))) {
+              expect(usesEquipment, label).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("uses a chosen outdoor route even when the short strength template has no cardio slot", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, location: "outdoors", equipment: "Walking or Running Route",
+      goal: "strength", timeAvailable: "20", recentWorkouts: [] });
+    const workout = applyWorkoutBlueprint(plan, blueprint);
+    expect(workout.warmup[0]).toContain("chosen route");
+    expect(workout.cooldown[0]).toContain("chosen route");
+  });
+
+  it("explains why selected equipment is set aside for a same-day recovery session", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, location: "outdoors", equipment: "Pull-Up Bar", goal: "strength",
+      timeAvailable: "45", recentWorkouts: [{
+        metadata: { evidenceType: "completed_plan", exercises: [{ name: "Bodyweight Squat" }] },
+        created_at: "2026-10-03T08:00:00.000Z"
+      }] });
+    expect(blueprint.focus).toBe("Recovery and mobility");
+    expect(blueprint.exercises.map(exercise => exercise.name)).not.toContain("Short Bar Hang");
+    expect(blueprint.whyToday).toContain("pull-up bar is available, but this easy session does not need it");
+  });
+
   it("offers varied outdoor mobility across consecutive days without a new input", () => {
     const recentWorkouts: Array<{ metadata: { evidenceType: "planned"; exercises: Array<{ name: string }> }; created_at: string }> = [];
     let previous = new Set<string>();

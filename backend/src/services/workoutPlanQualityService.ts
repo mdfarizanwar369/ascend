@@ -10,6 +10,7 @@ export type WorkoutHistoryRow = { metadata?: Record<string, unknown> | null; cre
 export type WorkoutBlueprint = {
   exercises: CoachWorkoutExercise[];
   location: string;
+  equipment: string;
   focus: string;
   estimatedDurationMinutes: number;
   conservative: boolean;
@@ -70,7 +71,7 @@ export const V2_WORKOUT_CATALOG: CatalogExercise[] = [
   { name: "Lat Pulldown", pattern: "pull", kit: ["gym"], reps: "8-12", note: "Pull to the upper chest." },
   { name: "Machine-Assisted Pull-Up", pattern: "pull", kit: ["gym"], reps: "6-10", note: "Use enough assistance to move with control.", advanced: true },
   { name: "Pull-Up", pattern: "pull", kit: ["gym", "pullup_bar"], reps: "5-8", note: "Use a fixed bar that supports your weight; move without swinging.", advanced: true },
-  { name: "Short Bar Hang", pattern: "pull", kit: ["pullup_bar"], duration: "10-20 sec", note: "Use only a fixed bar you can reach and leave safely; keep your shoulders gently engaged.", advanced: true },
+  { name: "Short Bar Hang", pattern: "pull", kit: ["pullup_bar"], duration: "10-20 sec", note: "Use only a fixed bar you can reach and leave safely; keep your shoulders gently engaged. Keep your feet grounded if the bar allows it; never jump to reach it." },
   { name: "Inverted Row", pattern: "pull", kit: ["low_bar"], reps: "6-10", note: "Use a fixed low bar that supports your weight; keep your feet on the ground and pull with control." },
   { name: "Supported Split Squat", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Hold a stable support if needed.", requiresSupport: true },
   { name: "Bodyweight Reverse Lunge", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Step back far enough to stay balanced." },
@@ -373,6 +374,12 @@ export function buildWorkoutBlueprint(input: {
     if (upperIndex >= 0) patterns[upperIndex] = patterns.includes("hinge") ? "single_leg" : "hinge";
   }
   const kit = availableKit(input.equipment, input.location);
+  if (kit.has("low_step") && !gentle && !patterns.includes("single_leg")) {
+    // A low step supports a knee-dominant movement. Give it a real session
+    // slot rather than collecting an equipment answer that changes nothing.
+    const squatIndex = patterns.indexOf("squat");
+    if (squatIndex >= 0) patterns[squatIndex] = "single_leg";
+  }
   if (goal === "muscle_gain") {
     // A small equipment kit must never force the same accessory twice, or
     // prescribe an unavailable machine just to fill a template slot.
@@ -426,7 +433,7 @@ export function buildWorkoutBlueprint(input: {
   const substitutions: Record<Pattern, Pattern[]> = {
     squat: ["single_leg", "hinge", "cardio", "mobility"],
     hinge: ["single_leg", "squat", "cardio", "mobility"],
-    push: ["single_leg", "cardio", "mobility", "core"],
+    push: ["pull", "single_leg", "cardio", "mobility", "core"],
     pull: ["single_leg", "hinge", "cardio", "mobility", "core"],
     single_leg: ["squat", "hinge", "cardio", "mobility"],
     accessory: ["single_leg", "core", "cardio", "mobility"],
@@ -449,7 +456,8 @@ export function buildWorkoutBlueprint(input: {
     reps: goal === "strength" && !input.conservative && item.reps && ["squat", "hinge", "push", "pull", "single_leg"].includes(item.pattern)
       && item.kit.some(value => value === "dumbbells" || value === "gym")
       ? item.reps.includes("each side") ? "6-10 each side" : "6-10" : item.reps ?? null,
-    duration: item.pattern === "cardio" ? minutes <= 20 ? "5-8 min" : goal === "recovery" ? "10-15 min" : minutes >= 60 ? "12-20 min" : "8-15 min" : item.duration ?? null,
+    duration: item.name === "Short Bar Hang" && input.conservative ? "5-10 sec"
+      : item.pattern === "cardio" ? minutes <= 20 ? "5-8 min" : goal === "recovery" ? "10-15 min" : minutes >= 60 ? "12-20 min" : "8-15 min" : item.duration ?? null,
     rest: item.pattern === "cardio" ? null : gentle ? "As needed" : goal === "strength" ? "90-120 sec" : goal === "fat_loss" || goal === "general_fitness" ? "45-75 sec" : "60-90 sec",
     note: [item.note, recentObservedNote(item.name, input.recentWorkouts, item.reps)].filter(Boolean).join(" ")
   });
@@ -523,18 +531,30 @@ export function buildWorkoutBlueprint(input: {
   const settingReason = input.location === "outdoors" && !kit.has("mat")
     ? "The outdoor exercises stay off the ground because you did not select a mat."
     : input.location === "hotel" ? "The hotel-room exercises avoid unconfirmed furniture and long travel space." : "";
+  const usesSelectedEquipment = input.equipment === "Bodyweight" || exercises.some(exercise => {
+    const item = catalogItemFor(exercise.name);
+    return input.equipment === "Exercise Mat" ? item?.requiresFloor === true : item?.kit.includes(preferredKit) === true;
+  });
+  const equipmentReason = usesSelectedEquipment ? ""
+    : kit.has("route") ? "Use your chosen route for the warm-up and cooldown."
+      : gentle ? `Your ${input.equipment.toLowerCase()} is available, but this easy session does not need it.`
+        : history.some(session => session.evidence !== "planned")
+          ? `Your ${input.equipment.toLowerCase()} is available, but Zoe rotated to other movements after your recent workouts.`
+          : `Your ${input.equipment.toLowerCase()} is available, but this short session prioritizes other movements.`;
+  const barIntroduction = kit.has("pullup_bar") && exercises.some(exercise => exercise.name === "Short Bar Hang") && !completedNames.has(key("Pull-Up"))
+    ? "The bar is used for a short hold; Zoe has no completed pull-up on record yet." : "";
   const goalExplanation = limitedOutdoorResistance
     ? "Today's equipment supports lower-body work and conditioning, with limited upper-body resistance."
     : limitedIndoorBodyweightResistance
       ? "This equipment supports strength practice, but not a resisted back pull."
     : goalReason[goal];
-  const whyToday = `${whyTodayBase} ${goalExplanation}${settingReason ? ` ${settingReason}` : ""}`;
+  const whyToday = `${whyTodayBase} ${goalExplanation}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}`;
   const upcoming = gentle ? ["Balanced strength", "Mobility or easy cardio"]
     : focus.startsWith("Upper") ? ["Lower body and core", "Recovery and mobility"]
       : focus.startsWith("Lower") ? ["Upper body and easy conditioning", "Recovery and mobility"]
         : ["Recovery and mobility", "Strength with rotated movements"];
   return {
-    exercises, location: input.location, focus, whyToday,
+    exercises, location: input.location, equipment: input.equipment, focus, whyToday,
     estimatedDurationMinutes: goal === "mobility" ? minutes <= 20 ? 15 : minutes <= 30 ? 20 : minutes <= 45 ? 25 : 30
       : goal === "recovery" ? Math.min(minutes, minutes <= 30 ? 20 : minutes <= 45 ? 30 : 35) : minutes,
     conservative: input.conservative === true,
@@ -551,8 +571,12 @@ export function applyWorkoutBlueprint(plan: CoachWorkoutPlan, blueprint: Workout
     estimatedDurationMinutes: blueprint.estimatedDurationMinutes,
     intensity: blueprint.focus === "Recovery and mobility" || blueprint.focus === "Mobility and range of motion" ? "easy"
       : blueprint.conservative && plan.intensity === "challenging" ? "moderate" : plan.intensity,
-    warmup: [blueprint.location === "hotel" ? "3 minutes quiet marching or side steps" : "3 minutes easy walking or marching", "Gentle shoulder circles and hip hinges"],
-    cooldown: [blueprint.location === "hotel" ? "2 minutes slow marching in place" : "2 minutes easy walking", "Slow breathing and gentle stretching"],
+    warmup: [blueprint.location === "hotel" ? "3 minutes quiet marching or side steps"
+      : blueprint.location === "outdoors" && blueprint.equipment === "Walking or Running Route" ? "3 minutes easy walking on your chosen route"
+        : "3 minutes easy walking or marching", "Gentle shoulder circles and hip hinges"],
+    cooldown: [blueprint.location === "hotel" ? "2 minutes slow marching in place"
+      : blueprint.location === "outdoors" && blueprint.equipment === "Walking or Running Route" ? "2 minutes easy walking on your chosen route"
+        : "2 minutes easy walking", "Slow breathing and gentle stretching"],
     exercises: blueprint.exercises,
     whyToday: blueprint.whyToday,
     nextSessionPreview: blueprint.nextSessionPreview,
