@@ -17,6 +17,7 @@ import { UnsafeOutboundUrlError, validatePublicHttpUrl } from "../utils/outbound
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
+import { workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import { env } from "../config/env";
 import { estimateWorkoutDurationMinutes, portionAdjustmentMagnitude } from "@ascend/shared";
 import {
@@ -680,7 +681,9 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       input.exercises = stored.workout.exercises;
     }
     if (input.observedExercises) {
-      if (!req.user!.isPlatformOwner || !(env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT || env.COACH_ZOE_WORKOUT_ENGINE_V2) || env.AI_PROVIDER !== "gemini") {
+      if (!workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+        ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
+        isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER })) {
         return res.status(403).json({ error: "Workout detail logging is not available for this account yet." });
       }
       if (new Set(input.observedExercises.map(exercise => exercise.exerciseIndex)).size !== input.observedExercises.length ||
@@ -710,7 +713,6 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
         input.workoutTitle = storedPlan.data.title;
         input.workoutType = storedPlan.data.focus;
         input.workoutDifficulty = storedPlan.data.intensity;
-        input.durationMinutes = storedPlan.data.estimatedDurationMinutes;
         input.exercises = selected.map(exercise => ({
           name: exercise!.name,
           sets: exercise!.sets,
@@ -719,6 +721,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
           rest: exercise!.rest,
           note: exercise!.note
         }));
+        input.durationMinutes = estimateWorkoutDurationMinutes(input.exercises);
       }
     }
     const plannedExercises = input.exercises;

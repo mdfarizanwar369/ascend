@@ -10,6 +10,10 @@ Equipment selection now has a visible effect across active sessions. A chosen lo
 
 The time answer is a maximum available window. V2 now estimates plan length from the prescribed sets, reps or timed holds, between-set rests, a one-minute transition between exercises, a four-minute warm-up, and a three-minute cooldown. The estimate is shown as approximate, recalculates after swaps, and is also used when saving an older owner-pilot V2 plan. Short plans can trim a cardio fallback to stay close to the member's window. Zoe does not add unnecessary sets to make a cautious or recovery session occupy all available time. Actual elapsed time will vary with pace and rest.
 
+The builder audit also tightened the whole path: V2's limited gym choice now says “Dumbbells at Gym,” outdoor and bodyweight focus labels reflect missing resistance patterns, and Gemini receives the calculated session length. Empty but genuine workout logs and synced same-day sessions can trigger recovery. Swaps exclude movements already in the plan, and the UI hides a swap when none remains valid. Local refresh avoids choosing the same alternative twice. Verified exercise-detail logging now follows the same V2 rollout flag as plan generation; the public flag remains off during the owner pilot.
+
+Known limits before public rollout: the selected time is a ceiling, so cautious and recovery plans may finish substantially early; elapsed time is estimated, not measured. The pull-up bar has only one first-time movement, so repeated selection can repeat Short Bar Hang until ability is established elsewhere. The completion screen currently requires every exercise to be checked before saving; partial sessions need an honest logging path before a broad beginner rollout.
+
 ## Rollout
 
 - `COACH_ZOE_WORKOUT_ENGINE_V2=false` and `COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT=false` are the defaults. Existing users keep the V1 response and planner behavior.

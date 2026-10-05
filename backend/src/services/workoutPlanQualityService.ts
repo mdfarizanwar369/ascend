@@ -12,6 +12,7 @@ export type WorkoutBlueprint = {
   exercises: CoachWorkoutExercise[];
   location: string;
   equipment: string;
+  timeAvailableMinutes: number;
   focus: string;
   estimatedDurationMinutes: number;
   conservative: boolean;
@@ -199,7 +200,9 @@ export function summarizeWorkoutExerciseHistory(rows: WorkoutHistoryRow[], timez
       evidence: metadata.evidenceType === "planned" ? "planned" as const
         : metadata.evidenceType === "observed_performance" ? "observed" as const : "completed" as const
     };
-  }).filter(session => session.names.length > 0).slice(0, 12);
+  // A manual burn log can be a real completed workout without named exercises.
+  // Keep it for same-day recovery while ignoring empty planned records.
+  }).filter(session => session.date && (session.names.length > 0 || session.evidence !== "planned")).slice(0, 12);
 }
 
 function recentObservedNote(name: string, rows: WorkoutHistoryRow[], prescribedReps: string | null | undefined) {
@@ -341,13 +344,14 @@ export function buildWorkoutBlueprint(input: {
   conservative?: boolean;
   timezoneOffsetMinutes?: number;
   avoidExercises?: string[];
+  completedWorkoutToday?: boolean;
 }): WorkoutBlueprint {
   const history = summarizeWorkoutExerciseHistory(input.recentWorkouts, input.timezoneOffsetMinutes);
   const today = input.today ?? localDateKeyAtOffset(new Date(), input.timezoneOffsetMinutes);
   const latestCompleted = history.find(session => session.evidence !== "planned");
   const latestAgeMs = latestCompleted ? Date.parse(`${today}T00:00:00Z`) - Date.parse(`${latestCompleted.date}T00:00:00Z`) : Number.NaN;
   const latest = latestAgeMs >= 0 && latestAgeMs <= 7 * 86_400_000 ? latestCompleted : null;
-  const trainedToday = latest?.date === today;
+  const trainedToday = latest?.date === today || input.completedWorkoutToday === true;
   const yesterday = localDateKeyAtOffset(new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000), 0);
   const recentTooHard = latest?.effort === "too_hard" && (latest.date === today || latest.date === yesterday);
   const requestedGoal = workoutGoal(input.goal);
@@ -500,6 +504,10 @@ export function buildWorkoutBlueprint(input: {
       alternatives
     };
   });
+  const planNames = new Set(exercises.map(exercise => key(exercise.name)));
+  for (const exercise of exercises) {
+    exercise.alternatives = exercise.alternatives?.filter(candidate => !planNames.has(key(candidate.name)));
+  }
   // Cardio can fill a template gap outdoors. Keep that fallback within the
   // time the member actually has, rather than letting its default range run long.
   const projectedMinutes = estimateWorkoutDurationMinutes(exercises);
@@ -514,13 +522,14 @@ export function buildWorkoutBlueprint(input: {
   const strengthGoal = goal === "strength" || goal === "muscle_gain";
   const resistedPull = exercises.some(exercise => catalogItemFor(exercise.name)?.pattern === "pull"
     && !["Prone W Raise", "Reverse Snow Angel", "Short Bar Hang"].includes(exercise.name));
-  const limitedOutdoorResistance = input.location === "outdoors" && strengthGoal
+  const limitedOutdoorResistance = input.location === "outdoors" && !gentle
     && (!patterns.includes("push") || !resistedPull);
-  const limitedIndoorBodyweightResistance = input.location !== "outdoors" && strengthGoal && !resistedPull;
+  const limitedIndoorBodyweightResistance = input.location !== "outdoors" && !gentle && !resistedPull
+    && !kit.has("gym") && !kit.has("dumbbells") && !kit.has("bands");
   const limitedIndoorFocus = emphasis === "upper" ? "Upper body strength practice"
     : emphasis === "lower" ? "Lower body strength practice" : "Bodyweight strength practice";
-  const focus = limitedOutdoorResistance ? "Outdoor strength and conditioning"
-    : limitedIndoorBodyweightResistance ? limitedIndoorFocus
+  const focus = limitedOutdoorResistance ? strengthGoal ? "Outdoor strength and conditioning" : "Outdoor movement and conditioning"
+    : limitedIndoorBodyweightResistance ? strengthGoal ? limitedIndoorFocus : "Bodyweight strength and cardio"
     : goal === "recovery" ? "Recovery and mobility" : goal === "mobility" ? "Mobility and range of motion"
     : emphasis === "upper" ? goal === "strength" ? "Upper body strength" : goal === "muscle_gain" ? "Upper body muscle building" : "Upper body and conditioning"
       : emphasis === "lower" ? goal === "strength" ? "Lower body strength" : goal === "muscle_gain" ? "Lower body muscle building" : "Lower body and conditioning"
@@ -566,7 +575,7 @@ export function buildWorkoutBlueprint(input: {
       : focus.startsWith("Lower") ? ["Upper body and easy conditioning", "Recovery and mobility"]
         : ["Recovery and mobility", "Strength with rotated movements"];
   return {
-    exercises, location: input.location, equipment: input.equipment, focus, whyToday,
+    exercises, location: input.location, equipment: input.equipment, timeAvailableMinutes: minutes, focus, whyToday,
     estimatedDurationMinutes: estimateWorkoutDurationMinutes(exercises),
     conservative: input.conservative === true,
     nextSessionPreview: `Next: ${upcoming[0].toLowerCase()}. This may change with your next check-in.`,
@@ -576,8 +585,14 @@ export function buildWorkoutBlueprint(input: {
 }
 
 export function applyWorkoutBlueprint(plan: CoachWorkoutPlan, blueprint: WorkoutBlueprint): CoachWorkoutPlan {
+  const alignDurationCopy = (value: string) => blueprint.estimatedDurationMinutes === blueprint.timeAvailableMinutes ? value
+    : value.replace(new RegExp(`\\b${blueprint.timeAvailableMinutes}(?=\\s*[-–]?\\s*(?:minutes?|mins?)\\b)`, "gi"),
+      String(blueprint.estimatedDurationMinutes));
   return {
     ...plan,
+    title: alignDurationCopy(plan.title),
+    intro: alignDurationCopy(plan.intro),
+    coachTip: alignDurationCopy(plan.coachTip),
     focus: blueprint.focus,
     estimatedDurationMinutes: blueprint.estimatedDurationMinutes,
     intensity: blueprint.focus === "Recovery and mobility" || blueprint.focus === "Mobility and range of motion" ? "easy"

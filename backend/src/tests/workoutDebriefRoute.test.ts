@@ -210,7 +210,7 @@ describe("workout debrief route isolation", () => {
       expect(response.status).toBe(201);
       expect(persistCompletedWorkoutMock).toHaveBeenCalledOnce();
       expect(persistCompletedWorkoutMock).toHaveBeenCalledWith(expect.objectContaining({
-        workoutTitle: "Stored Zoe plan", durationMinutes: 30, source: "coach_zoe_workout_observed",
+        workoutTitle: "Stored Zoe plan", durationMinutes: 8, source: "coach_zoe_workout_observed",
         exercises: [expect.objectContaining({ name: "Cable Row", sets: 2, reps: "10, 9", load: 25 })],
         extraMetadata: expect.objectContaining({ completedPlanExercises: [{ name: "Cable Row" }] })
       }));
@@ -219,7 +219,7 @@ describe("workout debrief route isolation", () => {
     }
   });
 
-  it("keeps actual-performance logging owner-only", async () => {
+  it("keeps actual-performance logging within the enabled V2 rollout", async () => {
     const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -230,6 +230,34 @@ describe("workout debrief route isolation", () => {
     });
     expect(response.status).toBe(403);
     expect(persistCompletedWorkoutMock).not.toHaveBeenCalled();
+  });
+
+  it("allows verified performance logging when V2 is eventually enabled for everyone", async () => {
+    const previousGlobal = env.COACH_ZOE_WORKOUT_ENGINE_V2;
+    const previousProvider = env.AI_PROVIDER;
+    env.COACH_ZOE_WORKOUT_ENGINE_V2 = true;
+    env.AI_PROVIDER = "gemini";
+    queryMock.mockResolvedValueOnce({ rows: [{ workout: {
+      title: "Stored Zoe plan", focus: "Strength", intensity: "moderate", estimatedDurationMinutes: 30, experienceVersion: 2,
+      exercises: [{ name: "Dumbbell Row", sets: 2, reps: "8-12" }]
+    } }] });
+    try {
+      const response = await fetch(`${baseUrl}/burn-logs/completed-workout`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
+          workoutTitle: "Caller title", workoutType: "Other", workoutDifficulty: "challenging", durationMinutes: 90,
+          exercises: [{ name: "Dumbbell Row" }], observedExercises: [{ exerciseIndex: 0, reps: "10" }]
+        })
+      });
+      expect(response.status).toBe(201);
+      expect(persistCompletedWorkoutMock).toHaveBeenCalledWith(expect.objectContaining({
+        workoutTitle: "Stored Zoe plan", durationMinutes: 8, source: "coach_zoe_workout_observed"
+      }));
+    } finally {
+      env.COACH_ZOE_WORKOUT_ENGINE_V2 = previousGlobal;
+      env.AI_PROVIDER = previousProvider;
+    }
   });
 
   it("rejects observed details without an account-owned generated plan", async () => {

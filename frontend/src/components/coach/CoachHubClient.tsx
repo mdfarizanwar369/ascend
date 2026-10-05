@@ -105,7 +105,7 @@ const equipmentByLocation: Record<WorkoutPlannerLocation, string[]> = {
 };
 
 const equipmentByLocationV2: Record<WorkoutPlannerLocation, string[]> = {
-  gym: equipmentByLocation.gym,
+  gym: ["Full Gym", "Dumbbells at Gym"],
   home: ["Bodyweight", "Dumbbells", "Long Resistance Band", "Sturdy Chair", "Low Step"],
   hotel: ["Bodyweight", "Dumbbells", "Long Resistance Band"],
   outdoors: ["Bodyweight", "Walking or Running Route", "Park Bench", "Low Exercise Bar", "Pull-Up Bar", "Exercise Mat"]
@@ -365,6 +365,8 @@ function WorkoutPlannerCard({
                 ? resolveV2WorkoutExerciseVisual(exercise.name)
                 : resolveExerciseVisual(exercise.name);
               const showVisual = exerciseVisualsEnabled || workout.experienceVersion === 2;
+              const hasValidSwap = exercise.alternatives?.some(candidate => !workout.exercises.some((other, otherIndex) =>
+                otherIndex !== index && other.name.toLowerCase() === candidate.name.toLowerCase())) ?? false;
               return (
                 <article
                   key={`${exercise.name}-${index}`}
@@ -409,7 +411,7 @@ function WorkoutPlannerCard({
                   </div>
                   {showVisual && expanded && visual.status === "resolved" ? <div className="ml-[52px]"><ExerciseVisualCard key={visual.exercise.id} exercise={visual.exercise} variationOf={workout.experienceVersion === 2 ? exercise.name : undefined} reportingEnabled={exerciseVisualsEnabled} /></div> : null}
                   {expanded && exercise.note ? <p className="ascend-soft-enter ml-[52px] mt-2 text-xs leading-5 text-zinc-400">{exercise.note}</p> : null}
-                  {workout.experienceVersion === 2 && !workoutSaved && !complete && exercise.alternatives?.length ? (
+                  {workout.experienceVersion === 2 && !workoutSaved && !complete && hasValidSwap ? (
                     <button type="button" onClick={() => onSwapExercise(index)} className="ml-[52px] mt-2 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-purple-200 hover:border-violet/60">
                       Swap exercise
                     </button>
@@ -989,12 +991,13 @@ export function CoachHubClient() {
                 if (workout?.experienceVersion === 2) {
                   setWorkout((current) => {
                     if (current?.experienceVersion !== 2) return current;
-                    const originalNames = new Set(current.exercises.map(exercise => exercise.name.toLowerCase()));
+                    const usedNames = new Set(current.exercises.map(exercise => exercise.name.toLowerCase()));
                     const exercises = current.exercises.map((exercise) => {
                       const alternatives = exercise.alternatives ?? [];
-                      const index = alternatives.findIndex(candidate => !originalNames.has(candidate.name.toLowerCase()));
+                      const index = alternatives.findIndex(candidate => !usedNames.has(candidate.name.toLowerCase()));
                       if (index < 0) return exercise;
                       const replacement = alternatives[index];
+                      usedNames.add(replacement.name.toLowerCase());
                       return { ...replacement, alternatives: [...alternatives.slice(index + 1), ...alternatives.slice(0, index), {
                         name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note
                       }] };

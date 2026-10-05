@@ -923,7 +923,7 @@ aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, asy
 aiRouter.get("/ai/workout/visual-access", requireAuth, async (req, res) => {
   res.json({
     enabled: hasExerciseVisualAccess(req.user!),
-    planLoggingPilotEnabled: req.user!.isPlatformOwner && workoutEngineV2Enabled({
+    planLoggingPilotEnabled: workoutEngineV2Enabled({
       globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
       ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
       isPlatformOwner: req.user!.isPlatformOwner,
@@ -1109,7 +1109,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         recentWorkouts: [...recentBurnResult.rows, ...recentPlanResult.rows].sort((a, b) =>
           Date.parse(String(b.created_at ?? "")) - Date.parse(String(a.created_at ?? ""))),
         timezoneOffsetMinutes: input.timezoneOffsetMinutes,
-        conservative: plannerContext.personalization.coachingProfiles.volumeProfile === "conservative"
+        conservative: plannerContext.personalization.coachingProfiles.volumeProfile === "conservative",
+        completedWorkoutToday: healthSyncSummary?.workoutCompletedToday === true && !isIosFreeEdition()
       }) : null;
       // The V2 prompt replaces broad context with the facts used for planning. It is
       // smaller than the legacy prompt and still makes only one Gemini request.
@@ -1130,7 +1131,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
           recommendation: workoutMemory.recommendation,
           latestVerifiedProgression: workoutMemory.latestVerifiedProgression
         },
-        prescribedSession: { focus: blueprint.focus, whyToday: blueprint.whyToday, exercises: blueprint.exercises.map(exercise => ({
+        prescribedSession: { focus: blueprint.focus, estimatedDurationMinutes: blueprint.estimatedDurationMinutes,
+          whyToday: blueprint.whyToday, exercises: blueprint.exercises.map(exercise => ({
           name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest
         })) }
       } : plannerContext);
@@ -1143,7 +1145,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         context: promptContext
       }, { requireAiSuccess: isIosNativeEdition(), preferReviewedVisualNames: hasExerciseVisualAccess(req.user!), blueprint: blueprint ?? undefined });
 
-      const planCompletionKey = workoutV2 && req.user!.isPlatformOwner && !dailyLimited ? randomUUID() : null;
+      const planCompletionKey = workoutV2 && !dailyLimited ? randomUUID() : null;
       // Web plans have no daily-workout row. Save the names so a second request
       // can rotate them without mistaking a planned workout for a completed one.
       if (workoutV2 && !dailyLimited) await query(

@@ -64,6 +64,16 @@ describe("iPhone daily workout builder", () => {
     expect(screen.getByRole("button", { name: "Long Resistance Band" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resistance Bands" })).not.toBeInTheDocument();
   });
+  it("names the limited gym choice for the equipment Zoe can actually prescribe", async () => {
+    mocks.workoutV2 = true;
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Gym" }));
+    fireEvent.click(screen.getByRole("button", { name: "30 minutes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Strength" }));
+    expect(screen.getByRole("button", { name: "Dumbbells at Gym" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Limited Gym" })).not.toBeInTheDocument();
+  });
   it("creates one daily workout then reopens it from the server without regenerating", async () => {
     const page = render(<CoachHubClient />);
     await chooseWorkout();
@@ -182,6 +192,23 @@ describe("iPhone daily workout builder", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
     fireEvent.click(await screen.findByRole("button", { name: "Refresh exercises" }));
     expect(await screen.findByText("Incline Push-Up")).toBeInTheDocument();
+    expect(mocks.generate).toHaveBeenCalledOnce();
+  });
+  it("does not choose the same alternative for two refreshed exercises", async () => {
+    mocks.ios = false;
+    mocks.generate.mockResolvedValue({ workout: { ...daily.workout, experienceVersion: 2, exercises: [
+      { name: "First move", sets: 2, reps: "10", alternatives: [{ name: "Shared move", sets: 2, reps: "10" }] },
+      { name: "Second move", sets: 2, reps: "10", alternatives: [
+        { name: "Shared move", sets: 2, reps: "10" }, { name: "Distinct move", sets: 2, reps: "10" }
+      ] }
+    ] } });
+    render(<CoachHubClient />);
+    await chooseWorkout();
+    await screen.findByText("First move");
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh exercises" }));
+    expect(await screen.findByText("Shared move")).toBeInTheDocument();
+    expect(screen.getByText("Distinct move")).toBeInTheDocument();
     expect(mocks.generate).toHaveBeenCalledOnce();
   });
   it("lets the owner optionally log actuals with the same Zoe workout key", async () => {

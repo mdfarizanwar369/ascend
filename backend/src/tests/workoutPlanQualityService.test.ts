@@ -119,6 +119,13 @@ describe("Zoe workout engine V2", () => {
     expect(yesterday.focus).toBe("Recovery and mobility");
   });
 
+  it("counts a real workout without named exercises and a synced workout for same-day recovery", () => {
+    const manualLog = [{ metadata: { workoutType: "Walking", durationMinutes: 25 }, created_at: "2026-10-03T08:00:00.000Z" }];
+    expect(summarizeWorkoutExerciseHistory(manualLog)).toMatchObject([{ names: [], evidence: "completed" }]);
+    expect(buildWorkoutBlueprint({ ...base, recentWorkouts: manualLog }).focus).toBe("Recovery and mobility");
+    expect(buildWorkoutBlueprint({ ...base, recentWorkouts: [], completedWorkoutToday: true }).focus).toBe("Recovery and mobility");
+  });
+
   it("remembers a generated plan without treating it as a completed workout", () => {
     const first = buildWorkoutBlueprint({ ...base, recentWorkouts: [] });
     const planned = [{
@@ -414,6 +421,11 @@ describe("Zoe workout engine V2", () => {
     expect(workout.estimatedDurationMinutes).toBeGreaterThanOrEqual(25);
     expect(workout.warmup[1]).toMatch(/^1 minute/);
     expect(workout.cooldown[1]).toMatch(/^1 minute/);
+    const correctedCopy = applyWorkoutBlueprint({ ...plan, title: "45-minute outdoor workout",
+      intro: "You have a 45 min session.", coachTip: "Finish in 45 minutes." }, blueprint);
+    expect(correctedCopy.title).toContain(`${blueprint.estimatedDurationMinutes}-minute`);
+    expect(correctedCopy.intro).toContain(`${blueprint.estimatedDurationMinutes} min`);
+    expect(correctedCopy.coachTip).toContain(`${blueprint.estimatedDurationMinutes} minutes`);
   });
 
   it("uses a safe short bar hold for a conservative first-time outdoor bar choice", () => {
@@ -426,10 +438,25 @@ describe("Zoe workout engine V2", () => {
     expect(blueprint.whyToday).toContain("bar is used for a short hold");
   });
 
+  it("does not call a lower-body outdoor session balanced full-body work", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, location: "outdoors", equipment: "Bodyweight",
+      goal: "general_fitness", timeAvailable: "45", conservative: true, recentWorkouts: [] });
+    expect(blueprint.exercises.map(exercise => exercise.name)).not.toContain("Pull-Up");
+    expect(blueprint.focus).toBe("Outdoor movement and conditioning");
+    expect(blueprint.whyToday).toContain("limited upper-body resistance");
+  });
+
+  it("does not label a short gym session bodyweight when gym equipment was selected", () => {
+    const blueprint = buildWorkoutBlueprint({ ...base, location: "gym", equipment: "Full Gym",
+      goal: "fat_loss", timeAvailable: "20", recentWorkouts: [] });
+    expect(blueprint.focus).toBe("Strength and conditioning");
+  });
+
   it("makes every selected equipment choice meaningful across goals, durations, and conservative profiles", () => {
     const choices = [
       { location: "gym", equipment: "Full Gym", kit: "gym" },
       { location: "gym", equipment: "Limited Gym", kit: "dumbbells" },
+      { location: "gym", equipment: "Dumbbells at Gym", kit: "dumbbells" },
       { location: "home", equipment: "Dumbbells", kit: "dumbbells" },
       { location: "home", equipment: "Long Resistance Band", kit: "bands" },
       { location: "home", equipment: "Sturdy Chair", kit: "chair" },
@@ -528,6 +555,17 @@ describe("Zoe workout engine V2", () => {
             expect(new Set(blueprint.exercises.map(exercise => exercise.name)).size, label).toBe(blueprint.exercises.length);
             expect(blueprint.estimatedDurationMinutes, label).toBe(estimateWorkoutDurationMinutes(blueprint.exercises));
             expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable) + 2);
+            const workout = applyWorkoutBlueprint(plan, blueprint);
+            for (const [index, exercise] of workout.exercises.entries()) {
+              if (exercise.alternatives?.length) expect(rotateWorkoutExercise(workout, index), `${label}: ${exercise.name}`).not.toBeNull();
+            }
+            let afterSwaps = workout;
+            for (let index = 0; index < afterSwaps.exercises.length; index++) {
+              if (!afterSwaps.exercises[index].alternatives?.length) continue;
+              const swapped = rotateWorkoutExercise(afterSwaps, index);
+              expect(swapped, `${label}: sequential swap ${index}`).not.toBeNull();
+              afterSwaps = swapped!;
+            }
             for (const exercise of blueprint.exercises.flatMap(item => [item, ...(item.alternatives ?? [])])) {
               expect(exercise.reps || exercise.duration, `${label} ${exercise.name}`).toBeTruthy();
               expect(resolveV2WorkoutExerciseVisual(exercise.name).status, `${label} ${exercise.name}`).toBe("resolved");
