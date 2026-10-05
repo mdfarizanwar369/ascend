@@ -8,7 +8,7 @@ import { BackButton } from "@/components/BackButton";
 import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import type { WorkoutDebriefView } from "@ascend/shared";
-import { resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { ExerciseVisualCard } from "@/components/coach/ExerciseVisualCard";
 import {
   CoachChatMode,
@@ -321,8 +321,8 @@ function WorkoutPlannerCard({
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-xl border border-line bg-ink/70 p-3">
-            <p className="text-zinc-500">Duration</p>
-            <p className="mt-1 font-bold text-zinc-100">{workout.estimatedDurationMinutes} min</p>
+            <p className="text-zinc-500">{workout.experienceVersion === 2 ? "About" : "Duration"}</p>
+            <p className="mt-1 font-bold text-zinc-100">{workout.experienceVersion === 2 ? estimateWorkoutDurationMinutes(workout.exercises) : workout.estimatedDurationMinutes} min</p>
           </div>
           <div className="rounded-xl border border-line bg-ink/70 p-3">
             <p className="text-zinc-500">Focus</p>
@@ -833,7 +833,7 @@ export function CoachHubClient() {
         workoutTitle: workout.title,
         workoutType: workout.focus,
         workoutDifficulty: workout.intensity,
-        durationMinutes: workout.estimatedDurationMinutes,
+        durationMinutes: workout.experienceVersion === 2 ? estimateWorkoutDurationMinutes(workout.exercises) : workout.estimatedDurationMinutes,
         completedAt: new Date().toISOString(),
         exercises: workout.exercises,
         ...(workout.experienceVersion === 2 && effortRating ? { effortRating } : {}),

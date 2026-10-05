@@ -8,6 +8,8 @@ V2 exposes more precise equipment choices in the existing fourth builder step. H
 
 Equipment selection now has a visible effect across active sessions. A chosen low step gets a knee-dominant slot, and a first-time pull-up bar gets a brief, controlled Short Bar Hang rather than an unverified pull-up. Full pull-ups and hanging knee raises still require completed history. A walking route is used in the warm-up and cooldown even when a 20-minute strength plan has no cardio slot. Recovery sessions can set equipment aside; the existing “why today” text explains that choice. The catalog, illustrations, and Gemini call count are unchanged.
 
+The time answer is a maximum available window. V2 now estimates plan length from the prescribed sets, reps or timed holds, between-set rests, a one-minute transition between exercises, a four-minute warm-up, and a three-minute cooldown. The estimate is shown as approximate, recalculates after swaps, and is also used when saving an older owner-pilot V2 plan. Short plans can trim a cardio fallback to stay close to the member's window. Zoe does not add unnecessary sets to make a cautious or recovery session occupy all available time. Actual elapsed time will vary with pace and rest.
+
 ## Rollout
 
 - `COACH_ZOE_WORKOUT_ENGINE_V2=false` and `COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT=false` are the defaults. Existing users keep the V1 response and planner behavior.

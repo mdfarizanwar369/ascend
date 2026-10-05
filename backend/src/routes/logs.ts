@@ -18,7 +18,7 @@ import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncSta
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
 import { env } from "../config/env";
-import { portionAdjustmentMagnitude } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, portionAdjustmentMagnitude } from "@ascend/shared";
 import {
   isPortionAwareEstimate,
   parsePortionAwareEstimateForSave,
@@ -675,7 +675,8 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       input.workoutTitle = stored.workout.title;
       input.workoutType = stored.workout.focus;
       input.workoutDifficulty = stored.workout.intensity;
-      input.durationMinutes = stored.workout.estimatedDurationMinutes;
+      input.durationMinutes = stored.workout.experienceVersion === 2
+        ? estimateWorkoutDurationMinutes(stored.workout.exercises) : stored.workout.estimatedDurationMinutes;
       input.exercises = stored.workout.exercises;
     }
     if (input.observedExercises) {

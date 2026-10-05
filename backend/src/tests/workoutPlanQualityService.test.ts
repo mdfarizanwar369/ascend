@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyWorkoutBlueprint, buildWorkoutBlueprint, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, V2_WORKOUT_CATALOG, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
-import { resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -286,6 +286,7 @@ describe("Zoe workout engine V2", () => {
     expect(swapped?.exercises[0].name).not.toBe(checked.exercises[0].name);
     expect(swapped?.exercises[0].reps || swapped?.exercises[0].duration).toBeTruthy();
     expect(swapped?.exercises[0].alternatives?.map(item => item.name)).toContain(checked.exercises[0].name);
+    expect(swapped?.estimatedDurationMinutes).toBe(estimateWorkoutDurationMinutes(swapped!.exercises));
     expect(rotateWorkoutExercise(checked, -1)).toBeNull();
     expect(rotateWorkoutExercise(plan, 0)).toBeNull();
   });
@@ -399,6 +400,22 @@ describe("Zoe workout engine V2", () => {
     expect(experienced.exercises.map(item => item.name)).toContain("Pull-Up");
   });
 
+  it("shows a workout estimate based on the actual prescription instead of the selected time window", () => {
+    expect(estimateWorkoutDurationMinutes([
+      { sets: 2, reps: "10", rest: "60 sec" },
+      { duration: "10 min" }
+    ])).toBe(20);
+    expect(estimateWorkoutDurationMinutes([{ sets: 2, duration: "30 sec each side", rest: "30 sec" }])).toBe(10);
+    const blueprint = buildWorkoutBlueprint({ ...base, goal: "general_fitness", location: "outdoors",
+      equipment: "Pull-Up Bar", timeAvailable: "45", conservative: true, recentWorkouts: [] });
+    const workout = applyWorkoutBlueprint(plan, blueprint);
+    expect(blueprint.estimatedDurationMinutes).toBe(estimateWorkoutDurationMinutes(blueprint.exercises));
+    expect(workout.estimatedDurationMinutes).toBeLessThan(45);
+    expect(workout.estimatedDurationMinutes).toBeGreaterThanOrEqual(25);
+    expect(workout.warmup[1]).toMatch(/^1 minute/);
+    expect(workout.cooldown[1]).toMatch(/^1 minute/);
+  });
+
   it("uses a safe short bar hold for a conservative first-time outdoor bar choice", () => {
     const blueprint = buildWorkoutBlueprint({ ...base, location: "outdoors", equipment: "Pull-Up Bar",
       goal: "general_fitness", timeAvailable: "45", conservative: true, recentWorkouts: [] });
@@ -509,7 +526,8 @@ describe("Zoe workout engine V2", () => {
             const blueprint = buildWorkoutBlueprint({ ...base, ...setting, goal, timeAvailable, conservative, recentWorkouts: [] });
             const label = `${goal} ${timeAvailable} ${setting.location} ${setting.equipment} conservative=${conservative}`;
             expect(new Set(blueprint.exercises.map(exercise => exercise.name)).size, label).toBe(blueprint.exercises.length);
-            expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable));
+            expect(blueprint.estimatedDurationMinutes, label).toBe(estimateWorkoutDurationMinutes(blueprint.exercises));
+            expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable) + 2);
             for (const exercise of blueprint.exercises.flatMap(item => [item, ...(item.alternatives ?? [])])) {
               expect(exercise.reps || exercise.duration, `${label} ${exercise.name}`).toBeTruthy();
               expect(resolveV2WorkoutExerciseVisual(exercise.name).status, `${label} ${exercise.name}`).toBe("resolved");

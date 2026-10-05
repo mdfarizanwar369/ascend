@@ -1,4 +1,5 @@
 import type { CoachWorkoutExercise, CoachWorkoutPlan } from "../integrations/openai";
+import { estimateWorkoutDurationMinutes } from "@ascend/shared";
 import { localDateKeyAtOffset } from "./memberTimeService";
 
 type Pattern = "squat" | "hinge" | "push" | "pull" | "single_leg" | "accessory" | "core" | "cardio" | "mobility" | "balance";
@@ -499,6 +500,17 @@ export function buildWorkoutBlueprint(input: {
       alternatives
     };
   });
+  // Cardio can fill a template gap outdoors. Keep that fallback within the
+  // time the member actually has, rather than letting its default range run long.
+  const projectedMinutes = estimateWorkoutDurationMinutes(exercises);
+  if (projectedMinutes > minutes + 1) {
+    const cardio = exercises.find(exercise => catalogItemFor(exercise.name)?.pattern === "cardio" && exercise.duration?.includes("min"));
+    if (cardio?.duration) {
+      const bounds = cardio.duration.match(/(\d+)(?:-(\d+))?/);
+      const midpoint = bounds ? (Number(bounds[1]) + Number(bounds[2] ?? bounds[1])) / 2 : 0;
+      cardio.duration = `${Math.max(5, Math.floor(midpoint - (projectedMinutes - minutes)))} min`;
+    }
+  }
   const strengthGoal = goal === "strength" || goal === "muscle_gain";
   const resistedPull = exercises.some(exercise => catalogItemFor(exercise.name)?.pattern === "pull"
     && !["Prone W Raise", "Reverse Snow Angel", "Short Bar Hang"].includes(exercise.name));
@@ -555,8 +567,7 @@ export function buildWorkoutBlueprint(input: {
         : ["Recovery and mobility", "Strength with rotated movements"];
   return {
     exercises, location: input.location, equipment: input.equipment, focus, whyToday,
-    estimatedDurationMinutes: goal === "mobility" ? minutes <= 20 ? 15 : minutes <= 30 ? 20 : minutes <= 45 ? 25 : 30
-      : goal === "recovery" ? Math.min(minutes, minutes <= 30 ? 20 : minutes <= 45 ? 30 : 35) : minutes,
+    estimatedDurationMinutes: estimateWorkoutDurationMinutes(exercises),
     conservative: input.conservative === true,
     nextSessionPreview: `Next: ${upcoming[0].toLowerCase()}. This may change with your next check-in.`,
     sessionRoadmap: [{ step: "Today", focus }, { step: "Next", focus: upcoming[0] }, { step: "Then", focus: upcoming[1] }],
@@ -573,10 +584,10 @@ export function applyWorkoutBlueprint(plan: CoachWorkoutPlan, blueprint: Workout
       : blueprint.conservative && plan.intensity === "challenging" ? "moderate" : plan.intensity,
     warmup: [blueprint.location === "hotel" ? "3 minutes quiet marching or side steps"
       : blueprint.location === "outdoors" && blueprint.equipment === "Walking or Running Route" ? "3 minutes easy walking on your chosen route"
-        : "3 minutes easy walking or marching", "Gentle shoulder circles and hip hinges"],
+        : "3 minutes easy walking or marching", "1 minute gentle shoulder circles and hip hinges"],
     cooldown: [blueprint.location === "hotel" ? "2 minutes slow marching in place"
       : blueprint.location === "outdoors" && blueprint.equipment === "Walking or Running Route" ? "2 minutes easy walking on your chosen route"
-        : "2 minutes easy walking", "Slow breathing and gentle stretching"],
+        : "2 minutes easy walking", "1 minute slow breathing and gentle stretching"],
     exercises: blueprint.exercises,
     whyToday: blueprint.whyToday,
     nextSessionPreview: blueprint.nextSessionPreview,
@@ -599,5 +610,5 @@ export function rotateWorkoutExercise(plan: CoachWorkoutPlan, index: number): Co
       name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note
     }]
   };
-  return { ...plan, exercises: next };
+  return { ...plan, exercises: next, estimatedDurationMinutes: estimateWorkoutDurationMinutes(next) };
 }
