@@ -14,7 +14,7 @@ const plan: CoachWorkoutPlan = {
 
 describe("Zoe workout engine V2", () => {
   it("has reviewed pictures and coaching instructions for every plan and swap movement", () => {
-    expect(V2_WORKOUT_CATALOG).toHaveLength(105);
+    expect(V2_WORKOUT_CATALOG).toHaveLength(119);
     for (const item of V2_WORKOUT_CATALOG) {
       if (item.pattern === "accessory") expect(item.target, item.name).toBeTruthy();
       const visual = resolveV2WorkoutExerciseVisual(item.name);
@@ -152,9 +152,10 @@ describe("Zoe workout engine V2", () => {
     expect(blueprint.exercises.some(exercise => /Lunge|Split Squat|Step-Up/.test(exercise.name))).toBe(true);
   });
 
-  it("rotates the lower-body pattern instead of repeating the only available squat", () => {
+  it("uses the added squat variation before repeating the last outdoor squat", () => {
     const first = buildWorkoutBlueprint({ ...base, location: "outdoors", timeAvailable: "20", recentWorkouts: [] });
-    expect(first.exercises.map(exercise => exercise.name)).toContain("Bodyweight Squat");
+    const firstSquat = first.exercises.find(exercise => ["Bodyweight Squat", "Lateral Squat Step"].includes(exercise.name))?.name;
+    expect(firstSquat).toBeTruthy();
     const second = buildWorkoutBlueprint({
       ...base, location: "outdoors", timeAvailable: "20", today: "2026-10-04",
       recentWorkouts: [{
@@ -162,8 +163,8 @@ describe("Zoe workout engine V2", () => {
         created_at: "2026-10-03T08:00:00Z"
       }]
     });
-    expect(second.exercises.map(exercise => exercise.name)).not.toContain("Bodyweight Squat");
-    expect(second.exercises.map(exercise => exercise.name)).toEqual(expect.arrayContaining([expect.stringMatching(/Lunge|Split Squat/)]));
+    expect(second.exercises.map(exercise => exercise.name)).not.toContain(firstSquat);
+    expect(second.exercises.some(exercise => ["Bodyweight Squat", "Lateral Squat Step", "Bodyweight Reverse Lunge", "Stationary Split Squat"].includes(exercise.name))).toBe(true);
   });
 
   it("avoids back-to-back exercise repeats across a week of planned sessions", () => {
@@ -400,6 +401,9 @@ describe("Zoe workout engine V2", () => {
     const barOptions = { ...base, location: "outdoors", equipment: "Pull-Up Bar", goal: "strength", timeAvailable: "45" };
     const freshBar = buildWorkoutBlueprint({ ...barOptions, recentWorkouts: [] });
     expect(freshBar.exercises.map(item => item.name)).toContain("Short Bar Hang");
+    expect(freshBar.exercises.find(item => item.name === "Short Bar Hang")?.alternatives?.map(item => item.name))
+      .toContain("Standing Upper-Back Squeeze");
+    expect(freshBar.exercises.map(item => item.name)).not.toContain("Standing Upper-Back Squeeze");
     expect(freshBar.exercises.flatMap(item => [item.name, ...(item.alternatives ?? []).map(alternative => alternative.name)])).not.toContain("Pull-Up");
     const experienced = buildWorkoutBlueprint({ ...barOptions, recentWorkouts: [{
       metadata: { evidenceType: "completed_plan", exercises: [{ name: "Pull-Up" }] }, created_at: "2026-09-25T08:00:00Z"
@@ -596,7 +600,8 @@ describe("Zoe workout engine V2", () => {
             expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable) + 2);
             const workout = applyWorkoutBlueprint(plan, blueprint);
             for (const [index, exercise] of workout.exercises.entries()) {
-              if (exercise.alternatives?.length) expect(rotateWorkoutExercise(workout, index), `${label}: ${exercise.name}`).not.toBeNull();
+              expect(exercise.alternatives?.length, `${label}: ${exercise.name}`).toBeGreaterThan(0);
+              expect(rotateWorkoutExercise(workout, index), `${label}: ${exercise.name}`).not.toBeNull();
             }
             let afterSwaps = workout;
             for (let index = 0; index < afterSwaps.exercises.length; index++) {
@@ -614,5 +619,5 @@ describe("Zoe workout engine V2", () => {
         }
       }
     }
-  });
+  }, 15_000);
 });

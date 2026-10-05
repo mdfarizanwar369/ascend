@@ -303,20 +303,28 @@ describe("iPhone daily workout builder", () => {
     })));
   });
 
-  it("lets a member skip an unsuitable bar move without recording it as completed", async () => {
+  it("offers a real swap when a member cannot use the outdoor bar", async () => {
     mocks.workoutV2 = true;
-    mocks.today.mockResolvedValue({ dailyWorkout: { ...daily, workout: {
+    const barWorkout = { ...daily, workout: {
       ...daily.workout, experienceVersion: 2, exercises: [
         { name: "Bodyweight Squat", sets: 2, reps: "10" },
-        { name: "Short Bar Hang", duration: "5-10 sec" }
+        { name: "Short Bar Hang", duration: "5-10 sec", alternatives: [
+          { name: "Standing Upper-Back Squeeze", sets: 2, reps: "8-12", note: "Light shoulder-blade movement, not a resisted row." }
+        ] }
       ]
-    } } });
+    } };
+    mocks.today.mockResolvedValue({ dailyWorkout: barWorkout });
+    mocks.swap.mockResolvedValue({ dailyWorkout: { ...barWorkout, workout: { ...barWorkout.workout, exercises: [
+      barWorkout.workout.exercises[0], { name: "Standing Upper-Back Squeeze", sets: 2, reps: "8-12", alternatives: [
+        { name: "Short Bar Hang", duration: "5-10 sec" }
+      ] }
+    ] } } });
     render(<CoachHubClient />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
     await screen.findByText("Short Bar Hang");
-    fireEvent.click(screen.getAllByRole("button", { name: "Skip this move" })[1]);
-    expect(screen.getByText("Skipped for today")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Bodyweight Squat" }));
-    expect(screen.getByRole("button", { name: "Save what I did" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skip this move" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Swap exercise" }));
+    expect(await screen.findByText("Standing Upper-Back Squeeze")).toBeInTheDocument();
+    expect(mocks.swap).toHaveBeenCalledWith("saved-server-key", 1);
   });
 });

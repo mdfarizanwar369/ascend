@@ -207,13 +207,11 @@ function OptionButton({ imageUrl, label, onClick }: { imageUrl?: string; label: 
 function WorkoutPlannerCard({
   answers,
   checkedExercises,
-  skippedExercises,
   isGenerating,
   onAnswer,
   onCancel,
   onGenerate,
   onToggleExercise,
-  onSkipExercise,
   onSwapExercise,
   onRegenerate,
   setMessage,
@@ -226,13 +224,11 @@ function WorkoutPlannerCard({
 }: {
   answers: WorkoutAnswers;
   checkedExercises: Set<number>;
-  skippedExercises: Set<number>;
   isGenerating: boolean;
   onAnswer: (next: Partial<WorkoutAnswers>) => void;
   onCancel: () => void;
   onGenerate: (finalEquipment: string) => void;
   onToggleExercise: (index: number) => void;
-  onSkipExercise: (index: number) => void;
   onSwapExercise: (index: number) => void;
   onRegenerate: () => void;
   setMessage: (message: string) => void;
@@ -368,7 +364,6 @@ function WorkoutPlannerCard({
             <div className="space-y-2">
             {workout.exercises.map((exercise, index) => {
               const complete = checkedExercises.has(index);
-              const skipped = skippedExercises.has(index);
               const expanded = expandedExerciseIndex === index;
               const visual = workout.experienceVersion === 2
                 ? resolveV2WorkoutExerciseVisual(exercise.name)
@@ -380,7 +375,7 @@ function WorkoutPlannerCard({
                 <article
                   key={`${exercise.name}-${index}`}
                   className={`ascend-stagger-enter rounded-xl border p-3 transition-colors ${
-                    complete ? "border-lime/50 bg-lime/10" : skipped ? "border-line bg-ink/35 opacity-70" : "border-line bg-ink/75"
+                    complete ? "border-lime/50 bg-lime/10" : "border-line bg-ink/75"
                   }`}
                   style={{ animationDelay: `${Math.min(index, 7) * 45}ms` }}
                 >
@@ -425,13 +420,6 @@ function WorkoutPlannerCard({
                       Swap exercise
                     </button>
                   ) : null}
-                  {workout.experienceVersion === 2 && !workoutSaved && !complete && !hasValidSwap ? (
-                    <button type="button" onClick={() => onSkipExercise(index)}
-                      className="ml-[52px] mt-2 text-xs font-semibold text-zinc-400 underline decoration-zinc-600 underline-offset-4">
-                      {skipped ? "Undo skip" : "Skip this move"}
-                    </button>
-                  ) : null}
-                  {skipped ? <p className="ml-[52px] mt-1 text-xs text-zinc-500">Skipped for today</p> : null}
                 </article>
               );
             })}
@@ -574,7 +562,6 @@ export function CoachHubClient() {
   const [answers, setAnswers] = useState<WorkoutAnswers>({});
   const [workout, setWorkout] = useState<GeneratedWorkout | null>(null);
   const [checkedExercises, setCheckedExercises] = useState<Set<number>>(new Set());
-  const [skippedExercises, setSkippedExercises] = useState<Set<number>>(new Set());
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
   const [isLoadingWorkout, setIsLoadingWorkout] = useState(false);
   const [dailyWorkoutCompleted, setDailyWorkoutCompleted] = useState(false);
@@ -705,7 +692,6 @@ export function CoachHubClient() {
       setCheckedExercises(new Set(daily.completed
         ? daily.completedExerciseIndexes ?? daily.workout.exercises.map((_, index) => index)
         : []));
-      setSkippedExercises(new Set());
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
     }
@@ -730,7 +716,6 @@ export function CoachHubClient() {
         setWorkoutDebrief(null);
         setDailyWorkoutCompleted(false);
         setCheckedExercises(new Set());
-        setSkippedExercises(new Set());
         setAnswers({});
         setShowExistingChoice(false);
         setPlannerOpen(true);
@@ -781,7 +766,6 @@ export function CoachHubClient() {
       setEffortRating(null);
       setActualWorkoutMinutes("");
       setCheckedExercises(new Set());
-      setSkippedExercises(new Set());
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
       setWorkoutCompletionKey(response.workout.planCompletionKey ?? nextWorkoutCompletionKey());
@@ -821,7 +805,14 @@ export function CoachHubClient() {
           name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note
         }]
       };
-      return { ...current, exercises: nextExercises };
+      const barIntroduced = "The bar is used for a short hold; Zoe has no completed pull-up on record yet.";
+      const barSwapped = "You swapped the bar hold for a lighter upper-back movement.";
+      const whyToday = exercise.name === "Short Bar Hang" && replacement.name === "Standing Upper-Back Squeeze"
+        ? current.whyToday?.replace(barIntroduced, barSwapped)
+        : exercise.name === "Standing Upper-Back Squeeze" && replacement.name === "Short Bar Hang"
+          ? current.whyToday?.replace(barSwapped, barIntroduced) : current.whyToday;
+      return { ...current, exercises: nextExercises,
+        estimatedDurationMinutes: estimateWorkoutDurationMinutes(nextExercises), whyToday };
     });
   }
 
@@ -1022,7 +1013,6 @@ export function CoachHubClient() {
             <WorkoutPlannerCard
               answers={answers}
               checkedExercises={checkedExercises}
-              skippedExercises={skippedExercises}
               isGenerating={isGeneratingWorkout}
               onAnswer={(next) => setAnswers((current) => ({ ...current, ...next }))}
               onCancel={closeWorkoutPlanner}
@@ -1045,7 +1035,6 @@ export function CoachHubClient() {
                     return { ...current, exercises };
                   });
                   setCheckedExercises(new Set());
-                  setSkippedExercises(new Set());
                   setEffortRating(null);
                   setActualWorkoutMinutes("");
                   setShowExistingChoice(false);
@@ -1053,7 +1042,6 @@ export function CoachHubClient() {
                 }
                 setWorkout(null);
                 setCheckedExercises(new Set());
-                setSkippedExercises(new Set());
                 setAnswers({});
                 setShowExistingChoice(false);
                 setSavedWorkoutSummary(null);
@@ -1061,25 +1049,7 @@ export function CoachHubClient() {
                 setWorkoutCompletionKey(null);
               }}
               onToggleExercise={(index) => {
-                setSkippedExercises(current => {
-                  const next = new Set(current);
-                  next.delete(index);
-                  return next;
-                });
                 setCheckedExercises((current) => {
-                  const next = new Set(current);
-                  if (next.has(index)) next.delete(index);
-                  else next.add(index);
-                  return next;
-                });
-              }}
-              onSkipExercise={(index) => {
-                setCheckedExercises(current => {
-                  const next = new Set(current);
-                  next.delete(index);
-                  return next;
-                });
-                setSkippedExercises(current => {
                   const next = new Set(current);
                   if (next.has(index)) next.delete(index);
                   else next.add(index);

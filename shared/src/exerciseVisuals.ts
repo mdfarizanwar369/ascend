@@ -10,6 +10,7 @@ export const EXERCISE_VISUAL_ASSET_ROOT_V5 = "/exercise-visuals/ascend-original-
 export const EXERCISE_VISUAL_ASSET_ROOT_V6 = "/exercise-visuals/ascend-original-v6";
 export const EXERCISE_VISUAL_ASSET_ROOT_V7 = "/exercise-visuals/ascend-original-v7";
 export const EXERCISE_VISUAL_ASSET_ROOT_V8 = "/exercise-visuals/ascend-original-v8";
+export const EXERCISE_VISUAL_ASSET_ROOT_V9 = "/exercise-visuals/ascend-original-v9";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -35,6 +36,7 @@ const imageV5 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V5}/${filena
 const imageV6 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V6}/${filename}`;
 const imageV7 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V7}/${filename}`;
 const imageV8 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V8}/${filename}`;
+const imageV9 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V9}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -842,6 +844,104 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "single", main: imageV8("rowing-machine-main.webp") },
     instructions: "Sit on the rower with feet strapped in. Push with your legs, then draw the handle to your lower ribs; extend your arms before bending your knees on the return.",
     cue: "Keep the stroke smooth and avoid yanking with your lower back."
+  },
+  {
+    id: "lateral-squat-step", canonicalName: "Lateral Squat Step", aliases: [],
+    equipment: "Bodyweight and a small clear space", movementPattern: "Lateral squat", targetMuscles: "Quads, glutes and inner thighs",
+    images: { kind: "single", main: imageV9("lateral-squat-step-main.webp") },
+    instructions: "Stand tall and step one foot sideways. Shift your hips back toward the stepping leg while the other leg stays longer, then push through that foot to stand and bring your feet together. Alternate sides.",
+    cue: "Use a small step and keep the bent knee tracking over the foot."
+  },
+  {
+    id: "kickstand-hip-hinge", canonicalName: "Kickstand Hip Hinge", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Staggered-stance hip hinge", targetMuscles: "Hamstrings and glutes",
+    images: { kind: "single", main: imageV9("kickstand-hip-hinge-main.webp") },
+    instructions: "Place one foot a short step behind the other and rest its toes lightly on the floor. Keep most of your weight over the front leg, push your hips back with a long spine, then stand tall. Switch sides after each set.",
+    cue: "The back foot helps balance; do not twist or round your back."
+  },
+  {
+    id: "stationary-split-squat", canonicalName: "Stationary Split Squat", aliases: [],
+    equipment: "Bodyweight, with optional nearby support", movementPattern: "Stationary split squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV9("stationary-split-squat-main.webp") },
+    instructions: "Start in a comfortable staggered stance and keep both feet planted. Bend both knees only as far as you can control, rise slowly, and repeat before switching which foot is in front. Hold a stable support if needed.",
+    cue: "Stay tall and keep the front knee in line with the foot."
+  },
+  {
+    id: "standing-cross-body-knee-drive", canonicalName: "Standing Cross-Body Knee Drive", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing cross-body core movement", targetMuscles: "Abdominals and hip flexors",
+    images: { kind: "single", main: imageV9("standing-cross-body-knee-drive-main.webp") },
+    instructions: "Stand tall. Slowly raise one knee toward the opposite elbow with a small torso turn, set the foot down, then repeat on the other side. Keep the movement controlled and shorten the lift if balance is uncertain.",
+    cue: "Move slowly without hopping or pulling on your neck."
+  },
+  {
+    id: "standing-upper-back-squeeze", canonicalName: "Standing Upper-Back Squeeze", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Shoulder-blade activation", targetMuscles: "Upper back and rear shoulders",
+    images: { kind: "single", main: imageV9("standing-upper-back-squeeze-main.webp") },
+    instructions: "Stand tall with elbows bent beside your ribs. Gently draw your shoulder blades toward each other, pause briefly, then relax. This is a light shoulder-blade movement for a day when a bar is unsuitable; it does not replace the resistance of a row.",
+    cue: "Keep your shoulders low and do not arch your back."
+  },
+  {
+    id: "bent-knee-calf-raise", canonicalName: "Bent-Knee Calf Raise", aliases: [],
+    equipment: "Bodyweight on flat ground", movementPattern: "Bent-knee calf raise", targetMuscles: "Calves, especially soleus",
+    images: { kind: "single", main: imageV9("bent-knee-calf-raise-main.webp") },
+    instructions: "Stand with feet hip-width apart and keep a small comfortable bend in both knees. Lift both heels slowly, pause, then lower with control while keeping the knee bend. Hold stable support if balance is uncertain.",
+    cue: "Raise and lower your heels without bouncing."
+  },
+  {
+    id: "standing-hip-circles", canonicalName: "Standing Hip Circles", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hip mobility", targetMuscles: "Hips and lower back mobility",
+    images: { kind: "single", main: imageV9("standing-hip-circles-main.webp") },
+    instructions: "Stand with feet hip-width apart, hands on hips and knees soft. Make a small, slow circle with your hips, then circle the other direction. Stay within a comfortable range and keep your upper body relaxed.",
+    cue: "Use small circles without forcing your lower back."
+  },
+  {
+    id: "upright-low-bar-row", canonicalName: "Upright Low-Bar Row", aliases: [],
+    equipment: "Fixed waist-high exercise bar", movementPattern: "Upright bodyweight row", targetMuscles: "Upper back, lats and biceps",
+    images: { kind: "single", main: imageV9("upright-low-bar-row-main.webp") },
+    instructions: "Check that the fixed low bar supports your weight. Grip it with both hands, walk your feet forward slightly and keep them planted. Lean back only a little, pull your chest toward the bar, then straighten your arms slowly.",
+    cue: "Keep both feet grounded and choose an easy body angle."
+  },
+  {
+    id: "bench-incline-plank-hold", canonicalName: "Bench Incline Plank Hold", aliases: [],
+    equipment: "Fixed stable bench", movementPattern: "Incline plank hold", targetMuscles: "Shoulders, chest and core",
+    images: { kind: "single", main: imageV9("bench-incline-plank-hold-main.webp") },
+    instructions: "Place both hands on a fixed stable bench and walk your feet back until your body makes a straight diagonal line. Hold for the prescribed time while breathing steadily. Step in to finish; do not use a bench that shifts.",
+    cue: "Keep your hips in line with your shoulders and heels."
+  },
+  {
+    id: "kneeling-push-up-hold", canonicalName: "Kneeling Push-Up Hold", aliases: [],
+    equipment: "Bodyweight and a clear floor", movementPattern: "Kneeling push-up support", targetMuscles: "Shoulders, chest and core",
+    images: { kind: "single", main: imageV9("kneeling-push-up-hold-main.webp") },
+    instructions: "Start on hands and knees. Move your hands under your shoulders and keep a straight line from shoulders to knees with your arms long. Hold for the prescribed time while breathing; lower gently before your back sags.",
+    cue: "Keep your hands planted and do not arch your lower back."
+  },
+  {
+    id: "dumbbell-hammer-curl", canonicalName: "Dumbbell Hammer Curl", aliases: [],
+    equipment: "Two light dumbbells", movementPattern: "Neutral-grip biceps curl", targetMuscles: "Biceps and forearms",
+    images: { kind: "single", main: imageV9("dumbbell-hammer-curl-main.webp") },
+    instructions: "Stand tall with a dumbbell at each side and palms facing inward. Keep your upper arms close to your ribs, curl the weights toward your shoulders, then lower them slowly without moving your torso.",
+    cue: "Keep the palms facing each other and avoid swinging."
+  },
+  {
+    id: "standing-band-hammer-curl", canonicalName: "Standing Band Hammer Curl", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Neutral-grip band curl", targetMuscles: "Biceps and forearms",
+    images: { kind: "single", main: imageV9("standing-band-hammer-curl-main.webp") },
+    instructions: "Stand securely on the middle of a long band with both feet and hold an end in each hand. Keep palms facing inward and upper arms by your ribs. Curl your hands toward your shoulders, then lower with control.",
+    cue: "Check the band is secure under your feet before each set."
+  },
+  {
+    id: "standing-band-triceps-kickback", canonicalName: "Standing Band Triceps Kickback", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Band triceps extension", targetMuscles: "Triceps",
+    images: { kind: "single", main: imageV9("standing-band-triceps-kickback-main.webp") },
+    instructions: "Pin one end of the long band under a foot and hold the other end in the same-side hand. Hinge slightly with a long back, keep your upper arm alongside your torso, straighten your elbow backward, then return slowly. Switch sides.",
+    cue: "Keep the band secure under your foot and your shoulder still."
+  },
+  {
+    id: "dumbbell-front-raise", canonicalName: "Dumbbell Front Raise", aliases: [],
+    equipment: "Two light dumbbells", movementPattern: "Front shoulder raise", targetMuscles: "Front shoulders",
+    images: { kind: "single", main: imageV9("dumbbell-front-raise-main.webp") },
+    instructions: "Stand tall holding light dumbbells in front of your thighs. With elbows soft and ribs stacked over your hips, raise your arms forward only to shoulder height, then lower slowly without leaning back.",
+    cue: "Stop at shoulder height and avoid shrugging or swinging."
   }
 ] as const;
 
@@ -891,7 +991,7 @@ export function resolveExerciseVisual(name: unknown): ExerciseVisualResolution {
 
 function visualIsV2Only(exercise: ExerciseVisual): boolean {
   const asset = exercise.images.kind === "single" ? exercise.images.main : exercise.images.start;
-  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V7}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V8}/`);
+  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V7}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V8}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V9}/`);
 }
 
 // Older V2 workouts were saved with broad labels before the reviewed catalog used

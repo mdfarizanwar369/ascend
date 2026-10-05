@@ -127,6 +127,27 @@ describe("native daily workout allowance", () => {
     expect(clientQuery.mock.calls.at(-1)).toEqual(["commit"]);
   });
 
+  it("adds a reviewed swap to an older saved outdoor bar plan without generating again", async () => {
+    const oldWorkout = { ...workout, experienceVersion: 2 as const, exercises: [
+      { name: "Short Bar Hang", duration: "5-10 sec" }
+    ], whyToday: "The bar is used for a short hold; Zoe has no completed pull-up on record yet." };
+    const oldDaily = { ...saved, request: { ...request, location: "outdoors", equipment: "Pull-Up Bar" },
+      workout: oldWorkout, completed: false };
+    dbQuery.mockResolvedValue({ rows: [oldDaily] });
+    const reopened = await getIosDailyWorkout("member", now);
+    expect(reopened?.workout.exercises[0].alternatives?.map(item => item.name)).toContain("Standing Upper-Back Squeeze");
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [oldDaily], rowCount: 1 };
+      if (sql.includes("from analytics_events")) return { rows: [], rowCount: 0 };
+      return { rows: [], rowCount: 1 };
+    });
+    const swapped = await swapIosDailyWorkoutExercise("member", "saved-key", 0);
+    expect(swapped.workout.exercises[0].name).toBe("Standing Upper-Back Squeeze");
+    expect(swapped.workout.whyToday).toContain("swapped the bar hold");
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("update ios_daily_workouts"),
+      ["member", "saved-key", swapped.workout]);
+  });
+
   it("does not swap an older workout when the route accepts saved workout requests", async () => {
     clientQuery.mockImplementation(async (sql: string) => {
       if (sql.includes("from ios_daily_workouts")) return { rows: [{ ...saved, completed: false }], rowCount: 1 };
