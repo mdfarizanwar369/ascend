@@ -101,6 +101,13 @@ const equipmentByLocation: Record<WorkoutPlannerLocation, string[]> = {
   outdoors: ["Bodyweight", "Walking or Running Route", "Park Bench or Bars"]
 };
 
+const equipmentByLocationV2: Record<WorkoutPlannerLocation, string[]> = {
+  gym: equipmentByLocation.gym,
+  home: ["Bodyweight", "Dumbbells", "Long Resistance Band", "Sturdy Chair", "Low Step"],
+  hotel: ["Bodyweight", "Dumbbells", "Long Resistance Band"],
+  outdoors: ["Bodyweight", "Walking or Running Route", "Park Bench", "Low Exercise Bar", "Pull-Up Bar", "Exercise Mat"]
+};
+
 const locationVisuals: Record<WorkoutPlannerLocation, string> = {
   gym: "/workouts/location-gym.jpg",
   home: "/workouts/location-home.jpg",
@@ -207,6 +214,7 @@ function WorkoutPlannerCard({
   setMessage,
   showExistingChoice,
   exerciseVisualsEnabled,
+  workoutEngineV2Enabled,
   allowRegenerate = true,
   workoutSaved,
   workout
@@ -223,12 +231,13 @@ function WorkoutPlannerCard({
   setMessage: (message: string) => void;
   showExistingChoice: boolean;
   exerciseVisualsEnabled: boolean;
+  workoutEngineV2Enabled: boolean;
   allowRegenerate?: boolean;
   workoutSaved: boolean;
   workout: GeneratedWorkout | null;
 }) {
   const nextStep = !answers.location ? "location" : !answers.timeAvailable ? "time" : !answers.goal ? "goal" : !answers.equipment ? "equipment" : "done";
-  const equipmentOptions = answers.location ? equipmentByLocation[answers.location] : [];
+  const equipmentOptions = answers.location ? (workoutEngineV2Enabled ? equipmentByLocationV2 : equipmentByLocation)[answers.location] : [];
   const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(0);
   const completionPercent = workout?.exercises.length ? Math.round((checkedExercises.size / workout.exercises.length) * 100) : 0;
 
@@ -466,7 +475,7 @@ function WorkoutPlannerCard({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {nextStep === "location"
               ? locationOptions.map((option) => (
-                  <OptionButton key={option.value} imageUrl={locationVisuals[option.value]} label={option.label} onClick={() => onAnswer({ location: option.value })} />
+                  <OptionButton key={option.value} imageUrl={locationVisuals[option.value]} label={workoutEngineV2Enabled && option.value === "hotel" ? "Hotel Room" : option.label} onClick={() => onAnswer({ location: option.value })} />
                 ))
               : null}
             {nextStep === "time"
@@ -500,6 +509,7 @@ export function CoachHubClient() {
   const iosApp = useIosApp();
   const [nativePaid, setNativePaid] = useState(false);
   const [exerciseVisualsEnabled, setExerciseVisualsEnabled] = useState(false);
+  const [workoutEngineV2Enabled, setWorkoutEngineV2Enabled] = useState(false);
   const iosFree = freeEdition || (iosApp && !nativePaid);
   useEffect(() => {
     if (!iosApp || freeEdition) return;
@@ -514,8 +524,11 @@ export function CoachHubClient() {
   useEffect(() => {
     let active = true;
     void getWorkoutVisualAccess()
-      .then(({ enabled }) => {
-        if (active) setExerciseVisualsEnabled(enabled === true);
+      .then(({ enabled, workoutEngineV2Enabled }) => {
+        if (active) {
+          setExerciseVisualsEnabled(enabled === true);
+          setWorkoutEngineV2Enabled(workoutEngineV2Enabled === true);
+        }
       })
       .catch(() => {
         void loadAccountProfile()
@@ -976,6 +989,7 @@ export function CoachHubClient() {
               setMessage={setMessage}
               showExistingChoice={showExistingChoice}
               exerciseVisualsEnabled={exerciseVisualsEnabled}
+              workoutEngineV2Enabled={workoutEngineV2Enabled}
               allowRegenerate={!iosFree}
               workoutSaved={Boolean(savedWorkoutSummary) || dailyWorkoutCompleted}
               workout={workout}

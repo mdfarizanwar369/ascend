@@ -14,7 +14,7 @@ const plan: CoachWorkoutPlan = {
 
 describe("Zoe workout engine V2", () => {
   it("has reviewed pictures and coaching instructions for every plan and swap movement", () => {
-    expect(V2_WORKOUT_CATALOG).toHaveLength(79);
+    expect(V2_WORKOUT_CATALOG).toHaveLength(87);
     for (const item of V2_WORKOUT_CATALOG) {
       if (item.pattern === "accessory") expect(item.target, item.name).toBeTruthy();
       const visual = resolveV2WorkoutExerciseVisual(item.name);
@@ -126,7 +126,7 @@ describe("Zoe workout engine V2", () => {
 
   it("avoids back-to-back exercise repeats across a week of planned sessions", () => {
     for (const setting of [
-      { location: "outdoors", equipment: "Bodyweight" },
+      { location: "outdoors", equipment: "Exercise Mat" },
       { location: "home", equipment: "Dumbbells" },
       { location: "home", equipment: "Resistance Bands" },
       { location: "gym", equipment: "Full Gym" }
@@ -287,6 +287,64 @@ describe("Zoe workout engine V2", () => {
     }
   });
 
+  it("keeps hotel-room plans and swaps within confirmed equipment and a small space", () => {
+    for (const equipment of ["Bodyweight", "Dumbbells", "Long Resistance Band"]) {
+      for (const goal of ["strength", "muscle_gain", "fat_loss", "general_fitness", "recovery", "mobility"]) {
+        const blueprint = buildWorkoutBlueprint({ ...base, location: "hotel", equipment, goal, timeAvailable: "45", recentWorkouts: [] });
+        const names = blueprint.exercises.flatMap(item => [item.name, ...(item.alternatives ?? []).map(alternative => alternative.name)]);
+        expect(names, `${equipment} ${goal}`).not.toEqual(expect.arrayContaining([
+          "Chair Squat", "Low Step-Up", "Bench Incline Push-Up", "Bodyweight Walking Lunge",
+          "Easy Walk", "Brisk Walk", "Seated Dumbbell Calf Raise"
+        ]));
+        expect(applyWorkoutBlueprint(plan, blueprint).warmup[0]).toContain("quiet marching");
+      }
+    }
+  });
+
+  it("makes the outdoor equipment choices distinct without assuming a floor or wall", () => {
+    const options = { ...base, location: "outdoors", goal: "general_fitness", timeAvailable: "45", recentWorkouts: [] };
+    const bodyweight = buildWorkoutBlueprint({ ...options, equipment: "Bodyweight" });
+    const route = buildWorkoutBlueprint({ ...options, equipment: "Walking or Running Route" });
+    const bench = buildWorkoutBlueprint({ ...options, equipment: "Park Bench" });
+    const lowBar = buildWorkoutBlueprint({ ...options, equipment: "Low Exercise Bar" });
+    const mat = buildWorkoutBlueprint({ ...options, equipment: "Exercise Mat" });
+    const names = (blueprint: typeof bodyweight) => blueprint.exercises.flatMap(item => [item.name, ...(item.alternatives ?? []).map(alternative => alternative.name)]);
+    for (const blueprint of [bodyweight, route, bench, lowBar]) {
+      for (const name of names(blueprint)) {
+        const item = V2_WORKOUT_CATALOG.find(candidate => candidate.name === name)!;
+        expect(item.requiresFloor, name).not.toBe(true);
+        expect(item.requiresWall, name).not.toBe(true);
+      }
+    }
+    expect(names(bodyweight)).not.toContain("Walk Intervals");
+    expect(names(route)).toContain("Walk Intervals");
+    expect(names(bench)).toEqual(expect.arrayContaining(["Bench Sit-to-Stand", "Bench Incline Push-Up"]));
+    expect(names(lowBar)).toContain("Inverted Row");
+    expect(names(mat).some(name => V2_WORKOUT_CATALOG.find(item => item.name === name)?.requiresFloor)).toBe(true);
+    expect(names(mat)).not.toContain("Wall Push-Up");
+    expect(buildWorkoutBlueprint({ ...options, goal: "strength", equipment: "Bodyweight" }).focus).toBe("Outdoor strength and conditioning");
+    const legacy = buildWorkoutBlueprint({ ...options, equipment: "Park Bench or Bars" });
+    expect(names(legacy)).not.toEqual(expect.arrayContaining(["Bench Sit-to-Stand", "Bench Incline Push-Up", "Inverted Row", "Pull-Up"]));
+  });
+
+  it("introduces jogging and pull-up bar work only after completed exercise history", () => {
+    const routeOptions = { ...base, location: "outdoors", equipment: "Walking or Running Route", goal: "fat_loss", timeAvailable: "45" };
+    const freshRoute = buildWorkoutBlueprint({ ...routeOptions, recentWorkouts: [] });
+    expect(freshRoute.exercises.flatMap(item => [item.name, ...(item.alternatives ?? []).map(alternative => alternative.name)])).not.toContain("Walk-Jog Intervals");
+    const runner = buildWorkoutBlueprint({ ...routeOptions, recentWorkouts: [{
+      metadata: { evidenceType: "completed_plan", exercises: [{ name: "Jog" }] }, created_at: "2026-09-25T08:00:00Z"
+    }], avoidExercises: ["Walk Intervals"] });
+    expect(runner.exercises.map(item => item.name)).toContain("Walk-Jog Intervals");
+    const barOptions = { ...base, location: "outdoors", equipment: "Pull-Up Bar", goal: "strength", timeAvailable: "45" };
+    const freshBar = buildWorkoutBlueprint({ ...barOptions, recentWorkouts: [] });
+    expect(freshBar.exercises.map(item => item.name)).toContain("Short Bar Hang");
+    expect(freshBar.exercises.flatMap(item => [item.name, ...(item.alternatives ?? []).map(alternative => alternative.name)])).not.toContain("Pull-Up");
+    const experienced = buildWorkoutBlueprint({ ...barOptions, recentWorkouts: [{
+      metadata: { evidenceType: "completed_plan", exercises: [{ name: "Pull-Up" }] }, created_at: "2026-09-25T08:00:00Z"
+    }], avoidExercises: ["Short Bar Hang"] });
+    expect(experienced.exercises.map(item => item.name)).toContain("Pull-Up");
+  });
+
   it("offers varied outdoor mobility across consecutive days without a new input", () => {
     const recentWorkouts: Array<{ metadata: { evidenceType: "planned"; exercises: Array<{ name: string }> }; created_at: string }> = [];
     let previous = new Set<string>();
@@ -304,13 +362,21 @@ describe("Zoe workout engine V2", () => {
     const settings = [
       { location: "outdoors", equipment: "Bodyweight" },
       { location: "outdoors", equipment: "Walking or Running Route" },
+      { location: "outdoors", equipment: "Park Bench" },
+      { location: "outdoors", equipment: "Low Exercise Bar" },
+      { location: "outdoors", equipment: "Pull-Up Bar" },
+      { location: "outdoors", equipment: "Exercise Mat" },
       { location: "outdoors", equipment: "Park Bench or Bars" },
       { location: "home", equipment: "Bodyweight" },
       { location: "home", equipment: "Dumbbells" },
       { location: "home", equipment: "Resistance Bands" },
+      { location: "home", equipment: "Long Resistance Band" },
+      { location: "home", equipment: "Sturdy Chair" },
+      { location: "home", equipment: "Low Step" },
       { location: "hotel", equipment: "Bodyweight" },
       { location: "hotel", equipment: "Dumbbells" },
       { location: "hotel", equipment: "Resistance Bands" },
+      { location: "hotel", equipment: "Long Resistance Band" },
       { location: "gym", equipment: "Limited Gym" },
       { location: "gym", equipment: "Full Gym" }
     ];
