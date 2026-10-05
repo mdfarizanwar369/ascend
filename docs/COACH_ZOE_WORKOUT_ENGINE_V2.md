@@ -2,6 +2,8 @@
 
 V2 uses the existing Gemini workout call. It reads completed exercise names from recent `burn_log` events and names from recently generated plans, chooses a session locally from reviewed movements, and gives Gemini a compact session blueprint. The server enforces that blueprint after Gemini responds. Exercise swaps and the three-session roadmap use local logic; they do not call Gemini.
 
+The reviewed prescription catalog has 79 movements. The Full Gym options now include leg curl, leg extension, two leg press formats, hack squat, shoulder press, chest fly, rear delt, supported row, hip abduction, calf raise, and cable variations. Forty-five and sixty minute muscle-gain sessions use accessory slots rather than repeating push/pull slots. The selector balances recent accessory targets, push/pull angles, and available equipment. Accessory swaps stay within the same target area. Every catalog entry has a local visual and coaching instructions; the new v6 machine visuals resolve only for V2 workouts until its public flag is enabled.
+
 ## Rollout
 
 - `COACH_ZOE_WORKOUT_ENGINE_V2=false` and `COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT=false` are the defaults. Existing users keep the V1 response and planner behavior.
@@ -17,4 +19,4 @@ Completed workouts record exercise names and optional effort (`too_easy`, `about
 
 ## Verification
 
-Run shared build, backend TypeScript check, frontend lint, workout engine and Gemini provider tests, iOS daily workout tests, and the Coach Zoe UI test. The feature flag must remain off for production until the owner pilot has been reviewed.
+Run shared build, backend TypeScript check, frontend lint, workout engine and Gemini provider tests, iOS daily workout tests, and the Coach Zoe UI test. Verify every catalog visual file exists and the V2-only images remain unresolved in legacy plans. Keep the public V2 flag off until the owner pilot has been reviewed.

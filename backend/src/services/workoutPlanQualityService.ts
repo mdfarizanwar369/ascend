@@ -1,10 +1,11 @@
 import type { CoachWorkoutExercise, CoachWorkoutPlan } from "../integrations/openai";
 import { localDateKeyAtOffset } from "./memberTimeService";
 
-type Pattern = "squat" | "hinge" | "push" | "pull" | "single_leg" | "core" | "cardio" | "mobility";
+type Pattern = "squat" | "hinge" | "push" | "pull" | "single_leg" | "accessory" | "core" | "cardio" | "mobility";
 type Kit = "bodyweight" | "household" | "dumbbells" | "bands" | "gym" | "outdoor";
 type Goal = "fat_loss" | "muscle_gain" | "strength" | "general_fitness" | "recovery" | "mobility";
-type CatalogExercise = { name: string; pattern: Pattern; kit: Kit[]; reps?: string; duration?: string; note: string; advanced?: boolean; outdoorSuitable?: boolean };
+type AccessoryTarget = "quads" | "hamstrings" | "glutes" | "chest" | "shoulders" | "rear_delts" | "biceps" | "triceps" | "calves";
+type CatalogExercise = { name: string; pattern: Pattern; kit: Kit[]; reps?: string; duration?: string; note: string; advanced?: boolean; outdoorSuitable?: boolean; target?: AccessoryTarget };
 export type WorkoutHistoryRow = { metadata?: Record<string, unknown> | null; created_at?: string | Date | null };
 export type WorkoutBlueprint = {
   exercises: CoachWorkoutExercise[];
@@ -31,6 +32,8 @@ export const V2_WORKOUT_CATALOG: CatalogExercise[] = [
   { name: "Dumbbell Front Squat", pattern: "squat", kit: ["dumbbells", "gym"], reps: "8-10", note: "Use a controlled depth.", advanced: true },
   { name: "Standing Band Squat", pattern: "squat", kit: ["bands"], reps: "8-12", note: "Keep the band secure under both feet." },
   { name: "45-Degree Leg Press", pattern: "squat", kit: ["gym"], reps: "10-12", note: "Do not lock your knees." },
+  { name: "Seated Leg Press", pattern: "squat", kit: ["gym"], reps: "8-12", note: "Keep your hips on the seat and control the return." },
+  { name: "Hack Squat Machine", pattern: "squat", kit: ["gym"], reps: "8-10", note: "Use a comfortable depth with your back supported.", advanced: true },
   { name: "Glute Bridge", pattern: "hinge", kit: ["bodyweight"], reps: "10-15", note: "Pause briefly at the top." },
   { name: "Single-Leg Glute Bridge", pattern: "hinge", kit: ["bodyweight"], reps: "8 each side", note: "Keep your hips level.", advanced: true },
   { name: "Dumbbell Romanian Deadlift", pattern: "hinge", kit: ["dumbbells", "gym"], reps: "8-12", note: "Hinge at the hips with a neutral back." },
@@ -45,6 +48,7 @@ export const V2_WORKOUT_CATALOG: CatalogExercise[] = [
   { name: "Dumbbell Bench Press", pattern: "push", kit: ["gym"], reps: "8-12", note: "Use a weight you can control." },
   { name: "Dumbbell Shoulder Press", pattern: "push", kit: ["dumbbells", "gym"], reps: "8-12", note: "Press without leaning backward." },
   { name: "Machine Chest Press", pattern: "push", kit: ["gym"], reps: "8-12", note: "Keep shoulders down and back." },
+  { name: "Machine Shoulder Press", pattern: "push", kit: ["gym"], reps: "8-12", note: "Keep your ribs down as you press." },
   { name: "Standing Band Chest Press", pattern: "push", kit: ["bands"], reps: "10-15", note: "Secure the band across your upper back and press smoothly." },
   { name: "Band Overhead Shoulder Press", pattern: "push", kit: ["bands"], reps: "8-12", note: "Keep the band secure under your feet and avoid leaning back." },
   { name: "Prone W Raise", pattern: "pull", kit: ["bodyweight"], reps: "10-12", note: "Squeeze shoulder blades gently." },
@@ -53,17 +57,35 @@ export const V2_WORKOUT_CATALOG: CatalogExercise[] = [
   { name: "Single-Arm Dumbbell Row", pattern: "pull", kit: ["dumbbells", "gym"], reps: "8-12 each side", note: "Brace your free hand on your thigh and keep your torso steady." },
   { name: "Band Bent-Over Row", pattern: "pull", kit: ["bands"], reps: "10-15", note: "Stand on the band and pull both elbows toward your ribs." },
   { name: "Seated Cable Row", pattern: "pull", kit: ["gym"], reps: "10-12", note: "Avoid swinging your torso." },
+  { name: "Chest-Supported Machine Row", pattern: "pull", kit: ["gym"], reps: "8-12", note: "Keep your chest against the pad." },
+  { name: "Bench-Supported Single-Arm Dumbbell Row", pattern: "pull", kit: ["gym"], reps: "8-12 each side", note: "Support your torso on a stable bench." },
   { name: "Lat Pulldown", pattern: "pull", kit: ["gym"], reps: "8-12", note: "Pull to the upper chest." },
   { name: "Machine-Assisted Pull-Up", pattern: "pull", kit: ["gym"], reps: "6-10", note: "Use enough assistance to move with control.", advanced: true },
+  { name: "Pull-Up", pattern: "pull", kit: ["gym"], reps: "5-8", note: "Use a secure bar and move without swinging.", advanced: true },
   { name: "Supported Split Squat", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Hold a stable support if needed." },
   { name: "Bodyweight Reverse Lunge", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Step back far enough to stay balanced." },
   { name: "Bodyweight Walking Lunge", pattern: "single_leg", kit: ["bodyweight"], reps: "8 each side", note: "Take controlled steps and keep your balance.", advanced: true },
   { name: "Low Step-Up", pattern: "single_leg", kit: ["household"], reps: "8 each side", note: "Use a sturdy low step." },
   { name: "Dumbbell Reverse Lunge", pattern: "single_leg", kit: ["dumbbells", "gym"], reps: "8 each side", note: "Start light and stay balanced.", advanced: true },
+  { name: "Bench Step-Up", pattern: "single_leg", kit: ["gym"], reps: "8 each side", note: "Choose a stable low bench and step down slowly.", advanced: true },
+  { name: "Leg Extension", pattern: "accessory", kit: ["gym"], reps: "10-15", note: "Straighten your knees smoothly without snapping them.", target: "quads" },
+  { name: "Seated Leg Curl", pattern: "accessory", kit: ["gym"], reps: "10-15", note: "Keep your hips on the seat as you curl.", target: "hamstrings" },
+  { name: "Hip Abduction Machine", pattern: "accessory", kit: ["gym"], reps: "12-15", note: "Move your knees apart without leaning your torso.", target: "glutes" },
+  { name: "Pec Deck Fly", pattern: "accessory", kit: ["gym"], reps: "10-15", note: "Bring the handles together without shrugging.", target: "chest" },
+  { name: "Cable Chest Fly", pattern: "accessory", kit: ["gym"], reps: "10-15", note: "Keep a soft elbow bend and steady torso.", target: "chest" },
+  { name: "Dumbbell Lateral Raise", pattern: "accessory", kit: ["dumbbells", "gym"], reps: "10-15", note: "Raise only to a comfortable shoulder height.", target: "shoulders" },
+  { name: "Reverse Pec Deck", pattern: "accessory", kit: ["gym"], reps: "10-15", note: "Open your arms without shrugging.", target: "rear_delts" },
+  { name: "Cable Face Pull", pattern: "accessory", kit: ["gym"], reps: "10-15", note: "Pull the rope toward your face with elbows wide.", target: "rear_delts" },
+  { name: "Band Pull-Apart", pattern: "accessory", kit: ["bands"], reps: "10-15", note: "Pull the band apart without arching your back.", target: "rear_delts" },
+  { name: "Dumbbell Bicep Curl", pattern: "accessory", kit: ["dumbbells", "gym"], reps: "10-15", note: "Keep your elbows near your sides.", target: "biceps" },
+  { name: "Straight-Bar Cable Triceps Pushdown", pattern: "accessory", kit: ["gym"], reps: "10-15", note: "Keep your elbows near your sides as you press down.", target: "triceps" },
+  { name: "Seated Dumbbell Calf Raise", pattern: "accessory", kit: ["dumbbells", "gym"], reps: "12-15", note: "Raise your heels slowly with the dumbbell steady on your thighs.", target: "calves" },
+  { name: "Seated Calf Raise Machine", pattern: "accessory", kit: ["gym"], reps: "12-15", note: "Lift your heels through a comfortable range.", target: "calves" },
   { name: "Dead Bug", pattern: "core", kit: ["bodyweight"], reps: "8 each side", note: "Keep your lower back comfortable." },
   { name: "Bird-Dog", pattern: "core", kit: ["bodyweight"], reps: "8 each side", note: "Reach long without twisting." },
   { name: "Forearm Side Plank", pattern: "core", kit: ["bodyweight"], duration: "20-30 sec each side", note: "Bend the lower knee if needed.", advanced: true },
   { name: "Forearm Plank", pattern: "core", kit: ["bodyweight"], duration: "20-40 sec", note: "Breathe steadily." },
+  { name: "Hanging Knee Raise", pattern: "core", kit: ["gym"], reps: "8-12", note: "Raise your knees without swinging.", advanced: true },
   { name: "Easy Walk", pattern: "cardio", kit: ["bodyweight", "outdoor"], duration: "8-15 min", note: "Keep a conversational pace." },
   { name: "Brisk Walk", pattern: "cardio", kit: ["bodyweight", "outdoor"], duration: "8-15 min", note: "Walk at a sustainable pace." },
   { name: "Stationary Bike", pattern: "cardio", kit: ["gym"], duration: "8-15 min", note: "Stay at a comfortable effort." },
@@ -99,6 +121,19 @@ function key(name: string) {
     "forearm side plank": "side plank",
     "kneeling hip flexor stretch": "hip flexor stretch"
   } as Record<string, string>)[normalized] ?? normalized;
+}
+
+function movementFamily(item: CatalogExercise): string {
+  if (item.pattern === "accessory") return item.target ?? "accessory";
+  if (item.pattern === "push") return /shoulder|overhead/i.test(item.name) ? "vertical_push" : "horizontal_push";
+  if (item.pattern === "pull") return /pulldown|pull-up/i.test(item.name) ? "vertical_pull" : "horizontal_pull";
+  if (item.pattern === "squat") return /leg press/i.test(item.name) ? "leg_press" : "squat";
+  if (item.pattern === "hinge") return /bridge/i.test(item.name) ? "glute_bridge" : "hip_hinge";
+  return item.pattern;
+}
+
+function catalogItemFor(name: string): CatalogExercise | undefined {
+  return V2_WORKOUT_CATALOG.find(item => key(item.name) === key(name));
 }
 
 function patternFor(name: string): Pattern | null {
@@ -171,8 +206,8 @@ function goalPatterns(goal: Goal, minutes: number): Pattern[] {
     muscle_gain: [
       ["squat", "push", "pull"],
       ["squat", "push", "pull", "hinge"],
-      ["squat", "hinge", "push", "pull", "push"],
-      ["squat", "hinge", "push", "pull", "push", "pull"]
+      ["squat", "hinge", "push", "pull", "accessory"],
+      ["squat", "hinge", "push", "pull", "accessory", "accessory"]
     ],
     fat_loss: [
       ["squat", "push", "cardio"],
@@ -245,15 +280,15 @@ export function buildWorkoutBlueprint(input: {
     if (upperIndex >= 0) patterns[upperIndex] = patterns.includes("hinge") ? "single_leg" : "hinge";
   }
   const kit = availableKit(input.equipment, input.location);
-  if (goal === "muscle_gain" && !kit.has("dumbbells") && !kit.has("bands") && !kit.has("gym")) {
-    // Without resistance equipment, a second push/pull slot would often be a
-    // near-identical or easier version of the first rather than useful volume.
-    const seen = new Set<Pattern>();
+  if (goal === "muscle_gain") {
+    // A small equipment kit must never force the same accessory twice, or
+    // prescribe an unavailable machine just to fill a template slot.
+    const accessoryCount = V2_WORKOUT_CATALOG.filter(item => item.pattern === "accessory" && item.kit.some(value => kit.has(value))).length;
+    let usedAccessorySlots = 0;
     for (const [index, pattern] of patterns.entries()) {
-      if ((pattern === "push" || pattern === "pull") && seen.has(pattern)) {
+      if (pattern === "accessory" && ++usedAccessorySlots > accessoryCount) {
         patterns[index] = patterns.includes("single_leg") ? "core" : "single_leg";
       }
-      seen.add(patterns[index]);
     }
   }
   const preferredKit: Kit = /full gym/.test(input.equipment.toLowerCase()) ? "gym"
@@ -261,6 +296,7 @@ export function buildWorkoutBlueprint(input: {
       : /band/.test(input.equipment.toLowerCase()) ? "bands" : "bodyweight";
   const avoided = new Set((input.avoidExercises ?? []).map(key));
   const selected = new Set<string>();
+  const selectedFamilies = new Set<string>();
   const recentNames = history.slice(0, 2).flatMap(session => session.names.map(key));
   const allNames = history.flatMap(session => session.names.map(key));
   const mostRecentDay = history.find(session => session.date && session.date <= today)?.date;
@@ -270,6 +306,9 @@ export function buildWorkoutBlueprint(input: {
   const mostRecentDayNames = new Set(mostRecentDayAgeMs >= 0 && mostRecentDayAgeMs <= 7 * 86_400_000
     ? history.filter(session => session.date === mostRecentDay).flatMap(session => session.names.map(key))
     : []);
+  const mostRecentDayFamilies = new Set([...mostRecentDayNames].map(name => catalogItemFor(name)).filter((item): item is CatalogExercise => Boolean(item)).map(movementFamily));
+  const recentAccessoryTargets = history.slice(0, 4).flatMap(session => session.names.map(catalogItemFor)
+    .filter((item): item is CatalogExercise => item?.pattern === "accessory" && Boolean(item.target)).map(item => item.target!));
   const availableSquats = V2_WORKOUT_CATALOG.filter(item => item.pattern === "squat" && item.kit.some(value => kit.has(value)) && (!input.conservative || !item.advanced));
   if (patterns.includes("squat") && availableSquats.length === 1 && mostRecentDayNames.has(key(availableSquats[0].name))) {
     // A single suitable squat would otherwise repeat every day. Rotate that
@@ -298,14 +337,29 @@ export function buildWorkoutBlueprint(input: {
       // Prefer a different movement from the last training day whenever the
       // available equipment offers one. An explicit avoid still ranks higher.
       (mostRecentDayNames.has(key(item.name)) ? 90 : 0) +
+      // Prefer a different angle after the last session, while keeping each
+      // movement family available again once enough recovery time has passed.
+      (mostRecentDayFamilies.has(movementFamily(item)) ? 14 : 0) +
       (recentNames.includes(key(item.name)) ? 35 : 0) +
       (allNames.includes(key(item.name)) ? index === 0 ? -12 : 5 : 0) +
+      (selectedFamilies.has(movementFamily(item)) ? 80 : 0) +
+      (item.pattern === "accessory" ? recentAccessoryTargets.filter(target => target === item.target).length * 12 : 0) +
+      (preferredKit === "gym" && !gentle && ["squat", "hinge", "push", "pull"].includes(item.pattern)
+        && (!item.kit.includes("gym") || item.name === "Bench Incline Push-Up") ? 45 : 0) +
       (!gentle && item.kit.includes(preferredKit) ? -8 : 0) +
       (hash(`${today}:${pattern}:${item.name}`) % 7)
     })).sort((a, b) => a.score - b.score || a.item.name.localeCompare(b.item.name));
-    const chosen = ranked[0]?.item ?? V2_WORKOUT_CATALOG.find(item => item.pattern === pattern)!;
+    // Avoid a first-time automatic bar exercise for an unknown gym member.
+    // Once used in a prior plan, Zoe can prescribe it again.
+    const primaryChoices = ranked.filter(choice => !["Pull-Up", "Hanging Knee Raise"].includes(choice.item.name)
+      || allNames.includes(key(choice.item.name)));
+    const chosen = primaryChoices[0]?.item ?? ranked[0]?.item ?? V2_WORKOUT_CATALOG.find(item => item.pattern === pattern)!;
     selected.add(key(chosen.name));
-    const alternatives = ranked.slice(1).filter(choice => !selected.has(key(choice.item.name))).slice(0, 3).map(choice => prescribe(choice.item));
+    selectedFamilies.add(movementFamily(chosen));
+    // An accessory swap must still work the intended area; a biceps curl is
+    // not a substitute for a leg curl just because both are accessories.
+    const alternatives = ranked.filter(choice => !selected.has(key(choice.item.name))
+      && (pattern !== "accessory" || choice.item.target === chosen.target)).slice(0, 3).map(choice => prescribe(choice.item));
     const recentAnchor = allNames.includes(key(chosen.name)) && !recentNames.includes(key(chosen.name)) && !mostRecentDayNames.has(key(chosen.name));
     return {
       ...prescribe(chosen),
