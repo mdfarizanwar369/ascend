@@ -283,7 +283,7 @@ function WorkoutPlannerCard({
   }
 
   if (workout) {
-    const optionalTimeSuggestion = workout.experienceVersion === 2 && answers.timeAvailable && answers.location
+    const optionalTimeSuggestion = workout.experienceVersion === 2 && answers.timeAvailable && Number(answers.timeAvailable) < 60 && answers.location
       ? optionalWorkoutTimeSuggestion(workout.exercises, Number(answers.timeAvailable), answers.location) : null;
     return (
       <section className="overflow-hidden rounded-2xl border border-lime/25 bg-surface shadow-soft">

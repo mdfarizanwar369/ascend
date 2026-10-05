@@ -14,7 +14,7 @@ const plan: CoachWorkoutPlan = {
 
 describe("Zoe workout engine V2", () => {
   it("has reviewed pictures and coaching instructions for every plan and swap movement", () => {
-    expect(V2_WORKOUT_CATALOG).toHaveLength(119);
+    expect(V2_WORKOUT_CATALOG).toHaveLength(120);
     for (const item of V2_WORKOUT_CATALOG) {
       if (item.pattern === "accessory") expect(item.target, item.name).toBeTruthy();
       const visual = resolveV2WorkoutExerciseVisual(item.name);
@@ -346,7 +346,8 @@ describe("Zoe workout engine V2", () => {
       const names = blueprint.exercises.map(exercise => exercise.name);
       expect(names).not.toEqual(expect.arrayContaining(["Child's Pose", "Cat-Cow", "Thread the Needle", "Kneeling Hip Flexor Stretch", "Standing Calf Stretch", "Dead Bug", "Bird-Dog"]));
       expect(names.filter(name => name.startsWith("Standing "))).toHaveLength(goal === "mobility" ? 5 : 4);
-      expect(blueprint.estimatedDurationMinutes).toBeLessThan(60);
+      expect(blueprint.estimatedDurationMinutes).toBeGreaterThanOrEqual(59);
+      expect(blueprint.estimatedDurationMinutes).toBeLessThanOrEqual(64);
     }
   });
 
@@ -474,11 +475,40 @@ describe("Zoe workout engine V2", () => {
     expect(eased.exercises.find(exercise => exercise.name === "Short Bar Hang")?.duration).toBe("5-10 sec");
   });
 
-  it("suggests an optional easy finish when a cautious long session ends early", () => {
+  it("prescribes the full hour for a cautious hotel session without extra resistance sets", () => {
     const blueprint = buildWorkoutBlueprint({ ...base, location: "hotel", equipment: "Bodyweight", goal: "strength",
       timeAvailable: "60", conservative: true, recentWorkouts: [] });
-    expect(blueprint.estimatedDurationMinutes).toBeLessThan(45);
-    expect(optionalWorkoutTimeSuggestion(blueprint.exercises, 60, "hotel")).toContain("quiet marching or side steps");
+    expect(blueprint.estimatedDurationMinutes).toBeGreaterThanOrEqual(59);
+    expect(blueprint.estimatedDurationMinutes).toBeLessThanOrEqual(64);
+    expect(blueprint.exercises.filter(exercise => exercise.sets).every(exercise => exercise.sets === 2)).toBe(true);
+    expect(blueprint.exercises.filter(exercise => /March|Side Step/.test(exercise.name))).toHaveLength(2);
+    expect(optionalWorkoutTimeSuggestion(blueprint.exercises, 60, "hotel")).toBeNull();
+  });
+
+  it("honors avoided exercises when adding movement to fill the hour", () => {
+    const home = buildWorkoutBlueprint({ ...base, goal: "strength", timeAvailable: "60",
+      avoidExercises: ["Easy Walk"], recentWorkouts: [] });
+    expect(home.exercises.map(exercise => exercise.name)).not.toContain("Easy Walk");
+    expect(home.estimatedDurationMinutes).toBeGreaterThanOrEqual(59);
+    const hotel = buildWorkoutBlueprint({ ...base, location: "hotel", equipment: "Bodyweight", goal: "strength",
+      timeAvailable: "60", conservative: true, avoidExercises: ["March in Place"], recentWorkouts: [] });
+    expect(hotel.exercises.map(exercise => exercise.name)).not.toContain("March in Place");
+    expect(hotel.estimatedDurationMinutes).toBeGreaterThanOrEqual(59);
+    const allHotelCardioAvoided = buildWorkoutBlueprint({ ...base, location: "hotel", equipment: "Bodyweight", goal: "strength",
+      timeAvailable: "60", conservative: true,
+      avoidExercises: ["March in Place", "Side Step Touch", "Gentle Knee March"], recentWorkouts: [] });
+    expect(allHotelCardioAvoided.exercises.map(exercise => exercise.name)).not.toContain("March in Place");
+    expect(allHotelCardioAvoided.exercises.map(exercise => exercise.name)).not.toContain("Side Step Touch");
+    expect(allHotelCardioAvoided.exercises.map(exercise => exercise.name)).not.toContain("Gentle Knee March");
+    expect(allHotelCardioAvoided.estimatedDurationMinutes).toBeLessThan(55);
+    expect(allHotelCardioAvoided.whyToday).toContain("shorter than an hour");
+    const recovery = buildWorkoutBlueprint({ ...base, location: "hotel", equipment: "Bodyweight", goal: "recovery",
+      timeAvailable: "60", avoidExercises: ["March in Place", "Side Step Touch", "Gentle Knee March"], recentWorkouts: [] });
+    expect(recovery.exercises.every(exercise => !["March in Place", "Side Step Touch", "Gentle Knee March"].includes(exercise.name))).toBe(true);
+    expect(recovery.exercises.flatMap(exercise => exercise.alternatives ?? [])
+      .every(exercise => !["March in Place", "Side Step Touch", "Gentle Knee March"].includes(exercise.name))).toBe(true);
+    expect(recovery.estimatedDurationMinutes).toBeLessThan(55);
+    expect(recovery.whyToday).toContain("shorter than an hour");
   });
 
   it("does not call a lower-body outdoor session balanced full-body work", () => {
@@ -597,7 +627,12 @@ describe("Zoe workout engine V2", () => {
             const label = `${goal} ${timeAvailable} ${setting.location} ${setting.equipment} conservative=${conservative}`;
             expect(new Set(blueprint.exercises.map(exercise => exercise.name)).size, label).toBe(blueprint.exercises.length);
             expect(blueprint.estimatedDurationMinutes, label).toBe(estimateWorkoutDurationMinutes(blueprint.exercises));
-            expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable) + 2);
+            if (timeAvailable === "60") {
+              expect(blueprint.estimatedDurationMinutes, label).toBeGreaterThanOrEqual(59);
+              expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(64);
+            } else {
+              expect(blueprint.estimatedDurationMinutes, label).toBeLessThanOrEqual(Number(timeAvailable) + 2);
+            }
             const workout = applyWorkoutBlueprint(plan, blueprint);
             for (const [index, exercise] of workout.exercises.entries()) {
               expect(exercise.alternatives?.length, `${label}: ${exercise.name}`).toBeGreaterThan(0);

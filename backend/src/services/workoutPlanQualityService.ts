@@ -134,6 +134,7 @@ export const V2_WORKOUT_CATALOG: CatalogExercise[] = [
   { name: "Rowing Machine", pattern: "cardio", kit: ["gym"], duration: "8-15 min", note: "Push with your legs, then finish with your arms; return slowly." },
   { name: "March in Place", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Move at a comfortable pace." },
   { name: "Side Step Touch", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Step side to side quietly in a clear space; do not hop." },
+  { name: "Gentle Knee March", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Alternate low knee lifts at a comfortable pace. Keep a hand near stable support if balance feels uncertain, and do not force the knees high." },
   { name: "Cat-Cow", pattern: "mobility", kit: ["bodyweight"], reps: "6-10", note: "Move gently with your breath.", requiresFloor: true },
   { name: "Thread the Needle", pattern: "mobility", kit: ["bodyweight"], reps: "6 each side", note: "Rotate only as far as comfortable.", requiresFloor: true },
   { name: "Kneeling Hip Flexor Stretch", pattern: "mobility", kit: ["bodyweight"], duration: "30 sec each side", note: "Keep the stretch gentle.", requiresFloor: true },
@@ -447,7 +448,7 @@ export function buildWorkoutBlueprint(input: {
   const eligibleChoices = (pattern: Pattern) => V2_WORKOUT_CATALOG.filter(item => item.pattern === pattern
     && suitableForSetting(item, kit, input.location)
     && (!(input.conservative || gentle) || !item.advanced)
-    && (goal !== "recovery" || item.name !== "Brisk Walk"));
+    && (!gentle || item.pattern !== "cardio" || !["Brisk Walk", "Walk Intervals", "Walk-Jog Intervals", "Rowing Machine"].includes(item.name)));
   const swapEligible = (item: CatalogExercise) =>
     !(["Pull-Up", "Hanging Knee Raise", "Barbell Back Squat", "Barbell Romanian Deadlift", "Barbell Bench Press"].includes(item.name) && !completedNames.has(key(item.name)))
     && (item.name !== "Walk-Jog Intervals" || hasRunningHistory);
@@ -576,6 +577,69 @@ export function buildWorkoutBlueprint(input: {
       cardio.duration = `${Math.min(20, currentMinutes + Math.max(0, extraMinutes))} min`;
     }
   }
+  if (minutes >= 60) {
+    // A 60+ choice should produce an hour-long session. Keep cautious
+    // resistance work at two sets and use comfortable movement for the
+    // remaining time instead of adding hard sets merely to fill the clock.
+    for (let index = exercises.length - 1; index >= 0; index--) {
+      const exercise = exercises[index];
+      if (catalogItemFor(exercise.name)?.pattern !== "cardio") continue;
+      if (avoided.has(key(exercise.name))) {
+        exercises.splice(index, 1);
+      } else {
+        exercise.alternatives = exercise.alternatives?.filter(candidate => !avoided.has(key(candidate.name)));
+      }
+    }
+    if (gentle) {
+      for (const exercise of exercises) {
+        if (catalogItemFor(exercise.name)?.pattern === "mobility" && exercise.sets) {
+          exercise.sets = Math.max(3, exercise.sets);
+          exercise.alternatives = exercise.alternatives?.map(candidate => ({ ...candidate, sets: Math.max(3, candidate.sets ?? 1) }));
+        }
+      }
+    }
+    const longCardioEligible = (item: CatalogExercise) => primaryEligible(item)
+      && (!gentle || !["Brisk Walk", "Walk Intervals", "Walk-Jog Intervals", "Rowing Machine"].includes(item.name));
+    const cardioLimit = (name: string) => input.location === "hotel" ? 22
+      : ["Walk-Jog Intervals", "Walk Intervals", "Rowing Machine"].includes(name) ? 20 : 35;
+    const setCardioMinutes = (exercise: CoachWorkoutExercise, durationMinutes: number) => {
+      exercise.duration = `${durationMinutes} min`;
+      exercise.alternatives = exercise.alternatives?.filter(candidate => {
+        const item = catalogItemFor(candidate.name);
+        return item?.pattern === "cardio" && longCardioEligible(item)
+          && !avoided.has(key(item.name)) && durationMinutes <= cardioLimit(item.name);
+      }).map(candidate => ({ ...candidate, duration: `${durationMinutes} min` }));
+    };
+    for (const exercise of exercises) {
+      if (catalogItemFor(exercise.name)?.pattern !== "cardio" || !exercise.duration?.includes("min")) continue;
+      const bounds = exercise.duration.match(/(\d+)(?:-(\d+))?/);
+      const current = bounds ? Math.round((Number(bounds[1]) + Number(bounds[2] ?? bounds[1])) / 2) : 0;
+      const gap = 60 - estimateWorkoutDurationMinutes(exercises);
+      if (gap > 0) setCardioMinutes(exercise, Math.min(cardioLimit(exercise.name), current + gap));
+    }
+    while (estimateWorkoutDurationMinutes(exercises) < 59) {
+      const candidates = eligibleChoices("cardio").filter(item => longCardioEligible(item)
+        && !avoided.has(key(item.name))
+        && !exercises.some(exercise => key(exercise.name) === key(item.name)));
+      const preference = input.location === "hotel" ? ["March in Place", "Side Step Touch", "Gentle Knee March"]
+        : kit.has("gym") ? ["Treadmill Walk", "Stationary Bike", "Easy Walk", "Elliptical Trainer"]
+          : kit.has("route") && !gentle ? ["Walk Intervals", "Easy Walk", "March in Place"]
+            : ["Easy Walk", "March in Place", "Side Step Touch", "Brisk Walk"];
+      candidates.sort((a, b) => (preference.includes(a.name) ? preference.indexOf(a.name) : 100)
+          - (preference.includes(b.name) ? preference.indexOf(b.name) : 100)
+        || a.name.localeCompare(b.name));
+      const chosen = candidates[0];
+      if (!chosen) break;
+      const gap = 60 - estimateWorkoutDurationMinutes(exercises) - 1; // transition into the added block
+      const durationMinutes = Math.min(cardioLimit(chosen.name), Math.max(5, gap));
+      const alternatives = eligibleChoices("cardio").filter(item => longCardioEligible(item)
+        && !avoided.has(key(item.name))
+        && item.name !== chosen.name && durationMinutes <= cardioLimit(item.name))
+        .map(item => ({ ...prescribe(item), duration: `${durationMinutes} min` }));
+      const prescription = prescribe(chosen);
+      exercises.push({ ...prescription, note: prescription.note, duration: `${durationMinutes} min`, alternatives });
+    }
+  }
   const strengthGoal = goal === "strength" || goal === "muscle_gain";
   const resistedPull = exercises.some(exercise => catalogItemFor(exercise.name)?.pattern === "pull"
     && !["Prone W Raise", "Reverse Snow Angel", "Short Bar Hang", "Standing Upper-Back Squeeze"].includes(exercise.name));
@@ -628,7 +692,9 @@ export function buildWorkoutBlueprint(input: {
     : limitedIndoorBodyweightResistance
       ? "This equipment supports strength practice, but not a resisted back pull."
     : goalReason[goal];
-  const whyToday = `${whyTodayBase} ${goalExplanation}${anchorReason ? ` ${anchorReason}` : ""}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}`;
+  const timeReason = minutes >= 60 && estimateWorkoutDurationMinutes(exercises) < 55 && avoided.size
+    ? "This session is shorter than an hour because the remaining easy movements are on your avoid list." : "";
+  const whyToday = `${whyTodayBase} ${goalExplanation}${anchorReason ? ` ${anchorReason}` : ""}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}${timeReason ? ` ${timeReason}` : ""}`;
   const upcoming = gentle ? ["Balanced strength", "Mobility or easy cardio"]
     : focus.startsWith("Upper") ? ["Lower body and core", "Recovery and mobility"]
       : focus.startsWith("Lower") ? ["Upper body and easy conditioning", "Recovery and mobility"]

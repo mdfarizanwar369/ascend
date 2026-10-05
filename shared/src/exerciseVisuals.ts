@@ -692,6 +692,13 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     cue: "Move slowly and keep the knee lower if balance feels uncertain."
   },
   {
+    id: "gentle-knee-march", canonicalName: "Gentle Knee March", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Low-impact marching", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV7("standing-knee-raise-main.webp") },
+    instructions: "Stand in a clear space and lift one knee a little, then lower that foot and lift the other. Continue alternating at an easy, steady pace for the prescribed time. Keep a hand near stable support if you need it.",
+    cue: "Keep the steps soft and the knee lifts low enough to stay balanced."
+  },
+  {
     id: "walk-intervals", canonicalName: "Walk Intervals", aliases: [],
     equipment: "Safe walking route", movementPattern: "Alternating walking pace", targetMuscles: "Cardiovascular system and legs",
     images: { kind: "single", main: imageV4("walking-main.webp") },
