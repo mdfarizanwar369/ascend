@@ -7,6 +7,10 @@ on:
         description: Enable Ascend HealthKit and create a new matching App Store profile
         type: boolean
         default: false
+      validate_manual_profile:
+        description: Validate a manually downloaded profile before replacing the existing secret
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -17,7 +21,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.prepare_health_profile
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.prepare_health_profile && !inputs.validate_manual_profile
     runs-on: macos-26
     timeout-minutes: 8
     environment: apple-testflight
@@ -45,3 +49,17 @@ jobs:
           name: Ascend-Health-profile-encrypted
           path: ${{ runner.temp }}/ascend-health-profile-encrypted.json
           retention-days: 1
+
+  validate-manual:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.validate_manual_profile && !inputs.prepare_health_profile
+    runs-on: macos-26
+    timeout-minutes: 5
+    environment: apple-testflight
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate downloaded profile against the existing distribution profile
+        env:
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_APPLE_PROFILE_BASE64 }}
+          MANUAL_PROFILE_BASE64: ${{ secrets.IOS_HEALTH_PROFILE_CANDIDATE_BASE64 }}
+          PROFILE_PREPARATION_APPROVED: 'true'
+        run: python3 scripts/apple-health-profile-validate-manual.py
