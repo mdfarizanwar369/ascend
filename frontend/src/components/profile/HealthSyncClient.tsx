@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, ExternalLink, Footprints, Flame, RefreshCw, Smartphone, Unplug } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { getHealthSyncStatus, HealthSyncStatus } from "@/lib/ascendApi";
@@ -95,11 +95,8 @@ export function HealthSyncClient() {
   }
 
   const summary = backendStatus?.provider === (onApple ? "apple_health" : "health_connect") ? backendStatus.summary : null;
-  const permissions = useMemo(() => {
-    const fromBackend = backendStatus?.provider === (onApple ? "apple_health" : "health_connect") ? backendStatus.permissions : [];
-    if (fromBackend.length) return fromBackend;
-    return nativeStatus?.permissionsGranted ?? [];
-  }, [backendStatus?.provider, backendStatus?.permissions, nativeStatus?.permissionsGranted, onApple]);
+  const syncedPermissions = backendStatus?.provider === (onApple ? "apple_health" : "health_connect") ? backendStatus.permissions : [];
+  const permissions = syncedPermissions.length ? syncedPermissions : nativeStatus?.permissionsGranted ?? [];
 
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
