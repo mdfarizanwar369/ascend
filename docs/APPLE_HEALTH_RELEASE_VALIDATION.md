@@ -1,6 +1,6 @@
 # Ascend Apple Health Release Validation
 
-Updated 6 October 2026. This checklist records the implementation evidence and work required before Ascend can submit or advertise Apple Health support. [PR 55](https://github.com/mdfarizanwar369/ascend/pull/55) was merged into `main` after the application and macOS simulator checks passed. The backend and hosted frontend are deployed, and migration 044 is applied, but the Apple Health flags remain unset. No Health-enabled TestFlight build or App Store submission has occurred. The immediate signing blocker is verified: Apple's API returned HTTP 403 for enabling HealthKit with the existing key. Chrome control remains unavailable, so neither route can currently complete provisioning.
+Updated 6 October 2026. This checklist records the implementation evidence and work required before Ascend can submit or advertise Apple Health support. [PR 55](https://github.com/mdfarizanwar369/ascend/pull/55) was merged into `main` after the application and macOS simulator checks passed. The backend and hosted frontend are deployed, and migration 044 is applied, but the Apple Health flags remain unset. No Health-enabled TestFlight build or App Store submission has occurred. The account holder enabled HealthKit for Ascend's App ID in Apple Developer and the read-only API confirmed it. The existing signing profile still lacks both Health entitlements. Apple's API returned HTTP 403 when asked to create a replacement profile, so manual regeneration is required.
 
 ## Implemented scope
 
@@ -23,7 +23,7 @@ Workout checkpoint recovery keeps earlier records while pages upload and removes
 | Application tests | The 6 October full CI verify job passed after the production dependency audit was repaired. The local frontend suite passed 280 tests and the native packaging suite passed nine tests. |
 | Signing and packaging | Ten Python signing-boundary tests and nine native packaging tests passed locally. These do not prove a correctly signed Health-enabled archive. |
 | Build | The PR contents passed full CI and the complete macOS simulator build immediately before merging. This checks native compilation, not Health authorization or background operation on a device. |
-| Signing preparation | Six profile safety tests passed. The authorized protected-main preparation failed at POST /v1/bundleIdCapabilities with HTTP 403 before creating or exporting a profile. A fresh read-only preflight on 6 October again found HealthKit and background delivery absent from the profile. No existing certificate, profile or secret was replaced or revoked. |
+| Signing preparation | Six profile safety tests passed. The account holder enabled HealthKit and the read-only preflight confirmed it on the exact Ascend App ID. Profile creation through Apple's API failed at POST /v1/profiles with HTTP 403. The current GitHub signing secret still lacks HealthKit and background delivery. No existing certificate, profile or secret was replaced or revoked. |
 | Production | Migration 044 is applied and all seven new tables are accessible to the app database role. The production backend and hosted frontend deployed successfully; `/api/v1/health/ready` and `/launch` responded normally. Both Health flags and the Health allowlist are unset, so no account can activate Apple Health yet. |
 | Physical devices | No signed-device or three-day pilot evidence supplied. |
 | Browser and visuals | Chrome connection still fails after the user toggled its extension. No visual screenshot verification or App Store privacy UI update has been claimed. |
@@ -42,7 +42,7 @@ Read-only Apple inspection uses the existing protected `main` environment. No re
 
 ## Signing and pilot deployment
 
-1. Verify Apple API provisioning access or restore the approved Chrome connection. Enable HealthKit for the exact Ascend bundle, retaining existing capabilities, and create a matching App Store profile with Health background delivery. Never revoke an unrelated certificate or replace the app identity.
+1. HealthKit is enabled for the exact Ascend bundle. Regenerate its App Store Connect profile manually in Apple Developer, then download the `.mobileprovision` file. Never revoke an unrelated certificate or replace the app identity.
 2. Validate the new profile against the source entitlements and existing signing certificate. Preserve the release environment protection and secure secret-handling path.
 3. Resolve the existing 1.4 release before assigning this feature's marketing version. Do not change or replace an unrelated review submission.
 4. ~~Merge only after software checks pass. Apply migration 044 with the migration credential before activation; the runtime role must not perform schema writes.~~ Completed 6 October 2026.
@@ -50,7 +50,7 @@ Read-only Apple inspection uses the existing protected `main` environment. No re
 6. Sign and upload through the existing trusted main workflow. Verify signed entitlements, Apple processing status and owner TestFlight availability.
 7. Enable only designated pilot account IDs with `APPLE_HEALTH_SYNC_V1=true`, `DAILY_ACTIVITY_LEDGER_V1=true` and a nonempty `APPLE_HEALTH_USER_IDS` allowlist. These settings are not yet applied. A blank allowlist means all accounts when both flags are enabled, so it must not be used for the initial pilot.
 
-The existing key can read the app, bundle ID and distribution certificate, but cannot enable the capability. Do not infer write access from successful reads or grant the key broader authority as a workaround. Restore Chrome control with the account holder signed into Apple Developer, then continue the exact Ascend capability and profile change through the authorized account. If another credential is proposed instead, its provisioning authority and secure setup need an explicit decision. The encrypted preparation workflow is pinned to the existing GitHub environment's public encryption key; it cannot redirect a profile to a caller-supplied key and publishes no plaintext signing file.
+The existing key can read the app, bundle ID and distribution certificate, but cannot create a profile. Do not infer write access from successful reads or grant the key broader authority as a workaround. A manually downloaded candidate goes into a temporary protected GitHub environment secret. The trusted macOS runner verifies its CMS payload, app identity, Health entitlements, existing entitlements and distribution certificate against the current profile before the release secret is replaced. Delete the temporary secret after validation. The encrypted automated preparation path remains restricted to the existing GitHub environment key and publishes no plaintext signing file.
 
 ## Required physical device evidence
 
