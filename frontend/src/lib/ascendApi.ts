@@ -24,6 +24,7 @@ import {
 } from "@ascend/shared";
 import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
+import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
 
 export interface ProgressComparison {
   periodDays: number;
@@ -52,6 +53,7 @@ export type HealthSyncStatus = {
   timezone: string | null;
   lastSyncedAt: string | null;
   summary: HealthSyncSummary | null;
+  activitySummary?: DailyActivitySummary | null;
 };
 
 export type ImportedHealthSyncRecord = {
@@ -649,8 +651,8 @@ export function saveHabitLog(input: { habitId: string; completed?: boolean; logg
   });
 }
 
-export function getComplianceToday() {
-  return authedCached<{
+export async function getComplianceToday() {
+  const [base,privateActivity] = await Promise.all([authedCached<{
     compliance: {
       id: string;
       score: number;
@@ -672,7 +674,16 @@ export function getComplianceToday() {
       score_version?: "v2";
       calculated_for_date: string;
     } | null;
-  }>("dashboard:compliance-today", "/compliance/today", 15_000);
+  }>("dashboard:compliance-today", "/compliance/today", 15_000),getPrivateHealthInsights().catch(() => null)]);
+  const score = privateActivity?.momentum;
+  if (!score || !base.compliance) return base;
+  // This override is for the signed-in member's own screen only. No Health-
+  // derived score is written into the shared server/trainer/AI score tables.
+  return { compliance:{ ...base.compliance,score:score.score,fuel_score:score.fuelScore,move_score:score.moveScore,
+    recover_score:score.recoverScore,focus_score:score.focusScore,fuel_status:score.fuelStatus,move_status:score.moveStatus,
+    recover_status:score.recoverStatus,focus_status:score.focusStatus,focus_active:score.focusActive,
+    food_score:score.fuelScore,weight_score:score.moveScore,water_score:score.recoverScore,habit_score:score.focusScore ?? 0,
+    period_start:score.periodStart,period_end:score.periodEnd,score_version:score.scoreVersion,calculated_for_date:score.periodEnd } };
 }
 
 export function getMyStreak() {
@@ -782,8 +793,56 @@ export function getCoachPresence() {
   }>("coach:presence", "/coach-presence", 20_000);
 }
 
-export function getHealthSyncStatus() {
-  return authedCached<{ status: HealthSyncStatus }>("health-sync:status", "/health-sync/status", 20_000);
+export async function getHealthSyncStatus() {
+  const [legacy,activity] = await Promise.all([
+    authedCached<{ status: HealthSyncStatus }>("health-sync:status", "/health-sync/status", 20_000),
+    getHealthActivityStatus().catch(() => null)
+  ]);
+  return { status: { ...legacy.status,activitySummary:activity?.status.summary ?? null } };
+}
+
+export function getHealthActivityStatus() {
+  return authed<{ status: HealthActivityStatus }>("/health-sync/v2/status");
+}
+export function connectHealthActivity(input: { installationId: string; timezone: string; consentVersion: string; consented: true; select: boolean }) {
+  return authed<{ connection: HealthActivityConnection; timezone: string; calendarGeneration: string }>("/health-sync/v2/connect",{ method:"POST",body:JSON.stringify(input) });
+}
+export async function importHealthActivity(input: HealthActivityImport) {
+  const result = await authed<{ accepted: boolean; requestId: string }>("/health-sync/v2/import",{ method:"POST",body:JSON.stringify(input) });
+  invalidateCached();
+  return result;
+}
+export async function disconnectHealthActivity(installationId: string, deleteHistory = false) {
+  const result = await authed("/health-sync/v2/" + (deleteHistory ? "history" : "disconnect"), {
+    method:deleteHistory ? "DELETE" : "POST",body:JSON.stringify({ installationId,...(deleteHistory ? { confirmation:"DELETE IMPORTED HISTORY" } : {}) })
+  });
+  invalidateCached();
+  return result;
+}
+export async function saveHealthManualAdjustment(activityId: string, activeCalories: number | null, untracked: boolean, matchedWorkoutId: string | null = null) {
+  const result = await authed(`/activity/manual/${encodeURIComponent(activityId)}`,{ method:"PATCH",body:JSON.stringify({ activeCalories,untracked,matchedWorkoutId }) });
+  invalidateCached();
+  return result;
+}
+export function getDailyActivity(day?: string) {
+  return authed<{ summary: DailyActivitySummary | null }>(`/activity/daily${day ? `?day=${encodeURIComponent(day)}` : ""}`);
+}
+export function getPrivateHealthInsights() {
+  return authedCached<{ days:DailyActivitySummary[]; momentum:MomentumV2Breakdown | null }>("health:private-insights","/activity/private-insights",15_000);
+}
+export async function selectHealthActivitySource(installationId: string) {
+  const result = await authed<{ requested:boolean }>("/health-sync/v2/select-source",{ method:"POST",body:JSON.stringify({ installationId }) });
+  clearAscendResponseCache(); return result;
+}
+export function exportHealthActivity() {
+  return authed<Record<string,unknown>>("/health-sync/v2/export");
+}
+export function getHealthWorkoutHistory(day: string,after?: string) {
+  return authed<{ workouts:HealthExternalWorkout[]; nextCursor:string | null; timezone:string | null }>(`/activity/workouts?day=${encodeURIComponent(day)}${after ? `&after=${encodeURIComponent(after)}` : ""}`);
+}
+export async function changeHealthReportingTimezone(timezone: string,calendarGeneration: string) {
+  const result=await authed<{ saved:boolean }>("/health-sync/v2/timezone",{ method:"POST",body:JSON.stringify({ timezone,calendarGeneration }) });
+  invalidateCached(); return result;
 }
 
 export function importHealthSync(input: {

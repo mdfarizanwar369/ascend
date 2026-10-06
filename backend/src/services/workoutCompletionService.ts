@@ -458,6 +458,9 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
     evidenceType,
     weightKgUsed: summary.weightKgUsed,
     metValue: summary.metValue,
+    // Keep the historical gross estimate intact; record its basis explicitly.
+    calorieBasis: summary.caloriesSource === "estimated_met" ? "gross" : "unknown",
+    estimatedActiveCaloriesBurned: Math.max(summary.metValue-1,0)*3.5*summary.weightKgUsed/200*input.durationMinutes,
     ...(progression ? { progression } : {}),
     ...(input.extraMetadata ?? {})
   };

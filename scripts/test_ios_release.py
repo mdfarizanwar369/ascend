@@ -1,5 +1,6 @@
 """Exercise the signing boundary before any Apple credential is used."""
 import importlib.util
+import datetime
 from pathlib import Path
 import unittest
 
@@ -22,6 +23,10 @@ class ReleaseContextTests(unittest.TestCase):
     def test_manual_ios_1_2_release_candidate(self):
         release.validate_release_context(self.context("codex/ios-1.2-public-trainer-pro"), self.config())
 
+    def test_manual_apple_health_candidate(self):
+        with self.assertRaises(SystemExit):
+            release.validate_release_context(self.context("codex/apple-health-v1"), self.config())
+
     def test_payment_beta_requires_its_isolated_origin(self):
         context = self.context("codex/ios-subscriptions-1-1")
         with self.assertRaises(SystemExit):
@@ -41,6 +46,42 @@ class ReleaseContextTests(unittest.TestCase):
                        {**self.config(), "server": {**self.config()["server"], "appStartPath": "/other"}}):
             with self.subTest(config=config), self.assertRaises(SystemExit):
                 release.validate_release_context(self.context(), config)
+
+
+class HealthSigningTests(unittest.TestCase):
+    required = {"com.apple.developer.healthkit": True, "com.apple.developer.healthkit.background-delivery": True}
+
+    def entitlements(self):
+        return {"application-identifier": f"{release.TEAM}.{release.BUNDLE}", "com.apple.developer.applesignin": ["Default"], **self.required}
+
+    def profile(self):
+        return {"TeamIdentifier": [release.TEAM], "Entitlements": self.entitlements(),
+                "ExpirationDate": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)}
+
+    def test_matching_distribution_profile_and_signed_app(self):
+        release.validate_profile(self.profile(), self.required)
+        release.validate_signed_entitlements(self.entitlements(), self.required)
+
+    def test_health_entitlements_must_exist_in_profile_and_binary(self):
+        for capability in self.required:
+            profile = self.profile()
+            del profile["Entitlements"][capability]
+            with self.subTest(capability=capability), self.assertRaises(SystemExit):
+                release.validate_profile(profile, self.required)
+            with self.subTest(binary=capability), self.assertRaises(SystemExit):
+                release.validate_signed_entitlements(profile["Entitlements"], self.required)
+
+    def test_wrong_team_expired_and_development_profiles_are_rejected(self):
+        for override in ({"TeamIdentifier": ["OTHER"]}, {"ProvisionedDevices": ["device"]},
+                         {"ExpirationDate": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)}):
+            with self.subTest(override=override), self.assertRaises(SystemExit):
+                release.validate_profile({**self.profile(), **override}, self.required)
+
+    def test_wrong_identity_and_debug_binary_are_rejected(self):
+        for override in ({"application-identifier": "wrong.app"}, {"get-task-allow": True},
+                         {"com.apple.developer.applesignin": []}):
+            with self.subTest(override=override), self.assertRaises(SystemExit):
+                release.validate_signed_entitlements({**self.entitlements(), **override}, self.required)
 
 
 if __name__ == "__main__":
