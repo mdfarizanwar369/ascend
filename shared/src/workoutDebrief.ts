@@ -30,6 +30,7 @@ export type WorkoutDebriefAccess = {
 
 export type WorkoutDebriefSource =
   | "coach_zoe_workout_planner"
+  | "coach_zoe_workout_observed"
   | "ai_workout_capture"
   | "quick_activity";
 

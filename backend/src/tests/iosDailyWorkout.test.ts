@@ -99,6 +99,14 @@ describe("native daily workout allowance", () => {
     expect(dbQuery).toHaveBeenLastCalledWith(expect.stringContaining("w.user_id = $1 and w.completion_key = $2"), ["other-member", "saved-key"]);
   });
 
+  it("returns the actual checked indexes when a partial daily workout is reopened", async () => {
+    dbQuery.mockResolvedValue({ rows: [{ ...saved, workout: { ...workout, exercises: [
+      { name: "Bodyweight Squat" }, { name: "Dumbbell Row" }
+    ] }, completed_exercise_indexes: [1] }] });
+    expect(await getIosDailyWorkout("member", now)).toMatchObject({ completed: true, completedExerciseIndexes: [1] });
+    expect(dbQuery).toHaveBeenCalledWith(expect.stringContaining("completedExerciseIndexes"), ["member", now.toISOString()]);
+  });
+
   it("starts a new allowance at midnight", async () => {
     const result = await generateIosDailyWorkout(input(), new Date("2026-09-23T16:00:00Z"));
     expect(result.resetsAt).toBe("2026-09-24T16:00:00.000Z");
@@ -117,5 +125,47 @@ describe("native daily workout allowance", () => {
     expect(result.workout.exercises[0]).toMatchObject({ name: "Chair Squat", reps: "8" });
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("update ios_daily_workouts"), ["member", "saved-key", result.workout]);
     expect(clientQuery.mock.calls.at(-1)).toEqual(["commit"]);
+  });
+
+  it("adds a reviewed swap to an older saved outdoor bar plan without generating again", async () => {
+    const oldWorkout = { ...workout, experienceVersion: 2 as const, exercises: [
+      { name: "Short Bar Hang", duration: "5-10 sec" }
+    ], whyToday: "The bar is used for a short hold; Zoe has no completed pull-up on record yet." };
+    const oldDaily = { ...saved, request: { ...request, location: "outdoors", equipment: "Pull-Up Bar" },
+      workout: oldWorkout, completed: false };
+    dbQuery.mockResolvedValue({ rows: [oldDaily] });
+    const reopened = await getIosDailyWorkout("member", now);
+    expect(reopened?.workout.exercises[0].alternatives?.map(item => item.name)).toContain("Standing Upper-Back Squeeze");
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [oldDaily], rowCount: 1 };
+      if (sql.includes("from analytics_events")) return { rows: [], rowCount: 0 };
+      return { rows: [], rowCount: 1 };
+    });
+    const swapped = await swapIosDailyWorkoutExercise("member", "saved-key", 0);
+    expect(swapped.workout.exercises[0].name).toBe("Standing Upper-Back Squeeze");
+    expect(swapped.workout.whyToday).toContain("swapped the bar hold");
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining("update ios_daily_workouts"),
+      ["member", "saved-key", swapped.workout]);
+  });
+
+  it("does not swap an older workout when the route accepts saved workout requests", async () => {
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [{ ...saved, completed: false }], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    await expect(swapIosDailyWorkoutExercise("member", "saved-key", 0)).rejects.toMatchObject({ status: 400 });
+    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("update ios_daily_workouts"))).toBe(false);
+    expect(clientQuery).toHaveBeenCalledWith("rollback");
+  });
+
+  it("does not swap a completed V2 workout", async () => {
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [{ ...saved, workout: { ...workout, experienceVersion: 2 } }], rowCount: 1 };
+      if (sql.includes("from analytics_events")) return { rows: [{}], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    await expect(swapIosDailyWorkoutExercise("member", "saved-key", 0)).rejects.toMatchObject({ status: 409 });
+    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("update ios_daily_workouts"))).toBe(false);
+    expect(clientQuery).toHaveBeenCalledWith("rollback");
   });
 });

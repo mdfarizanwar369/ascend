@@ -8,7 +8,7 @@ import { BackButton } from "@/components/BackButton";
 import { StaggerItem, ZoeAvatar } from "@/components/ExperienceVisuals";
 import { CoachZoeWorkoutDebrief } from "@/components/coach/CoachZoeWorkoutDebrief";
 import type { WorkoutDebriefView } from "@ascend/shared";
-import { resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, preserveTimedSwapDuration, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { ExerciseVisualCard } from "@/components/coach/ExerciseVisualCard";
 import {
   CoachChatMode,
@@ -62,6 +62,9 @@ type WorkoutSaveSuccess = {
   momentumEarned: number;
 };
 
+type ObservedExerciseDraft = { sets: string; reps: string; load: string; loadUnit: "kg" | "lb"; durationMinutes: string; durationSeconds: string };
+const emptyObservedExercise = (): ObservedExerciseDraft => ({ sets: "", reps: "", load: "", loadUnit: "kg", durationMinutes: "", durationSeconds: "" });
+
 type WorkoutPlannerTime = NonNullable<WorkoutAnswers["timeAvailable"]>;
 
 const starterMessages: ChatMessage[] = [
@@ -99,6 +102,13 @@ const equipmentByLocation: Record<WorkoutPlannerLocation, string[]> = {
   home: ["Bodyweight", "Dumbbells", "Resistance Bands"],
   hotel: ["Bodyweight", "Dumbbells", "Resistance Bands"],
   outdoors: ["Bodyweight", "Walking or Running Route", "Park Bench or Bars"]
+};
+
+const equipmentByLocationV2: Record<WorkoutPlannerLocation, string[]> = {
+  gym: ["Full Gym", "Dumbbells at Gym"],
+  home: ["Bodyweight", "Dumbbells", "Long Resistance Band", "Sturdy Chair", "Low Step"],
+  hotel: ["Bodyweight", "Dumbbells", "Long Resistance Band"],
+  outdoors: ["Bodyweight", "Walking or Running Route", "Park Bench", "Low Exercise Bar", "Pull-Up Bar", "Exercise Mat"]
 };
 
 const locationVisuals: Record<WorkoutPlannerLocation, string> = {
@@ -207,6 +217,7 @@ function WorkoutPlannerCard({
   setMessage,
   showExistingChoice,
   exerciseVisualsEnabled,
+  workoutEngineV2Enabled,
   allowRegenerate = true,
   workoutSaved,
   workout
@@ -223,12 +234,13 @@ function WorkoutPlannerCard({
   setMessage: (message: string) => void;
   showExistingChoice: boolean;
   exerciseVisualsEnabled: boolean;
+  workoutEngineV2Enabled: boolean;
   allowRegenerate?: boolean;
   workoutSaved: boolean;
   workout: GeneratedWorkout | null;
 }) {
   const nextStep = !answers.location ? "location" : !answers.timeAvailable ? "time" : !answers.goal ? "goal" : !answers.equipment ? "equipment" : "done";
-  const equipmentOptions = answers.location ? equipmentByLocation[answers.location] : [];
+  const equipmentOptions = answers.location ? (workoutEngineV2Enabled ? equipmentByLocationV2 : equipmentByLocation)[answers.location] : [];
   const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(0);
   const completionPercent = workout?.exercises.length ? Math.round((checkedExercises.size / workout.exercises.length) * 100) : 0;
 
@@ -309,8 +321,10 @@ function WorkoutPlannerCard({
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
           <div className="rounded-xl border border-line bg-ink/70 p-3">
-            <p className="text-zinc-500">Duration</p>
-            <p className="mt-1 font-bold text-zinc-100">{workout.estimatedDurationMinutes} min</p>
+            <p className="text-zinc-500">{workout.experienceVersion === 2 ? "About" : "Duration"}</p>
+            <p className="mt-1 font-bold text-zinc-100">{workout.experienceVersion === 2
+              ? `${estimateWorkoutDurationMinutes(workout.exercises)} min`
+              : `${workout.estimatedDurationMinutes} min`}</p>
           </div>
           <div className="rounded-xl border border-line bg-ink/70 p-3">
             <p className="text-zinc-500">Focus</p>
@@ -353,6 +367,8 @@ function WorkoutPlannerCard({
                 ? resolveV2WorkoutExerciseVisual(exercise.name)
                 : resolveExerciseVisual(exercise.name);
               const showVisual = exerciseVisualsEnabled || workout.experienceVersion === 2;
+              const hasValidSwap = exercise.alternatives?.some(candidate => !workout.exercises.some((other, otherIndex) =>
+                otherIndex !== index && other.name.toLowerCase() === candidate.name.toLowerCase())) ?? false;
               return (
                 <article
                   key={`${exercise.name}-${index}`}
@@ -397,7 +413,7 @@ function WorkoutPlannerCard({
                   </div>
                   {showVisual && expanded && visual.status === "resolved" ? <div className="ml-[52px]"><ExerciseVisualCard key={visual.exercise.id} exercise={visual.exercise} variationOf={workout.experienceVersion === 2 ? exercise.name : undefined} reportingEnabled={exerciseVisualsEnabled} /></div> : null}
                   {expanded && exercise.note ? <p className="ascend-soft-enter ml-[52px] mt-2 text-xs leading-5 text-zinc-400">{exercise.note}</p> : null}
-                  {workout.experienceVersion === 2 && !workoutSaved && !complete && exercise.alternatives?.length ? (
+                  {workout.experienceVersion === 2 && !workoutSaved && !complete && hasValidSwap ? (
                     <button type="button" onClick={() => onSwapExercise(index)} className="ml-[52px] mt-2 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-purple-200 hover:border-violet/60">
                       Swap exercise
                     </button>
@@ -466,7 +482,7 @@ function WorkoutPlannerCard({
           <div className="mt-3 grid grid-cols-2 gap-2">
             {nextStep === "location"
               ? locationOptions.map((option) => (
-                  <OptionButton key={option.value} imageUrl={locationVisuals[option.value]} label={option.label} onClick={() => onAnswer({ location: option.value })} />
+                  <OptionButton key={option.value} imageUrl={locationVisuals[option.value]} label={workoutEngineV2Enabled && option.value === "hotel" ? "Hotel Room" : option.label} onClick={() => onAnswer({ location: option.value })} />
                 ))
               : null}
             {nextStep === "time"
@@ -500,6 +516,8 @@ export function CoachHubClient() {
   const iosApp = useIosApp();
   const [nativePaid, setNativePaid] = useState(false);
   const [exerciseVisualsEnabled, setExerciseVisualsEnabled] = useState(false);
+  const [workoutEngineV2Enabled, setWorkoutEngineV2Enabled] = useState(false);
+  const [planLoggingPilotEnabled, setPlanLoggingPilotEnabled] = useState(false);
   const iosFree = freeEdition || (iosApp && !nativePaid);
   useEffect(() => {
     if (!iosApp || freeEdition) return;
@@ -514,8 +532,12 @@ export function CoachHubClient() {
   useEffect(() => {
     let active = true;
     void getWorkoutVisualAccess()
-      .then(({ enabled }) => {
-        if (active) setExerciseVisualsEnabled(enabled === true);
+      .then(({ enabled, workoutEngineV2Enabled, planLoggingPilotEnabled }) => {
+        if (active) {
+          setExerciseVisualsEnabled(enabled === true);
+          setWorkoutEngineV2Enabled(workoutEngineV2Enabled === true);
+          setPlanLoggingPilotEnabled(planLoggingPilotEnabled === true);
+        }
       })
       .catch(() => {
         void loadAccountProfile()
@@ -543,6 +565,9 @@ export function CoachHubClient() {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
   const [effortRating, setEffortRating] = useState<"too_easy" | "about_right" | "too_hard" | null>(null);
+  const [actualWorkoutMinutes, setActualWorkoutMinutes] = useState("");
+  const [showWorkoutDetails, setShowWorkoutDetails] = useState(false);
+  const [observedExercises, setObservedExercises] = useState<Record<number, ObservedExerciseDraft>>({});
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
   const [isRequestingDebrief, setIsRequestingDebrief] = useState(false);
   const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
@@ -552,6 +577,7 @@ export function CoachHubClient() {
 
   const completedCount = useMemo(() => checkedExercises.size, [checkedExercises]);
   const allExercisesCompleted = Boolean(workout && workout.exercises.length > 0 && completedCount === workout.exercises.length);
+  const canSaveWorkout = allExercisesCompleted || (workout?.experienceVersion === 2 && completedCount > 0);
 
   useEffect(() => {
     let active = true;
@@ -656,8 +682,13 @@ export function CoachHubClient() {
     setWorkoutCompletionKey(daily.workoutCompletionKey);
     setDailyWorkoutCompleted(daily.completed);
     if (changed || daily.completed) {
+      setShowWorkoutDetails(false);
+      setObservedExercises({});
       setEffortRating(null);
-      setCheckedExercises(new Set(daily.completed ? daily.workout.exercises.map((_, index) => index) : []));
+      setActualWorkoutMinutes("");
+      setCheckedExercises(new Set(daily.completed
+        ? daily.completedExerciseIndexes ?? daily.workout.exercises.map((_, index) => index)
+        : []));
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
     }
@@ -727,11 +758,14 @@ export function CoachHubClient() {
         return;
       }
       setWorkout(response.workout);
+      setShowWorkoutDetails(false);
+      setObservedExercises({});
       setEffortRating(null);
+      setActualWorkoutMinutes("");
       setCheckedExercises(new Set());
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
-      setWorkoutCompletionKey(nextWorkoutCompletionKey());
+      setWorkoutCompletionKey(response.workout.planCompletionKey ?? nextWorkoutCompletionKey());
       setMessages((current) => [...current, { role: "assistant", text: response.workout.intro }]);
     } catch (error) {
       setAnswers(current => ({ ...current, equipment: undefined }));
@@ -760,7 +794,7 @@ export function CoachHubClient() {
       const replacementIndex = alternatives.findIndex(candidate => candidate.name && !current.exercises.some((other, otherIndex) =>
         otherIndex !== index && other.name.toLowerCase() === candidate.name.toLowerCase()));
       if (!exercise || replacementIndex < 0) return current;
-      const replacement = alternatives[replacementIndex];
+      const replacement = preserveTimedSwapDuration(exercise, alternatives[replacementIndex]);
       const nextExercises = [...current.exercises];
       nextExercises[index] = {
         ...replacement,
@@ -768,26 +802,71 @@ export function CoachHubClient() {
           name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note
         }]
       };
-      return { ...current, exercises: nextExercises };
+      const barIntroduced = "The bar is used for a short hold; Zoe has no completed pull-up on record yet.";
+      const barSwapped = "You swapped the bar hold for a lighter upper-back movement.";
+      const whyToday = exercise.name === "Short Bar Hang" && replacement.name === "Standing Upper-Back Squeeze"
+        ? current.whyToday?.replace(barIntroduced, barSwapped)
+        : exercise.name === "Standing Upper-Back Squeeze" && replacement.name === "Short Bar Hang"
+          ? current.whyToday?.replace(barSwapped, barIntroduced) : current.whyToday;
+      return { ...current, exercises: nextExercises,
+        estimatedDurationMinutes: estimateWorkoutDurationMinutes(nextExercises), whyToday };
     });
   }
 
   async function saveWorkoutCompletion() {
-    if (!workout || !allExercisesCompleted || !workoutCompletionKey || saveWorkoutLockRef.current) return;
+    if (!workout || !canSaveWorkout || !workoutCompletionKey || saveWorkoutLockRef.current) return;
     saveWorkoutLockRef.current = true;
     setIsSavingWorkout(true);
     setStatus("");
 
     try {
+      const completedExerciseIndexes = [...checkedExercises].sort((a, b) => a - b);
+      const actualDurationMinutes = actualWorkoutMinutes.trim() ? Number(actualWorkoutMinutes) : undefined;
+      if (actualDurationMinutes !== undefined && (!Number.isInteger(actualDurationMinutes) || actualDurationMinutes < 1 || actualDurationMinutes > 180)) {
+        setStatus("Enter whole minutes between 1 and 180, or leave the time blank for an estimate.");
+        return;
+      }
+      const observed = Object.entries(observedExercises).flatMap(([index, draft]) => {
+        if (!checkedExercises.has(Number(index))) return [];
+        const reps = draft.reps.trim();
+        const durationMinutes = draft.durationMinutes.trim();
+        const durationSeconds = draft.durationSeconds.trim();
+        if (!reps && !durationMinutes && !durationSeconds) return [];
+        return [{
+          exerciseIndex: Number(index),
+          ...(draft.sets.trim() ? { sets: Number(draft.sets) } : {}),
+          ...(reps ? { reps } : {}),
+          ...(draft.load.trim() ? { load: Number(draft.load), loadUnit: draft.loadUnit } : {}),
+          ...(durationMinutes ? { durationMinutes: Number(durationMinutes) } : {}),
+          ...(durationSeconds ? { durationSeconds: Number(durationSeconds) } : {})
+        }];
+      });
+      if (showWorkoutDetails && Object.entries(observedExercises).some(([index, draft]) => checkedExercises.has(Number(index)) &&
+        (draft.sets.trim() || draft.load.trim()) && !draft.reps.trim() && !draft.durationMinutes.trim() && !draft.durationSeconds.trim())) {
+        setStatus("Add the reps, minutes or seconds you did for any exercise with a weight or set entry.");
+        return;
+      }
+      if (observed.some(exercise =>
+        exercise.reps && !/^\d{1,3}(?:\s*[,/]\s*\d{1,3})*$/.test(exercise.reps) ||
+        exercise.sets !== undefined && (!Number.isInteger(exercise.sets) || exercise.sets < 1 || exercise.sets > 10) ||
+        exercise.load !== undefined && (!Number.isFinite(exercise.load) || exercise.load < 0 || exercise.load > 2000) ||
+        exercise.durationMinutes !== undefined && (!Number.isInteger(exercise.durationMinutes) || exercise.durationMinutes < 1 || exercise.durationMinutes > 180) ||
+        exercise.durationSeconds !== undefined && (!Number.isInteger(exercise.durationSeconds) || exercise.durationSeconds < 1 || exercise.durationSeconds > 3600))) {
+        setStatus("Check your workout details. Use numbers for actual reps, sets, weight and time.");
+        return;
+      }
       const response = await saveCompletedWorkout({
         workoutCompletionKey,
         workoutTitle: workout.title,
         workoutType: workout.focus,
         workoutDifficulty: workout.intensity,
-        durationMinutes: workout.estimatedDurationMinutes,
+        durationMinutes: workout.experienceVersion === 2 ? estimateWorkoutDurationMinutes(workout.exercises) : workout.estimatedDurationMinutes,
         completedAt: new Date().toISOString(),
         exercises: workout.exercises,
-        ...(workout.experienceVersion === 2 && effortRating ? { effortRating } : {})
+        ...(workout.experienceVersion === 2 && effortRating ? { effortRating } : {}),
+        ...(workout.experienceVersion === 2 ? { completedExerciseIndexes,
+          ...(actualDurationMinutes !== undefined ? { actualDurationMinutes } : {}) } : {}),
+        ...(planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey) && observed.length ? { observedExercises: observed } : {})
       });
 
       rememberDashboardRecord("burn", response.burnLog);
@@ -939,12 +1018,13 @@ export function CoachHubClient() {
                 if (workout?.experienceVersion === 2) {
                   setWorkout((current) => {
                     if (current?.experienceVersion !== 2) return current;
-                    const originalNames = new Set(current.exercises.map(exercise => exercise.name.toLowerCase()));
+                    const usedNames = new Set(current.exercises.map(exercise => exercise.name.toLowerCase()));
                     const exercises = current.exercises.map((exercise) => {
                       const alternatives = exercise.alternatives ?? [];
-                      const index = alternatives.findIndex(candidate => !originalNames.has(candidate.name.toLowerCase()));
+                      const index = alternatives.findIndex(candidate => !usedNames.has(candidate.name.toLowerCase()));
                       if (index < 0) return exercise;
-                      const replacement = alternatives[index];
+                      const replacement = preserveTimedSwapDuration(exercise, alternatives[index]);
+                      usedNames.add(replacement.name.toLowerCase());
                       return { ...replacement, alternatives: [...alternatives.slice(index + 1), ...alternatives.slice(0, index), {
                         name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest, note: exercise.note
                       }] };
@@ -953,6 +1033,7 @@ export function CoachHubClient() {
                   });
                   setCheckedExercises(new Set());
                   setEffortRating(null);
+                  setActualWorkoutMinutes("");
                   setShowExistingChoice(false);
                   return;
                 }
@@ -964,18 +1045,19 @@ export function CoachHubClient() {
                 setWorkoutDebrief(null);
                 setWorkoutCompletionKey(null);
               }}
-              onToggleExercise={(index) =>
+              onToggleExercise={(index) => {
                 setCheckedExercises((current) => {
                   const next = new Set(current);
                   if (next.has(index)) next.delete(index);
                   else next.add(index);
                   return next;
-                })
-              }
+                });
+              }}
               onSwapExercise={(index) => void swapWorkoutExercise(index)}
               setMessage={setMessage}
               showExistingChoice={showExistingChoice}
               exerciseVisualsEnabled={exerciseVisualsEnabled}
+              workoutEngineV2Enabled={workoutEngineV2Enabled}
               allowRegenerate={!iosFree}
               workoutSaved={Boolean(savedWorkoutSummary) || dailyWorkoutCompleted}
               workout={workout}
@@ -1009,7 +1091,7 @@ export function CoachHubClient() {
                         <Check size={20} />
                       </span>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-lime">Workout complete</p>
+                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-lime">Workout saved</p>
                         <h3 className="mt-1 truncate text-xl font-semibold text-white">{savedWorkoutSummary.workoutTitle}</h3>
                       </div>
                     </div>
@@ -1046,8 +1128,45 @@ export function CoachHubClient() {
                 </div>
               ) : dailyWorkoutCompleted ? (
                 <p className="mt-4 rounded-xl bg-lime/10 p-4 text-sm text-lime">This workout is already saved in your activity log.</p>
-              ) : allExercisesCompleted ? (
+              ) : canSaveWorkout ? (
                 <div className="mt-4 space-y-3">
+                {workout.experienceVersion === 2 && !allExercisesCompleted ? <p className="text-sm leading-5 text-zinc-300">You can stop here. Zoe will remember only the exercises you checked.</p> : null}
+                {planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey) ? <div className="rounded-xl border border-line bg-ink/55 p-3">
+                  <button type="button" onClick={() => setShowWorkoutDetails(value => !value)} aria-expanded={showWorkoutDetails}
+                    className="flex w-full items-center justify-between text-left text-sm font-semibold text-zinc-200">
+                    <span>Add your actual reps or weight <span className="font-normal text-zinc-500">Optional</span></span>
+                    {showWorkoutDetails ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                  </button>
+                  {showWorkoutDetails ? <div className="mt-3 space-y-3">
+                    <p className="text-xs leading-5 text-zinc-400">Only enter what you actually did. Leave an exercise blank to save it as completed without performance details.</p>
+                    {workout.exercises.map((exercise, index) => {
+                      if (!checkedExercises.has(index)) return null;
+                      const draft = observedExercises[index] ?? emptyObservedExercise();
+                      const update = (change: Partial<ObservedExerciseDraft>) => setObservedExercises(current => ({
+                        ...current, [index]: { ...(current[index] ?? emptyObservedExercise()), ...change }
+                      }));
+                      return <div key={`${index}:${exercise.name}`} className="rounded-lg border border-line p-3">
+                        <p className="text-sm font-semibold text-white">{exercise.name}</p>
+                        <p className="mt-1 text-xs text-zinc-500">Plan: {exercise.sets ? `${exercise.sets} sets` : exercise.duration ?? ""}{exercise.reps ? ` · ${exercise.reps} reps` : ""}</p>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <label className="text-xs text-zinc-300">Sets done<input aria-label={`${exercise.name} sets done`} inputMode="numeric" value={draft.sets} onChange={event => update({ sets: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label>
+                          <label className="text-xs text-zinc-300">Reps done<input aria-label={`${exercise.name} reps done`} inputMode="text" value={draft.reps} onChange={event => update({ reps: event.target.value })} placeholder="10 or 10, 9, 8" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label>
+                          <label className="text-xs text-zinc-300">Weight<input aria-label={`${exercise.name} weight`} inputMode="decimal" value={draft.load} onChange={event => update({ load: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label>
+                          <label className="text-xs text-zinc-300">Unit<select aria-label={`${exercise.name} weight unit`} value={draft.loadUnit} onChange={event => update({ loadUnit: event.target.value as "kg" | "lb" })} className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base"><option value="kg">kg</option><option value="lb">lb</option></select></label>
+                          {exercise.duration && /\bsec(?:ond)?s?\b/i.test(exercise.duration)
+                            ? <label className="col-span-2 text-xs text-zinc-300">Seconds per set<input aria-label={`${exercise.name} seconds done`} inputMode="numeric" value={draft.durationSeconds} onChange={event => update({ durationSeconds: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label>
+                            : exercise.duration ? <label className="col-span-2 text-xs text-zinc-300">Minutes done<input aria-label={`${exercise.name} minutes done`} inputMode="numeric" value={draft.durationMinutes} onChange={event => update({ durationMinutes: event.target.value })} placeholder="Optional" className="ascend-field mt-1 w-full rounded-lg px-2 py-2 text-base" /></label> : null}
+                        </div>
+                      </div>;
+                    })}
+                  </div> : null}
+                </div> : null}
+                {workout.experienceVersion === 2 ? <label className="block text-xs text-zinc-400">Minutes actually spent <span className="text-zinc-500">Optional</span>
+                  <input aria-label="Minutes actually spent" inputMode="numeric" value={actualWorkoutMinutes}
+                    onChange={event => setActualWorkoutMinutes(event.target.value)}
+                    placeholder={`About ${estimateWorkoutDurationMinutes(workout.exercises.filter((_, index) => checkedExercises.has(index)))} min`}
+                    className="ascend-field mt-1 w-full rounded-lg px-3 py-2 text-base" />
+                </label> : null}
                 {workout.experienceVersion === 2 ? <div>
                   <p className="mb-2 text-sm font-semibold text-zinc-200">How did that feel? <span className="font-normal text-zinc-500">Optional</span></p>
                   <div className="grid grid-cols-3 gap-2">
@@ -1065,12 +1184,12 @@ export function CoachHubClient() {
                   disabled={isSavingWorkout}
                   className="flex h-14 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,rgba(61,230,209,1),rgba(109,246,220,0.92))] text-base font-bold text-ink shadow-[0_18px_44px_rgba(61,230,209,0.24)] transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {isSavingWorkout ? "Saving workout..." : "Complete & Save Workout"}
+                  {isSavingWorkout ? "Saving workout..." : allExercisesCompleted ? "Complete & Save Workout" : "Save what I did"}
                 </button>
                 </div>
               ) : (
                 <div className="mt-4 rounded-xl border border-white/5 bg-ink/55 px-4 py-3 text-sm text-zinc-400">
-                  Check off every exercise to unlock workout save.
+                  Check off an exercise when you finish it. You can save a shorter session too.
                 </div>
               )}
             </div>

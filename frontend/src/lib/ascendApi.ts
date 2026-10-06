@@ -962,6 +962,17 @@ export function saveCompletedWorkout(input: {
   exercises: GeneratedWorkout["exercises"];
   healthProviderCaloriesBurned?: number | null;
   effortRating?: "too_easy" | "about_right" | "too_hard";
+  completedExerciseIndexes?: number[];
+  actualDurationMinutes?: number;
+  observedExercises?: Array<{
+    exerciseIndex: number;
+    sets?: number;
+    reps?: string;
+    load?: number;
+    loadUnit?: "kg" | "lb";
+    durationMinutes?: number;
+    durationSeconds?: number;
+  }>;
 }) {
   invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
@@ -1515,6 +1526,7 @@ export function getTodayPriorityRecommendation() {
 export type WorkoutPlannerLocation = "gym" | "home" | "hotel" | "outdoors";
 export type WorkoutPlannerGoal = "fat_loss" | "muscle_gain" | "strength" | "general_fitness" | "recovery" | "mobility";
 export type GeneratedWorkout = {
+  planCompletionKey?: string;
   title: string;
   intro: string;
   estimatedDurationMinutes: number;
@@ -1571,6 +1583,7 @@ export type DailyWorkout = {
   workoutCompletionKey: string;
   resetsAt: string;
   completed: boolean;
+  completedExerciseIndexes?: number[] | null;
   request: {
     location: WorkoutPlannerLocation;
     timeAvailable: "20" | "30" | "45" | "60";
@@ -1591,7 +1604,7 @@ export function swapTodayWorkoutExercise(workoutCompletionKey: string, exerciseI
 }
 
 export function getWorkoutVisualAccess() {
-  return authed<{ enabled: boolean }>("/ai/workout/visual-access");
+  return authed<{ enabled: boolean; workoutEngineV2Enabled: boolean; planLoggingPilotEnabled: boolean }>("/ai/workout/visual-access");
 }
 
 export function generateTodayWorkout(input: {

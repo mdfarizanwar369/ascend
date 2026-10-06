@@ -5,7 +5,7 @@ import type { CoachWorkoutPlan } from "../integrations/openai";
 import { localDayStartUtc } from "./memberTimeService";
 import { env } from "../config/env";
 import { assertAiWorkOwnership, withAiWorkLease } from "./aiWorkLeaseService";
-import { rotateWorkoutExercise } from "./workoutPlanQualityService";
+import { fillMissingWorkoutSwaps, rotateWorkoutExercise } from "./workoutPlanQualityService";
 
 export type DailyWorkoutRequest = {
   location: "gym" | "home" | "hotel" | "outdoors";
@@ -19,20 +19,29 @@ type StoredWorkout = {
   workout: CoachWorkoutPlan;
   resets_at: Date | string;
   completed?: boolean;
+  completed_exercise_indexes?: number[] | null;
 };
 function toDailyWorkout(row: StoredWorkout) {
+  const workout = fillMissingWorkoutSwaps(row.workout, row.request);
   return {
     workoutCompletionKey: row.completion_key,
     request: row.request,
-    workout: row.workout,
+    workout,
     resetsAt: new Date(row.resets_at).toISOString(),
-    completed: row.completed === true
+    completed: row.completed === true,
+    completedExerciseIndexes: Array.isArray(row.completed_exercise_indexes)
+      ? row.completed_exercise_indexes.filter(index => Number.isInteger(index) && index >= 0 && index < workout.exercises.length)
+      : null
   };
 }
 const selectWorkout = `select w.*, exists (
   select 1 from analytics_events e where e.user_id = w.user_id
     and e.event_name = 'burn_log' and e.metadata->>'workoutCompletionKey' = w.completion_key::text
-) as completed from ios_daily_workouts w`;
+) as completed, (
+  select e.metadata->'completedExerciseIndexes' from analytics_events e where e.user_id = w.user_id
+    and e.event_name = 'burn_log' and e.metadata->>'workoutCompletionKey' = w.completion_key::text
+  order by e.created_at desc limit 1
+) as completed_exercise_indexes from ios_daily_workouts w`;
 
 export async function getIosDailyWorkout(userId: string, now = new Date()) {
   const result = await query<StoredWorkout>(`${selectWorkout}
@@ -57,7 +66,7 @@ export async function swapIosDailyWorkoutExercise(userId: string, completionKey:
     const completed = await client.query(`select 1 from analytics_events where user_id = $1
       and event_name = 'burn_log' and metadata->>'workoutCompletionKey' = $2 limit 1`, [userId, completionKey]);
     if (completed.rowCount) throw Object.assign(new Error("This workout is already complete."), { status: 409 });
-    const workout = rotateWorkoutExercise(stored.workout, exerciseIndex);
+    const workout = rotateWorkoutExercise(fillMissingWorkoutSwaps(stored.workout, stored.request), exerciseIndex);
     if (!workout) throw Object.assign(new Error("No suitable swap is available for that exercise."), { status: 400 });
     await client.query(`update ios_daily_workouts set workout = $3 where user_id = $1 and completion_key = $2`,
       [userId, completionKey, workout]);

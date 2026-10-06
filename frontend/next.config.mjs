@@ -85,6 +85,18 @@ const nextConfig = {
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
       },
       {
+        source: "/exercise-visuals/ascend-original-v4/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
+      },
+      {
+        source: "/exercise-visuals/ascend-original-v5/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
+      },
+      {
+        source: "/exercise-visuals/ascend-original-v6/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }]
+      },
+      {
         source: "/dashboard",
         headers: [
           {

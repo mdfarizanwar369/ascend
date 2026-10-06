@@ -6,6 +6,11 @@ export const EXERCISE_VISUAL_ASSET_ROOT = "/exercise-visuals/ascend-original-v1"
 export const EXERCISE_VISUAL_ASSET_ROOT_V2 = "/exercise-visuals/ascend-original-v2";
 export const EXERCISE_VISUAL_ASSET_ROOT_V3 = "/exercise-visuals/ascend-original-v3";
 export const EXERCISE_VISUAL_ASSET_ROOT_V4 = "/exercise-visuals/ascend-original-v4";
+export const EXERCISE_VISUAL_ASSET_ROOT_V5 = "/exercise-visuals/ascend-original-v5";
+export const EXERCISE_VISUAL_ASSET_ROOT_V6 = "/exercise-visuals/ascend-original-v6";
+export const EXERCISE_VISUAL_ASSET_ROOT_V7 = "/exercise-visuals/ascend-original-v7";
+export const EXERCISE_VISUAL_ASSET_ROOT_V8 = "/exercise-visuals/ascend-original-v8";
+export const EXERCISE_VISUAL_ASSET_ROOT_V9 = "/exercise-visuals/ascend-original-v9";
 
 type ImageSet =
   | { kind: "pair"; start: string; peak: string }
@@ -27,6 +32,11 @@ const image = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT}/${filename}`;
 const imageV2 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V2}/${filename}`;
 const imageV3 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V3}/${filename}`;
 const imageV4 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V4}/${filename}`;
+const imageV5 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V5}/${filename}`;
+const imageV6 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V6}/${filename}`;
+const imageV7 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V7}/${filename}`;
+const imageV8 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V8}/${filename}`;
+const imageV9 = (filename: string) => `${EXERCISE_VISUAL_ASSET_ROOT_V9}/${filename}`;
 
 export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
   {
@@ -526,6 +536,419 @@ export const PILOT_EXERCISE_VISUALS: readonly ExerciseVisual[] = [
     images: { kind: "single", main: imageV4("anchored-band-row-main.webp") },
     instructions: "Secure a long band at chest height and face the anchor, holding an end in each hand. Step back for light tension, pull your elbows toward your ribs, then return slowly.",
     cue: "Check the anchor before starting and keep your shoulders down as you row."
+  },
+  {
+    id: "standing-torso-rotation", canonicalName: "Standing Torso Rotation", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing trunk rotation", targetMuscles: "Upper back and trunk",
+    images: { kind: "single", main: imageV5("standing-torso-rotation-main.webp") },
+    instructions: "Stand tall with feet shoulder-width apart and cross your arms over your chest. Gently turn your shoulders left and right while keeping your hips mostly forward.",
+    cue: "Rotate only through a comfortable range; do not force your lower back."
+  },
+  {
+    id: "standing-side-bend", canonicalName: "Standing Side Bend", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing lateral trunk stretch", targetMuscles: "Sides of trunk and shoulders",
+    images: { kind: "single", main: imageV5("standing-side-bend-main.webp") },
+    instructions: "Stand with feet hip-width apart. Reach one arm gently overhead and lean a little to the opposite side, then return upright and switch sides.",
+    cue: "Keep both feet planted and avoid leaning forward or twisting."
+  },
+  {
+    id: "standing-chest-opener", canonicalName: "Standing Chest Opener", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing chest stretch", targetMuscles: "Chest and front shoulders",
+    images: { kind: "single", main: imageV5("standing-chest-opener-main.webp") },
+    instructions: "Stand tall and gently clasp your hands behind your lower back. Let your arms move slightly back until you feel a comfortable stretch across your chest.",
+    cue: "Keep your shoulders relaxed and do not arch your lower back."
+  },
+  {
+    id: "standing-hamstring-hinge", canonicalName: "Standing Hamstring Hinge", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hamstring stretch", targetMuscles: "Hamstrings",
+    images: { kind: "single", main: imageV5("standing-hamstring-hinge-main-v2.webp") },
+    instructions: "Place one heel a short step forward with toes lifted and bend your back knee slightly. Hinge gently at your hips with a long back, then switch legs.",
+    cue: "Keep the front heel down and stop before your back starts rounding."
+  },
+  {
+    id: "standing-cross-body-shoulder-stretch", canonicalName: "Standing Cross-Body Shoulder Stretch", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing shoulder stretch", targetMuscles: "Rear shoulder and upper back",
+    images: { kind: "single", main: imageV5("standing-cross-body-shoulder-stretch-main.webp") },
+    instructions: "Stand tall and bring one straight arm across your chest. Use the opposite hand to support it gently above the elbow, then switch arms.",
+    cue: "Keep your shoulders relaxed and never pull directly on the elbow."
+  },
+  {
+    id: "standing-hip-flexor-stretch", canonicalName: "Standing Hip Flexor Stretch", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hip flexor stretch", targetMuscles: "Front of hips",
+    images: { kind: "single", main: imageV5("standing-hip-flexor-stretch-main.webp") },
+    instructions: "Take a short split stance with one foot behind. Bend the front knee slightly, keep your torso tall, and gently tuck your pelvis until you feel a stretch at the front of the back hip. Switch sides.",
+    cue: "Keep the movement small and avoid arching your lower back."
+  },
+  {
+    id: "standing-lateral-hip-shift", canonicalName: "Standing Lateral Hip Shift", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing lateral hip mobility", targetMuscles: "Inner thighs and hips",
+    images: { kind: "single", main: imageV5("standing-lateral-hip-shift-main.webp") },
+    instructions: "Stand with feet wider than your shoulders. Shift your hips gently toward one side by bending that knee a little while keeping the other leg comfortably straight, then switch sides.",
+    cue: "Keep both feet flat and make the shift shallow and controlled."
+  },
+  {
+    id: "seated-leg-curl", canonicalName: "Seated Leg Curl", aliases: [],
+    equipment: "Seated leg curl machine", movementPattern: "Knee flexion", targetMuscles: "Hamstrings",
+    images: { kind: "single", main: imageV6("seated-leg-curl-main.webp") },
+    instructions: "Adjust the seat so your knees line up with the machine pivot. Secure the thigh pad, place your lower legs against the ankle roller, curl your heels down and back, then return slowly.",
+    cue: "Keep your hips on the seat and move only at the knees."
+  },
+  {
+    id: "leg-extension", canonicalName: "Leg Extension", aliases: [],
+    equipment: "Leg extension machine", movementPattern: "Knee extension", targetMuscles: "Quadriceps",
+    images: { kind: "single", main: imageV6("leg-extension-main.webp") },
+    instructions: "Adjust the seat so your knees line up with the machine pivot and the roller rests above your ankles. Straighten your legs in a controlled range, then lower slowly.",
+    cue: "Keep your hips against the seat and avoid snapping your knees straight."
+  },
+  {
+    id: "machine-shoulder-press", canonicalName: "Machine Shoulder Press", aliases: [],
+    equipment: "Shoulder press machine", movementPattern: "Vertical press", targetMuscles: "Shoulders and triceps",
+    images: { kind: "single", main: imageV6("machine-shoulder-press-main.webp") },
+    instructions: "Set the seat so the handles begin around shoulder height. Sit with your back supported, press the handles upward without shrugging, then lower with control.",
+    cue: "Keep your ribs down and wrists stacked over your elbows."
+  },
+  {
+    id: "chest-supported-machine-row", canonicalName: "Chest-Supported Machine Row", aliases: [],
+    equipment: "Chest-supported row machine", movementPattern: "Supported horizontal pull", targetMuscles: "Upper back and lats",
+    images: { kind: "single", main: imageV6("chest-supported-machine-row-main.webp") },
+    instructions: "Set the seat so the chest pad supports your torso. Brace your feet, pull both handles toward your lower ribs, then let your arms extend slowly without lifting off the pad.",
+    cue: "Keep your chest against the pad and your shoulders away from your ears."
+  },
+  {
+    id: "pec-deck-fly", canonicalName: "Pec Deck Fly", aliases: [],
+    equipment: "Pec deck fly machine", movementPattern: "Chest fly", targetMuscles: "Chest",
+    images: { kind: "single", main: imageV6("pec-deck-fly-main.webp") },
+    instructions: "Adjust the seat so the handles are near chest height. Sit tall with a slight elbow bend, bring both handles together in front of your chest, then open slowly to a comfortable stretch.",
+    cue: "Keep your shoulders down and avoid forcing your arms far behind you."
+  },
+  {
+    id: "reverse-pec-deck", canonicalName: "Reverse Pec Deck", aliases: [],
+    equipment: "Reverse pec deck machine", movementPattern: "Rear delt fly", targetMuscles: "Rear shoulders and upper back",
+    images: { kind: "single", main: imageV6("reverse-pec-deck-main.webp") },
+    instructions: "Face the machine with your chest against the pad. Hold the reverse-fly handles at shoulder height, open your arms out to the sides, then return slowly without twisting.",
+    cue: "Keep a soft bend in your elbows and avoid shrugging."
+  },
+  {
+    id: "hip-abduction-machine", canonicalName: "Hip Abduction Machine", aliases: [],
+    equipment: "Seated hip abduction machine", movementPattern: "Hip abduction", targetMuscles: "Side glutes",
+    images: { kind: "single", main: imageV6("hip-abduction-machine-main.webp") },
+    instructions: "Sit with your back supported and the pads against the outside of your thighs. Press your knees apart within a comfortable range, pause briefly, then return with control.",
+    cue: "Keep your torso still and avoid bouncing the pads."
+  },
+  {
+    id: "seated-calf-raise-machine", canonicalName: "Seated Calf Raise Machine", aliases: [],
+    equipment: "Seated calf raise machine", movementPattern: "Ankle plantar flexion", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV6("seated-calf-raise-machine-main.webp") },
+    instructions: "Sit with the thigh pad resting above your knees and the balls of your feet on the platform. Raise your heels as high as comfortable, pause, then lower slowly.",
+    cue: "Move through your ankles while keeping your knees under the pad."
+  },
+  {
+    id: "hack-squat-machine", canonicalName: "Hack Squat Machine", aliases: [],
+    equipment: "Hack squat machine", movementPattern: "Supported squat", targetMuscles: "Quadriceps and glutes",
+    images: { kind: "single", main: imageV6("hack-squat-machine-main.webp") },
+    instructions: "Set your back and shoulders against the sled pads with feet about shoulder-width on the platform. Bend your knees to a controlled depth, then push through your whole feet to stand.",
+    cue: "Keep your heels down and do not lock your knees hard at the top."
+  },
+  {
+    id: "cable-face-pull", canonicalName: "Cable Face Pull", aliases: [],
+    equipment: "Cable tower and rope handle", movementPattern: "High horizontal pull", targetMuscles: "Rear shoulders and upper back",
+    images: { kind: "single", main: imageV6("cable-face-pull-main.webp") },
+    instructions: "Set the rope around face height and step back to tension the cable. Pull the rope toward your forehead with elbows out, then extend your arms slowly.",
+    cue: "Keep your neck relaxed and do not lean back to move the weight."
+  },
+  {
+    id: "cable-chest-fly", canonicalName: "Cable Chest Fly", aliases: [],
+    equipment: "Dual adjustable cable machine", movementPattern: "Chest fly", targetMuscles: "Chest",
+    images: { kind: "single", main: imageV6("cable-chest-fly-main.webp") },
+    instructions: "Set both pulleys around chest height, take a staggered stance, and keep a soft bend in your elbows. Bring the handles together in front of your chest, then return slowly.",
+    cue: "Keep your shoulders down and your torso steady throughout."
+  },
+  {
+    id: "seated-leg-press", canonicalName: "Seated Leg Press", aliases: [],
+    equipment: "Horizontal seated leg press machine", movementPattern: "Supported leg press", targetMuscles: "Quadriceps and glutes",
+    images: { kind: "single", main: imageV6("seated-leg-press-main.webp") },
+    instructions: "Adjust the seat so your knees start comfortably bent. Place both feet on the platform, press it away through your whole feet, then return slowly without letting your hips lift.",
+    cue: "Keep your knees tracking with your toes and avoid locking them hard."
+  },
+  {
+    id: "bench-sit-to-stand", canonicalName: "Bench Sit-to-Stand", aliases: [],
+    equipment: "Fixed park bench", movementPattern: "Bench-assisted squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV7("bench-sit-to-stand-main.webp") },
+    instructions: "Sit near the front of a fixed, stable park bench with feet flat. Lean slightly forward, stand through your feet, then sit down slowly with control.",
+    cue: "Choose a comfortable bench height and keep your knees aligned with your feet."
+  },
+  {
+    id: "standing-bodyweight-hip-hinge", canonicalName: "Standing Bodyweight Hip Hinge", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hip hinge", targetMuscles: "Hamstrings and glutes",
+    images: { kind: "single", main: imageV7("standing-bodyweight-hip-hinge-main.webp") },
+    instructions: "Stand with feet hip-width apart and knees soft. Push your hips backward while your torso leans forward, then drive through your feet to stand tall.",
+    cue: "Keep your back long and stop before it starts to round."
+  },
+  {
+    id: "standing-knee-raise", canonicalName: "Standing Knee Raise", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing core and balance", targetMuscles: "Core and hip flexors",
+    images: { kind: "single", main: imageV7("standing-knee-raise-main.webp") },
+    instructions: "Stand tall on level ground. Lift one knee slowly toward hip height without leaning back, lower it with control, then switch legs.",
+    cue: "Move slowly and keep the knee lower if balance feels uncertain."
+  },
+  {
+    id: "gentle-knee-march", canonicalName: "Gentle Knee March", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Low-impact marching", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV7("standing-knee-raise-main.webp") },
+    instructions: "Stand in a clear space and lift one knee a little, then lower that foot and lift the other. Continue alternating at an easy, steady pace for the prescribed time. Keep a hand near stable support if you need it.",
+    cue: "Keep the steps soft and the knee lifts low enough to stay balanced."
+  },
+  {
+    id: "walk-intervals", canonicalName: "Walk Intervals", aliases: [],
+    equipment: "Safe walking route", movementPattern: "Alternating walking pace", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV4("walking-main.webp") },
+    instructions: "Walk easily for two minutes, then walk briskly for one minute. Repeat on a safe, level route for the prescribed time and ease off if needed.",
+    cue: "The brisk sections should feel purposeful while still allowing controlled breathing."
+  },
+  {
+    id: "walk-jog-intervals", canonicalName: "Walk-Jog Intervals", aliases: [],
+    equipment: "Safe walking or running route", movementPattern: "Walk-jog intervals", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV7("walk-jog-intervals-main.webp") },
+    instructions: "Walk for two minutes, then jog easily for thirty seconds. Repeat on a safe, level route for the prescribed time and return to walking if form or breathing becomes strained.",
+    cue: "Keep the jog gentle and land under your body rather than sprinting."
+  },
+  {
+    id: "side-step-touch", canonicalName: "Side Step Touch", aliases: [],
+    equipment: "Bodyweight and a small clear space", movementPattern: "Low-impact lateral step", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV7("side-step-touch-main.webp") },
+    instructions: "Step to one side and lightly tap the other foot beside it. Repeat to the other side at a comfortable pace without hopping.",
+    cue: "Keep your knees soft, steps quiet, and torso upright."
+  },
+  {
+    id: "short-bar-hang", canonicalName: "Short Bar Hang", aliases: [],
+    equipment: "Fixed pull-up bar", movementPattern: "Grip and shoulder hang", targetMuscles: "Grip, shoulders and upper back",
+    images: { kind: "single", main: image("pull-up-hanging-start.webp") },
+    instructions: "Hold a fixed pull-up bar with an overhand grip and let your feet lift only if you can safely reach and leave the bar. Keep your shoulders gently engaged for a short hold, then lower carefully.",
+    cue: "Stop the hold before your grip slips; never jump to an uncertain bar."
+  },
+  {
+    id: "standing-calf-raise", canonicalName: "Standing Calf Raise", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing calf raise", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV8("standing-calf-raise-main.webp") },
+    instructions: "Stand on flat ground with feet hip-width apart. Rise onto the balls of both feet, pause briefly, then lower your heels slowly.",
+    cue: "Stay tall and avoid rolling onto the outside of your feet."
+  },
+  {
+    id: "tandem-stand", canonicalName: "Tandem Stand", aliases: [],
+    equipment: "Bodyweight with nearby stable support", movementPattern: "Static balance", targetMuscles: "Balance and stabilizing muscles",
+    images: { kind: "single", main: imageV8("tandem-stand-main.webp") },
+    instructions: "Stand near a stable wall or counter. Place one foot directly ahead of the other, hold your balance for the prescribed time, then switch which foot leads.",
+    cue: "Keep support within reach and step out of the stance if unsteady."
+  },
+  {
+    id: "supported-single-leg-stand", canonicalName: "Supported Single-Leg Stand", aliases: [],
+    equipment: "Bodyweight and stable wall", movementPattern: "Supported single-leg balance", targetMuscles: "Balance, hips and ankles",
+    images: { kind: "single", main: imageV8("supported-single-leg-stand-main.webp") },
+    instructions: "Stand beside a stable wall and touch it lightly with your fingertips. Lift one foot a little off the floor, hold, then switch legs.",
+    cue: "Keep your hips level and use more hand support whenever needed."
+  },
+  {
+    id: "seated-band-row", canonicalName: "Seated Band Row", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Seated horizontal pull", targetMuscles: "Upper back and arms",
+    images: { kind: "single", main: imageV8("seated-band-row-main.webp") },
+    instructions: "Sit with legs forward and knees softly bent. Loop the middle of a long band under both feet, hold one end in each hand, pull elbows back, then return slowly.",
+    cue: "Check the band is secure under your feet before every pull."
+  },
+  {
+    id: "standing-band-biceps-curl", canonicalName: "Standing Band Biceps Curl", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Elbow flexion", targetMuscles: "Biceps",
+    images: { kind: "single", main: imageV8("standing-band-biceps-curl-main.webp") },
+    instructions: "Stand on the middle of a long band with both feet and hold an end in each hand. Curl your hands toward your shoulders, then lower with control.",
+    cue: "Keep your elbows near your ribs and your wrists straight."
+  },
+  {
+    id: "band-overhead-triceps-extension", canonicalName: "Band Overhead Triceps Extension", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Overhead elbow extension", targetMuscles: "Triceps",
+    images: { kind: "single", main: imageV8("band-overhead-triceps-extension-main.webp") },
+    instructions: "Stand on the middle of a long band with one foot, bring both ends behind your head, then straighten your elbows overhead and return slowly.",
+    cue: "Keep the band secured under your foot and stop if your shoulders feel uncomfortable."
+  },
+  {
+    id: "standing-band-lateral-raise", canonicalName: "Standing Band Lateral Raise", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Shoulder abduction", targetMuscles: "Side shoulders",
+    images: { kind: "single", main: imageV8("standing-band-lateral-raise-main.webp") },
+    instructions: "Stand on the middle of a long band and hold the ends at your sides. Raise your arms outward toward shoulder height, then lower slowly.",
+    cue: "Keep a soft elbow bend and avoid shrugging or arching your back."
+  },
+  {
+    id: "dumbbell-suitcase-hold", canonicalName: "Dumbbell Suitcase Hold", aliases: [],
+    equipment: "One dumbbell", movementPattern: "Static anti-lateral-flexion hold", targetMuscles: "Core and grip",
+    images: { kind: "single", main: imageV8("dumbbell-suitcase-hold-main.webp") },
+    instructions: "Hold one dumbbell beside one thigh and stand tall with shoulders level. Breathe normally for the prescribed time, then switch hands.",
+    cue: "Do not lean toward or away from the weight."
+  },
+  {
+    id: "standing-dumbbell-calf-raise", canonicalName: "Standing Dumbbell Calf Raise", aliases: [],
+    equipment: "Dumbbells", movementPattern: "Loaded standing calf raise", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV8("standing-dumbbell-calf-raise-main.webp") },
+    instructions: "Hold light dumbbells at your sides on flat ground. Raise both heels, pause at the top, then lower slowly without bouncing.",
+    cue: "Stay upright and keep weight centered over both feet."
+  },
+  {
+    id: "barbell-back-squat", canonicalName: "Barbell Back Squat", aliases: [],
+    equipment: "Barbell, rack and safeties", movementPattern: "Loaded squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV8("barbell-back-squat-main.webp") },
+    instructions: "Set rack safeties and place the bar across your upper back. Unrack with control, squat to a depth you can manage with flat feet, then stand through your whole feet.",
+    cue: "Use a spotter or safeties and keep the bar over midfoot."
+  },
+  {
+    id: "barbell-romanian-deadlift", canonicalName: "Barbell Romanian Deadlift", aliases: [],
+    equipment: "Barbell", movementPattern: "Loaded hip hinge", targetMuscles: "Hamstrings and glutes",
+    images: { kind: "single", main: imageV8("barbell-romanian-deadlift-main.webp") },
+    instructions: "Hold a barbell in front of your thighs. With soft knees, push your hips back and slide the bar close to your legs, then stand tall by driving through your feet.",
+    cue: "Stop the descent before your back rounds; the bar need not touch the floor."
+  },
+  {
+    id: "barbell-bench-press", canonicalName: "Barbell Bench Press", aliases: [],
+    equipment: "Barbell, flat bench and rack safeties", movementPattern: "Horizontal press", targetMuscles: "Chest, shoulders and triceps",
+    images: { kind: "single", main: imageV8("barbell-bench-press-main.webp") },
+    instructions: "Set rack safeties or use a spotter. Lie on a flat bench with feet planted, lower the bar toward your mid chest, then press it upward with control.",
+    cue: "Keep wrists stacked over your forearms and avoid bouncing the bar."
+  },
+  {
+    id: "hip-thrust-machine", canonicalName: "Hip Thrust Machine", aliases: [],
+    equipment: "Dedicated hip thrust or glute drive machine", movementPattern: "Supported hip extension", targetMuscles: "Glutes and hamstrings",
+    images: { kind: "single", main: imageV8("hip-thrust-machine-main.webp") },
+    instructions: "Set the machine pad or belt across your pelvis and keep feet flat. Raise your hips until your torso is level, pause briefly, then lower with control.",
+    cue: "Keep your ribs down and avoid over-arching your lower back."
+  },
+  {
+    id: "lying-leg-curl", canonicalName: "Lying Leg Curl", aliases: [],
+    equipment: "Prone leg curl machine", movementPattern: "Knee flexion", targetMuscles: "Hamstrings",
+    images: { kind: "single", main: imageV8("lying-leg-curl-main.webp") },
+    instructions: "Lie face down on the machine with the roller above your heels. Curl your heels toward your glutes while keeping hips on the pad, then lower slowly.",
+    cue: "Avoid lifting your hips or swinging the weight."
+  },
+  {
+    id: "standing-calf-raise-machine", canonicalName: "Standing Calf Raise Machine", aliases: [],
+    equipment: "Standing calf raise machine", movementPattern: "Loaded ankle plantar flexion", targetMuscles: "Calves",
+    images: { kind: "single", main: imageV8("standing-calf-raise-machine-main.webp") },
+    instructions: "Place the shoulder pads securely and stand with the balls of your feet on the platform. Raise your heels, pause, then lower through a comfortable range.",
+    cue: "Keep your torso upright and avoid bouncing at the bottom."
+  },
+  {
+    id: "cable-pallof-press", canonicalName: "Cable Pallof Press", aliases: [],
+    equipment: "Adjustable cable tower", movementPattern: "Standing anti-rotation press", targetMuscles: "Core",
+    images: { kind: "single", main: imageV8("cable-pallof-press-main.webp") },
+    instructions: "Set a cable handle at chest height and stand sideways to the tower. Hold it with both hands, press straight forward without turning, return, then switch sides.",
+    cue: "Keep hips and shoulders facing forward as the cable pulls sideways."
+  },
+  {
+    id: "elliptical-trainer", canonicalName: "Elliptical Trainer", aliases: [],
+    equipment: "Elliptical trainer", movementPattern: "Low-impact aerobic conditioning", targetMuscles: "Cardiovascular system and legs",
+    images: { kind: "single", main: imageV8("elliptical-trainer-main.webp") },
+    instructions: "Step onto the elliptical with both feet on the pedals, hold the handles, and move with a smooth stride at a comfortable effort for the prescribed time.",
+    cue: "Keep your feet on the pedals and avoid leaning heavily on the handles."
+  },
+  {
+    id: "rowing-machine", canonicalName: "Rowing Machine", aliases: [],
+    equipment: "Indoor rowing machine", movementPattern: "Seated aerobic rowing", targetMuscles: "Cardiovascular system, legs and back",
+    images: { kind: "single", main: imageV8("rowing-machine-main.webp") },
+    instructions: "Sit on the rower with feet strapped in. Push with your legs, then draw the handle to your lower ribs; extend your arms before bending your knees on the return.",
+    cue: "Keep the stroke smooth and avoid yanking with your lower back."
+  },
+  {
+    id: "lateral-squat-step", canonicalName: "Lateral Squat Step", aliases: [],
+    equipment: "Bodyweight and a small clear space", movementPattern: "Lateral squat", targetMuscles: "Quads, glutes and inner thighs",
+    images: { kind: "single", main: imageV9("lateral-squat-step-main.webp") },
+    instructions: "Stand tall and step one foot sideways. Shift your hips back toward the stepping leg while the other leg stays longer, then push through that foot to stand and bring your feet together. Alternate sides.",
+    cue: "Use a small step and keep the bent knee tracking over the foot."
+  },
+  {
+    id: "kickstand-hip-hinge", canonicalName: "Kickstand Hip Hinge", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Staggered-stance hip hinge", targetMuscles: "Hamstrings and glutes",
+    images: { kind: "single", main: imageV9("kickstand-hip-hinge-main.webp") },
+    instructions: "Place one foot a short step behind the other and rest its toes lightly on the floor. Keep most of your weight over the front leg, push your hips back with a long spine, then stand tall. Switch sides after each set.",
+    cue: "The back foot helps balance; do not twist or round your back."
+  },
+  {
+    id: "stationary-split-squat", canonicalName: "Stationary Split Squat", aliases: [],
+    equipment: "Bodyweight, with optional nearby support", movementPattern: "Stationary split squat", targetMuscles: "Quads and glutes",
+    images: { kind: "single", main: imageV9("stationary-split-squat-main.webp") },
+    instructions: "Start in a comfortable staggered stance and keep both feet planted. Bend both knees only as far as you can control, rise slowly, and repeat before switching which foot is in front. Hold a stable support if needed.",
+    cue: "Stay tall and keep the front knee in line with the foot."
+  },
+  {
+    id: "standing-cross-body-knee-drive", canonicalName: "Standing Cross-Body Knee Drive", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing cross-body core movement", targetMuscles: "Abdominals and hip flexors",
+    images: { kind: "single", main: imageV9("standing-cross-body-knee-drive-main.webp") },
+    instructions: "Stand tall. Slowly raise one knee toward the opposite elbow with a small torso turn, set the foot down, then repeat on the other side. Keep the movement controlled and shorten the lift if balance is uncertain.",
+    cue: "Move slowly without hopping or pulling on your neck."
+  },
+  {
+    id: "standing-upper-back-squeeze", canonicalName: "Standing Upper-Back Squeeze", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Shoulder-blade activation", targetMuscles: "Upper back and rear shoulders",
+    images: { kind: "single", main: imageV9("standing-upper-back-squeeze-main.webp") },
+    instructions: "Stand tall with elbows bent beside your ribs. Gently draw your shoulder blades toward each other, pause briefly, then relax. This is a light shoulder-blade movement for a day when a bar is unsuitable; it does not replace the resistance of a row.",
+    cue: "Keep your shoulders low and do not arch your back."
+  },
+  {
+    id: "bent-knee-calf-raise", canonicalName: "Bent-Knee Calf Raise", aliases: [],
+    equipment: "Bodyweight on flat ground", movementPattern: "Bent-knee calf raise", targetMuscles: "Calves, especially soleus",
+    images: { kind: "single", main: imageV9("bent-knee-calf-raise-main.webp") },
+    instructions: "Stand with feet hip-width apart and keep a small comfortable bend in both knees. Lift both heels slowly, pause, then lower with control while keeping the knee bend. Hold stable support if balance is uncertain.",
+    cue: "Raise and lower your heels without bouncing."
+  },
+  {
+    id: "standing-hip-circles", canonicalName: "Standing Hip Circles", aliases: [],
+    equipment: "Bodyweight", movementPattern: "Standing hip mobility", targetMuscles: "Hips and lower back mobility",
+    images: { kind: "single", main: imageV9("standing-hip-circles-main.webp") },
+    instructions: "Stand with feet hip-width apart, hands on hips and knees soft. Make a small, slow circle with your hips, then circle the other direction. Stay within a comfortable range and keep your upper body relaxed.",
+    cue: "Use small circles without forcing your lower back."
+  },
+  {
+    id: "upright-low-bar-row", canonicalName: "Upright Low-Bar Row", aliases: [],
+    equipment: "Fixed waist-high exercise bar", movementPattern: "Upright bodyweight row", targetMuscles: "Upper back, lats and biceps",
+    images: { kind: "single", main: imageV9("upright-low-bar-row-main.webp") },
+    instructions: "Check that the fixed low bar supports your weight. Grip it with both hands, walk your feet forward slightly and keep them planted. Lean back only a little, pull your chest toward the bar, then straighten your arms slowly.",
+    cue: "Keep both feet grounded and choose an easy body angle."
+  },
+  {
+    id: "bench-incline-plank-hold", canonicalName: "Bench Incline Plank Hold", aliases: [],
+    equipment: "Fixed stable bench", movementPattern: "Incline plank hold", targetMuscles: "Shoulders, chest and core",
+    images: { kind: "single", main: imageV9("bench-incline-plank-hold-main.webp") },
+    instructions: "Place both hands on a fixed stable bench and walk your feet back until your body makes a straight diagonal line. Hold for the prescribed time while breathing steadily. Step in to finish; do not use a bench that shifts.",
+    cue: "Keep your hips in line with your shoulders and heels."
+  },
+  {
+    id: "kneeling-push-up-hold", canonicalName: "Kneeling Push-Up Hold", aliases: [],
+    equipment: "Bodyweight and a clear floor", movementPattern: "Kneeling push-up support", targetMuscles: "Shoulders, chest and core",
+    images: { kind: "single", main: imageV9("kneeling-push-up-hold-main.webp") },
+    instructions: "Start on hands and knees. Move your hands under your shoulders and keep a straight line from shoulders to knees with your arms long. Hold for the prescribed time while breathing; lower gently before your back sags.",
+    cue: "Keep your hands planted and do not arch your lower back."
+  },
+  {
+    id: "dumbbell-hammer-curl", canonicalName: "Dumbbell Hammer Curl", aliases: [],
+    equipment: "Two light dumbbells", movementPattern: "Neutral-grip biceps curl", targetMuscles: "Biceps and forearms",
+    images: { kind: "single", main: imageV9("dumbbell-hammer-curl-main.webp") },
+    instructions: "Stand tall with a dumbbell at each side and palms facing inward. Keep your upper arms close to your ribs, curl the weights toward your shoulders, then lower them slowly without moving your torso.",
+    cue: "Keep the palms facing each other and avoid swinging."
+  },
+  {
+    id: "standing-band-hammer-curl", canonicalName: "Standing Band Hammer Curl", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Neutral-grip band curl", targetMuscles: "Biceps and forearms",
+    images: { kind: "single", main: imageV9("standing-band-hammer-curl-main.webp") },
+    instructions: "Stand securely on the middle of a long band with both feet and hold an end in each hand. Keep palms facing inward and upper arms by your ribs. Curl your hands toward your shoulders, then lower with control.",
+    cue: "Check the band is secure under your feet before each set."
+  },
+  {
+    id: "standing-band-triceps-kickback", canonicalName: "Standing Band Triceps Kickback", aliases: [],
+    equipment: "Long resistance band", movementPattern: "Band triceps extension", targetMuscles: "Triceps",
+    images: { kind: "single", main: imageV9("standing-band-triceps-kickback-main.webp") },
+    instructions: "Pin one end of the long band under a foot and hold the other end in the same-side hand. Hinge slightly with a long back, keep your upper arm alongside your torso, straighten your elbow backward, then return slowly. Switch sides.",
+    cue: "Keep the band secure under your foot and your shoulder still."
+  },
+  {
+    id: "dumbbell-front-raise", canonicalName: "Dumbbell Front Raise", aliases: [],
+    equipment: "Two light dumbbells", movementPattern: "Front shoulder raise", targetMuscles: "Front shoulders",
+    images: { kind: "single", main: imageV9("dumbbell-front-raise-main.webp") },
+    instructions: "Stand tall holding light dumbbells in front of your thighs. With elbows soft and ribs stacked over your hips, raise your arms forward only to shoulder height, then lower slowly without leaning back.",
+    cue: "Stop at shoulder height and avoid shrugging or swinging."
   }
 ] as const;
 
@@ -565,9 +988,17 @@ export function resolveExerciseVisual(name: unknown): ExerciseVisualResolution {
   const key = normalizeExerciseVisualName(name);
   if (!key) return { status: "unresolved", match: null, exercise: null };
   const reviewed = reviewedNames.get(key);
-  if (reviewed) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
+  // New V2 equipment art stays in the owner workout pilot. Legacy Gemini
+  // plans retain their existing text-only behavior until V2 is public.
+  if (reviewed && !visualIsV2Only(reviewed.exercise)) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
+  if (reviewed) return { status: ambiguousNames.has(key) ? "ambiguous" : "unresolved", match: null, exercise: null };
   if (ambiguousNames.has(key)) return { status: "ambiguous", match: null, exercise: null };
   return { status: "unresolved", match: null, exercise: null };
+}
+
+function visualIsV2Only(exercise: ExerciseVisual): boolean {
+  const asset = exercise.images.kind === "single" ? exercise.images.main : exercise.images.start;
+  return asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V6}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V7}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V8}/`) || asset.startsWith(`${EXERCISE_VISUAL_ASSET_ROOT_V9}/`);
 }
 
 // Older V2 workouts were saved with broad labels before the reviewed catalog used
@@ -588,5 +1019,11 @@ const legacyV2VisualNames: Record<string, string> = {
 
 export function resolveV2WorkoutExerciseVisual(name: unknown): ExerciseVisualResolution {
   const normalized = normalizeExerciseVisualName(name);
-  return resolveExerciseVisual(normalized ? legacyV2VisualNames[normalized] ?? name : name);
+  const lookupName = normalized ? legacyV2VisualNames[normalized] ?? name : name;
+  const key = normalizeExerciseVisualName(lookupName);
+  if (!key) return { status: "unresolved", match: null, exercise: null };
+  const reviewed = reviewedNames.get(key);
+  if (reviewed) return { status: "resolved", match: reviewed.kind, exercise: reviewed.exercise };
+  if (ambiguousNames.has(key)) return { status: "ambiguous", match: null, exercise: null };
+  return { status: "unresolved", match: null, exercise: null };
 }

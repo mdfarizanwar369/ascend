@@ -1910,7 +1910,7 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
         timeAvailable: input.timeAvailable,
         goal: input.goal,
         equipment: input.equipment
-      })}\n\nAscend context: ${input.context}${options.blueprint ? `\n\nThe prescribedSession in Ascend context is binding. Use its exact exercise names and order. Write concise coaching and do not add exercises.` : options.preferReviewedVisualNames ? `\n\nWhen an exercise is equally suitable for this member and available equipment, prefer its exact name from these reviewed visual exercises: ${PILOT_EXERCISE_VISUALS.map(item => item.canonicalName).join(", ")}. Do not choose an unsuitable exercise merely to get a visual.` : ""}\n\nGenerate today's workout as strict JSON now.`,
+      })}\n\nAscend context: ${input.context}${options.blueprint ? `\n\nThe prescribedSession is binding. Use its exact exercise names and order. Match the title, intro, intensity and tip to its focus. Do not add exercises. The selected time is a maximum available window; use prescribedSession.estimatedDurationMinutes for any workout-length claim.` : options.preferReviewedVisualNames ? `\n\nWhen an exercise is equally suitable for this member and available equipment, prefer its exact name from these reviewed visual exercises: ${PILOT_EXERCISE_VISUALS.map(item => item.canonicalName).join(", ")}. Do not choose an unsuitable exercise merely to get a visual.` : ""}\n\nGenerate today's workout as strict JSON now.`,
       JSON.stringify(fallbackWorkoutPlan(input)),
       useStructuredResponse ? 4096 : undefined,
       useStructuredResponse

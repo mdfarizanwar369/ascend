@@ -17,8 +17,9 @@ import { UnsafeOutboundUrlError, validatePublicHttpUrl } from "../utils/outbound
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
+import { workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import { env } from "../config/env";
-import { portionAdjustmentMagnitude } from "@ascend/shared";
+import { estimateWorkoutDurationMinutes, portionAdjustmentMagnitude } from "@ascend/shared";
 import {
   isPortionAwareEstimate,
   parsePortionAwareEstimateForSave,
@@ -159,10 +160,34 @@ const completedWorkoutSchema = z.object({
     reps: z.string().trim().max(40).nullable().optional(),
     duration: z.string().trim().max(40).nullable().optional(),
     rest: z.string().trim().max(40).nullable().optional(),
-    note: z.string().trim().max(160).nullable().optional()
+    note: z.string().trim().max(500).nullable().optional()
   })).min(1).max(20),
   healthProviderCaloriesBurned: z.number().int().positive().optional().nullable(),
-  effortRating: z.enum(["too_easy", "about_right", "too_hard"]).optional()
+  effortRating: z.enum(["too_easy", "about_right", "too_hard"]).optional(),
+  completedExerciseIndexes: z.array(z.number().int().min(0).max(19)).min(1).max(20).optional(),
+  actualDurationMinutes: z.number().int().min(1).max(180).optional(),
+  observedExercises: z.array(z.object({
+    exerciseIndex: z.number().int().min(0).max(19),
+    sets: z.number().int().min(1).max(10).optional(),
+    reps: z.string().trim().regex(/^\d{1,3}(?:\s*[,/]\s*\d{1,3})*$/).max(80).optional(),
+    load: z.number().min(0).max(2_000).optional(),
+    loadUnit: z.enum(["kg", "lb"]).optional(),
+    durationMinutes: z.number().int().min(1).max(180).optional(),
+    durationSeconds: z.number().int().min(1).max(3600).optional()
+  }).refine(value => value.reps !== undefined || value.durationMinutes !== undefined || value.durationSeconds !== undefined, {
+    message: "Enter actual reps, minutes or seconds for each logged exercise."
+  })).min(1).max(20).optional()
+});
+
+const storedOwnerPlanSchema = z.object({
+  title: z.string(),
+  focus: z.string(),
+  intensity: z.enum(["easy", "moderate", "challenging"]),
+  estimatedDurationMinutes: z.number().int(),
+  experienceVersion: z.literal(2),
+  exercises: z.array(completedWorkoutSchema.shape.exercises.element.extend({
+    alternatives: z.array(completedWorkoutSchema.shape.exercises.element).optional()
+  }))
 });
 
 const capturedWorkoutSchema = z.object({
@@ -641,7 +666,14 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
 }, async (req, res, next) => {
   try {
     const input = completedWorkoutSchema.parse(req.body);
-    if (await usesIosDailyWorkout(req.user!.id)) {
+    const isDailyWorkout = await usesIosDailyWorkout(req.user!.id);
+    const v2Enabled = workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+      ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
+      isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER });
+    if ((input.completedExerciseIndexes || input.actualDurationMinutes !== undefined) && !v2Enabled) {
+      return res.status(403).json({ error: "Partial workout logging is not available for this account yet." });
+    }
+    if (isDailyWorkout) {
       const { getIosWorkoutForCompletion } = await import("../services/iosDailyWorkoutService");
       const stored = await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
       if (!stored) return res.status(404).json({ error: "Open your generated workout in Zoe before saving it." });
@@ -653,9 +685,80 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       input.workoutTitle = stored.workout.title;
       input.workoutType = stored.workout.focus;
       input.workoutDifficulty = stored.workout.intensity;
-      input.durationMinutes = stored.workout.estimatedDurationMinutes;
+      input.durationMinutes = stored.workout.experienceVersion === 2
+        ? estimateWorkoutDurationMinutes(stored.workout.exercises) : stored.workout.estimatedDurationMinutes;
       input.exercises = stored.workout.exercises;
+      if ((input.completedExerciseIndexes || input.actualDurationMinutes !== undefined) && stored.workout.experienceVersion !== 2) {
+        return res.status(400).json({ error: "This workout does not support partial logging." });
+      }
     }
+    if (input.observedExercises || input.completedExerciseIndexes || input.actualDurationMinutes !== undefined) {
+      if (!v2Enabled) {
+        return res.status(403).json({ error: "Workout detail logging is not available for this account yet." });
+      }
+      if (input.observedExercises && (new Set(input.observedExercises.map(exercise => exercise.exerciseIndex)).size !== input.observedExercises.length ||
+        input.observedExercises.some(exercise => exercise.exerciseIndex >= input.exercises.length))) {
+        return res.status(400).json({ error: "The logged exercises do not match this workout." });
+      }
+      if (!isDailyWorkout) {
+        const planResult = await query<{ workout: unknown }>(
+          `select metadata->'workout' as workout from analytics_events
+           where user_id = $1 and event_name = 'zoe_workout_plan_generated'
+             and metadata->>'workoutCompletionKey' = $2
+           order by created_at desc limit 1`,
+          [req.user!.id, input.workoutCompletionKey]
+        );
+        const storedPlan = storedOwnerPlanSchema.safeParse(planResult.rows[0]?.workout);
+        if (!storedPlan.success) return res.status(404).json({ error: "Open a newly generated Zoe workout before logging details." });
+        if (input.exercises.length !== storedPlan.data.exercises.length) {
+          return res.status(409).json({ error: "This workout changed. Reopen it in Zoe before saving." });
+        }
+        const selected = input.exercises.map((exercise, index) => {
+          const original = storedPlan.data.exercises[index];
+          return [original, ...(original.alternatives ?? [])].find(option => option.name === exercise.name);
+        });
+        if (selected.some(exercise => !exercise) || new Set(selected.map(exercise => exercise?.name)).size !== selected.length) {
+          return res.status(409).json({ error: "The exercises no longer match the generated workout." });
+        }
+        input.workoutTitle = storedPlan.data.title;
+        input.workoutType = storedPlan.data.focus;
+        input.workoutDifficulty = storedPlan.data.intensity;
+        input.exercises = selected.map(exercise => ({
+          name: exercise!.name,
+          sets: exercise!.sets,
+          reps: exercise!.reps,
+          duration: exercise!.duration,
+          rest: exercise!.rest,
+          note: exercise!.note
+        }));
+        input.durationMinutes = estimateWorkoutDurationMinutes(input.exercises);
+      }
+    }
+    const verifiedExercises = input.exercises;
+    const completedIndexes = input.completedExerciseIndexes ?? verifiedExercises.map((_, index) => index);
+    if (new Set(completedIndexes).size !== completedIndexes.length ||
+      completedIndexes.some(index => index >= verifiedExercises.length) ||
+      input.observedExercises?.some(exercise => !completedIndexes.includes(exercise.exerciseIndex))) {
+      return res.status(400).json({ error: "Choose only exercises you actually completed." });
+    }
+    const plannedExercises = completedIndexes.map(index => verifiedExercises[index]);
+    const plannedDurationMinutes = input.durationMinutes;
+    if (input.completedExerciseIndexes) input.durationMinutes = estimateWorkoutDurationMinutes(plannedExercises);
+    if (input.actualDurationMinutes !== undefined) input.durationMinutes = input.actualDurationMinutes;
+    const loggedExercises = input.observedExercises?.map(observed => ({
+      name: verifiedExercises[observed.exerciseIndex].name,
+      sets: observed.sets ?? null,
+      reps: observed.reps ?? null,
+      load: observed.load ?? null,
+      loadUnit: observed.load !== undefined ? observed.loadUnit ?? "kg" : null,
+      durationMinutes: observed.durationMinutes ?? null,
+      durationValue: observed.durationSeconds ?? null,
+      durationUnit: observed.durationSeconds !== undefined ? "seconds" as const : null,
+      duration: observed.durationSeconds ? `${observed.durationSeconds} sec`
+        : observed.durationMinutes ? `${observed.durationMinutes} min` : null,
+      confidence: 1,
+      exerciseOrder: observed.exerciseIndex + 1
+    }));
     const result = await persistCompletedWorkout({
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,
@@ -665,17 +768,29 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       workoutDifficulty: input.workoutDifficulty,
       durationMinutes: input.durationMinutes,
       completedAt: input.completedAt ?? null,
-      exercises: input.exercises,
+      exercises: loggedExercises ?? plannedExercises,
       healthProviderCaloriesBurned: input.healthProviderCaloriesBurned ?? null,
-      source: "coach_zoe_workout_planner",
-      extraMetadata: input.effortRating ? { effortRating: input.effortRating } : undefined
+      source: loggedExercises ? "coach_zoe_workout_observed" : "coach_zoe_workout_planner",
+      extraMetadata: {
+        ...(input.effortRating ? { effortRating: input.effortRating } : {}),
+        ...(input.completedExerciseIndexes || input.actualDurationMinutes !== undefined ? {
+          completionStatus: completedIndexes.length === verifiedExercises.length ? "complete" : "partial",
+          completedExerciseIndexes: completedIndexes,
+          completedExerciseCount: completedIndexes.length,
+          plannedExerciseCount: verifiedExercises.length,
+          completedPlanExercises: plannedExercises.map(exercise => ({ name: exercise.name })),
+          plannedDurationMinutes,
+          durationSource: input.actualDurationMinutes !== undefined ? "user_reported" : "estimated"
+        } : {}),
+        ...(loggedExercises ? { completedPlanExercises: plannedExercises.map(exercise => ({ name: exercise.name })) } : {})
+      }
     });
 
     const initializedDebrief = await initializeWorkoutDebrief({
       workoutEventId: result.burnLog.id,
       userId: req.user!.id,
       isPlatformOwner: req.user!.isPlatformOwner,
-      source: "coach_zoe_workout_planner",
+      source: loggedExercises ? "coach_zoe_workout_observed" : "coach_zoe_workout_planner",
       metadata: result.burnLog.metadata,
       createdAt: result.burnLog.created_at
     }).catch((error) => {

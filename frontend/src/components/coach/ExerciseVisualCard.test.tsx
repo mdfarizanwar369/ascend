@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PILOT_EXERCISE_VISUALS, resolveExerciseVisual } from "@ascend/shared";
+import { PILOT_EXERCISE_VISUALS, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { ExerciseVisualCard } from "./ExerciseVisualCard";
 
 const mocks = vi.hoisted(() => ({ event: vi.fn().mockResolvedValue(undefined) }));
@@ -73,6 +73,14 @@ describe("exercise visual pilot resolver", () => {
     expect(PILOT_EXERCISE_VISUALS.length).toBeGreaterThanOrEqual(70);
     expect(new Set(PILOT_EXERCISE_VISUALS.map(item => item.id)).size).toBe(PILOT_EXERCISE_VISUALS.length);
   });
+  it("keeps new machine and setting art in V2 while legacy plans retain their current visual coverage", () => {
+    expect(resolveExerciseVisual("Seated Leg Curl").status).toBe("unresolved");
+    expect(resolveV2WorkoutExerciseVisual("Seated Leg Curl").status).toBe("resolved");
+    expect(resolveExerciseVisual("Bench Sit-to-Stand").status).toBe("unresolved");
+    expect(resolveV2WorkoutExerciseVisual("Bench Sit-to-Stand").status).toBe("resolved");
+    expect(resolveExerciseVisual("Seated Band Row").status).toBe("unresolved");
+    expect(resolveV2WorkoutExerciseVisual("Seated Band Row").status).toBe("resolved");
+  });
   it("has a valid local WebP file for every approved pose", () => {
     const paths = PILOT_EXERCISE_VISUALS.flatMap(item => item.images.kind === "pair"
       ? [item.images.start, item.images.peak] : [item.images.main]);
@@ -80,7 +88,7 @@ describe("exercise visual pilot resolver", () => {
     const uniquePaths = new Set(paths);
     expect(uniquePaths.size).toBeGreaterThanOrEqual(111);
     for (const assetPath of uniquePaths) {
-      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[1234]\/[^/]+\.webp$/);
+      expect(assetPath).toMatch(/^\/exercise-visuals\/ascend-original-v[1-9]\/[^/]+\.webp$/);
       const bytes = readFileSync(path.join(process.cwd(), "public", assetPath.replace(/^\//, "")));
       expect(bytes.toString("ascii", 0, 4)).toBe("RIFF");
       expect(bytes.toString("ascii", 8, 12)).toBe("WEBP");
@@ -114,12 +122,16 @@ describe("exercise visual card", () => {
     expect(images[0]).toHaveAttribute("src", expect.stringContaining("push-up-start.webp"));
     expect(images[1]).toHaveAttribute("src", expect.stringContaining("push-up-peak.webp"));
   });
-  it("falls back to no visual when either asset fails and sends one aggregate event", () => {
+  it("keeps coaching instructions when either image fails and sends one aggregate event", () => {
     const exercise = PILOT_EXERCISE_VISUALS.find(item => item.id === "glute-bridge")!;
     render(<ExerciseVisualCard exercise={exercise} />);
     fireEvent.error(screen.getAllByRole("img")[0]);
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(screen.queryByText("Position")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Illustration unavailable");
+    expect(screen.getByText(exercise.instructions)).toBeInTheDocument();
+    expect(screen.getByText(exercise.cue)).toBeInTheDocument();
+    expect(screen.queryByText("Original Ascend exercise visual")).not.toBeInTheDocument();
     expect(mocks.event).toHaveBeenCalledWith("image_load_failure", "glute-bridge");
     expect(mocks.event).toHaveBeenCalledTimes(1);
   });

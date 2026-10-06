@@ -459,7 +459,7 @@ export function buildWorkoutSignalV1(input: {
   const rawProgressionV3 = progressionV3FromMetadata(input.metadata);
   const progressionV3 = trustedProgressionV3(input.metadata, exercises);
   const notableSignals = ["workout_completed"];
-  if (input.source === "coach_zoe_workout_planner") notableSignals.push("all_listed_exercises_completed");
+  if (input.source === "coach_zoe_workout_planner" || input.source === "coach_zoe_workout_observed") notableSignals.push("all_listed_exercises_completed");
   if (progressionV3) {
     notableSignals.push("progression_verified");
     if (progressionV3.overallStatus === "personal_best") notableSignals.push("personal_best");
@@ -483,8 +483,8 @@ export function buildWorkoutSignalV1(input: {
     trainingFocus: focusArea === "general" ? [] : [focusArea],
     movementPatterns,
     volumeBand: "unknown",
-    completionRatio: input.source === "coach_zoe_workout_planner" ? 1 : null,
-    prescribedComparison: input.source === "coach_zoe_workout_planner" ? "completion_only" : "not_available",
+    completionRatio: input.source === "coach_zoe_workout_planner" || input.source === "coach_zoe_workout_observed" ? 1 : null,
+    prescribedComparison: input.source === "coach_zoe_workout_planner" || input.source === "coach_zoe_workout_observed" ? "completion_only" : "not_available",
     recoveryLoad: "unknown",
     nextSessionBias: progressionV3?.nextSessionFocus ? [progressionV3.nextSessionFocus.slice(0, 240)] : [],
     notableSignals: stableUnique(notableSignals),
@@ -692,7 +692,8 @@ function aiContext(context: GenerationContext, signal: WorkoutSignalV1) {
       type: text(event.metadata.workoutType) ?? text(event.metadata.activityType),
       completedAt: event.createdAt,
       signal: buildWorkoutSignalV1({
-        source: event.metadata.source === "coach_zoe_workout_planner" ? "coach_zoe_workout_planner" : "ai_workout_capture",
+        source: event.metadata.source === "coach_zoe_workout_planner" || event.metadata.source === "coach_zoe_workout_observed"
+          ? event.metadata.source : "ai_workout_capture",
         metadata: event.metadata,
         createdAt: event.createdAt
       })

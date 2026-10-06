@@ -1,4 +1,5 @@
 import { isIosFreeEdition, isIosNativeEdition } from "../services/appEdition";
+import { randomUUID } from "node:crypto";
 import { requireAiConsent } from "../middleware/aiConsent";
 import { withAiWorkLease } from "../services/aiWorkLeaseService";
 import { Router } from "express";
@@ -906,7 +907,9 @@ aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
 
 aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
   try {
-    if (!workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2, ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT, isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER }) || !await usesIosDailyWorkout(req.user!.id)) {
+    // A saved V2 workout must remain swappable even if the rollout is turned
+    // off after it was generated. The service checks ownership and V2 status.
+    if (!await usesIosDailyWorkout(req.user!.id)) {
       return res.status(404).json({ error: "Not found" });
     }
     const input = z.object({
@@ -918,7 +921,21 @@ aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, asy
 });
 
 aiRouter.get("/ai/workout/visual-access", requireAuth, async (req, res) => {
-  res.json({ enabled: hasExerciseVisualAccess(req.user!) });
+  res.json({
+    enabled: hasExerciseVisualAccess(req.user!),
+    planLoggingPilotEnabled: workoutEngineV2Enabled({
+      globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+      ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      provider: env.AI_PROVIDER
+    }),
+    workoutEngineV2Enabled: workoutEngineV2Enabled({
+      globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+      ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
+      isPlatformOwner: req.user!.isPlatformOwner,
+      provider: env.AI_PROVIDER
+    })
+  });
 });
 
 aiRouter.post("/ai/workout/visual-event", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
@@ -1092,7 +1109,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         recentWorkouts: [...recentBurnResult.rows, ...recentPlanResult.rows].sort((a, b) =>
           Date.parse(String(b.created_at ?? "")) - Date.parse(String(a.created_at ?? ""))),
         timezoneOffsetMinutes: input.timezoneOffsetMinutes,
-        conservative: plannerContext.personalization.coachingProfiles.volumeProfile === "conservative"
+        conservative: plannerContext.personalization.coachingProfiles.volumeProfile === "conservative",
+        completedWorkoutToday: healthSyncSummary?.workoutCompletedToday === true && !isIosFreeEdition()
       }) : null;
       // The V2 prompt replaces broad context with the facts used for planning. It is
       // smaller than the legacy prompt and still makes only one Gemini request.
@@ -1113,7 +1131,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
           recommendation: workoutMemory.recommendation,
           latestVerifiedProgression: workoutMemory.latestVerifiedProgression
         },
-        prescribedSession: { focus: blueprint.focus, whyToday: blueprint.whyToday, exercises: blueprint.exercises.map(exercise => ({
+        prescribedSession: { focus: blueprint.focus, estimatedDurationMinutes: blueprint.estimatedDurationMinutes,
+          whyToday: blueprint.whyToday, exercises: blueprint.exercises.map(exercise => ({
           name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest
         })) }
       } : plannerContext);
@@ -1126,6 +1145,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         context: promptContext
       }, { requireAiSuccess: isIosNativeEdition(), preferReviewedVisualNames: hasExerciseVisualAccess(req.user!), blueprint: blueprint ?? undefined });
 
+      const planCompletionKey = workoutV2 && !dailyLimited ? randomUUID() : null;
       // Web plans have no daily-workout row. Save the names so a second request
       // can rotate them without mistaking a planned workout for a completed one.
       if (workoutV2 && !dailyLimited) await query(
@@ -1133,7 +1153,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
          values ($1, $2, 'zoe_workout_plan_generated', $3)`,
         [req.user!.id, req.user!.gymId ?? null, {
           evidenceType: "planned",
-          exercises: workout.exercises.map(exercise => ({ name: exercise.name }))
+          exercises: workout.exercises.map(exercise => ({ name: exercise.name })),
+          ...(planCompletionKey ? { workoutCompletionKey: planCompletionKey, workout } : {})
         }]
       );
 
@@ -1152,7 +1173,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         metadata: { feature: "coach_zoe_workout_planner", mode: "workout", coachTier: coachAccess.tier, engineVersion: workout.experienceVersion ?? 1 }
       });
 
-      return workout;
+      return planCompletionKey ? { ...workout, planCompletionKey } : workout;
     };
     if (dailyLimited) {
       const dailyWorkout = await generateIosDailyWorkout({

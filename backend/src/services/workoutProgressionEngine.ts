@@ -22,7 +22,7 @@ export type ProgressionWorkoutInput = {
   exercises: ProgressionExerciseInput[];
 };
 
-const OBSERVED_SOURCES = new Set(["ai_workout_capture", "trainer_logged_session"]);
+const OBSERVED_SOURCES = new Set(["ai_workout_capture", "trainer_logged_session", "coach_zoe_workout_observed"]);
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

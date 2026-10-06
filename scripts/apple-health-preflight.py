@@ -1,6 +1,7 @@
 """Read-only release inspection. Never uploads, changes capabilities, or prints secrets."""
 import base64
 import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -34,7 +35,12 @@ def main():
             with urllib.request.urlopen(request, timeout=30) as response:
                 return json.load(response)["data"]
         except urllib.error.HTTPError as error:
-            print("APPLE_READ_ERROR", json.dumps({"path": path, "status": error.code}))
+            try:
+                details = json.load(error).get("errors", [])
+            except (ValueError, AttributeError):
+                details = []
+            print("APPLE_READ_ERROR", json.dumps({"path": path, "status": error.code,
+                "errors": [{key: str(item.get(key, ""))[:700] for key in ("code", "title", "detail")} for item in details[:3]]}))
             return None
 
     apps = get("/v1/apps", **{"filter[bundleId]": BUNDLE, "limit": 5})
@@ -47,7 +53,7 @@ def main():
             print("APP_STORE_VERSION", json.dumps({"version": attrs.get("versionString"), "state": attrs.get("appStoreState"), "platform": attrs.get("platform")}))
     bundles = get("/v1/bundleIds", **{"filter[identifier]": BUNDLE, "limit": 5})
     if bundles is not None and len(bundles) == 1:
-        capabilities = get(f"/v1/bundleIds/{bundles[0]['id']}/bundleIdCapabilities", limit=100)
+        capabilities = get(f"/v1/bundleIds/{bundles[0]['id']}/bundleIdCapabilities")
         if capabilities is not None:
             for capability in capabilities:
                 if capability["attributes"].get("capabilityType") in ("HEALTHKIT", "SIGN_IN_WITH_APPLE"):
@@ -67,6 +73,14 @@ def main():
             "signInWithApple": "Default" in entitlements.get("com.apple.developer.applesignin", []),
             "healthKit": entitlements.get("com.apple.developer.healthkit") is True,
             "healthKitBackgroundDelivery": entitlements.get("com.apple.developer.healthkit.background-delivery") is True}))
+        certificates = get("/v1/certificates", limit=200)
+        original = {hashlib.sha256(value).hexdigest() for value in profile.get("DeveloperCertificates", [])}
+        if certificates is not None:
+            for certificate in certificates:
+                attrs = certificate["attributes"]
+                matches = hashlib.sha256(base64.b64decode(attrs.get("certificateContent", ""))).hexdigest() in original
+                if matches:
+                    print("EXISTING_SIGNING_CERTIFICATE", json.dumps({"id": certificate["id"], "type": attrs.get("certificateType"), "expiration": attrs.get("expirationDate")}))
 
 
 if __name__ == "__main__":
