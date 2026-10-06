@@ -194,7 +194,7 @@ for build in builds:
             tester for tester in testers
             if tester.get("attributes", {}).get("email", "").strip().lower() in account_holder_emails
         )
-        if (group_attrs.get("name") == "Ascend Internal" and group_attrs.get("isInternalGroup") is True
+        if (group_attrs.get("isInternalGroup") is True
                 and build_id in assigned_ids
                 and any(tester.get("attributes", {}).get("email", "").strip().lower() in account_holder_emails
                         for tester in testers)):
