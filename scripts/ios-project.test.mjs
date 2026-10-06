@@ -110,7 +110,8 @@ test("Apple Health bridge is read-only, private and registered in the native app
   assert.match(read("ios/App/App/App.entitlements"),/com.apple.developer.healthkit.background-delivery/);
   const info = read("ios/App/App/Info.plist");
   assert.match(info,/NSHealthShareUsageDescription/);
-  assert.doesNotMatch(info,/NSHealthUpdateUsageDescription/);
+  assert.match(info,/NSHealthUpdateUsageDescription/);
+  assert.match(info,/Ascend does not add or change data in Apple Health/);
   const service = read("ios/App/App/AscendHealthService.swift");
   assert.match(service,/requestAuthorization\(toShare: \[\], read: readTypes\)/);
   assert.doesNotMatch(service,/\.heartRate|\.sleepAnalysis|\.basalEnergyBurned|\.dietaryEnergyConsumed/);

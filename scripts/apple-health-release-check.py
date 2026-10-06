@@ -46,6 +46,7 @@ def main():
             if capability["attributes"].get("capabilityType") in ("HEALTHKIT", "APPLE_ID_AUTH"):
                 print("BUNDLE_CAPABILITY", json.dumps(capability["attributes"]))
     required = plistlib.loads(Path("ios/App/App/App.entitlements").read_bytes())
+    release.validate_health_usage_descriptions(plistlib.loads(Path("ios/App/App/Info.plist").read_bytes()), required)
     with tempfile.TemporaryDirectory(prefix="ascend-profile-check-") as directory:
         file = Path(directory) / "app.mobileprovision"
         file.write_bytes(base64.b64decode(os.environ["IOS_PROFILE_BASE64"], validate=True))

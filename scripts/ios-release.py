@@ -50,6 +50,15 @@ def validate_profile(profile, required_entitlements):
         raise SystemExit("Provisioning profile has expired.")
 
 
+def validate_health_usage_descriptions(info, required_entitlements):
+    if required_entitlements.get("com.apple.developer.healthkit") is True:
+        # App Store Connect currently checks both keys for HealthKit archives,
+        # including Ascend's read-only requestAuthorization(toShare: []).
+        for key in ("NSHealthShareUsageDescription", "NSHealthUpdateUsageDescription"):
+            if not isinstance(info.get(key), str) or not info[key].strip():
+                raise SystemExit(f"HealthKit archive requires a nonempty {key} in Info.plist.")
+
+
 def validate_signed_entitlements(entitlements, required):
     if entitlements.get("application-identifier") != f"{TEAM}.{BUNDLE}" or entitlements.get("get-task-allow"):
         raise SystemExit("Archived app identity or distribution signing is incorrect.")
@@ -84,6 +93,7 @@ def main():
             profile = plistlib.loads(run("security", "cms", "-D", "-i", str(profile_file), capture_output=True).stdout)
             required = plistlib.loads((root / "ios/App/App/App.entitlements").read_bytes())
             validate_profile(profile, required)
+            validate_health_usage_descriptions(plistlib.loads((root / "ios/App/App/Info.plist").read_bytes()), required)
             run("security", "create-keychain", "-p", password, str(keychain), capture_output=True)
             run("security", "set-keychain-settings", "-lut", "3600", str(keychain), capture_output=True)
             run("security", "unlock-keychain", "-p", password, str(keychain), capture_output=True)
