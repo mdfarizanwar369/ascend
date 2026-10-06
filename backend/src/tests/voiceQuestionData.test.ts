@@ -22,7 +22,7 @@ beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset();
 });
 
-describe("Siri answers from the owner's records", () => {
+describe("Siri answers from the member's records", () => {
   it("uses the existing nutrition calculation for varied calorie questions", async () => {
     mocks.today.mockResolvedValue({ spokenText: "You have 600 calories left." });
     expect((await ask("Can I eat more calories now?")).spokenText).toContain("600 calories left");

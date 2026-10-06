@@ -9,7 +9,7 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Your data"
       title="Privacy Policy"
-      updatedAt="4 October 2026"
+      updatedAt="6 October 2026"
       introduction="Ascend helps members, trainers, and gym owners stay aligned between sessions. This policy explains what information we collect, how we use it, and the choices available to you."
       sections={[
         {
@@ -47,6 +47,13 @@ export default function PrivacyPage() {
             "Supported iPhone and iPad releases offer an optional, read-only Apple Health connection for steps, active energy and workouts. You choose readable categories in Apple's permission screen and separately consent to storing imported daily totals, workout identifiers, timing, type, energy estimates and source names in your Ascend account. No subscription is required. Your food target does not automatically change.",
             "The initial Apple Health release uses imports and derived consistency scores only in your private dashboard and activity history. They are excluded from AI, trainer, gym and marketing views; existing sharing choices do not silently authorize these new categories. Pending native updates are protected on the device and excluded from backups.",
             "Disconnect stops future sync and retains history. Export or delete imported history in the connection screen. Deletion preserves manual logs and does not change Apple Health records. Account deletion removes account-linked imports, subject to normal backup and legal retention limits. Device read access remains controlled separately in Apple's Health settings. See /privacy/ios for the iPhone and iPad disclosure."
+          ]
+        },
+        {
+          title: "Siri shortcuts",
+          paragraphs: [
+            "Supported iPhone releases make Ascend App Shortcuts available through Siri and Apple's Shortcuts system without a separate in-app setup screen. After you sign in, Ascend keeps a limited device credential in the iPhone Keychain so a shortcut can retrieve the Ascend information you request. The server stores only a one-way hash of that credential, it expires automatically, and signing out revokes the credential on that device.",
+            "Ascend answers only after you invoke its shortcut. It does not listen in the background. Your spoken request is handled by Apple's Siri services under your Apple settings; Ascend receives the shortcut question or category needed to produce the answer. These answers use your Ascend records and deterministic calculations and are not sent to an AI provider."
           ]
         },
         {

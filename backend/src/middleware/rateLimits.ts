@@ -28,6 +28,14 @@ export const voiceTtsDailyRateLimit = rateLimit({
   keyGenerator: (req) => req.user?.id ?? "authenticated-user",
   message: { error: "Today's voice beta limit has been reached. Please try again tomorrow." }
 });
+export const siriSessionRateLimit = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.id ?? "authenticated-user",
+  message: { error: "Siri setup has been refreshed several times. Please try again later." }
+});
 export const todayPriorityRateLimit = rateLimit({
   windowMs: 60_000,
   limit: 60,

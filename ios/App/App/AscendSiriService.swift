@@ -51,7 +51,7 @@ enum AscendSiriError: LocalizedError {
         switch self {
         case .invalidConfiguration: return "Ascend could not configure Siri. Please update the app."
         case .storage: return "Ascend could not save Siri access on this iPhone."
-        case .notConnected, .expiredSession: return "Open Ascend and connect Siri to your account."
+        case .notConnected, .expiredSession: return "Open Ascend and make sure you are signed in."
         case .unavailable: return "Ascend could not reach today's numbers. Please try again."
         case .server: return "Ascend could not answer right now. Please try again."
         }

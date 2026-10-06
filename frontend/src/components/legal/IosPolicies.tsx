@@ -2,7 +2,7 @@ import { LegalPage } from "./LegalPage";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
 
 export function IosPrivacyPolicy() {
-  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="4 October 2026"
+  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="6 October 2026"
     introduction="This policy describes Ascend's iPhone and iPad app: personal fitness tracking and optional AI guidance. It explains what we collect, how we use it, and your choices."
     sections={[
       { title: "Information we collect", bullets: [
@@ -32,6 +32,10 @@ export function IosPrivacyPolicy() {
         "Ascend does not request Health write access, heart rate, sleep, location, medical records or nutrition. Imported energy is an estimate of activity, not total metabolism, and does not automatically increase your food target. Missing data can mean there are no readable records or access is restricted; Ascend cannot determine which read switches you declined.",
         "The initial Apple Health release does not send imported Health records or derived scores to AI providers, trainers, marketing systems or advertising services. Native pending updates are protected on the device and excluded from backups. Uploads use the same authenticated Ascend hosting and database infrastructure described below.",
         "Disconnect stops future sync but keeps imported history. Delete imported history removes that device's Ascend imports and their derived summaries, not your manual logs or anything in Apple Health. Account deletion removes account-linked imports, subject to normal backup and legal retention limits. Export imported history is available in the connection screen. Apple's Health settings separately control read access."
+      ] },
+      { title: "Siri shortcuts", paragraphs: [
+        "Supported iPhone releases make Ascend App Shortcuts available through Siri and Apple's Shortcuts system without a separate setup screen in Ascend. After sign-in, Ascend keeps a limited credential in the iPhone Keychain so a shortcut can retrieve the Ascend information you request. The server stores only a one-way hash of that credential. It expires automatically, and signing out revokes the credential on that device.",
+        "Ascend answers only after you invoke its shortcut and does not listen in the background. Your spoken request is handled by Apple's Siri services under your Apple settings. Ascend receives the shortcut question or category needed to produce the answer. Siri answers use Ascend records and deterministic calculations and are not sent to an AI provider."
       ] },
       { title: "Trainer connections", paragraphs: [
         "A Trainer Pro referral code does not by itself give a trainer access to your records. Ascend first shows the trainer identity, workspace and categories of information that will be shared. The connection begins only after you confirm. You can disconnect in Profile, which ends the trainer's access to your coaching records."

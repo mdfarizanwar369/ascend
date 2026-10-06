@@ -1,13 +1,13 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
-import { parseBearerToken, requireAuth, requirePlatformOwner } from "../middleware/auth";
+import { parseBearerToken, requireAuth } from "../middleware/auth";
+import { siriSessionRateLimit } from "../middleware/rateLimits";
 import { findSiriSessionUser, issueSiriSession, revokeSiriSession } from "../services/siriSessionService";
 import { getVoiceTodayData, voiceTodayQuery } from "../services/voiceTodayService";
 import { getVoiceQuestionData, voiceQuestionQuery } from "../services/voiceQuestionService";
 
 export const siriRouter = Router();
 
-// Only the verified platform owner can provision this TestFlight pilot.
-siriRouter.post("/me/siri/connect", requireAuth, requirePlatformOwner, async (req, res, next) => {
+siriRouter.post("/me/siri/connect", requireAuth, siriSessionRateLimit, async (req, res, next) => {
   try {
     res.json(await issueSiriSession(req.user!.id));
   } catch (error) { next(error); }
@@ -17,7 +17,7 @@ async function requireSiriSession(req: Request, res: Response, next: NextFunctio
   try {
     const token = parseBearerToken(req.header("Authorization"));
     const userId = token ? await findSiriSessionUser(token) : null;
-    if (!userId) return res.status(401).json({ error: "Open Ascend and reconnect Siri." });
+    if (!userId) return res.status(401).json({ error: "Open Ascend and make sure you are signed in." });
     res.locals.siriUserId = userId;
     next();
   } catch (error) { next(error); }
