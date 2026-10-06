@@ -7,6 +7,36 @@ import {
   requestNativeHealthConnectPermissions,
   syncNativeHealthConnect
 } from "./healthConnect";
+import { canUseAppleHealth, getNativeAppleHealthStatus, requestNativeAppleHealthPermissions, syncNativeAppleHealth } from "./appleHealth";
+
+export function canUseNativeHealthSync() {
+  return canUseHealthConnect() || canUseAppleHealth();
+}
+
+export async function getNativeHealthStatus() {
+  if (canUseAppleHealth()) return getNativeAppleHealthStatus();
+  return getNativeHealthConnectStatus();
+}
+
+export async function runNativeHealthSync(options: { interactive?: boolean } = {}) {
+  if (!canUseAppleHealth()) return runHealthConnectSync(options);
+  const interactive = options.interactive ?? true;
+  const status = await getNativeAppleHealthStatus();
+  if (!status.available) throw new Error("Apple Health is unavailable on this device.");
+  if (!status.authorizationRequested) {
+    if (!interactive) throw new Error("Connect Apple Health before syncing.");
+    await requestNativeAppleHealthPermissions();
+  }
+  const nativeSync = await syncNativeAppleHealth();
+  const imported = await importHealthSync({
+    provider: "apple_health",
+    permissions: nativeSync.permissionsGranted,
+    timezone: nativeSync.timezone,
+    syncedAt: nativeSync.syncedAt,
+    records: nativeSync.records
+  });
+  return { nativeSync, imported };
+}
 
 export async function runHealthConnectSync(options: { interactive?: boolean } = {}) {
   const interactive = options.interactive ?? true;
@@ -39,7 +69,8 @@ export async function disconnectHealthConnectFromAscend() {
 }
 
 export async function shouldAutoSyncHealthConnect() {
-  if (!canUseHealthConnect()) return false;
+  if (!canUseNativeHealthSync()) return false;
   const status = await getHealthSyncStatus().catch(() => null);
-  return Boolean(status?.status.connected);
+  const provider = canUseAppleHealth() ? "apple_health" : "health_connect";
+  return Boolean(status?.status.connected && status.status.provider === provider);
 }

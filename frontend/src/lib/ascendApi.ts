@@ -46,7 +46,7 @@ export type HealthSyncSummary = {
 };
 
 export type HealthSyncStatus = {
-  provider: "health_connect";
+  provider: "health_connect" | "apple_health";
   connected: boolean;
   permissions: string[];
   timezone: string | null;
@@ -787,7 +787,7 @@ export function getHealthSyncStatus() {
 }
 
 export function importHealthSync(input: {
-  provider: "health_connect";
+  provider: "health_connect" | "apple_health";
   permissions: string[];
   timezone: string | null;
   syncedAt?: string | null;

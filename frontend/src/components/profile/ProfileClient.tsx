@@ -1,6 +1,6 @@
 "use client";
 
-import { useIosFreeEdition, useIosApp } from "@/lib/appEdition";
+import { useIosFreeEdition, useIosApp, supportsIosAppleHealth } from "@/lib/appEdition";
 import { FreeAppFeatures } from "@/components/IosFreeEditionBoundary";
 
 import { ChangeEvent, useEffect, useState } from "react";
@@ -471,7 +471,7 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
-            {!iosApp && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+            {(!iosApp || supportsIosAppleHealth()) && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
               <Activity size={17} /> Health Sync
             </Link>}
           </div>

@@ -1,6 +1,6 @@
 import { pool, query } from "../db/pool";
 
-export type HealthSyncProvider = "health_connect";
+export type HealthSyncProvider = "health_connect" | "apple_health";
 export type HealthSyncRecordType = "steps_daily" | "active_calories_daily" | "exercise_session";
 
 export type ImportedHealthSyncRecord = {
@@ -146,7 +146,7 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
       select coalesce(sum(value_numeric), 0) as today_steps
       from health_sync_records hsr, anchors a
       where hsr.user_id = $1
-        and hsr.provider = 'health_connect'
+        and hsr.provider = $3
         and hsr.record_type = 'steps_daily'
         and hsr.recorded_on = a.local_today
     ),
@@ -154,7 +154,7 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
       select avg(coalesce(value_numeric, 0)) as average_steps_7d
       from health_sync_records hsr, anchors a
       where hsr.user_id = $1
-        and hsr.provider = 'health_connect'
+        and hsr.provider = $3
         and hsr.record_type = 'steps_daily'
         and hsr.recorded_on between a.local_today - interval '6 days' and a.local_today
     ),
@@ -162,7 +162,7 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
       select coalesce(sum(value_numeric), 0) as today_active_calories
       from health_sync_records hsr, anchors a
       where hsr.user_id = $1
-        and hsr.provider = 'health_connect'
+        and hsr.provider = $3
         and hsr.record_type = 'active_calories_daily'
         and hsr.recorded_on = a.local_today
     ),
@@ -172,7 +172,7 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
         max(coalesce(end_at, start_at)) as latest_workout_at
       from health_sync_records hsr, anchors a
       where hsr.user_id = $1
-        and hsr.provider = 'health_connect'
+        and hsr.provider = $3
         and hsr.record_type = 'exercise_session'
     )
     select
@@ -183,7 +183,7 @@ export async function getHealthSyncSummary(userId: string): Promise<HealthSyncSu
       (select workout_completed_today from workouts) as workout_completed_today,
       (select latest_workout_at::text from workouts) as latest_workout_at
     `,
-    [userId, localToday]
+    [userId, localToday, connection.provider]
   );
 
   const row = summaryResult.rows[0];
@@ -203,7 +203,7 @@ export async function getHealthSyncStatus(userId: string): Promise<HealthSyncSta
   const connection = await getHealthSyncConnection(userId);
   if (!connection || connection.status !== "connected") {
     return {
-      provider: "health_connect",
+      provider: connection?.provider ?? "health_connect",
       connected: false,
       permissions: [],
       timezone: null,
@@ -294,7 +294,7 @@ export async function disconnectHealthSync(userId: string) {
   await query(
     `
     insert into health_sync_connections (user_id, provider, status, permissions, updated_at)
-    values ($1, 'health_connect', 'disconnected', '[]'::jsonb, now())
+    values ($1, coalesce((select provider from health_sync_connections where user_id = $1), 'health_connect'), 'disconnected', '[]'::jsonb, now())
     on conflict (user_id) do update set
       status = 'disconnected',
       updated_at = now()

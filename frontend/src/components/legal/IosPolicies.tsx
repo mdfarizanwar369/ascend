@@ -2,13 +2,14 @@ import { LegalPage } from "./LegalPage";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
 
 export function IosPrivacyPolicy() {
-  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="30 September 2026"
+  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="6 October 2026"
     introduction="This policy describes Ascend's iPhone and iPad app: personal fitness tracking and optional AI guidance. It explains what we collect, how we use it, and your choices."
     sections={[
       { title: "Information we collect", bullets: [
         "Account information such as your name, email address and authentication identifier, provided when you register or sign in.",
         "Fitness profile information such as goals, age, sex selection, height, weight, target weight and activity level.",
-        "Information you choose to enter or upload, including meals, water, activity, habits, workout notes, weight and AI conversations. Existing account records, including relevant images and activity imported from connected services, may be used to personalize guidance. This app does not connect device health-data services.",
+        "Information you choose to enter or upload, including meals, water, activity, habits, workout notes, weight and AI conversations. Existing account records, including relevant images and activity imported from connected services, may be used to personalize guidance.",
+        "If you connect Apple Health on a supported iPhone, Ascend reads only your daily steps, workouts and active calories. This optional activity data is sent securely to your Ascend account for your dashboard and coaching. It may be visible to your assigned trainer or authorized gym administrator on a coached plan. Ascend does not read sleep, heart rate, blood pressure, location, nutrition or medical records from Apple Health.",
         "If you choose Speak meal, your microphone is used only while speaking. Your device or browser speech-recognition service converts audio into editable text; Ascend does not store the audio recording.",
         "Your AI sharing choice, including its provider, disclosure version and date; technical and usage information needed for security, troubleshooting, service performance and aggregate analytics."
       ] },
@@ -35,6 +36,7 @@ export function IosPrivacyPolicy() {
       ] },
       { title: "Your choices and rights", bullets: [
         "AI sharing is optional and off until you allow it. In Profile → AI privacy, decline or turn sharing off at any time. Manual tracking remains available. Turning it off stops new AI requests, including trainer requests for your records; it cannot recall data already sent. Contact support for deletion requests concerning previously processed data.",
+        "Apple Health is optional. You can disconnect it in Profile → Health Sync to stop future sync and revoke Ascend's access in iPhone Health settings. Disconnecting does not delete earlier imported records; delete your Ascend account to remove account-linked records subject to backup and legal retention limits.",
         "You may request access, correction, export or deletion of personal information, subject to identity verification and applicable legal requirements. Contact support@getascend.fit with the subject Privacy Request.",
         "Delete your account in Profile → Open Account Settings → Delete Account, or use /delete-account. Deletion removes account-linked records and uploaded images subject to normal backup and legal retention limits.",
         "Ascend does not sell personal information or use health and fitness data for third-party advertising."

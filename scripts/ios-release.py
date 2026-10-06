@@ -61,6 +61,8 @@ def main():
                 raise SystemExit("Provisioning profile does not match Ascend's team and bundle ID.")
             if "Default" not in profile["Entitlements"].get("com.apple.developer.applesignin", []):
                 raise SystemExit("Regenerate the provisioning profile with Sign in with Apple enabled.")
+            if profile["Entitlements"].get("com.apple.developer.healthkit") is not True:
+                raise SystemExit("Regenerate the App Store provisioning profile with HealthKit enabled before uploading this build.")
             if profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices") or profile["Entitlements"].get("get-task-allow"):
                 raise SystemExit("An App Store distribution profile is required.")
             if profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc):

@@ -15,7 +15,7 @@ import urllib.request
 
 BUNDLE = "fit.getascend.app"
 TEAM = "76N75VT6A7"
-HEALTH_KEYS = ("com.apple.developer.healthkit", "com.apple.developer.healthkit.background-delivery")
+HEALTH_KEYS = ("com.apple.developer.healthkit",)
 GITHUB_ENVIRONMENT_KEY_ID = "3380204578043523366"
 GITHUB_ENVIRONMENT_PUBLIC_KEY = "qDweWVfdKsdPOhQc8uE8CCC7l4oC803z3zrpBwDPY08="
 
@@ -43,7 +43,7 @@ def validate_profile(profile, original, require_health=True):
     if profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc):
         raise SystemExit("Refusing an expired profile.")
     if require_health and any(entitlements.get(key) is not True for key in HEALTH_KEYS):
-        raise SystemExit("Apple's new profile still lacks HealthKit or background delivery; do not replace the existing secret.")
+        raise SystemExit("Apple's new profile still lacks HealthKit; do not replace the existing secret.")
     if "Default" not in entitlements.get("com.apple.developer.applesignin", []):
         raise SystemExit("The new profile must preserve Sign in with Apple.")
     for key, previous in original.get("Entitlements", {}).items():
@@ -133,7 +133,7 @@ def main():
         output.write_text(json.dumps({"key_id": key_id, "encrypted_value": ciphertext}), encoding="utf-8")
         output.chmod(0o600)
         print("HEALTH_PROFILE_VALIDATED", json.dumps({"id": profile["id"], "existingCertificatePreserved": True,
-            "existingEntitlementsPreserved": True, "healthKit": True, "backgroundDelivery": True}))
+            "existingEntitlementsPreserved": True, "healthKit": True}))
         print("PROFILE_EXPORT_ENCRYPTED_FOR_EXISTING_GITHUB_ENVIRONMENT")
 
 

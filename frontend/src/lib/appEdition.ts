@@ -15,6 +15,9 @@ export function isIosSubscriptionEdition() {
 }
 
 export function isIosFreeEdition() { return isIosApp() && !isIosSubscriptionEdition(); }
+export function supportsIosAppleHealth() {
+  return isIosApp() && Number(/AscendIOS\/(\d+)/.exec(window.navigator.userAgent)?.[1] ?? 0) >= 7;
+}
 export function useIosApp() { return useSyncExternalStore(subscribe, isIosApp, serverSnapshot); }
 
 const subscribe = () => () => {};

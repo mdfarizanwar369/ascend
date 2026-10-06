@@ -19,7 +19,7 @@ export default function PrivacyPage() {
             "Fitness profile information such as your goals, age, sex selection, height, weight, target weight, activity level, and coaching preference.",
             "Information you choose to log, including food, water, activity, habits, progress photos, messages, AI coach conversations, and weekly check-ins. We collect these through your entries, uploads and optional connected services, and keep your AI sharing choice with its provider, disclosure version and date.",
             "If you choose Speak meal, your microphone is used only while you are speaking. Your device or browser speech-recognition service converts the audio into editable text; Ascend does not store the audio recording.",
-            "If you connect Android Health Connect, Ascend imports only daily steps, exercise sessions, and active calories burned so your activity summary and Coach Zoe guidance can be more useful.",
+            "If you connect Android Health Connect or Apple Health on a supported iPhone, Ascend imports only daily steps, exercise sessions, and active calories burned so your activity summary and Coach Zoe guidance can be more useful.",
             "Subscription metadata such as plan, payment status, renewal period, and provider references. Ascend does not store complete payment card details.",
             "Technical and usage information needed for security, troubleshooting, service performance, and aggregate product analytics."
           ]
@@ -35,10 +35,11 @@ export default function PrivacyPage() {
           ]
         },
         {
-          title: "Health Connect",
+          title: "Health Sync",
           paragraphs: [
             "Health Connect syncing is optional. If you connect it, Ascend reads only steps, exercise sessions, and active calories burned. We do not read sleep, heart rate, blood pressure, medical records, location, or nutrition from Health Connect.",
-            "Health Connect data is sent securely to Ascend so it can appear in your dashboard, support Coach Zoe, and help your assigned trainer understand your activity when you are on a coached plan. You can disconnect Health Connect from Ascend in Settings. You can also revoke device permissions from Android Health Connect settings."
+            "Health Connect data is sent securely to Ascend so it can appear in your dashboard, support Coach Zoe, and help your assigned trainer understand your activity when you are on a coached plan. You can disconnect Health Connect from Ascend in Settings. You can also revoke device permissions from Android Health Connect settings.",
+            "Apple Health syncing is optional on supported iPhone builds. Ascend reads the same three activity categories and sends them securely to your Ascend account for the same purposes. Disconnect in Profile → Health Sync to stop future sync, and revoke device access in iPhone Health settings. Ascend does not read sleep, heart rate, blood pressure, location, nutrition, or medical records from Apple Health."
           ]
         },
         {

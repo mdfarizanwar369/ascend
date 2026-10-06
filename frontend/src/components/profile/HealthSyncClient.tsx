@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, ExternalLink, Footprints, Flame, RefreshCw, Smartphone, Unplug } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { getHealthSyncStatus, HealthSyncStatus } from "@/lib/ascendApi";
-import { canUseHealthConnect, getNativeHealthConnectStatus } from "@/lib/healthConnect";
-import { disconnectHealthConnectFromAscend, runHealthConnectSync } from "@/lib/healthSyncClient";
+import { canUseHealthConnect } from "@/lib/healthConnect";
+import { canUseAppleHealth } from "@/lib/appleHealth";
+import { disconnectHealthConnectFromAscend, getNativeHealthStatus, runNativeHealthSync } from "@/lib/healthSyncClient";
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return "Not yet synced";
@@ -29,16 +30,18 @@ function permissionLabel(permission: string) {
 
 export function HealthSyncClient() {
   const [backendStatus, setBackendStatus] = useState<HealthSyncStatus | null>(null);
-  const [nativeStatus, setNativeStatus] = useState<Awaited<ReturnType<typeof getNativeHealthConnectStatus>> | null>(null);
+  const [nativeStatus, setNativeStatus] = useState<Awaited<ReturnType<typeof getNativeHealthStatus>> | null>(null);
   const [status, setStatus] = useState("Loading Health Sync...");
   const [working, setWorking] = useState(false);
 
   const onAndroid = canUseHealthConnect();
+  const onApple = canUseAppleHealth();
+  const provider = onApple ? "Apple Health" : "Health Connect";
 
   async function refresh() {
     const [backend, native] = await Promise.all([
       getHealthSyncStatus().then((response) => response.status),
-      getNativeHealthConnectStatus()
+      getNativeHealthStatus()
     ]);
     setBackendStatus(backend);
     setNativeStatus(native);
@@ -51,13 +54,13 @@ export function HealthSyncClient() {
 
   async function connect() {
     setWorking(true);
-    setStatus("Connecting Health Connect...");
+    setStatus(`Connecting ${provider}...`);
     try {
-      await runHealthConnectSync({ interactive: true });
+      await runNativeHealthSync({ interactive: true });
       await refresh();
-      setStatus("Health Connect is now syncing with Ascend.");
+      setStatus(`${provider} is now syncing with Ascend.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Health Connect could not be connected.");
+      setStatus(error instanceof Error ? error.message : `${provider} could not be connected.`);
     } finally {
       setWorking(false);
     }
@@ -67,7 +70,7 @@ export function HealthSyncClient() {
     setWorking(true);
     setStatus("Syncing your latest activity...");
     try {
-      await runHealthConnectSync({ interactive: true });
+      await runNativeHealthSync({ interactive: true });
       await refresh();
       setStatus("Health data synced successfully.");
     } catch (error) {
@@ -79,24 +82,24 @@ export function HealthSyncClient() {
 
   async function disconnect() {
     setWorking(true);
-    setStatus("Disconnecting Health Connect...");
+    setStatus(`Disconnecting ${provider}...`);
     try {
       await disconnectHealthConnectFromAscend();
       await refresh();
-      setStatus("Health Connect has been disconnected from Ascend.");
+      setStatus(`${provider} has been disconnected from Ascend.`);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not disconnect Health Connect.");
+      setStatus(error instanceof Error ? error.message : `Could not disconnect ${provider}.`);
     } finally {
       setWorking(false);
     }
   }
 
-  const summary = backendStatus?.summary ?? null;
+  const summary = backendStatus?.provider === (onApple ? "apple_health" : "health_connect") ? backendStatus.summary : null;
   const permissions = useMemo(() => {
-    const fromBackend = backendStatus?.permissions ?? [];
+    const fromBackend = backendStatus?.provider === (onApple ? "apple_health" : "health_connect") ? backendStatus.permissions : [];
     if (fromBackend.length) return fromBackend;
     return nativeStatus?.permissionsGranted ?? [];
-  }, [backendStatus?.permissions, nativeStatus?.permissionsGranted]);
+  }, [backendStatus?.provider, backendStatus?.permissions, nativeStatus?.permissionsGranted, onApple]);
 
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
@@ -112,12 +115,12 @@ export function HealthSyncClient() {
         <section className="mt-4 rounded-2xl border border-calm/25 bg-surface p-5 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-lg font-semibold">Health Connect</p>
+              <p className="text-lg font-semibold">{provider}</p>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
-                Connect Health Connect so Ascend can read only your steps, workouts, and active calories for smarter coaching.
+                Connect {provider} so Ascend can read only your steps, workouts, and active calories for your activity summary and coaching.
               </p>
               <p className="mt-2 text-xs leading-5 text-zinc-500">
-                Ascend does not read sleep, heart rate, blood pressure, location, nutrition, or medical records from Health Connect.
+                Ascend does not read sleep, heart rate, blood pressure, location, nutrition, or medical records from {provider}.
               </p>
             </div>
             <span className="grid h-11 w-11 place-items-center rounded-2xl border border-calm/20 bg-calm/10 text-calm">
@@ -129,9 +132,11 @@ export function HealthSyncClient() {
             <div className="rounded-2xl border border-line bg-ink p-4">
               <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Status</p>
               <p className="mt-1 text-lg font-semibold">
-                {!onAndroid
-                  ? "Available in the Android app"
-                  : backendStatus?.connected
+                {onApple && nativeStatus?.available === false
+                  ? "Apple Health unavailable on this device"
+                  : !onAndroid && !onApple
+                  ? "Available in the Ascend iPhone or Android app"
+                  : backendStatus?.connected && backendStatus.provider === (onApple ? "apple_health" : "health_connect")
                     ? "Connected"
                     : "Not connected"}
               </p>
@@ -139,7 +144,7 @@ export function HealthSyncClient() {
             </div>
 
             <div className="rounded-2xl border border-line bg-ink p-4">
-              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">Permissions granted</p>
+              <p className="text-[11px] uppercase tracking-[0.16em] text-zinc-500">{onApple ? "Health data requested" : "Permissions granted"}</p>
               {permissions.length ? (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {permissions.map((permission) => (
@@ -151,6 +156,7 @@ export function HealthSyncClient() {
               ) : (
                 <p className="mt-2 text-sm text-zinc-400">Steps, exercise sessions, and active calories will appear here after you connect.</p>
               )}
+              {onApple && nativeStatus && "authorizationRequested" in nativeStatus && nativeStatus.authorizationRequested ? <p className="mt-2 text-xs leading-5 text-zinc-500">Apple Health does not tell apps which read permissions you allowed. If data is missing, check Ascend's access in iPhone Health settings.</p> : null}
             </div>
 
             <div className="rounded-2xl border border-line bg-ink p-4">
@@ -159,7 +165,7 @@ export function HealthSyncClient() {
                 Your activity summary can appear on your dashboard and may be visible to your assigned trainer or authorized gym admin when you are on a coached plan.
               </p>
               <p className="mt-2 text-xs leading-5 text-zinc-500">
-                Disconnecting stops Ascend sync. To revoke device permission completely, open Android Health Connect settings.
+                Disconnecting stops Ascend sync. To revoke device permission, open {onApple ? "iPhone Settings → Health → Data Access & Devices" : "Android Health Connect settings"}.
               </p>
             </div>
 
@@ -193,21 +199,21 @@ export function HealthSyncClient() {
           </div>
 
           <div className="mt-5 grid gap-3">
-            {onAndroid ? (
+            {onAndroid || onApple ? (
               <>
                 <button
                   type="button"
-                  onClick={backendStatus?.connected ? syncNow : connect}
-                  disabled={working}
+                  onClick={backendStatus?.connected && backendStatus.provider === (onApple ? "apple_health" : "health_connect") ? syncNow : connect}
+                  disabled={working || nativeStatus?.available === false}
                   className="flex h-12 items-center justify-center gap-2 rounded-xl bg-lime font-semibold text-ink disabled:opacity-60"
                 >
                   <RefreshCw size={18} className={working ? "animate-spin" : ""} />
-                  {working ? "Working..." : backendStatus?.connected ? "Sync Now" : "Connect Health Connect"}
+                  {working ? "Working..." : backendStatus?.connected && backendStatus.provider === (onApple ? "apple_health" : "health_connect") ? "Sync Now" : `Connect ${provider}`}
                 </button>
                 <button
                   type="button"
                   onClick={disconnect}
-                  disabled={working || !backendStatus?.connected}
+                  disabled={working || !backendStatus?.connected || backendStatus.provider !== (onApple ? "apple_health" : "health_connect")}
                   className="flex h-11 items-center justify-center gap-2 rounded-xl border border-amber/35 bg-amber/10 font-semibold text-amber disabled:opacity-60"
                 >
                   <Unplug size={18} />

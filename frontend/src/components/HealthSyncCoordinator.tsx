@@ -2,8 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { canUseHealthConnect } from "@/lib/healthConnect";
-import { runHealthConnectSync, shouldAutoSyncHealthConnect } from "@/lib/healthSyncClient";
+import { canUseNativeHealthSync, runNativeHealthSync, shouldAutoSyncHealthConnect } from "@/lib/healthSyncClient";
 
 const AUTH_APP_PREFIXES = ["/dashboard", "/trainer", "/admin", "/profile", "/athlete", "/food-log", "/weight-log", "/water-log", "/burn-log", "/coach", "/messages", "/progress", "/reports", "/habits", "/subscription"];
 
@@ -13,7 +12,7 @@ export function HealthSyncCoordinator() {
 
   useEffect(() => {
     if (hasRunRef.current) return;
-    if (!canUseHealthConnect()) return;
+    if (!canUseNativeHealthSync()) return;
     if (!pathname || !AUTH_APP_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return;
 
     hasRunRef.current = true;
@@ -22,7 +21,7 @@ export function HealthSyncCoordinator() {
       void shouldAutoSyncHealthConnect()
         .then((shouldSync) => {
           if (!shouldSync) return;
-          return runHealthConnectSync({ interactive: false }).catch(() => undefined);
+          return runNativeHealthSync({ interactive: false }).catch(() => undefined);
         })
         .catch(() => undefined);
     }, 900);

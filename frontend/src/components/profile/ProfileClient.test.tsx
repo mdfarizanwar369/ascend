@@ -37,6 +37,13 @@ it.each(["Mozilla AscendAndroid/1 Capacitor", "Mozilla iPhone Safari"])("preserv
   expect(screen.getByRole("link", { name: "Health Sync" })).toHaveAttribute("href", "/profile/health-sync");
 });
 
+it("offers Apple Health Sync in the new iPhone build", async () => {
+  vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Mozilla iPhone AscendIOS/7 AscendSubscriptions/1 Capacitor");
+  render(<ProfileClient />);
+  await screen.findByText("Test member");
+  expect(screen.getByRole("link", { name: "Health Sync" })).toHaveAttribute("href", "/profile/health-sync");
+});
+
 it("does not expose Body Scan from Profile even when body-scan account flags are enabled", async () => {
   vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue("Mozilla AscendAndroid/1 Capacitor");
   render(<ProfileClient />);

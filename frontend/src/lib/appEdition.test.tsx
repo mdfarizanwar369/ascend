@@ -29,6 +29,11 @@ describe("native iOS vs home-screen billing", () => {
     render(<IosFreeEditionBoundary><p>Health Connect</p></IosFreeEditionBoundary>);
     expect(screen.queryByText("Health Connect")).not.toBeInTheDocument();
   });
+  it("opens Apple Health only in the updated iPhone binary", () => {
+    device("ios", "AscendIOS/7 AscendSubscriptions/1 Capacitor"); state.path = "/profile/health-sync";
+    render(<IosFreeEditionBoundary><p>Apple Health</p></IosFreeEditionBoundary>);
+    expect(screen.getByText("Apple Health")).toBeInTheDocument();
+  });
   it.each([false, true])("keeps Stripe and paid entitlements on iPhone Safari/PWA (standalone=%s)", standalone => {
     device("web", "Mozilla iPhone AppleWebKit Safari", standalone);
     expect(isIosFreeEdition()).toBe(false);

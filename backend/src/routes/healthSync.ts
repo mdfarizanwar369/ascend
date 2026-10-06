@@ -25,7 +25,7 @@ const importedRecordSchema = z.object({
 });
 
 const syncImportSchema = z.object({
-  provider: z.literal("health_connect").default("health_connect"),
+  provider: z.enum(["health_connect", "apple_health"]).default("health_connect"),
   permissions: z.array(z.string().min(1)).max(8).default([]),
   timezone: z.string().min(2).max(120).optional().nullable(),
   syncedAt: z.string().datetime().optional().nullable(),
