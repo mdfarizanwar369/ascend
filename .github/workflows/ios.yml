@@ -45,6 +45,10 @@ on:
         description: Resend the selected internal build's invitation to the account holder
         type: boolean
         default: false
+      assign_named_owner_group_build:
+        description: Assign the build to the protected one-person owner tester group
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -97,6 +101,8 @@ jobs:
           ASC_ASSIGN_OWNER_BUILD: ${{ inputs.assign_owner_build }}
           ASC_ASSIGN_OWNER_GROUP_BUILD: ${{ inputs.assign_owner_group_build }}
           ASC_RESEND_OWNER_INVITE: ${{ inputs.resend_owner_invite }}
+          ASC_ASSIGN_NAMED_OWNER_GROUP_BUILD: ${{ inputs.assign_named_owner_group_build }}
+          ASC_NAMED_OWNER_TESTER_EMAIL: ${{ secrets.IOS_OWNER_TESTER_EMAIL }}
         run: python scripts/testflight_status.py
 
   simulator:
