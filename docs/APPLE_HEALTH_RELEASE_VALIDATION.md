@@ -1,6 +1,6 @@
 # Ascend Apple Health Release Validation
 
-Updated 4 October 2026. This checklist records the implementation evidence and work required before Ascend can submit or advertise Apple Health support. The feature is in [draft PR 55](https://github.com/mdfarizanwar369/ascend/pull/55), not a submitted release. Production activation has not occurred. The immediate signing blocker is verified: Apple's API returned HTTP 403 for enabling HealthKit with the existing key. Chrome control remains unavailable, so neither route can currently complete provisioning.
+Updated 6 October 2026. This checklist records the implementation evidence and work required before Ascend can submit or advertise Apple Health support. [PR 55](https://github.com/mdfarizanwar369/ascend/pull/55) was merged into `main` after the application and macOS simulator checks passed. The backend and hosted frontend are deployed, and migration 044 is applied, but the Apple Health flags remain unset. No Health-enabled TestFlight build or App Store submission has occurred. The immediate signing blocker is verified: Apple's API returned HTTP 403 for enabling HealthKit with the existing key. Chrome control remains unavailable, so neither route can currently complete provisioning.
 
 ## Implemented scope
 
@@ -20,11 +20,11 @@ Workout checkpoint recovery keeps earlier records while pages upload and removes
 | Existing provisioning profile | Correct Ascend team and bundle; unexpired App Store distribution with Sign in with Apple. HealthKit and Health background delivery are both absent. |
 | Automated reconciliation | 33 backend unit tests cover missing versus zero, lower corrections, source ownership, duplicate accounting, net estimates and conservative manual overlap. |
 | Database integration | Latest CI passed all 16 isolated PostgreSQL cases, including concurrent retries, corrections, account isolation, source switching, deletion, privacy-table separation, timezone rotation and multi-chunk recovery. A millisecond-loss checkpoint comparison was fixed before this run passed. |
-| Application tests | Latest full CI passed 271 frontend tests and 738 backend tests; 14 backend cases unrelated to these database checks remained skipped. The latest focused connection, coordinator and workout-history suite passed 23 tests locally. |
+| Application tests | The 6 October full CI verify job passed after the production dependency audit was repaired. The local frontend suite passed 280 tests and the native packaging suite passed nine tests. |
 | Signing and packaging | Ten Python signing-boundary tests and nine native packaging tests passed locally. These do not prove a correctly signed Health-enabled archive. |
-| Build | Local lint and production builds pass. The latest application commit passed the complete macOS simulator build. This checks native compilation, not Health authorization or background operation on a device. |
-| Signing preparation | Six profile safety tests passed. The authorized protected-main preparation failed at POST /v1/bundleIdCapabilities with HTTP 403 before creating or exporting a profile. No existing certificate, profile or secret was replaced or revoked. |
-| Production | No Health migration, Health application deployment or feature-flag activation performed. Auxiliary signing workflows merged to main caused normal automatic deployments with no application feature changes. |
+| Build | The PR contents passed full CI and the complete macOS simulator build immediately before merging. This checks native compilation, not Health authorization or background operation on a device. |
+| Signing preparation | Six profile safety tests passed. The authorized protected-main preparation failed at POST /v1/bundleIdCapabilities with HTTP 403 before creating or exporting a profile. A fresh read-only preflight on 6 October again found HealthKit and background delivery absent from the profile. No existing certificate, profile or secret was replaced or revoked. |
+| Production | Migration 044 is applied and all seven new tables are accessible to the app database role. The production backend and hosted frontend deployed successfully; `/api/v1/health/ready` and `/launch` responded normally. Both Health flags and the Health allowlist are unset, so no account can activate Apple Health yet. |
 | Physical devices | No signed-device or three-day pilot evidence supplied. |
 | Browser and visuals | Chrome connection still fails after the user toggled its extension. No visual screenshot verification or App Store privacy UI update has been claimed. |
 
@@ -45,8 +45,8 @@ Read-only Apple inspection uses the existing protected `main` environment. No re
 1. Verify Apple API provisioning access or restore the approved Chrome connection. Enable HealthKit for the exact Ascend bundle, retaining existing capabilities, and create a matching App Store profile with Health background delivery. Never revoke an unrelated certificate or replace the app identity.
 2. Validate the new profile against the source entitlements and existing signing certificate. Preserve the release environment protection and secure secret-handling path.
 3. Resolve the existing 1.4 release before assigning this feature's marketing version. Do not change or replace an unrelated review submission.
-4. Merge only after software checks pass. Apply migration 044 with the migration credential before activation; the runtime role must not perform schema writes.
-5. Deploy backward-compatible backend and hosted frontend with both flags off. Verify old native iOS, Android and browser access before enabling any pilot account.
+4. ~~Merge only after software checks pass. Apply migration 044 with the migration credential before activation; the runtime role must not perform schema writes.~~ Completed 6 October 2026.
+5. Backend and hosted frontend deployed with both flags off. The public launch page and backend readiness endpoint respond normally; verify old native iOS and Android flows on devices before enabling any pilot account.
 6. Sign and upload through the existing trusted main workflow. Verify signed entitlements, Apple processing status and owner TestFlight availability.
 7. Enable only designated pilot account IDs with `APPLE_HEALTH_SYNC_V1=true`, `DAILY_ACTIVITY_LEDGER_V1=true` and a nonempty `APPLE_HEALTH_USER_IDS` allowlist. These settings are not yet applied. A blank allowlist means all accounts when both flags are enabled, so it must not be used for the initial pilot.
 
