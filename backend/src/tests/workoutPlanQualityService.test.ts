@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyWorkoutBlueprint, buildWorkoutBlueprint, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, V2_WORKOUT_CATALOG, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
+import { applyWorkoutBlueprint, buildWorkoutBlueprint, fillMissingWorkoutSwaps, rotateWorkoutExercise, summarizeWorkoutExerciseHistory, V2_WORKOUT_CATALOG, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
 import { estimateWorkoutDurationMinutes, resolveExerciseVisual, resolveV2WorkoutExerciseVisual } from "@ascend/shared";
 import { existsSync } from "node:fs";
@@ -415,6 +415,44 @@ describe("Zoe workout engine V2", () => {
       metadata: { evidenceType: "completed_plan", exercises: [{ name: "Pull-Up" }] }, created_at: "2026-09-25T08:00:00Z"
     }], avoidExercises: ["Short Bar Hang"] });
     expect(experienced.exercises.map(item => item.name)).toContain("Pull-Up");
+  });
+
+  it("fills long hotel sessions with distinct gentle movements instead of duplicate marching", () => {
+    for (const timeAvailable of ["45", "60"]) {
+      for (const goal of ["strength", "muscle_gain", "fat_loss", "general_fitness", "recovery", "mobility"]) {
+        for (const equipment of ["Bodyweight", "Dumbbells", "Long Resistance Band"]) {
+          for (const conservative of [false, true]) {
+            const blueprint = buildWorkoutBlueprint({ ...base, location: "hotel", equipment, goal,
+              timeAvailable, conservative, recentWorkouts: [] });
+            const label = `${timeAvailable} ${goal} ${equipment} conservative=${conservative}`;
+            const minutesOf = (duration: string | null | undefined) => Number.parseInt(duration ?? "0", 10);
+            const cardio = blueprint.exercises.filter(exercise => exercise.duration?.includes("min"));
+            expect(cardio.every(exercise => minutesOf(exercise.duration) <= 18), label).toBe(true);
+            expect(blueprint.exercises.filter(exercise => /march/i.test(exercise.name)).length, label).toBeLessThanOrEqual(1);
+            expect(blueprint.estimatedDurationMinutes, label).toBeGreaterThanOrEqual(timeAvailable === "60" ? 59 : 39);
+            const workout = applyWorkoutBlueprint(plan, blueprint);
+            for (const [index, exercise] of workout.exercises.entries()) {
+              if (!exercise.duration?.includes("min")) continue;
+              const swapped = rotateWorkoutExercise(workout, index);
+              expect(swapped, `${label}: ${exercise.name}`).not.toBeNull();
+              expect(swapped!.exercises.filter(item => /march/i.test(item.name)).length,
+                `${label}: ${exercise.name} swap`).toBeLessThanOrEqual(1);
+            }
+          }
+        }
+      }
+    }
+    const recovery = buildWorkoutBlueprint({ ...base, location: "hotel", equipment: "Bodyweight",
+      goal: "recovery", timeAvailable: "60", recentWorkouts: [] });
+    expect(recovery.exercises.map(exercise => exercise.name)).toEqual(expect.arrayContaining([
+      "Standing Chest Opener", "Standing Hip Flexor Stretch", "Side Step Touch"
+    ]));
+    const stale = applyWorkoutBlueprint(plan, recovery);
+    const sideIndex = stale.exercises.findIndex(exercise => exercise.name === "Side Step Touch");
+    stale.exercises[sideIndex].alternatives = [{ name: "March in Place", duration: "15 min" }];
+    const repaired = fillMissingWorkoutSwaps(stale, { location: "hotel", equipment: "Bodyweight" });
+    expect(repaired.exercises[sideIndex].alternatives?.map(candidate => candidate.name)).not.toContain("March in Place");
+    expect(rotateWorkoutExercise(repaired, sideIndex)?.exercises.filter(exercise => /march/i.test(exercise.name))).toHaveLength(1);
   });
 
   it("keeps a small number of completed movements familiar after recovery while rotating the rest", () => {

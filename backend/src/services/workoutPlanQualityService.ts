@@ -132,9 +132,9 @@ export const V2_WORKOUT_CATALOG: CatalogExercise[] = [
   { name: "Treadmill Walk", pattern: "cardio", kit: ["gym"], duration: "8-15 min", note: "Use a comfortable incline." },
   { name: "Elliptical Trainer", pattern: "cardio", kit: ["gym"], duration: "8-15 min", note: "Use a smooth, comfortable stride and steady effort." },
   { name: "Rowing Machine", pattern: "cardio", kit: ["gym"], duration: "8-15 min", note: "Push with your legs, then finish with your arms; return slowly." },
-  { name: "March in Place", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Move at a comfortable pace." },
-  { name: "Side Step Touch", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Step side to side quietly in a clear space; do not hop." },
-  { name: "Gentle Knee March", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Alternate low knee lifts at a comfortable pace. Keep a hand near stable support if balance feels uncertain, and do not force the knees high." },
+  { name: "March in Place", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Move at a comfortable pace. For a longer block, take short relaxed pauses within the time shown." },
+  { name: "Side Step Touch", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Step side to side quietly in a clear space; do not hop. On a longer block, change the leading side and pause briefly as needed." },
+  { name: "Gentle Knee March", pattern: "cardio", kit: ["bodyweight"], duration: "5-10 min", note: "Alternate low knee lifts at a comfortable pace. Keep a hand near stable support if balance feels uncertain, and do not force the knees high. For a longer block, take short relaxed pauses within the time shown." },
   { name: "Cat-Cow", pattern: "mobility", kit: ["bodyweight"], reps: "6-10", note: "Move gently with your breath.", requiresFloor: true },
   { name: "Thread the Needle", pattern: "mobility", kit: ["bodyweight"], reps: "6 each side", note: "Rotate only as far as comfortable.", requiresFloor: true },
   { name: "Kneeling Hip Flexor Stretch", pattern: "mobility", kit: ["bodyweight"], duration: "30 sec each side", note: "Keep the stretch gentle.", requiresFloor: true },
@@ -179,6 +179,12 @@ function movementFamily(item: CatalogExercise): string {
 
 function catalogItemFor(name: string): CatalogExercise | undefined {
   return V2_WORKOUT_CATALOG.find(item => key(item.name) === key(name));
+}
+
+function distinctHotelCardioSwap(exercises: Array<{ name: string }>, index: number, candidateName: string): boolean {
+  if (!/march/i.test(candidateName)) return true;
+  return !/march/i.test(exercises[index].name)
+    && !exercises.some((exercise, otherIndex) => otherIndex !== index && /march/i.test(exercise.name));
 }
 
 function patternFor(name: string): Pattern | null {
@@ -580,6 +586,8 @@ export function buildWorkoutBlueprint(input: {
     // Fill the time selected in the builder with comfortable movement, while
     // keeping cautious resistance work at two sets and recovery work gentle.
     const targetMinutes = minutes === 60 ? 60 : minutes === 45 ? 40 : minutes === 30 ? 27 : 18;
+    const maxMoves = minutes === 60 ? 8 : minutes === 45 ? 6 : minutes === 30 ? 5 : 4;
+    let addedHotelMobility = 0;
     for (let index = exercises.length - 1; index >= 0; index--) {
       const exercise = exercises[index];
       if (catalogItemFor(exercise.name)?.pattern !== "cardio") continue;
@@ -599,7 +607,8 @@ export function buildWorkoutBlueprint(input: {
     }
     const longCardioEligible = (item: CatalogExercise) => primaryEligible(item)
       && (!gentle || !["Brisk Walk", "Walk Intervals", "Walk-Jog Intervals", "Rowing Machine"].includes(item.name));
-    const cardioLimit = (name: string) => input.location === "hotel" ? minutes === 20 ? 10 : minutes === 30 ? 16 : 22
+    const cardioLimit = (name: string) => input.location === "hotel" ? minutes === 20 ? 10 : minutes === 30 ? 16
+      : minutes === 60 && !gentle ? 18 : 15
       : ["March in Place", "Side Step Touch"].includes(name) ? minutes === 20 ? 10 : minutes === 30 ? 16 : 15
       : ["Walk-Jog Intervals", "Walk Intervals", "Rowing Machine"].includes(name)
         ? minutes === 20 ? 10 : minutes === 30 ? 15 : 20
@@ -619,9 +628,32 @@ export function buildWorkoutBlueprint(input: {
       const gap = targetMinutes - estimateWorkoutDurationMinutes(exercises);
       setCardioMinutes(exercise, Math.min(cardioLimit(exercise.name), current + Math.max(0, gap)));
     }
-    while (estimateWorkoutDurationMinutes(exercises) < targetMinutes - 1) {
+    while (exercises.length < maxMoves && estimateWorkoutDurationMinutes(exercises) < targetMinutes - 1) {
       const remaining = targetMinutes - estimateWorkoutDurationMinutes(exercises) - 1;
       const existingCardio = exercises.filter(exercise => catalogItemFor(exercise.name)?.pattern === "cardio");
+      if (input.location === "hotel" && goal === "recovery" && minutes >= 45 && existingCardio.length && addedHotelMobility < 2) {
+        // An hour in one room should not become an hour of marching. Use
+        // distinct, easy joint movements before adding another cardio block.
+        const preferred = ["Standing Chest Opener", "Standing Hip Flexor Stretch", "Standing Cross-Body Shoulder Stretch",
+          "Standing Torso Rotation", "Standing Side Bend"];
+        const mobilityChoices = eligibleChoices("mobility").filter(item => primaryEligible(item)
+          && !avoided.has(key(item.name)) && !exercises.some(exercise => key(exercise.name) === key(item.name)));
+        mobilityChoices.sort((a, b) => Number(mostRecentDayNames.has(key(a.name))) - Number(mostRecentDayNames.has(key(b.name)))
+          || Number(Boolean(a.requiresFloor)) - Number(Boolean(b.requiresFloor))
+          || (preferred.includes(a.name) ? preferred.indexOf(a.name) : 100)
+            - (preferred.includes(b.name) ? preferred.indexOf(b.name) : 100)
+          || a.name.localeCompare(b.name));
+        const mobility = mobilityChoices.find(item => estimateWorkoutDurationMinutes([
+          ...exercises, { ...prescribe(item), sets: 3, rest: "As needed" }
+        ]) <= minutes + 1);
+        if (mobility) {
+          const alternatives = mobilityChoices.filter(item => item.name !== mobility.name)
+            .map(item => ({ ...prescribe(item), sets: 3, rest: "As needed" }));
+          exercises.push({ ...prescribe(mobility), note: mobility.note, sets: 3, rest: "As needed", alternatives });
+          addedHotelMobility += 1;
+          continue;
+        }
+      }
       if (minutes >= 45 && input.location !== "hotel" && existingCardio.length === 1 && remaining <= 5
         && Number.parseInt(existingCardio[0].duration ?? "0", 10) >= 20) {
         const mobilityChoices = eligibleChoices("mobility").filter(item => primaryEligible(item)
@@ -640,8 +672,10 @@ export function buildWorkoutBlueprint(input: {
       }
       const candidates = eligibleChoices("cardio").filter(item => longCardioEligible(item)
         && !avoided.has(key(item.name))
-        && !exercises.some(exercise => key(exercise.name) === key(item.name)));
-      const preference = input.location === "hotel" ? ["March in Place", "Side Step Touch", "Gentle Knee March"]
+        && !exercises.some(exercise => key(exercise.name) === key(item.name))
+        && !(input.location === "hotel" && /march/i.test(item.name)
+          && existingCardio.some(exercise => /march/i.test(exercise.name))));
+      const preference = input.location === "hotel" ? ["Side Step Touch", "Gentle Knee March", "March in Place"]
         : kit.has("gym") ? ["Treadmill Walk", "Stationary Bike", "Easy Walk", "Elliptical Trainer"]
           : kit.has("route") && !gentle ? ["Walk Intervals", "Easy Walk", "March in Place"]
             : ["Easy Walk", "March in Place", "Side Step Touch", "Brisk Walk"];
@@ -659,6 +693,20 @@ export function buildWorkoutBlueprint(input: {
         .map(item => ({ ...prescribe(item), duration: `${Math.min(durationMinutes, cardioLimit(item.name))} min` }));
       const prescription = prescribe(chosen);
       exercises.push({ ...prescription, note: prescription.note, duration: `${durationMinutes} min`, alternatives });
+    }
+  }
+  if (input.location === "hotel") {
+    for (const [index, exercise] of exercises.entries()) {
+      if (catalogItemFor(exercise.name)?.pattern !== "cardio") continue;
+      exercise.alternatives = (exercise.alternatives ?? []).filter(candidate =>
+        distinctHotelCardioSwap(exercises, index, candidate.name));
+      if (exercise.alternatives.some(candidate => !exercises.some(other => key(other.name) === key(candidate.name)))) continue;
+      // A lighter mobility swap is better than replacing one march with
+      // another march beside it. The displayed time adjusts after the swap.
+      const mobility = eligibleChoices("mobility").filter(item => primaryEligible(item) && !item.requiresFloor
+        && !avoided.has(key(item.name)) && !exercises.some(other => key(other.name) === key(item.name))).slice(0, 6);
+      exercise.alternatives.push(...mobility.map(item => ({ ...prescribe(item), sets: 3, rest: "As needed",
+        note: `A gentler, shorter room option. ${item.note}` })));
     }
   }
   const strengthGoal = goal === "strength" || goal === "muscle_gain";
@@ -714,8 +762,10 @@ export function buildWorkoutBlueprint(input: {
       ? "This equipment supports strength practice, but not a resisted back pull."
     : goalReason[goal];
   const timeTarget = minutes === 60 ? 60 : minutes === 45 ? 40 : minutes === 30 ? 27 : 18;
-  const timeReason = [20, 30, 45, 60].includes(minutes) && estimateWorkoutDurationMinutes(exercises) < timeTarget - 3 && avoided.size
-    ? "This session is shorter than your chosen time because the remaining easy movements are on your avoid list." : "";
+  const timeReason = [20, 30, 45, 60].includes(minutes) && estimateWorkoutDurationMinutes(exercises) < timeTarget - 3
+    ? avoided.size ? "This session is shorter than your chosen time because the remaining easy movements are on your avoid list."
+      : input.location === "hotel" ? "This session is shorter than your chosen time because a compact hotel room has limited distinct movements for this session."
+        : "" : "";
   const whyToday = `${whyTodayBase} ${goalExplanation}${anchorReason ? ` ${anchorReason}` : ""}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}${timeReason ? ` ${timeReason}` : ""}`;
   const upcoming = gentle ? ["Balanced strength", "Mobility or easy cardio"]
     : focus.startsWith("Upper") ? ["Lower body and core", "Recovery and mobility"]
@@ -765,16 +815,22 @@ export function fillMissingWorkoutSwaps(plan: CoachWorkoutPlan, setting: { locat
   const kit = availableKit(setting.equipment, setting.location);
   const usedNames = new Set(plan.exercises.map(exercise => key(exercise.name)));
   let changed = false;
-  const exercises = plan.exercises.map(exercise => {
-    if (exercise.alternatives?.some(candidate => !usedNames.has(key(candidate.name)))) return exercise;
+  const exercises = plan.exercises.map((exercise, index) => {
     const current = catalogItemFor(exercise.name);
     if (!current) return exercise;
-    const existingNames = new Set((exercise.alternatives ?? []).map(candidate => key(candidate.name)));
+    const existing = setting.location === "hotel" && current.pattern === "cardio"
+      ? (exercise.alternatives ?? []).filter(candidate => distinctHotelCardioSwap(plan.exercises, index, candidate.name))
+      : exercise.alternatives ?? [];
+    if (existing.length !== (exercise.alternatives ?? []).length) changed = true;
+    if (existing.some(candidate => !usedNames.has(key(candidate.name)))) return { ...exercise, alternatives: existing };
+    const existingNames = new Set(existing.map(candidate => key(candidate.name)));
     const additions = V2_WORKOUT_CATALOG.filter(candidate => candidate.pattern === current.pattern
       && (current.pattern !== "accessory" || candidate.target === current.target)
       && key(candidate.name) !== key(exercise.name) && !usedNames.has(key(candidate.name))
       && !existingNames.has(key(candidate.name)) && suitableForSetting(candidate, kit, setting.location)
-      && !candidate.advanced).slice(0, 3).map(candidate => ({
+      && !candidate.advanced
+      && (setting.location !== "hotel" || current.pattern !== "cardio"
+        || distinctHotelCardioSwap(plan.exercises, index, candidate.name))).slice(0, 3).map(candidate => ({
         name: candidate.name,
         sets: candidate.duration ? null : exercise.sets ?? 2,
         reps: candidate.reps ?? null,
@@ -782,9 +838,18 @@ export function fillMissingWorkoutSwaps(plan: CoachWorkoutPlan, setting: { locat
         rest: candidate.pattern === "cardio" ? null : exercise.rest ?? "As needed",
         note: candidate.note
       }));
-    if (!additions.length) return exercise;
+    if (!additions.length && setting.location === "hotel" && current.pattern === "cardio") {
+      const mobility = V2_WORKOUT_CATALOG.filter(candidate => candidate.pattern === "mobility" && !candidate.requiresFloor
+        && !candidate.advanced && !usedNames.has(key(candidate.name))
+        && suitableForSetting(candidate, kit, setting.location)).slice(0, 6);
+      additions.push(...mobility.map(item => ({ name: item.name, sets: 3, reps: item.reps ?? null,
+        duration: item.duration ?? null, rest: "As needed",
+        note: `A gentler, shorter room option. ${item.note}` })));
+    }
+    if (!additions.length) return existing.length === (exercise.alternatives ?? []).length ? exercise
+      : { ...exercise, alternatives: existing };
     changed = true;
-    return { ...exercise, alternatives: [...(exercise.alternatives ?? []), ...additions] };
+    return { ...exercise, alternatives: [...existing, ...additions] };
   });
   return changed ? { ...plan, exercises } : plan;
 }
