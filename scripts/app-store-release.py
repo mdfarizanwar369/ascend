@@ -137,15 +137,13 @@ def list_versions(client, app_id):
 
 
 def create_version(client, app_id, source, version_string):
-    source_attrs = source.get("attributes", {})
+    # Keep creation to Apple's required fields. Existing metadata is inherited
+    # automatically from the current App Store version, and including copied
+    # optional fields can cause App Store Connect to reject the create request.
     attributes = {
         "platform": "IOS",
         "versionString": version_string,
-        "releaseType": source_attrs.get("releaseType") or "AFTER_APPROVAL",
-        "usesIdfa": bool(source_attrs.get("usesIdfa")),
     }
-    if source_attrs.get("copyright"):
-        attributes["copyright"] = source_attrs["copyright"]
     response = client.post("/v1/appStoreVersions", {
         "data": {
             "type": "appStoreVersions",
