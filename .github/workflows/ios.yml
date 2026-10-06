@@ -49,6 +49,15 @@ on:
         description: Assign the build to the protected one-person owner tester group
         type: boolean
         default: false
+      app_store_action:
+        description: Inspect, prepare, or submit the public iOS 1.4 App Store version
+        type: choice
+        options:
+          - none
+          - inspect
+          - prepare
+          - submit
+        default: none
 
 permissions:
   contents: read
@@ -105,8 +114,33 @@ jobs:
           ASC_NAMED_OWNER_TESTER_EMAIL: ${{ secrets.IOS_OWNER_TESTER_EMAIL }}
         run: python scripts/testflight_status.py
 
+  app-store-release:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.app_store_action != 'none'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: apple-testflight
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install 'PyJWT[crypto]==2.10.1'
+      - name: Prepare or submit App Store release
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+          ASC_APP_STORE_ACTION: ${{ inputs.app_store_action }}
+          ASC_BUILD_NUMBER: ${{ inputs.build_number }}
+          ASC_VERSION_STRING: '1.4'
+          ASC_WHATS_NEW: >-
+            Ask Siri for your daily calories, water, food and workout progress.
+            Connect Apple Health to sync steps, active energy and workouts when you choose.
+            Coach Zoe workouts and personalized setup are now simpler and more useful.
+        run: python scripts/app-store-release.py
+
   simulator:
-    if: github.event_name == 'pull_request' || (!inputs.check_testflight && !inputs.check_health_release) || inputs.upload_testflight
+    if: github.event_name == 'pull_request' || (!inputs.check_testflight && !inputs.check_health_release && inputs.app_store_action == 'none') || inputs.upload_testflight
     runs-on: macos-26
     timeout-minutes: 30
     steps:
