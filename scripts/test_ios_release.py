@@ -62,6 +62,13 @@ class HealthSigningTests(unittest.TestCase):
         release.validate_profile(self.profile(), self.required)
         release.validate_signed_entitlements(self.entitlements(), self.required)
 
+    def test_health_archive_needs_both_usage_descriptions_for_apple_upload(self):
+        info = {"NSHealthShareUsageDescription": "Read activity", "NSHealthUpdateUsageDescription": "Read-only HealthKit use"}
+        release.validate_health_usage_descriptions(info, self.required)
+        for key in info:
+            with self.subTest(key=key), self.assertRaises(SystemExit):
+                release.validate_health_usage_descriptions({**info, key: " "}, self.required)
+
     def test_health_entitlements_must_exist_in_profile_and_binary(self):
         for capability in self.required:
             profile = self.profile()
