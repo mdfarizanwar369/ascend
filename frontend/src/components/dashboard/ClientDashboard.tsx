@@ -50,6 +50,7 @@ import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 import { isIosFreeEdition } from "@/lib/appEdition";
 import { AscendVoiceBeta } from "@/components/dashboard/AscendVoiceBeta";
 import { AscendSiriSetup } from "@/components/dashboard/AscendSiriSetup";
+import { AppleHealthInvitation,AppleHealthReminder,useAppleHealthInvitation } from "@/components/dashboard/AppleHealthInvitation";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -400,6 +401,7 @@ export function ClientDashboard() {
   const [openSections, setOpenSections] = useState<Record<CollapsibleKey, boolean>>({
     todaysNumbers: false
   });
+  const appleHealthInvitation = useAppleHealthInvitation(user?.id || null);
   const dashboardRequestRef = useRef(0);
   const dashboardLoadInFlightRef = useRef(false);
   const hasLoadedDashboardRef = useRef(false);
@@ -1640,6 +1642,8 @@ export function ClientDashboard() {
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
 
+        <AppleHealthInvitation state={appleHealthInvitation.state} onPostpone={appleHealthInvitation.postpone} />
+
         {goalStatus?.milestone_id && !goalStatus.acknowledged_at ? (
           <section className={`relative mt-3 overflow-hidden rounded-2xl border border-lime bg-lime/15 p-4 text-center ${isCelebratingGoal ? "ascend-goal-celebrating" : ""}`}>
             {isCelebratingGoal ? (
@@ -1769,6 +1773,7 @@ export function ClientDashboard() {
               );
             })}
           </nav>
+          <AppleHealthReminder state={appleHealthInvitation.state} />
         </section>
 
         <Link href="/momentum-score" data-ascend-opening-target="momentum" className="ascend-pressable ascend-momentum-result mt-3 flex items-center gap-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label={isFirstDayState ? "Your Momentum begins with your first check-in" : `Your Momentum is ${score} out of 100 based on seven-day consistency`}>
