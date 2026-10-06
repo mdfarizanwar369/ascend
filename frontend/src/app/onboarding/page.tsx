@@ -14,14 +14,21 @@ export default function OnboardingPage() {
   return (
     <main className="min-h-screen bg-ink px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
-        <header className="flex items-center gap-3 py-3">
-          <BackButton fallbackHref="/login" />
-          <BrandMark />
-          <div>
-            <p className="text-lg font-semibold">{isProgressive ? "Welcome to Ascend" : "Ascend setup"}</p>
-            <p className="text-xs text-zinc-400">{isProgressive ? "Start simple, complete details later" : "Goal, support, and daily targets"}</p>
-          </div>
-        </header>
+        {isProgressive ? (
+          <header className="flex items-center justify-center gap-2 py-3">
+            <BrandMark size="sm" />
+            <p className="text-lg font-semibold">Ascend</p>
+          </header>
+        ) : (
+          <header className="flex items-center gap-3 py-3">
+            <BackButton fallbackHref="/login" />
+            <BrandMark />
+            <div>
+              <p className="text-lg font-semibold">Ascend setup</p>
+              <p className="text-xs text-zinc-400">Goal, support, and daily targets</p>
+            </div>
+          </header>
+        )}
 
         {!isProgressive ? (
           <section className="mt-4 rounded-lg border border-line bg-surface p-4">

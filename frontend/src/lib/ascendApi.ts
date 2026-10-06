@@ -244,6 +244,7 @@ export function completeOnboarding(input: {
   motivationAnchor?: MotivationAnchor | null;
 }) {
   invalidateCached("me:");
+  invalidateCached("nutrition:");
   return authed("/me/onboarding", {
     method: "POST",
     body: JSON.stringify(input)

@@ -209,6 +209,7 @@ export function AuthPanel() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [referralCode, setReferralCode] = useState("");
+  const [showReferralField, setShowReferralField] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTrainerSignup, setShowTrainerSignup] = useState(false);
@@ -238,7 +239,10 @@ export function AuthPanel() {
         if (!isIosFreeEdition() && (parsed.signupRole === "client" || parsed.signupRole === "trainer")) setSignupRole(parsed.signupRole);
         if (typeof parsed.fullName === "string") setFullName(parsed.fullName);
         if (typeof parsed.email === "string") setEmail(parsed.email);
-        if (typeof parsed.referralCode === "string") setReferralCode(parsed.referralCode);
+        if (typeof parsed.referralCode === "string") {
+          setReferralCode(parsed.referralCode);
+          if (parsed.referralCode) setShowReferralField(true);
+        }
       }
     } catch {
       window.sessionStorage.removeItem(authDraftKey);
@@ -246,6 +250,7 @@ export function AuthPanel() {
     const linkedTrainerCode = new URLSearchParams(window.location.search).get("trainer")?.trim().toUpperCase();
     if (linkedTrainerCode && /^[A-Z0-9][A-Z0-9-]{3,63}$/.test(linkedTrainerCode)) {
       setReferralCode(linkedTrainerCode);
+      setShowReferralField(true);
       setMode("signup");
     }
   }, []);
@@ -705,6 +710,32 @@ export function AuthPanel() {
                 `frontend/.env.local` for real sign-up.
               </div>
             ) : null}
+            {mode === "signup" && progressiveClientSignup ? (
+              <div id="ascend-referral-field" className="rounded-xl border border-line bg-surface/50 p-3">
+                <button
+                  type="button"
+                  aria-expanded={showReferralField}
+                  onClick={() => setShowReferralField((current) => !current)}
+                  className="ascend-pressable min-h-8 w-full text-left text-sm font-semibold text-calm"
+                >
+                  Have a trainer or gym code?
+                </button>
+                {showReferralField ? (
+                  <div className="mt-3">
+                    <Field label="Trainer or gym code" hint="Optional. This connects your account after signup.">
+                      <input
+                        id="ascend-referral"
+                        autoComplete="off"
+                        className={inputClass}
+                        value={referralCode}
+                        placeholder="Enter code"
+                        onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {progressiveClientSignup && googleSignInEnabled ? (
               <button
                 type="button"
@@ -837,7 +868,7 @@ export function AuthPanel() {
                 Forgot password?
               </button>
             ) : null}
-            {mode === "signup" ? (
+            {mode === "signup" && !progressiveClientSignup ? (
               <div id="ascend-referral-field">
               <Field
                 label="Referral code"

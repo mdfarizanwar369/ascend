@@ -392,7 +392,6 @@ export function ClientDashboard() {
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
-  const [dashboardSessionCount, setDashboardSessionCount] = useState(1);
   const [isCelebratingGoal, setIsCelebratingGoal] = useState(false);
   const [hasCelebratedGoal, setHasCelebratedGoal] = useState(false);
   const [goalCelebrationMessage, setGoalCelebrationMessage] = useState(goalCelebrationMessages[0]);
@@ -718,14 +717,6 @@ export function ClientDashboard() {
   useEffect(() => {
     let isMounted = true;
 
-    try {
-      const nextSessionCount = Number(window.localStorage.getItem("ascend:client-dashboard-sessions") ?? "0") + 1;
-      window.localStorage.setItem("ascend:client-dashboard-sessions", String(nextSessionCount));
-      setDashboardSessionCount(nextSessionCount);
-    } catch {
-      setDashboardSessionCount(1);
-    }
-
     loadDashboard().catch(() => {
       if (isMounted) setStatus("Log in again if this page does not load your profile.");
     });
@@ -892,8 +883,7 @@ export function ClientDashboard() {
   const waterProgress = clamp(Math.round((todaysWaterMl / nutritionTargets.waterTargetMl) * 100));
   const needsGuideProfile = !user?.age_years || !user?.height_cm || !user?.activity_level || !user?.gender;
   const profileIncomplete = Boolean(user) && (!user?.goal_type || !user?.age_years || !user?.height_cm || !user?.starting_weight_kg || !user?.activity_level);
-  const hasExperiencedAscend = foodLogs.length > 0 || weightLogs.length > 0 || waterLogs.length > 0 || dashboardSessionCount >= 3;
-  const shouldShowProfileReminder = profileIncomplete && hasExperiencedAscend;
+  const shouldShowProfileReminder = profileIncomplete;
   const fallbackHealthSummary = healthSyncStatus?.summary ?? null;
   const fallbackSyncedSteps = fallbackHealthSummary?.todaySteps ?? 0;
   const fallbackSyncedWorkoutCompleted = fallbackHealthSummary?.workoutCompletedToday === true;
