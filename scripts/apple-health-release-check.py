@@ -55,7 +55,8 @@ def main():
         profile = plistlib.loads(result.stdout)
         for key in ("com.apple.developer.healthkit", "com.apple.developer.healthkit.background-delivery"):
             print("PROFILE_CAPABILITY", json.dumps({"capability": key, "enabled": profile.get("Entitlements", {}).get(key) is True}))
-        release.validate_profile(profile, required)
+        release.validate_profile(profile, release.BUNDLE, {key: value for key, value in required.items()
+            if key != "com.apple.security.application-groups"})
     print("APPLE_HEALTH_SIGNING_PREFLIGHT_PASSED")
 
 

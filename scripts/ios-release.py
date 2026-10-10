@@ -80,7 +80,7 @@ def validate_signed_entitlements(entitlements, bundle, required):
 def main():
     root = Path.cwd()
     validate_release_context(os.environ, json.loads((root / "ios/App/App/capacitor.config.json").read_text()))
-    names = ("IOS_CERTIFICATE_BASE64", "IOS_CERTIFICATE_PASSWORD", "IOS_PROFILE_BASE64", "IOS_WIDGET_PROFILE_BASE64",
+    names = ("IOS_CERTIFICATE_BASE64", "IOS_CERTIFICATE_PASSWORD", "IOS_PROFILE_BASE64",
              "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_BASE64", "IOS_GOOGLE_SERVICE_INFO_BASE64")
     missing = [name for name in names if not os.environ.get(name)]
     if missing:
@@ -96,16 +96,16 @@ def main():
         try:
             certificate = temp / "distribution.p12"
             profile_file = temp / "app.mobileprovision"
-            widget_profile_file = temp / "widget.mobileprovision"
             certificate.write_bytes(base64.b64decode(os.environ["IOS_CERTIFICATE_BASE64"], validate=True))
             profile_file.write_bytes(base64.b64decode(os.environ["IOS_PROFILE_BASE64"], validate=True))
-            widget_profile_file.write_bytes(base64.b64decode(os.environ["IOS_WIDGET_PROFILE_BASE64"], validate=True))
             profile = plistlib.loads(run("security", "cms", "-D", "-i", str(profile_file), capture_output=True).stdout)
-            widget_profile = plistlib.loads(run("security", "cms", "-D", "-i", str(widget_profile_file), capture_output=True).stdout)
             required = plistlib.loads((root / "ios/App/App/App.entitlements").read_bytes())
             widget_required = plistlib.loads((root / "ios/App/AscendWidget/AscendWidget.entitlements").read_bytes())
-            validate_profile(profile, BUNDLE, required)
-            validate_profile(widget_profile, WIDGET_BUNDLE, widget_required)
+            # Anchor automatic signing to the existing verified Ascend profile.
+            # Xcode refreshes provisioning for the new App Group and widget, and
+            # the resulting distribution profiles are validated below.
+            validate_profile(profile, BUNDLE, {key: value for key, value in required.items()
+                if key != "com.apple.security.application-groups"})
             validate_health_usage_descriptions(plistlib.loads((root / "ios/App/App/Info.plist").read_bytes()), required)
             run("security", "create-keychain", "-p", password, str(keychain), capture_output=True)
             run("security", "set-keychain-settings", "-lut", "3600", str(keychain), capture_output=True)
@@ -116,41 +116,51 @@ def main():
             run("security", "list-keychains", "-d", "user", "-s", str(keychain), capture_output=True)
             profile_dir = Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles"
             profile_dir.mkdir(parents=True, exist_ok=True)
-            for source, item in ((profile_file, profile), (widget_profile_file, widget_profile)):
-                destination = profile_dir / f"{item['UUID']}.mobileprovision"
-                shutil.copyfile(source, destination)
-                installed_profiles.append(destination)
+            destination = profile_dir / f"{profile['UUID']}.mobileprovision"
+            shutil.copyfile(profile_file, destination)
+            installed_profiles.append(destination)
+            key_id = os.environ["ASC_KEY_ID"]
+            if not key_id.isalnum():
+                raise SystemExit("Invalid App Store Connect key ID.")
+            private_key = temp / f"AuthKey_{key_id}.p8"
+            private_key.write_bytes(base64.b64decode(os.environ["ASC_PRIVATE_KEY_BASE64"], validate=True))
+            private_key.chmod(0o600)
+            authentication = ("-allowProvisioningUpdates", "-authenticationKeyPath", str(private_key),
+                "-authenticationKeyID", key_id,
+                "-authenticationKeyIssuerID", os.environ["ASC_ISSUER_ID"])
             archive = temp / "Ascend.xcarchive"
             # Run number stays monotonic for this workflow; attempts get a separate component.
             build_number = f"{os.environ['GITHUB_RUN_NUMBER']}.{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-            run("xcodebuild", "-project", str(root / "ios/App/App.xcodeproj"), "-scheme", "App",
+            run("xcodebuild", "-project", str(root / "ios/App/App.xcodeproj"), "-scheme", "App", *authentication,
                 "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive),
-                # Only the App target consumes this custom setting. A global
-                # provisioning override incorrectly applies to Swift packages.
-                f"ASCEND_PROFILE_UUID={profile['UUID']}", f"ASCEND_WIDGET_PROFILE_UUID={widget_profile['UUID']}",
+                "CODE_SIGN_STYLE=Automatic", f"DEVELOPMENT_TEAM={TEAM}",
                 f"CURRENT_PROJECT_VERSION={build_number}", "archive")
             archived_app = archive / "Products/Applications/App.app"
             run("codesign", "--verify", "--deep", "--strict", str(archived_app), capture_output=True)
-            signed = run("codesign", "-d", "--entitlements", ":-", str(archived_app), capture_output=True)
-            validate_signed_entitlements(plistlib.loads(signed.stdout), BUNDLE, required)
             archived_widget = archived_app / "PlugIns/AscendWidgetExtension.appex"
             if not archived_widget.exists():
                 raise SystemExit("Archived app is missing the Ascend Today widget extension.")
+            for product, bundle, entitlements in ((archived_app, BUNDLE, required),
+                                                   (archived_widget, WIDGET_BUNDLE, widget_required)):
+                embedded = product / "embedded.mobileprovision"
+                if not embedded.exists():
+                    raise SystemExit("Archived product is missing its distribution provisioning profile.")
+                archived_profile = plistlib.loads(run("security", "cms", "-D", "-i", str(embedded), capture_output=True).stdout)
+                validate_profile(archived_profile, bundle, entitlements)
+            signed = run("codesign", "-d", "--entitlements", ":-", str(archived_app), capture_output=True)
+            validate_signed_entitlements(plistlib.loads(signed.stdout), BUNDLE, required)
             run("codesign", "--verify", "--strict", str(archived_widget), capture_output=True)
             widget_signed = run("codesign", "-d", "--entitlements", ":-", str(archived_widget), capture_output=True)
             validate_signed_entitlements(plistlib.loads(widget_signed.stdout), WIDGET_BUNDLE, widget_required)
             export = temp / "ExportOptions.plist"
             export.write_bytes(plistlib.dumps({"method": "app-store-connect", "teamID": TEAM,
-                "signingStyle": "manual", "signingCertificate": "Apple Distribution", "manageAppVersionAndBuildNumber": False,
-                "provisioningProfiles": {BUNDLE: profile["UUID"], WIDGET_BUNDLE: widget_profile["UUID"]}}))
-            run("xcodebuild", "-exportArchive", "-archivePath", str(archive), "-exportOptionsPlist", str(export), "-exportPath", str(temp / "export"))
+                "signingStyle": "automatic", "manageAppVersionAndBuildNumber": False}))
+            run("xcodebuild", "-exportArchive", *authentication, "-archivePath", str(archive),
+                "-exportOptionsPlist", str(export), "-exportPath", str(temp / "export"))
             keys = temp / "private_keys"
             keys.mkdir(mode=0o700)
-            key_id = os.environ["ASC_KEY_ID"]
-            if not key_id.isalnum():
-                raise SystemExit("Invalid App Store Connect key ID.")
             key = keys / f"AuthKey_{key_id}.p8"
-            key.write_bytes(base64.b64decode(os.environ["ASC_PRIVATE_KEY_BASE64"], validate=True))
+            shutil.copyfile(private_key, key)
             key.chmod(0o600)
             ipas = list((temp / "export").glob("*.ipa"))
             if len(ipas) != 1:
