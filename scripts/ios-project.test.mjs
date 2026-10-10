@@ -148,7 +148,7 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.match(read("ios/App/AscendWidget/PrivacyInfo.xcprivacy"), /1C8F\.1/);
   const release = read("scripts/ios-release.py");
   assert.match(release, /CODE_SIGN_STYLE=Automatic/);
-  assert.match(release, /CODE_SIGN_IDENTITY=/);
+  assert.match(release, /CODE_SIGN_IDENTITY=Apple Development/);
   assert.match(release, /-allowProvisioningUpdates/);
   assert.doesNotMatch(release, /IOS_WIDGET_PROFILE_BASE64/);
 });
