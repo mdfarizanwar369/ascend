@@ -50,7 +50,7 @@ on:
         type: boolean
         default: false
       app_store_action:
-        description: Inspect, prepare, or submit the public iOS 1.4 App Store version
+        description: Inspect, prepare, or submit the public iOS 1.5 App Store version
         type: choice
         options:
           - none
@@ -132,7 +132,7 @@ jobs:
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           ASC_APP_STORE_ACTION: ${{ inputs.app_store_action }}
           ASC_BUILD_NUMBER: ${{ inputs.build_number }}
-          ASC_VERSION_STRING: '1.4'
+          ASC_VERSION_STRING: '1.5'
           ASC_WHATS_NEW: >-
             Ask Siri for your daily calories, water, food and workout progress.
             Connect Apple Health to sync steps, active energy and workouts when you choose.

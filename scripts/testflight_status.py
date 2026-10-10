@@ -11,6 +11,9 @@ import urllib.request
 import jwt
 
 
+EXPECTED_VERSION = "1.5"
+
+
 def get(path, **params):
     query = urllib.parse.urlencode(params)
     url = "https://api.appstoreconnect.apple.com" + path
@@ -210,7 +213,7 @@ for build in builds:
             "testerStates": [tester.get("attributes", {}).get("state") for tester in testers],
         }, sort_keys=True))
         if os.environ.get("ASC_ASSIGN_INTERNAL_BUILD") == "true" and (
-            version == "1.4"
+            version == EXPECTED_VERSION
             and attrs.get("version") == build_number
             and attrs.get("processingState") == "VALID"
             and detail.get("internalBuildState") in {"READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}
@@ -230,7 +233,7 @@ for build in builds:
         tester.get("attributes", {}).get("state", "UNKNOWN") for tester in matching_owner_testers.values()
     ))
     if os.environ.get("ASC_RESEND_OWNER_INVITE") == "true" and (
-        version == "1.4"
+        version == EXPECTED_VERSION
         and attrs.get("version") == build_number
         and attrs.get("processingState") == "VALID"
         and detail.get("internalBuildState") == "IN_BETA_TESTING"
@@ -243,7 +246,7 @@ for build in builds:
                 "status": resend_owner_invitation(app_id, owner_tester["id"])
             }))
     if os.environ.get("ASC_ASSIGN_OWNER_BUILD") == "true" and (
-        version == "1.4"
+        version == EXPECTED_VERSION
         and attrs.get("version") == build_number
         and attrs.get("processingState") == "VALID"
         and detail.get("internalBuildState") in {"READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}
@@ -269,7 +272,7 @@ for build in builds:
             "verified": owner_tester["id"] in assigned_ids,
         }))
     if os.environ.get("ASC_ASSIGN_OWNER_GROUP_BUILD") == "true" and (
-        version == "1.4"
+        version == EXPECTED_VERSION
         and attrs.get("version") == build_number
         and attrs.get("processingState") == "VALID"
         and detail.get("internalBuildState") in {"READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}
@@ -305,7 +308,7 @@ for build in builds:
             "group": group_attrs["name"], "testerCount": len(tester_ids), "verified": True,
         }))
     if os.environ.get("ASC_ASSIGN_NAMED_OWNER_GROUP_BUILD") == "true" and (
-        version == "1.4"
+        version == EXPECTED_VERSION
         and attrs.get("version") == build_number
         and attrs.get("processingState") == "VALID"
         and detail.get("internalBuildState") in {"READY_FOR_BETA_TESTING", "IN_BETA_TESTING"}

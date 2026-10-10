@@ -16,7 +16,7 @@ import jwt
 
 
 BUNDLE_ID = "fit.getascend.app"
-DEFAULT_VERSION = "1.4"
+DEFAULT_VERSION = "1.5"
 ALLOWED_ACTIONS = {"inspect", "prepare", "submit"}
 RELEASABLE_STATES = {"PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW"}
 ACTIVE_REVIEW_STATES = {"READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW"}
@@ -288,7 +288,7 @@ def main():
     version_string = os.environ.get("ASC_VERSION_STRING", DEFAULT_VERSION).strip()
     build_number = os.environ["ASC_BUILD_NUMBER"].strip()
     if version_string != DEFAULT_VERSION:
-        raise RuntimeError("This release automation is restricted to Ascend iOS 1.4")
+        raise RuntimeError(f"This release automation is restricted to Ascend iOS {DEFAULT_VERSION}")
 
     client = AppStoreConnect()
     app = get_app(client)
@@ -296,7 +296,7 @@ def main():
     versions = list_versions(client, app["id"])
     targets = [item for item in versions if item.get("attributes", {}).get("versionString") == version_string]
     if len(targets) > 1:
-        raise RuntimeError("More than one iOS 1.4 App Store version exists")
+        raise RuntimeError(f"More than one iOS {DEFAULT_VERSION} App Store version exists")
 
     target = targets[0] if targets else None
     if action in {"prepare", "submit"} and not target:
@@ -318,7 +318,7 @@ def main():
     readiness = inspect_version_readiness(client, target)
     if readiness["attachedBuildId"] != build["id"]:
         if action == "submit":
-            raise RuntimeError("The exact requested build is not attached to iOS 1.4")
+            raise RuntimeError(f"The exact requested build is not attached to iOS {DEFAULT_VERSION}")
     if action == "submit":
         submit_for_review(client, app["id"], target)
 
