@@ -135,7 +135,7 @@ def main():
                 "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive),
                 # Automatic archives choose their own development identity and
                 # are re-signed for App Store distribution during export.
-                "CODE_SIGN_STYLE=Automatic", "CODE_SIGN_IDENTITY=", f"DEVELOPMENT_TEAM={TEAM}",
+                "CODE_SIGN_STYLE=Automatic", "CODE_SIGN_IDENTITY=Apple Development", f"DEVELOPMENT_TEAM={TEAM}",
                 f"CURRENT_PROJECT_VERSION={build_number}", "archive")
             archived_app = archive / "Products/Applications/App.app"
             run("codesign", "--verify", "--deep", "--strict", str(archived_app), capture_output=True)
