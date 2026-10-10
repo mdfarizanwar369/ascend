@@ -86,6 +86,7 @@ private struct AscendWidgetV2State {
     }
 
     var waterLabel: String {
+        if freshness == .previousDay { return "water" }
         if snapshot.water.targetMl <= 0 { return snapshot.water.loggedMl > 0 ? "water logged" : "water goal" }
         return snapshot.water.remainingMl == 0 ? "hydration" : "water left"
     }
@@ -100,8 +101,14 @@ private struct AscendWidgetV2State {
     }
 
     var movementLabel: String {
+        if freshness == .previousDay { return "movement" }
         if snapshot.movement.workoutCompleted { return "workout" }
         return snapshot.movement.hasMeasuredSteps ? "steps" : "movement"
+    }
+
+    var movementIcon: String {
+        if freshness == .previousDay { return "figure.walk" }
+        return snapshot.movement.workoutCompleted ? "checkmark.circle.fill" : "figure.walk"
     }
 
     var recoveryValue: String {
@@ -370,7 +377,7 @@ private struct AscendV2MediumWidget: View {
                 HStack(spacing: 0) {
                     AscendV2Metric(icon: "drop.fill", color: AscendWidgetV2Tokens.blue, value: state.waterValue, label: state.waterLabel, path: "/water-log")
                     Divider().overlay(AscendWidgetV2Tokens.hairline).padding(.vertical, 5)
-                    AscendV2Metric(icon: state.snapshot.movement.workoutCompleted ? "checkmark.circle.fill" : "figure.walk", color: AscendWidgetV2Tokens.teal, value: state.movementValue, label: state.movementLabel, path: "/burn-log")
+                    AscendV2Metric(icon: state.movementIcon, color: AscendWidgetV2Tokens.teal, value: state.movementValue, label: state.movementLabel, path: "/burn-log")
                     Divider().overlay(AscendWidgetV2Tokens.hairline).padding(.vertical, 5)
                     AscendV2Metric(icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet, value: state.recoveryValue, label: state.recoveryLabel, path: "/dashboard")
                 }
@@ -465,7 +472,7 @@ private struct AscendV2LargeWidget: View {
 
                 HStack(spacing: 8) {
                     AscendV2Metric(icon: "drop.fill", color: AscendWidgetV2Tokens.blue, value: state.waterValue, label: state.waterLabel, path: "/water-log", roomy: true)
-                    AscendV2Metric(icon: state.snapshot.movement.workoutCompleted ? "checkmark.circle.fill" : "figure.walk", color: AscendWidgetV2Tokens.teal, value: state.movementValue, label: state.movementLabel, path: "/burn-log", roomy: true)
+                    AscendV2Metric(icon: state.movementIcon, color: AscendWidgetV2Tokens.teal, value: state.movementValue, label: state.movementLabel, path: "/burn-log", roomy: true)
                     AscendV2Metric(icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet, value: state.recoveryValue, label: state.recoveryLabel, path: "/dashboard", roomy: true)
                 }
                 .padding(12)
@@ -537,6 +544,25 @@ private struct AscendV2EmptyWidget: View {
     }
 }
 
+private struct AscendV2EmptyAccessoryWidget: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image("AscendMark")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 21, height: 21)
+                .widgetAccentable()
+            VStack(alignment: .leading, spacing: 1) {
+                Text("ASCEND").font(.caption2.weight(.bold)).tracking(1.5)
+                Text("Open to connect").font(.headline).lineLimit(1).minimumScaleFactor(0.75)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Open Ascend to connect today’s widget")
+        .widgetURL(ascendV2URL("/dashboard"))
+    }
+}
+
 struct AscendWidgetV2View: View {
     @Environment(\.widgetFamily) private var family
     let entry: AscendWidgetEntry
@@ -551,7 +577,11 @@ struct AscendWidgetV2View: View {
             default: AscendV2SmallWidget(state: state)
             }
         } else {
-            AscendV2EmptyWidget(compact: family == .systemSmall)
+            if family == .accessoryRectangular {
+                AscendV2EmptyAccessoryWidget()
+            } else {
+                AscendV2EmptyWidget(compact: family == .systemSmall)
+            }
         }
     }
 }
