@@ -12,5 +12,6 @@ export type AscendSiriStatus = {
 export const ascendSiri = registerPlugin<{
   status(): Promise<AscendSiriStatus>;
   connect(options: { apiBaseUrl: string; firebaseToken: string; firebaseUid: string }): Promise<{ connected: boolean; expiresAt: string }>;
+  refreshWidget(): Promise<{ refreshed: boolean }>;
   disconnect(): Promise<void>;
 }>("AscendSiri");

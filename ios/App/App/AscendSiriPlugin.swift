@@ -8,6 +8,7 @@ public class AscendSiriPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "connect", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "refreshWidget", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise)
     ]
 
@@ -35,7 +36,19 @@ public class AscendSiriPlugin: CAPPlugin, CAPBridgedPlugin {
         Task {
             do {
                 let expiry = try await AscendSiriService.connect(apiBaseUrl: apiBaseUrl, firebaseToken: firebaseToken, firebaseUid: firebaseUid)
+                try? await AscendWidgetService.refresh()
                 call.resolve(["connected": true, "expiresAt": ISO8601DateFormatter().string(from: expiry)])
+            } catch {
+                call.reject(error.localizedDescription)
+            }
+        }
+    }
+
+    @objc func refreshWidget(_ call: CAPPluginCall) {
+        Task {
+            do {
+                try await AscendWidgetService.refresh()
+                call.resolve(["refreshed": true])
             } catch {
                 call.reject(error.localizedDescription)
             }
@@ -45,6 +58,7 @@ public class AscendSiriPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func disconnect(_ call: CAPPluginCall) {
         Task {
             await AscendSiriService.disconnect()
+            AscendWidgetService.clear()
             call.resolve()
         }
     }

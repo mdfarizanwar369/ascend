@@ -12,6 +12,8 @@ import tempfile
 
 TEAM = "76N75VT6A7"
 BUNDLE = "fit.getascend.app"
+WIDGET_BUNDLE = "fit.getascend.app.widget"
+APP_GROUP = "group.fit.getascend.app"
 RELEASE_ORIGINS = {
     "refs/heads/main": "https://www.getascend.fit/",
     "refs/heads/codex/ios-subscriptions-1-1": "https://ascend-ios-payments-web-ascend-ios-payments.up.railway.app/",
@@ -35,15 +37,18 @@ def run(*args, **kwargs):
     return subprocess.run(args, check=True, **kwargs)
 
 
-def validate_profile(profile, required_entitlements):
+def validate_profile(profile, bundle, required_entitlements):
     entitlements = profile.get("Entitlements", {})
-    if profile.get("TeamIdentifier") != [TEAM] or entitlements.get("application-identifier") != f"{TEAM}.{BUNDLE}":
+    if profile.get("TeamIdentifier") != [TEAM] or entitlements.get("application-identifier") != f"{TEAM}.{bundle}":
         raise SystemExit("Provisioning profile does not match Ascend's team and bundle ID.")
-    if "Default" not in entitlements.get("com.apple.developer.applesignin", []):
+    if bundle == BUNDLE and "Default" not in entitlements.get("com.apple.developer.applesignin", []):
         raise SystemExit("Regenerate the provisioning profile with Sign in with Apple enabled.")
     for capability in ("com.apple.developer.healthkit", "com.apple.developer.healthkit.background-delivery"):
         if required_entitlements.get(capability) is True and entitlements.get(capability) is not True:
             raise SystemExit("Regenerate Ascend's App Store provisioning profile with HealthKit and background delivery enabled.")
+    if APP_GROUP in required_entitlements.get("com.apple.security.application-groups", []) and \
+            APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
+        raise SystemExit("Regenerate the provisioning profile with the Ascend App Group enabled.")
     if profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices") or entitlements.get("get-task-allow"):
         raise SystemExit("An App Store distribution profile is required.")
     if profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc):
@@ -59,20 +64,23 @@ def validate_health_usage_descriptions(info, required_entitlements):
                 raise SystemExit(f"HealthKit archive requires a nonempty {key} in Info.plist.")
 
 
-def validate_signed_entitlements(entitlements, required):
-    if entitlements.get("application-identifier") != f"{TEAM}.{BUNDLE}" or entitlements.get("get-task-allow"):
+def validate_signed_entitlements(entitlements, bundle, required):
+    if entitlements.get("application-identifier") != f"{TEAM}.{bundle}" or entitlements.get("get-task-allow"):
         raise SystemExit("Archived app identity or distribution signing is incorrect.")
-    if "Default" not in entitlements.get("com.apple.developer.applesignin", []):
+    if bundle == BUNDLE and "Default" not in entitlements.get("com.apple.developer.applesignin", []):
         raise SystemExit("Archived app is missing Sign in with Apple.")
     for capability in ("com.apple.developer.healthkit", "com.apple.developer.healthkit.background-delivery"):
         if required.get(capability) is True and entitlements.get(capability) is not True:
             raise SystemExit("Archived app is missing the required HealthKit entitlement.")
+    if APP_GROUP in required.get("com.apple.security.application-groups", []) and \
+            APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
+        raise SystemExit("Archived product is missing the Ascend App Group entitlement.")
 
 
 def main():
     root = Path.cwd()
     validate_release_context(os.environ, json.loads((root / "ios/App/App/capacitor.config.json").read_text()))
-    names = ("IOS_CERTIFICATE_BASE64", "IOS_CERTIFICATE_PASSWORD", "IOS_PROFILE_BASE64",
+    names = ("IOS_CERTIFICATE_BASE64", "IOS_CERTIFICATE_PASSWORD", "IOS_PROFILE_BASE64", "IOS_WIDGET_PROFILE_BASE64",
              "ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY_BASE64", "IOS_GOOGLE_SERVICE_INFO_BASE64")
     missing = [name for name in names if not os.environ.get(name)]
     if missing:
@@ -80,7 +88,7 @@ def main():
     google_config = plistlib.loads((root / "ios/App/App/GoogleService-Info.plist").read_bytes())
     if google_config.get("BUNDLE_ID") != BUNDLE or google_config.get("PROJECT_ID") != "ascend-b2850" or google_config.get("API_KEY") == "SIMULATOR_ONLY_NOT_FOR_SIGN_IN":
         raise SystemExit("Valid Ascend iOS Firebase configuration is required for release.")
-    installed_profile = None
+    installed_profiles = []
     with tempfile.TemporaryDirectory(prefix="ascend-signing-", dir=os.environ.get("RUNNER_TEMP")) as directory:
         temp = Path(directory)
         keychain = temp / "signing.keychain-db"
@@ -88,11 +96,16 @@ def main():
         try:
             certificate = temp / "distribution.p12"
             profile_file = temp / "app.mobileprovision"
+            widget_profile_file = temp / "widget.mobileprovision"
             certificate.write_bytes(base64.b64decode(os.environ["IOS_CERTIFICATE_BASE64"], validate=True))
             profile_file.write_bytes(base64.b64decode(os.environ["IOS_PROFILE_BASE64"], validate=True))
+            widget_profile_file.write_bytes(base64.b64decode(os.environ["IOS_WIDGET_PROFILE_BASE64"], validate=True))
             profile = plistlib.loads(run("security", "cms", "-D", "-i", str(profile_file), capture_output=True).stdout)
+            widget_profile = plistlib.loads(run("security", "cms", "-D", "-i", str(widget_profile_file), capture_output=True).stdout)
             required = plistlib.loads((root / "ios/App/App/App.entitlements").read_bytes())
-            validate_profile(profile, required)
+            widget_required = plistlib.loads((root / "ios/App/AscendWidget/AscendWidget.entitlements").read_bytes())
+            validate_profile(profile, BUNDLE, required)
+            validate_profile(widget_profile, WIDGET_BUNDLE, widget_required)
             validate_health_usage_descriptions(plistlib.loads((root / "ios/App/App/Info.plist").read_bytes()), required)
             run("security", "create-keychain", "-p", password, str(keychain), capture_output=True)
             run("security", "set-keychain-settings", "-lut", "3600", str(keychain), capture_output=True)
@@ -103,8 +116,10 @@ def main():
             run("security", "list-keychains", "-d", "user", "-s", str(keychain), capture_output=True)
             profile_dir = Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles"
             profile_dir.mkdir(parents=True, exist_ok=True)
-            installed_profile = profile_dir / f"{profile['UUID']}.mobileprovision"
-            shutil.copyfile(profile_file, installed_profile)
+            for source, item in ((profile_file, profile), (widget_profile_file, widget_profile)):
+                destination = profile_dir / f"{item['UUID']}.mobileprovision"
+                shutil.copyfile(source, destination)
+                installed_profiles.append(destination)
             archive = temp / "Ascend.xcarchive"
             # Run number stays monotonic for this workflow; attempts get a separate component.
             build_number = f"{os.environ['GITHUB_RUN_NUMBER']}.{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
@@ -112,15 +127,22 @@ def main():
                 "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive),
                 # Only the App target consumes this custom setting. A global
                 # provisioning override incorrectly applies to Swift packages.
-                f"ASCEND_PROFILE_UUID={profile['UUID']}", f"CURRENT_PROJECT_VERSION={build_number}", "archive")
+                f"ASCEND_PROFILE_UUID={profile['UUID']}", f"ASCEND_WIDGET_PROFILE_UUID={widget_profile['UUID']}",
+                f"CURRENT_PROJECT_VERSION={build_number}", "archive")
             archived_app = archive / "Products/Applications/App.app"
             run("codesign", "--verify", "--deep", "--strict", str(archived_app), capture_output=True)
             signed = run("codesign", "-d", "--entitlements", ":-", str(archived_app), capture_output=True)
-            validate_signed_entitlements(plistlib.loads(signed.stdout), required)
+            validate_signed_entitlements(plistlib.loads(signed.stdout), BUNDLE, required)
+            archived_widget = archived_app / "PlugIns/AscendWidgetExtension.appex"
+            if not archived_widget.exists():
+                raise SystemExit("Archived app is missing the Ascend Today widget extension.")
+            run("codesign", "--verify", "--strict", str(archived_widget), capture_output=True)
+            widget_signed = run("codesign", "-d", "--entitlements", ":-", str(archived_widget), capture_output=True)
+            validate_signed_entitlements(plistlib.loads(widget_signed.stdout), WIDGET_BUNDLE, widget_required)
             export = temp / "ExportOptions.plist"
             export.write_bytes(plistlib.dumps({"method": "app-store-connect", "teamID": TEAM,
                 "signingStyle": "manual", "signingCertificate": "Apple Distribution", "manageAppVersionAndBuildNumber": False,
-                "provisioningProfiles": {BUNDLE: profile["UUID"]}}))
+                "provisioningProfiles": {BUNDLE: profile["UUID"], WIDGET_BUNDLE: widget_profile["UUID"]}}))
             run("xcodebuild", "-exportArchive", "-archivePath", str(archive), "-exportOptionsPlist", str(export), "-exportPath", str(temp / "export"))
             keys = temp / "private_keys"
             keys.mkdir(mode=0o700)
@@ -139,7 +161,7 @@ def main():
         finally:
             if keychain.exists():
                 subprocess.run(["security", "delete-keychain", str(keychain)], capture_output=True)
-            if installed_profile:
+            for installed_profile in installed_profiles:
                 installed_profile.unlink(missing_ok=True)
 
 

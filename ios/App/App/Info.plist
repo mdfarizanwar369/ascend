@@ -7,7 +7,10 @@
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Ascend uses Apple Health to show your steps, active energy and workouts in your private activity view. Ascend does not add or change data in Apple Health.</string>
     <key>CFBundleURLTypes</key>
-    <array><dict><key>CFBundleURLSchemes</key><array><string>com.googleusercontent.apps.790770085471-emd8ftl5bgepj8tutqu7oglue784ud85</string></array></dict></array>
+    <array>
+        <dict><key>CFBundleURLSchemes</key><array><string>com.googleusercontent.apps.790770085471-emd8ftl5bgepj8tutqu7oglue784ud85</string></array></dict>
+        <dict><key>CFBundleURLName</key><string>fit.getascend.app.widgets</string><key>CFBundleURLSchemes</key><array><string>ascend</string></array></dict>
+    </array>
     <key>NSCameraUsageDescription</key>
     <string>Take photos of meals and progress to add to your Ascend journal.</string>
     <key>NSMicrophoneUsageDescription</key>

@@ -88,7 +88,7 @@ test("Siri intents are packaged in the iPhone app with private, device-authentic
 
 test("iOS 1.4 trainer referral web links use the matching production app identity", () => {
   const project = read("ios/App/App.xcodeproj/project.pbxproj");
-  assert.equal((project.match(/MARKETING_VERSION = 1\.4;/g) ?? []).length, 2);
+  assert.equal((project.match(/MARKETING_VERSION = 1\.4;/g) ?? []).length, 4);
   assert.doesNotMatch(read("ios/App/App/App.entitlements"), /com\.apple\.developer\.associated-domains/);
   const association = JSON.parse(read("frontend/public/.well-known/apple-app-site-association"));
   assert.deepEqual(association.applinks.details[0].appIDs, ["76N75VT6A7.fit.getascend.app"]);
@@ -121,6 +121,31 @@ test("Apple Health bridge is read-only, private and registered in the native app
   assert.match(store,/isExcludedFromBackup = true/);
   assert.match(read("ios/App/App/AscendViewController.swift"),/AscendHealthPlugin\(\)/);
   assert.match(read("ios/App/App/AppDelegate.swift"),/AscendHealthService.shared.restore/);
+});
+
+test("Ascend Today widget is embedded, private, branded and signed through a shared App Group", () => {
+  const project = read("ios/App/App.xcodeproj/project.pbxproj");
+  assert.match(project, /AscendWidgetExtension\.appex in Embed App Extensions/);
+  assert.match(project, /PRODUCT_BUNDLE_IDENTIFIER = fit\.getascend\.app\.widget/);
+  assert.match(project, /ASCEND_WIDGET_PROFILE_UUID/);
+  for (const file of ["AscendWidget.swift", "AscendWidgetBundle.swift", "AscendWidgetSnapshot.swift"]) {
+    assert.match(project, new RegExp(`${file.replace(".", "\\.")} in Sources`));
+  }
+  const appEntitlements = read("ios/App/App/App.entitlements");
+  const widgetEntitlements = read("ios/App/AscendWidget/AscendWidget.entitlements");
+  for (const entitlements of [appEntitlements, widgetEntitlements]) {
+    assert.match(entitlements, /group\.fit\.getascend\.app/);
+  }
+  const widget = read("ios/App/AscendWidget/AscendWidget.swift");
+  assert.match(widget, /privacySensitive\(\)/);
+  assert.match(widget, /AscendMark/);
+  assert.match(widget, /ProgressPath/);
+  assert.match(widget, /\.systemSmall, \.systemMedium, \.accessoryRectangular/);
+  assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/AscendMark.imageset/ascend-mark.png"));
+  assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/ProgressPath.imageset/progress-path.jpg"));
+  assert.match(read("ios/App/App/Info.plist"), /<string>ascend<\/string>/);
+  assert.match(read("ios/App/App/AscendWidgetService.swift"), /endpoint\("siri\/widget"/);
+  assert.match(read("ios/App/AscendWidget/PrivacyInfo.xcprivacy"), /1C8F\.1/);
 });
 
 test("iOS packages its own startup/offline copy without other-platform promotion", () => {

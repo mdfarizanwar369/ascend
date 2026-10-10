@@ -49,7 +49,8 @@ class ReleaseContextTests(unittest.TestCase):
 
 
 class HealthSigningTests(unittest.TestCase):
-    required = {"com.apple.developer.healthkit": True, "com.apple.developer.healthkit.background-delivery": True}
+    required = {"com.apple.developer.healthkit": True, "com.apple.developer.healthkit.background-delivery": True,
+                "com.apple.security.application-groups": [release.APP_GROUP]}
 
     def entitlements(self):
         return {"application-identifier": f"{release.TEAM}.{release.BUNDLE}", "com.apple.developer.applesignin": ["Default"], **self.required}
@@ -59,8 +60,8 @@ class HealthSigningTests(unittest.TestCase):
                 "ExpirationDate": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)}
 
     def test_matching_distribution_profile_and_signed_app(self):
-        release.validate_profile(self.profile(), self.required)
-        release.validate_signed_entitlements(self.entitlements(), self.required)
+        release.validate_profile(self.profile(), release.BUNDLE, self.required)
+        release.validate_signed_entitlements(self.entitlements(), release.BUNDLE, self.required)
 
     def test_health_archive_needs_both_usage_descriptions_for_apple_upload(self):
         info = {"NSHealthShareUsageDescription": "Read activity", "NSHealthUpdateUsageDescription": "Read-only HealthKit use"}
@@ -74,21 +75,33 @@ class HealthSigningTests(unittest.TestCase):
             profile = self.profile()
             del profile["Entitlements"][capability]
             with self.subTest(capability=capability), self.assertRaises(SystemExit):
-                release.validate_profile(profile, self.required)
+                release.validate_profile(profile, release.BUNDLE, self.required)
             with self.subTest(binary=capability), self.assertRaises(SystemExit):
-                release.validate_signed_entitlements(profile["Entitlements"], self.required)
+                release.validate_signed_entitlements(profile["Entitlements"], release.BUNDLE, self.required)
 
     def test_wrong_team_expired_and_development_profiles_are_rejected(self):
         for override in ({"TeamIdentifier": ["OTHER"]}, {"ProvisionedDevices": ["device"]},
                          {"ExpirationDate": datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)}):
             with self.subTest(override=override), self.assertRaises(SystemExit):
-                release.validate_profile({**self.profile(), **override}, self.required)
+                release.validate_profile({**self.profile(), **override}, release.BUNDLE, self.required)
 
     def test_wrong_identity_and_debug_binary_are_rejected(self):
         for override in ({"application-identifier": "wrong.app"}, {"get-task-allow": True},
                          {"com.apple.developer.applesignin": []}):
             with self.subTest(override=override), self.assertRaises(SystemExit):
-                release.validate_signed_entitlements({**self.entitlements(), **override}, self.required)
+                release.validate_signed_entitlements({**self.entitlements(), **override}, release.BUNDLE, self.required)
+
+    def test_widget_profile_requires_widget_identity_and_shared_app_group(self):
+        required = {"com.apple.security.application-groups": [release.APP_GROUP]}
+        entitlements = {"application-identifier": f"{release.TEAM}.{release.WIDGET_BUNDLE}",
+                        "com.apple.security.application-groups": [release.APP_GROUP]}
+        profile = {"TeamIdentifier": [release.TEAM], "Entitlements": entitlements,
+                   "ExpirationDate": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)}
+        release.validate_profile(profile, release.WIDGET_BUNDLE, required)
+        release.validate_signed_entitlements(entitlements, release.WIDGET_BUNDLE, required)
+        with self.assertRaises(SystemExit):
+            release.validate_profile({**profile, "Entitlements": {**entitlements,
+                "com.apple.security.application-groups": []}}, release.WIDGET_BUNDLE, required)
 
 
 if __name__ == "__main__":
