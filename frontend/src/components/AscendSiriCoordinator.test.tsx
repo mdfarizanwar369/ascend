@@ -4,7 +4,7 @@ import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 const mocks=vi.hoisted(() => ({
   authCallback:null as ((user:unknown) => void) | null,
   currentUser:null as { uid:string;getIdToken:ReturnType<typeof vi.fn> } | null,
-  status:vi.fn(),connect:vi.fn(),disconnect:vi.fn(),addListener:vi.fn(),remove:vi.fn()
+  status:vi.fn(),connect:vi.fn(),disconnect:vi.fn(),refreshWidget:vi.fn(),addListener:vi.fn(),remove:vi.fn()
 }));
 vi.mock("firebase/auth",() => ({ onAuthStateChanged:vi.fn((_auth,callback) => { mocks.authCallback=callback; callback(mocks.currentUser); return vi.fn(); }) }));
 vi.mock("@capacitor/app",() => ({ App:{ addListener:mocks.addListener } }));
@@ -14,7 +14,7 @@ vi.mock("@/lib/firebase",() => ({
   waitForFirebasePersistence:vi.fn().mockResolvedValue(undefined)
 }));
 vi.mock("@/lib/nativePlatform",() => ({ getNativeCapacitorPlatform:() => "ios" }));
-vi.mock("@/lib/ascendSiri",() => ({ ascendSiri:{ status:mocks.status,connect:mocks.connect,disconnect:mocks.disconnect } }));
+vi.mock("@/lib/ascendSiri",() => ({ ascendSiri:{ status:mocks.status,connect:mocks.connect,disconnect:mocks.disconnect,refreshWidget:mocks.refreshWidget } }));
 
 import { AscendSiriCoordinator } from "./AscendSiriCoordinator";
 
@@ -24,6 +24,7 @@ beforeEach(() => {
   mocks.status.mockReset().mockResolvedValue({ supported:true,connected:false });
   mocks.connect.mockReset().mockResolvedValue({ connected:true,expiresAt:"2026-11-01T00:00:00Z" });
   mocks.disconnect.mockReset().mockResolvedValue(undefined);
+  mocks.refreshWidget.mockReset().mockResolvedValue({ refreshed:true });
   mocks.remove.mockReset().mockResolvedValue(undefined);
   mocks.addListener.mockReset().mockResolvedValue({ remove:mocks.remove });
 });
@@ -65,5 +66,14 @@ describe("silent Siri account coordinator",() => {
     render(<AscendSiriCoordinator />);
     await waitFor(() => expect(mocks.status).toHaveBeenCalledOnce());
     expect(mocks.connect).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the widget after relevant dashboard data changes",async () => {
+    render(<AscendSiriCoordinator />);
+    await waitFor(() => expect(mocks.connect).toHaveBeenCalledOnce());
+
+    window.dispatchEvent(new CustomEvent("ascend:dashboard-record-updated",{ detail:{ type:"water" } }));
+
+    await waitFor(() => expect(mocks.refreshWidget).toHaveBeenCalledOnce());
   });
 });

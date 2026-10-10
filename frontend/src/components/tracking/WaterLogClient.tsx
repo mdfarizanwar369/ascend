@@ -5,7 +5,7 @@ import { Droplets, Trash2 } from "lucide-react";
 import { deleteWaterLog, getWaterLogs, saveWaterLog } from "@/lib/ascendApi";
 import { DelightBadge } from "@/components/Delight";
 import { localDateKey } from "@/lib/date";
-import { rememberDashboardRecord } from "@/lib/dataSync";
+import { notifyDashboardRecordChanged, rememberDashboardRecord } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { MetricPulse } from "@/components/ExperienceVisuals";
 import { TrackingHero, TrackingPageHeader, TrackingStatus } from "@/components/tracking/TrackingVisuals";
@@ -84,6 +84,7 @@ export function WaterLogClient() {
       await deleteWaterLog(log.id);
       setTodayLogs((current) => current.filter((entry) => entry.id !== log.id));
       setTodayMl((current) => Math.max(0, current - log.amount_ml));
+      notifyDashboardRecordChanged("water");
       setSaveSucceeded(false);
       setStatus("Water entry removed.");
     } catch (error) {

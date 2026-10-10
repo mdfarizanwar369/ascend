@@ -5,6 +5,22 @@ private let ascendTeal = Color(red: 0.21, green: 0.95, blue: 0.82)
 private let ascendBlue = Color(red: 0.20, green: 0.55, blue: 0.96)
 private let ascendViolet = Color(red: 0.64, green: 0.40, blue: 1.00)
 
+// Rollback control: change only this value to .v1 to restore the exact
+// TestFlight 182.1 widget layouts and supported families in the next build.
+enum AscendWidgetDesignVersion {
+    case v1
+    case v2
+
+    static let active: Self = .v2
+
+    var supportedFamilies: [WidgetFamily] {
+        switch self {
+        case .v1: return [.systemSmall, .systemMedium, .accessoryRectangular]
+        case .v2: return [.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular]
+        }
+    }
+}
+
 struct AscendWidgetEntry: TimelineEntry {
     let date: Date
     let snapshot: AscendWidgetSnapshot?
@@ -280,7 +296,7 @@ private struct AscendEmptyWidget: View {
     }
 }
 
-private struct AscendWidgetView: View {
+private struct AscendWidgetV1View: View {
     @Environment(\.widgetFamily) private var family
     let entry: AscendWidgetEntry
 
@@ -293,6 +309,17 @@ private struct AscendWidgetView: View {
     }
 }
 
+private struct AscendWidgetView: View {
+    let entry: AscendWidgetEntry
+
+    @ViewBuilder var body: some View {
+        switch AscendWidgetDesignVersion.active {
+        case .v1: AscendWidgetV1View(entry: entry)
+        case .v2: AscendWidgetV2View(entry: entry)
+        }
+    }
+}
+
 struct AscendTodayWidget: Widget {
     let kind = "AscendTodayWidget"
     var body: some WidgetConfiguration {
@@ -301,7 +328,7 @@ struct AscendTodayWidget: Widget {
         }
         .configurationDisplayName("Ascend Today")
         .description("See calories, water, movement and recovery at a glance.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
+        .supportedFamilies(AscendWidgetDesignVersion.active.supportedFamilies)
         .contentMarginsDisabled()
     }
 }

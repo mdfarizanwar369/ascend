@@ -26,7 +26,7 @@ import {
   uploadFoodPhotoDataUrl
 } from "@/lib/ascendApi";
 import { TrackingPageHeader } from "@/components/tracking/TrackingVisuals";
-import { clearPendingFoodLog, rememberSavedFoodLog } from "@/lib/dataSync";
+import { clearPendingFoodLog, notifyDashboardRecordChanged, rememberSavedFoodLog } from "@/lib/dataSync";
 import { markInstallEligible } from "@/lib/installAscend";
 import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
@@ -675,6 +675,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
       setFoodLogs((current) => current.filter((item) => item.id !== log.id));
       setHistoryLogs((current) => current.filter((item) => item.id !== log.id));
       clearPendingFoodLog(log.id);
+      notifyDashboardRecordChanged("food");
       setStatus("Meal removed. Your daily totals have been updated.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not remove this meal. Please try again.");

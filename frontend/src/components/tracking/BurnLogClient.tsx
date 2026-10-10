@@ -9,7 +9,7 @@ import { deleteBurnLog, estimateBurnFromText, getBurnLogs, getCurrentCoachHomewo
 import { Field, inputClass, selectClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { usablePlan } from "@/lib/subscriptionPlan";
-import { rememberDashboardRecord } from "@/lib/dataSync";
+import { notifyDashboardRecordChanged, rememberDashboardRecord } from "@/lib/dataSync";
 import { trainerHomeworkEnabled } from "@/lib/trainerHomeworkFlag";
 import { workoutCaptureEnabled } from "@/lib/workoutCaptureFlag";
 import { WorkoutCapturePanel } from "@/components/tracking/WorkoutCapturePanel";
@@ -208,6 +208,7 @@ export function BurnLogClient() {
       const calories = Number(log.metadata?.caloriesBurned ?? log.metadata?.estimatedCaloriesBurned ?? 0);
       setTodayLogs((current) => current.filter((entry) => entry.id !== log.id));
       setTodayCalories((current) => Math.max(0, current - calories));
+      notifyDashboardRecordChanged("burn");
       setStatus("Activity entry removed.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not remove that activity.");

@@ -14,7 +14,10 @@ struct AscendWidgetWaterMetric: Codable {
 
 struct AscendWidgetMovement: Codable {
     let steps: Int
+    let stepsAvailable: Bool?
     let workoutCompleted: Bool
+
+    var hasMeasuredSteps: Bool { stepsAvailable ?? true }
 }
 
 struct AscendWidgetRecovery: Codable {
@@ -44,7 +47,7 @@ struct AscendWidgetSnapshot: Codable {
         generatedAt: "",
         calories: .init(logged: 1230, target: 1870, remaining: 640),
         water: .init(loggedMl: 1400, targetMl: 2500, remainingMl: 1100),
-        movement: .init(steps: 0, workoutCompleted: false),
+        movement: .init(steps: 4800, stepsAvailable: true, workoutCompleted: false),
         recovery: .init(sleepQuality: nil),
         priority: .init(key: "Water", title: "Keep sipping through the day", href: "/water-log", cta: "Log Water")
     )

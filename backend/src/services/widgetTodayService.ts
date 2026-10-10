@@ -12,7 +12,7 @@ type WidgetSnapshotInput = {
   generatedAt: string;
   totals: { calories: number; waterMl: number };
   targets: { calories: number; waterMl: number };
-  movement: { steps: number; workoutCompleted: boolean };
+  movement: { steps: number; stepsAvailable?: boolean; workoutCompleted: boolean };
   recovery: { sleepQuality: "poor" | "okay" | "good" | null };
   priority: { key: "Meal" | "Water" | "Movement" | null; title: string; href: string; cta: string };
 };
@@ -36,6 +36,7 @@ export function buildWidgetTodaySnapshot(input: WidgetSnapshotInput) {
     },
     movement: {
       steps: Math.max(0, Math.round(input.movement.steps)),
+      stepsAvailable: input.movement.stepsAvailable ?? true,
       workoutCompleted: input.movement.workoutCompleted
     },
     recovery: {
@@ -62,6 +63,7 @@ export async function getWidgetTodayData(
     targets: { calories: voice.targets.calories, waterMl: voice.targets.waterMl },
     movement: {
       steps: priorityContext.facts.stepsToday,
+      stepsAvailable: priorityContext.facts.stepsAvailable,
       workoutCompleted: priorityContext.facts.workoutCompletedToday
     },
     recovery: { sleepQuality: priorityContext.facts.sleepQuality },

@@ -15,6 +15,7 @@
 		B16000000000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B16000000000000000000007 /* Assets.xcassets */; };
 		B1600000000000000000000B /* AscendWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B1600000000000000000000A /* AscendWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		B1600000000000000000001A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B16000000000000000000019 /* PrivacyInfo.xcprivacy */; };
+		B1600000000000000000001C /* AscendWidgetV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1600000000000000000001B /* AscendWidgetV2.swift */; };
 		A15000000000000000000002 /* AscendHealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000001 /* AscendHealthService.swift */; };
 		A15000000000000000000004 /* AscendHealthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000003 /* AscendHealthPlugin.swift */; };
 		A15000000000000000000006 /* AscendHealthSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000005 /* AscendHealthSyncStore.swift */; };
@@ -70,6 +71,7 @@
 		B1600000000000000000000A /* AscendWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AscendWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1600000000000000000000D /* AscendWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AscendWidget.entitlements; sourceTree = "<group>"; };
 		B16000000000000000000019 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B1600000000000000000001B /* AscendWidgetV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendWidgetV2.swift; sourceTree = "<group>"; };
 		A15000000000000000000001 /* AscendHealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthService.swift; sourceTree = "<group>"; };
 		A15000000000000000000003 /* AscendHealthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthPlugin.swift; sourceTree = "<group>"; };
 		A15000000000000000000005 /* AscendHealthSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthSyncStore.swift; sourceTree = "<group>"; };
@@ -163,6 +165,7 @@
 			isa = PBXGroup;
 			children = (
 				B16000000000000000000003 /* AscendWidget.swift */,
+				B1600000000000000000001B /* AscendWidgetV2.swift */,
 				B16000000000000000000005 /* AscendWidgetBundle.swift */,
 				B16000000000000000000007 /* Assets.xcassets */,
 				B16000000000000000000009 /* Info.plist */,
@@ -290,6 +293,7 @@
 			files = (
 				B16000000000000000000002 /* AscendWidgetSnapshot.swift in Sources */,
 				B16000000000000000000004 /* AscendWidget.swift in Sources */,
+				B1600000000000000000001C /* AscendWidgetV2.swift in Sources */,
 				B16000000000000000000006 /* AscendWidgetBundle.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
