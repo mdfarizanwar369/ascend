@@ -107,17 +107,17 @@ private struct MetricTile: View {
 
     var body: some View {
         Link(destination: ascendURL(path)) {
-            VStack(spacing: 3) {
+            VStack(spacing: 2) {
                 Image(systemName: icon)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(color)
                 Text(value)
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
                 Text(label)
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(1)
             }
@@ -135,49 +135,59 @@ private struct AscendMediumWidget: View {
 
     var body: some View {
         if let snapshot {
-            VStack(spacing: 9) {
-                HStack {
-                    AscendBrand(compact: false)
-                    Spacer()
-                    Text(dayLabel)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.white.opacity(0.70))
-                }
-                Link(destination: ascendURL("/food-log")) {
-                    HStack(spacing: 13) {
-                        CalorieRing(snapshot: snapshot, diameter: 65)
-                        VStack(alignment: .leading, spacing: -2) {
-                            Text(snapshot.calories.remaining.formatted())
-                                .font(.system(size: 34, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
-                                .contentTransition(.numericText())
-                            Text("kcal left")
-                                .font(.system(size: 16, weight: .regular, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.78))
-                        }
+            GeometryReader { geometry in
+                VStack(spacing: 4) {
+                    HStack {
+                        AscendBrand(compact: true)
                         Spacer()
+                        Text(dayLabel)
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.70))
+                    }
+                    .frame(height: 18)
+                    Link(destination: ascendURL("/food-log")) {
+                        HStack(spacing: 11) {
+                            CalorieRing(snapshot: snapshot, diameter: 50)
+                            VStack(alignment: .leading, spacing: -2) {
+                                Text(snapshot.calories.remaining.formatted())
+                                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                                    .foregroundStyle(.white)
+                                    .contentTransition(.numericText())
+                                Text("kcal left")
+                                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.78))
+                            }
+                            Spacer()
+                        }
+                    }
+                    .frame(height: 50)
+                    Divider().overlay(Color.white.opacity(0.12))
+                    HStack(spacing: 0) {
+                        MetricTile(icon: "drop", color: ascendBlue,
+                                   value: String(format: "%.1f L", Double(snapshot.water.remainingMl) / 1000),
+                                   label: "water left", path: "/water-log")
+                        Divider().overlay(Color.white.opacity(0.10))
+                        MetricTile(icon: snapshot.movement.workoutCompleted ? "checkmark.circle.fill" : "figure.walk",
+                                   color: ascendTeal,
+                                   value: snapshot.movement.workoutCompleted ? "Done" : snapshot.movement.steps.formatted(.number.notation(.compactName)),
+                                   label: snapshot.movement.workoutCompleted ? "movement" : "steps", path: "/burn-log")
+                        Divider().overlay(Color.white.opacity(0.10))
+                        MetricTile(icon: "moon.fill", color: ascendViolet,
+                                   value: snapshot.recovery.sleepQuality?.capitalized ?? "Check in",
+                                   label: "recovery", path: "/dashboard")
+                    }
+                    .frame(height: 42)
+                    if geometry.size.height >= 162 {
+                        Text("“Small steps. A better you.”")
+                            .font(.system(size: 9, weight: .medium, design: .rounded).italic())
+                            .foregroundStyle(.white.opacity(0.66))
+                            .lineLimit(1)
                     }
                 }
-                Divider().overlay(Color.white.opacity(0.12))
-                HStack(spacing: 0) {
-                    MetricTile(icon: "drop", color: ascendBlue,
-                               value: String(format: "%.1f L", Double(snapshot.water.remainingMl) / 1000),
-                               label: "water left", path: "/water-log")
-                    Divider().overlay(Color.white.opacity(0.10))
-                    MetricTile(icon: snapshot.movement.workoutCompleted ? "checkmark.circle.fill" : "figure.walk",
-                               color: ascendTeal,
-                               value: snapshot.movement.workoutCompleted ? "Done" : snapshot.movement.steps.formatted(.number.notation(.compactName)),
-                               label: snapshot.movement.workoutCompleted ? "movement" : "steps", path: "/burn-log")
-                    Divider().overlay(Color.white.opacity(0.10))
-                    MetricTile(icon: "moon.fill", color: ascendViolet,
-                               value: snapshot.recovery.sleepQuality?.capitalized ?? "Check in",
-                               label: "recovery", path: "/dashboard")
-                }
-                Text("“Small steps. A better you.”")
-                    .font(.system(size: 10, weight: .medium, design: .rounded).italic())
-                    .foregroundStyle(.white.opacity(0.66))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
             }
-            .padding(15)
             .privacySensitive()
             .ascendWidgetBackground()
         } else {
