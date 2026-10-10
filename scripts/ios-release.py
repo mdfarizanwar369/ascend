@@ -133,7 +133,9 @@ def main():
             build_number = f"{os.environ['GITHUB_RUN_NUMBER']}.{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
             run("xcodebuild", "-project", str(root / "ios/App/App.xcodeproj"), "-scheme", "App", *authentication,
                 "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive),
-                "CODE_SIGN_STYLE=Automatic", f"DEVELOPMENT_TEAM={TEAM}",
+                # Automatic archives choose their own development identity and
+                # are re-signed for App Store distribution during export.
+                "CODE_SIGN_STYLE=Automatic", "CODE_SIGN_IDENTITY=", f"DEVELOPMENT_TEAM={TEAM}",
                 f"CURRENT_PROJECT_VERSION={build_number}", "archive")
             archived_app = archive / "Products/Applications/App.app"
             run("codesign", "--verify", "--deep", "--strict", str(archived_app), capture_output=True)
