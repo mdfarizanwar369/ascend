@@ -144,13 +144,32 @@ def matching_distribution_certificate(api, original_profile):
     return matching[0]
 
 
-def get_or_create_profile(api, name, bundle_id, certificate_id):
+def get_or_create_profile(api, name, bundle_id, certificate_id, reusable_name_prefix=None):
     matches = api.request("GET", "/v1/profiles", **{"filter[name]": name, "limit": 5})
     active = [item for item in matches if item["attributes"].get("profileState") == "ACTIVE"]
     if len(active) > 1:
         raise SystemExit(f"Multiple active Apple profiles match {name}.")
     if active:
         return active[0]
+    if reusable_name_prefix:
+        candidates = api.request("GET", "/v1/profiles", limit=200)
+        compatible = []
+        for item in candidates:
+            attributes = item.get("attributes", {})
+            if (attributes.get("profileState") != "ACTIVE"
+                    or not attributes.get("name", "").startswith(reusable_name_prefix)):
+                continue
+            related_bundle = api.request("GET", f"/v1/profiles/{item['id']}/bundleId")
+            related_certificates = api.request("GET", f"/v1/profiles/{item['id']}/certificates", limit=200)
+            if related_bundle.get("id") == bundle_id and certificate_id in {
+                    certificate.get("id") for certificate in related_certificates}:
+                compatible.append(item)
+        if compatible:
+            # Prefer the latest compatible profile if an older release left more
+            # than one active profile. install_profile validates its identity,
+            # entitlements, distribution type and expiration before Xcode runs.
+            return max(compatible, key=lambda item: (
+                item.get("attributes", {}).get("createdDate", ""), item.get("id", "")))
     return api.request("POST", "/v1/profiles", {"data": {"type": "profiles",
         "attributes": {"name": name, "profileType": "IOS_APP_STORE"},
         "relationships": {
@@ -230,13 +249,10 @@ def main():
             widget_bundle = get_or_create_bundle(api, WIDGET_BUNDLE, "Ascend Today Widget")
             enable_capability(api, main_bundle["id"], "APP_GROUPS")
             enable_capability(api, widget_bundle["id"], "APP_GROUPS")
-            release_profile_suffix = os.environ["GITHUB_RUN_ID"]
-            if not release_profile_suffix.isdigit():
-                raise SystemExit("Invalid GitHub release run ID.")
-            main_profile_resource = get_or_create_profile(api, f"Ascend Shared {release_profile_suffix}",
-                main_bundle["id"], distribution["id"])
-            widget_profile_resource = get_or_create_profile(api, f"Ascend Widget {release_profile_suffix}",
-                widget_bundle["id"], distribution["id"])
+            main_profile_resource = get_or_create_profile(api, "Ascend Shared App Store",
+                main_bundle["id"], distribution["id"], "Ascend Shared ")
+            widget_profile_resource = get_or_create_profile(api, "Ascend Widget App Store",
+                widget_bundle["id"], distribution["id"], "Ascend Widget ")
             main_profile_source = temp / "ascend-shared.mobileprovision"
             widget_profile_source = temp / "ascend-widget.mobileprovision"
             main_profile = install_profile(main_profile_resource, main_profile_source, BUNDLE, required)

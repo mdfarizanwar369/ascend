@@ -86,9 +86,9 @@ test("Siri intents are packaged in the iPhone app with private, device-authentic
   assert.match(service, /endpoint\("siri\/ask"/);
 });
 
-test("iOS 1.4 trainer referral web links use the matching production app identity", () => {
+test("iOS 1.5 trainer referral web links use the matching production app identity", () => {
   const project = read("ios/App/App.xcodeproj/project.pbxproj");
-  assert.equal((project.match(/MARKETING_VERSION = 1\.4;/g) ?? []).length, 4);
+  assert.equal((project.match(/MARKETING_VERSION = 1\.5;/g) ?? []).length, 4);
   assert.doesNotMatch(read("ios/App/App/App.entitlements"), /com\.apple\.developer\.associated-domains/);
   const association = JSON.parse(read("frontend/public/.well-known/apple-app-site-association"));
   assert.deepEqual(association.applinks.details[0].appIDs, ["76N75VT6A7.fit.getascend.app"]);

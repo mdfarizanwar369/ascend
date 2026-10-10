@@ -138,6 +138,26 @@ class ProvisioningAPITests(unittest.TestCase):
         self.assertEqual(release.get_or_create_profile(api, "Widget profile", "bundle-id", "certificate-id"), created_profile)
         self.assertEqual([call[0][0] for call in api.calls], ["GET", "POST", "GET", "POST", "GET", "POST"])
 
+    def test_compatible_release_profile_is_reused_across_workflow_runs(self):
+        reusable = {"id": "old-run-profile", "attributes": {
+            "name": "Ascend Widget 38070214984", "profileState": "ACTIVE",
+            "createdDate": "2026-10-11T08:00:00Z",
+        }}
+        unrelated = {"id": "other-profile", "attributes": {
+            "name": "Another App", "profileState": "ACTIVE",
+        }}
+        api = self.API([[], [unrelated, reusable], {"id": "widget-bundle"},
+                        [{"id": "distribution-certificate"}]])
+        result = release.get_or_create_profile(
+            api, "Ascend Widget App Store", "widget-bundle", "distribution-certificate", "Ascend Widget ")
+        self.assertEqual(result, reusable)
+        self.assertEqual([call[0][:2] for call in api.calls], [
+            ("GET", "/v1/profiles"),
+            ("GET", "/v1/profiles"),
+            ("GET", "/v1/profiles/old-run-profile/bundleId"),
+            ("GET", "/v1/profiles/old-run-profile/certificates"),
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()
