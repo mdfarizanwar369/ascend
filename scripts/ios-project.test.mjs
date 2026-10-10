@@ -140,6 +140,9 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.match(widget, /privacySensitive\(\)/);
   assert.match(widget, /AscendMark/);
   assert.match(widget, /ProgressPath/);
+  assert.match(widget, /GeometryReader/);
+  assert.match(widget, /geometry\.size\.height >= 162/);
+  assert.doesNotMatch(widget, /diameter: 65/);
   assert.match(widget, /\.systemSmall, \.systemMedium, \.accessoryRectangular/);
   assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/AscendMark.imageset/ascend-mark.png"));
   assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/ProgressPath.imageset/progress-path.jpg"));
