@@ -146,6 +146,9 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.match(read("ios/App/App/Info.plist"), /<string>ascend<\/string>/);
   assert.match(read("ios/App/App/AscendWidgetService.swift"), /endpoint\("siri\/widget"/);
   assert.match(read("ios/App/AscendWidget/PrivacyInfo.xcprivacy"), /1C8F\.1/);
+  const workflow = read(".github/workflows/ios.yml");
+  assert.equal((workflow.match(/IOS_WIDGET_PROFILE_BASE64: \$\{\{ secrets\.IOS_WIDGET_PROFILE_BASE64 \}\}/g) ?? []).length, 2,
+    "both signing preflight and TestFlight upload must receive the widget profile");
 });
 
 test("iOS packages its own startup/offline copy without other-platform promotion", () => {
