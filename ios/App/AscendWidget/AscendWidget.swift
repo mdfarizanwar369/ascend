@@ -37,7 +37,21 @@ struct AscendWidgetProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<AscendWidgetEntry>) -> Void) {
         let now = Date()
-        completion(.init(entries: [.init(date: now, snapshot: AscendWidgetStore.load())],
+        let snapshot = AscendWidgetStore.load()
+        var entries = [AscendWidgetEntry(date: now, snapshot: snapshot)]
+        if let snapshot {
+            let precise = ISO8601DateFormatter()
+            precise.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            let generatedAt = precise.date(from: snapshot.generatedAt) ?? ISO8601DateFormatter().date(from: snapshot.generatedAt)
+            if let staleAt = generatedAt?.addingTimeInterval(3 * 60 * 60), staleAt > now {
+                entries.append(.init(date: staleAt, snapshot: snapshot))
+            }
+            if let midnight = Calendar.autoupdatingCurrent.nextDate(after: now, matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime) {
+                entries.append(.init(date: midnight, snapshot: snapshot))
+            }
+            entries.sort { $0.date < $1.date }
+        }
+        completion(.init(entries: entries,
                          policy: .after(now.addingTimeInterval(30 * 60))))
     }
 }

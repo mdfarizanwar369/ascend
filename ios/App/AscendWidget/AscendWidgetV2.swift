@@ -415,12 +415,8 @@ private struct AscendV2SmallWidget: View {
                     }
                 }
                 Spacer(minLength: 0)
-                HStack(spacing: 5) {
-                    Image(systemName: AscendWidgetDecisionEngine.message(for: state).icon)
-                        .foregroundStyle(AscendWidgetDecisionEngine.message(for: state).color)
-                    Text(AscendWidgetDecisionEngine.message(for: state).text)
-                        .lineLimit(1)
-                }
+                Label("Daily calorie balance", systemImage: "sparkles")
+                    .lineLimit(1)
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.78))
             }

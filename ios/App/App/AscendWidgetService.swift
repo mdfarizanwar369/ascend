@@ -6,10 +6,14 @@ private actor AscendWidgetRefreshCoordinator {
 
     private var isRefreshing = false
     private var refreshAgain = false
+    private var queuedWaiters: [CheckedContinuation<Void, Error>] = []
 
     func refresh() async throws {
         if isRefreshing {
             refreshAgain = true
+            try await withCheckedThrowingContinuation { continuation in
+                queuedWaiters.append(continuation)
+            }
             return
         }
 
@@ -25,7 +29,16 @@ private actor AscendWidgetRefreshCoordinator {
                 finalError = error
             }
         } while refreshAgain
-        if let finalError { throw finalError }
+        let result: Result<Void, Error>
+        if let finalError {
+            result = .failure(finalError)
+        } else {
+            result = .success(())
+        }
+        let waiters = queuedWaiters
+        queuedWaiters.removeAll()
+        for waiter in waiters { waiter.resume(with: result) }
+        try result.get()
     }
 }
 

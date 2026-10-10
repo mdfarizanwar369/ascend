@@ -143,8 +143,10 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.match(widget, /GeometryReader/);
   assert.match(widget, /geometry\.size\.height >= 162/);
   assert.doesNotMatch(widget, /diameter: 65/);
+  assert.match(widget, /addingTimeInterval\(3 \* 60 \* 60\)/);
+  assert.match(widget, /Calendar\.autoupdatingCurrent\.nextDate/);
   assert.match(widget, /\.systemSmall, \.systemMedium, \.accessoryRectangular/);
-  assert.match(widget, /static let active: Self = \.v2/);
+  assert.match(widget, /static let active: Self = \.(?:v1|v2)/);
   assert.match(widget, /case \.v1: return \[\.systemSmall, \.systemMedium, \.accessoryRectangular\]/);
   const widgetV2 = read("ios/App/AscendWidget/AscendWidgetV2.swift");
   assert.match(widgetV2, /AscendWidgetDecisionEngine/);
@@ -155,6 +157,7 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/ProgressPath.imageset/progress-path.jpg"));
   assert.match(read("ios/App/App/Info.plist"), /<string>ascend<\/string>/);
   assert.match(read("ios/App/App/AscendWidgetService.swift"), /endpoint\("siri\/widget"/);
+  assert.match(read("ios/App/App/AscendWidgetService.swift"), /queuedWaiters/);
   assert.match(read("ios/App/AscendWidget/PrivacyInfo.xcprivacy"), /1C8F\.1/);
   const release = read("scripts/ios-release.py");
   assert.match(release, /"signingStyle": "manual"/);
