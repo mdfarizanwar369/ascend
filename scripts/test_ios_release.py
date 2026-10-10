@@ -104,5 +104,31 @@ class HealthSigningTests(unittest.TestCase):
                 "com.apple.security.application-groups": []}}, release.WIDGET_BUNDLE, required)
 
 
+class ProvisioningAPITests(unittest.TestCase):
+    class API:
+        def __init__(self, responses):
+            self.responses = list(responses)
+            self.calls = []
+
+        def request(self, *args, **kwargs):
+            self.calls.append((args, kwargs))
+            return self.responses.pop(0)
+
+    def test_existing_bundle_and_capability_are_reused(self):
+        api = self.API([[{"id": "bundle-id"}], [{"attributes": {"capabilityType": "APP_GROUPS"}}]])
+        self.assertEqual(release.get_or_create_bundle(api, release.WIDGET_BUNDLE, "Widget")["id"], "bundle-id")
+        release.enable_capability(api, "bundle-id", "APP_GROUPS")
+        self.assertEqual([call[0][0] for call in api.calls], ["GET", "GET"])
+
+    def test_missing_bundle_capability_and_profile_are_created(self):
+        created_bundle = {"id": "bundle-id"}
+        created_profile = {"id": "profile-id", "attributes": {"profileState": "ACTIVE"}}
+        api = self.API([[], created_bundle, [], None, [], created_profile])
+        self.assertEqual(release.get_or_create_bundle(api, release.WIDGET_BUNDLE, "Widget"), created_bundle)
+        release.enable_capability(api, "bundle-id", "APP_GROUPS")
+        self.assertEqual(release.get_or_create_profile(api, "Widget profile", "bundle-id", "certificate-id"), created_profile)
+        self.assertEqual([call[0][0] for call in api.calls], ["GET", "POST", "GET", "POST", "GET", "POST"])
+
+
 if __name__ == "__main__":
     unittest.main()

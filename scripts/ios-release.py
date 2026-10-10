@@ -1,6 +1,7 @@
 """Archive, sign, and upload on an ephemeral GitHub macOS runner. Never prints secrets."""
 import base64
 import datetime
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,10 @@ import secrets
 import shutil
 import subprocess
 import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 TEAM = "76N75VT6A7"
 BUNDLE = "fit.getascend.app"
@@ -77,6 +82,96 @@ def validate_signed_entitlements(entitlements, bundle, required):
         raise SystemExit("Archived product is missing the Ascend App Group entitlement.")
 
 
+class AppleDeveloperAPI:
+    """Minimal App Store Connect provisioning client; error bodies may contain sensitive data."""
+
+    def __init__(self, issuer_id, key_id, private_key):
+        import jwt
+        now = int(time.time())
+        self.token = jwt.encode({"iss": issuer_id, "iat": now, "exp": now + 600,
+            "aud": "appstoreconnect-v1"}, private_key, algorithm="ES256",
+            headers={"kid": key_id, "typ": "JWT"})
+
+    def request(self, method, path, body=None, **params):
+        url = "https://api.appstoreconnect.apple.com" + path
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+        request = urllib.request.Request(url, method=method,
+            data=json.dumps(body).encode() if body is not None else None,
+            headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(request, timeout=45) as response:
+                if response.status == 204:
+                    return None
+                return json.load(response)["data"]
+        except urllib.error.HTTPError as error:
+            raise SystemExit(f"Apple provisioning returned HTTP {error.code} for {method} {path}.") from None
+
+
+def get_or_create_bundle(api, identifier, name):
+    matches = api.request("GET", "/v1/bundleIds", **{"filter[identifier]": identifier, "limit": 5})
+    if len(matches) > 1:
+        raise SystemExit(f"Multiple Apple bundle IDs match {identifier}.")
+    if matches:
+        return matches[0]
+    return api.request("POST", "/v1/bundleIds", {"data": {"type": "bundleIds",
+        "attributes": {"identifier": identifier, "name": name, "platform": "IOS"}}})
+
+
+def enable_capability(api, bundle_id, capability_type):
+    capabilities = api.request("GET", f"/v1/bundleIds/{bundle_id}/bundleIdCapabilities")
+    if any(item["attributes"].get("capabilityType") == capability_type for item in capabilities):
+        return
+    api.request("POST", "/v1/bundleIdCapabilities", {"data": {"type": "bundleIdCapabilities",
+        "attributes": {"capabilityType": capability_type},
+        "relationships": {"bundleId": {"data": {"type": "bundleIds", "id": bundle_id}}}}})
+
+
+def matching_distribution_certificate(api, original_profile):
+    expected = {hashlib.sha256(value).hexdigest()
+        for value in original_profile.get("DeveloperCertificates", [])}
+    certificates = api.request("GET", "/v1/certificates", limit=200)
+    matching = [item for item in certificates
+        if item["attributes"].get("certificateType") in ("DISTRIBUTION", "IOS_DISTRIBUTION")
+        and hashlib.sha256(base64.b64decode(
+            item["attributes"].get("certificateContent", ""))).hexdigest() in expected]
+    if len(matching) != 1:
+        raise SystemExit("Could not uniquely verify Ascend's Apple Distribution certificate.")
+    return matching[0]
+
+
+def get_or_create_profile(api, name, bundle_id, certificate_id):
+    matches = api.request("GET", "/v1/profiles", **{"filter[name]": name, "limit": 5})
+    active = [item for item in matches if item["attributes"].get("profileState") == "ACTIVE"]
+    if len(active) > 1:
+        raise SystemExit(f"Multiple active Apple profiles match {name}.")
+    if active:
+        return active[0]
+    return api.request("POST", "/v1/profiles", {"data": {"type": "profiles",
+        "attributes": {"name": name, "profileType": "IOS_APP_STORE"},
+        "relationships": {
+            "bundleId": {"data": {"type": "bundleIds", "id": bundle_id}},
+            "certificates": {"data": [{"type": "certificates", "id": certificate_id}]}}}})
+
+
+def install_profile(profile_resource, destination, bundle, required):
+    destination.write_bytes(base64.b64decode(profile_resource["attributes"]["profileContent"], validate=True))
+    decoded = plistlib.loads(run("security", "cms", "-D", "-i", str(destination), capture_output=True).stdout)
+    validate_profile(decoded, bundle, required)
+    return decoded
+
+
+def validate_product(product, bundle, required):
+    run("codesign", "--verify", "--strict", str(product), capture_output=True)
+    embedded = product / "embedded.mobileprovision"
+    if not embedded.exists():
+        raise SystemExit("Signed product is missing its App Store provisioning profile.")
+    profile = plistlib.loads(run("security", "cms", "-D", "-i", str(embedded), capture_output=True).stdout)
+    validate_profile(profile, bundle, required)
+    signed = run("codesign", "-d", "--entitlements", ":-", str(product), capture_output=True)
+    validate_signed_entitlements(plistlib.loads(signed.stdout), bundle, required)
+
+
 def main():
     root = Path.cwd()
     validate_release_context(os.environ, json.loads((root / "ios/App/App/capacitor.config.json").read_text()))
@@ -125,39 +220,51 @@ def main():
             private_key = temp / f"AuthKey_{key_id}.p8"
             private_key.write_bytes(base64.b64decode(os.environ["ASC_PRIVATE_KEY_BASE64"], validate=True))
             private_key.chmod(0o600)
-            authentication = ("-allowProvisioningUpdates", "-authenticationKeyPath", str(private_key),
-                "-authenticationKeyID", key_id,
-                "-authenticationKeyIssuerID", os.environ["ASC_ISSUER_ID"])
+            api = AppleDeveloperAPI(os.environ["ASC_ISSUER_ID"], key_id, private_key.read_bytes())
+            distribution = matching_distribution_certificate(api, profile)
+            main_bundle = get_or_create_bundle(api, BUNDLE, "Ascend Fitness and Nutrition")
+            widget_bundle = get_or_create_bundle(api, WIDGET_BUNDLE, "Ascend Today Widget")
+            enable_capability(api, main_bundle["id"], "APP_GROUPS")
+            enable_capability(api, widget_bundle["id"], "APP_GROUPS")
+            release_profile_suffix = os.environ["GITHUB_RUN_ID"]
+            if not release_profile_suffix.isdigit():
+                raise SystemExit("Invalid GitHub release run ID.")
+            main_profile_resource = get_or_create_profile(api, f"Ascend Shared {release_profile_suffix}",
+                main_bundle["id"], distribution["id"])
+            widget_profile_resource = get_or_create_profile(api, f"Ascend Widget {release_profile_suffix}",
+                widget_bundle["id"], distribution["id"])
+            main_profile_source = temp / "ascend-shared.mobileprovision"
+            widget_profile_source = temp / "ascend-widget.mobileprovision"
+            main_profile = install_profile(main_profile_resource, main_profile_source, BUNDLE, required)
+            widget_profile = install_profile(widget_profile_resource, widget_profile_source, WIDGET_BUNDLE, widget_required)
+            for source, item in ((main_profile_source, main_profile), (widget_profile_source, widget_profile)):
+                installed = profile_dir / f"{item['UUID']}.mobileprovision"
+                shutil.copyfile(source, installed)
+                installed_profiles.append(installed)
             archive = temp / "Ascend.xcarchive"
             # Run number stays monotonic for this workflow; attempts get a separate component.
             build_number = f"{os.environ['GITHUB_RUN_NUMBER']}.{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
-            run("xcodebuild", "-project", str(root / "ios/App/App.xcodeproj"), "-scheme", "App", *authentication,
+            run("xcodebuild", "-project", str(root / "ios/App/App.xcodeproj"), "-scheme", "App",
                 "-configuration", "Release", "-destination", "generic/platform=iOS", "-archivePath", str(archive),
-                # Automatic archives choose their own development identity and
-                # are re-signed for App Store distribution during export.
-                "CODE_SIGN_STYLE=Automatic", "CODE_SIGN_IDENTITY=Apple Development", f"DEVELOPMENT_TEAM={TEAM}",
+                # Release signing is manual in the App and widget target build
+                # settings. Global signing overrides also affect Swift packages.
+                f"ASCEND_PROFILE_UUID={main_profile['UUID']}",
+                f"ASCEND_WIDGET_PROFILE_UUID={widget_profile['UUID']}",
                 f"CURRENT_PROJECT_VERSION={build_number}", "archive")
             archived_app = archive / "Products/Applications/App.app"
             run("codesign", "--verify", "--deep", "--strict", str(archived_app), capture_output=True)
             archived_widget = archived_app / "PlugIns/AscendWidgetExtension.appex"
             if not archived_widget.exists():
                 raise SystemExit("Archived app is missing the Ascend Today widget extension.")
-            for product, bundle, entitlements in ((archived_app, BUNDLE, required),
-                                                   (archived_widget, WIDGET_BUNDLE, widget_required)):
-                embedded = product / "embedded.mobileprovision"
-                if not embedded.exists():
-                    raise SystemExit("Archived product is missing its distribution provisioning profile.")
-                archived_profile = plistlib.loads(run("security", "cms", "-D", "-i", str(embedded), capture_output=True).stdout)
-                validate_profile(archived_profile, bundle, entitlements)
-            signed = run("codesign", "-d", "--entitlements", ":-", str(archived_app), capture_output=True)
-            validate_signed_entitlements(plistlib.loads(signed.stdout), BUNDLE, required)
-            run("codesign", "--verify", "--strict", str(archived_widget), capture_output=True)
-            widget_signed = run("codesign", "-d", "--entitlements", ":-", str(archived_widget), capture_output=True)
-            validate_signed_entitlements(plistlib.loads(widget_signed.stdout), WIDGET_BUNDLE, widget_required)
+            validate_product(archived_app, BUNDLE, required)
+            validate_product(archived_widget, WIDGET_BUNDLE, widget_required)
             export = temp / "ExportOptions.plist"
             export.write_bytes(plistlib.dumps({"method": "app-store-connect", "teamID": TEAM,
-                "signingStyle": "automatic", "manageAppVersionAndBuildNumber": False}))
-            run("xcodebuild", "-exportArchive", *authentication, "-archivePath", str(archive),
+                "signingStyle": "manual", "signingCertificate": "Apple Distribution",
+                "provisioningProfiles": {BUNDLE: main_profile["UUID"],
+                    WIDGET_BUNDLE: widget_profile["UUID"]},
+                "manageAppVersionAndBuildNumber": False}))
+            run("xcodebuild", "-exportArchive", "-archivePath", str(archive),
                 "-exportOptionsPlist", str(export), "-exportPath", str(temp / "export"))
             keys = temp / "private_keys"
             keys.mkdir(mode=0o700)
@@ -167,6 +274,16 @@ def main():
             ipas = list((temp / "export").glob("*.ipa"))
             if len(ipas) != 1:
                 raise SystemExit("Expected exactly one exported IPA.")
+            extracted = temp / "exported-ipa"
+            run("ditto", "-x", "-k", str(ipas[0]), str(extracted), capture_output=True)
+            exported_apps = list((extracted / "Payload").glob("*.app"))
+            if len(exported_apps) != 1:
+                raise SystemExit("Expected exactly one exported application.")
+            exported_widget = exported_apps[0] / "PlugIns/AscendWidgetExtension.appex"
+            if not exported_widget.exists():
+                raise SystemExit("Exported IPA is missing the Ascend Today widget extension.")
+            validate_product(exported_apps[0], BUNDLE, required)
+            validate_product(exported_widget, WIDGET_BUNDLE, widget_required)
             run("xcrun", "altool", "--upload-app", "--type", "ios", "--file", str(ipas[0]),
                 "--apiKey", key_id, "--apiIssuer", os.environ["ASC_ISSUER_ID"], cwd=temp)
             print("Uploaded to App Store Connect. Wait for Apple processing before testing in TestFlight.")
