@@ -38,6 +38,15 @@ import {
 import { usablePlan } from "@/lib/subscriptionPlan";
 import { loadAccountProfile } from "@/lib/accountSession";
 import { rememberDashboardRecord } from "@/lib/dataSync";
+import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
+import {
+  clearWorkoutSessionDraft,
+  readWorkoutSessionDraft,
+  workoutDraftExpiration,
+  workoutProgressForPlan,
+  writeWorkoutSessionDraft,
+  type WorkoutSessionExerciseDetails
+} from "@/lib/workoutSessionDraft";
 
 type ChatMessage = {
   role: "assistant" | "user";
@@ -62,7 +71,7 @@ type WorkoutSaveSuccess = {
   momentumEarned: number;
 };
 
-type ObservedExerciseDraft = { sets: string; reps: string; load: string; loadUnit: "kg" | "lb"; durationMinutes: string; durationSeconds: string };
+type ObservedExerciseDraft = WorkoutSessionExerciseDetails;
 const emptyObservedExercise = (): ObservedExerciseDraft => ({ sets: "", reps: "", load: "", loadUnit: "kg", durationMinutes: "", durationSeconds: "" });
 
 type WorkoutPlannerTime = NonNullable<WorkoutAnswers["timeAvailable"]>;
@@ -571,13 +580,73 @@ export function CoachHubClient() {
   const [workoutDebrief, setWorkoutDebrief] = useState<WorkoutDebriefView | null>(null);
   const [isRequestingDebrief, setIsRequestingDebrief] = useState(false);
   const [workoutCompletionKey, setWorkoutCompletionKey] = useState<string | null>(null);
+  const [workoutDraftOwnerUid, setWorkoutDraftOwnerUid] = useState<string | null>(null);
+  const [workoutDraftExpiresAt, setWorkoutDraftExpiresAt] = useState<string | null>(null);
+  const [workoutDraftHydrated, setWorkoutDraftHydrated] = useState(false);
+  const [workoutRestored, setWorkoutRestored] = useState(false);
   const [todaysInsight, setTodaysInsight] = useState("One honest action is enough to keep today moving.");
   const saveWorkoutLockRef = useRef(false);
+  const workoutSessionTouchedRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const completedCount = useMemo(() => checkedExercises.size, [checkedExercises]);
   const allExercisesCompleted = Boolean(workout && workout.exercises.length > 0 && completedCount === workout.exercises.length);
   const canSaveWorkout = allExercisesCompleted || (workout?.experienceVersion === 2 && completedCount > 0);
+
+  useEffect(() => {
+    let active = true;
+    void waitForFirebasePersistence()
+      .then(() => {
+        if (!active) return;
+        const ownerUid = getFirebaseClientAuth().currentUser?.uid ?? null;
+        setWorkoutDraftOwnerUid(ownerUid);
+        if (!ownerUid) return;
+        const draft = readWorkoutSessionDraft(ownerUid);
+        if (!draft || workoutSessionTouchedRef.current) return;
+        setWorkout(draft.workout);
+        setAnswers(draft.answers);
+        setWorkoutCompletionKey(draft.workoutCompletionKey);
+        setCheckedExercises(new Set(draft.checkedExerciseIndexes));
+        setObservedExercises(draft.observedExercises);
+        setEffortRating(draft.effortRating);
+        setActualWorkoutMinutes(draft.actualWorkoutMinutes);
+        setShowWorkoutDetails(draft.showWorkoutDetails);
+        setWorkoutDraftExpiresAt(draft.expiresAt);
+        setSavedWorkoutSummary(null);
+        setWorkoutDebrief(null);
+        setDailyWorkoutCompleted(false);
+        setShowExistingChoice(false);
+        setPlannerOpen(true);
+        setWorkoutRestored(draft.checkedExerciseIndexes.length > 0);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setWorkoutDraftHydrated(true);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!workoutDraftHydrated || !workoutDraftOwnerUid) return;
+    if (!workout || !workoutCompletionKey || savedWorkoutSummary || dailyWorkoutCompleted) {
+      clearWorkoutSessionDraft(workoutDraftOwnerUid);
+      return;
+    }
+    const expiresAt = workoutDraftExpiresAt ?? workoutDraftExpiration();
+    writeWorkoutSessionDraft(workoutDraftOwnerUid, {
+      workoutCompletionKey,
+      workout,
+      answers,
+      checkedExerciseIndexes: [...checkedExercises].sort((a, b) => a - b),
+      observedExercises,
+      effortRating,
+      actualWorkoutMinutes,
+      showWorkoutDetails,
+      expiresAt
+    });
+  }, [actualWorkoutMinutes, answers, checkedExercises, dailyWorkoutCompleted, effortRating, observedExercises,
+    savedWorkoutSummary, showWorkoutDetails, workout, workoutCompletionKey, workoutDraftExpiresAt,
+    workoutDraftHydrated, workoutDraftOwnerUid]);
 
   useEffect(() => {
     let active = true;
@@ -677,20 +746,43 @@ export function CoachHubClient() {
 
   function applyDailyWorkout(daily: DailyWorkout) {
     const changed = workoutCompletionKey !== daily.workoutCompletionKey;
+    const draftOwnerUid = workoutDraftOwnerUid ?? getFirebaseClientAuth().currentUser?.uid ?? null;
+    const savedProgress = draftOwnerUid
+      ? workoutProgressForPlan(readWorkoutSessionDraft(draftOwnerUid), daily)
+      : null;
     setWorkout(daily.workout);
     setAnswers(daily.request);
     setWorkoutCompletionKey(daily.workoutCompletionKey);
+    setWorkoutDraftExpiresAt(workoutDraftExpiration(daily.resetsAt));
     setDailyWorkoutCompleted(daily.completed);
-    if (changed || daily.completed) {
+    if (daily.completed) {
+      if (draftOwnerUid) clearWorkoutSessionDraft(draftOwnerUid);
       setShowWorkoutDetails(false);
       setObservedExercises({});
       setEffortRating(null);
       setActualWorkoutMinutes("");
-      setCheckedExercises(new Set(daily.completed
-        ? daily.completedExerciseIndexes ?? daily.workout.exercises.map((_, index) => index)
-        : []));
+      setCheckedExercises(new Set(daily.completedExerciseIndexes ?? daily.workout.exercises.map((_, index) => index)));
       setSavedWorkoutSummary(null);
       setWorkoutDebrief(null);
+      setWorkoutRestored(false);
+    } else if (savedProgress) {
+      setShowWorkoutDetails(savedProgress.showWorkoutDetails);
+      setObservedExercises(savedProgress.observedExercises);
+      setEffortRating(savedProgress.effortRating);
+      setActualWorkoutMinutes(savedProgress.actualWorkoutMinutes);
+      setCheckedExercises(new Set(savedProgress.checkedExerciseIndexes));
+      setSavedWorkoutSummary(null);
+      setWorkoutDebrief(null);
+      setWorkoutRestored(savedProgress.checkedExerciseIndexes.length > 0);
+    } else if (changed) {
+      setShowWorkoutDetails(false);
+      setObservedExercises({});
+      setEffortRating(null);
+      setActualWorkoutMinutes("");
+      setCheckedExercises(new Set());
+      setSavedWorkoutSummary(null);
+      setWorkoutDebrief(null);
+      setWorkoutRestored(false);
     }
     setShowExistingChoice(false);
     setPlannerOpen(true);
@@ -698,6 +790,7 @@ export function CoachHubClient() {
 
   async function startWorkoutPlanner() {
     if (isLoadingWorkout || isGeneratingWorkout) return;
+    workoutSessionTouchedRef.current = true;
     setStatus("");
     if (iosFree) {
       setIsLoadingWorkout(true);
@@ -709,6 +802,8 @@ export function CoachHubClient() {
         }
         setWorkout(null);
         setWorkoutCompletionKey(null);
+        setWorkoutDraftExpiresAt(null);
+        setWorkoutRestored(false);
         setSavedWorkoutSummary(null);
         setWorkoutDebrief(null);
         setDailyWorkoutCompleted(false);
@@ -740,6 +835,7 @@ export function CoachHubClient() {
     const nextAnswers = { ...answers, equipment: finalEquipment };
     if (!nextAnswers.location || !nextAnswers.timeAvailable || !nextAnswers.goal || !nextAnswers.equipment || isGeneratingWorkout) return;
 
+    workoutSessionTouchedRef.current = true;
     setAnswers(nextAnswers);
     setStatus("");
     setIsGeneratingWorkout(true);
@@ -758,6 +854,8 @@ export function CoachHubClient() {
         return;
       }
       setWorkout(response.workout);
+      setWorkoutDraftExpiresAt(workoutDraftExpiration());
+      setWorkoutRestored(false);
       setShowWorkoutDetails(false);
       setObservedExercises({});
       setEffortRating(null);
@@ -777,9 +875,11 @@ export function CoachHubClient() {
 
   async function swapWorkoutExercise(index: number) {
     if (workout?.experienceVersion !== 2 || checkedExercises.has(index) || savedWorkoutSummary || dailyWorkoutCompleted) return;
+    workoutSessionTouchedRef.current = true;
     if (iosFree) {
       if (!workoutCompletionKey) return;
       try {
+        setWorkoutRestored(false);
         const response = await swapTodayWorkoutExercise(workoutCompletionKey, index);
         applyDailyWorkout(response.dailyWorkout);
       } catch (error) {
@@ -787,6 +887,7 @@ export function CoachHubClient() {
       }
       return;
     }
+    setWorkoutRestored(false);
     setWorkout((current) => {
       if (current?.experienceVersion !== 2) return current;
       const exercise = current.exercises[index];
@@ -815,6 +916,7 @@ export function CoachHubClient() {
 
   async function saveWorkoutCompletion() {
     if (!workout || !canSaveWorkout || !workoutCompletionKey || saveWorkoutLockRef.current) return;
+    workoutSessionTouchedRef.current = true;
     saveWorkoutLockRef.current = true;
     setIsSavingWorkout(true);
     setStatus("");
@@ -870,6 +972,9 @@ export function CoachHubClient() {
       });
 
       rememberDashboardRecord("burn", response.burnLog);
+      const draftOwnerUid = workoutDraftOwnerUid ?? getFirebaseClientAuth().currentUser?.uid ?? null;
+      if (draftOwnerUid) clearWorkoutSessionDraft(draftOwnerUid);
+      setWorkoutRestored(false);
       setSavedWorkoutSummary(response.summary);
       if (iosFree) setDailyWorkoutCompleted(true);
       setWorkoutDebrief(response.debrief);
@@ -1015,6 +1120,7 @@ export function CoachHubClient() {
               onCancel={closeWorkoutPlanner}
               onGenerate={generateWorkout}
               onRegenerate={() => {
+                setWorkoutRestored(false);
                 if (workout?.experienceVersion === 2) {
                   setWorkout((current) => {
                     if (current?.experienceVersion !== 2) return current;
@@ -1044,8 +1150,11 @@ export function CoachHubClient() {
                 setSavedWorkoutSummary(null);
                 setWorkoutDebrief(null);
                 setWorkoutCompletionKey(null);
+                setWorkoutDraftExpiresAt(null);
               }}
               onToggleExercise={(index) => {
+                workoutSessionTouchedRef.current = true;
+                setWorkoutRestored(false);
                 setCheckedExercises((current) => {
                   const next = new Set(current);
                   if (next.has(index)) next.delete(index);
@@ -1080,6 +1189,12 @@ export function CoachHubClient() {
                   Options
                 </button>
               </div>
+
+              {workoutRestored ? (
+                <p className="mt-4 rounded-xl border border-lime/20 bg-lime/10 px-4 py-3 text-sm leading-5 text-lime">
+                  Welcome back. Your workout progress was saved, so you can continue where you left off.
+                </p>
+              ) : null}
 
               {savedWorkoutSummary ? (
                 <div className="ascend-success-reveal mt-4 overflow-hidden rounded-2xl border border-lime/30 bg-ink">

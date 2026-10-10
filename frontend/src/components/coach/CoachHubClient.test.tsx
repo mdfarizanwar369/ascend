@@ -1,14 +1,19 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DailyWorkout } from "@/lib/ascendApi";
+import { writeWorkoutSessionDraft } from "@/lib/workoutSessionDraft";
 
-const mocks = vi.hoisted(() => ({ ios: true, visuals: false, workoutV2: false, pilot: false, today: vi.fn(), generate: vi.fn(), save: vi.fn(), swap: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ios: true, visuals: false, workoutV2: false, pilot: false, today: vi.fn(), generate: vi.fn(), save: vi.fn(), swap: vi.fn(), persistence: vi.fn() }));
 vi.mock("@/lib/appEdition", () => ({ useIosFreeEdition: () => mocks.ios, useIosApp: () => mocks.ios }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => null, StaggerItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("next/image", () => ({ default: () => null }));
 vi.mock("@/lib/accountSession", () => ({
   loadAccountProfile: async () => ({ isPlatformOwner: false, roles: [], exerciseVisualsEnabled: false })
+}));
+vi.mock("@/lib/firebase", () => ({
+  getFirebaseClientAuth: () => ({ currentUser: { uid: "member-one" } }),
+  waitForFirebasePersistence: () => mocks.persistence()
 }));
 vi.mock("@/lib/dataSync", () => ({ rememberDashboardRecord: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({
@@ -31,7 +36,9 @@ const daily: DailyWorkout = {
   }
 };
 beforeEach(() => {
+  window.localStorage.clear();
   vi.clearAllMocks(); mocks.ios = true; mocks.visuals = false; mocks.workoutV2 = false; mocks.pilot = false;
+  mocks.persistence.mockResolvedValue(undefined);
   mocks.today.mockResolvedValue({ dailyWorkout: null });
   mocks.generate.mockResolvedValue({ workout: daily.workout, dailyWorkout: daily });
 });
@@ -87,6 +94,65 @@ describe("iPhone daily workout builder", () => {
     expect(await screen.findByRole("heading", { name: "Home mobility" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument();
     expect(mocks.generate).toHaveBeenCalledOnce();
+  });
+  it("restores an interrupted workout with completed movements and feedback", async () => {
+    const resumableDaily: DailyWorkout = { ...daily, workout: {
+      ...daily.workout,
+      experienceVersion: 2,
+      exercises: [
+        { name: "Bodyweight Squat", sets: 2, reps: "10" },
+        { name: "Dumbbell Row", sets: 2, reps: "10" },
+        { name: "Glute Bridge", sets: 2, reps: "12" }
+      ]
+    } };
+    mocks.generate.mockResolvedValue({ workout: resumableDaily.workout, dailyWorkout: resumableDaily });
+
+    const firstVisit = render(<CoachHubClient />);
+    await chooseWorkout();
+    await screen.findByText("Bodyweight Squat");
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Bodyweight Squat" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Dumbbell Row" }));
+    fireEvent.change(screen.getByLabelText("Minutes actually spent"), { target: { value: "18" } });
+    fireEvent.click(screen.getByRole("button", { name: "About right" }));
+    await waitFor(() => expect(window.localStorage.getItem("ascend:zoe-workout-session:v1:member-one")).toContain("Bodyweight Squat"));
+    firstVisit.unmount();
+
+    render(<CoachHubClient />);
+    expect(await screen.findByText(/Welcome back\. Your workout progress was saved/)).toBeInTheDocument();
+    expect(screen.getByText("2/3 exercises checked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark incomplete: Bodyweight Squat" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark incomplete: Dumbbell Row" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark complete: Glute Bridge" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Minutes actually spent")).toHaveValue("18");
+    expect(screen.getByRole("button", { name: "About right" })).toHaveAttribute("aria-pressed", "true");
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    expect(mocks.today).toHaveBeenCalledOnce();
+  });
+  it("does not overwrite a workout started while account recovery is still loading", async () => {
+    const oldWorkout = { ...daily.workout, title: "Old interrupted workout" };
+    writeWorkoutSessionDraft("member-one", {
+      workoutCompletionKey: "old-plan",
+      workout: oldWorkout,
+      answers: daily.request,
+      checkedExerciseIndexes: [0],
+      observedExercises: {},
+      effortRating: null,
+      actualWorkoutMinutes: "",
+      showWorkoutDetails: false,
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    });
+    let finishRecovery!: () => void;
+    mocks.persistence.mockImplementationOnce(() => new Promise<void>((resolve) => { finishRecovery = resolve; }));
+    const newDaily = { ...daily, workout: { ...daily.workout, title: "New workout" } };
+    mocks.generate.mockResolvedValue({ workout: newDaily.workout, dailyWorkout: newDaily });
+
+    render(<CoachHubClient />);
+    await chooseWorkout();
+    expect(await screen.findByRole("heading", { name: "New workout" })).toBeInTheDocument();
+    finishRecovery();
+
+    await waitFor(() => expect(window.localStorage.getItem("ascend:zoe-workout-session:v1:member-one")).toContain("New workout"));
+    expect(screen.queryByRole("heading", { name: "Old interrupted workout" })).not.toBeInTheDocument();
   });
   it("keeps completed server workouts read-only after reopening", async () => {
     mocks.today.mockResolvedValue({ dailyWorkout: { ...daily, completed: true } });
@@ -239,6 +305,7 @@ describe("iPhone daily workout builder", () => {
     render(<CoachHubClient />);
     await chooseWorkout();
     expect(await screen.findByText("Dumbbell Row")).toBeInTheDocument();
+    await waitFor(() => expect(window.localStorage.getItem("ascend:zoe-workout-session:v1:member-one")).toContain("Dumbbell Row"));
     fireEvent.click(screen.getByRole("button", { name: "Mark complete: Dumbbell Row" }));
     fireEvent.click(screen.getByRole("button", { name: /Add your actual reps or weight/ }));
     fireEvent.change(screen.getByLabelText("Dumbbell Row sets done"), { target: { value: "2" } });
@@ -249,6 +316,7 @@ describe("iPhone daily workout builder", () => {
       workoutCompletionKey: "55555555-5555-4555-8555-555555555555",
       observedExercises: [{ exerciseIndex: 0, sets: 2, reps: "10, 9", load: 25, loadUnit: "kg" }]
     })));
+    await waitFor(() => expect(window.localStorage.getItem("ascend:zoe-workout-session:v1:member-one")).toBeNull());
   });
 
   it("lets an owner save an honest partial workout without checking every exercise", async () => {
