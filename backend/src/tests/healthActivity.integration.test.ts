@@ -143,8 +143,8 @@ describe.skipIf(!testUrl)("Apple activity ledger in isolated PostgreSQL",() => {
     const status=await service.getHealthActivityStatus(id);
     expect(status.calendarGeneration).not.toBe(source.calendarGeneration);
     const updated=packet(source,3,300); updated.calendarGeneration=status.calendarGeneration!;
-    updated.snapshots=updated.snapshots.map(day => ({ ...day,timezone:"UTC",windowStart:`${day.day}T00:00:00.000Z`,windowEnd:new Date(Date.parse(`${day.day}T00:00:00Z`)+86400_000).toISOString() }));
-    updated.snapshots.push({ ...snapshot(900,1),timezone:"UTC" });
+    const utcDay=healthDateKey(new Date(),"UTC");
+    updated.snapshots=updated.snapshots.map(day => ({ ...day,day:utcDay,timezone:"UTC",windowStart:`${utcDay}T00:00:00.000Z`,windowEnd:new Date(Date.parse(`${utcDay}T00:00:00Z`)+86400_000).toISOString() }));
     await service.importHealthActivity(id,updated);
     expect(await service.getDailyHealthActivity(id,historicalDay.day)).toMatchObject({ displayedCalories:450,timezone:"Asia/Singapore" });
     expect(await service.getDailyHealthActivity(id)).toMatchObject({ displayedCalories:300,timezone:"UTC" });
