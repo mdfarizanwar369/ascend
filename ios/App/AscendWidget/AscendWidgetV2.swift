@@ -612,39 +612,28 @@ private enum AscendWidgetV2PreviewFixtures {
     )
 }
 
-#Preview("Medium · No data", as: .systemMedium) {
-    AscendTodayWidget()
-} timeline: {
-    AscendWidgetEntry(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.noData)
-}
-
-#Preview("Medium · Partial goals", as: .systemMedium) {
-    AscendTodayWidget()
-} timeline: {
-    AscendWidgetEntry(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.partial)
-}
-
-#Preview("Medium · Midday activity", as: .systemMedium) {
-    AscendTodayWidget()
-} timeline: {
-    AscendWidgetEntry(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.midday)
-}
-
-#Preview("Medium · Completed goals", as: .systemMedium) {
-    AscendTodayWidget()
-} timeline: {
-    AscendWidgetEntry(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.complete)
-}
-
-#Preview("Medium · Long values", as: .systemMedium) {
-    AscendTodayWidget()
-} timeline: {
-    AscendWidgetEntry(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.longValues)
-}
-
-#Preview("Large · Recovery unavailable", as: .systemLarge) {
-    AscendTodayWidget()
-} timeline: {
-    AscendWidgetEntry(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.midday)
+private struct AscendWidgetV2Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            AscendWidgetV2View(entry: .init(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.noData))
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Medium · No data")
+            AscendWidgetV2View(entry: .init(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.partial))
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Medium · Partial goals")
+            AscendWidgetV2View(entry: .init(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.midday))
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Medium · Midday activity")
+            AscendWidgetV2View(entry: .init(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.complete))
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Medium · Completed goals")
+            AscendWidgetV2View(entry: .init(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.longValues))
+                .previewContext(WidgetPreviewContext(family: .systemMedium))
+                .previewDisplayName("Medium · Long values")
+            AscendWidgetV2View(entry: .init(date: Date(), snapshot: AscendWidgetV2PreviewFixtures.midday))
+                .previewContext(WidgetPreviewContext(family: .systemLarge))
+                .previewDisplayName("Large · Recovery unavailable")
+        }
+    }
 }
 #endif
