@@ -520,7 +520,7 @@ function WorkoutPlannerCard({
   );
 }
 
-export function CoachHubClient() {
+export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean }) {
   const freeEdition = useIosFreeEdition();
   const iosApp = useIosApp();
   const [nativePaid, setNativePaid] = useState(false);
@@ -587,6 +587,7 @@ export function CoachHubClient() {
   const [todaysInsight, setTodaysInsight] = useState("One honest action is enough to keep today moving.");
   const saveWorkoutLockRef = useRef(false);
   const workoutSessionTouchedRef = useRef(false);
+  const autoWorkoutOpenRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const completedCount = useMemo(() => checkedExercises.size, [checkedExercises]);
@@ -824,6 +825,14 @@ export function CoachHubClient() {
     setAnswers({});
     setPlannerOpen(true);
   }
+
+  useEffect(() => {
+    if (!openWorkout || !workoutDraftHydrated || plannerOpen || autoWorkoutOpenRef.current) return;
+    autoWorkoutOpenRef.current = true;
+    void startWorkoutPlanner();
+    // This is a one-time navigation action. The ref prevents query-driven re-entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openWorkout, plannerOpen, workoutDraftHydrated]);
 
   function closeWorkoutPlanner() {
     setShowExistingChoice(false);

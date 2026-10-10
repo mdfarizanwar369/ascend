@@ -26,6 +26,7 @@ import {
   getProgressPhotos,
   getTodayMission,
   getTodayPriorityRecommendation,
+  getTodayWorkout,
   getWaterLogs,
   getWeightLogs,
   saveRecoveryCheckin,
@@ -34,7 +35,8 @@ import {
   CoachPresenceSettings,
   CoachPresenceMessage,
   DailyCoachingDecisionInsight,
-  TodayPriorityRecommendation
+  TodayPriorityRecommendation,
+  DailyWorkout
 } from "@/lib/ascendApi";
 import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
@@ -49,6 +51,9 @@ import { getAscendMorphV22Timing, useAscendLaunchMorphV22 } from "@/components/d
 import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 import { isIosFreeEdition } from "@/lib/appEdition";
 import { AppleHealthInvitation,AppleHealthReminder,useAppleHealthInvitation } from "@/components/dashboard/AppleHealthInvitation";
+import { TodayWorkoutCard } from "@/components/dashboard/TodayWorkoutCard";
+import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
+import { readWorkoutSessionDraft, type WorkoutSessionDraft } from "@/lib/workoutSessionDraft";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -385,6 +390,9 @@ export function ClientDashboard() {
   const [essentialsOpeningMode, setEssentialsOpeningMode] = useState<"undecided" | "stagger" | "morphV22">("undecided");
   const [todayPriorityRecommendation, setTodayPriorityRecommendation] = useState<TodayPriority | null>(null);
   const [dailyDecisionInsight, setDailyDecisionInsight] = useState<DailyCoachingDecisionInsight | null>(null);
+  const [todayWorkout, setTodayWorkout] = useState<DailyWorkout | null>(null);
+  const [workoutSessionDraft, setWorkoutSessionDraft] = useState<WorkoutSessionDraft | null>(null);
+  const [workoutCardLoading, setWorkoutCardLoading] = useState(true);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
@@ -427,6 +435,34 @@ export function ClientDashboard() {
   const momentumHandoffTimerRef = useRef<number | null>(null);
   const momentumRewardTimerRef = useRef<number | null>(null);
   const momentumRewardResetTimerRef = useRef<number | null>(null);
+
+  const loadWorkoutCard = useCallback(async () => {
+    setWorkoutCardLoading(true);
+    try {
+      const [{ dailyWorkout }] = await Promise.all([
+        getTodayWorkout().catch(() => ({ dailyWorkout: null })),
+        waitForFirebasePersistence().catch(() => undefined)
+      ]);
+      const ownerUid = getFirebaseClientAuth().currentUser?.uid ?? "";
+      setTodayWorkout(dailyWorkout);
+      setWorkoutSessionDraft(ownerUid ? readWorkoutSessionDraft(ownerUid) : null);
+    } finally {
+      setWorkoutCardLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWorkoutCard();
+    const refresh = () => {
+      if (document.visibilityState !== "hidden") void loadWorkoutCard();
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+    };
+  }, [loadWorkoutCard]);
 
   const startEssentialsEntrance = useCallback(() => {
     if (essentialsEntranceStartedRef.current || document.visibilityState === "hidden") return;
@@ -996,6 +1032,14 @@ export function ClientDashboard() {
   const weightLostFromStart = startWeight && currentWeight && startWeight > currentWeight ? startWeight - currentWeight : 0;
   const latestBurnLog = burnLogs[0];
   const latestWorkoutTitle = typeof latestBurnLog?.metadata?.workoutTitle === "string" ? latestBurnLog.metadata.workoutTitle : null;
+  const completedZoeWorkoutToday = burnLogs.find((log) =>
+    localDateKey(log.created_at) === today && String(log.metadata?.source ?? "").startsWith("coach_zoe_workout_"));
+  const completedWorkoutCard = completedZoeWorkoutToday ? {
+    title: completedZoeWorkoutToday.metadata?.workoutTitle ?? "Today’s workout",
+    durationMinutes: typeof completedZoeWorkoutToday.metadata?.durationMinutes === "number"
+      ? completedZoeWorkoutToday.metadata.durationMinutes
+      : null
+  } : null;
   const latestWorkoutCompletedToday = Boolean(latestBurnLog && localDateKey(latestBurnLog.created_at) === today);
   const latestWorkoutCompletedYesterday = Boolean(latestBurnLog && localDateKey(latestBurnLog.created_at) === yesterday);
   const isFirstDayState =
@@ -1782,6 +1826,13 @@ export function ClientDashboard() {
             {primaryAction.label} <ArrowRight size={18} />
           </Link>
         </section>
+
+        <TodayWorkoutCard
+          dailyWorkout={todayWorkout}
+          draft={workoutSessionDraft}
+          completedWorkout={completedWorkoutCard}
+          loading={workoutCardLoading}
+        />
 
         {shouldShowProfileReminder ? (
           <Link href="/onboarding?profile=1" className="ascend-pressable ascend-today-profile-reminder mt-2 flex min-h-16 items-center gap-3 rounded-2xl border border-calm/25 bg-calm/[0.06] px-4 py-3 shadow-soft">

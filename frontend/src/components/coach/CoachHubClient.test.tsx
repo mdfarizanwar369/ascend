@@ -52,6 +52,12 @@ async function chooseWorkout() {
   fireEvent.click(screen.getByRole("button", { name: "Bodyweight" }));
 }
 describe("iPhone daily workout builder", () => {
+  it("opens the workout planner directly from the Today screen card", async () => {
+    render(<CoachHubClient openWorkout />);
+    expect(await screen.findByRole("button", { name: "Home" })).toBeInTheDocument();
+    expect(mocks.today).toHaveBeenCalledOnce();
+  });
+
   it("shows precise equipment choices only when the V2 planner is enabled for this account", async () => {
     const page = render(<CoachHubClient />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
