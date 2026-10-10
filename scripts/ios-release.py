@@ -109,7 +109,11 @@ class AppleDeveloperAPI:
 
 
 def get_or_create_bundle(api, identifier, name):
-    matches = api.request("GET", "/v1/bundleIds", **{"filter[identifier]": identifier, "limit": 5})
+    candidates = api.request("GET", "/v1/bundleIds", **{"filter[identifier]": identifier, "limit": 5})
+    # Apple's identifier filter also returns child identifiers. For example,
+    # querying fit.getascend.app can include fit.getascend.app.widget.
+    matches = [item for item in candidates
+        if item.get("attributes", {}).get("identifier") == identifier]
     if len(matches) > 1:
         raise SystemExit(f"Multiple Apple bundle IDs match {identifier}.")
     if matches:

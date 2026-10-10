@@ -115,10 +115,19 @@ class ProvisioningAPITests(unittest.TestCase):
             return self.responses.pop(0)
 
     def test_existing_bundle_and_capability_are_reused(self):
-        api = self.API([[{"id": "bundle-id"}], [{"attributes": {"capabilityType": "APP_GROUPS"}}]])
+        api = self.API([[{"id": "bundle-id", "attributes": {"identifier": release.WIDGET_BUNDLE}}],
+                        [{"attributes": {"capabilityType": "APP_GROUPS"}}]])
         self.assertEqual(release.get_or_create_bundle(api, release.WIDGET_BUNDLE, "Widget")["id"], "bundle-id")
         release.enable_capability(api, "bundle-id", "APP_GROUPS")
         self.assertEqual([call[0][0] for call in api.calls], ["GET", "GET"])
+
+    def test_parent_bundle_lookup_ignores_child_identifier(self):
+        api = self.API([[
+            {"id": "widget-id", "attributes": {"identifier": release.WIDGET_BUNDLE}},
+            {"id": "app-id", "attributes": {"identifier": release.BUNDLE}},
+        ]])
+        self.assertEqual(release.get_or_create_bundle(api, release.BUNDLE, "Ascend")["id"], "app-id")
+        self.assertEqual([call[0][0] for call in api.calls], ["GET"])
 
     def test_missing_bundle_capability_and_profile_are_created(self):
         created_bundle = {"id": "bundle-id"}
