@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A16000000000000000000002 /* AscendWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16000000000000000000001 /* AscendWidgetSnapshot.swift */; };
+		A16000000000000000000004 /* AscendWidgetService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16000000000000000000003 /* AscendWidgetService.swift */; };
+		B16000000000000000000002 /* AscendWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = A16000000000000000000001 /* AscendWidgetSnapshot.swift */; };
+		B16000000000000000000004 /* AscendWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16000000000000000000003 /* AscendWidget.swift */; };
+		B16000000000000000000006 /* AscendWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16000000000000000000005 /* AscendWidgetBundle.swift */; };
+		B16000000000000000000008 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B16000000000000000000007 /* Assets.xcassets */; };
+		B1600000000000000000000B /* AscendWidgetExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = B1600000000000000000000A /* AscendWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B1600000000000000000001A /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B16000000000000000000019 /* PrivacyInfo.xcprivacy */; };
 		A15000000000000000000002 /* AscendHealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000001 /* AscendHealthService.swift */; };
 		A15000000000000000000004 /* AscendHealthPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000003 /* AscendHealthPlugin.swift */; };
 		A15000000000000000000006 /* AscendHealthSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A15000000000000000000005 /* AscendHealthSyncStore.swift */; };
@@ -28,7 +36,40 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B16000000000000000000014 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B16000000000000000000010;
+			remoteInfo = AscendWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B1600000000000000000000C /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B1600000000000000000000B /* AscendWidgetExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		A16000000000000000000001 /* AscendWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendWidgetSnapshot.swift; sourceTree = "<group>"; };
+		A16000000000000000000003 /* AscendWidgetService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendWidgetService.swift; sourceTree = "<group>"; };
+		B16000000000000000000003 /* AscendWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendWidget.swift; sourceTree = "<group>"; };
+		B16000000000000000000005 /* AscendWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendWidgetBundle.swift; sourceTree = "<group>"; };
+		B16000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		B16000000000000000000009 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B1600000000000000000000A /* AscendWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AscendWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1600000000000000000000D /* AscendWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AscendWidget.entitlements; sourceTree = "<group>"; };
+		B16000000000000000000019 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A15000000000000000000001 /* AscendHealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthService.swift; sourceTree = "<group>"; };
 		A15000000000000000000003 /* AscendHealthPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthPlugin.swift; sourceTree = "<group>"; };
 		A15000000000000000000005 /* AscendHealthSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendHealthSyncStore.swift; sourceTree = "<group>"; };
@@ -53,6 +94,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		B16000000000000000000011 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3011FED79650016851F /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -69,6 +117,7 @@
 			children = (
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
+				B1600000000000000000000E /* AscendWidget */,
 				504EC3051FED79650016851F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -77,6 +126,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				B1600000000000000000000A /* AscendWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -97,6 +147,8 @@
 				A15000000000000000000001 /* AscendHealthService.swift */,
 				A15000000000000000000003 /* AscendHealthPlugin.swift */,
 				A15000000000000000000005 /* AscendHealthSyncStore.swift */,
+				A16000000000000000000001 /* AscendWidgetSnapshot.swift */,
+				A16000000000000000000003 /* AscendWidgetService.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -105,6 +157,19 @@
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		B1600000000000000000000E /* AscendWidget */ = {
+			isa = PBXGroup;
+			children = (
+				B16000000000000000000003 /* AscendWidget.swift */,
+				B16000000000000000000005 /* AscendWidgetBundle.swift */,
+				B16000000000000000000007 /* Assets.xcassets */,
+				B16000000000000000000009 /* Info.plist */,
+				B1600000000000000000000D /* AscendWidget.entitlements */,
+				B16000000000000000000019 /* PrivacyInfo.xcprivacy */,
+			);
+			path = AscendWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -117,10 +182,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				B1600000000000000000000C /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B16000000000000000000015 /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -129,6 +196,23 @@
 			productName = App;
 			productReference = 504EC3041FED79650016851F /* App.app */;
 			productType = "com.apple.product-type.application";
+		};
+		B16000000000000000000010 /* AscendWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B16000000000000000000018 /* Build configuration list for PBXNativeTarget "AscendWidgetExtension" */;
+			buildPhases = (
+				B16000000000000000000012 /* Sources */,
+				B16000000000000000000011 /* Frameworks */,
+				B16000000000000000000013 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AscendWidgetExtension;
+			productName = AscendWidgetExtension;
+			productReference = B1600000000000000000000A /* AscendWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -142,6 +226,10 @@
 					504EC3031FED79650016851F = {
 						CreatedOnToolsVersion = 9.2;
 						LastSwiftMigration = 1100;
+						ProvisioningStyle = Automatic;
+					};
+					B16000000000000000000010 = {
+						CreatedOnToolsVersion = 26.0;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -163,11 +251,21 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				B16000000000000000000010 /* AscendWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		B16000000000000000000013 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B16000000000000000000008 /* Assets.xcassets in Resources */,
+				B1600000000000000000001A /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3021FED79650016851F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -186,6 +284,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B16000000000000000000012 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B16000000000000000000002 /* AscendWidgetSnapshot.swift in Sources */,
+				B16000000000000000000004 /* AscendWidget.swift in Sources */,
+				B16000000000000000000006 /* AscendWidgetBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3001FED79650016851F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -200,10 +308,20 @@
 				A15000000000000000000002 /* AscendHealthService.swift in Sources */,
 				A15000000000000000000004 /* AscendHealthPlugin.swift in Sources */,
 				A15000000000000000000006 /* AscendHealthSyncStore.swift in Sources */,
+				A16000000000000000000002 /* AscendWidgetSnapshot.swift in Sources */,
+				A16000000000000000000004 /* AscendWidgetService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B16000000000000000000015 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B16000000000000000000010 /* AscendWidgetExtension */;
+			targetProxy = B16000000000000000000014 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -225,6 +343,50 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		B16000000000000000000016 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = AscendWidget/AscendWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 76N75VT6A7;
+				INFOPLIST_FILE = AscendWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
+				MARKETING_VERSION = 1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = fit.getascend.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		B16000000000000000000017 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = AscendWidget/AscendWidget.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 76N75VT6A7;
+				INFOPLIST_FILE = AscendWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks", "@executable_path/../../Frameworks");
+				MARKETING_VERSION = 1.4;
+				PRODUCT_BUNDLE_IDENTIFIER = fit.getascend.app.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "$(ASCEND_WIDGET_PROFILE_UUID)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
@@ -386,6 +548,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		B16000000000000000000018 /* Build configuration list for PBXNativeTarget "AscendWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B16000000000000000000016 /* Debug */,
+				B16000000000000000000017 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

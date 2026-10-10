@@ -8,6 +8,7 @@ import { API_URL } from "@/lib/api";
 import { getFirebaseClientAuth,waitForFirebasePersistence } from "@/lib/firebase";
 import { getNativeCapacitorPlatform } from "@/lib/nativePlatform";
 import { ascendSiri } from "@/lib/ascendSiri";
+import { DASHBOARD_RECORD_EVENT } from "@/lib/dataSync";
 
 export function AscendSiriCoordinator() {
   useEffect(() => {
@@ -40,10 +41,13 @@ export function AscendSiriCoordinator() {
     }
 
     const focus = () => { void reconcile(); };
+    const refreshWidget = () => { void ascendSiri.refreshWidget().catch(() => undefined); };
     void waitForFirebasePersistence().then(() => {
       if (cancelled) return;
       unsubscribe = onAuthStateChanged(getFirebaseClientAuth(),() => { void reconcile(); });
       window.addEventListener("focus",focus);
+      window.addEventListener(DASHBOARD_RECORD_EVENT,refreshWidget);
+      window.addEventListener("ascend:health-updated",refreshWidget);
       void App.addListener("appStateChange",state => { if (state.isActive) void reconcile(); }).then(handle => {
         if (cancelled) void handle.remove(); else listener = handle;
       }).catch(() => undefined);
@@ -55,6 +59,8 @@ export function AscendSiriCoordinator() {
       unsubscribe();
       if (listener) void listener.remove();
       window.removeEventListener("focus",focus);
+      window.removeEventListener(DASHBOARD_RECORD_EVENT,refreshWidget);
+      window.removeEventListener("ascend:health-updated",refreshWidget);
     };
   }, []);
   return null;

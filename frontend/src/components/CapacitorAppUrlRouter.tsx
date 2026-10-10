@@ -10,9 +10,16 @@ function isNativeCapacitor() {
   return Boolean(capacitor?.isNativePlatform?.());
 }
 
-function normalizeAscendUrl(urlString: string) {
+export function normalizeAscendUrl(urlString: string) {
   try {
     const url = new URL(urlString);
+    if (url.protocol === "ascend:" && url.hostname === "open") {
+      const path = url.searchParams.get("path");
+      if (!path || !path.startsWith("/") || path.startsWith("//")) return null;
+      const target = new URL(path, "https://www.getascend.fit");
+      if (!ASCEND_HOSTS.has(target.hostname.toLowerCase())) return null;
+      return `${target.pathname}${target.search}${target.hash}`;
+    }
     if (!ASCEND_HOSTS.has(url.hostname.toLowerCase())) return null;
     return `${url.pathname}${url.search}${url.hash}`;
   } catch {

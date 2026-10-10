@@ -4,6 +4,7 @@ import { siriSessionRateLimit } from "../middleware/rateLimits";
 import { findSiriSessionUser, issueSiriSession, revokeSiriSession } from "../services/siriSessionService";
 import { getVoiceTodayData, voiceTodayQuery } from "../services/voiceTodayService";
 import { getVoiceQuestionData, voiceQuestionQuery } from "../services/voiceQuestionService";
+import { getWidgetTodayData, widgetTodayQuery } from "../services/widgetTodayService";
 
 export const siriRouter = Router();
 
@@ -26,6 +27,14 @@ async function requireSiriSession(req: Request, res: Response, next: NextFunctio
 siriRouter.get("/siri/today", requireSiriSession, async (req, res, next) => {
   try {
     const data = await getVoiceTodayData(res.locals.siriUserId as string, voiceTodayQuery.parse(req.query));
+    res.json(data);
+  } catch (error) { next(error); }
+});
+
+siriRouter.get("/siri/widget", requireSiriSession, async (req, res, next) => {
+  try {
+    const data = await getWidgetTodayData(res.locals.siriUserId as string, widgetTodayQuery.parse(req.query));
+    res.setHeader("Cache-Control", "private, no-store");
     res.json(data);
   } catch (error) { next(error); }
 });
