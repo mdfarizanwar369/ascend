@@ -79,6 +79,7 @@ export async function loadTodayPriorityFacts(
         ? null
         : localCalendarDaysSince(latestMovementAt, timezoneOffsetMinutes, nowMs),
       stepsToday: healthSyncSummary?.todaySteps ?? 0,
+      stepsAvailable: healthSyncSummary?.connected === true,
       activeCaloriesToday: healthSyncSummary?.todayActiveCalories ?? 0,
       sleepQuality: recoveryResult.rows[0]?.sleep_quality ?? null
     }

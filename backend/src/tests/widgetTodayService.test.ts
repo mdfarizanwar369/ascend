@@ -11,7 +11,7 @@ describe("Ascend Today widget snapshot", () => {
       generatedAt: "2026-10-10T08:00:00.000Z",
       totals: { calories: 1229.6, waterMl: 1400.4 },
       targets: { calories: 1870, waterMl: 2500 },
-      movement: { steps: 4321.4, workoutCompleted: false },
+      movement: { steps: 4321.4, stepsAvailable: true, workoutCompleted: false },
       recovery: { sleepQuality: "good" },
       priority: { key: "Water", title: "Keep sipping through the day", href: "/water-log", cta: "Log Water" }
     })).toEqual({
@@ -20,7 +20,7 @@ describe("Ascend Today widget snapshot", () => {
       generatedAt: "2026-10-10T08:00:00.000Z",
       calories: { logged: 1230, target: 1870, remaining: 640 },
       water: { loggedMl: 1400, targetMl: 2500, remainingMl: 1100 },
-      movement: { steps: 4321, workoutCompleted: false },
+      movement: { steps: 4321, stepsAvailable: true, workoutCompleted: false },
       recovery: { sleepQuality: "good" },
       priority: { key: "Water", title: "Keep sipping through the day", href: "/water-log", cta: "Log Water" }
     });
@@ -39,5 +39,20 @@ describe("Ascend Today widget snapshot", () => {
     expect(snapshot.calories.remaining).toBe(0);
     expect(snapshot.water.loggedMl).toBe(0);
     expect(snapshot.movement.steps).toBe(0);
+  });
+
+  it("preserves the distinction between unavailable steps and a measured zero", () => {
+    const snapshot = buildWidgetTodaySnapshot({
+      localDate: "2026-10-10",
+      generatedAt: "2026-10-10T08:00:00.000Z",
+      totals: { calories: 0, waterMl: 0 },
+      targets: { calories: 1800, waterMl: 2000 },
+      movement: { steps: 0, stepsAvailable: false, workoutCompleted: false },
+      recovery: { sleepQuality: null },
+      priority: { key: "Movement", title: "Add a little movement today", href: "/burn-log", cta: "Log Movement" }
+    });
+
+    expect(snapshot.movement.steps).toBe(0);
+    expect(snapshot.movement.stepsAvailable).toBe(false);
   });
 });

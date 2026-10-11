@@ -128,7 +128,7 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.match(project, /AscendWidgetExtension\.appex in Embed App Extensions/);
   assert.match(project, /PRODUCT_BUNDLE_IDENTIFIER = fit\.getascend\.app\.widget/);
   assert.match(project, /ASCEND_WIDGET_PROFILE_UUID/);
-  for (const file of ["AscendWidget.swift", "AscendWidgetBundle.swift", "AscendWidgetSnapshot.swift"]) {
+  for (const file of ["AscendWidget.swift", "AscendWidgetV2.swift", "AscendWidgetBundle.swift", "AscendWidgetSnapshot.swift"]) {
     assert.match(project, new RegExp(`${file.replace(".", "\\.")} in Sources`));
   }
   const appEntitlements = read("ios/App/App/App.entitlements");
@@ -143,11 +143,21 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.match(widget, /GeometryReader/);
   assert.match(widget, /geometry\.size\.height >= 162/);
   assert.doesNotMatch(widget, /diameter: 65/);
+  assert.match(widget, /addingTimeInterval\(3 \* 60 \* 60\)/);
+  assert.match(widget, /Calendar\.autoupdatingCurrent\.nextDate/);
   assert.match(widget, /\.systemSmall, \.systemMedium, \.accessoryRectangular/);
+  assert.match(widget, /static let active: Self = \.(?:v1|v2)/);
+  assert.match(widget, /case \.v1: return \[\.systemSmall, \.systemMedium, \.accessoryRectangular\]/);
+  const widgetV2 = read("ios/App/AscendWidget/AscendWidgetV2.swift");
+  assert.match(widgetV2, /AscendWidgetDecisionEngine/);
+  assert.match(widgetV2, /case \.systemLarge: AscendV2LargeWidget/);
+  assert.match(widgetV2, /Open Ascend to refresh today’s progress/);
+  assert.match(widgetV2, /hasMeasuredSteps/);
   assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/AscendMark.imageset/ascend-mark.png"));
   assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/ProgressPath.imageset/progress-path.jpg"));
   assert.match(read("ios/App/App/Info.plist"), /<string>ascend<\/string>/);
   assert.match(read("ios/App/App/AscendWidgetService.swift"), /endpoint\("siri\/widget"/);
+  assert.match(read("ios/App/App/AscendWidgetService.swift"), /queuedWaiters/);
   assert.match(read("ios/App/AscendWidget/PrivacyInfo.xcprivacy"), /1C8F\.1/);
   const release = read("scripts/ios-release.py");
   assert.match(release, /"signingStyle": "manual"/);

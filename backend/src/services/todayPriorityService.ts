@@ -19,6 +19,7 @@ export type TodayPriorityFacts = {
   workoutCompletedToday: boolean;
   daysSinceWorkout: number | null;
   stepsToday: number;
+  stepsAvailable?: boolean;
   activeCaloriesToday: number;
   sleepQuality: "poor" | "okay" | "good" | null;
 };

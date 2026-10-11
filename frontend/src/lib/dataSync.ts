@@ -48,12 +48,16 @@ export function rememberDashboardRecord<T>(type: DashboardRecordType, record: T)
   } catch {
     // Storage can be unavailable in restrictive browser modes; the API refresh remains the fallback.
   }
+  notifyDashboardRecordChanged(type);
+  rememberDashboardAction(type);
+}
+
+export function notifyDashboardRecordChanged(type: DashboardRecordType) {
   try {
     window.dispatchEvent(new CustomEvent(DASHBOARD_RECORD_EVENT, { detail: { type } }));
   } catch {
     // Cross-component refresh is a nice enhancement, not a requirement for saving.
   }
-  rememberDashboardAction(type);
 }
 
 export function rememberDashboardAction(type: DashboardActionType) {

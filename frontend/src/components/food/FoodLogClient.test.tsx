@@ -45,7 +45,7 @@ vi.mock("@/lib/mealSpeech", () => ({
 }));
 
 vi.mock("@/lib/nativeImagePicker", () => ({ pickNativeImage: vi.fn() }));
-vi.mock("@/lib/dataSync", () => ({ clearPendingFoodLog: vi.fn(), rememberSavedFoodLog: vi.fn() }));
+vi.mock("@/lib/dataSync", () => ({ clearPendingFoodLog: vi.fn(), notifyDashboardRecordChanged: vi.fn(), rememberSavedFoodLog: vi.fn() }));
 vi.mock("@/lib/installAscend", () => ({ markInstallEligible: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ back: vi.fn(), push: vi.fn() }) }));
 
