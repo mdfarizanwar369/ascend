@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { rememberNativeLaunch, wasNativeLaunchHandled } from "@/lib/nativeRouteHandoff";
 
 const ASCEND_HOSTS = new Set(["getascend.fit", "www.getascend.fit"]);
 
@@ -37,19 +38,22 @@ export function CapacitorAppUrlRouter() {
     async function attach() {
       const { App } = await import("@capacitor/app");
 
-      const routeTo = (urlString: string) => {
+      const routeTo = (urlString: string, source: "launch" | "event") => {
         const target = normalizeAscendUrl(urlString);
         if (!target) return;
+        if (source === "launch" && wasNativeLaunchHandled(window.sessionStorage, target)) return;
+
+        rememberNativeLaunch(window.sessionStorage, target);
         const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
         if (current === target) return;
         window.location.replace(target);
       };
 
       const launch = await App.getLaunchUrl().catch(() => null);
-      if (active && launch?.url) routeTo(launch.url);
+      if (active && launch?.url) routeTo(launch.url, "launch");
 
       const listener = await App.addListener("appUrlOpen", (event) => {
-        routeTo(event.url);
+        routeTo(event.url, "event");
       });
 
       detach = () => {
