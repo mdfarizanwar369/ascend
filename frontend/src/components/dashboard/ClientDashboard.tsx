@@ -54,6 +54,7 @@ import { AppleHealthInvitation,AppleHealthReminder,useAppleHealthInvitation } fr
 import { TodayWorkoutCard } from "@/components/dashboard/TodayWorkoutCard";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { readWorkoutSessionDraft, type WorkoutSessionDraft } from "@/lib/workoutSessionDraft";
+import { consumeDashboardPanelLaunch } from "@/lib/dashboardPanelLaunch";
 
 type DashboardUser = Awaited<ReturnType<typeof getMe>>["user"];
 type FoodLog = Awaited<ReturnType<typeof getFoodLogs>>["foodLogs"][number];
@@ -435,6 +436,14 @@ export function ClientDashboard() {
   const momentumHandoffTimerRef = useRef<number | null>(null);
   const momentumRewardTimerRef = useRef<number | null>(null);
   const momentumRewardResetTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const launch = consumeDashboardPanelLaunch(new URL(window.location.href));
+    if (launch?.panel !== "recovery") return;
+
+    setRecoverySheetOpen(true);
+    window.history.replaceState(window.history.state, "", launch.cleanedPath);
+  }, []);
 
   const loadWorkoutCard = useCallback(async () => {
     setWorkoutCardLoading(true);

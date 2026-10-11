@@ -20,6 +20,8 @@ private func ascendV2URL(_ path: String) -> URL {
     return components.url!
 }
 
+private let ascendV2RecoveryPath = "/dashboard?panel=recovery&source=widget"
+
 private enum AscendWidgetFreshness: Equatable {
     case current
     case stale
@@ -159,7 +161,7 @@ private enum AscendWidgetDecisionEngine {
         }
 
         if !recoveryComplete && Calendar.autoupdatingCurrent.component(.hour, from: state.now) >= 18 {
-            return .init(text: "Recovery check-in is ready", path: "/dashboard", icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet)
+            return .init(text: "Recovery check-in is ready", path: ascendV2RecoveryPath, icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet)
         }
 
         return .init(text: "Your daily progress is ready", path: "/dashboard", icon: "sparkles", color: AscendWidgetV2Tokens.teal)
@@ -379,7 +381,7 @@ private struct AscendV2MediumWidget: View {
                     Divider().overlay(AscendWidgetV2Tokens.hairline).padding(.vertical, 5)
                     AscendV2Metric(icon: state.movementIcon, color: AscendWidgetV2Tokens.teal, value: state.movementValue, label: state.movementLabel, path: "/burn-log")
                     Divider().overlay(AscendWidgetV2Tokens.hairline).padding(.vertical, 5)
-                    AscendV2Metric(icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet, value: state.recoveryValue, label: state.recoveryLabel, path: "/dashboard")
+                    AscendV2Metric(icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet, value: state.recoveryValue, label: state.recoveryLabel, path: ascendV2RecoveryPath)
                 }
                 .frame(height: 40)
                 .background(AscendWidgetV2Tokens.glass, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -473,7 +475,7 @@ private struct AscendV2LargeWidget: View {
                 HStack(spacing: 8) {
                     AscendV2Metric(icon: "drop.fill", color: AscendWidgetV2Tokens.blue, value: state.waterValue, label: state.waterLabel, path: "/water-log", roomy: true)
                     AscendV2Metric(icon: state.movementIcon, color: AscendWidgetV2Tokens.teal, value: state.movementValue, label: state.movementLabel, path: "/burn-log", roomy: true)
-                    AscendV2Metric(icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet, value: state.recoveryValue, label: state.recoveryLabel, path: "/dashboard", roomy: true)
+                    AscendV2Metric(icon: "moon.stars.fill", color: AscendWidgetV2Tokens.violet, value: state.recoveryValue, label: state.recoveryLabel, path: ascendV2RecoveryPath, roomy: true)
                 }
                 .padding(12)
                 .background(AscendWidgetV2Tokens.glass, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
