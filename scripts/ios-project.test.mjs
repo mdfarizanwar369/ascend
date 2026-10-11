@@ -153,6 +153,8 @@ test("Ascend Today widget is embedded, private, branded and signed through a sha
   assert.match(widgetV2, /case \.systemLarge: AscendV2LargeWidget/);
   assert.match(widgetV2, /Open Ascend to refresh today’s progress/);
   assert.match(widgetV2, /hasMeasuredSteps/);
+  assert.match(widgetV2, /ascendV2RecoveryPath = "\/dashboard\?panel=recovery&source=widget"/);
+  assert.match(widgetV2, /Recovery check-in is ready", path: ascendV2RecoveryPath/);
   assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/AscendMark.imageset/ascend-mark.png"));
   assert.ok(fs.existsSync("ios/App/AscendWidget/Assets.xcassets/ProgressPath.imageset/progress-path.jpg"));
   assert.match(read("ios/App/App/Info.plist"), /<string>ascend<\/string>/);
