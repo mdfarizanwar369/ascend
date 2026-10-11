@@ -76,4 +76,13 @@ describe("silent Siri account coordinator",() => {
 
     await waitFor(() => expect(mocks.refreshWidget).toHaveBeenCalledOnce());
   });
+
+  it("refreshes the widget after an Apple Health upload",async () => {
+    render(<AscendSiriCoordinator />);
+    await waitFor(() => expect(mocks.connect).toHaveBeenCalledOnce());
+
+    window.dispatchEvent(new Event("ascend:health-updated"));
+
+    await waitFor(() => expect(mocks.refreshWidget).toHaveBeenCalledOnce());
+  });
 });
