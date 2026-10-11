@@ -22,9 +22,10 @@ export function HealthSyncCoordinator() {
     let unsubscribe = () => {};
     let listener: PluginListenerHandle | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let appleAuthReady = !apple;
     const authenticatedPath = Boolean(pathname && AUTH_APP_PREFIXES.some(prefix => pathname.startsWith(prefix)));
     const sync = () => {
-      if (cancelled || !authenticatedPath) return;
+      if (cancelled || !authenticatedPath || !appleAuthReady) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const work = apple ? runAppleHealthSync() : shouldAutoSyncHealthConnect().then(ready => ready ? runHealthConnectSync({ interactive:false }) : undefined);
@@ -40,6 +41,7 @@ export function HealthSyncCoordinator() {
     if (apple) void waitForFirebasePersistence().then(() => {
       if (cancelled) return;
       unsubscribe = onAuthStateChanged(getFirebaseClientAuth(),user => {
+        appleAuthReady = true;
         if (!user) void AppleHealth.disconnect().catch(() => undefined);
         else sync();
       });
