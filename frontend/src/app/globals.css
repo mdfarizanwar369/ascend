@@ -835,6 +835,32 @@ main.min-h-screen {
   margin-inline: auto;
 }
 
+.ascend-trainer-viewport {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+.ascend-trainer-viewport .ascend-shell-brand-group,
+.ascend-trainer-viewport .ascend-shell-brand-link,
+.ascend-trainer-viewport .ascend-shell-brand-copy {
+  min-width: 0;
+}
+
+.ascend-trainer-viewport .ascend-shell-brand-copy > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+  .ascend-trainer-viewport .ascend-shell-brand-copy {
+    display: none;
+  }
+}
+
 .ascend-surface {
   border: 1px solid rgb(var(--color-line));
   border-radius: 0.875rem;

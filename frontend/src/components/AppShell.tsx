@@ -9,7 +9,7 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getCachedAccountProfile, loadAccountPlan, loadAccountProfile } from "@/lib/accountSession";
 
-export function AppShell({ children, active }: { children: React.ReactNode; active: "client" | "trainer" | "admin" | "founder" }) {
+export function AppShell({ children, active, lockViewport = false }: { children: React.ReactNode; active: "client" | "trainer" | "admin" | "founder"; lockViewport?: boolean }) {
   const [account, setAccount] = useState<{
     email?: string;
     fullName?: string;
@@ -63,14 +63,14 @@ export function AppShell({ children, active }: { children: React.ReactNode; acti
   }, []);
 
   return (
-    <main className="ascend-page pb-24 text-white md:pb-8">
+    <main className={`ascend-page pb-24 text-white md:pb-8 ${lockViewport ? "ascend-trainer-viewport" : ""}`}>
       <div className={`${isOperational ? "ascend-workspace-frame" : "ascend-member-frame"} min-h-screen px-4 pt-2 sm:px-5`}>
         <header className="ascend-shell-header flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+          <div className="ascend-shell-brand-group flex items-center gap-2">
             <BackButton fallbackHref={backHref} />
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href="/dashboard" className="ascend-shell-brand-link flex items-center gap-2">
               <BrandMark size="sm" />
-              <span>
+              <span className="ascend-shell-brand-copy">
                 <span className="block text-lg font-semibold leading-5">Ascend</span>
                 <span className="hidden text-xs text-zinc-400 sm:block">Accountability between sessions</span>
               </span>
