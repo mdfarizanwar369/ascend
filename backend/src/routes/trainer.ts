@@ -835,6 +835,53 @@ trainerRouter.get("/trainer/risk-alerts", requireAuth, requireActivePlan("traine
   }
 });
 
+trainerRouter.get("/trainer/work-queue-dispositions", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    const result = await query<{
+      client_user_id: string;
+      kind: "followup" | "win";
+      signal_key: string;
+      disposition: "handled" | "snoozed";
+      suppress_until: string;
+    }>(
+      `select client_user_id, kind, signal_key, disposition, suppress_until
+       from trainer_work_queue_dispositions
+       where trainer_user_id = $1 and suppress_until > now()`,
+      [req.user!.id]
+    );
+    res.json({ dispositions: result.rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.put("/trainer/work-queue-dispositions/:clientId", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    const input = z.object({
+      kind: z.enum(["followup", "win"]),
+      signalKey: z.string().min(1).max(240),
+      disposition: z.enum(["handled", "snoozed"])
+    }).parse(req.body);
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    const result = await query(
+      `insert into trainer_work_queue_dispositions
+         (trainer_user_id, client_user_id, kind, signal_key, disposition, suppress_until)
+       values ($1, $2, $3, $4, $5,
+         now() + case when $5 = 'snoozed' then interval '1 day' else interval '7 days' end)
+       on conflict (trainer_user_id, client_user_id, kind)
+       do update set signal_key = excluded.signal_key,
+         disposition = excluded.disposition,
+         suppress_until = excluded.suppress_until,
+         updated_at = now()
+       returning client_user_id, kind, signal_key, disposition, suppress_until`,
+      [req.user!.id, req.params.clientId, input.kind, input.signalKey, input.disposition]
+    );
+    res.json({ disposition: result.rows[0] });
+  } catch (error) {
+    next(error);
+  }
+});
+
 trainerRouter.patch("/trainer/risk-alerts/:id", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
   try {
     const status = z.enum(["acknowledged", "resolved"]).default("acknowledged").parse(req.body.status);
