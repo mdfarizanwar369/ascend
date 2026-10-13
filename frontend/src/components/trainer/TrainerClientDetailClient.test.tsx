@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   getTrainerClientCoachPresence: vi.fn(),
   getTrainerClientProgressPhotos: vi.fn(),
   getTrainerClientProgressComparison: vi.fn(),
+  getTrainerClientInsights: vi.fn(),
   getTrainerClientMemory: vi.fn(),
   getTrainerClientWeeklyReport: vi.fn(),
   getTrainerClientNutritionPlan: vi.fn(),
@@ -76,6 +77,22 @@ describe("TrainerClientDetailClient progressive workflow", () => {
     });
     api.getTrainerClientProgressPhotos.mockResolvedValue({ progressPhotos: [] });
     api.getTrainerClientProgressComparison.mockResolvedValue({ comparison: { current: {}, previous: {}, deltas: {} } });
+    api.getTrainerClientInsights.mockResolvedValue({
+      insights: {
+        windowDays: 7,
+        timeZone: "Asia/Kuala_Lumpur",
+        days: Array.from({ length: 7 }, (_, index) => ({
+          date: `2026-10-${String(index + 7).padStart(2, "0")}`,
+          foodEntries: 0,
+          loggedCalories: null,
+          loggedProteinG: null,
+          recordedWorkouts: 0,
+          sleepQuality: null,
+          sleepHours: null
+        })),
+        summary: { foodLoggedDays: 0, foodEntries: 0, recordedWorkouts: 0, recoveryCheckinDays: 0, sleepHoursDays: 0 }
+      }
+    });
     api.getTrainerClientMemory.mockResolvedValue({ timeline: [] });
     api.getTrainerClientWeeklyReport.mockResolvedValue({ report: null });
     api.getTrainerClientNutritionPlan.mockResolvedValue({ coachPlan: null });
@@ -87,6 +104,7 @@ describe("TrainerClientDetailClient progressive workflow", () => {
     render(<TrainerClientDetailClient clientId="client-1" />);
 
     expect(await screen.findByText("Test Client")).toBeInTheDocument();
+    await waitFor(() => expect(api.getTrainerClientInsights).toHaveBeenCalledWith("client-1", 7));
     await waitFor(() => expect(api.getTrainerClientMessages).toHaveBeenCalledWith("client-1", { markRead: false }));
 
     expect(api.getTrainerClientProgressPhotos).not.toHaveBeenCalled();
