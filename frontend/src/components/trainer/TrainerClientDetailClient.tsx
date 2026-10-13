@@ -56,7 +56,9 @@ import { AthleteCoachPanel } from "@/components/athlete/AthleteCoachPanel";
 import { WeeklyReportSummary } from "@/components/reports/WeeklyReportSummary";
 import { buildCoachingTimelineGroups, CoachingTimelineGroups } from "@/components/trainer/TrainerCoachingTimeline";
 import { TrainerHomeworkPanel } from "@/components/trainer/TrainerHomeworkPanel";
+import { TrainerClientInsightsPanel } from "@/components/trainer/TrainerClientInsights";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
+import { trainerInsightsEnabled } from "@/lib/trainerInsightsFlag";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
 type FoodLog = Awaited<ReturnType<typeof getTrainerClientFoodLogs>>["foodLogs"][number];
@@ -685,6 +687,8 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
           {status}
         </p>
       ) : null}
+
+      {trainerInsightsEnabled() ? <TrainerClientInsightsPanel clientId={clientId} /> : null}
 
       <section className="mt-4 rounded-[1.75rem] border border-purple-400/30 bg-[radial-gradient(circle_at_top_right,rgba(61,230,209,0.18),transparent_16rem),radial-gradient(circle_at_bottom_left,rgba(139,92,246,0.2),transparent_16rem),linear-gradient(180deg,rgba(18,22,35,0.98),rgba(8,13,24,0.98))] p-5 shadow-soft">
         <div className="flex items-start gap-3">

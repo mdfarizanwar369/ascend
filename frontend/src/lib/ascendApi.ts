@@ -2070,6 +2070,9 @@ export function getTrainerClients() {
       focus_active?: boolean;
       risk_severity?: string | null;
       last_food_logged_at?: string | null;
+      food_logged_days_7d?: string | number | null;
+      recorded_workouts_7d?: string | number | null;
+      recovery_checkin_days_7d?: string | number | null;
       calories_today?: string | number | null;
       protein_g_today?: string | number | null;
       carbs_g_today?: string | number | null;
@@ -2157,6 +2160,31 @@ export function getTrainerClient(clientId: string) {
       nutrition_targets?: ResolvedNutritionTargets;
     };
   }>(`/trainer/clients/${clientId}`);
+}
+
+export type TrainerClientInsights = {
+  windowDays: 7 | 30;
+  timeZone: string;
+  days: Array<{
+    date: string;
+    foodEntries: number;
+    loggedCalories: number | null;
+    loggedProteinG: number | null;
+    recordedWorkouts: number;
+    sleepQuality: "poor" | "okay" | "good" | null;
+    sleepHours: number | null;
+  }>;
+  summary: {
+    foodLoggedDays: number;
+    foodEntries: number;
+    recordedWorkouts: number;
+    recoveryCheckinDays: number;
+    sleepHoursDays: number;
+  };
+};
+
+export function getTrainerClientInsights(clientId: string, days: 7 | 30) {
+  return authed<{ insights: TrainerClientInsights }>(`/trainer/clients/${clientId}/insights?days=${days}`);
 }
 
 export function getTrainerClientProgressComparison(clientId: string) {
