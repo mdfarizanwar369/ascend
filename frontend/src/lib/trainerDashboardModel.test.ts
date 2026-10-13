@@ -4,7 +4,7 @@ import {
   countHighRiskClients,
   lastActivityFor,
   trainerPriorityCards
-} from "./TrainerDashboardClient";
+} from "@/lib/trainerDashboardModel";
 
 type Client = Parameters<typeof countActiveToday>[0][number];
 type Alert = Parameters<typeof countHighRiskClients>[1][number];

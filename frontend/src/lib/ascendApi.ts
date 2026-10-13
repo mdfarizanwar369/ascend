@@ -2351,6 +2351,25 @@ export function getTrainerRiskAlerts() {
   }>("trainer:risk-alerts", "/trainer/risk-alerts", 20_000);
 }
 
+export type TrainerWorkQueueDisposition = {
+  client_user_id: string;
+  kind: "followup" | "win";
+  signal_key: string;
+  disposition: "handled" | "snoozed";
+  suppress_until: string;
+};
+
+export function getTrainerWorkQueueDispositions() {
+  return authed<{ dispositions: TrainerWorkQueueDisposition[] }>("/trainer/work-queue-dispositions");
+}
+
+export function putTrainerWorkQueueDisposition(clientId: string, input: { kind: "followup" | "win"; signalKey: string; disposition: "handled" | "snoozed" }) {
+  return authed<{ disposition: TrainerWorkQueueDisposition }>(`/trainer/work-queue-dispositions/${clientId}`, {
+    method: "PUT",
+    body: JSON.stringify(input)
+  });
+}
+
 export function updateTrainerRiskAlert(alertId: string, status: "acknowledged" | "resolved") {
   invalidateCached("trainer:");
   return authed<{ alert: { id: string; status: string } }>(`/trainer/risk-alerts/${alertId}`, {

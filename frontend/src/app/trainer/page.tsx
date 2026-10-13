@@ -1,6 +1,6 @@
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
-import { TrainerDashboardClient } from "@/components/trainer/TrainerDashboardClient";
+import { TrainerActionDesk } from "@/components/trainer/TrainerActionDesk";
 
 export default function TrainerPage() {
   return (
@@ -12,7 +12,7 @@ export default function TrainerPage() {
         requiredPlan="trainer_pro"
         planFeature="Trainer dashboard"
       >
-        <TrainerDashboardClient />
+        <TrainerActionDesk />
       </RoleGate>
     </AppShell>
   );
