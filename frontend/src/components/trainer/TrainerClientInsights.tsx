@@ -91,13 +91,13 @@ function RecoveryCalendar({ days }: { days: InsightDay[] }) {
     <div>
       <div className="rounded-[1.35rem] border border-white/5 bg-[#0a131d]/80 p-4">
         {hasAny ? (
-          <div className="grid grid-cols-7 gap-2" role="img" aria-label={`Recovery records over the last ${days.length} days`}>
+          <div className="grid grid-cols-7 gap-1 sm:gap-2" role="img" aria-label={`Recovery records over the last ${days.length} days`}>
             {days.map((day) => {
               const tone = day.sleepQuality ? qualityTone[day.sleepQuality] : day.sleepHours !== null ? "border-calm/50 bg-calm/20 text-purple-200" : "border-white/5 bg-white/[0.035] text-zinc-600";
               const detail = day.sleepHours !== null ? `${day.sleepHours}h sleep recorded` : day.sleepQuality ? `${day.sleepQuality} sleep quality` : "No check-in";
               return (
                 <div key={day.date} className="min-w-0 text-center" title={`${dayLabel(day.date, true)}: ${detail}`}>
-                  <div className={`grid aspect-square min-h-8 place-items-center rounded-xl border text-[11px] font-semibold ${tone}`}>
+                  <div className={`grid aspect-square min-w-0 place-items-center rounded-xl border text-[10px] font-semibold sm:text-[11px] ${tone}`}>
                     {day.sleepHours !== null ? `${day.sleepHours}h` : day.sleepQuality ? day.sleepQuality.charAt(0).toUpperCase() : "·"}
                   </div>
                   {days.length === 7 ? <span className="mt-2 block text-[10px] text-zinc-500">{dayLabel(day.date)}</span> : null}
