@@ -36,6 +36,7 @@ describe("trainer action queue", () => {
     const disposition = { client_user_id: "a", kind: "followup" as const, signal_key: first.signalKey, disposition: "snoozed" as const, suppress_until: "2026-10-14T00:00:00Z" };
 
     expect(buildTrainerActionQueue(clients, [], [disposition], Date.parse("2026-10-13T12:00:00Z")).followups).toHaveLength(0);
+    expect(buildTrainerActionQueue([client("a", { last_food_logged_at: "2026-10-01T00:00:00Z", last_water_logged_at: "2026-10-13T04:00:00Z" })], [], [disposition], Date.parse("2026-10-13T12:00:00Z")).followups).toHaveLength(0);
     expect(buildTrainerActionQueue(clients, [], [disposition], Date.parse("2026-10-14T00:00:00Z")).followups).toHaveLength(1);
     expect(buildTrainerActionQueue([client("a", { last_food_logged_at: "2026-10-02T00:00:00Z" })], [], [disposition], Date.parse("2026-10-13T12:00:00Z")).followups).toHaveLength(1);
   });

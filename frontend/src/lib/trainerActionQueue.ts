@@ -17,10 +17,13 @@ export type TrainerAction = {
 
 function signalKey(client: TrainerQueueClient, kind: "followup" | "win", reason: string, alertId?: string) {
   if (alertId) return `alert:${alertId}`;
-  const source = kind === "followup"
-    ? [reason, client.risk_severity, client.last_food_logged_at, client.last_weight_logged_at, client.last_water_logged_at, client.last_activity_at]
-    : [reason, client.goal_achieved_at, client.consistency_streak];
-  return `${kind}:${source.map((value) => value ?? "").join("|")}`.slice(0, 240);
+  if (kind === "win") return `win:${reason}|${client.goal_achieved_at ?? ""}|${client.consistency_streak ?? ""}`.slice(0, 240);
+  const source = reason.includes("No food logs") ? client.last_food_logged_at
+    : reason.includes("Weight update") ? client.last_weight_logged_at
+      : reason.includes("Water tracking") ? client.last_water_logged_at
+        : reason.includes("Momentum") ? `${client.risk_severity ?? ""}:${Math.floor(Number(client.compliance_score ?? 100) / 10)}`
+          : `${client.body_composition_summary?.latestScan?.scanDate ?? ""}:${client.goal_updated_at ?? ""}`;
+  return `followup:${reason}|${source ?? ""}`.slice(0, 240);
 }
 
 function suppressed(dispositions: TrainerWorkQueueDisposition[], task: TrainerAction, now: number) {
