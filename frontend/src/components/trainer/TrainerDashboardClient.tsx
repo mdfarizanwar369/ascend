@@ -5,13 +5,14 @@ import Link from "next/link";
 import Image from "next/image";
 import QRCode from "qrcode";
 import { calculateNutritionTargets } from "@ascend/shared";
-import { AlertTriangle, Check, Copy, MessageSquare, Search, Share2, TrendingUp } from "lucide-react";
+import { AlertTriangle, Check, Copy, Dumbbell, MessageSquare, Moon, Search, Share2, TrendingUp, Utensils } from "lucide-react";
 import { createTrainerReferralCode, getMe, getMySubscription, getTrainerClients, getTrainerOnboardingStatus, getTrainerRiskAlerts, sendTrainerClientPraise, updateTrainerRiskAlert } from "@/lib/ascendApi";
 import { MetricCard } from "@/components/MetricCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { DelightEmptyState } from "@/components/Delight";
 import { AscendHeroPanel, PrioritySigil } from "@/components/AscendVisualIdentity";
 import { buildAthleteCoachInsights, daysSince } from "@/lib/coachIntelligence";
+import { trainerInsightsEnabled } from "@/lib/trainerInsightsFlag";
 import { DashboardHeroSkeleton, SectionShell, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
 
 type TrainerClient = Awaited<ReturnType<typeof getTrainerClients>>["clients"][number];
@@ -84,12 +85,6 @@ function nutritionSummary(client: TrainerClient) {
   if (asNumber(client.fat_g_today) > targets.fatTargetG * 0.75) labels.push("High fat");
   if (asNumber(client.carbs_g_today) > targets.carbsTargetG * 0.8) labels.push("High carbs");
   return labels.length ? labels.slice(0, 2).join(", ") : "On track";
-}
-
-function nutritionSummaryClass(summary: string) {
-  if (summary === "On track") return "text-lime";
-  if (summary === "No food logged yet") return "text-zinc-500";
-  return "text-amber";
 }
 
 type PriorityCard = {
@@ -385,13 +380,6 @@ export function TrainerDashboardClient() {
       }),
     [clients]
   );
-  const nutritionSummaryMap = useMemo(
-    () =>
-      new Map(
-        clients.map((client) => [client.id, nutritionSummary(client)])
-      ),
-    [clients]
-  );
   const priorities = useMemo(() => trainerPriorityCards(clients, alerts), [alerts, clients]);
   const weeklySummary = useMemo(() => weeklyClientSummary(clients, priorities), [clients, priorities]);
   const athleteAttention = useMemo(() => priorities.needsAttention.filter((item) => item.badge === "Athlete").length, [priorities.needsAttention]);
@@ -626,9 +614,6 @@ export function TrainerDashboardClient() {
                           {Number(client.consistency_streak)}-day streak
                         </p>
                       ) : null}
-                      <p className={`mt-2 text-xs font-semibold ${nutritionSummaryClass(nutritionSummaryMap.get(client.id) ?? "No food logged yet")}`}>
-                        Nutrition: {nutritionSummaryMap.get(client.id) ?? "No food logged yet"}
-                      </p>
                       <p className="mt-2 text-xs text-zinc-500">Last activity: {daysAgo(lastActivityFor(client))}</p>
                       </div>
                     </div>
@@ -639,6 +624,26 @@ export function TrainerDashboardClient() {
                       <span className={`mt-2 inline-block rounded px-2 py-1 text-xs ${riskClass(label)}`}>{label}</span>
                     </div>
                   </div>
+                  {trainerInsightsEnabled() ? <div className="mt-3 rounded-2xl border border-white/[0.07] bg-[linear-gradient(120deg,rgba(53,242,208,0.07),rgba(139,92,246,0.08))] p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.17em] text-zinc-400">Last 7 days · recorded in Ascend</p>
+                    <div className="mt-3 grid grid-cols-3 gap-2">
+                      <div className="min-w-0 rounded-xl border border-lime/15 bg-ink/45 p-2.5">
+                        <Dumbbell size={15} className="text-lime" />
+                        <p className="mt-2 text-lg font-semibold leading-none tabular-nums text-white">{Number(client.recorded_workouts_7d ?? 0)}</p>
+                        <p className="mt-1 text-[10px] leading-4 text-zinc-400">sessions</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl border border-calm/20 bg-ink/45 p-2.5">
+                        <Utensils size={15} className="text-purple-200" />
+                        <p className="mt-2 text-lg font-semibold leading-none tabular-nums text-white">{Number(client.food_logged_days_7d ?? 0)}<span className="text-xs text-zinc-500">/7</span></p>
+                        <p className="mt-1 text-[10px] leading-4 text-zinc-400">log days</p>
+                      </div>
+                      <div className="min-w-0 rounded-xl border border-purple-300/15 bg-ink/45 p-2.5">
+                        <Moon size={15} className="text-purple-200" />
+                        <p className="mt-2 text-lg font-semibold leading-none tabular-nums text-white">{Number(client.recovery_checkin_days_7d ?? 0)}<span className="text-xs text-zinc-500">/7</span></p>
+                        <p className="mt-1 text-[10px] leading-4 text-zinc-400">check-ins</p>
+                      </div>
+                    </div>
+                  </div> : null}
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <Link href={`/trainer/clients/${client.id}`} className="ascend-pressable flex h-11 items-center justify-center rounded-xl border border-line bg-surface text-sm font-semibold">
                       View

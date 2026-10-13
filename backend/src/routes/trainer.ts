@@ -17,6 +17,7 @@ import { getProgressComparison } from "../services/progressComparisonService";
 import { notifyHumanCoachEvent } from "../services/notificationService";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
+import { getTrainerClientInsights } from "../services/trainerInsightsService";
 
 export const trainerRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -360,6 +361,9 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         cs.score as compliance_score, ${momentumPillarSelect},
         risk.risk_severity, risk.open_alerts,
         food.last_food_logged_at,
+        coalesce(food_week.logged_days, 0) as food_logged_days_7d,
+        coalesce(workout_week.recorded_workouts, 0) as recorded_workouts_7d,
+        coalesce(recovery_week.checkin_days, 0) as recovery_checkin_days_7d,
         coalesce(food_today.calories, 0) as calories_today,
         coalesce(food_today.protein_g, 0) as protein_g_today,
         coalesce(food_today.carbs_g, 0) as carbs_g_today,
@@ -377,7 +381,8 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         coalesce(athlete_profile.enabled, false) as athlete_mode_enabled,
         coalesce(active_subscription.plan::text, 'free') as current_plan
       from users u
-      left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id
+      left join gyms trainer_insight_gym on trainer_insight_gym.id = u.gym_id
+      left join athlete_profiles athlete_profile on athlete_profile.user_id = u.id and athlete_profile.enabled = true
       left join lateral (
         select s.plan, s.status
         from subscriptions s
@@ -397,6 +402,34 @@ trainerRouter.get("/trainer/clients", requireAuth, requireActivePlan("trainer_pr
         from food_logs
         where user_id = u.id
       ) food on true
+      left join lateral (
+        select count(distinct (logged_at at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date) as logged_days
+        from food_logs
+        where user_id = u.id and logged_at >= now() - interval '8 days'
+          and (logged_at at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date
+            >= (now() at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date - 6
+          and (logged_at at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date
+            <= (now() at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date
+      ) food_week on true
+      left join lateral (
+        select count(*) as recorded_workouts
+        from analytics_events
+        where user_id = u.id and event_name = 'burn_log' and created_at >= now() - interval '8 days'
+          and (created_at at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date
+            >= (now() at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date - 6
+          and (created_at at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date
+            <= (now() at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date
+      ) workout_week on true
+      left join lateral (
+        select count(*) as checkin_days
+        from (
+          select checkin_date from recovery_checkins where user_id = u.id
+          union
+          select checkin_date from athlete_readiness_checkins where user_id = u.id and athlete_profile.enabled = true
+        ) recorded_checkins
+        where checkin_date >= (now() at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date - 6
+          and checkin_date <= (now() at time zone coalesce(athlete_profile.timezone, trainer_insight_gym.timezone, 'Asia/Kuala_Lumpur'))::date
+      ) recovery_week on true
       left join lateral (
         select
           coalesce(sum(calories), 0) as calories,
@@ -568,6 +601,16 @@ trainerRouter.get("/trainer/clients/:clientId", requireAuth, requireActivePlan("
     }
     client.nutrition_targets = await resolveNutritionTargets(req.params.clientId);
     res.json({ client });
+  } catch (error) {
+    next(error);
+  }
+});
+
+trainerRouter.get("/trainer/clients/:clientId/insights", requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"]), async (req, res, next) => {
+  try {
+    if (!await canManageClient(req.user!, req.params.clientId)) return res.status(404).json({ error: "Client not found" });
+    const { days } = z.object({ days: z.coerce.number().refine((value) => value === 7 || value === 30).default(7) }).parse(req.query);
+    res.json({ insights: await getTrainerClientInsights(req.params.clientId, days as 7 | 30) });
   } catch (error) {
     next(error);
   }
