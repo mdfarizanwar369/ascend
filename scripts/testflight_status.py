@@ -11,7 +11,7 @@ import urllib.request
 import jwt
 
 
-EXPECTED_VERSION = "1.5"
+EXPECTED_VERSION = "1.6"
 
 
 def get(path, **params):
