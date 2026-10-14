@@ -1,4 +1,5 @@
 "use client";
+import { notificationLoginDestination } from "@/lib/notificationNavigation";
 
 import { isIosFreeEdition, useIosFreeEdition } from "@/lib/appEdition";
 
@@ -324,12 +325,12 @@ export function AuthPanel() {
     if (!profile.roles.includes("client")) {
       const destination = roleHome(profile.roles);
       authTrace("Final navigation decision", { destination, reason: "non_client_role" });
-      router.replace(destination);
+      router.replace(notificationLoginDestination(destination));
       return;
     }
     if (hasCompletedClientOnboardingProfile(profile.user)) {
       authTrace("Final navigation decision", { destination: "/dashboard", reason: "profile_complete" });
-      router.replace(window.sessionStorage.getItem(pendingTrainerReferralKey) ? "/profile#trainer-connection" : "/dashboard");
+      router.replace(notificationLoginDestination(window.sessionStorage.getItem(pendingTrainerReferralKey) ? "/profile#trainer-connection" : "/dashboard"));
       return;
     }
     authTrace("Final navigation decision", { destination: "/onboarding", reason: "profile_incomplete" });
@@ -518,7 +519,7 @@ export function AuthPanel() {
       }
 
       const profile = await withTimeout(getMe(), "Your account is ready, but the dashboard is taking too long to load. Please open Ascend again.");
-      router.replace(roleHome(profile.roles));
+      router.replace(notificationLoginDestination(roleHome(profile.roles)));
     } catch (error) {
       setStatus(getFriendlyAuthError(error));
     } finally {

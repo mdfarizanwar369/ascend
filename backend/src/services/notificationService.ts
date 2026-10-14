@@ -15,10 +15,21 @@ import { isPlatformOwnerEmail } from "./platformOwnerService";
 import { buildTodayPriorityDayContext, loadTodayPriorityFacts } from "./todayPriorityContextService";
 import { deterministicTodayPriority } from "./todayPriorityService";
 import { TODAY_PRIORITY_PROMPT_VERSION } from "../integrations/openai";
+import { nudgesSchemaEnabled } from "./smartNudgePolicy";
+import { apnsReady } from "../integrations/nudgePush";
 
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
 
 type Platform = "android" | "ios" | "desktop" | "web";
+let installedNudgeSchema: Promise<boolean> | null = null;
+async function nudgeConsentTableExists() {
+  if (nudgesSchemaEnabled()) return true;
+  // A dispatch kill switch or flag rollback must not resurrect legacy nudges for
+  // an account that already chose master OFF. This read also supports old schemas.
+  if (!installedNudgeSchema) installedNudgeSchema = query<{ installed: boolean }>("select to_regclass('public.notification_preferences') is not null as installed")
+    .then(result => Boolean(result.rows[0]?.installed)).catch(error => { installedNudgeSchema = null; throw error; });
+  return installedNudgeSchema;
+}
 
 export async function ensureNotificationSchema() {
   await query(`
@@ -71,7 +82,24 @@ export async function registerNotificationDevice(input: {
   platform: Platform;
   userAgent?: string | null;
   timezoneOffsetMinutes: number;
+  provider?: "fcm" | "apns";
+  timezone?: string;
 }) {
+  if (nudgesSchemaEnabled()) {
+    const provider = input.provider ?? "fcm";
+    if (provider === "apns" && (input.platform !== "ios" || !apnsReady() || !/^[a-f0-9]{64,200}$/i.test(input.fcmToken))) {
+      throw new Error("iOS push registration is not available for this build yet.");
+    }
+    const result = await query(`insert into notification_devices(user_id,fcm_token,platform,user_agent,timezone_offset_minutes,provider,apns_environment,timezone)
+      values($1,$2,$3,$4,$5,$6,$7,$8) on conflict(fcm_token) do update set user_id=excluded.user_id,platform=excluded.platform,
+      user_agent=excluded.user_agent,timezone_offset_minutes=excluded.timezone_offset_minutes,provider=excluded.provider,
+      apns_environment=excluded.apns_environment,timezone=excluded.timezone,enabled=true,last_seen_at=now(),updated_at=now(),
+      token_version=case when notification_devices.user_id<>excluded.user_id or not notification_devices.enabled then notification_devices.token_version+1 else notification_devices.token_version end
+      returning id,platform,enabled,last_seen_at`, [input.userId, input.fcmToken, input.platform, input.userAgent ?? null,
+      input.timezoneOffsetMinutes, provider, provider === "apns" ? env.APNS_ENVIRONMENT : null, input.timezone ?? null]);
+    return result.rows[0];
+  }
+  if (input.provider === "apns") throw new Error("iOS push registration is not available yet.");
   const result = await query(
     `
     insert into notification_devices (user_id, fcm_token, platform, user_agent, timezone_offset_minutes)
@@ -146,6 +174,10 @@ async function logNotificationEvent(userId: string, candidate: NotificationCandi
 }
 
 export async function sendNotificationToUser(userId: string, candidate: NotificationCandidate) {
+  const hasNudgeSchema = await nudgeConsentTableExists();
+  const optionalLegacyNudge = !candidate.type.startsWith("trainer_") || candidate.dedupeKey.startsWith("coach-homework-due:");
+  if (hasNudgeSchema && optionalLegacyNudge
+    && (await query("select 1 from notification_preferences where user_id=$1", [userId])).rowCount) return { sent: 0, skipped: true };
   const duplicate = await query("select id from notification_events where user_id = $1 and dedupe_key = $2 limit 1", [
     userId,
     candidate.dedupeKey
@@ -153,7 +185,7 @@ export async function sendNotificationToUser(userId: string, candidate: Notifica
   if (duplicate.rows[0]) return { sent: 0, skipped: true };
 
   const devices = await query<{ fcm_token: string }>(
-    "select fcm_token from notification_devices where user_id = $1 and enabled = true order by last_seen_at desc limit 5",
+    `select fcm_token from notification_devices where user_id = $1 and enabled = true ${hasNudgeSchema ? "and provider='fcm'" : ""} order by last_seen_at desc limit 5`,
     [userId]
   );
   if (!devices.rows.length) {
@@ -475,6 +507,7 @@ export async function resolveUnifiedNotificationInsightForUser(
 }
 
 export async function runCoachNotificationJob(limit = 500) {
+  const hasNudgeSchema = await nudgeConsentTableExists();
   const users = await query<{ id: string; email: string; timezone_offset_minutes: number | string }>(
     `
     select u.id, u.email, latest_device.timezone_offset_minutes
@@ -487,6 +520,7 @@ export async function runCoachNotificationJob(limit = 500) {
       limit 1
     ) latest_device on true
     where u.status = 'active'
+    ${hasNudgeSchema ? "and not exists(select 1 from notification_preferences np where np.user_id=u.id)" : ""}
     order by u.id
     limit $1
     `,

@@ -1,4 +1,5 @@
 import { query } from "../db/pool";
+import { recordNudgeAction } from "./smartNudgeService";
 import { createCoachPresenceForEvent } from "./coachPresenceService";
 import {
   WORKOUT_LOAD_BASES,
@@ -483,6 +484,7 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
   const savedBurnLog = enriched.burnLog;
 
   void createCoachPresenceForEvent(input.userId, "workout_logged").catch(() => undefined);
+  void recordNudgeAction(input.userId, "workout", new Date(input.completedAt ?? Date.now())).catch(() => undefined);
 
   return {
     burnLog: savedBurnLog,

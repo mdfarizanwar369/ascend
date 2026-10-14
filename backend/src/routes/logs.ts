@@ -17,6 +17,7 @@ import { UnsafeOutboundUrlError, validatePublicHttpUrl } from "../utils/outbound
 import { finishFoodAiReport, logFoodAiReport, timeFoodAiStage, timeFoodAiSyncStage } from "../services/foodAiPerformance";
 import { createCoachPresenceForEvent } from "../services/coachPresenceService";
 import { persistCompletedWorkout } from "../services/workoutCompletionService";
+import { completeScheduledWorkout, recordNudgeAction } from "../services/smartNudgeService";
 import { workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import { env } from "../config/env";
 import { estimateWorkoutDurationMinutes, portionAdjustmentMagnitude } from "@ascend/shared";
@@ -141,6 +142,7 @@ const waterLogSchema = z.object({
 });
 
 const burnLogSchema = z.object({
+  scheduleId: z.string().uuid().optional(),
   activityType: z.string().min(2),
   durationMinutes: z.number().int().positive(),
   caloriesBurned: z.number().int().nonnegative(),
@@ -452,6 +454,7 @@ logsRouter.post("/food-logs", requireAuth, async (req, res, next) => {
       });
     }
     void createCoachPresenceForEvent(req.user!.id, "food_logged").catch(() => undefined);
+    if (input.mealType !== "snack") void recordNudgeAction(req.user!.id, input.mealType, new Date(input.loggedAt ?? Date.now())).catch(() => undefined);
     res.status(201).json({ foodLog: result.rows[0] });
   } catch (error) {
     next(error);
@@ -584,6 +587,7 @@ logsRouter.post("/water-logs", requireAuth, async (req, res, next) => {
     input.loggedAt ?? null
   ]);
   void createCoachPresenceForEvent(req.user!.id, "water_logged").catch(() => undefined);
+  void recordNudgeAction(req.user!.id, "hydration", new Date(input.loggedAt ?? Date.now())).catch(() => undefined);
   res.status(201).json({ waterLog: result.rows[0] });
   } catch (error) {
     next(error);
@@ -637,6 +641,8 @@ logsRouter.post("/burn-logs", requireAuth, async (req, res, next) => {
     );
     void createCoachPresenceForEvent(req.user!.id, "workout_logged").catch(() => undefined);
     const burnLog = result.rows[0] as { id: string; metadata: Record<string, unknown>; created_at: string };
+    if (input.scheduleId) await completeScheduledWorkout(req.user!.id, input.scheduleId, burnLog.id);
+    void recordNudgeAction(req.user!.id, "workout", new Date(input.loggedAt ?? Date.now())).catch(() => undefined);
     const initializedDebrief = await initializeWorkoutDebrief({
       workoutEventId: burnLog.id,
       userId: req.user!.id,

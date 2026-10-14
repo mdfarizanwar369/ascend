@@ -13,6 +13,7 @@ const publicPaths = new Set([
   "/demo",
   "/launch",
   "/login",
+  "/notifications/open", // This resolver performs auth itself and preserves only an opaque ID through login.
   "/privacy",
   "/privacy/ios",
   "/terms/ios",

@@ -14,6 +14,7 @@ import {
   shouldOfferCoachNotifications
 } from "@/lib/coachNotifications";
 import { INSTALL_ELIGIBLE_EVENT, readInstallValue, installStorageKeys } from "@/lib/installAscend";
+import { getSmartNudgePreferences } from "@/lib/ascendApi";
 
 function isAppPath(pathname: string) {
   return !new Set(["/", "/login", "/launch", "/reset", "/onboarding", "/privacy", "/terms", "/refund-policy", "/contact", "/delete-account"]).has(pathname);
@@ -27,10 +28,19 @@ export function CoachNotificationCoordinator() {
   const [foregroundMessage, setForegroundMessage] = useState<{ title: string; body: string; href: string } | null>(null);
 
   useEffect(() => {
-    if (!isAppPath(pathname)) return;
-    recordDailyNotificationActivity(pathname).catch(() => undefined);
     initializeNativeCoachNotificationRouting().catch(() => undefined);
-    refreshNativeCoachNotificationToken().catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (!isAppPath(pathname)) return;
+    const resume = () => {
+      if (document.visibilityState !== "visible") return;
+      recordDailyNotificationActivity(pathname).catch(() => undefined);
+      refreshNativeCoachNotificationToken().catch(() => undefined);
+    };
+    resume();
+    document.addEventListener("visibilitychange", resume);
+    return () => document.removeEventListener("visibilitychange", resume);
   }, [pathname]);
 
   useEffect(() => {
@@ -46,19 +56,20 @@ export function CoachNotificationCoordinator() {
 
   useEffect(() => {
     if (!eligible || !isAppPath(pathname) || !shouldOfferCoachNotifications()) return;
-    const timeout = window.setTimeout(() => setBannerOpen(true), 1400);
+    const timeout = window.setTimeout(() => { if (shouldOfferCoachNotifications()) setBannerOpen(true); }, 1400);
     return () => window.clearTimeout(timeout);
   }, [eligible, pathname]);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
+    let disposed = false;
     listenForForegroundCoachMessages((payload) => {
       setForegroundMessage(payload);
       window.setTimeout(() => setForegroundMessage(null), 5000);
     }).then((unsubscribe) => {
-      cleanup = unsubscribe;
+      if (disposed) unsubscribe(); else cleanup = unsubscribe;
     }).catch(() => undefined);
-    return () => cleanup?.();
+    return () => { disposed = true; cleanup?.(); };
   }, []);
 
   const showBanner = useMemo(() => bannerOpen && isAppPath(pathname), [bannerOpen, pathname]);
@@ -66,6 +77,8 @@ export function CoachNotificationCoordinator() {
   async function enable() {
     setStatus("Turning on coach check-ins...");
     try {
+      const settings = await getSmartNudgePreferences();
+      if (settings.available || settings.version > 0) { postponeCoachNotifications(); window.location.assign("/profile/reminders"); return; }
       await enableCoachNotifications();
       setStatus("Coach check-ins are on.");
       window.setTimeout(() => setBannerOpen(false), 900);

@@ -930,6 +930,7 @@ export function saveBurnLog(input: {
   durationMinutes: number;
   caloriesBurned: number;
   loggedAt?: string;
+  scheduleId?: string;
 }) {
   invalidateDashboardReadCaches();
   invalidateCached("reports:weekly");
@@ -2558,6 +2559,8 @@ export function registerNotificationDevice(input: {
   fcmToken: string;
   platform: "android" | "ios" | "desktop" | "web";
   timezoneOffsetMinutes?: number;
+  provider?: "fcm" | "apns";
+  timezone?: string;
 }) {
   return authed<{ device: { id: string; platform: string; enabled: boolean; last_seen_at: string } }>("/notifications/devices", {
     method: "POST",
@@ -2565,11 +2568,31 @@ export function registerNotificationDevice(input: {
   });
 }
 
+export type SmartNudgeSettingsResponse = {
+  available: boolean; categories: import("@ascend/shared").NudgeCategory[]; preferences: import("@ascend/shared").NudgePreferences; version: number; apnsAvailable?: boolean;
+};
+export function getSmartNudgePreferences() { return authed<SmartNudgeSettingsResponse>("/notifications/preferences"); }
+export function saveSmartNudgePreferences(preferences: import("@ascend/shared").NudgePreferences, version: number) {
+  return authed<SmartNudgeSettingsResponse>("/notifications/preferences", { method: "PUT", body: JSON.stringify({ preferences, version }) });
+}
+export type ScheduledWorkout = { id: string; title: string; starts_at: string; lead_minutes: number; status: "planned" | "completed" | "cancelled"; version: number };
+export function getWorkoutSchedule() { return authed<{ sessions: ScheduledWorkout[] }>("/notifications/workout-schedule"); }
+export function saveWorkoutSchedule(input: { id?: string; version?: number; title: string; startsAt: string; leadMinutes: number; status: ScheduledWorkout["status"] }) {
+  return authed<{ id: string }>("/notifications/workout-schedule", { method: "PUT", body: JSON.stringify(input) });
+}
+export function openSmartNudge(id: string) { return authed<{ href: string; available: boolean }>("/notifications/open", { method: "POST", body: JSON.stringify({ id }) }); }
+export function completeWorkoutSchedule(scheduleId: string, eventId: string) {
+  return authed<{ completed: boolean }>("/notifications/workout-schedule/complete", { method: "POST", body: JSON.stringify({ scheduleId, eventId }) });
+}
+
 export function unregisterNotificationDevice(fcmToken: string) {
   return authed<{ disabled: boolean }>("/notifications/devices", {
     method: "DELETE",
     body: JSON.stringify({ fcmToken })
   });
+}
+export function notificationDeviceStatus(fcmToken: string) {
+  return authed<{ registered: boolean }>("/notifications/devices/status", { method: "POST", body: JSON.stringify({ fcmToken }) });
 }
 
 export function recordNotificationActivity(screenName: string) {
