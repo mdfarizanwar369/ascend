@@ -183,3 +183,16 @@ test("iOS packages its own startup/offline copy without other-platform promotion
   }
   assert.equal(fs.existsSync("ios/App/App/public/android-error.html"), false);
 });
+
+test("iOS push is packaged with registration callbacks and build-specific APNs entitlement", () => {
+  const ios = config({ CAPACITOR_PLATFORM: "ios" });
+  assert.ok(ios.ios.includePlugins.includes("@capacitor/push-notifications"));
+  assert.match(ios.appendUserAgent, /AscendPush\/1/);
+  assert.equal(ios.plugins.PushNotifications.presentationOptions.length, 0);
+  assert.match(read("ios/App/App/AppDelegate.swift"), /capacitorDidRegisterForRemoteNotifications/);
+  assert.match(read("ios/App/App/AppDelegate.swift"), /capacitorDidFailToRegisterForRemoteNotifications/);
+  assert.match(read("ios/App/App/App.entitlements"), /aps-environment/);
+  assert.match(read("ios/App/App.xcodeproj/project.pbxproj"), /APS_ENVIRONMENT = development/);
+  assert.match(read("ios/App/App.xcodeproj/project.pbxproj"), /APS_ENVIRONMENT = production/);
+  assert.match(read("ios/App/CapApp-SPM/Package.swift"), /CapacitorPushNotifications/);
+});

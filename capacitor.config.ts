@@ -15,10 +15,10 @@ const config: CapacitorConfig = {
   appName: "Ascend",
   webDir: isIos ? "mobile-shell-ios" : "mobile-shell",
   backgroundColor: "#07090d",
-  appendUserAgent: isIos ? " AscendIOS/6 AscendSubscriptions/1 AscendHealth/1 Capacitor" : " AscendAndroid/1 Capacitor",
+  appendUserAgent: isIos ? " AscendIOS/6 AscendSubscriptions/1 AscendHealth/1 AscendPush/1 Capacitor" : " AscendAndroid/1 Capacitor",
   ios: {
     contentInset: "automatic",
-    includePlugins: ["@capacitor-firebase/authentication", "@capacitor/app", "@capacitor/camera", "@capacitor/filesystem", "@capacitor/share", "@capacitor/splash-screen", "@capacitor/status-bar"]
+    includePlugins: ["@capacitor-firebase/authentication", "@capacitor/app", "@capacitor/camera", "@capacitor/filesystem", "@capacitor/push-notifications", "@capacitor/share", "@capacitor/splash-screen", "@capacitor/status-bar"]
   },
   server: {
     url: iosRemoteUrl ? `${iosRemoteUrl.origin}/` : remoteUrl,
@@ -40,7 +40,7 @@ const config: CapacitorConfig = {
       providers: isIos ? ["google.com", "apple.com"] : ["google.com"]
     },
     PushNotifications: {
-      presentationOptions: ["alert", "sound"]
+      presentationOptions: [] // The foreground coordinator renders one in-app banner.
     },
     SplashScreen: {
       launchAutoHide: true,

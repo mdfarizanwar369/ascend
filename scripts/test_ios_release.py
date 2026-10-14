@@ -104,6 +104,21 @@ class HealthSigningTests(unittest.TestCase):
                 "com.apple.security.application-groups": []}}, release.WIDGET_BUNDLE, required)
 
 
+class PushSigningTests(HealthSigningTests):
+    required = {**HealthSigningTests.required, "aps-environment": "$(APS_ENVIRONMENT)"}
+
+    def entitlements(self):
+        return {**super().entitlements(), "aps-environment": "production"}
+
+    def test_push_profile_and_binary_require_production_environment(self):
+        for value in (None, "development", "$(APS_ENVIRONMENT)"):
+            entitlements = {**self.entitlements(), "aps-environment": value}
+            with self.subTest(profile=value), self.assertRaises(SystemExit):
+                release.validate_profile({**self.profile(), "Entitlements": entitlements}, release.BUNDLE, self.required)
+            with self.subTest(binary=value), self.assertRaises(SystemExit):
+                release.validate_signed_entitlements(entitlements, release.BUNDLE, self.required)
+
+
 class ProvisioningAPITests(unittest.TestCase):
     class API:
         def __init__(self, responses):
