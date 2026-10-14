@@ -58,13 +58,13 @@ describe("guide profile", () => {
     expect(queryMock).toHaveBeenCalledWith(expect.stringContaining("goal_version + 1"), ["user-1", "male", 35, "moderate", 175, "fat_loss", 80]);
   });
 
-  it("keeps trainer-referred clients in human coach mode", async () => {
+  it("records a trainer referral without connecting the client before consent", async () => {
     queryMock
       .mockResolvedValueOnce({
         rows: [{ id: "ref-1", gym_id: "gym-1", trainer_id: "trainer-1" }]
       })
       .mockResolvedValueOnce({
-        rows: [{ id: "user-1", assigned_trainer_id: "trainer-1", coaching_mode: "human_coach" }]
+        rows: [{ id: "user-1", assigned_trainer_id: null, coaching_mode: "self_coached", referred_by_trainer_id: "trainer-1" }]
       });
 
     const { completeOnboarding } = await import("../services/userService");
@@ -81,8 +81,11 @@ describe("guide profile", () => {
       targetWeightKg: 65
     });
 
-    expect(user.coaching_mode).toBe("human_coach");
+    expect(user).toMatchObject({ assigned_trainer_id: null, coaching_mode: "self_coached", referred_by_trainer_id: "trainer-1" });
     expect(queryMock).toHaveBeenNthCalledWith(1, expect.stringContaining("coalesce(rc.gym_id, t.gym_id)"), ["TRAINER-JASON"]);
+    const updateSql = queryMock.mock.calls[1][0] as string;
+    expect(updateSql).not.toContain("assigned_trainer_id =");
+    expect(updateSql).toContain("when $11::uuid is not null then 'self_coached'");
     expect(queryMock).toHaveBeenLastCalledWith(expect.stringContaining("coaching_mode = case"), [
       "user-1",
       "Sally",

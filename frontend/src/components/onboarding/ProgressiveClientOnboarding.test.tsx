@@ -107,6 +107,23 @@ describe("simple personalized onboarding", () => {
     })));
   });
 
+  it("takes a trainer-referred signup to the consent review after the guide", async () => {
+    window.sessionStorage.setItem("ascend.pendingTrainerReferral.v1", "TRAINER-ZAHID");
+    await reachStartingPoint();
+    fireEvent.change(screen.getByLabelText("Current weight"), { target: { value: "82" } });
+    fireEvent.change(screen.getByLabelText(/^Target weight/), { target: { value: "75" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create my guide" }));
+
+    await screen.findByRole("button", { name: /Review trainer invitation/ });
+    expect(mocks.completeOnboarding).toHaveBeenCalledWith(expect.objectContaining({
+      referralCode: undefined,
+      coachingMode: "self_coached"
+    }));
+    fireEvent.click(screen.getByRole("button", { name: /Review trainer invitation/ }));
+    expect(mocks.push).toHaveBeenCalledWith("/profile#trainer-connection");
+    expect(window.sessionStorage.getItem("ascend.pendingTrainerReferral.v1")).toBe("TRAINER-ZAHID");
+  });
+
   it("keeps required profile validation focused on the current screen", async () => {
     await renderOnboarding();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));

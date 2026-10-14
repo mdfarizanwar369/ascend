@@ -35,7 +35,7 @@ export default function OnboardingPage() {
             <div className="flex items-start gap-3">
               <BadgeCheck className="mt-0.5 text-lime" size={20} />
               <p className="text-sm leading-6 text-zinc-300">
-                Referral codes connect you to the right gym or trainer. You can skip this if you do not have one yet.
+                Referral codes identify your gym or trainer. You review and confirm a trainer connection after setup.
               </p>
             </div>
           </section>

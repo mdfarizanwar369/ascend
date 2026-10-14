@@ -329,7 +329,7 @@ export function AuthPanel() {
     }
     if (hasCompletedClientOnboardingProfile(profile.user)) {
       authTrace("Final navigation decision", { destination: "/dashboard", reason: "profile_complete" });
-      router.replace("/dashboard");
+      router.replace(window.sessionStorage.getItem(pendingTrainerReferralKey) ? "/profile#trainer-connection" : "/dashboard");
       return;
     }
     authTrace("Final navigation decision", { destination: "/onboarding", reason: "profile_incomplete" });

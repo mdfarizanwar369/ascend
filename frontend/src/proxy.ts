@@ -11,6 +11,14 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url, 308);
   }
 
+  // Existing trainer QR codes point at the homepage. Carry their code straight
+  // into signup so a homepage button cannot discard the invitation.
+  if (host === "www.getascend.fit" && request.nextUrl.pathname === "/" && request.nextUrl.searchParams.has("trainer")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
   if (host === "demo.getascend.fit" && request.nextUrl.pathname === "/") {
     const url = request.nextUrl.clone();
     url.pathname = "/demo";
