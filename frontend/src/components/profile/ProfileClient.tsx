@@ -81,6 +81,12 @@ export function ProfileClient() {
     return () => { mounted = false; };
   }, []);
 
+  useEffect(() => {
+    if (user && window.location.hash === "#trainer-connection") {
+      document.getElementById("trainer-connection")?.scrollIntoView();
+    }
+  }, [user]);
+
   const canUpload = roles.some((role) => role === "owner" || role === "admin") || plan === "premium" || plan === "trainer_pro";
   const backHref = roles.some((role) => role === "owner" || role === "admin") ? "/admin" : roles.includes("trainer") ? "/trainer" : "/dashboard";
   const shownPhoto = preview || user?.profile_photo_url || null;
@@ -445,7 +451,7 @@ export function ProfileClient() {
         </>}
 
         <p className="mt-6 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Trainer connection</p>
-        <section className="mt-2 rounded-xl border border-line bg-surface p-4">
+        <section id="trainer-connection" className="mt-2 scroll-mt-4 rounded-xl border border-line bg-surface p-4">
           {user?.assigned_trainer_id ? <>
             <p className="text-sm font-semibold">Connected to {user.assigned_trainer_name || "your trainer"}</p>
             <p className="mt-2 text-sm leading-6 text-zinc-400">Your assigned trainer can access the coaching information you agreed to share. AI sharing remains controlled separately under AI privacy.</p>

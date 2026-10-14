@@ -84,12 +84,12 @@ export async function completeOnboarding(userId: string, input: z.infer<typeof o
         age_years = $8,
         activity_level = $9,
         goal_updated_at = now(),
-        gym_id = coalesce($10, gym_id),
-        assigned_trainer_id = coalesce($11, assigned_trainer_id),
+        gym_id = case when $11::uuid is null then coalesce($10, gym_id) else gym_id end,
         referred_by_gym_id = coalesce($10, referred_by_gym_id),
         referred_by_trainer_id = coalesce($11, referred_by_trainer_id),
         coaching_mode = case
-          when coalesce($11, assigned_trainer_id) is not null then 'human_coach'
+          when assigned_trainer_id is not null then 'human_coach'
+          when $11::uuid is not null then 'self_coached'
           else $12
         end,
         primary_barrier = coalesce($13, primary_barrier),

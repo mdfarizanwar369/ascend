@@ -8,6 +8,7 @@ import { Field, inputClass, selectClass } from "@/components/Field";
 import { completeOnboarding, validateReferral } from "@/lib/ascendApi";
 
 const draftKey = "ascend:onboarding:draft";
+const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1"; // gitleaks:allow - session storage name, not a secret
 
 const coachingOptions: Array<{ value: CoachingMode; title: string; detail: string }> = [
   { value: "self_coached", title: "Self-Coached", detail: "Use Ascend to stay consistent on your own." },
@@ -32,8 +33,12 @@ export function OnboardingForm() {
 
   useEffect(() => {
     try {
+      const pendingTrainerCode = window.sessionStorage.getItem(pendingTrainerReferralKey);
       const saved = window.localStorage.getItem(draftKey) || window.sessionStorage.getItem(draftKey);
-      if (!saved) return;
+      if (!saved) {
+        if (pendingTrainerCode) setReferralCode(pendingTrainerCode);
+        return;
+      }
       const draft = JSON.parse(saved) as Partial<{
         fullName: string;
         referralCode: string;
@@ -47,7 +52,7 @@ export function OnboardingForm() {
         targetWeightKg: string;
       }>;
       setFullName(draft.fullName ?? "");
-      setReferralCode(draft.referralCode ?? "");
+      setReferralCode(pendingTrainerCode || draft.referralCode || "");
       setCoachingMode(draft.coachingMode ?? "self_coached");
       setGoalType(draft.goalType ?? "fat_loss");
       setGender(draft.gender ?? "prefer_not_to_say");
@@ -114,9 +119,11 @@ export function OnboardingForm() {
     setIsSaving(true);
 
     try {
+      let trainerInvitationCode: string | null = null;
       if (referralCode.trim()) {
         setStatus("Checking your referral code...");
-        await validateReferral(referralCode.trim());
+        const validation = await validateReferral(referralCode.trim());
+        if (validation.referral.type === "trainer") trainerInvitationCode = validation.referral.code;
       }
       await completeOnboarding({
         fullName,
@@ -134,10 +141,12 @@ export function OnboardingForm() {
       try {
         window.localStorage.removeItem(draftKey);
         window.sessionStorage.removeItem(draftKey);
+        if (trainerInvitationCode) window.sessionStorage.setItem(pendingTrainerReferralKey, trainerInvitationCode);
+        else window.sessionStorage.removeItem(pendingTrainerReferralKey);
       } catch {
         // Ignore draft cleanup failures.
       }
-      router.push("/dashboard");
+      router.push(trainerInvitationCode ? "/profile#trainer-connection" : "/dashboard");
     } catch (error) {
       setStatus(
         error instanceof Error
@@ -186,7 +195,7 @@ export function OnboardingForm() {
             );
           })}
         </div>
-        <p className="mt-2 text-xs leading-5 text-zinc-500">Trainer codes connect you to Human Coach mode automatically.</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">You review and confirm a trainer connection after setup.</p>
       </section>
       <Field label="Goal">
         <select

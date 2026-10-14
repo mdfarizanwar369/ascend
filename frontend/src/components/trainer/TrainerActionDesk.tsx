@@ -97,7 +97,7 @@ export function TrainerActionDesk() {
   useEffect(() => {
     let active = true;
     if (!referralCode) { setReferralQr(""); return; }
-    void QRCode.toDataURL(`https://www.getascend.fit/?trainer=${encodeURIComponent(referralCode)}`, {
+    void QRCode.toDataURL(`https://www.getascend.fit/login?trainer=${encodeURIComponent(referralCode)}`, {
       width: 160,
       margin: 2,
       color: { dark: "#07111B", light: "#FFFFFF" }
@@ -166,7 +166,7 @@ export function TrainerActionDesk() {
     try {
       const code = referralCode || (await createTrainerReferralCode()).referral.code;
       setReferralCode(code);
-      const url = `https://www.getascend.fit/?trainer=${encodeURIComponent(code)}`;
+      const url = `https://www.getascend.fit/login?trainer=${encodeURIComponent(code)}`;
       if (navigator.share) await navigator.share({ title: "Train with me on Ascend", url });
       else {
         await navigator.clipboard.writeText(`${url}\nTrainer code: ${code}`);

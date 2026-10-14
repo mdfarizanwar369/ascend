@@ -9,6 +9,7 @@ import { Field, inputClass, selectClass } from "@/components/Field";
 
 const draftKey = "ascend:onboarding:v2:draft";
 const oldWelcomeSeenKey = "ascend:onboarding:v2:welcome-seen";
+const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1"; // gitleaks:allow - session storage name, not a secret
 
 type GoalChoice = GoalType;
 
@@ -79,8 +80,10 @@ export function ProgressiveClientOnboarding() {
   const [status, setStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [startingGuide, setStartingGuide] = useState<StartingGuide | null>(null);
+  const [hasTrainerInvitation, setHasTrainerInvitation] = useState(false);
 
   useEffect(() => {
+    setHasTrainerInvitation(Boolean(window.sessionStorage.getItem(pendingTrainerReferralKey)));
     let hasSavedDraft = false;
     try {
       hasSavedDraft = Boolean(window.localStorage.getItem(draftKey));
@@ -166,7 +169,7 @@ export function ProgressiveClientOnboarding() {
       await completeOnboarding({
         fullName,
         referralCode: draft.referralCode.trim() || undefined,
-        coachingMode: draft.referralCode.trim() ? "human_coach" : "self_coached",
+        coachingMode: "self_coached",
         goalType: draft.goalChoice,
         gender: draft.gender,
         ageYears: Number(draft.ageYears),
@@ -237,8 +240,9 @@ export function ProgressiveClientOnboarding() {
           ))}
         </div>
 
-        <button type="button" onClick={() => router.push("/dashboard")} className="ascend-pressable mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink">
-          Go to Today <ArrowRight className="ml-2" size={19} />
+        {hasTrainerInvitation ? <p className="mt-5 rounded-2xl border border-calm/35 bg-calm/10 p-4 text-sm leading-6 text-zinc-200">Your trainer invitation is ready to review. You choose whether to connect and share your coaching records.</p> : null}
+        <button type="button" onClick={() => router.push(hasTrainerInvitation ? "/profile#trainer-connection" : "/dashboard")} className="ascend-pressable mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink">
+          {hasTrainerInvitation ? "Review trainer invitation" : "Go to Today"} <ArrowRight className="ml-2" size={19} />
         </button>
         <button type="button" onClick={() => setStartingGuide(null)} className="mt-3 min-h-11 w-full text-sm font-medium text-zinc-300 underline decoration-zinc-600 underline-offset-4">
           Review my answers
