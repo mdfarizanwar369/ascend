@@ -3,6 +3,7 @@
 import { Bell } from "lucide-react";
 import { useState } from "react";
 import { enableCoachNotifications } from "@/lib/coachNotifications";
+import { getSmartNudgePreferences } from "@/lib/ascendApi";
 
 export function EnableCoachNotificationsButton() {
   const [status, setStatus] = useState("");
@@ -12,6 +13,8 @@ export function EnableCoachNotificationsButton() {
     setWorking(true);
     setStatus("Turning on coach check-ins...");
     try {
+      const settings = await getSmartNudgePreferences();
+      if (settings.available || settings.version > 0) { window.location.assign("/profile/reminders"); return; }
       await enableCoachNotifications();
       setStatus("Coach check-ins are enabled on this device.");
     } catch (error) {
@@ -24,7 +27,7 @@ export function EnableCoachNotificationsButton() {
   return (
     <div>
       <button type="button" onClick={enable} disabled={working} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-calm/40 bg-calm/10 text-sm font-semibold text-calm disabled:opacity-60">
-        <Bell size={17} /> {working ? "Enabling..." : "Enable coach check-ins"}
+        <Bell size={17} /> {working ? "Opening..." : "Reminders & coach check-ins"}
       </button>
       {status ? <p className="mt-2 text-xs leading-5 text-zinc-400">{status}</p> : null}
     </div>

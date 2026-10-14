@@ -21,9 +21,10 @@ export async function clearLocalAscendSession() {
   window.sessionStorage.clear();
 
   try {
+    // Revoke this device while the current account's auth token is still available.
+    await withTimeout(disableCoachNotifications(), 5_000).catch(() => undefined);
     const { supportsNativeSocialAuth } = await import("@/lib/nativePlatform");
     const cleanupTasks: Promise<unknown>[] = [
-      withTimeout(disableCoachNotifications(), 2_500).catch(() => undefined),
       withTimeout(signOut(getFirebaseClientAuth()), 4_000).catch(() => undefined)
     ];
 

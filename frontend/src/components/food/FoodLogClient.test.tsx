@@ -166,6 +166,15 @@ describe("Food Log voice entry", () => {
 });
 
 describe("Food AI recovery", () => {
+  it("preserves the reminder meal category through review and saving", async () => {
+    render(<FoodLogClient initialMeal="breakfast" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "two boiled eggs" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+    expect(await screen.findByLabelText("Meal category")).toHaveValue("breakfast");
+    fireEvent.click(screen.getByRole("button", { name: "Save meal" }));
+    await waitFor(() => expect(api.saveFoodLog).toHaveBeenCalledWith(expect.objectContaining({ mealType: "breakfast" })));
+  });
   it("explains a sharing refusal and links to privacy without retrying or saving a meal", async () => {
     api.estimateFoodFromText.mockRejectedValueOnce(new Error("AI data sharing is off. Open Profile → AI privacy to review and allow sharing. If you are coaching a client, they must also allow sharing of their data."));
     render(<FoodLogClient />);

@@ -1,276 +1,165 @@
 "use client";
-
-import { getToken, isSupported, onMessage } from "firebase/messaging";
+import { deleteToken, getToken, isSupported, onMessage } from "firebase/messaging";
 import type { Messaging } from "firebase/messaging";
 import type { PluginListenerHandle } from "@capacitor/core";
-import { detectInstallPlatform } from "@ascend/shared";
-import { getFirebaseClientApp } from "@/lib/firebase";
-import { recordNotificationActivity, registerNotificationDevice, unregisterNotificationDevice } from "@/lib/ascendApi";
+import { detectInstallPlatform, safeNotificationHref } from "@ascend/shared";
+import { getFirebaseClientApp, getFirebaseClientAuth } from "@/lib/firebase";
+import { getSmartNudgePreferences, recordNotificationActivity, registerNotificationDevice, unregisterNotificationDevice, notificationDeviceStatus } from "@/lib/ascendApi";
+import { navigateNotification } from "@/lib/notificationNavigation";
 
 export const COACH_NOTIFICATION_ELIGIBLE_EVENT = "ascend:coach-notification-eligible";
-
-const storageKeys = {
-  prompted: "ascend.notifications.prompted.v1",
-  enabled: "ascend.notifications.enabled.v1",
-  postponedAt: "ascend.notifications.postponedAt.v1",
-  token: "ascend.notifications.token.v1",
-  activityDate: "ascend.notifications.activityDate.v1"
-} as const;
-
+const prefix = "ascend.notifications.v2";
 let nativeActionListener: Promise<PluginListenerHandle> | null = null;
-let nativeRefreshPromise: Promise<string | null> | null = null;
-
-function read(key: string) {
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function write(key: string, value: string) {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // Safari private contexts can restrict storage. Current-session behavior still works.
-  }
-}
-
-function remove(key: string) {
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // Local storage is a convenience cache only.
-  }
-}
-
-function isLikelyAscendAndroidApp() {
-  if (typeof navigator === "undefined") return false;
-  return /AscendAndroid\/1/i.test(navigator.userAgent);
-}
-
-async function isNativeAndroidApp() {
-  if (typeof window === "undefined") return false;
-  if (!isLikelyAscendAndroidApp()) return false;
+let refreshPromise: Promise<string | null> | null = null;
+let signingOut = false;
+function uid() { try { return getFirebaseClientAuth().currentUser?.uid ?? null; } catch { return null; } }
+function read(key: string, account = uid()) { try { return account ? localStorage.getItem(`${prefix}.${account}.${key}`) : null; } catch { return null; } }
+function write(key: string, value: string, account = uid()) { try { if (account) localStorage.setItem(`${prefix}.${account}.${key}`, value); } catch { /* Storage unavailable. */ } }
+function remove(key: string, account = uid()) { try { if (account) localStorage.removeItem(`${prefix}.${account}.${key}`); } catch { /* Storage unavailable. */ } }
+async function nativePush() {
   const { Capacitor } = await import("@capacitor/core");
-  return Capacitor.isNativePlatform() && Capacitor.getPlatform() === "android";
-}
-
-async function getNativePushNotifications() {
-  if (!await isNativeAndroidApp()) return null;
+  if (!Capacitor.isNativePlatform()) return null;
+  const platform = Capacitor.getPlatform();
+  if (platform === "ios" && !/AscendPush\/1/.test(navigator.userAgent)) return null;
+  if (!["android", "ios"].includes(platform) || !Capacitor.isPluginAvailable("PushNotifications")) return null;
   const { PushNotifications } = await import("@capacitor/push-notifications");
-  return PushNotifications;
+  return { push: PushNotifications, platform: platform as "android" | "ios" };
 }
-
-function todayKey() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-export function markCoachNotificationEligible() {
-  window.dispatchEvent(new CustomEvent(COACH_NOTIFICATION_ELIGIBLE_EVENT));
-}
-
+export function markCoachNotificationEligible() { window.dispatchEvent(new CustomEvent(COACH_NOTIFICATION_ELIGIBLE_EVENT)); }
 export async function getMessagingIfAvailable(): Promise<Messaging | null> {
   if (typeof window === "undefined") return null;
-  if (await isNativeAndroidApp()) return null;
-  if (!("Notification" in window) || !("serviceWorker" in navigator)) return null;
-  if (!process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) return null;
+  const { Capacitor } = await import("@capacitor/core");
+  if (Capacitor.isNativePlatform()) return null;
+  if (!("Notification" in window) || !("serviceWorker" in navigator) || !process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY) return null;
   if (!await isSupported().catch(() => false)) return null;
   const { getMessaging } = await import("firebase/messaging");
   return getMessaging(getFirebaseClientApp());
 }
-
-async function createNativeCoachChannel() {
-  const push = await getNativePushNotifications();
-  if (!push) return;
-  await push.createChannel({
-    id: "coach_checkins",
-    name: "Coach check-ins",
-    description: "Helpful Ascend coaching nudges and trainer updates.",
-    importance: 3,
-    visibility: 0,
-    lights: true,
-    vibration: true
-  }).catch(() => undefined);
-}
-
-async function registerNativePushToken() {
-  const push = await getNativePushNotifications();
-  if (!push) return null;
-
-  const permission = await push.checkPermissions();
-  const granted = permission.receive === "granted" ? permission : await push.requestPermissions();
-  if (granted.receive !== "granted") {
-    write(storageKeys.prompted, "true");
-    write(storageKeys.postponedAt, String(Date.now()));
-    throw new Error("Notifications were not enabled.");
+export type NotificationPermissionState = "granted" | "denied" | "prompt" | "unavailable";
+export async function coachNotificationPermission(): Promise<NotificationPermissionState> {
+  const native = await nativePush();
+  if (native) {
+    if (native.platform === "ios" && !(await getSmartNudgePreferences()).apnsAvailable) return "unavailable";
+    const permission = (await native.push.checkPermissions()).receive;
+    return permission === "granted" || permission === "denied" ? permission : "prompt";
   }
-
-  await createNativeCoachChannel();
-
-  return new Promise<string>((resolve, reject) => {
-    let settled = false;
-    let tokenHandle: PluginListenerHandle | null = null;
-    let errorHandle: PluginListenerHandle | null = null;
-    let timeout: number | null = null;
-
-    const cleanup = () => {
-      tokenHandle?.remove();
-      errorHandle?.remove();
-      if (timeout) window.clearTimeout(timeout);
-    };
-
-    push.addListener("registration", async (token) => {
-      if (settled) return;
-      settled = true;
-      try {
-        await registerNotificationDevice({ fcmToken: token.value, platform: "android" });
-        write(storageKeys.enabled, "true");
-        write(storageKeys.prompted, "true");
-        write(storageKeys.token, token.value);
-        cleanup();
-        resolve(token.value);
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    }).then((handle) => {
-      tokenHandle = handle;
-    }).catch(reject);
-
-    push.addListener("registrationError", (error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(new Error(error.error || "Android could not register this device for notifications."));
-    }).then((handle) => {
-      errorHandle = handle;
-    }).catch(reject);
-
-    timeout = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(new Error("Android did not return a notification token. Please try again."));
-    }, 15_000);
-
-    push.register().catch((error) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(error);
-    });
-  });
+  if (!await getMessagingIfAvailable()) return "unavailable";
+  return Notification.permission === "default" ? "prompt" : Notification.permission;
 }
-
-async function enableWebCoachNotifications() {
+async function registerNative(allowPrompt: boolean): Promise<string | null> {
+  const native = await nativePush(); if (!native) return null;
+  const account = uid(); if (!account || signingOut) return null;
+  if (native.platform === "ios" && !(await getSmartNudgePreferences()).apnsAvailable) throw new Error("iOS reminders need the updated Ascend app and push service.");
+  let permission = await native.push.checkPermissions();
+  if (permission.receive !== "granted" && allowPrompt && permission.receive !== "denied") permission = await native.push.requestPermissions();
+  if (permission.receive !== "granted") {
+    if (allowPrompt) write("prompted", "true", account);
+    if (permission.receive === "denied") await disableCoachNotifications(false);
+    if (!allowPrompt) return null;
+    throw new Error("Notifications are off on this device. You can enable them in device Settings when you are ready.");
+  }
+  if (native.platform === "android") await native.push.createChannel({ id: "coach_checkins", name: "Coach check-ins", description: "Your Ascend reminders and trainer updates.", importance: 3, visibility: 0 }).catch(() => undefined);
+  let tokenHandle: PluginListenerHandle | undefined; let errorHandle: PluginListenerHandle | undefined; let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const token = await new Promise<string>((resolve, reject) => {
+      // Both listeners precede register, including on a fast cached-token response.
+      void (async () => {
+        tokenHandle = await native.push.addListener("registration", value => resolve(value.value));
+        errorHandle = await native.push.addListener("registrationError", () => reject(new Error("This device could not register for reminders. Please try again.")));
+        timer = setTimeout(() => reject(new Error("Device registration took too long. Please try again.")), 15000);
+        await native.push.register();
+      })().catch(reject);
+    });
+    if (uid() !== account || signingOut) return null;
+    await registerNotificationDevice({ fcmToken: token, platform: native.platform, provider: native.platform === "ios" ? "apns" : "fcm", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+    if (uid() !== account || signingOut) { await unregisterNotificationDevice(token).catch(() => undefined); return null; }
+    write("token", token, account); write("enabled", "true", account); write("prompted", "true", account);
+    return token;
+  } finally { if (timer) clearTimeout(timer); await tokenHandle?.remove(); await errorHandle?.remove(); }
+}
+async function registerWeb(allowPrompt: boolean) {
+  const account = uid(); if (!account || signingOut) return null;
   const messaging = await getMessagingIfAvailable();
-  if (!messaging) throw new Error("Coach notifications are not available on this browser yet.");
-
-  const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+  if (!messaging) { if (!allowPrompt) return null; throw new Error("Reminders are not supported here. Use the updated Ascend app or a supported installed browser app."); }
+  let permission = Notification.permission;
+  if (permission === "default" && allowPrompt) permission = await Notification.requestPermission();
   if (permission !== "granted") {
-    write(storageKeys.prompted, "true");
-    write(storageKeys.postponedAt, String(Date.now()));
-    throw new Error("Notifications were not enabled.");
+    if (allowPrompt) write("prompted", "true", account);
+    if (permission === "denied") await disableCoachNotifications(false);
+    if (!allowPrompt) return null;
+    throw new Error("Notifications are off in this browser. You can change that in browser Settings.");
   }
-
   const registration = await navigator.serviceWorker.ready;
-  const fcmToken = await getToken(messaging, {
-    vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-    serviceWorkerRegistration: registration
-  });
-  if (!fcmToken) throw new Error("This browser did not return a notification token.");
-
-  const platform = detectInstallPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
-  await registerNotificationDevice({ fcmToken, platform });
-  write(storageKeys.enabled, "true");
-  write(storageKeys.prompted, "true");
-  write(storageKeys.token, fcmToken);
-  return fcmToken;
+  const token = await getToken(messaging, { vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY, serviceWorkerRegistration: registration });
+  if (!token) throw new Error("This browser did not return a notification token.");
+  if (uid() !== account || signingOut) return null;
+  await registerNotificationDevice({ fcmToken: token, platform: detectInstallPlatform(navigator.userAgent, navigator.platform, navigator.maxTouchPoints), provider: "fcm", timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  if (uid() !== account || signingOut) { await unregisterNotificationDevice(token).catch(() => undefined); return null; }
+  write("token", token, account); write("enabled", "true", account); write("prompted", "true", account);
+  return token;
 }
-
 export async function enableCoachNotifications() {
-  if (await isNativeAndroidApp()) return registerNativePushToken();
-  return enableWebCoachNotifications();
+  signingOut = false;
+  const token = await (await nativePush() ? registerNative(true) : registerWeb(true));
+  if (!token) throw new Error("Please sign in again before enabling this device.");
+  return token;
 }
-
 export async function refreshNativeCoachNotificationToken() {
-  if (!await isNativeAndroidApp()) return null;
-  if (read(storageKeys.enabled) !== "true") return null;
-  if (!nativeRefreshPromise) {
-    nativeRefreshPromise = registerNativePushToken().finally(() => {
-      nativeRefreshPromise = null;
-    });
+  if (signingOut) return null;
+  if (read("enabled") !== "true") {
+    // Preserve old consent only after the server confirms that the legacy token
+    // belongs to this account. A browser-wide local flag is not ownership proof.
+    const account = uid(); let token: string | null = null;
+    try { if (localStorage.getItem("ascend.notifications.enabled.v1") === "true") token = localStorage.getItem("ascend.notifications.token.v1"); } catch { /* Storage unavailable. */ }
+    if (!account || !token) return null;
+    const status = await notificationDeviceStatus(token).catch(() => ({ registered: false }));
+    if (!status.registered || uid() !== account || signingOut) return null;
+    write("enabled", "true", account); write("prompted", "true", account); write("token", token, account);
   }
-  return nativeRefreshPromise;
+  if (!refreshPromise) refreshPromise = (async () => await nativePush() ? registerNative(false) : registerWeb(false))().finally(() => { refreshPromise = null; });
+  return refreshPromise;
 }
-
-export async function disableCoachNotifications() {
-  const token = read(storageKeys.token);
-  if (token) {
-    await unregisterNotificationDevice(token).catch(() => undefined);
-  }
-  const push = await getNativePushNotifications();
-  if (push) await push.unregister().catch(() => undefined);
-  remove(storageKeys.enabled);
-  remove(storageKeys.token);
+export async function disableCoachNotifications(forSignOut = true) {
+  if (forSignOut) signingOut = true;
+  const account = uid();
+  // Legacy token is only used for owner-scoped unregister, never to opt a new account in.
+  let legacy: string | null = null; try { legacy = localStorage.getItem("ascend.notifications.token.v1"); } catch { /* unavailable */ }
+  const token = read("token", account) ?? legacy;
+  if (token) await unregisterNotificationDevice(token).catch(() => undefined);
+  const native = await nativePush();
+  if (native) { await native.push.unregister().catch(() => undefined); await native.push.removeAllDeliveredNotifications().catch(() => undefined); }
+  else { const messaging = await getMessagingIfAvailable(); if (messaging) await deleteToken(messaging).catch(() => undefined); }
+  remove("enabled", account); remove("token", account); remove("activity", account);
+  try { localStorage.removeItem("ascend.notifications.token.v1"); localStorage.removeItem("ascend.notifications.enabled.v1"); } catch { /* unavailable */ }
 }
-
 export function shouldOfferCoachNotifications() {
-  if (typeof window === "undefined") return false;
-  if (isLikelyAscendAndroidApp()) {
-    if (read(storageKeys.enabled) === "true") return false;
-    if (read(storageKeys.prompted) === "true") return false;
-    return true;
-  }
-  if (!("Notification" in window) || Notification.permission === "denied") return false;
-  if (read(storageKeys.enabled) === "true") return false;
-  if (read(storageKeys.prompted) === "true") return false;
-  return true;
+  if (typeof window === "undefined" || !uid()) return false;
+  if (/AscendIOS\//.test(navigator.userAgent) && !/AscendPush\/1/.test(navigator.userAgent)) return false;
+  if ("Notification" in window && Notification.permission === "denied") return false;
+  return read("enabled") !== "true" && read("prompted") !== "true";
 }
-
-export function postponeCoachNotifications() {
-  write(storageKeys.prompted, "true");
-  write(storageKeys.postponedAt, String(Date.now()));
-}
-
+export function postponeCoachNotifications() { write("prompted", "true"); }
 export async function recordDailyNotificationActivity(screenName: string) {
-  const today = todayKey();
-  if (read(storageKeys.activityDate) === today) return;
-  await recordNotificationActivity(screenName);
-  write(storageKeys.activityDate, today);
+  const account = uid(); if (!account) return;
+  // At most once per account/hour. App inactivity is not physical inactivity.
+  const last = Number(read("activity", account) ?? 0); if (Date.now() - last < 3600000) return;
+  await recordNotificationActivity(screenName); write("activity", String(Date.now()), account);
 }
-
 export async function listenForForegroundCoachMessages(onReceive: (payload: { title: string; body: string; href: string }) => void) {
-  const push = await getNativePushNotifications();
-  if (push) {
-    const handle = await push.addListener("pushNotificationReceived", (notification) => {
-      onReceive({
-        title: notification.title ?? "Ascend",
-        body: notification.body ?? "Open Ascend when you are ready.",
-        href: notification.data?.href ?? notification.link ?? "/dashboard"
-      });
-    });
-    return () => handle.remove();
+  const receive = (title: unknown, body: unknown, href: unknown) => {
+    if (!uid() || signingOut) return;
+    onReceive({ title: typeof title === "string" ? title : "Ascend", body: typeof body === "string" ? body : "Open Ascend when you are ready.", href: safeNotificationHref(href) });
+  };
+  const native = await nativePush();
+  if (native) {
+    const handle = await native.push.addListener("pushNotificationReceived", n => receive(n.title, n.body, n.data?.href ?? n.link));
+    return () => { void handle.remove(); };
   }
-
-  const messaging = await getMessagingIfAvailable();
-  if (!messaging) return () => undefined;
-  return onMessage(messaging, (payload) => {
-    onReceive({
-      title: payload.notification?.title ?? "Ascend",
-      body: payload.notification?.body ?? "Open Ascend when you are ready.",
-      href: payload.data?.href ?? "/dashboard"
-    });
-  });
+  const messaging = await getMessagingIfAvailable(); if (!messaging) return () => {};
+  return onMessage(messaging, p => receive(p.notification?.title, p.notification?.body, p.data?.href));
 }
-
 export async function initializeNativeCoachNotificationRouting() {
-  const push = await getNativePushNotifications();
-  if (!push || nativeActionListener) return;
-  nativeActionListener = push.addListener("pushNotificationActionPerformed", ({ notification }) => {
-    const href = notification.data?.href ?? notification.link ?? "/dashboard";
-    window.location.assign(href);
-  });
+  const native = await nativePush(); if (!native || nativeActionListener) return;
+  nativeActionListener = native.push.addListener("pushNotificationActionPerformed", ({ notification }) => navigateNotification(notification.data?.href ?? notification.link));
+  try { await nativeActionListener; } catch { nativeActionListener = null; }
 }

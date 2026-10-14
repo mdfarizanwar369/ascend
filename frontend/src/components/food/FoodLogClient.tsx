@@ -468,7 +468,9 @@ function MacroProgress({ label, value, target, unit = "g" }: { label: string; va
   );
 }
 
-export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "history" }) {
+export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { initialView?: "log" | "history"; initialMeal?: "breakfast" | "lunch" | "dinner" }) {
+  const [mealType, setMealType] = useState<string>(initialMeal);
+  useEffect(() => { setMealType(initialMeal); }, [initialMeal]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedImageDataUrl, setSelectedImageDataUrl] = useState<string | null>(null);
@@ -977,7 +979,7 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
     const savedLog = {
       id: `food-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       imagePreviewUrl: previewUrl,
-      mealType: "lunch",
+      mealType,
       estimatedFoodName: estimate.foodName,
       calories: estimate.calories,
       proteinG: estimate.proteinG,
@@ -1745,6 +1747,11 @@ export function FoodLogClient({ initialView = "log" }: { initialView?: "log" | "
                 </div>
               ) : null}
 
+              <label className="mt-4 block text-sm text-zinc-300">Meal category
+                <select aria-label="Meal category" value={mealType} onChange={event => setMealType(event.target.value)} className={`${inputClass} mt-2`}>
+                  <option value="breakfast">Breakfast</option><option value="lunch">Lunch</option><option value="dinner">Dinner</option><option value="snack">Snack</option>
+                </select>
+              </label>
               <button type="button" disabled={isSaving || !canSaveEstimate} onClick={handleSave} className="ascend-pressable mt-4 flex h-14 w-full items-center justify-center rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_12px_30px_rgba(53,242,208,0.16)] disabled:cursor-not-allowed disabled:opacity-60">
                 {wasEdited ? <Save className="mr-2" size={19} /> : <Check className="mr-2" size={19} />}
                 {isSaving ? "Saving meal..." : "Save meal"}

@@ -18,6 +18,10 @@ export async function ensureRuntimeSchema() {
 }
 
 export async function verifyRuntimeSchema() {
+  if (env.ZOE_SMART_NUDGES_SCHEMA || env.ZOE_SMART_NUDGES_ENABLED) {
+    const nudges = await query("select filename from schema_migrations where filename=$1", ["046_zoe_smart_nudges.sql"]);
+    if (!nudges.rows.length) throw new Error("Smart Nudges requires its additive migration before activation.");
+  }
   const result = await query("select filename from schema_migrations where filename=$1", ["041_ai_work_leases.sql"]);
   if (!result.rows.length) throw new Error("Required database migration has not been applied.");
   await query("select token from ai_work_leases limit 0");

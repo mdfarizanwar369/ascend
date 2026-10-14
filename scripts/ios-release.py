@@ -54,6 +54,8 @@ def validate_profile(profile, bundle, required_entitlements):
     if APP_GROUP in required_entitlements.get("com.apple.security.application-groups", []) and \
             APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
         raise SystemExit("Regenerate the provisioning profile with the Ascend App Group enabled.")
+    if "aps-environment" in required_entitlements and entitlements.get("aps-environment") != "production":
+        raise SystemExit("Regenerate the distribution profile with Push Notifications enabled (production APNs).")
     if profile.get("ProvisionedDevices") or profile.get("ProvisionsAllDevices") or entitlements.get("get-task-allow"):
         raise SystemExit("An App Store distribution profile is required.")
     if profile["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc):
@@ -80,6 +82,8 @@ def validate_signed_entitlements(entitlements, bundle, required):
     if APP_GROUP in required.get("com.apple.security.application-groups", []) and \
             APP_GROUP not in entitlements.get("com.apple.security.application-groups", []):
         raise SystemExit("Archived product is missing the Ascend App Group entitlement.")
+    if "aps-environment" in required and entitlements.get("aps-environment") != "production":
+        raise SystemExit("Archived product is missing the production APNs entitlement.")
 
 
 class AppleDeveloperAPI:

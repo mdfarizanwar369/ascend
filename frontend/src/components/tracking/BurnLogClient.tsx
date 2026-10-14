@@ -1,6 +1,8 @@
 "use client";
 
 import { isIosFreeEdition } from "@/lib/appEdition";
+import { nudgeUuid } from "@ascend/shared";
+import { completeWorkoutSchedule } from "@/lib/ascendApi";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -43,7 +45,7 @@ function understandBurnText(text: string) {
   return { activityType, durationMinutes: Math.max(durationMinutes, 1) };
 }
 
-export function BurnLogClient() {
+export function BurnLogClient({ scheduleId }: { scheduleId?: string }) {
   const coachedSessionsEnabled = trainerSessionCaptureEnabled();
   const homeworkFeatureEnabled = trainerHomeworkEnabled();
   const captureFeatureEnabled = workoutCaptureEnabled();
@@ -69,7 +71,8 @@ export function BurnLogClient() {
     rememberDashboardRecord("burn", burnLog);
     setTodayLogs((current) => [burnLog as Awaited<ReturnType<typeof getBurnLogs>>["burnLogs"][number], ...current]);
     setTodayCalories((current) => current + calories);
-  }, []);
+    if (scheduleId && nudgeUuid.test(scheduleId)) void completeWorkoutSchedule(scheduleId, burnLog.id).catch(() => setStatus("Workout saved. Please mark the planned session done in your workout schedule."));
+  }, [scheduleId]);
 
   const estimatedCalories = useMemo(() => {
     return aiCalories ?? Math.round((burnRates[activityType] ?? 6) * Number(durationMinutes || 0));
@@ -184,7 +187,8 @@ export function BurnLogClient() {
       const saved = await saveBurnLog({
         activityType,
         durationMinutes: Number(durationMinutes),
-        caloriesBurned: estimatedCalories
+        caloriesBurned: estimatedCalories,
+        scheduleId: scheduleId && nudgeUuid.test(scheduleId) ? scheduleId : undefined
       });
       rememberDashboardRecord("burn", saved.burnLog);
       setTodayLogs((current) => [saved.burnLog, ...current]);

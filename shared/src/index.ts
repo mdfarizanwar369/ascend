@@ -350,3 +350,4 @@ export function hasReachedWeightGoal(goalType: GoalType | null | undefined, weig
   if (goalType === "muscle_gain") return weightKg >= targetWeightKg;
   return false;
 }
+export * from "./smartNudges";
