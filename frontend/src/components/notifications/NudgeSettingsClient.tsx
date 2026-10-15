@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import { Bell, Check, ChevronLeft, ChevronRight, Droplets, Dumbbell, Moon, SlidersHorizontal, Sparkles, Utensils } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { isRoutineNudge, nudgeCategories, nudgeLabels, nudgeTemplates, NudgeCategory, NudgePreferences, validTimezone } from "@ascend/shared";
 import { getSmartNudgePreferences, saveSmartNudgePreferences, SmartNudgeSettingsResponse } from "@/lib/ascendApi";
-import { coachNotificationPermission, enableCoachNotifications, NotificationPermissionState } from "@/lib/coachNotifications";
+import { coachNotificationPermission, enableCoachNotifications, NotificationPermissionState, postponeCoachNotifications } from "@/lib/coachNotifications";
 import { applyNudgePreset, NudgePreset, presetAvailable, selectedNudgePreset, suggestedNudgePreferences } from "@/lib/nudgePresets";
 import { inputClass, selectClass } from "@/components/Field";
 
@@ -22,7 +22,7 @@ function timeLabel(time: string) {
 function SwitchTrack({ checked }: { checked: boolean }) {
   return <span aria-hidden="true" className={`relative h-7 w-12 shrink-0 rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-calm ${checked ? "bg-lime" : "bg-white/10"}`}><span className={`absolute top-1 h-5 w-5 rounded-full bg-ink transition-transform ${checked ? "translate-x-6" : "translate-x-1"}`} /></span>;
 }
-export function NudgeSettingsClient() {
+export function NudgeSettingsClient({ onComplete, onBack }: { onComplete?: () => void; onBack?: () => void }) {
   const [data, setData] = useState<SmartNudgeSettingsResponse | null>(null);
   const [prefs, setPrefs] = useState<NudgePreferences | null>(null);
   const [permission, setPermission] = useState<NotificationPermissionState>("unavailable");
@@ -33,24 +33,42 @@ export function NudgeSettingsClient() {
   const [loading, setLoading] = useState(true);
   const [customising, setCustomising] = useState(false);
   const [deviceZone, setDeviceZone] = useState("");
-  async function load() {
-    setLoading(true); setStatus("Loading your preferences…");
+  const [setupSaved, setSetupSaved] = useState(false);
+  const mounted = useRef(true);
+  const completed = useRef(false);
+  const finishSetup = useCallback(() => {
+    if (completed.current) return;
+    completed.current = true;
+    postponeCoachNotifications();
+    onComplete?.();
+  }, [onComplete]);
+  const load = useCallback(async () => {
+    setLoading(true); setSetupSaved(false); setStatus("Loading your preferences…");
     try {
       const result = await getSmartNudgePreferences();
+      if (!mounted.current || completed.current) return;
+      // A staged rollout must never block someone from finishing their profile.
+      if (onComplete && !result.available) { finishSetup(); return; }
       const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setDeviceZone(zone); setData(result);
       setPrefs(result.version ? result.preferences : suggestedNudgePreferences(zone, result.categories));
-      setPermission(await coachNotificationPermission().catch(() => "unavailable" as const)); setStatus(""); setSaveFailed(false);
-    } catch (error) { setStatus(error instanceof Error ? error.message : "Could not load reminder settings."); }
-    finally { setLoading(false); }
-  }
-  useEffect(() => { void load(); }, []);
-  const change = <K extends keyof NudgePreferences>(key: K, value: NudgePreferences[K]) => setPrefs(p => p ? { ...p, [key]: value } : p);
+      const devicePermission = await coachNotificationPermission().catch(() => "unavailable" as const);
+      if (!mounted.current || completed.current) return;
+      setPermission(devicePermission); setStatus(""); setSaveFailed(false);
+    } catch (error) { if (mounted.current && !completed.current) setStatus(error instanceof Error ? error.message : "Could not load reminder settings."); }
+    finally { if (mounted.current) setLoading(false); }
+  }, [onComplete, finishSetup]);
+  useEffect(() => { mounted.current = true; void load(); return () => { mounted.current = false; }; }, [load]);
+  const change = <K extends keyof NudgePreferences>(key: K, value: NudgePreferences[K]) => {
+    setSetupSaved(false); setPrefs(p => p ? { ...p, [key]: value } : p);
+  };
   function categoryChange(category: NudgeCategory, value: Partial<NudgePreferences["categories"][NudgeCategory]>) {
+    setSetupSaved(false);
     setPrefs(p => p ? { ...p, categories: { ...p.categories, [category]: { ...p.categories[category], ...value } } } : p);
   }
   function choosePreset(preset: NudgePreset) {
     if (!prefs || !data || !presetAvailable(preset, data.categories)) return;
+    setSetupSaved(false);
     setPrefs(applyNudgePreset(prefs, preset));
     setStatus("");
   }
@@ -79,17 +97,24 @@ export function NudgeSettingsClient() {
       const result = await saveSmartNudgePreferences(next, data.version);
       setData({ ...data, ...result }); setPrefs(result.preferences);
       setStatus(result.preferences.enabled ? `Preferences saved. ${deviceNote || "This device is connected for your chosen reminders."}` : "Zoe nudges are off. Pending reminders will stay quiet.");
+      if (onComplete) {
+        // Let users read a denied-permission/registration warning before continuing.
+        if (deviceNote) setSetupSaved(true);
+        else finishSetup();
+      }
     } catch (error) { setSaveFailed(true); setStatus(error instanceof Error ? error.message : "Could not save. Your previous choices are still in place."); }
     finally { setBusy(false); }
   }
   const actionLabel = firstSetup ? preset === "daily" ? "Use recommended setup" : preset === "essentials" ? "Use light touch" : "Enable my reminders" : "Save preferences";
   const disabled = busy || loading || !prefs || !data || !validTimezone(prefs.timezone) || (!data.available && (firstSetup || prefs.enabled)) || ((firstSetup || prefs.enabled) && activeCategories.length === 0);
-  return <main className="ascend-page min-h-screen px-4 pb-12 pt-5 text-white"><div className="mx-auto min-w-0 max-w-md">
-    <Link href="/profile" className="inline-flex min-h-11 items-center gap-1 text-sm text-zinc-400"><ChevronLeft size={17} /> Profile</Link>
+  const Page = onComplete ? "section" : "main";
+  const continueAfterSave = Boolean(onComplete && setupSaved);
+  return <Page className={onComplete ? "ascend-card-rise pb-8 text-white" : "ascend-page min-h-screen px-4 pb-12 pt-5 text-white"}><div className="mx-auto min-w-0 max-w-md">
+    {onComplete ? <div className="flex min-h-11 items-center justify-between gap-3">{onBack && <button type="button" onClick={onBack} disabled={busy} className="inline-flex min-h-11 items-center gap-1 text-sm text-zinc-400 disabled:opacity-50"><ChevronLeft size={17} /> Back to guide</button>}<span className="text-[10px] font-semibold uppercase tracking-widest text-lime">Zoe · optional</span></div> : <Link href="/profile" className="inline-flex min-h-11 items-center gap-1 text-sm text-zinc-400"><ChevronLeft size={17} /> Profile</Link>}
     <header className="mb-5 mt-3">
-      <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-lime"><Sparkles size={15} /> Zoe · at your pace</div>
-      <h1 className="text-3xl font-semibold tracking-tight">A little nudge.<br />Already planned.</h1>
-      <p className="mt-2 text-sm leading-6 text-zinc-400">Choose a setup. Make it yours whenever you like.</p>
+      {!onComplete && <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-lime"><Sparkles size={15} /> Zoe · at your pace</div>}
+      <h1 className={`${onComplete ? "text-2xl" : "text-3xl"} font-semibold tracking-tight`}>{onComplete ? "Your reminders, ready." : <>A little nudge.<br />Already planned.</>}</h1>
+      <p className="mt-2 text-sm leading-6 text-zinc-400">{onComplete ? "You can change this later in Profile." : "Choose a setup. Make it yours whenever you like."}</p>
     </header>
     {!prefs || !data ? <button disabled={loading} onClick={() => void load()} className="min-h-11 text-sm text-lime disabled:opacity-50">{loading ? "Loading your setup…" : "Reload preferences"}</button> : <>
       {!firstSetup && <label className="mb-4 flex min-h-14 cursor-pointer items-center justify-between gap-4 rounded-2xl border border-line bg-surface px-4 py-3">
@@ -159,11 +184,12 @@ export function NudgeSettingsClient() {
       </fieldset>
       {(firstSetup || prefs.enabled) && activeCategories.length === 0 && data.available && <p className="mt-3 text-sm leading-6 text-zinc-300">Choose a preset or enable a reminder in Customise to get started.</p>}
       <div className="mt-4 flex items-start gap-2 px-1 text-xs leading-5 text-zinc-400"><Bell size={14} className="mt-0.5 shrink-0 text-lime" /><p>{permission === "denied" ? "Notifications are blocked on this device. Enable Ascend notifications in device Settings. You can still save your choices." : permission === "unavailable" ? "Push is unavailable here. You can save this setup for your other enabled devices." : deviceConnected ? "This device is connected." : firstSetup ? "Enable your setup below. We’ll ask for notification permission if needed." : "Saving an enabled setup also connects this device."}</p></div>
-      <div className="sticky bottom-4 z-10 mt-4 rounded-2xl bg-ink/95 p-2 backdrop-blur"><button onClick={() => void save()} disabled={disabled} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-50">{busy ? "Saving your setup…" : <><Check size={16} />{actionLabel}</>}</button><p role="status" aria-live="polite" className={status ? "px-1 pb-1 pt-3 text-xs leading-5 text-calm" : ""}>{status}</p></div>
+      <div className="sticky bottom-4 z-10 mt-4 rounded-2xl bg-ink/95 p-2 backdrop-blur"><button onClick={() => continueAfterSave ? finishSetup() : void save()} disabled={continueAfterSave ? busy : disabled} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-lime px-3 text-sm font-semibold text-ink disabled:opacity-50">{busy ? "Saving your setup…" : <><Check size={16} />{continueAfterSave ? "Continue to Ascend" : actionLabel}</>}</button><p role="status" aria-live="polite" className={status ? "px-1 pb-1 pt-3 text-xs leading-5 text-calm" : ""}>{status}</p>{onComplete && !continueAfterSave && <button type="button" onClick={finishSetup} disabled={busy} className="mt-1 min-h-11 w-full text-sm text-zinc-400 disabled:opacity-50">Not now</button>}</div>
       <p className="mt-2 text-center text-[11px] leading-5 text-zinc-500">Trainer messages and account updates are separate.</p>
-      {firstSetup && <Link href="/profile" className="mt-1 flex min-h-11 items-center justify-center text-xs text-zinc-400">Not now</Link>}
+      {firstSetup && !onComplete && <Link href="/profile" className="mt-1 flex min-h-11 items-center justify-center text-xs text-zinc-400">Not now</Link>}
       {(!firstSetup || saveFailed) && <button type="button" onClick={() => void load()} disabled={busy || loading} className="mt-1 min-h-11 w-full text-xs text-zinc-400">Reload saved choices</button>}
     </>}
     {(!prefs || !data) && <p role="status" aria-live="polite" className="mt-3 text-sm leading-6 text-calm">{status}</p>}
-  </div></main>;
+    {onComplete && (!prefs || !data) && <button type="button" onClick={finishSetup} className="mt-4 min-h-11 w-full text-sm text-zinc-400">Not now</button>}
+  </div></Page>;
 }

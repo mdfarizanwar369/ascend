@@ -2,9 +2,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { defaultNudgePreferences, nudgeCategories } from "@ascend/shared";
 import { NudgeSettingsClient } from "./NudgeSettingsClient";
-const mocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), permission: vi.fn(), enable: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), save: vi.fn(), permission: vi.fn(), enable: vi.fn(), postpone: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({ getSmartNudgePreferences: mocks.get, saveSmartNudgePreferences: mocks.save }));
-vi.mock("@/lib/coachNotifications", () => ({ coachNotificationPermission: mocks.permission, enableCoachNotifications: mocks.enable }));
+vi.mock("@/lib/coachNotifications", () => ({ coachNotificationPermission: mocks.permission, enableCoachNotifications: mocks.enable, postponeCoachNotifications: mocks.postpone }));
 beforeEach(() => {
   vi.clearAllMocks(); mocks.get.mockResolvedValue({ available: true, categories: nudgeCategories, version: 0, preferences: defaultNudgePreferences() });
   mocks.permission.mockResolvedValue("prompt"); mocks.enable.mockResolvedValue("fake-token");
@@ -119,4 +119,57 @@ it("reports multi-device conflicts without presenting an unsaved change as saved
   await screen.findByText(/Custom setup/);
   expect(screen.getByRole("switch",{name:"Zoe smart nudges"})).not.toBeChecked();
   expect(screen.queryByText(/Settings changed on another device/)).toBeNull();
+});
+it("can skip onboarding while preferences are loading and ignores a late response", async () => {
+  let resolve!: (value: unknown) => void;
+  mocks.get.mockImplementation(()=>new Promise(r=>{resolve=r;}));
+  const next=vi.fn(); render(<NudgeSettingsClient onComplete={next} />);
+  fireEvent.click(screen.getByRole("button",{name:"Not now"}));
+  resolve({available:false,version:0,categories:[],preferences:defaultNudgePreferences()});
+  await waitFor(()=>expect(next).toHaveBeenCalledOnce());
+  expect(mocks.postpone).toHaveBeenCalledOnce(); expect(mocks.permission).not.toHaveBeenCalled();
+  expect(mocks.save).not.toHaveBeenCalled(); expect(mocks.enable).not.toHaveBeenCalled();
+});
+it("keeps onboarding skippable after a settings load error", async () => {
+  mocks.get.mockRejectedValue(new Error("Connection unavailable"));
+  const next=vi.fn(); render(<NudgeSettingsClient onComplete={next} />);
+  await screen.findByText("Connection unavailable");
+  fireEvent.click(screen.getByRole("button",{name:"Not now"})); expect(next).toHaveBeenCalledOnce();
+  expect(mocks.enable).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled();
+});
+it("finishes onboarding only after permission registration and preferences save succeed", async () => {
+  const next=vi.fn(); const order:string[]=[];
+  mocks.enable.mockImplementation(async()=>{order.push("device");return "fixture-token";});
+  mocks.save.mockImplementation(async preferences=>{order.push("preferences");return {preferences,version:1};});
+  next.mockImplementation(()=>order.push("continue"));
+  render(<NudgeSettingsClient onComplete={next} />);
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Use recommended setup"})).toBeEnabled());
+  expect(mocks.enable).not.toHaveBeenCalled(); expect(next).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:"Use recommended setup"}));
+  await waitFor(()=>expect(next).toHaveBeenCalledOnce()); expect(order).toEqual(["device","preferences","continue"]);
+});
+it.each(["denied","unavailable"])("lets onboarding continue with a clear device warning when permission is %s", async permission => {
+  mocks.permission.mockResolvedValue(permission);
+  const next=vi.fn(); render(<NudgeSettingsClient onComplete={next} />);
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Use recommended setup"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Use recommended setup"}));
+  await screen.findByText(/Preferences saved/);
+  expect(next).not.toHaveBeenCalled(); expect(mocks.enable).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:"Continue to Ascend"})); expect(next).toHaveBeenCalledOnce();
+});
+it("shows a permission refusal or registration error without trapping a new signup", async () => {
+  mocks.enable.mockRejectedValue(new Error("Notifications are off on this device."));
+  const next=vi.fn(); render(<NudgeSettingsClient onComplete={next} />);
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Use recommended setup"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Use recommended setup"}));
+  await screen.findByText(/Preferences saved. Notifications are off/);
+  fireEvent.click(screen.getByRole("button",{name:"Continue to Ascend"})); expect(next).toHaveBeenCalledOnce();
+});
+it("does not continue as successful after a preference conflict, and still offers Not now", async () => {
+  mocks.save.mockRejectedValue(new Error("Settings changed on another device."));
+  const next=vi.fn(); render(<NudgeSettingsClient onComplete={next} />);
+  await waitFor(()=>expect(screen.getByRole("button",{name:"Use recommended setup"})).toBeEnabled());
+  fireEvent.click(screen.getByRole("button",{name:"Use recommended setup"}));
+  await screen.findByText("Settings changed on another device."); expect(next).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:"Not now"})); expect(next).toHaveBeenCalledOnce();
 });

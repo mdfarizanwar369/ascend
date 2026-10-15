@@ -1,11 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { defaultNudgePreferences, nudgeCategories } from "@ascend/shared";
 
 const mocks = vi.hoisted(() => ({
   completeOnboarding: vi.fn(),
   getMe: vi.fn(),
   getMyNutritionTargets: vi.fn(),
-  push: vi.fn()
+  push: vi.fn(), getNudges: vi.fn(), saveNudges: vi.fn(), permission: vi.fn(), enable: vi.fn(), postpone: vi.fn()
 }));
 
 vi.mock("next/navigation", () => ({
@@ -15,8 +16,10 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/ascendApi", () => ({
   completeOnboarding: mocks.completeOnboarding,
   getMe: mocks.getMe,
-  getMyNutritionTargets: mocks.getMyNutritionTargets
+  getMyNutritionTargets: mocks.getMyNutritionTargets,
+  getSmartNudgePreferences: mocks.getNudges, saveSmartNudgePreferences: mocks.saveNudges
 }));
+vi.mock("@/lib/coachNotifications", () => ({coachNotificationPermission:mocks.permission,enableCoachNotifications:mocks.enable,postponeCoachNotifications:mocks.postpone}));
 
 import { ProgressiveClientOnboarding } from "./ProgressiveClientOnboarding";
 
@@ -40,10 +43,11 @@ async function reachStartingPoint(goal: "Lose weight" | "Maintain & feel healthi
 }
 
 describe("simple personalized onboarding", () => {
-  afterEach(cleanup);
+  afterEach(()=>{cleanup();vi.restoreAllMocks();});
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(window,"scrollTo").mockImplementation(()=>{});
     window.localStorage.clear();
     window.sessionStorage.clear();
     mocks.getMe.mockResolvedValue({ user: { full_name: "Sally", email: "sally@example.com" }, roles: ["client"] });
@@ -51,6 +55,9 @@ describe("simple personalized onboarding", () => {
     mocks.getMyNutritionTargets.mockResolvedValue({
       targets: { calories: 2050, proteinG: 125, carbsG: 230, fatG: 64, waterMl: 2300 }
     });
+    mocks.getNudges.mockResolvedValue({available:true,categories:nudgeCategories,version:0,preferences:defaultNudgePreferences()});
+    mocks.saveNudges.mockImplementation(async preferences=>({available:true,categories:nudgeCategories,version:1,preferences}));
+    mocks.permission.mockResolvedValue("prompt"); mocks.enable.mockResolvedValue("fixture-token");
   });
 
   it("starts with only three meaningful goal choices and one primary action", async () => {
@@ -65,7 +72,7 @@ describe("simple personalized onboarding", () => {
     expect(screen.queryByText(/motivation/i)).not.toBeInTheDocument();
   });
 
-  it("saves the essential profile and shows the resolved starting guide before entering Today", async () => {
+  it("shows the guide before optional reminders and skips to Today without permission or preference writes", async () => {
     await reachStartingPoint();
     fireEvent.change(screen.getByLabelText("Current weight"), { target: { value: "82" } });
     fireEvent.change(screen.getByLabelText(/^Target weight/), { target: { value: "75" } });
@@ -91,8 +98,13 @@ describe("simple personalized onboarding", () => {
     expect(screen.getByText("2.3 L")).toBeInTheDocument();
     expect(mocks.push).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Go to Today/ }));
+    expect(mocks.getNudges).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByRole("button",{name:"Use recommended setup"});
+    expect(mocks.push).not.toHaveBeenCalled(); expect(mocks.enable).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Not now"}));
     expect(mocks.push).toHaveBeenCalledWith("/dashboard");
+    expect(mocks.saveNudges).not.toHaveBeenCalled(); expect(mocks.postpone).toHaveBeenCalledOnce();
   });
 
   it("allows maintenance without a target weight", async () => {
@@ -107,21 +119,50 @@ describe("simple personalized onboarding", () => {
     })));
   });
 
-  it("takes a trainer-referred signup to the consent review after the guide", async () => {
+  it("preserves the trainer consent review after guide and reminder setup", async () => {
     window.sessionStorage.setItem("ascend.pendingTrainerReferral.v1", "TRAINER-ZAHID");
     await reachStartingPoint();
     fireEvent.change(screen.getByLabelText("Current weight"), { target: { value: "82" } });
     fireEvent.change(screen.getByLabelText(/^Target weight/), { target: { value: "75" } });
     fireEvent.click(screen.getByRole("button", { name: "Create my guide" }));
 
-    await screen.findByRole("button", { name: /Review trainer invitation/ });
+    await screen.findByRole("heading", { name: "Your starting guide is ready" });
     expect(mocks.completeOnboarding).toHaveBeenCalledWith(expect.objectContaining({
       referralCode: undefined,
       coachingMode: "self_coached"
     }));
-    fireEvent.click(screen.getByRole("button", { name: /Review trainer invitation/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(()=>expect(screen.getByRole("button",{name:"Use recommended setup"})).toBeEnabled());
+    expect(mocks.enable).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button",{name:"Use recommended setup"}));
+    await waitFor(()=>expect(mocks.push).toHaveBeenCalledWith("/profile#trainer-connection"));
+    expect(mocks.enable).toHaveBeenCalledOnce();
+    expect(mocks.saveNudges).toHaveBeenCalledWith(expect.objectContaining({enabled:true}),0);
     expect(mocks.push).toHaveBeenCalledWith("/profile#trainer-connection");
     expect(window.sessionStorage.getItem("ascend.pendingTrainerReferral.v1")).toBe("TRAINER-ZAHID");
+  });
+
+  it("returns to the saved starting guide without resubmitting personal details", async () => {
+    await reachStartingPoint("Maintain & feel healthier");
+    fireEvent.change(screen.getByLabelText("Current weight"),{target:{value:"70"}});
+    fireEvent.click(screen.getByRole("button",{name:"Create my guide"}));
+    await screen.findByRole("heading",{name:"Your starting guide is ready"});
+    fireEvent.click(screen.getByRole("button",{name:"Continue"}));
+    fireEvent.click(await screen.findByRole("button",{name:"Back to guide"}));
+    await screen.findByRole("heading",{name:"Your starting guide is ready"});
+    expect(mocks.completeOnboarding).toHaveBeenCalledOnce(); expect(mocks.enable).not.toHaveBeenCalled();
+  });
+
+  it("keeps a trainer invitation when reminders are skipped by a signup outside the rollout", async () => {
+    window.sessionStorage.setItem("ascend.pendingTrainerReferral.v1","TRAINER-ZAHID");
+    mocks.getNudges.mockResolvedValue({available:false,categories:[],version:0,preferences:defaultNudgePreferences()});
+    await reachStartingPoint("Maintain & feel healthier");
+    fireEvent.change(screen.getByLabelText("Current weight"),{target:{value:"70"}});
+    fireEvent.click(screen.getByRole("button",{name:"Create my guide"}));
+    await screen.findByRole("heading",{name:"Your starting guide is ready"});
+    fireEvent.click(screen.getByRole("button",{name:"Continue"}));
+    await waitFor(()=>expect(mocks.push).toHaveBeenCalledWith("/profile#trainer-connection"));
+    expect(mocks.enable).not.toHaveBeenCalled(); expect(mocks.saveNudges).not.toHaveBeenCalled();
   });
 
   it("keeps required profile validation focused on the current screen", async () => {
