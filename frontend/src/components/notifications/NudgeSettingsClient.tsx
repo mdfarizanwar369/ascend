@@ -102,7 +102,7 @@ export function NudgeSettingsClient() {
         <legend className="sr-only">Choose your reminder setup</legend>
         <div className="space-y-3" role="group" aria-label="Reminder presets">
           <button type="button" aria-pressed={preset === "daily"} aria-label="Daily coaching, recommended" disabled={!presetAvailable("daily", data.categories)} onClick={() => choosePreset("daily")} className={`w-full rounded-3xl border bg-gradient-to-br from-lime/10 via-surface to-surface p-5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime disabled:opacity-50 ${preset === "daily" ? "border-lime/50" : "border-line"}`}>
-            <span className="flex items-center justify-between gap-3"><span className="rounded-full bg-lime/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-lime">Recommended</span><span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${preset === "daily" ? "border-lime bg-lime text-ink" : "border-white/20"}`}>{preset === "daily" && <Check size={15} />}</span></span>
+            <span className="flex items-center justify-between gap-3"><span className="rounded-full bg-lime/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-lime">Recommended</span><span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${preset === "daily" ? "border-lime bg-lime text-ink" : "border-line"}`}>{preset === "daily" && <Check size={15} />}</span></span>
             <span className="mt-3 block text-xl font-semibold">Daily coaching</span>
             <span className="mt-1 block text-sm text-zinc-400">A little structure, ready to go.</span>
             <span className="mt-4 grid gap-2.5 text-xs leading-5 text-zinc-300">
@@ -114,7 +114,7 @@ export function NudgeSettingsClient() {
           </button>
           <button type="button" aria-pressed={preset === "essentials"} aria-label="Essentials" disabled={!presetAvailable("essentials", data.categories)} onClick={() => choosePreset("essentials")} className={`flex w-full items-center justify-between gap-3 rounded-2xl border bg-surface p-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime disabled:opacity-50 ${preset === "essentials" ? "border-lime/50 bg-lime/5" : "border-line"}`}>
             <span><span className="block text-sm font-semibold">Essentials</span><span className="mt-1 block text-xs leading-5 text-zinc-400">Scheduled workouts + your weekly review.</span>{!presetAvailable("essentials", data.categories) && <span className="mt-1 block text-xs text-zinc-400">Not available yet</span>}</span>
-            <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${preset === "essentials" ? "border-lime bg-lime text-ink" : "border-white/20"}`}>{preset === "essentials" && <Check size={15} />}</span>
+            <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${preset === "essentials" ? "border-lime bg-lime text-ink" : "border-line"}`}>{preset === "essentials" && <Check size={15} />}</span>
           </button>
         </div>
         {!preset && <p className="mt-3 text-xs leading-5 text-lime">Custom setup · only the reminders you choose.</p>}
