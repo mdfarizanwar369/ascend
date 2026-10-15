@@ -16,16 +16,24 @@ await writeFile(path.join(fixture, "index.html"), '<!doctype html><html lang="en
 await writeFile(path.join(fixture, "main.jsx"), `import React from 'react'; import {createRoot} from 'react-dom/client';
 import {NudgeSettingsClient} from '@/components/notifications/NudgeSettingsClient';
 import {WorkoutScheduleClient} from '@/components/notifications/WorkoutScheduleClient';
+import {ProgressiveClientOnboarding} from '@/components/onboarding/ProgressiveClientOnboarding';
 document.documentElement.dataset.theme=new URLSearchParams(location.search).get('theme')==='light'?'light':'dark';
-createRoot(document.getElementById('root')).render(location.pathname==='/workout-schedule'?<WorkoutScheduleClient/>:<NudgeSettingsClient/>);`);
+const app=location.pathname==='/onboarding'?<main className="min-h-screen bg-ink px-4 py-5 text-white"><div className="mx-auto max-w-md"><header className="py-3 text-center text-lg font-semibold">Ascend</header><ProgressiveClientOnboarding/></div></main>
+ :location.pathname==='/dashboard'?<main className="p-5 text-white"><h1>Today</h1><p>Local fixture: onboarding finished.</p></main>
+ :location.pathname==='/workout-schedule'?<WorkoutScheduleClient/>:<NudgeSettingsClient/>;
+createRoot(document.getElementById('root')).render(app);`);
 await writeFile(path.join(fixture, "link.jsx"), "import React from 'react'; export default function Link({children,...props}) { return <a {...props}>{children}</a>; }");
-await writeFile(path.join(fixture, "device.js"), `export async function coachNotificationPermission(){return new URLSearchParams(location.search).get('permission')==='denied'?'denied':'prompt'}; export async function enableCoachNotifications(){return 'local-fixture-only'};`);
+await writeFile(path.join(fixture,"navigation.js"),`export function useRouter(){return {push:href=>location.assign(href)}};`);
+await writeFile(path.join(fixture, "device.js"), `export async function coachNotificationPermission(){return new URLSearchParams(location.search).get('permission')==='denied'?'denied':'prompt'}; export async function enableCoachNotifications(){return 'local-fixture-only'}; export function postponeCoachNotifications(){};`);
 await writeFile(path.join(fixture, "api.js"), `import {defaultNudgePreferences,nudgeCategories} from '@ascend/shared';
 let preferences=defaultNudgePreferences('Asia/Singapore'); let version=0;
 if(new URLSearchParams(location.search).get('saved')==='1') { preferences.enabled=true; preferences.intensity='balanced';
 preferences.categories.lunch.enabled=true; preferences.categories.weekly.enabled=true; version=1; }
 export async function getSmartNudgePreferences(){return {preferences:structuredClone(preferences),available:true,categories:nudgeCategories,version}};
 export async function saveSmartNudgePreferences(p,v){if(v!==version)throw Error('Reload saved choices.');preferences=structuredClone(p);version++;return getSmartNudgePreferences()};
+export async function getMe(){return {user:{full_name:'Preview member'},roles:['client']}};
+export async function completeOnboarding(){return {user:{id:'local-fixture-only'}}};
+export async function getMyNutritionTargets(){return {targets:{calories:2050,proteinG:125,waterMl:2300}}};
 let sessions=[{id:'11111111-1111-4111-8111-111111111111',title:'Evening strength session',starts_at:new Date(Date.now()+86400000).toISOString(),lead_minutes:30,status:'planned',version:1}];
 export async function getWorkoutSchedule(){return {sessions:structuredClone(sessions)}};
 export async function saveWorkoutSchedule(p){const s={id:p.id??crypto.randomUUID(),title:p.title,starts_at:p.startsAt,lead_minutes:p.leadMinutes,status:p.status,version:(p.version??0)+1};sessions=[...sessions.filter(x=>x.id!==s.id),s];return {id:s.id}};`);
@@ -35,6 +43,7 @@ const server = await createServer({ configFile: false, root: fixture, cacheDir: 
     { find: "@/lib/ascendApi", replacement: path.join(fixture, "api.js") },
     { find: "@/lib/coachNotifications", replacement: path.join(fixture, "device.js") },
     { find: "next/link", replacement: path.join(fixture, "link.jsx") },
+    { find: "next/navigation", replacement: path.join(fixture,"navigation.js") },
     { find: "@ascend/shared", replacement: path.join(root, "shared/src/index.ts") },
     { find: "@", replacement: path.join(frontend, "src") },
     { find: /^react(\/.*)?$/, replacement: path.join(root, "node_modules/react$1") },

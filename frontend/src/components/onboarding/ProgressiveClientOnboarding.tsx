@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Beef, Check, CheckCircle2, Droplets, Dumbbell, F
 import { calculateNutritionTargets, GoalType } from "@ascend/shared";
 import { completeOnboarding, getMe, getMyNutritionTargets } from "@/lib/ascendApi";
 import { Field, inputClass, selectClass } from "@/components/Field";
+import { NudgeSettingsClient } from "@/components/notifications/NudgeSettingsClient";
 
 const draftKey = "ascend:onboarding:v2:draft";
 const oldWelcomeSeenKey = "ascend:onboarding:v2:welcome-seen";
@@ -81,6 +82,7 @@ export function ProgressiveClientOnboarding() {
   const [isSaving, setIsSaving] = useState(false);
   const [startingGuide, setStartingGuide] = useState<StartingGuide | null>(null);
   const [hasTrainerInvitation, setHasTrainerInvitation] = useState(false);
+  const [showReminders, setShowReminders] = useState(false);
 
   useEffect(() => {
     setHasTrainerInvitation(Boolean(window.sessionStorage.getItem(pendingTrainerReferralKey)));
@@ -212,6 +214,16 @@ export function ProgressiveClientOnboarding() {
     await saveOnboarding();
   }
 
+  function openReminderStep(show: boolean) {
+    setShowReminders(show);
+    window.scrollTo(0, 0);
+  }
+
+  if (showReminders) {
+    return <NudgeSettingsClient onBack={() => openReminderStep(false)}
+      onComplete={() => router.push(hasTrainerInvitation ? "/profile#trainer-connection" : "/dashboard")} />;
+  }
+
   if (startingGuide) {
     const guideItems = [
       { label: "Calories", value: startingGuide.calories.toLocaleString(), unit: "daily guide", icon: Flame },
@@ -241,8 +253,8 @@ export function ProgressiveClientOnboarding() {
         </div>
 
         {hasTrainerInvitation ? <p className="mt-5 rounded-2xl border border-calm/35 bg-calm/10 p-4 text-sm leading-6 text-zinc-200">Your trainer invitation is ready to review. You choose whether to connect and share your coaching records.</p> : null}
-        <button type="button" onClick={() => router.push(hasTrainerInvitation ? "/profile#trainer-connection" : "/dashboard")} className="ascend-pressable mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink">
-          {hasTrainerInvitation ? "Review trainer invitation" : "Go to Today"} <ArrowRight className="ml-2" size={19} />
+        <button type="button" onClick={() => openReminderStep(true)} className="ascend-pressable mt-6 flex h-14 w-full items-center justify-center rounded-2xl bg-lime text-base font-semibold text-ink">
+          Continue <ArrowRight className="ml-2" size={19} />
         </button>
         <button type="button" onClick={() => setStartingGuide(null)} className="mt-3 min-h-11 w-full text-sm font-medium text-zinc-300 underline decoration-zinc-600 underline-offset-4">
           Review my answers
