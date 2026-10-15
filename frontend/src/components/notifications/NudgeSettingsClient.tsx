@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Bell, Check, ChevronLeft, ChevronRight, Dumbbell, Moon, SlidersHorizontal, Sparkles, TrendingUp } from "lucide-react";
+import { Bell, Check, ChevronLeft, ChevronRight, Droplets, Dumbbell, Moon, SlidersHorizontal, Sparkles, Utensils } from "lucide-react";
 import { useEffect, useState } from "react";
 import { isRoutineNudge, nudgeCategories, nudgeLabels, nudgeTemplates, NudgeCategory, NudgePreferences, validTimezone } from "@ascend/shared";
 import { getSmartNudgePreferences, saveSmartNudgePreferences, SmartNudgeSettingsResponse } from "@/lib/ascendApi";
@@ -82,7 +82,7 @@ export function NudgeSettingsClient() {
     } catch (error) { setSaveFailed(true); setStatus(error instanceof Error ? error.message : "Could not save. Your previous choices are still in place."); }
     finally { setBusy(false); }
   }
-  const actionLabel = firstSetup ? preset === "daily" ? "Use recommended setup" : preset === "essentials" ? "Use essentials" : "Enable my reminders" : "Save preferences";
+  const actionLabel = firstSetup ? preset === "daily" ? "Use recommended setup" : preset === "essentials" ? "Use light touch" : "Enable my reminders" : "Save preferences";
   const disabled = busy || loading || !prefs || !data || !validTimezone(prefs.timezone) || (!data.available && (firstSetup || prefs.enabled)) || ((firstSetup || prefs.enabled) && activeCategories.length === 0);
   return <main className="ascend-page min-h-screen px-4 pb-12 pt-5 text-white"><div className="mx-auto min-w-0 max-w-md">
     <Link href="/profile" className="inline-flex min-h-11 items-center gap-1 text-sm text-zinc-400"><ChevronLeft size={17} /> Profile</Link>
@@ -101,19 +101,20 @@ export function NudgeSettingsClient() {
       <fieldset disabled={busy || loading || !data.available} className="min-w-0 disabled:opacity-60">
         <legend className="sr-only">Choose your reminder setup</legend>
         <div className="space-y-3" role="group" aria-label="Reminder presets">
-          <button type="button" aria-pressed={preset === "daily"} aria-label="Daily coaching, recommended" disabled={!presetAvailable("daily", data.categories)} onClick={() => choosePreset("daily")} className={`w-full rounded-3xl border bg-gradient-to-br from-lime/10 via-surface to-surface p-5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime disabled:opacity-50 ${preset === "daily" ? "border-lime/50" : "border-line"}`}>
+          <button type="button" aria-pressed={preset === "daily"} aria-label="Daily essentials, recommended" disabled={!presetAvailable("daily", data.categories)} onClick={() => choosePreset("daily")} className={`w-full rounded-3xl border bg-gradient-to-br from-lime/10 via-surface to-surface p-5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime disabled:opacity-50 ${preset === "daily" ? "border-lime/50" : "border-line"}`}>
             <span className="flex items-center justify-between gap-3"><span className="rounded-full bg-lime/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-lime">Recommended</span><span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${preset === "daily" ? "border-lime bg-lime text-ink" : "border-line"}`}>{preset === "daily" && <Check size={15} />}</span></span>
-            <span className="mt-3 block text-xl font-semibold">Daily coaching</span>
+            <span className="mt-3 block text-xl font-semibold">Daily essentials</span>
             <span className="mt-1 block text-sm text-zinc-400">A little structure, ready to go.</span>
             <span className="mt-4 grid gap-2.5 text-xs leading-5 text-zinc-300">
+              <span className="flex items-center gap-2.5"><Utensils size={15} className="shrink-0 text-lime" /> Breakfast, lunch & dinner</span>
+              <span className="flex items-center gap-2.5"><Droplets size={15} className="shrink-0 text-lime" /> Water check-in · when there’s room</span>
               <span className="flex items-center gap-2.5"><Dumbbell size={15} className="shrink-0 text-lime" /> Your scheduled workouts</span>
-              <span className="flex items-center gap-2.5"><Moon size={15} className="shrink-0 text-lime" /> Evening check-in · {timeLabel(prefs.categories.evening.time)}</span>
-              <span className="flex items-center gap-2.5"><TrendingUp size={15} className="shrink-0 text-lime" /> Weekly review · {days[prefs.weeklyDay]} {timeLabel(prefs.categories.weekly.time)}</span>
             </span>
+            <span className="mt-3 block text-[11px] leading-5 text-zinc-400">Up to 4 a day. Meals and workouts come first.</span>
             {!presetAvailable("daily", data.categories) && <span className="mt-3 block text-xs text-zinc-400">Not available for this account yet</span>}
           </button>
-          <button type="button" aria-pressed={preset === "essentials"} aria-label="Essentials" disabled={!presetAvailable("essentials", data.categories)} onClick={() => choosePreset("essentials")} className={`flex w-full items-center justify-between gap-3 rounded-2xl border bg-surface p-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime disabled:opacity-50 ${preset === "essentials" ? "border-lime/50 bg-lime/5" : "border-line"}`}>
-            <span><span className="block text-sm font-semibold">Essentials</span><span className="mt-1 block text-xs leading-5 text-zinc-400">Scheduled workouts + your weekly review.</span>{!presetAvailable("essentials", data.categories) && <span className="mt-1 block text-xs text-zinc-400">Not available yet</span>}</span>
+          <button type="button" aria-pressed={preset === "essentials"} aria-label="Light touch" disabled={!presetAvailable("essentials", data.categories)} onClick={() => choosePreset("essentials")} className={`flex w-full items-center justify-between gap-3 rounded-2xl border bg-surface p-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-lime disabled:opacity-50 ${preset === "essentials" ? "border-lime/50 bg-lime/5" : "border-line"}`}>
+            <span><span className="block text-sm font-semibold">Light touch</span><span className="mt-1 block text-xs leading-5 text-zinc-400">Scheduled workouts + your weekly review.</span>{!presetAvailable("essentials", data.categories) && <span className="mt-1 block text-xs text-zinc-400">Not available yet</span>}</span>
             <span aria-hidden="true" className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${preset === "essentials" ? "border-lime bg-lime text-ink" : "border-line"}`}>{preset === "essentials" && <Check size={15} />}</span>
           </button>
         </div>

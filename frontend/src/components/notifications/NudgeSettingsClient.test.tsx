@@ -18,25 +18,27 @@ async function openSetup() {
 function customise() { fireEvent.click(screen.getByRole("button", { name: /Customise/ })); }
 it("offers a recommended draft without enabling anything or exposing time inputs", async () => {
   await openSetup();
-  expect(screen.getByRole("button", { name: "Daily coaching, recommended" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("button", { name: "Daily essentials, recommended" })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText("Breakfast, lunch & dinner")).toBeVisible();
+  expect(screen.getByText(/Up to 4 a day/)).toBeVisible();
   expect(document.querySelector('input[type="time"]')).toBeNull();
   expect(mocks.enable).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled();
   expect(screen.getByRole("link", {name: "Not now"})).toHaveAttribute("href", "/profile");
 });
-it("enables the advertised recommended setup with one explicit action and spaces the weekly review", async () => {
+it("enables three meals, water and scheduled workouts with one explicit action", async () => {
   await openSetup(); fireEvent.click(screen.getByRole("button", {name: "Use recommended setup"}));
   await screen.findByText(/Preferences saved/);
   expect(mocks.enable).toHaveBeenCalledOnce(); expect(mocks.save).toHaveBeenCalledOnce();
   const [preferences, version] = mocks.save.mock.calls[0];
   expect(version).toBe(0);
   expect(preferences).toMatchObject({enabled:true, intensity:"balanced", quietStart:"22:00", quietEnd:"08:00", weeklyDay:0,
-    categories:{workout:{enabled:true}, evening:{enabled:true,time:"20:30"}, weekly:{enabled:true,time:"18:30"}}});
-  expect(nudgeCategories.filter(c => preferences.categories[c].enabled)).toEqual(["workout", "evening", "weekly"]);
+    categories:{breakfast:{enabled:true,time:"08:00"},lunch:{enabled:true,time:"12:30"},dinner:{enabled:true,time:"19:00"},hydration:{enabled:true,time:"15:00"},workout:{enabled:true}}});
+  expect(nudgeCategories.filter(c => preferences.categories[c].enabled)).toEqual(["breakfast", "lunch", "dinner", "workout", "hydration"]);
 });
-it("Essentials configures workouts and an eligible weekly review without a daily check-in", async () => {
-  await openSetup(); fireEvent.click(screen.getByRole("button", {name:"Essentials"}));
+it("Light touch configures workouts and an eligible weekly review", async () => {
+  await openSetup(); fireEvent.click(screen.getByRole("button", {name:"Light touch"}));
   expect(mocks.save).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", {name:"Use essentials"}));
+  fireEvent.click(screen.getByRole("button", {name:"Use light touch"}));
   await waitFor(() => expect(mocks.save).toHaveBeenCalledOnce());
   const preferences = mocks.save.mock.calls[0][0];
   expect(preferences.intensity).toBe("balanced");
@@ -51,23 +53,31 @@ it("preserves an existing custom setup exactly, including an opted-out master", 
   await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(prefs,7));
   expect(mocks.enable).not.toHaveBeenCalled();
 });
+it("does not replace the previous recommended setup until the user selects and saves the new one", async () => {
+  const prefs=defaultNudgePreferences(); prefs.enabled=true; prefs.intensity="balanced";
+  for(const c of ["workout","evening","weekly"] as const) prefs.categories[c].enabled=true;
+  mocks.get.mockResolvedValue({available:true,categories:nudgeCategories,version:3,preferences:prefs});
+  render(<NudgeSettingsClient />); await screen.findByText(/Custom setup/);
+  expect(mocks.save).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:"Save preferences"}));
+  await waitFor(()=>expect(mocks.save).toHaveBeenCalledWith(prefs,3));
+});
 it("keeps personal times and quiet hours when an existing user explicitly chooses a preset", async () => {
-  const prefs=defaultNudgePreferences("Asia/Singapore"); prefs.enabled=true; prefs.categories.evening.time="21:15"; prefs.categories.weekly.time="18:45"; prefs.weeklyDay=3; prefs.quietStart="23:00";
+  const prefs=defaultNudgePreferences("Asia/Singapore"); prefs.enabled=true; prefs.categories.lunch.time="13:15"; prefs.categories.hydration.time="16:00"; prefs.weeklyDay=3; prefs.quietStart="23:00";
   mocks.get.mockResolvedValue({available:true,categories:nudgeCategories,version:4,preferences:prefs});
   render(<NudgeSettingsClient />); await screen.findByText(/Custom setup/);
-  fireEvent.click(screen.getByRole("button", {name:"Daily coaching, recommended"}));
+  fireEvent.click(screen.getByRole("button", {name:"Daily essentials, recommended"}));
   fireEvent.click(screen.getByRole("button", {name:"Save preferences"}));
   await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({timezone:"Asia/Singapore", quietStart:"23:00",weeklyDay:3,
-    categories:expect.objectContaining({evening:{enabled:true,time:"21:15"},weekly:{enabled:true,time:"18:45"}})}),4));
+    categories:expect.objectContaining({lunch:{enabled:true,time:"13:15"},hydration:{enabled:true,time:"16:00"}})}),4));
 });
 it("keeps individual time controls inside Customise and saves edits when collapsed again", async () => {
   await openSetup(); customise();
   fireEvent.click(screen.getByText("Lunch", {selector:"summary span"}));
-  fireEvent.click(screen.getByRole("switch", {name:"Lunch"}));
   fireEvent.change(screen.getByLabelText("Lunch time"), {target:{value:"13:15"}});
   fireEvent.change(screen.getByLabelText("Quiet hours start"), {target:{value:"21:30"}});
   customise(); expect(document.querySelector('input[type="time"]')).toBeNull();
-  fireEvent.click(screen.getByRole("button", {name:"Enable my reminders"}));
+  fireEvent.click(screen.getByRole("button", {name:"Use recommended setup"}));
   await waitFor(() => expect(mocks.save).toHaveBeenCalledOnce());
   expect(mocks.save.mock.calls[0][0]).toMatchObject({enabled:true, quietStart:"21:30",categories:{lunch:{enabled:true,time:"13:15"},morning:{enabled:false}}});
 });
@@ -93,9 +103,9 @@ it("lets a paused-rollout account turn existing nudges off", async () => {
 });
 it("does not offer a preset containing categories outside the account rollout", async () => {
   mocks.get.mockResolvedValue({available:true,categories:["workout","weekly"],version:0,preferences:defaultNudgePreferences()});
-  render(<NudgeSettingsClient />); await waitFor(() => expect(screen.getByRole("button",{name:"Use essentials"})).toBeEnabled());
-  expect(screen.getByRole("button",{name:"Daily coaching, recommended"})).toBeDisabled();
-  fireEvent.click(screen.getByRole("button",{name:"Use essentials"}));
+  render(<NudgeSettingsClient />); await waitFor(() => expect(screen.getByRole("button",{name:"Use light touch"})).toBeEnabled());
+  expect(screen.getByRole("button",{name:"Daily essentials, recommended"})).toBeDisabled();
+  fireEvent.click(screen.getByRole("button",{name:"Use light touch"}));
   await waitFor(() => expect(mocks.save).toHaveBeenCalledOnce());
   expect(mocks.save.mock.calls[0][0].categories.evening.enabled).toBe(false);
 });
