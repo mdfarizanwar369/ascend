@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { QueryResultRow } from "pg";
-import { comebackAttempt, defaultNudgePreferences, isRoutineNudge, NudgeCategory, NudgePreferences, nudgeDatePlus,
-  nudgeLocalParts, nudgePriority, nudgeSuppression, nudgeTemplates, nudgeUuid, nudgeWallTime, recordedWorkoutMilestone, safeNotificationHref } from "@ascend/shared";
+import { comebackAttempt, defaultNudgePreferences, isPriorityNudge, isRoutineNudge, NudgeCategory, NudgePreferences, nudgeDatePlus,
+  nudgeLocalParts, nudgePriority, nudgeSuppression, nudgeTemplates, nudgeUuid, nudgeWallTime, priorityReservationReason,
+  recordedWorkoutMilestone, safeNotificationHref, NudgeReservation, UpcomingPriorityNudge } from "@ascend/shared";
 import { pool, query, withQueryClient } from "../db/pool";
 import { NudgePushDevice, NudgePushPayload, NudgePushResult, providerReady, sendNudgePush } from "../integrations/nudgePush";
 import { availableNudgeCategories, nudgePreferencesSchema, nudgesAvailable, nudgesSchemaEnabled } from "./smartNudgePolicy";
@@ -192,6 +193,54 @@ async function eligibleDevices(userId: string, now: Date) {
   return (await query<NudgePushDevice & QueryResultRow>(`select * from notification_devices where user_id=$1 and enabled=true
     and last_seen_at>$2::timestamptz-interval '30 days' order by last_seen_at desc limit 5`, [userId, now])).rows.filter(providerReady);
 }
+/** Read live preferences, logs and appointments, not just the queue: a scheduled
+ * workout must be protected even if this worker's planner batch hasn't reached it.
+ * Called under the same per-user lock as the dispatch reservation. */
+async function protectPriorityReminders(event: EventRow, row: PreferenceRow, now: Date) {
+  const horizon = new Date(now.getTime() + 86400000);
+  const today = nudgeLocalParts(now, row.settings.timezone).date;
+  const history = (await query<NudgeReservation & { schedule_id: string | null } & QueryResultRow>(`select nudge_category as category,dispatch_started_at as at,context->>'scheduleId' as schedule_id
+    from notification_events where user_id=$1 and id<>$3 and dispatch_started_at>$2::timestamptz-interval '48 hours'`, [event.user_id, now, event.id])).rows;
+  const queued = (await query<EventRow>(`select * from notification_events where user_id=$1 and preference_version=$2
+    and nudge_category in ('breakfast','lunch','dinner','workout') and expires_at>$3 and scheduled_for<$4`, [event.user_id, row.version, now, horizon])).rows;
+  const meals = (await query<{ meal_type: string; day: string }>(`select distinct meal_type,to_char(logged_at at time zone $2,'YYYY-MM-DD') as day
+    from food_logs where user_id=$1 and (logged_at at time zone $2)::date between $3::date and $4::date`,
+    [event.user_id, row.settings.timezone, today, nudgeLocalParts(horizon, row.settings.timezone).date])).rows;
+  const upcoming: UpcomingPriorityNudge[] = [];
+  function add(category: NudgeCategory, at: Date, key: string, scheduleId?: string, scheduleVersion?: number) {
+    if (at >= horizon || !row.settings.categories[category].enabled || !nudgesAvailable(event.user_id, category)) return;
+    const existing = queued.find(e => e.nudge_category === category && e.scheduled_for.getTime() === at.getTime()
+      && (category !== "workout" || (e.context.scheduleId === scheduleId && e.context.scheduleVersion === scheduleVersion)));
+    if (existing && (existing.dispatch_started_at || !["scheduled", "retry"].includes(existing.status))) return;
+    // No catch-up for an unqueued, already-past time. A live pending job can still be due.
+    if (at < now && !existing) return;
+    const day = nudgeLocalParts(at, row.settings.timezone).date;
+    if (category === "workout" && history.some(sent => sent.category === "workout" && sent.schedule_id === scheduleId
+      && nudgeLocalParts(sent.at, row.settings.timezone).date === day)) return;
+    if (category !== "workout") {
+      if (at < now && day !== today) return;
+      if (meals.some(log => log.meal_type === category && log.day === day)) return;
+      if (history.some(sent => sent.category === category && nudgeLocalParts(sent.at, row.settings.timezone).date === day)) return;
+    }
+    upcoming.push({ category, at: at < now ? now : at, key });
+  }
+  // Three local dates cover the next 24 hours even across a shortened DST day.
+  for (let offset = 0; offset < 3; offset++) {
+    const day = nudgeDatePlus(today, offset);
+    for (const category of ["breakfast", "lunch", "dinner"] as const) {
+      const at = nudgeWallTime(day, row.settings.categories[category].time, row.settings.timezone);
+      if (at) add(category, at, `${category}:${day}`);
+    }
+  }
+  if (row.settings.categories.workout.enabled && nudgesAvailable(event.user_id, "workout")) {
+    const sessions = (await query<WorkoutSchedule & QueryResultRow>(`select * from notification_workout_schedule where user_id=$1 and status='planned'
+      and starts_at>$2::timestamptz-interval '15 minutes' and starts_at<$3::timestamptz+interval '1 hour' order by starts_at limit 30`,
+      [event.user_id, now, horizon])).rows;
+    for (const session of sessions) add("workout", new Date(session.starts_at.getTime() - session.lead_minutes * 60000),
+      `workout:${session.id}:${session.version}`, session.id, session.version);
+  }
+  return priorityReservationReason(row.settings, event.nudge_category, now, history, upcoming);
+}
 async function checkEligibility(event: EventRow, row: PreferenceRow, now: Date, retry: boolean) {
   const day = nudgeLocalParts(now, row.settings.timezone).date;
   const category = event.nudge_category;
@@ -227,10 +276,13 @@ async function checkEligibility(event: EventRow, row: PreferenceRow, now: Date, 
   if (category !== "workout" && nudgeLocalParts(event.scheduled_for, row.settings.timezone).date !== day) relevant = false;
   const pending = Boolean((await query("select 1 from messages where receiver_user_id=$1 and read_at is null limit 1", [event.user_id])).rowCount);
   const stats = counts.rows[0];
-  const reason = nudgeSuppression(row.settings, { now, due: event.scheduled_for, expires: event.expires_at, category,
+  let reason = nudgeSuppression(row.settings, { now, due: event.scheduled_for, expires: event.expires_at, category,
     rollout: nudgesAvailable(event.user_id, category), versionMatches: row.version === event.preference_version, device: devices.length > 0,
     actionCompleted, relevant, pendingMessage: pending, duplicate: stats.duplicate, dayCount: Number(stats.daily), rollingCount: Number(stats.rolling),
     routineCount: Number(stats.routine), workoutCount: Number(stats.workouts), lastDispatch: stats.last });
+  // An already-reserved retry consumes capacity regardless of its provider outcome.
+  // Re-applying this check cannot free that slot and could split a multi-device send.
+  if (!reason && !retry && !isPriorityNudge(category)) reason = await protectPriorityReminders(event, row, now);
   return { reason, devices };
 }
 async function reserveEvent(id: string, userId: string, now: Date) {

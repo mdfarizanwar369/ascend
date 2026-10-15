@@ -2,7 +2,7 @@ import { defaultNudgePreferences, nudgeCategories, NudgeCategory, NudgePreferenc
 
 export type NudgePreset = "daily" | "essentials";
 export const presetCategories: Record<NudgePreset, readonly NudgeCategory[]> = {
-  daily: ["workout", "evening", "weekly"],
+  daily: ["breakfast", "lunch", "dinner", "hydration", "workout"],
   essentials: ["workout", "weekly"]
 };
 export function presetAvailable(preset: NudgePreset, available: readonly NudgeCategory[]) {

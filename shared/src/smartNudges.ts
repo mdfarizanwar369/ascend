@@ -21,7 +21,10 @@ export function defaultNudgePreferences(timezone = "UTC"): NudgePreferences {
   return { enabled: false, timezone, intensity: "minimal", quietStart: "22:00", quietEnd: "08:00", weeklyDay: 0, comebackDays: 7,
     categories: Object.fromEntries(nudgeCategories.map((c, i) => [c, { enabled: false, time: times[i] }])) as NudgePreferences["categories"] };
 }
-export const nudgePriority: Record<NudgeCategory, number> = { workout: 1, breakfast: 2, lunch: 2, dinner: 2, hydration: 2, weekly: 3, morning: 4, evening: 4, comeback: 5, milestone: 6 };
+export const nudgePriority: Record<NudgeCategory, number> = { workout: 1, breakfast: 2, lunch: 2, dinner: 2, hydration: 3, weekly: 3, morning: 4, evening: 4, comeback: 5, milestone: 6 };
+export const nudgeDailyLimit = 4;
+export const nudgeCooldownMs = 90 * 60000;
+export function isPriorityNudge(category: NudgeCategory) { return ["workout", "breakfast", "lunch", "dinner"].includes(category); }
 export function isRoutineNudge(category: NudgeCategory) { return !["workout", "breakfast", "lunch", "dinner", "hydration"].includes(category); }
 export function validTimezone(timezone: string) {
   try { new Intl.DateTimeFormat("en", { timeZone: timezone }).format(); return timezone.length <= 100; } catch { return false; }
@@ -101,11 +104,43 @@ export function nudgeSuppression(prefs: NudgePreferences, f: NudgeEligibilityFac
   if (f.duplicate) return "duplicate";
   if (isRoutineNudge(f.category) && prefs.intensity === "minimal") return "minimal_mode";
   if (f.pendingMessage && isRoutineNudge(f.category)) return "pending_message";
-  if (f.dayCount >= 4 || f.rollingCount >= 4) return "overall_cap";
+  if (f.dayCount >= nudgeDailyLimit || f.rollingCount >= nudgeDailyLimit) return "overall_cap";
   if (f.category === "workout" && f.workoutCount >= 2) return "workout_cap";
   if (isRoutineNudge(f.category) && f.routineCount >= (prefs.intensity === "supportive" ? 3 : 2)) return "routine_cap";
-  if (f.lastDispatch && f.now.getTime() - f.lastDispatch.getTime() < 90 * 60000) return "cooldown";
+  if (f.lastDispatch && f.now.getTime() - f.lastDispatch.getTime() < nudgeCooldownMs) return "cooldown";
   return null;
+}
+
+export type NudgeReservation = { category: NudgeCategory | null; at: Date };
+export type UpcomingPriorityNudge = { key: string; category: NudgeCategory; at: Date };
+/** Do not let a lower-priority send remove capacity or cooldown space needed by a
+ * known meal/workout. Compare schedules with and without it, including rolling
+ * expiry and local midnight; four remains the actual dispatch ceiling. */
+export function priorityReservationReason(
+  prefs: NudgePreferences, category: NudgeCategory, now: Date,
+  history: readonly NudgeReservation[], upcoming: readonly UpcomingPriorityNudge[]
+): string | null {
+  if (isPriorityNudge(category)) return null;
+  const candidates = upcoming.filter(n => isPriorityNudge(n.category) && n.at >= now && n.at.getTime() < now.getTime() + 86400000)
+    .sort((a,b) => a.at.getTime() - b.at.getTime() || nudgePriority[a.category] - nudgePriority[b.category] || a.key.localeCompare(b.key));
+  function forecast(includeCurrent: boolean) {
+    const reservations = [...history, ...(includeCurrent ? [{category, at:now}] : [])];
+    const allowed = new Set<string>();
+    for (const candidate of candidates) {
+      const local = nudgeLocalParts(candidate.at, prefs.timezone);
+      if (inNudgeQuietHours(local.time, prefs.quietStart, prefs.quietEnd)) continue;
+      const preceding = reservations.filter(r => r.at <= candidate.at);
+      const daily = preceding.filter(r => nudgeLocalParts(r.at, prefs.timezone).date === local.date);
+      const rolling = preceding.filter(r => r.at.getTime() > candidate.at.getTime() - 86400000);
+      if (daily.length >= nudgeDailyLimit || rolling.length >= nudgeDailyLimit) continue;
+      if (candidate.category === "workout" && daily.filter(r => r.category === "workout").length >= 2) continue;
+      if (preceding.some(r => candidate.at.getTime() - r.at.getTime() < nudgeCooldownMs)) continue;
+      reservations.push(candidate); allowed.add(candidate.key);
+    }
+    return allowed;
+  }
+  const baseline = forecast(false), withCurrent = forecast(true);
+  return [...baseline].some(key => !withCurrent.has(key)) ? "priority_reserved" : null;
 }
 export function comebackAttempt(now: Date, anchor: Date, firstDays: number, previousAttempts: number, lastAttempt: Date | null) {
   return previousAttempts < 3 && now.getTime() - anchor.getTime() >= firstDays * 86400000

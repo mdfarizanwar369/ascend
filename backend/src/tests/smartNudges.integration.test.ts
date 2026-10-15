@@ -18,6 +18,19 @@ async function user(categories: NudgeCategory[] = ["lunch"], devices = 1) {
 }
 async function events(id: string) { return (await db.query("select * from notification_events where user_id=$1 and scheduled_for between $2 and $2::timestamptz+interval '12 hours' order by priority,id", [id, start])).rows; }
 async function run(now = due, send = accepted) { return nudges.runSmartNudges({ now: () => now, send, plan: false }); }
+const dailyAt = (time: string) => new Date(`2030-01-06T${time}:00Z`);
+async function dailySetup(withWorkout = true) {
+  const id = await user([]); const saved = await nudges.getNudgePreferences(id);
+  saved.preferences.intensity = "balanced";
+  for (const c of ["breakfast","lunch","dinner","hydration","workout"] as const) saved.preferences.categories[c].enabled = true;
+  await nudges.saveNudgePreferences(id,saved.preferences,saved.version,dailyAt("07:00"));
+  const session = withWorkout ? await nudges.saveWorkoutSchedule(id,{title:"Fixture workout",startsAt:dailyAt("17:30").toISOString(),leadMinutes:30,status:"planned"},dailyAt("07:00")) : null;
+  await nudges.planSmartNudges(100,dailyAt("07:00"));
+  return {id,session};
+}
+async function dailyEvents(id: string) {
+  return (await db.query("select nudge_category,status,error from notification_events where user_id=$1 and scheduled_for >= $2 and scheduled_for < $2::timestamptz+interval '1 day' order by scheduled_for",[id,dailyAt("00:00")])).rows;
+}
 describe.skipIf(!testUrl)("Smart Nudges with isolated PostgreSQL and stubbed providers", () => {
   beforeAll(async () => {
     const url = new URL(testUrl!); if (url.hostname !== "127.0.0.1" || url.pathname !== "/ascend_hardening_test") throw new Error("Isolated local test database required");
@@ -31,6 +44,66 @@ describe.skipIf(!testUrl)("Smart Nudges with isolated PostgreSQL and stubbed pro
     accepted.mockClear();
   });
   afterAll(async () => { if (db) await db.pool.end(); vi.unstubAllEnvs(); });
+  it("sends three meals plus water on a rest day, with concurrent workers still sending only four", async () => {
+    const {id} = await dailySetup(false);
+    for (const time of ["08:00","12:30","15:00","19:00"]) await Promise.all([run(dailyAt(time)),run(dailyAt(time))]);
+    expect(accepted).toHaveBeenCalledTimes(4);
+    expect((await dailyEvents(id)).filter(e=>e.status==="accepted").map(e=>e.nudge_category)).toEqual(["breakfast","lunch","hydration","dinner"]);
+  });
+  it("reserves room for a later workout and dinner instead of using the fourth slot on water", async () => {
+    const {id} = await dailySetup();
+    for (const time of ["08:00","12:30","15:00","17:00","19:00"]) await run(dailyAt(time));
+    expect(accepted).toHaveBeenCalledTimes(4);
+    const rows = await dailyEvents(id);
+    expect(rows.filter(e=>e.status==="accepted").map(e=>e.nudge_category)).toEqual(["breakfast","lunch","workout","dinner"]);
+    expect(rows.find(e=>e.nudge_category==="hydration")).toMatchObject({status:"suppressed",error:"priority_reserved"});
+  });
+  it("protects an appointment saved before the planner has queued its reminder", async () => {
+    const {id} = await dailySetup(false);
+    await run(dailyAt("08:00")); await run(dailyAt("12:30"));
+    await nudges.saveWorkoutSchedule(id,{title:"Later today",startsAt:dailyAt("17:30").toISOString(),leadMinutes:30,status:"planned"},dailyAt("14:00"));
+    await run(dailyAt("15:00"));
+    expect((await dailyEvents(id)).find(e=>e.nudge_category==="hydration")?.error).toBe("priority_reserved");
+    await nudges.planSmartNudges(100,dailyAt("15:00"));
+    await run(dailyAt("17:00")); await run(dailyAt("19:00"));
+    expect(accepted).toHaveBeenCalledTimes(4);
+  });
+  it.each(["cancelled","completed"] as const)("releases water capacity after a workout is %s", async status => {
+    const {id,session} = await dailySetup();
+    await run(dailyAt("08:00")); await run(dailyAt("12:30"));
+    await nudges.saveWorkoutSchedule(id,{id:session!.id,version:1,title:"Fixture workout",startsAt:dailyAt("17:30").toISOString(),leadMinutes:30,status},dailyAt("14:00"));
+    await run(dailyAt("15:00")); await run(dailyAt("17:00")); await run(dailyAt("19:00"));
+    expect((await dailyEvents(id)).find(e=>e.nudge_category==="hydration")?.status).toBe("accepted");
+    expect(accepted).toHaveBeenCalledTimes(4);
+  });
+  it("keeps tomorrow's meals protected by the rolling cap even if one meal was logged today", async () => {
+    const {id} = await dailySetup();
+    await run(dailyAt("08:00"));
+    await db.query("insert into food_logs(user_id,estimated_food_name,meal_type,calories,protein_g,carbs_g,fat_g,logged_at) values($1,'Fixture','lunch',0,0,0,0,$2)",[id,dailyAt("12:00")]);
+    for (const time of ["12:30","15:00","17:00","19:00"]) await run(dailyAt(time));
+    expect((await dailyEvents(id)).filter(e=>e.status==="accepted").map(e=>e.nudge_category)).toEqual(["breakfast","workout","dinner"]);
+    expect((await dailyEvents(id)).find(e=>e.nudge_category==="lunch")?.error).toBe("action_completed");
+    expect((await dailyEvents(id)).find(e=>e.nudge_category==="hydration")?.error).toBe("priority_reserved");
+    expect(accepted).toHaveBeenCalledTimes(3);
+  });
+  it("allows water when the nearby meal requiring cooldown space has already been logged", async () => {
+    const id = await user(["hydration","lunch"]);
+    const p = await nudges.getNudgePreferences(id); p.preferences.categories.lunch.time="12:30";
+    await nudges.saveNudgePreferences(id,p.preferences,p.version,start); await nudges.planSmartNudges(100,start);
+    await db.query("insert into food_logs(user_id,estimated_food_name,meal_type,calories,protein_g,carbs_g,fat_g,logged_at) values($1,'Fixture','lunch',0,0,0,0,$2)",[id,dailyAt("11:30")]);
+    await run(); await run(dailyAt("12:30"));
+    expect((await dailyEvents(id)).find(e=>e.nudge_category==="hydration" && e.status==="accepted")).toBeDefined();
+    expect(accepted).toHaveBeenCalledOnce();
+  });
+  it("protects a nearby meal even when water has a legacy equal queue priority", async () => {
+    const id = await user(["hydration","lunch"]);
+    const p = await nudges.getNudgePreferences(id); p.preferences.categories.lunch.time="12:30";
+    await nudges.saveNudgePreferences(id,p.preferences,p.version,start); await nudges.planSmartNudges(100,start);
+    await db.query("update notification_events set priority=2 where user_id=$1 and nudge_category='hydration'",[id]);
+    await run(); await run(dailyAt("12:30"));
+    expect((await events(id)).find(e=>e.nudge_category==="hydration" && e.error==="priority_reserved")).toBeDefined();
+    expect(accepted).toHaveBeenCalledOnce();
+  });
   it("plans durably once, concurrently dispatches once and persists provider acceptance separately from opens", async () => {
     const id = await user();
     await Promise.all([nudges.planSmartNudges(100, start), nudges.planSmartNudges(100, start)]);

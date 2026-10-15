@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { comebackAttempt, defaultNudgePreferences, inNudgeQuietHours, nudgeCategories, nudgeLocalParts, nudgePriority,
-  nudgeSuppression, nudgeTemplates, nudgeWallTime, recordedWorkoutMilestone, safeNotificationHref, validTimezone, NudgeEligibilityFacts } from "@ascend/shared";
+  nudgeSuppression, nudgeTemplates, nudgeWallTime, priorityReservationReason, recordedWorkoutMilestone, safeNotificationHref, validTimezone, NudgeEligibilityFacts, NudgeCategory } from "@ascend/shared";
 import { classifyApns, classifyFcmError } from "../integrations/nudgePush";
 import { nudgePreferencesSchema } from "../services/smartNudgePolicy";
 const now = new Date("2026-10-14T12:00:00Z");
@@ -52,6 +52,7 @@ describe("Smart Nudges deterministic policy", () => {
     expect(nudgeSuppression(weekly, { ...facts, category: "weekly", pendingMessage: true })).toBe("pending_message");
   });
   it("prioritises appointments, meals, weekly and coaching in that order", () => {
+    expect(nudgePriority.hydration).toBeGreaterThan(nudgePriority.dinner);
     expect(["milestone", "comeback", "morning", "weekly", "lunch", "workout"].sort((a,b) => nudgePriority[a as keyof typeof nudgePriority] - nudgePriority[b as keyof typeof nudgePriority]))
       .toEqual(["workout", "lunch", "weekly", "morning", "comeback", "milestone"]);
   });
@@ -80,5 +81,43 @@ describe("Smart Nudges deterministic policy", () => {
     expect(classifyApns(503, "ServiceUnavailable").status).toBe("retry");
     expect(classifyApns(410, "Unregistered").invalidToken).toBe(true);
     expect(classifyApns(403, "BadCertificate").status).toBe("failed");
+  });
+});
+
+describe("Future meal and workout capacity", () => {
+  const at = (time: string) => new Date(`2030-01-06T${time}:00Z`);
+  const history = [{category:"breakfast" as const,at:at("08:00")},{category:"lunch" as const,at:at("12:30")}];
+  const upcoming = (category: NudgeCategory, time: string) => ({category,at:at(time),key:`${category}:${time}`});
+  it("reserves the remaining slots for a workout and dinner, but allows water on a rest day", () => {
+    expect(priorityReservationReason(prefs,"hydration",at("15:00"),history,[upcoming("workout","17:00"),upcoming("dinner","19:00")])).toBe("priority_reserved");
+    expect(priorityReservationReason(prefs,"hydration",at("15:00"),history,[upcoming("dinner","19:00")])).toBeNull();
+  });
+  it("protects cooldown space even before the cap is reached, including against coaching", () => {
+    for (const category of ["hydration","morning","weekly"] as const) {
+      expect(priorityReservationReason(prefs,category,at("11:30"),[],[upcoming("lunch","12:30")])).toBe("priority_reserved");
+      expect(priorityReservationReason(prefs,category,at("11:00"),[],[upcoming("lunch","12:30")])).toBeNull();
+    }
+    expect(priorityReservationReason(prefs,"lunch",at("11:30"),[],[upcoming("workout","12:00")])).toBeNull();
+  });
+  it("does not reserve for quiet hours or events already impossible under the cap", () => {
+    expect(priorityReservationReason(prefs,"hydration",at("21:00"),[],[upcoming("dinner","22:00")])).toBeNull();
+    const full = ["08:00","10:00","12:00","14:00"].map(time=>({category:"breakfast" as const,at:at(time)}));
+    expect(priorityReservationReason(prefs,"hydration",at("16:00"),full,[upcoming("dinner","19:00")])).toBeNull();
+  });
+  it("accounts for rolling expiry and tomorrow's meals without reserving past the next 24 hours", () => {
+    const old = ["16:00","18:00"].map(time=>({category:"workout" as const,at:new Date(`2030-01-05T${time}:00Z`)}));
+    expect(priorityReservationReason(prefs,"hydration",at("15:00"),[...old,history[0]],[upcoming("dinner","19:00")])).toBeNull();
+    const nextBreakfast = {key:"tomorrow",category:"breakfast" as const,at:new Date("2030-01-07T08:00Z")};
+    const recent = ["10:00","12:00","14:00"].map(time=>({category:"lunch" as const,at:at(time)}));
+    expect(priorityReservationReason(prefs,"hydration",at("20:00"),recent,[nextBreakfast])).toBe("priority_reserved");
+    expect(priorityReservationReason(prefs,"hydration",at("08:00"),[],[nextBreakfast])).toBeNull();
+  });
+  it("uses local days and the two-workout cap in its forecast", () => {
+    const local = {...prefs,timezone:"Asia/Singapore",quietStart:"07:00",quietEnd:"08:00"};
+    const past = ["02:00","04:00","06:00","08:00"].map(time=>({category:"workout" as const,at:at(time)}));
+    // Midnight resets the local day, but the rolling limit still protects the next meal.
+    expect(priorityReservationReason(local,"hydration",at("15:00"),past.slice(1),[upcoming("breakfast","16:30")])).toBe("priority_reserved");
+    expect(priorityReservationReason(prefs,"hydration",at("15:00"),[{category:"workout",at:at("08:00")},{category:"workout",at:at("10:00")}],
+      [upcoming("workout","16:00")])).toBeNull();
   });
 });
