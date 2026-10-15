@@ -19,10 +19,11 @@ import {WorkoutScheduleClient} from '@/components/notifications/WorkoutScheduleC
 document.documentElement.dataset.theme=new URLSearchParams(location.search).get('theme')==='light'?'light':'dark';
 createRoot(document.getElementById('root')).render(location.pathname==='/workout-schedule'?<WorkoutScheduleClient/>:<NudgeSettingsClient/>);`);
 await writeFile(path.join(fixture, "link.jsx"), "import React from 'react'; export default function Link({children,...props}) { return <a {...props}>{children}</a>; }");
-await writeFile(path.join(fixture, "device.js"), `export async function coachNotificationPermission(){return 'granted'}; export async function enableCoachNotifications(){return 'local-fixture-only'};`);
+await writeFile(path.join(fixture, "device.js"), `export async function coachNotificationPermission(){return new URLSearchParams(location.search).get('permission')==='denied'?'denied':'prompt'}; export async function enableCoachNotifications(){return 'local-fixture-only'};`);
 await writeFile(path.join(fixture, "api.js"), `import {defaultNudgePreferences,nudgeCategories} from '@ascend/shared';
-let preferences=defaultNudgePreferences('Asia/Singapore'); preferences.enabled=true; preferences.intensity='balanced';
-preferences.categories.lunch.enabled=true; preferences.categories.weekly.enabled=true; let version=1;
+let preferences=defaultNudgePreferences('Asia/Singapore'); let version=0;
+if(new URLSearchParams(location.search).get('saved')==='1') { preferences.enabled=true; preferences.intensity='balanced';
+preferences.categories.lunch.enabled=true; preferences.categories.weekly.enabled=true; version=1; }
 export async function getSmartNudgePreferences(){return {preferences:structuredClone(preferences),available:true,categories:nudgeCategories,version}};
 export async function saveSmartNudgePreferences(p,v){if(v!==version)throw Error('Reload saved choices.');preferences=structuredClone(p);version++;return getSmartNudgePreferences()};
 let sessions=[{id:'11111111-1111-4111-8111-111111111111',title:'Evening strength session',starts_at:new Date(Date.now()+86400000).toISOString(),lead_minutes:30,status:'planned',version:1}];
