@@ -201,6 +201,21 @@ describe("Food AI recovery", () => {
     expect(await screen.findByRole("button", { name: "Try AI again" })).toBeEnabled();
     expect(screen.queryByRole("link", { name: "Open AI privacy" })).not.toBeInTheDocument();
   });
+
+  it("does not call an unrecognized photo a meal or present zero as an AI estimate", async () => {
+    api.estimateFoodFromText.mockRejectedValueOnce(new Error("Zoe couldn't identify food in this photo. Try a closer photo with the product name visible, or enter the food manually."));
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "cream roll" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+
+    expect(await screen.findByText("Meal details needed")).toBeInTheDocument();
+    expect(screen.queryByText("Meal identified")).not.toBeInTheDocument();
+    expect(screen.queryByText("0% AI confidence")).not.toBeInTheDocument();
+    expect(screen.queryByText("Estimated nutrition")).not.toBeInTheDocument();
+    expect(screen.getByText(/Try a closer photo with the product name visible/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save meal" })).toBeDisabled();
+  });
 });
 
 describe("Portion-aware meal review", () => {

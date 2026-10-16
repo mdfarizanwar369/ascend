@@ -323,6 +323,10 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireAiConsent, aiRateLimi
       res.status(400).json({ error: "Image URL is not allowed.", ...(performance ? { performance } : {}) });
       return;
     }
+    if (error instanceof Error && "category" in error && error.category === "no_food_detected") {
+      res.status(422).json({ error: error.message, ...(performance ? { performance } : {}) });
+      return;
+    }
     if (error instanceof Error) {
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", ...(performance ? { performance } : {}) });
       return;
@@ -360,6 +364,10 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireAiConsent, a
     if (error instanceof AiWorkBusyError) { next(error); return; }
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
+      return;
+    }
+    if (error instanceof Error && "category" in error && error.category === "no_food_detected") {
+      res.status(422).json({ error: error.message, ...(performance ? { performance } : {}) });
       return;
     }
     if (error instanceof Error) {

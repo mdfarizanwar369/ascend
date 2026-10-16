@@ -228,6 +228,9 @@ function shouldRetryEstimate(error: unknown) {
 }
 
 function estimateFailureMessage(error: unknown) {
+  if (error instanceof Error && /couldn't identify food in this photo/i.test(error.message)) {
+    return error.message;
+  }
   if (error instanceof Error && error.message.startsWith("AI data sharing is off.")) {
     return "AI data sharing is off. Open AI privacy to review your choice. You can still enter this meal manually.";
   }
@@ -1542,22 +1545,22 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt={estimate.foodName || "Analysed meal"} className="h-full w-full object-cover" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-4 pb-4 pt-12">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Meal identified</p>
-                  <h2 className="mt-1 text-xl font-semibold text-white">{estimate.foodName || "Review this meal"}</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">{aiFailed ? "Meal details needed" : "Meal identified"}</p>
+                  <h2 className="mt-1 text-xl font-semibold text-white">{estimate.foodName || (aiFailed ? "Add meal details" : "Review this meal")}</h2>
                 </div>
               </div>
             ) : (
               <div className="flex items-center gap-3 border-b border-line p-4">
                 <div className="grid h-11 w-11 place-items-center rounded-lg bg-lime/10 text-lime"><Utensils size={21} /></div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Meal identified</p>
-                  <h2 className="mt-1 text-lg font-semibold">{estimate.foodName || "Review this meal"}</h2>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">{aiFailed ? "Meal details needed" : "Meal identified"}</p>
+                  <h2 className="mt-1 text-lg font-semibold">{estimate.foodName || (aiFailed ? "Add meal details" : "Review this meal")}</h2>
                 </div>
               </div>
             )}
 
             <div className="p-4">
-              <div className="flex items-center gap-5">
+              {!aiFailed || canSaveEstimate ? <div className="flex items-center gap-5">
                 <div
                   className="grid h-28 w-28 shrink-0 place-items-center rounded-full p-[7px] shadow-[0_0_34px_rgba(53,242,208,0.13)]"
                   style={{ background: `conic-gradient(rgb(53 242 208) ${progressPercent(estimate.calories, effectiveNutritionTargets.calorieTarget) * 3.6}deg, rgba(113,113,122,0.2) 0deg)` }}
@@ -1570,21 +1573,21 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
                   </div>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Estimated nutrition</p>
-                  <p className="mt-2 text-sm leading-6 text-zinc-300">Review the estimate, then save it to today.</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">{aiFailed ? "Manually entered nutrition" : "Estimated nutrition"}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">{aiFailed ? "Review your entries, then save them to today." : "Review the estimate, then save it to today."}</p>
                   {portionAwareEstimate ? (
-                    <p className="mt-2 text-xs leading-5 text-zinc-500">Estimated from your photo, not measured.</p>
-                  ) : (
+                    <p className="mt-2 text-xs leading-5 text-zinc-500">{portionAwareEstimate.notes.startsWith("Identified from the package") ? "Identified from the package; check the nutrition label." : "Estimated from your photo, not measured."}</p>
+                  ) : !aiFailed ? (
                     <p className="mt-2 text-xs text-zinc-500">{Math.round(estimate.confidence * 100)}% AI confidence</p>
-                  )}
+                  ) : null}
                 </div>
-              </div>
+              </div> : null}
 
-              <div className="ascend-inset mt-5 space-y-4 p-4">
+              {!aiFailed || canSaveEstimate ? <div className="ascend-inset mt-5 space-y-4 p-4">
                 <MacroProgress label="Protein" value={estimate.proteinG} target={effectiveNutritionTargets.proteinTargetG} />
                 <MacroProgress label="Carbohydrates" value={estimate.carbsG} target={effectiveNutritionTargets.carbsTargetG} />
                 <MacroProgress label="Fat" value={estimate.fatG} target={effectiveNutritionTargets.fatTargetG} />
-              </div>
+              </div> : null}
 
               {portionAwareEstimate ? (
                 <section className="ascend-inset mt-4 p-4" aria-label="Estimated meal portions">
@@ -1592,7 +1595,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-lime">Zoe analysed your meal</p>
                       <p className="mt-2 text-sm font-semibold text-white">Estimated portion: {portionLabel(portionAwareEstimate.visiblePortionLabel)}</p>
-                      <p className="mt-1 text-xs text-zinc-500">Estimated from your photo, not measured.</p>
+                      <p className="mt-1 text-xs text-zinc-500">{portionAwareEstimate.notes.startsWith("Identified from the package") ? "Packaged food estimate. Check the label before saving." : "Estimated from your photo, not measured."}</p>
                     </div>
                     {portionAwareEstimate.portionFallback ? (
                       <span className="rounded-full border border-amber/30 bg-amber/10 px-2.5 py-1 text-[11px] font-semibold text-amber">Some amounts unclear</span>

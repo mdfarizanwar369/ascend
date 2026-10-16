@@ -127,6 +127,46 @@ describe("Portion-Aware Nutrition Production V1 provider calls", () => {
     });
   });
 
+  it("recognizes a primary packaged food in one call without counting an incidental sealed sachet", async () => {
+    const response = JSON.parse(validPortionJson());
+    response.mealName = "Butter Sugar Cream Roll";
+    response.items = [{
+      ...response.items[0],
+      name: "Butter Sugar Cream Roll",
+      normalizedHint: "cream roll",
+      estimatedQuantity: null,
+      unit: "serving",
+      quantityConfidence: 0.2,
+      consumptionEvidence: "intended_packaged_food",
+      nutritionForVisibleQuantity: { calories: 220, proteinG: 4, carbsG: 34, fatG: 8 }
+    }, {
+      ...response.items[0],
+      name: "Ketchup",
+      consumptionEvidence: "sealed_packaging_only"
+    }];
+    const fetchMock = vi.fn(async () => geminiResponse(JSON.stringify(response)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { estimateFoodFromImage } = await loadProvider();
+
+    const estimate = await estimateFoodFromImage(imageDataUrl, { userId: "user-1", portionAware: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(estimate.foodName).toBe("Butter Sugar Cream Roll");
+    expect(estimate.items).toHaveLength(1);
+    expect(estimate.notes).toMatch(/check the label/i);
+  });
+
+  it("returns a distinct no-food error after one call when Gemini finds no intended food", async () => {
+    const response = JSON.parse(validPortionJson());
+    response.items = [];
+    const fetchMock = vi.fn(async () => geminiResponse(JSON.stringify(response)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { estimateFoodFromImage } = await loadProvider();
+
+    await expect(estimateFoodFromImage(imageDataUrl, { userId: "user-1", portionAware: true }))
+      .rejects.toMatchObject({ category: "no_food_detected" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("uses one Gemini provider call for malformed output and does not retry automatically", async () => {
     const fetchMock = vi.fn(async () => geminiResponse("{ malformed"));
     vi.stubGlobal("fetch", fetchMock);

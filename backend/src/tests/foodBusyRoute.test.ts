@@ -40,4 +40,16 @@ describe("food estimate busy responses", () => {
     expect(response.headers.get("retry-after")).toBe("3");
     expect((await response.json()).error).toContain("already working");
   });
+
+  it("returns an actionable 422 for a photo with no identifiable food", async () => {
+    estimate.mockRejectedValueOnce(Object.assign(new Error("Zoe couldn't identify food in this photo."), { category: "no_food_detected" }));
+    const response = await fetch(`${base}/food-logs/estimate-data-url`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageDataUrl: "data:image/jpeg;base64,/9j/2Q==" })
+    });
+
+    expect(response.status).toBe(422);
+    expect((await response.json()).error).toContain("couldn't identify food");
+  });
 });

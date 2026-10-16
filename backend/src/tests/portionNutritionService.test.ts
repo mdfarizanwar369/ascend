@@ -202,7 +202,34 @@ describe("Portion-Aware Nutrition V1", () => {
         normalizedHint: "sealed ketchup sachet",
         consumptionEvidence: "sealed_packaging_only"
       })
-    ]), { findLocalFood: vi.fn(async () => null) })).rejects.toThrow("did not identify visible edible food");
+    ]), { findLocalFood: vi.fn(async () => null) })).rejects.toThrow("couldn't identify food in this photo");
+  });
+
+  it("accepts a clearly identified packaged food while keeping its nutrition reviewable", async () => {
+    const estimate = await buildPortionAwareEstimate(rawResponse([
+      rawItem({
+        name: "Mighty White Butter Sugar Cream Roll",
+        normalizedHint: "butter sugar cream roll",
+        estimatedQuantity: null,
+        unit: "serving",
+        quantityConfidence: 0.2,
+        foodConfidence: 0.89,
+        visiblePortionLabel: "unknown",
+        consumptionEvidence: "intended_packaged_food",
+        nutritionForVisibleQuantity: { calories: 220, proteinG: 4, carbsG: 34, fatG: 8 }
+      })
+    ], { mealName: "Butter Sugar Cream Roll" }), { findLocalFood: vi.fn(async () => null) });
+
+    expect(estimate.foodName).toBe("Butter Sugar Cream Roll");
+    expect(estimate.calories).toBe(220);
+    expect(estimate.portionFallback).toBe(true);
+    expect(estimate.notes).toMatch(/Identified from the package.*check the label/i);
+  });
+
+  it("treats an empty recognition result as no food rather than a provider outage", async () => {
+    const response = parsePortionAwareVisionResponse(rawResponse([], { mealName: "" }));
+    await expect(buildPortionAwareEstimate(response, { findLocalFood: vi.fn(async () => null) }))
+      .rejects.toThrow("couldn't identify food in this photo");
   });
 
   it("recalculates a user-adjusted quantity while preserving the original AI quantity", async () => {

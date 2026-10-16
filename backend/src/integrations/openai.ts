@@ -7,6 +7,7 @@ import { assertFoodAiAllowance, getCachedFoodEstimate, imageHashFromDataUrl, log
 import { normalizeWithLocalFoodDatabase } from "../services/localFoodService";
 import {
   buildPortionAwareEstimate,
+  NoFoodDetectedError,
   parsePortionAwareVisionResponse,
   runPortionAnalysisSingleFlight
 } from "../services/portionNutritionService";
@@ -89,7 +90,7 @@ class BodyCompositionExtractionError extends Error {
 class FoodAiError extends Error {
   constructor(
     message: string,
-    public readonly category: "configuration" | "timeout" | "empty_response" | "invalid_json" | "service" | "request_rejected" | "network" | "unknown",
+    public readonly category: "configuration" | "timeout" | "empty_response" | "invalid_json" | "no_food_detected" | "service" | "request_rejected" | "network" | "unknown",
     public readonly technicalDetail?: string,
     public readonly rawResponse?: string
   ) {
@@ -844,7 +845,7 @@ const portionAwareFoodResponseSchema = {
           visiblePortionLabel: { type: "STRING", enum: ["small", "regular", "large", "unknown"] },
           consumptionEvidence: {
             type: "STRING",
-            enum: ["visible_food", "opened_or_served_condiment", "sealed_packaging_only"]
+            enum: ["visible_food", "opened_or_served_condiment", "intended_packaged_food", "sealed_packaging_only"]
           },
           preparation: { type: "STRING", nullable: true },
           notes: { type: "STRING", nullable: true },
@@ -874,13 +875,13 @@ const portionAwareFoodResponseSchema = {
 const portionAwareFoodPrompt =
   "You are the vision estimator for Ascend, a fitness accountability app. Analyse this specific meal photograph, not a generic serving. " +
   "First identify the intended meal subject: the dominant foreground food or drink that is centered, actively presented, or contained on the same plate, bowl, cup, or takeaway container. Exclude unrelated background drinks, food on adjacent plates or tables, scene props, and partially cropped edge items unless they are clearly part of that same intended meal. Do not combine everything visible in a restaurant scene into one log. " +
-  "Identify only edible food that is visibly present and available to consume. Do not infer food from branding, labels, printed pictures, wrappers, empty containers, or sealed condiment sachets. A sealed ketchup packet is packaging, not consumed ketchup. Mark such detections as sealed_packaging_only so they can be excluded. Use opened_or_served_condiment only when condiment is visibly dispensed or its container is visibly open for this meal. " +
+  "Identify edible food visibly present. A clearly centered, readable, ready-to-eat packaged food or drink may be the intended subject even when its contents are sealed: identify the product from its name on the package and mark it intended_packaged_food. This applies to a photographed packaged cream roll, for example. Do not treat a printed product photo as evidence of the actual portion. If pack size or nutrition facts are unreadable, use one honest standard-serving fallback (estimatedQuantity null, unit serving, low quantityConfidence); do not invent label values. Do not infer food from unrelated branding, wrappers, empty containers, or incidental sealed condiment sachets. Mark incidental sealed condiment packets as sealed_packaging_only. Use opened_or_served_condiment only when condiment is visibly dispensed or its container is visibly open for this meal. If no identifiable intended food exists, return an empty items array. " +
   "Estimate how much of each edible component is actually visible. Use grams for solid foods, milliliters for drinks or soups, and pieces or slices when individual items can be counted reliably. For 20 or fewer clearly visible countable items, use the exact visible count with unit piece or slice instead of converting the portion to a generic gram serving. Count only distinct visible items; never invent additional pieces that might be hidden under overlaps or packaging. If overlap makes the exact count genuinely uncertain, use a cautious visible gram estimate and lower quantityConfidence instead of claiming an exact piece count. This includes a small number of fries, nuggets, dumplings, sushi pieces, eggs, or fruit pieces. For example, five visible fries should be 5 pieces with nutrition for those five fries, not 100g or a regular serving. " +
   "Do not simply return a standard serving. Use only visible portion cues such as countable pieces, cups, containers, plate or bowl context, thickness, perspective, and typical edible dimensions. Do not claim the food was measured. " +
   "For mixed meals, separate sensible components such as rice, chicken, sauce, egg, and vegetables without over-fragmenting garnish. Prioritize Malaysia and Singapore food identity when the image supports it, including " +
   LOCAL_FOODS.join(", ") +
   ". For every item, nutritionForVisibleQuantity must contain calories, protein, carbs, and fat for exactly that item's estimatedQuantity and unit, not for a generic serving. If estimatedQuantity is null, nutritionForVisibleQuantity may represent one honest standard-serving fallback. " +
-  "mealName must describe only the edible visible food, not the restaurant category or surrounding packaging. " +
+  "mealName must describe the intended food or drink, never the restaurant category or surrounding packaging. " +
   "Food identity confidence and quantity confidence are separate values from 0 to 1. If an amount cannot be inferred safely, set estimatedQuantity to null, unit to serving, visiblePortionLabel to unknown, and lower quantityConfidence. " +
   "Account cautiously for visually supported preparation such as frying or creamy sauce, but do not invent exact hidden oil or ingredients. clarificationRequired should be true only when one short answer would materially change calories. " +
   "Use sensible rounded quantities such as 185g or 250ml, never false precision. Return only JSON matching the required schema.";
@@ -919,6 +920,10 @@ async function estimateFoodWithGeminiPortionAware(imageUrl: string, performanceT
     annotateLatestGeminiParse(performanceTrace, { success: true });
     return estimate;
   } catch (error) {
+    if (error instanceof NoFoodDetectedError) {
+      annotateLatestGeminiParse(performanceTrace, { success: true });
+      throw error;
+    }
     annotateLatestGeminiParse(performanceTrace, { success: false, failureReason: geminiFailureReason(error) });
     foodAiErrorLog("portion_food_estimate_parse_failed", {
       model: env.GEMINI_MODEL,
@@ -1044,6 +1049,9 @@ async function estimateFoodTextWithOpenAI(description: string) {
 
 function classifyFoodAiError(error: unknown): FoodAiError {
   if (error instanceof FoodAiError) return error;
+  if (error instanceof NoFoodDetectedError) {
+    return new FoodAiError(error.message, "no_food_detected", error.message);
+  }
   if (error instanceof GeminiError) {
     if (error.message.includes("timed out")) {
       return new FoodAiError("Food AI timed out while reading this image.", "timeout", error.message);
