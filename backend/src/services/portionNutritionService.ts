@@ -15,7 +15,14 @@ import { findLocalFoodForPortion, LocalFoodPortionMatch } from "./localFoodServi
 
 const portionUnitSchema = z.enum(["g", "ml", "piece", "slice", "serving"]);
 const portionLabelSchema = z.enum(["small", "regular", "large", "unknown"]);
-const consumptionEvidenceSchema = z.enum(["visible_food", "opened_or_served_condiment", "sealed_packaging_only"]);
+const consumptionEvidenceSchema = z.enum(["visible_food", "opened_or_served_condiment", "intended_packaged_food", "sealed_packaging_only"]);
+
+export class NoFoodDetectedError extends Error {
+  constructor() {
+    super("Zoe couldn't identify food in this photo. Try a closer photo with the product name visible, or enter the food manually.");
+    this.name = "NoFoodDetectedError";
+  }
+}
 const nutritionValueSchema = z.number().finite().min(0).max(5000);
 const savedNutritionSchema = z.object({
   calories: nutritionValueSchema,
@@ -25,7 +32,7 @@ const savedNutritionSchema = z.object({
 });
 
 export const portionAwareVisionResponseSchema = z.object({
-  mealName: z.string().trim().min(1).max(160),
+  mealName: z.string().trim().max(160),
   overallConfidence: z.number().finite().min(0).max(1),
   portionEstimationConfidence: z.number().finite().min(0).max(1),
   items: z.array(z.object({
@@ -40,7 +47,7 @@ export const portionAwareVisionResponseSchema = z.object({
     preparation: z.string().trim().max(120).nullable(),
     notes: z.string().trim().max(240).nullable(),
     nutritionForVisibleQuantity: savedNutritionSchema
-  })).min(1).max(12),
+  })).max(12),
   clarificationRequired: z.boolean().default(false),
   clarification: z.string().trim().max(240).nullable().default(null)
 });
@@ -130,7 +137,9 @@ function aiBasis(item: PortionAwareVisionResponse["items"][number], amount: numb
     unit,
     nutrition: nutritionFromRaw(item),
     source: "ai_estimate",
-    sourceDetail: "Visible-portion nutrition returned by the existing vision request"
+    sourceDetail: item.consumptionEvidence === "intended_packaged_food"
+      ? "Packaged-food nutrition estimated by the vision request"
+      : "Visible-portion nutrition returned by the existing vision request"
   };
 }
 
@@ -205,7 +214,9 @@ async function normalizeItem(
     nutrition: fallbackNutrition,
     userAdjusted: false,
     fallbackReason: item.estimatedQuantity === null
-      ? "The visible quantity could not be estimated reliably."
+      ? item.consumptionEvidence === "intended_packaged_food"
+        ? "Packaged quantity or nutrition label could not be read reliably."
+        : "The visible quantity could not be estimated reliably."
       : "The estimated quantity was outside safe V1 limits."
   };
 }
@@ -245,14 +256,17 @@ export async function buildPortionAwareEstimate(
   deps: PortionNutritionDependencies = defaultDependencies
 ): Promise<FoodEstimate> {
   const edibleItems = raw.items.filter((item) => item.consumptionEvidence !== "sealed_packaging_only");
-  if (!edibleItems.length) throw new Error("Portion-aware response did not identify visible edible food.");
+  if (!edibleItems.length) throw new NoFoodDetectedError();
   const items = await Promise.all(edibleItems.map((item, index) => normalizeItem(item, index, deps)));
   const totals = aggregatePortionNutrition(items);
   if (totals.calories <= 0) throw new Error("Portion-aware response did not contain usable nutrition.");
   const portionFallback = items.some((item) => item.portionSource === "standard_serving_fallback");
+  const includesPackagedFood = edibleItems.some((item) => item.consumptionEvidence === "intended_packaged_food");
 
   return {
-    foodName: edibleItems.length === raw.items.length ? raw.mealName : items.map((item) => item.name).join(" and "),
+    foodName: edibleItems.length === raw.items.length && raw.mealName
+      ? raw.mealName
+      : items.map((item) => item.name).join(" and "),
     confidence: raw.overallConfidence,
     recognitionConfidence: raw.overallConfidence,
     portionConfidence: raw.portionEstimationConfidence,
@@ -261,9 +275,11 @@ export async function buildPortionAwareEstimate(
     proteinG: Math.round(totals.proteinG * 10) / 10,
     carbsG: Math.round(totals.carbsG * 10) / 10,
     fatG: Math.round(totals.fatG * 10) / 10,
-    notes: portionFallback
-      ? "Estimated from this photo. One or more items use a standard-serving fallback because the visible amount was unclear."
-      : "Estimated from the visible portions in this photo.",
+    notes: includesPackagedFood
+      ? "Identified from the package. Nutrition is estimated; check the label and adjust before saving."
+      : portionFallback
+        ? "Estimated from this photo. One or more items use a standard-serving fallback because the visible amount was unclear."
+        : "Estimated from the visible portions in this photo.",
     analysisVersion: "portion_aware_v1",
     items,
     clarificationRequired: raw.clarificationRequired,
