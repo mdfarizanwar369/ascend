@@ -188,7 +188,7 @@ describe("Food AI recovery", () => {
 
     await waitFor(() => expect(foodShare.renderFoodShareCard).toHaveBeenCalledWith({
       foodName: "Chicken rice and teh tarik", calories: 760, proteinG: 34, carbsG: 105, fatG: 22, imageUrl: null
-    }));
+    }, "post"));
     expect(await screen.findByRole("dialog", { name: "Meal share preview" })).toBeInTheDocument();
     expect(screen.getByText("Your reviewed meal estimate, ready to post.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Share image" }));
@@ -199,7 +199,7 @@ describe("Food AI recovery", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Share meal" }));
     await waitFor(() => expect(foodShare.renderFoodShareCard).toHaveBeenLastCalledWith({
       foodName: "Chicken rice and teh tarik", calories: 760, proteinG: 34, carbsG: 105, fatG: 22, imageUrl: null
-    }));
+    }, "post"));
     expect(api.estimateFoodFromText).toHaveBeenCalledTimes(1);
   });
 
