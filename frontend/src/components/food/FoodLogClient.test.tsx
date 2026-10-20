@@ -21,6 +21,11 @@ const speech = vi.hoisted(() => ({
   cancelMealSpeechRecognition: vi.fn()
 }));
 
+const foodShare = vi.hoisted(() => ({
+  renderFoodShareCard: vi.fn(),
+  shareAscendImage: vi.fn()
+}));
+
 vi.mock("@/lib/ascendApi", () => ({
   estimateFoodFromDataUrl: api.estimateFoodFromDataUrl,
   estimateFoodFromText: api.estimateFoodFromText,
@@ -45,6 +50,8 @@ vi.mock("@/lib/mealSpeech", () => ({
 }));
 
 vi.mock("@/lib/nativeImagePicker", () => ({ pickNativeImage: vi.fn() }));
+vi.mock("@/lib/foodShareCard", () => ({ renderFoodShareCard: foodShare.renderFoodShareCard }));
+vi.mock("@/lib/ascendStoryShare", () => ({ shareAscendImage: foodShare.shareAscendImage }));
 vi.mock("@/lib/dataSync", () => ({ clearPendingFoodLog: vi.fn(), notifyDashboardRecordChanged: vi.fn(), rememberSavedFoodLog: vi.fn() }));
 vi.mock("@/lib/installAscend", () => ({ markInstallEligible: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ back: vi.fn(), push: vi.fn() }) }));
@@ -70,6 +77,8 @@ beforeEach(() => {
     }
   });
   api.uploadFoodPhotoDataUrl.mockResolvedValue({ key: "food/member-1/photo.jpg" });
+  foodShare.renderFoodShareCard.mockResolvedValue(new Blob(["card"], { type: "image/png" }));
+  foodShare.shareAscendImage.mockResolvedValue("web-share");
   api.estimateFoodFromText.mockResolvedValue({
     estimate: {
       foodName: "Chicken rice and teh tarik",
@@ -166,6 +175,42 @@ describe("Food Log voice entry", () => {
 });
 
 describe("Food AI recovery", () => {
+  it("shares the reviewed result and saved meal without another AI request", async () => {
+    api.getMe.mockResolvedValueOnce({ user: { id: "owner-1", goal_type: "fat_loss", is_platform_owner: true } });
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:food-card-preview") });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "chicken rice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Share result" }));
+
+    await waitFor(() => expect(foodShare.renderFoodShareCard).toHaveBeenCalledWith({
+      foodName: "Chicken rice and teh tarik", calories: 760, proteinG: 34, carbsG: 105, fatG: 22, imageUrl: null
+    }));
+    expect(await screen.findByRole("dialog", { name: "Meal share preview" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Share image" }));
+    await waitFor(() => expect(foodShare.shareAscendImage).toHaveBeenCalledWith(expect.any(Blob), expect.objectContaining({ filePrefix: "ascend-food-snap" })));
+    fireEvent.click(screen.getByRole("button", { name: "Close share preview" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Save meal" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Share meal" }));
+    await waitFor(() => expect(foodShare.renderFoodShareCard).toHaveBeenLastCalledWith({
+      foodName: "Chicken rice and teh tarik", calories: 760, proteinG: 34, carbsG: 105, fatG: 22, imageUrl: null
+    }));
+    expect(api.estimateFoodFromText).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the share control in the owner pilot for now", async () => {
+    render(<FoodLogClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));
+    fireEvent.change(screen.getByLabelText("What did you eat?"), { target: { value: "chicken rice" } });
+    fireEvent.click(screen.getByRole("button", { name: "Analyse meal" }));
+    expect(await screen.findByRole("button", { name: "Save meal" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Share result" })).not.toBeInTheDocument();
+  });
+
   it("preserves the reminder meal category through review and saving", async () => {
     render(<FoodLogClient initialMeal="breakfast" />);
     fireEvent.click(await screen.findByRole("button", { name: "Type meal" }));

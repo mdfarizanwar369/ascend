@@ -2,9 +2,15 @@ import { Capacitor } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Share } from "@capacitor/share";
 
-function fileName() {
+type AscendImageOptions = {
+  title: string;
+  text: string;
+  filePrefix: string;
+};
+
+function fileName(prefix = "ascend-story") {
   const timestamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  return `ascend-story-${timestamp}.png`;
+  return `${prefix}-${timestamp}.png`;
 }
 
 function blobToBase64(blob: Blob) {
@@ -43,18 +49,17 @@ async function writeNativeFile(blob: Blob, directory: Directory, path: string) {
   return result.uri;
 }
 
-export async function shareAscendStory(blob: Blob, caption?: string) {
-  const name = fileName();
-  const text = caption?.trim() || "Still ascending.";
+export async function shareAscendImage(blob: Blob, options: AscendImageOptions) {
+  const name = fileName(options.filePrefix);
   if (Capacitor.isNativePlatform()) {
-    const temporaryPath = "shares/ascend-story.png";
+    const temporaryPath = `shares/${options.filePrefix}.png`;
     try {
       const uri = await writeNativeFile(blob, Directory.Cache, temporaryPath);
       await Share.share({
-        title: "Share Your Ascent",
-        text,
+        title: options.title,
+        text: options.text,
         files: [uri],
-        dialogTitle: "Share Your Ascent"
+        dialogTitle: options.title
       });
       return "native" as const;
     } finally {
@@ -64,12 +69,20 @@ export async function shareAscendStory(blob: Blob, caption?: string) {
 
   const file = new File([blob], name, { type: "image/png" });
   if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-    await navigator.share({ title: "Share Your Ascent", text, files: [file] });
+    await navigator.share({ title: options.title, text: options.text, files: [file] });
     return "web-share" as const;
   }
 
   downloadBlob(blob, name);
   return "download" as const;
+}
+
+export async function shareAscendStory(blob: Blob, caption?: string) {
+  return shareAscendImage(blob, {
+    title: "Share Your Ascent",
+    text: caption?.trim() || "Still ascending.",
+    filePrefix: "ascend-story"
+  });
 }
 
 export async function saveAscendStory(blob: Blob) {

@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Mic, Pencil, Save, SlidersHorizontal, Sparkles, Square, Trash2, Utensils } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronDown, ChevronUp, ImagePlus, Mic, Pencil, Save, Share2, SlidersHorizontal, Sparkles, Square, Trash2, Utensils } from "lucide-react";
 import {
   aggregatePortionNutrition,
   calculateAdaptiveNutritionTargets,
@@ -32,6 +32,8 @@ import { Field, inputClass } from "@/components/Field";
 import { localDateKey } from "@/lib/date";
 import { DelightEmptyState } from "@/components/Delight";
 import { pickNativeImage } from "@/lib/nativeImagePicker";
+import { FoodSharePreview } from "@/components/food/FoodSharePreview";
+import { FoodShareCardData, renderFoodShareCard } from "@/lib/foodShareCard";
 import {
   cancelMealSpeechRecognition,
   getMealSpeechAvailability,
@@ -52,6 +54,8 @@ type SavedMealSummary = {
   foodName: string;
   calories: number;
   proteinG: number;
+  carbsG: number;
+  fatG: number;
   imagePreviewUrl: string | null;
 };
 type FrontendFoodAiStage = {
@@ -500,6 +504,9 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
   const [showPortionEditor, setShowPortionEditor] = useState(false);
   const [showPortionDiagnostics, setShowPortionDiagnostics] = useState(false);
   const [savedMeal, setSavedMeal] = useState<SavedMealSummary | null>(null);
+  const [shareCard, setShareCard] = useState<{ blob: Blob; previewUrl: string; foodName: string } | null>(null);
+  const [isPreparingShareCard, setIsPreparingShareCard] = useState(false);
+  const [shareError, setShareError] = useState("");
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
   const [mealSpeechAvailable, setMealSpeechAvailable] = useState(isMealSpeechPotentiallyAvailable);
   const [isListeningForMeal, setIsListeningForMeal] = useState(false);
@@ -512,6 +519,25 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
   const saveLockRef = useRef(false);
   const mealSpeechRequestRef = useRef(0);
   const mealSpeechLockRef = useRef(false);
+
+  useEffect(() => {
+    if (!shareCard) return;
+    return () => URL.revokeObjectURL(shareCard.previewUrl);
+  }, [shareCard]);
+
+  async function openFoodShareCard(data: FoodShareCardData) {
+    if (isPreparingShareCard) return;
+    setIsPreparingShareCard(true);
+    setShareError("");
+    try {
+      const blob = await renderFoodShareCard(data);
+      setShareCard({ blob, previewUrl: URL.createObjectURL(blob), foodName: data.foodName });
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : "Could not prepare your meal card. Please try again.");
+    } finally {
+      setIsPreparingShareCard(false);
+    }
+  }
 
   async function loadFoodLogs() {
     const requestId = ++foodLogsRequestRef.current;
@@ -624,6 +650,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
     if (!estimate) return false;
     return estimate.foodName.trim().length > 0 && Number(estimate.calories) > 0;
   }, [estimate]);
+  const foodShareEnabled = user?.is_platform_owner === true || process.env.NEXT_PUBLIC_FOOD_SHARE_PUBLIC === "true";
 
   const currentMealInsight = estimate ? mealInsight(estimate, effectiveNutritionTargets) : null;
   const portionAwareEstimate = estimate?.analysisVersion === "portion_aware_v1" && estimate.items?.length
@@ -733,6 +760,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
     setWasEdited(false);
     setAiFailed(false);
     setSavedMeal(null);
+    setShareError("");
     setShowEstimateEditor(false);
     setShowPortionEditor(false);
     setShowPortionDiagnostics(false);
@@ -819,6 +847,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
     setEstimate(null);
     setStatus("Estimating food, calories, protein, carbs, and fat...");
     setSavedMeal(null);
+    setShareError("");
     setShowEstimateEditor(false);
 
     try {
@@ -871,6 +900,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
     setSelectedImageDataUrl(null);
     setWasEdited(false);
     setSavedMeal(null);
+    setShareError("");
     setShowEstimateEditor(false);
     setShowPortionEditor(false);
     setShowPortionDiagnostics(false);
@@ -1041,6 +1071,8 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
         foodName: savedLog.estimatedFoodName,
         calories: savedLog.calories,
         proteinG: savedLog.proteinG,
+        carbsG: savedLog.carbsG,
+        fatG: savedLog.fatG,
         imagePreviewUrl: previewUrl
       });
       setPreviewUrl(null);
@@ -1409,6 +1441,14 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
               <div className="rounded-xl bg-ink p-3"><p className="text-xs uppercase tracking-[0.12em] text-zinc-500">Protein</p><p className="mt-1 font-semibold text-white">{Math.round(savedMeal.proteinG)}g</p></div>
             </div>
             <p className="mt-4 text-sm leading-6 text-zinc-300">Your daily progress has been updated.</p>
+            {foodShareEnabled ? (
+              <>
+                <button type="button" disabled={isPreparingShareCard} onClick={() => openFoodShareCard({ foodName: savedMeal.foodName, calories: savedMeal.calories, proteinG: savedMeal.proteinG, carbsG: savedMeal.carbsG, fatG: savedMeal.fatG, imageUrl: savedMeal.imagePreviewUrl })} className="ascend-pressable mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#7950c9] to-[#087f79] font-semibold text-white disabled:opacity-60">
+                  <Share2 size={19} />{isPreparingShareCard ? "Preparing your card..." : "Share meal"}
+                </button>
+                {shareError ? <p className="mt-2 text-sm text-amber" role="alert">{shareError}</p> : null}
+              </>
+            ) : null}
             <div className="mt-5 grid grid-cols-2 gap-3">
               <Link href="/dashboard" className="ascend-pressable flex h-12 items-center justify-center rounded-xl border border-lime/30 bg-ink font-semibold text-lime">
                 Back to Today
@@ -1759,6 +1799,14 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
                 {wasEdited ? <Save className="mr-2" size={19} /> : <Check className="mr-2" size={19} />}
                 {isSaving ? "Saving meal..." : "Save meal"}
               </button>
+              {foodShareEnabled ? (
+                <>
+                  <button type="button" disabled={isPreparingShareCard || !canSaveEstimate || isSaving} onClick={() => estimate && openFoodShareCard({ foodName: estimate.foodName, calories: estimate.calories, proteinG: estimate.proteinG, carbsG: estimate.carbsG, fatG: estimate.fatG, imageUrl: previewUrl })} className="ascend-pressable mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-lime/35 bg-lime/10 font-semibold text-lime disabled:opacity-50">
+                    <Share2 size={18} />{isPreparingShareCard ? "Preparing your card..." : "Share result"}
+                  </button>
+                  {shareError ? <p className="mt-2 text-sm text-amber" role="alert">{shareError}</p> : null}
+                </>
+              ) : null}
               <button type="button" onClick={previewUrl ? openCameraPicker : () => { setEstimate(null); setShowManualEntry(true); }} disabled={isSaving} className="ascend-pressable mt-2 h-11 w-full rounded-xl text-sm font-semibold text-zinc-400 disabled:opacity-60">
                 {previewUrl ? "Retake photo" : "Change description"}
               </button>
@@ -1769,6 +1817,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
           </>
         )}
       </div>
+      {shareCard ? <FoodSharePreview blob={shareCard.blob} previewUrl={shareCard.previewUrl} foodName={shareCard.foodName} onClose={() => setShareCard(null)} /> : null}
     </main>
   );
 }
