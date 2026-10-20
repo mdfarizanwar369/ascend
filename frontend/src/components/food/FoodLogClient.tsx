@@ -33,7 +33,7 @@ import { localDateKey } from "@/lib/date";
 import { DelightEmptyState } from "@/components/Delight";
 import { pickNativeImage } from "@/lib/nativeImagePicker";
 import { FoodSharePreview } from "@/components/food/FoodSharePreview";
-import { FoodShareCardData, renderFoodShareCard } from "@/lib/foodShareCard";
+import { FoodShareCardData, FoodShareFormat, renderFoodShareCard } from "@/lib/foodShareCard";
 import {
   cancelMealSpeechRecognition,
   getMealSpeechAvailability,
@@ -504,7 +504,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
   const [showPortionEditor, setShowPortionEditor] = useState(false);
   const [showPortionDiagnostics, setShowPortionDiagnostics] = useState(false);
   const [savedMeal, setSavedMeal] = useState<SavedMealSummary | null>(null);
-  const [shareCard, setShareCard] = useState<{ blob: Blob; previewUrl: string; foodName: string } | null>(null);
+  const [shareCard, setShareCard] = useState<{ blob: Blob; previewUrl: string; data: FoodShareCardData; format: FoodShareFormat } | null>(null);
   const [isPreparingShareCard, setIsPreparingShareCard] = useState(false);
   const [shareError, setShareError] = useState("");
   const [allowance, setAllowance] = useState<FoodAiAllowance | null>(null);
@@ -530,8 +530,23 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
     setIsPreparingShareCard(true);
     setShareError("");
     try {
-      const blob = await renderFoodShareCard(data);
-      setShareCard({ blob, previewUrl: URL.createObjectURL(blob), foodName: data.foodName });
+      const format: FoodShareFormat = data.imageUrl ? "story" : "post";
+      const blob = await renderFoodShareCard(data, format);
+      setShareCard({ blob, previewUrl: URL.createObjectURL(blob), data, format });
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : "Could not prepare your meal card. Please try again.");
+    } finally {
+      setIsPreparingShareCard(false);
+    }
+  }
+
+  async function changeFoodShareFormat(format: FoodShareFormat) {
+    if (!shareCard || format === shareCard.format || isPreparingShareCard) return;
+    setIsPreparingShareCard(true);
+    setShareError("");
+    try {
+      const blob = await renderFoodShareCard(shareCard.data, format);
+      setShareCard({ blob, previewUrl: URL.createObjectURL(blob), data: shareCard.data, format });
     } catch (error) {
       setShareError(error instanceof Error ? error.message : "Could not prepare your meal card. Please try again.");
     } finally {
@@ -1817,7 +1832,7 @@ export function FoodLogClient({ initialView = "log", initialMeal = "lunch" }: { 
           </>
         )}
       </div>
-      {shareCard ? <FoodSharePreview blob={shareCard.blob} previewUrl={shareCard.previewUrl} foodName={shareCard.foodName} onClose={() => setShareCard(null)} /> : null}
+      {shareCard ? <FoodSharePreview blob={shareCard.blob} previewUrl={shareCard.previewUrl} foodName={shareCard.data.foodName} format={shareCard.format} hasPhoto={Boolean(shareCard.data.imageUrl)} isPreparing={isPreparingShareCard} renderError={shareError} onFormatChange={changeFoodShareFormat} onClose={() => setShareCard(null)} /> : null}
     </main>
   );
 }
