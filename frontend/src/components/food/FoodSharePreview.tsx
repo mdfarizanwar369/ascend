@@ -54,7 +54,7 @@ export function FoodSharePreview({ blob, previewUrl, foodName, onClose }: {
         </header>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={previewUrl} alt={`Share card preview for ${foodName}`} className="mx-auto aspect-[4/5] w-full max-w-[350px] rounded-2xl border border-white/15 object-contain shadow-[0_24px_80px_rgba(0,0,0,0.6)]" />
-        <p className="mt-4 text-center text-sm text-zinc-300">Your meal photo and reviewed estimate, ready to post.</p>
+        <p className="mt-4 text-center text-sm text-zinc-300">Your reviewed meal estimate, ready to post.</p>
         <button type="button" onClick={handleShare} disabled={isSharing} className="ascend-pressable mt-5 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-lime text-base font-semibold text-ink disabled:opacity-60">
           <Share2 size={19} />{isSharing ? "Opening share options..." : "Share image"}
         </button>
