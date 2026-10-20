@@ -190,6 +190,7 @@ describe("Food AI recovery", () => {
       foodName: "Chicken rice and teh tarik", calories: 760, proteinG: 34, carbsG: 105, fatG: 22, imageUrl: null
     }));
     expect(await screen.findByRole("dialog", { name: "Meal share preview" })).toBeInTheDocument();
+    expect(screen.getByText("Your reviewed meal estimate, ready to post.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Share image" }));
     await waitFor(() => expect(foodShare.shareAscendImage).toHaveBeenCalledWith(expect.any(Blob), expect.objectContaining({ filePrefix: "ascend-food-snap" })));
     fireEvent.click(screen.getByRole("button", { name: "Close share preview" }));
