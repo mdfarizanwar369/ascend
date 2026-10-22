@@ -2,14 +2,76 @@ import SwiftUI
 import WidgetKit
 
 private enum AscendWidgetV2Tokens {
-    static let navy = Color(red: 0.015, green: 0.035, blue: 0.075)
-    static let teal = Color(red: 0.12, green: 0.94, blue: 0.80)
-    static let blue = Color(red: 0.18, green: 0.64, blue: 1.00)
-    static let violet = Color(red: 0.62, green: 0.38, blue: 1.00)
-    static let primaryText = Color.white
-    static let secondaryText = Color(red: 0.72, green: 0.78, blue: 0.88)
-    static let glass = Color(red: 0.035, green: 0.075, blue: 0.13).opacity(0.78)
-    static let hairline = Color.white.opacity(0.12)
+    static var theme: AscendWidgetTheme { AscendWidgetThemeStore.load() }
+
+    static var navy: Color {
+        switch theme {
+        case .classic: return Color(red: 0.015, green: 0.035, blue: 0.075)
+        case .light: return Color(red: 0.95, green: 0.97, blue: 0.98)
+        case .gymGirl: return Color(red: 0.16, green: 0.015, blue: 0.065)
+        case .cuteLift: return Color(red: 1.0, green: 0.98, blue: 0.92)
+        case .iron: return Color(red: 0.025, green: 0.03, blue: 0.035)
+        case .summit: return Color(red: 0.015, green: 0.13, blue: 0.11)
+        }
+    }
+    static var teal: Color {
+        switch theme {
+        case .classic: return Color(red: 0.12, green: 0.94, blue: 0.80)
+        case .light: return Color(red: 0.0, green: 0.54, blue: 0.46)
+        case .gymGirl: return Color(red: 1.0, green: 0.36, blue: 0.60)
+        case .cuteLift: return Color(red: 0.0, green: 0.64, blue: 0.55)
+        case .iron: return Color(red: 1.0, green: 0.52, blue: 0.17)
+        case .summit: return Color(red: 0.63, green: 0.82, blue: 0.59)
+        }
+    }
+    static var blue: Color {
+        switch theme {
+        case .classic: return Color(red: 0.18, green: 0.64, blue: 1.0)
+        case .light: return Color(red: 0.1, green: 0.47, blue: 0.78)
+        case .gymGirl: return Color(red: 1.0, green: 0.55, blue: 0.74)
+        case .cuteLift: return Color(red: 0.0, green: 0.63, blue: 0.78)
+        case .iron: return Color(red: 0.94, green: 0.46, blue: 0.12)
+        case .summit: return Color(red: 0.70, green: 0.88, blue: 0.73)
+        }
+    }
+    static var violet: Color {
+        switch theme {
+        case .classic: return Color(red: 0.62, green: 0.38, blue: 1.0)
+        case .light: return Color(red: 0.46, green: 0.28, blue: 0.76)
+        case .gymGirl: return Color(red: 0.97, green: 0.33, blue: 0.74)
+        case .cuteLift: return Color(red: 0.56, green: 0.39, blue: 0.82)
+        case .iron: return Color(red: 1.0, green: 0.70, blue: 0.35)
+        case .summit: return Color(red: 0.98, green: 0.82, blue: 0.48)
+        }
+    }
+    static var primaryText: Color { theme == .cuteLift || theme == .light ? Color(red: 0.10, green: 0.12, blue: 0.25) : .white }
+    static var secondaryText: Color {
+        switch theme {
+        case .classic: return Color(red: 0.72, green: 0.78, blue: 0.88)
+        case .light: return Color(red: 0.35, green: 0.40, blue: 0.47)
+        case .cuteLift: return Color(red: 0.34, green: 0.31, blue: 0.47)
+        default: return Color(red: 0.79, green: 0.82, blue: 0.86)
+        }
+    }
+    static var glass: Color {
+        switch theme {
+        case .classic: return Color(red: 0.035, green: 0.075, blue: 0.13).opacity(0.78)
+        case .light: return Color.white.opacity(0.88)
+        case .cuteLift: return Color.white.opacity(0.84)
+        default: return navy.opacity(0.82)
+        }
+    }
+    static var hairline: Color { primaryText.opacity(theme == .classic || theme == .cuteLift || theme == .light ? 0.12 : 0.18) }
+    static var backgroundAsset: String {
+        switch theme {
+        case .classic: return "ProgressPath"
+        case .light: return "ProgressPath"
+        case .gymGirl: return "GymGirlBackground"
+        case .cuteLift: return "CuteLiftBackground"
+        case .iron: return "IronBackground"
+        case .summit: return "SummitBackground"
+        }
+    }
 }
 
 private func ascendV2URL(_ path: String) -> URL {
@@ -186,22 +248,33 @@ private struct AscendV2Background: View {
     var body: some View {
         ZStack {
             AscendWidgetV2Tokens.navy
-            Image("ProgressPath")
-                .resizable()
-                .scaledToFill()
-                .saturation(0.78)
-                .contrast(1.08)
-            LinearGradient(
-                colors: [Color.black.opacity(0.32), AscendWidgetV2Tokens.navy.opacity(0.72), AscendWidgetV2Tokens.navy.opacity(0.96)],
-                startPoint: .topTrailing,
-                endPoint: .bottomLeading
-            )
-            RadialGradient(
-                colors: [AscendWidgetV2Tokens.blue.opacity(0.20), Color.clear],
-                center: .topTrailing,
-                startRadius: 4,
-                endRadius: 180
-            )
+            if AscendWidgetV2Tokens.theme != .light {
+                Image(AscendWidgetV2Tokens.backgroundAsset)
+                    .resizable()
+                    .scaledToFill()
+                    .saturation(AscendWidgetV2Tokens.theme == .classic ? 0.78 : 1)
+                    .contrast(AscendWidgetV2Tokens.theme == .classic ? 1.08 : 1)
+            }
+            if AscendWidgetV2Tokens.theme == .classic {
+                LinearGradient(
+                    colors: [Color.black.opacity(0.32), AscendWidgetV2Tokens.navy.opacity(0.72), AscendWidgetV2Tokens.navy.opacity(0.96)],
+                    startPoint: .topTrailing,
+                    endPoint: .bottomLeading
+                )
+                RadialGradient(
+                    colors: [AscendWidgetV2Tokens.blue.opacity(0.20), Color.clear],
+                    center: .topTrailing,
+                    startRadius: 4,
+                    endRadius: 180
+                )
+            } else if AscendWidgetV2Tokens.theme == .light {
+                RadialGradient(colors: [AscendWidgetV2Tokens.teal.opacity(0.13), .clear], center: .topTrailing, startRadius: 10, endRadius: 210)
+            } else if AscendWidgetV2Tokens.theme == .cuteLift {
+                LinearGradient(colors: [AscendWidgetV2Tokens.navy.opacity(0.36), .clear], startPoint: .leading, endPoint: .trailing)
+            } else {
+                LinearGradient(colors: [AscendWidgetV2Tokens.navy.opacity(0.70), AscendWidgetV2Tokens.navy.opacity(0.16)], startPoint: .leading, endPoint: .trailing)
+                LinearGradient(colors: [.clear, AscendWidgetV2Tokens.navy.opacity(0.66)], startPoint: .top, endPoint: .bottom)
+            }
         }
     }
 }
@@ -242,7 +315,7 @@ private struct AscendV2CalorieRing: View {
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.white.opacity(0.12), lineWidth: max(5, diameter * 0.095))
+                .stroke(AscendWidgetV2Tokens.primaryText.opacity(0.12), lineWidth: max(5, diameter * 0.095))
             if let progress {
                 Circle()
                     .trim(from: 0, to: progress)
@@ -259,7 +332,7 @@ private struct AscendV2CalorieRing: View {
             }
             Image(systemName: "flame.fill")
                 .font(.system(size: diameter * 0.24, weight: .semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(AscendWidgetV2Tokens.primaryText)
         }
         .frame(width: diameter, height: diameter)
         .accessibilityHidden(true)
@@ -311,13 +384,13 @@ private struct AscendV2MessageBar: View {
                     .foregroundStyle(message.color)
                 Text(message.text)
                     .font(.system(size: roomy ? 12 : 9, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.90))
+                    .foregroundStyle(AscendWidgetV2Tokens.primaryText.opacity(0.90))
                     .lineLimit(roomy ? 2 : 1)
                     .minimumScaleFactor(0.76)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .font(.system(size: roomy ? 10 : 8, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.42))
+                    .foregroundStyle(AscendWidgetV2Tokens.primaryText.opacity(0.42))
             }
             .padding(.horizontal, roomy ? 12 : 9)
             .padding(.vertical, roomy ? 10 : 4)
@@ -361,7 +434,7 @@ private struct AscendV2MediumWidget: View {
                         VStack(alignment: .leading, spacing: -2) {
                             Text(state.calorieValue)
                                 .font(.system(size: 29, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AscendWidgetV2Tokens.primaryText)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.68)
                             Text(state.calorieLabel)
@@ -414,7 +487,7 @@ private struct AscendV2SmallWidget: View {
                     VStack(alignment: .leading, spacing: -1) {
                         Text(state.calorieValue)
                             .font(.system(size: 25, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AscendWidgetV2Tokens.primaryText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.62)
                         Text(state.calorieLabel)
@@ -427,7 +500,7 @@ private struct AscendV2SmallWidget: View {
                 Label("Daily calorie balance", systemImage: "sparkles")
                     .lineLimit(1)
                 .font(.system(size: 9, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.78))
+                .foregroundStyle(AscendWidgetV2Tokens.primaryText.opacity(0.78))
             }
             .padding(13)
             .contentShape(Rectangle())
@@ -457,7 +530,7 @@ private struct AscendV2LargeWidget: View {
                                 .foregroundStyle(AscendWidgetV2Tokens.teal)
                             Text(state.calorieValue)
                                 .font(.system(size: 42, weight: .bold, design: .rounded))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AscendWidgetV2Tokens.primaryText)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.70)
                             Text(state.calorieLabel)
@@ -532,7 +605,7 @@ private struct AscendV2EmptyWidget: View {
                     .foregroundStyle(AscendWidgetV2Tokens.teal)
                 Text("Open Ascend")
                     .font(.headline)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AscendWidgetV2Tokens.primaryText)
                 Text("Sign in once to show today’s progress.")
                     .font(.caption2)
                     .foregroundStyle(AscendWidgetV2Tokens.secondaryText)

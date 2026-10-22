@@ -1,5 +1,6 @@
 import Capacitor
 import Foundation
+import WidgetKit
 
 @objc(AscendSiriPlugin)
 public class AscendSiriPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -9,6 +10,8 @@ public class AscendSiriPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "status", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "connect", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "refreshWidget", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "getWidgetTheme", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setWidgetTheme", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "disconnect", returnType: CAPPluginReturnPromise)
     ]
 
@@ -52,6 +55,26 @@ public class AscendSiriPlugin: CAPPlugin, CAPBridgedPlugin {
             } catch {
                 call.reject(error.localizedDescription)
             }
+        }
+    }
+
+    @objc func getWidgetTheme(_ call: CAPPluginCall) {
+        call.resolve(["theme": AscendWidgetThemeStore.load().rawValue])
+    }
+
+    @objc func setWidgetTheme(_ call: CAPPluginCall) {
+        guard let value = call.getString("theme"),
+              let theme = AscendWidgetTheme(rawValue: value) else {
+            call.reject("Choose an available Ascend theme.")
+            return
+        }
+        do {
+            if try AscendWidgetThemeStore.save(theme) {
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            call.resolve(["theme": theme.rawValue])
+        } catch {
+            call.reject("Ascend could not save the widget theme.")
         }
     }
 

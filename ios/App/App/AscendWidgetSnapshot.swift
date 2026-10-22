@@ -76,3 +76,33 @@ enum AscendWidgetStore {
 enum AscendWidgetStoreError: Error {
     case unavailable
 }
+
+// Appearance is device-local and independent of the account's daily snapshot.
+// Unknown values (including values written by a newer web client) fall back to Classic.
+enum AscendWidgetTheme: String, CaseIterable {
+    case classic
+    case light
+    case gymGirl = "gym-girl"
+    case cuteLift = "cute-lift"
+    case iron
+    case summit
+}
+
+enum AscendWidgetThemeStore {
+    private static let key = "ascend.widget.appearance.v1"
+
+    static func load() -> AscendWidgetTheme {
+        guard let defaults = UserDefaults(suiteName: AscendWidgetStore.suiteName),
+              let value = defaults.string(forKey: key) else { return .classic }
+        return AscendWidgetTheme(rawValue: value) ?? .classic
+    }
+
+    static func save(_ theme: AscendWidgetTheme) throws -> Bool {
+        guard let defaults = UserDefaults(suiteName: AscendWidgetStore.suiteName) else {
+            throw AscendWidgetStoreError.unavailable
+        }
+        guard defaults.string(forKey: key) != theme.rawValue else { return false }
+        defaults.set(theme.rawValue, forKey: key)
+        return true
+    }
+}

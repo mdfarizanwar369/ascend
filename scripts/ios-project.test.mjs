@@ -196,3 +196,23 @@ test("iOS push is packaged with registration callbacks and build-specific APNs e
   assert.match(read("ios/App/App.xcodeproj/project.pbxproj"), /APS_ENVIRONMENT = production/);
   assert.match(read("ios/App/CapApp-SPM/Package.swift"), /CapacitorPushNotifications/);
 });
+
+test("iOS widget appearance stays local and includes the four opt-in themes", () => {
+  const store = read("ios/App/App/AscendWidgetSnapshot.swift");
+  const bridge = read("ios/App/App/AscendSiriPlugin.swift");
+  const widget = read("ios/App/AscendWidget/AscendWidgetV2.swift");
+  for (const theme of ['"gym-girl"', '"cute-lift"', 'case iron', 'case summit']) {
+    assert.ok(store.includes(theme));
+  }
+  assert.match(store, /ascend\.widget\.appearance\.v1/);
+  assert.match(store, /AscendWidgetStore\.suiteName/);
+  assert.match(store, /AscendWidgetTheme\(rawValue: value\) \?\? \.classic/);
+  assert.match(bridge, /getWidgetTheme/);
+  assert.match(bridge, /setWidgetTheme/);
+  assert.match(bridge, /WidgetCenter\.shared\.reloadAllTimelines\(\)/);
+  for (const asset of ["GymGirl", "CuteLift", "Iron", "Summit"]) {
+    assert.ok(fs.existsSync(`ios/App/AscendWidget/Assets.xcassets/${asset}Background.imageset/Contents.json`));
+    assert.ok(widget.includes(`${asset}Background`));
+  }
+  assert.match(widget, /case \.classic: return "ProgressPath"/);
+});

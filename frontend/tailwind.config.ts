@@ -9,11 +9,11 @@ const config: Config = {
         ink: "rgb(var(--color-ink) / <alpha-value>)",
         surface: "rgb(var(--color-surface) / <alpha-value>)",
         line: "rgb(var(--color-line) / <alpha-value>)",
-        lime: "#35f2d0",
-        teal: "#35f2d0",
-        violet: "#8b5cf6",
-        amber: "#f8b84e",
-        calm: "#8b5cf6"
+        lime: "rgb(var(--ascend-accent-primary) / <alpha-value>)",
+        teal: "rgb(var(--ascend-accent-primary) / <alpha-value>)",
+        violet: "rgb(var(--ascend-accent-violet) / <alpha-value>)",
+        amber: "rgb(var(--ascend-accent-amber) / <alpha-value>)",
+        calm: "rgb(var(--ascend-accent-violet) / <alpha-value>)"
       },
       boxShadow: {
         soft: "0 18px 60px rgba(0, 0, 0, 0.22)"
