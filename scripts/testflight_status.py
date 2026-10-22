@@ -11,7 +11,7 @@ import urllib.request
 import jwt
 
 
-EXPECTED_VERSION = "1.6"
+EXPECTED_VERSION = "1.7"
 
 
 def get(path, **params):
@@ -151,6 +151,17 @@ builds = get(
 )["data"]
 print("MATCHING_BUILDS", build_number, len(builds))
 groups = get(f"/v1/apps/{app_id}/betaGroups", limit=200)["data"]
+print("GROUP_INVENTORY_COUNT", len(groups))
+for group in groups:
+    group_attrs = group["attributes"]
+    testers = get(f"/v1/betaGroups/{group['id']}/betaTesters", limit=200)["data"]
+    print("GROUP_INVENTORY", json.dumps({
+        "name": group_attrs.get("name"),
+        "internal": group_attrs.get("isInternalGroup"),
+        "allBuilds": group_attrs.get("hasAccessToAllBuilds"),
+        "testerCount": len(testers),
+        "testerStates": [tester.get("attributes", {}).get("state") for tester in testers],
+    }, sort_keys=True))
 try:
     account_holders = get("/v1/users", **{"filter[roles]": "ACCOUNT_HOLDER", "limit": 200})["data"]
     account_holder_emails = {
