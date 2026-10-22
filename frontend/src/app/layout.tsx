@@ -65,9 +65,13 @@ const themeBootScript = `
     }
 
     try {
-      var saved = localStorage.getItem("ascend-theme");
-      document.documentElement.dataset.theme = saved === "light" ? "light" : "dark";
+      var saved = localStorage.getItem("ascend-appearance");
+      var supported = ["classic", "light", "gym-girl", "cute-lift", "iron", "summit"];
+      var appearance = supported.indexOf(saved) >= 0 ? saved : (localStorage.getItem("ascend-theme") === "light" ? "light" : "classic");
+      document.documentElement.dataset.appearance = appearance;
+      document.documentElement.dataset.theme = appearance === "light" || appearance === "cute-lift" ? "light" : "dark";
     } catch (_) {
+      document.documentElement.dataset.appearance = "classic";
       document.documentElement.dataset.theme = "dark";
     }
   })();

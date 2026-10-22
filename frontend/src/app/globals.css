@@ -4,6 +4,9 @@
 
 :root {
   --ascend-safe-area-top: env(safe-area-inset-top, 0px);
+  --ascend-accent-primary: 53 242 208;
+  --ascend-accent-violet: 139 92 246;
+  --ascend-accent-amber: 248 184 78;
   --color-ink: 15 22 31;
   --color-surface: 27 37 51;
   --color-line: 38 48 66;
@@ -2218,4 +2221,128 @@ html[data-theme="light"] ::selection {
     border-color: rgba(8, 123, 112, 0.2);
     background: #f4fbf9;
   }
+}
+
+/* The four opt-in iOS looks share the current layout and real data. */
+html[data-appearance="gym-girl"] {
+  --color-ink: 25 7 17;
+  --color-surface: 55 17 34;
+  --color-line: 100 39 64;
+  --surface-raised: 55 17 34;
+  --surface-inset: 31 8 20;
+  --surface-soft: 41 12 28;
+  --ascend-accent-primary: 255 91 150;
+  --ascend-accent-violet: 255 142 194;
+  --ascend-accent-amber: 255 184 193;
+  --ascend-theme-backdrop: url("/themes/gym-girl-banner.webp");
+  --ascend-theme-veil: 25 7 17;
+}
+
+html[data-appearance="cute-lift"] {
+  --color-ink: 255 249 239;
+  --color-surface: 255 255 255;
+  --color-line: 231 209 225;
+  --surface-raised: 255 255 255;
+  --surface-inset: 252 239 249;
+  --surface-soft: 255 246 251;
+  --ascend-accent-primary: 0 172 148;
+  --ascend-accent-violet: 143 94 215;
+  --ascend-accent-amber: 231 156 81;
+  --ascend-theme-backdrop: url("/themes/cute-lift-banner.webp");
+  --ascend-theme-veil: 255 249 239;
+}
+
+html[data-appearance="iron"] {
+  --color-ink: 13 14 17;
+  --color-surface: 31 30 31;
+  --color-line: 72 54 43;
+  --surface-raised: 31 30 31;
+  --surface-inset: 16 16 18;
+  --surface-soft: 24 23 23;
+  --ascend-accent-primary: 255 133 45;
+  --ascend-accent-violet: 255 184 105;
+  --ascend-accent-amber: 255 164 69;
+  --ascend-theme-backdrop: url("/themes/iron-banner.webp");
+  --ascend-theme-veil: 13 14 17;
+}
+
+html[data-appearance="summit"] {
+  --color-ink: 5 30 27;
+  --color-surface: 18 51 45;
+  --color-line: 53 86 70;
+  --surface-raised: 18 51 45;
+  --surface-inset: 8 34 30;
+  --surface-soft: 11 42 37;
+  --ascend-accent-primary: 166 212 159;
+  --ascend-accent-violet: 238 209 141;
+  --ascend-accent-amber: 246 205 126;
+  --ascend-theme-backdrop: url("/themes/summit-banner.webp");
+  --ascend-theme-veil: 5 30 27;
+}
+
+html[data-appearance="gym-girl"] body,
+html[data-appearance="iron"] body,
+html[data-appearance="summit"] body {
+  background: rgb(var(--color-ink));
+}
+
+html[data-appearance="gym-girl"] .ascend-today-canvas,
+html[data-appearance="iron"] .ascend-today-canvas,
+html[data-appearance="summit"] .ascend-today-canvas {
+  background:
+    linear-gradient(180deg, rgb(var(--ascend-theme-veil) / 0.28), rgb(var(--ascend-theme-veil)) 27rem),
+    var(--ascend-theme-backdrop) center top / 100% auto no-repeat,
+    rgb(var(--color-ink));
+}
+
+html[data-appearance="cute-lift"] body,
+html[data-appearance="cute-lift"] .ascend-page,
+html[data-appearance="cute-lift"] main.min-h-screen,
+html[data-appearance="cute-lift"] main[class*="bg-ink"] {
+  background-color: rgb(var(--color-ink)) !important;
+}
+
+html[data-appearance="cute-lift"] .ascend-today-canvas {
+  background:
+    linear-gradient(180deg, rgb(var(--ascend-theme-veil) / 0.14), rgb(var(--ascend-theme-veil)) 27rem),
+    var(--ascend-theme-backdrop) center top / 100% auto no-repeat,
+    rgb(var(--color-ink)) !important;
+}
+
+html[data-appearance="cute-lift"] .ascend-today-hero,
+html[data-appearance="cute-lift"] .ascend-identity-hero {
+  border-color: #ead5e9 !important;
+  background: linear-gradient(135deg, #fffaf4, #fceaf8 58%, #e8fff9) !important;
+}
+
+html[data-appearance="cute-lift"] .ascend-bottom-nav,
+html[data-appearance="cute-lift"] .ascend-shell-header {
+  background: rgb(var(--color-ink) / 0.96) !important;
+}
+
+html[data-appearance="cute-lift"] .ascend-account-strip {
+  border-color: #ead5e9 !important;
+  background: #fffefa !important;
+}
+
+html[data-appearance="cute-lift"] .ascend-nav-item[aria-current="page"] {
+  background: #e5faf4 !important;
+  color: #006f61 !important;
+}
+
+html[data-appearance="cute-lift"] .text-lime,
+html[data-appearance="cute-lift"] .text-teal {
+  color: #007d6b !important;
+}
+
+html[data-appearance="cute-lift"] button.bg-lime:not(:disabled),
+html[data-appearance="cute-lift"] a.bg-lime {
+  background: #6be6c9 !important;
+  color: #0d2c29 !important;
+}
+
+html[data-appearance="gym-girl"] .ascend-nav-item[aria-current="page"],
+html[data-appearance="iron"] .ascend-nav-item[aria-current="page"],
+html[data-appearance="summit"] .ascend-nav-item[aria-current="page"] {
+  box-shadow: 0 8px 24px rgb(var(--ascend-accent-primary) / 0.16);
 }
