@@ -6,12 +6,15 @@ import { ASCEND_APPEARANCES, applyAscendAppearance, parseAscendAppearance, type 
 import { ascendSiri } from "@/lib/ascendSiri";
 import { getNativeCapacitorPlatform, isNativeCapacitorPlatform } from "@/lib/nativePlatform";
 
+const legacyAvailableThemes = ASCEND_APPEARANCES.filter(option => option.id !== "ascend-club").map(option => option.id);
+
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const [appearance, setAppearance] = useState<AscendAppearance>("classic");
   const [nativePicker, setNativePicker] = useState(false);
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [availableThemes, setAvailableThemes] = useState<readonly AscendAppearance[]>(legacyAvailableThemes);
   const trigger = useRef<HTMLButtonElement>(null);
   const close = useRef<HTMLButtonElement>(null);
 
@@ -21,11 +24,15 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     setAppearance(current);
     if (!isNativeCapacitorPlatform() || getNativeCapacitorPlatform() !== "ios") return;
 
-    void ascendSiri.getWidgetTheme().then(async ({ theme }) => {
+    void ascendSiri.getWidgetTheme().then(async ({ theme, availableThemes: nativeAvailableThemes }) => {
       if (cancelled) return;
       const nativeTheme = parseAscendAppearance(theme) ?? "classic";
+      const supportedThemes = Array.isArray(nativeAvailableThemes)
+        ? nativeAvailableThemes.map(parseAscendAppearance).filter((item): item is AscendAppearance => item !== null)
+        : legacyAvailableThemes;
       const stored = parseAscendAppearance(localStorage.getItem("ascend-appearance"));
-      const preferred = stored ?? (localStorage.getItem("ascend-theme") === "light" ? "light" : nativeTheme);
+      const candidate = stored ?? (localStorage.getItem("ascend-theme") === "light" ? "light" : nativeTheme);
+      const preferred = supportedThemes.includes(candidate) ? candidate : nativeTheme;
       if (preferred !== nativeTheme) {
         try { await ascendSiri.setWidgetTheme({ theme: preferred }); }
         catch { return; }
@@ -33,6 +40,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
       if (cancelled) return;
       applyAscendAppearance(preferred);
       setAppearance(preferred);
+      setAvailableThemes(supportedThemes);
       setNativePicker(true);
     }).catch(() => { /* Older iOS builds keep the existing light/dark toggle. */ });
     return () => { cancelled = true; };
@@ -98,7 +106,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
               <button ref={close} type="button" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-line bg-surface text-zinc-100" onClick={() => { setOpen(false); trigger.current?.focus(); }} aria-label="Close appearance picker"><X size={17} /></button>
             </div>
             <div className="grid max-h-[min(68dvh,620px)] grid-cols-2 gap-3 overflow-y-auto p-4">
-              {ASCEND_APPEARANCES.map(option => (
+              {ASCEND_APPEARANCES.filter(option => availableThemes.includes(option.id)).map(option => (
                 <button
                   key={option.id}
                   type="button"

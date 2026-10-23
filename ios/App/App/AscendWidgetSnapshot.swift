@@ -86,6 +86,7 @@ enum AscendWidgetTheme: String, CaseIterable {
     case cuteLift = "cute-lift"
     case iron
     case summit
+    case ascendClub = "ascend-club"
 }
 
 enum AscendWidgetThemeStore {

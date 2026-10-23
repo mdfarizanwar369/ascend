@@ -46,3 +46,19 @@ it("does not apply a theme when the native widget cannot save it", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not update the widget");
   expect(document.documentElement.dataset.appearance).toBe("classic");
 });
+
+it("keeps Ascend Club hidden on iOS builds that cannot render its widget", async () => {
+  render(<ThemeToggle />);
+  fireEvent.click(await screen.findByRole("button", { name: "Choose Ascend appearance" }));
+  expect(screen.queryByRole("button", { name: /Ascend Club/i })).not.toBeInTheDocument();
+});
+
+it("offers Ascend Club when the native widget reports support", async () => {
+  mocks.getWidgetTheme.mockResolvedValue({ theme: "classic", availableThemes: ["classic", "light", "gym-girl", "cute-lift", "iron", "summit", "ascend-club"] });
+  mocks.setWidgetTheme.mockResolvedValue({ theme: "ascend-club" });
+  render(<ThemeToggle />);
+  fireEvent.click(await screen.findByRole("button", { name: "Choose Ascend appearance" }));
+  fireEvent.click(screen.getByRole("button", { name: /Ascend Club/i }));
+  await waitFor(() => expect(mocks.setWidgetTheme).toHaveBeenCalledWith({ theme: "ascend-club" }));
+  expect(document.documentElement.dataset.appearance).toBe("ascend-club");
+});

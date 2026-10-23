@@ -14,7 +14,7 @@ export const ascendSiri = registerPlugin<{
   status(): Promise<AscendSiriStatus>;
   connect(options: { apiBaseUrl: string; firebaseToken: string; firebaseUid: string }): Promise<{ connected: boolean; expiresAt: string }>;
   refreshWidget(): Promise<{ refreshed: boolean }>;
-  getWidgetTheme(): Promise<{ theme: AscendAppearance }>;
+  getWidgetTheme(): Promise<{ theme: AscendAppearance; availableThemes?: AscendAppearance[] }>;
   setWidgetTheme(options: { theme: AscendAppearance }): Promise<{ theme: AscendAppearance }>;
   disconnect(): Promise<void>;
 }>("AscendSiri");
