@@ -12,6 +12,7 @@ private enum AscendWidgetV2Tokens {
         case .cuteLift: return Color(red: 1.0, green: 0.98, blue: 0.92)
         case .iron: return Color(red: 0.025, green: 0.03, blue: 0.035)
         case .summit: return Color(red: 0.015, green: 0.13, blue: 0.11)
+        case .ascendClub: return Color(red: 0.027, green: 0.071, blue: 0.145)
         }
     }
     static var teal: Color {
@@ -22,6 +23,7 @@ private enum AscendWidgetV2Tokens {
         case .cuteLift: return Color(red: 0.0, green: 0.64, blue: 0.55)
         case .iron: return Color(red: 1.0, green: 0.52, blue: 0.17)
         case .summit: return Color(red: 0.63, green: 0.82, blue: 0.59)
+        case .ascendClub: return Color(red: 1.0, green: 0.435, blue: 0.208)
         }
     }
     static var blue: Color {
@@ -32,6 +34,7 @@ private enum AscendWidgetV2Tokens {
         case .cuteLift: return Color(red: 0.0, green: 0.63, blue: 0.78)
         case .iron: return Color(red: 0.94, green: 0.46, blue: 0.12)
         case .summit: return Color(red: 0.70, green: 0.88, blue: 0.73)
+        case .ascendClub: return Color(red: 0.31, green: 0.73, blue: 1.0)
         }
     }
     static var violet: Color {
@@ -42,6 +45,7 @@ private enum AscendWidgetV2Tokens {
         case .cuteLift: return Color(red: 0.56, green: 0.39, blue: 0.82)
         case .iron: return Color(red: 1.0, green: 0.70, blue: 0.35)
         case .summit: return Color(red: 0.98, green: 0.82, blue: 0.48)
+        case .ascendClub: return Color(red: 1.0, green: 0.72, blue: 0.45)
         }
     }
     static var primaryText: Color { theme == .cuteLift || theme == .light ? Color(red: 0.10, green: 0.12, blue: 0.25) : .white }
@@ -70,6 +74,7 @@ private enum AscendWidgetV2Tokens {
         case .cuteLift: return "CuteLiftBackground"
         case .iron: return "IronBackground"
         case .summit: return "SummitBackground"
+        case .ascendClub: return "AscendClubBackground"
         }
     }
 }

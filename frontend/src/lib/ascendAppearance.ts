@@ -5,6 +5,7 @@ export const ASCEND_APPEARANCES = [
   { id: "cute-lift", name: "Cute Lift Club", description: "Pastel energy", preview: "/themes/cute-lift-banner.webp" },
   { id: "iron", name: "Iron Club", description: "Iron and copper", preview: "/themes/iron-banner.webp" },
   { id: "summit", name: "Summit Club", description: "Alpine and evergreen", preview: "/themes/summit-banner.webp" },
+  { id: "ascend-club", name: "Ascend Club", description: "Move together, your way", preview: "/themes/ascend-club-banner.webp" },
 ] as const;
 
 export type AscendAppearance = (typeof ASCEND_APPEARANCES)[number]["id"];

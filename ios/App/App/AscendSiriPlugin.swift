@@ -59,7 +59,10 @@ public class AscendSiriPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     @objc func getWidgetTheme(_ call: CAPPluginCall) {
-        call.resolve(["theme": AscendWidgetThemeStore.load().rawValue])
+        call.resolve([
+            "theme": AscendWidgetThemeStore.load().rawValue,
+            "availableThemes": AscendWidgetTheme.allCases.map(\.rawValue)
+        ])
     }
 
     @objc func setWidgetTheme(_ call: CAPPluginCall) {

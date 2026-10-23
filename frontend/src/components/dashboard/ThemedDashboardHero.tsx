@@ -20,14 +20,15 @@ export function ThemedDashboardHero({ calorieTarget, caloriesLogged, calorieProg
   return (
     <section className="ascend-themed-hero" aria-label="Your themed daily overview">
       <div className="ascend-themed-hero-intro">
-        <p className="ascend-themed-kicker">Your day</p>
+        <p className="ascend-themed-kicker"><span className="ascend-themed-kicker-default">Your day</span><span className="ascend-themed-kicker-club">Ascend Club</span></p>
         <h1 className="ascend-themed-title">
           <span className="ascend-themed-title-gym">Gym<br />Girl Club</span>
           <span className="ascend-themed-title-cute">Cute ♡<br />Lift Club</span>
           <span className="ascend-themed-title-iron">Keep the<br />momentum.</span>
           <span className="ascend-themed-title-summit">Keep the<br />momentum.</span>
+          <span className="ascend-themed-title-club">Move<br />together.</span>
         </h1>
-        <p className="ascend-themed-mantra">One good choice at a time.</p>
+        <p className="ascend-themed-mantra"><span className="ascend-themed-mantra-default">One good choice at a time.</span><span className="ascend-themed-mantra-club">Every step counts. Make it yours.</span></p>
       </div>
 
       <Link href={hasGuide ? "/food-log" : "/profile/guide"} className="ascend-themed-balance ascend-pressable" aria-label={difference === null ? "Set your calorie guide in Ascend" : `${balance} ${balanceLabel}. Open food log.`}>

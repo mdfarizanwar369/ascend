@@ -2679,3 +2679,132 @@ html[data-appearance="summit"] .ascend-account-strip { border-color: rgb(var(--a
   .ascend-themed-calorie-ring { width: 4rem; height: 4rem; }
   .ascend-themed-calorie-ring::after { width: 3rem; height: 3rem; }
 }
+
+/* Ascend Club: a candid, community-sport look available to compatible iOS builds. */
+html[data-appearance="ascend-club"] {
+  --color-ink: 7 18 37;
+  --color-surface: 16 39 66;
+  --color-line: 49 91 125;
+  --surface-raised: 16 39 66;
+  --surface-inset: 9 26 49;
+  --surface-soft: 13 31 57;
+  --ascend-accent-primary: 255 111 53;
+  --ascend-accent-violet: 255 169 106;
+  --ascend-accent-amber: 255 173 91;
+  --ascend-theme-backdrop: url("/themes/ascend-club-banner.webp");
+  --ascend-theme-veil: 7 18 37;
+  --ascend-dashboard-art: url("/themes/ascend-club-dashboard.webp");
+  --ascend-dashboard-accent: 255 111 53;
+  --ascend-dashboard-text: 255 255 255;
+  --ascend-dashboard-card: 15 39 68;
+  --ascend-dashboard-ink: 255 255 255;
+  --ascend-dashboard-heading-font: Impact, "Arial Narrow", "Arial Black", sans-serif;
+}
+html[data-appearance="ascend-club"] body,
+html[data-appearance="ascend-club"] .ascend-today-canvas { background: rgb(var(--color-ink)); }
+html[data-appearance="ascend-club"] .ascend-themed-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 27rem;
+  overflow: hidden;
+  margin: 0.15rem -1rem 0;
+  padding: 2.2rem 1.2rem 1.15rem;
+  color: rgb(var(--ascend-dashboard-text));
+  background: var(--ascend-dashboard-art) center 58% / cover no-repeat;
+}
+html[data-appearance="ascend-club"] .ascend-themed-hero::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(4, 15, 35, 0.80), rgba(4, 15, 35, 0.06) 85%), linear-gradient(0deg, #071225 0, transparent 54%);
+}
+.ascend-themed-kicker-club,
+.ascend-themed-mantra-club { display: none; }
+html[data-appearance="ascend-club"] .ascend-themed-kicker-default,
+html[data-appearance="ascend-club"] .ascend-themed-mantra-default { display: none; }
+html[data-appearance="ascend-club"] .ascend-themed-kicker-club,
+html[data-appearance="ascend-club"] .ascend-themed-mantra-club,
+html[data-appearance="ascend-club"] .ascend-themed-title-club { display: block; }
+html[data-appearance="ascend-club"] .ascend-themed-title {
+  font-size: clamp(3.2rem, 13vw, 4.25rem);
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: -0.025em;
+  text-transform: uppercase;
+}
+html[data-appearance="ascend-club"] .ascend-themed-balance {
+  border-color: rgb(79 186 255 / 0.46);
+  background: rgb(var(--ascend-dashboard-card) / 0.88);
+}
+html[data-appearance="ascend-club"] .ascend-today-essentials {
+  overflow: visible;
+  padding: 0.85rem 0 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-appearance="ascend-club"] .ascend-essentials-heading .ascend-eyebrow {
+  font-family: var(--ascend-dashboard-heading-font);
+  font-size: 1.5rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  text-transform: none;
+  color: rgb(var(--ascend-dashboard-text));
+}
+html[data-appearance="ascend-club"] .ascend-essentials-heading h1 { color: rgb(var(--ascend-dashboard-text)); }
+html[data-appearance="ascend-club"] .ascend-today-essentials nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+html[data-appearance="ascend-club"] .ascend-essential-card {
+  display: flex;
+  min-height: 11rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 0.85rem;
+  border-color: rgb(79 186 255 / 0.38);
+  border-radius: 1.25rem;
+  color: rgb(var(--ascend-dashboard-ink));
+  background: linear-gradient(145deg, rgb(var(--ascend-dashboard-card) / 0.95), rgb(var(--ascend-dashboard-card) / 0.78));
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+html[data-appearance="ascend-club"] .ascend-essential-card:last-child { grid-column: 1 / -1; min-height: 8.5rem; }
+html[data-appearance="ascend-club"] .ascend-essential-card .ascend-signal-ring { width: 2.7rem; height: 2.7rem; filter: none; }
+html[data-appearance="ascend-club"] .ascend-essential-card .ascend-signal-ring-core { width: 2rem; height: 2rem; }
+html[data-appearance="ascend-club"] .ascend-essential-card .ascend-signal-ring svg { width: 2.7rem; height: 2.7rem; }
+html[data-appearance="ascend-club"] .ascend-essential-card .ascend-signal-ring-icon svg { width: 1rem; height: 1rem; }
+html[data-appearance="ascend-club"] .ascend-essential-card .ascend-signal-ring-value,
+html[data-appearance="ascend-club"] .ascend-essential-chevron { display: none; }
+html[data-appearance="ascend-club"] .ascend-essential-copy { width: 100%; margin-top: 0.45rem; }
+html[data-appearance="ascend-club"] .ascend-essential-copy > span:first-child { font-family: var(--ascend-dashboard-heading-font); font-size: 1.2rem; color: rgb(var(--ascend-dashboard-ink)); }
+html[data-appearance="ascend-club"] .ascend-essential-copy > span:last-child { color: rgb(var(--ascend-dashboard-ink) / 0.72); }
+html[data-appearance="ascend-club"] .ascend-essential-action { margin-top: auto; border-color: rgb(var(--ascend-dashboard-accent) / 0.44); background: rgb(var(--ascend-dashboard-accent) / 0.13); color: rgb(var(--ascend-dashboard-ink)); }
+html[data-appearance="ascend-club"] .ascend-momentum-result,
+html[data-appearance="ascend-club"] .ascend-today-focus,
+html[data-appearance="ascend-club"] .ascend-today-workout {
+  border-color: rgb(var(--ascend-dashboard-accent) / 0.45) !important;
+  background: linear-gradient(125deg, rgb(var(--ascend-dashboard-card) / 0.96), rgb(var(--ascend-dashboard-card) / 0.78)) !important;
+  color: rgb(var(--ascend-dashboard-ink));
+  box-shadow: 0 18px 36px rgb(0 0 0 / 0.13), inset 0 1px 0 rgb(255 255 255 / 0.13) !important;
+}
+html[data-appearance="ascend-club"] .ascend-today-workout { background: linear-gradient(90deg, rgb(var(--ascend-dashboard-card) / 0.98), rgb(var(--ascend-dashboard-card) / 0.72)), var(--ascend-dashboard-art) center 54% / cover !important; }
+html[data-appearance="ascend-club"] .ascend-today-workout .bg-calm,
+html[data-appearance="ascend-club"] .ascend-today-focus .bg-lime { background: rgb(var(--ascend-dashboard-accent)) !important; color: rgb(var(--ascend-theme-veil)) !important; }
+html[data-appearance="ascend-club"] .ascend-today-secondary-action {
+  min-height: 3.35rem;
+  border-color: rgb(var(--ascend-dashboard-accent) / 0.45) !important;
+  border-radius: 1.15rem;
+  background: rgb(var(--ascend-dashboard-card) / 0.9) !important;
+  color: rgb(var(--ascend-dashboard-ink)) !important;
+}
+html[data-appearance="ascend-club"] .ascend-bottom-nav { border-color: rgb(var(--ascend-dashboard-accent) / 0.26); background: rgb(var(--ascend-theme-veil) / 0.94); }
+html[data-appearance="ascend-club"] .ascend-nav-item[aria-current="page"] { background: rgb(var(--ascend-dashboard-accent) / 0.16) !important; color: rgb(var(--ascend-dashboard-accent)) !important; }
+html[data-appearance="ascend-club"] .ascend-shell-header .ascend-shell-brand-copy { letter-spacing: 0.13em; text-transform: uppercase; }
+html[data-appearance="ascend-club"] .ascend-account-strip { border-color: rgb(var(--ascend-dashboard-accent) / 0.3) !important; background: rgb(var(--ascend-dashboard-card) / 0.75) !important; backdrop-filter: blur(12px); }
+@media (max-width: 365px) {
+  html[data-appearance="ascend-club"] .ascend-themed-hero { min-height: 24rem; padding-inline: 1rem; }
+}
