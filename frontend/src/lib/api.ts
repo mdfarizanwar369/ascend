@@ -90,7 +90,7 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
       typeof errorBody?.error === "string"
         ? `${errorBody.error}${issueMessage ? ` ${issueMessage}` : ""}${typeof errorBody?.detail === "string" ? ` ${errorBody.detail}` : ""}`
         : `API request failed: ${response.status}`;
-    throw new Error(message);
+    throw Object.assign(new Error(message), { status: response.status });
   }
 
   const parsed = await response.json() as T;

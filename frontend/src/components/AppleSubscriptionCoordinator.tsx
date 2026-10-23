@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { usePathname, useRouter } from "next/navigation";
 import { getFirebaseClientAuth } from "@/lib/firebase";
@@ -8,6 +8,8 @@ import { AppleBilling, supportsAppleBilling, syncAppleTransactions } from "@/lib
 export function AppleSubscriptionCoordinator() {
   const pathname = usePathname();
   const router = useRouter();
+  const pathnameRef = useRef(pathname);
+  useEffect(() => { pathnameRef.current = pathname; }, [pathname]);
   useEffect(() => {
     if (!supportsAppleBilling()) return;
     let stopped = false;
@@ -16,7 +18,7 @@ export function AppleSubscriptionCoordinator() {
     const sync = () => {
       if (stopped || !getFirebaseClientAuth().currentUser) return;
       void AppleBilling.getPurchaseIntent().then(intent => {
-        if (!stopped && intent.productId && pathname !== "/subscription") router.push("/subscription");
+        if (!stopped && intent.productId && pathnameRef.current !== "/subscription") router.push("/subscription");
       }).catch(() => { /* The customer can also open Subscriptions from Profile. */ });
       if (running) return;
       running = true;
@@ -32,6 +34,6 @@ export function AppleSubscriptionCoordinator() {
     const foreground = () => { if (document.visibilityState === "visible") sync(); };
     document.addEventListener("visibilitychange", foreground);
     return () => { stopped = true; unsubscribe(); removeListeners.forEach(remove => { void remove(); }); document.removeEventListener("visibilitychange", foreground); };
-  }, [pathname, router]);
+  }, [router]);
   return null;
 }

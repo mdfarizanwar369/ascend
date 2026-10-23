@@ -53,7 +53,9 @@ app.use(helmet({
 app.use(cors({ origin: corsOrigins.length > 1 ? corsOrigins : corsOrigins[0], credentials: true }));
 app.use(rateLimit({
   windowMs: 60_000,
-  limit: 120,
+  // The dashboard loads several independent resources; active navigation and a shared mobile IP
+  // can legitimately exceed 120 requests. Costly and purchase routes retain stricter limits.
+  limit: 240,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   skip: req => req.path === "/api/v1/health/ready",
