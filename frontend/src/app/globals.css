@@ -2223,7 +2223,7 @@ html[data-theme="light"] ::selection {
   }
 }
 
-/* The four opt-in iOS looks share the current layout and real data. */
+/* The four opt-in looks keep the same data and navigation. */
 html[data-appearance="gym-girl"] {
   --color-ink: 25 7 17;
   --color-surface: 55 17 34;
@@ -2236,6 +2236,12 @@ html[data-appearance="gym-girl"] {
   --ascend-accent-amber: 255 184 193;
   --ascend-theme-backdrop: url("/themes/gym-girl-banner.webp");
   --ascend-theme-veil: 25 7 17;
+  --ascend-dashboard-art: url("/themes/gym-girl-dashboard-v2.webp");
+  --ascend-dashboard-accent: 255 91 150;
+  --ascend-dashboard-text: 255 239 245;
+  --ascend-dashboard-card: 70 20 43;
+  --ascend-dashboard-ink: 255 239 245;
+  --ascend-dashboard-heading-font: Georgia, "Times New Roman", serif;
 }
 
 html[data-appearance="cute-lift"] {
@@ -2250,6 +2256,12 @@ html[data-appearance="cute-lift"] {
   --ascend-accent-amber: 231 156 81;
   --ascend-theme-backdrop: url("/themes/cute-lift-banner.webp");
   --ascend-theme-veil: 255 249 239;
+  --ascend-dashboard-art: url("/themes/cute-lift-dashboard-v2.webp");
+  --ascend-dashboard-accent: 0 193 164;
+  --ascend-dashboard-text: 30 24 61;
+  --ascend-dashboard-card: 255 255 255;
+  --ascend-dashboard-ink: 30 24 61;
+  --ascend-dashboard-heading-font: ui-rounded, "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
 }
 
 html[data-appearance="iron"] {
@@ -2264,6 +2276,12 @@ html[data-appearance="iron"] {
   --ascend-accent-amber: 255 164 69;
   --ascend-theme-backdrop: url("/themes/iron-banner.webp");
   --ascend-theme-veil: 13 14 17;
+  --ascend-dashboard-art: url("/themes/iron-dashboard-v2.webp");
+  --ascend-dashboard-accent: 255 139 52;
+  --ascend-dashboard-text: 255 244 230;
+  --ascend-dashboard-card: 30 23 20;
+  --ascend-dashboard-ink: 255 244 230;
+  --ascend-dashboard-heading-font: "Arial Black", Arial, sans-serif;
 }
 
 html[data-appearance="summit"] {
@@ -2278,6 +2296,12 @@ html[data-appearance="summit"] {
   --ascend-accent-amber: 246 205 126;
   --ascend-theme-backdrop: url("/themes/summit-banner.webp");
   --ascend-theme-veil: 5 30 27;
+  --ascend-dashboard-art: url("/themes/summit-dashboard-v2.webp");
+  --ascend-dashboard-accent: 239 207 137;
+  --ascend-dashboard-text: 255 250 230;
+  --ascend-dashboard-card: 9 45 38;
+  --ascend-dashboard-ink: 255 250 230;
+  --ascend-dashboard-heading-font: Georgia, "Times New Roman", serif;
 }
 
 html[data-appearance="gym-girl"] body,
@@ -2345,4 +2369,313 @@ html[data-appearance="gym-girl"] .ascend-nav-item[aria-current="page"],
 html[data-appearance="iron"] .ascend-nav-item[aria-current="page"],
 html[data-appearance="summit"] .ascend-nav-item[aria-current="page"] {
   box-shadow: 0 8px 24px rgb(var(--ascend-accent-primary) / 0.16);
+}
+
+/* A real-data dashboard treatment inspired by the approved theme concepts. */
+.ascend-themed-hero { display: none; }
+
+html[data-appearance="gym-girl"] .ascend-themed-hero,
+html[data-appearance="cute-lift"] .ascend-themed-hero,
+html[data-appearance="iron"] .ascend-themed-hero,
+html[data-appearance="summit"] .ascend-themed-hero {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 27rem;
+  overflow: hidden;
+  margin: 0.15rem -1rem 0;
+  padding: 2.2rem 1.2rem 1.15rem;
+  color: rgb(var(--ascend-dashboard-text));
+  background-image: var(--ascend-dashboard-art);
+  background-position: center 47%;
+  background-size: cover;
+}
+
+html[data-appearance="gym-girl"] .ascend-themed-hero::before,
+html[data-appearance="cute-lift"] .ascend-themed-hero::before,
+html[data-appearance="iron"] .ascend-themed-hero::before,
+html[data-appearance="summit"] .ascend-themed-hero::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  pointer-events: none;
+}
+
+html[data-appearance="gym-girl"] .ascend-themed-hero::before {
+  background: linear-gradient(90deg, rgba(27, 2, 14, 0.72), transparent 85%), linear-gradient(0deg, #190711 0, transparent 45%);
+}
+
+html[data-appearance="cute-lift"] .ascend-themed-hero::before {
+  background: linear-gradient(90deg, rgba(255, 250, 236, 0.67), transparent 85%), linear-gradient(0deg, #fff9ef 0, transparent 45%);
+}
+
+html[data-appearance="iron"] .ascend-themed-hero::before {
+  background: linear-gradient(90deg, rgba(3, 4, 5, 0.76), transparent 90%), linear-gradient(0deg, #0d0e11 0, transparent 45%);
+}
+
+html[data-appearance="summit"] .ascend-themed-hero::before {
+  background: linear-gradient(90deg, rgba(4, 33, 29, 0.72), transparent 90%), linear-gradient(0deg, #051e1b 0, transparent 45%);
+}
+
+.ascend-themed-hero-intro { position: relative; max-width: 82%; }
+.ascend-themed-kicker,
+.ascend-themed-balance-kicker {
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: rgb(var(--ascend-dashboard-accent));
+}
+.ascend-themed-title {
+  margin-top: 0.35rem;
+  font-family: var(--ascend-dashboard-heading-font);
+  font-size: clamp(2.8rem, 13vw, 4.1rem);
+  font-weight: 750;
+  line-height: 0.91;
+  letter-spacing: -0.055em;
+  text-wrap: balance;
+  text-shadow: 0 3px 24px rgba(0, 0, 0, 0.22);
+}
+.ascend-themed-title > span { display: none; }
+html[data-appearance="gym-girl"] .ascend-themed-title-gym,
+html[data-appearance="cute-lift"] .ascend-themed-title-cute,
+html[data-appearance="iron"] .ascend-themed-title-iron,
+html[data-appearance="summit"] .ascend-themed-title-summit { display: block; }
+.ascend-themed-mantra {
+  margin-top: 0.8rem;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: rgb(var(--ascend-dashboard-text) / 0.92);
+}
+.ascend-themed-balance {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 10rem;
+  padding: 1rem 1.1rem 0.9rem;
+  border: 1px solid rgb(var(--ascend-dashboard-accent) / 0.48);
+  border-radius: 1.6rem;
+  color: rgb(var(--ascend-dashboard-ink));
+  background: rgb(var(--ascend-dashboard-card) / 0.73);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.19), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.ascend-themed-balance:focus-visible { outline: 2px solid rgb(var(--ascend-dashboard-accent)); outline-offset: 3px; }
+.ascend-themed-balance-main { display: flex; align-items: center; gap: 1rem; margin-top: 0.55rem; }
+.ascend-themed-calorie-ring {
+  position: relative;
+  display: grid;
+  width: 4.6rem;
+  height: 4.6rem;
+  flex: none;
+  place-items: center;
+  border-radius: 50%;
+  background: conic-gradient(rgb(var(--ascend-dashboard-accent)) var(--ascend-themed-ring-progress), rgb(var(--ascend-dashboard-text) / 0.2) 0);
+  box-shadow: 0 0 22px rgb(var(--ascend-dashboard-accent) / 0.16);
+}
+.ascend-themed-calorie-ring::after {
+  width: 3.45rem;
+  height: 3.45rem;
+  border-radius: 50%;
+  background: rgb(var(--ascend-dashboard-card));
+  content: "";
+}
+.ascend-themed-calorie-ring[data-over="true"] { background: conic-gradient(#f29b70 100%, transparent 0); }
+.ascend-themed-balance-copy { display: flex; min-width: 0; flex-direction: column; line-height: 1; }
+.ascend-themed-balance-copy strong {
+  font-family: var(--ascend-dashboard-heading-font);
+  font-size: clamp(2.7rem, 12.6vw, 3.5rem);
+  font-weight: 750;
+  letter-spacing: -0.055em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ascend-themed-balance-copy > span { margin-top: 0.15rem; font-size: 0.95rem; }
+.ascend-themed-balance-footer { display: block; margin-top: 0.6rem; font-size: 0.73rem; line-height: 1.35; opacity: 0.82; }
+
+html[data-appearance="gym-girl"] .ascend-today-canvas,
+html[data-appearance="iron"] .ascend-today-canvas,
+html[data-appearance="summit"] .ascend-today-canvas {
+  background: linear-gradient(180deg, rgb(var(--ascend-theme-veil)) 0, rgb(var(--ascend-theme-veil)) 100%);
+}
+html[data-appearance="summit"] .ascend-themed-hero-intro { max-width: 100%; }
+html[data-appearance="iron"] .ascend-themed-title { font-size: clamp(2.3rem, 9.5vw, 3rem); font-weight: 900; line-height: 1; letter-spacing: -0.055em; text-transform: uppercase; }
+html[data-appearance="iron"] .ascend-essentials-heading .ascend-eyebrow { font-family: Inter, ui-sans-serif, sans-serif; font-weight: 850; letter-spacing: -0.05em; }
+html[data-appearance="cute-lift"] .ascend-today-canvas {
+  background: linear-gradient(180deg, #fff9ef 0, #fff4ed 48rem, #fff9f5 100%) !important;
+}
+
+html[data-appearance="gym-girl"] .ascend-today-essentials,
+html[data-appearance="cute-lift"] .ascend-today-essentials,
+html[data-appearance="iron"] .ascend-today-essentials,
+html[data-appearance="summit"] .ascend-today-essentials {
+  overflow: visible;
+  padding: 0.85rem 0 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-appearance="gym-girl"] .ascend-essentials-heading .ascend-eyebrow,
+html[data-appearance="cute-lift"] .ascend-essentials-heading .ascend-eyebrow,
+html[data-appearance="iron"] .ascend-essentials-heading .ascend-eyebrow,
+html[data-appearance="summit"] .ascend-essentials-heading .ascend-eyebrow {
+  font-family: var(--ascend-dashboard-heading-font);
+  font-size: 1.5rem;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+  text-transform: none;
+  color: rgb(var(--ascend-dashboard-text));
+}
+html[data-appearance="gym-girl"] .ascend-essentials-heading h1,
+html[data-appearance="cute-lift"] .ascend-essentials-heading h1,
+html[data-appearance="iron"] .ascend-essentials-heading h1,
+html[data-appearance="summit"] .ascend-essentials-heading h1 {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  line-height: 1.25;
+  color: rgb(var(--ascend-dashboard-text) / 0.75);
+}
+html[data-appearance="gym-girl"] .ascend-today-essentials nav,
+html[data-appearance="cute-lift"] .ascend-today-essentials nav,
+html[data-appearance="iron"] .ascend-today-essentials nav,
+html[data-appearance="summit"] .ascend-today-essentials nav { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+html[data-appearance="gym-girl"] .ascend-essential-card,
+html[data-appearance="cute-lift"] .ascend-essential-card,
+html[data-appearance="iron"] .ascend-essential-card,
+html[data-appearance="summit"] .ascend-essential-card {
+  display: flex;
+  min-height: 11rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  padding: 0.85rem;
+  border-color: rgb(var(--ascend-dashboard-accent) / 0.48);
+  border-radius: 1.25rem;
+  color: rgb(var(--ascend-dashboard-ink));
+  background: linear-gradient(145deg, rgb(var(--ascend-dashboard-card) / 0.95), rgb(var(--ascend-dashboard-card) / 0.72)), var(--ascend-dashboard-art) center 57% / cover;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.12), inset 0 1px 0 rgb(255 255 255 / 0.12);
+}
+html[data-appearance="gym-girl"] .ascend-essential-card:last-child,
+html[data-appearance="cute-lift"] .ascend-essential-card:last-child,
+html[data-appearance="iron"] .ascend-essential-card:last-child,
+html[data-appearance="summit"] .ascend-essential-card:last-child { grid-column: 1 / -1; min-height: 8.5rem; }
+html[data-appearance="gym-girl"] .ascend-essential-card .ascend-signal-ring,
+html[data-appearance="cute-lift"] .ascend-essential-card .ascend-signal-ring,
+html[data-appearance="iron"] .ascend-essential-card .ascend-signal-ring,
+html[data-appearance="summit"] .ascend-essential-card .ascend-signal-ring { width: 2.7rem; height: 2.7rem; filter: none; }
+html[data-appearance="gym-girl"] .ascend-essential-card .ascend-signal-ring-core,
+html[data-appearance="cute-lift"] .ascend-essential-card .ascend-signal-ring-core,
+html[data-appearance="iron"] .ascend-essential-card .ascend-signal-ring-core,
+html[data-appearance="summit"] .ascend-essential-card .ascend-signal-ring-core { width: 2rem; height: 2rem; }
+html[data-appearance="gym-girl"] .ascend-essential-card .ascend-signal-ring svg,
+html[data-appearance="cute-lift"] .ascend-essential-card .ascend-signal-ring svg,
+html[data-appearance="iron"] .ascend-essential-card .ascend-signal-ring svg,
+html[data-appearance="summit"] .ascend-essential-card .ascend-signal-ring svg { width: 2.7rem; height: 2.7rem; }
+html[data-appearance="gym-girl"] .ascend-essential-card .ascend-signal-ring-icon svg,
+html[data-appearance="cute-lift"] .ascend-essential-card .ascend-signal-ring-icon svg,
+html[data-appearance="iron"] .ascend-essential-card .ascend-signal-ring-icon svg,
+html[data-appearance="summit"] .ascend-essential-card .ascend-signal-ring-icon svg { width: 1rem; height: 1rem; }
+html[data-appearance="gym-girl"] .ascend-essential-card .ascend-signal-ring-value,
+html[data-appearance="cute-lift"] .ascend-essential-card .ascend-signal-ring-value,
+html[data-appearance="iron"] .ascend-essential-card .ascend-signal-ring-value,
+html[data-appearance="summit"] .ascend-essential-card .ascend-signal-ring-value,
+html[data-appearance="gym-girl"] .ascend-essential-chevron,
+html[data-appearance="cute-lift"] .ascend-essential-chevron,
+html[data-appearance="iron"] .ascend-essential-chevron,
+html[data-appearance="summit"] .ascend-essential-chevron { display: none; }
+html[data-appearance="gym-girl"] .ascend-essential-copy,
+html[data-appearance="cute-lift"] .ascend-essential-copy,
+html[data-appearance="iron"] .ascend-essential-copy,
+html[data-appearance="summit"] .ascend-essential-copy { width: 100%; margin-top: 0.45rem; }
+html[data-appearance="gym-girl"] .ascend-essential-copy > span:first-child,
+html[data-appearance="cute-lift"] .ascend-essential-copy > span:first-child,
+html[data-appearance="iron"] .ascend-essential-copy > span:first-child,
+html[data-appearance="summit"] .ascend-essential-copy > span:first-child { font-family: var(--ascend-dashboard-heading-font); font-size: 1.2rem; color: rgb(var(--ascend-dashboard-ink)); }
+html[data-appearance="gym-girl"] .ascend-essential-copy > span:last-child,
+html[data-appearance="cute-lift"] .ascend-essential-copy > span:last-child,
+html[data-appearance="iron"] .ascend-essential-copy > span:last-child,
+html[data-appearance="summit"] .ascend-essential-copy > span:last-child { color: rgb(var(--ascend-dashboard-ink) / 0.7); }
+html[data-appearance="gym-girl"] .ascend-essential-action,
+html[data-appearance="cute-lift"] .ascend-essential-action,
+html[data-appearance="iron"] .ascend-essential-action,
+html[data-appearance="summit"] .ascend-essential-action { margin-top: auto; border-color: rgb(var(--ascend-dashboard-accent) / 0.44); background: rgb(var(--ascend-dashboard-accent) / 0.13); color: rgb(var(--ascend-dashboard-ink)); }
+
+html[data-appearance="gym-girl"] .ascend-momentum-result,
+html[data-appearance="cute-lift"] .ascend-momentum-result,
+html[data-appearance="iron"] .ascend-momentum-result,
+html[data-appearance="summit"] .ascend-momentum-result,
+html[data-appearance="gym-girl"] .ascend-today-focus,
+html[data-appearance="cute-lift"] .ascend-today-focus,
+html[data-appearance="iron"] .ascend-today-focus,
+html[data-appearance="summit"] .ascend-today-focus,
+html[data-appearance="gym-girl"] .ascend-today-workout,
+html[data-appearance="cute-lift"] .ascend-today-workout,
+html[data-appearance="iron"] .ascend-today-workout,
+html[data-appearance="summit"] .ascend-today-workout {
+  border-color: rgb(var(--ascend-dashboard-accent) / 0.45) !important;
+  background: linear-gradient(125deg, rgb(var(--ascend-dashboard-card) / 0.96), rgb(var(--ascend-dashboard-card) / 0.78)) !important;
+  color: rgb(var(--ascend-dashboard-ink));
+  box-shadow: 0 18px 36px rgb(0 0 0 / 0.13), inset 0 1px 0 rgb(255 255 255 / 0.13) !important;
+}
+html[data-appearance="gym-girl"] .ascend-today-workout,
+html[data-appearance="cute-lift"] .ascend-today-workout,
+html[data-appearance="iron"] .ascend-today-workout,
+html[data-appearance="summit"] .ascend-today-workout { background: linear-gradient(90deg, rgb(var(--ascend-dashboard-card) / 0.98), rgb(var(--ascend-dashboard-card) / 0.7)), var(--ascend-dashboard-art) center 54% / cover !important; }
+html[data-appearance="gym-girl"] .ascend-today-workout .bg-calm,
+html[data-appearance="cute-lift"] .ascend-today-workout .bg-calm,
+html[data-appearance="iron"] .ascend-today-workout .bg-calm,
+html[data-appearance="summit"] .ascend-today-workout .bg-calm,
+html[data-appearance="gym-girl"] .ascend-today-focus .bg-lime,
+html[data-appearance="cute-lift"] .ascend-today-focus .bg-lime,
+html[data-appearance="iron"] .ascend-today-focus .bg-lime,
+html[data-appearance="summit"] .ascend-today-focus .bg-lime {
+  background: rgb(var(--ascend-dashboard-accent)) !important;
+  color: rgb(var(--ascend-theme-veil)) !important;
+}
+html[data-appearance="gym-girl"] .ascend-today-secondary-action,
+html[data-appearance="cute-lift"] .ascend-today-secondary-action,
+html[data-appearance="iron"] .ascend-today-secondary-action,
+html[data-appearance="summit"] .ascend-today-secondary-action {
+  min-height: 3.35rem;
+  border-color: rgb(var(--ascend-dashboard-accent) / 0.45) !important;
+  border-radius: 1.15rem;
+  background: rgb(var(--ascend-dashboard-card) / 0.9) !important;
+  color: rgb(var(--ascend-dashboard-ink)) !important;
+  box-shadow: 0 12px 26px rgb(0 0 0 / 0.1);
+}
+html[data-appearance="gym-girl"] .ascend-bottom-nav,
+html[data-appearance="iron"] .ascend-bottom-nav,
+html[data-appearance="summit"] .ascend-bottom-nav { border-color: rgb(var(--ascend-dashboard-accent) / 0.26); background: rgb(var(--ascend-theme-veil) / 0.94); }
+html[data-appearance="cute-lift"] .ascend-bottom-nav { border-color: #eddde9; background: rgb(255 250 243 / 0.96) !important; }
+html[data-appearance="gym-girl"] .ascend-nav-item[aria-current="page"],
+html[data-appearance="cute-lift"] .ascend-nav-item[aria-current="page"],
+html[data-appearance="iron"] .ascend-nav-item[aria-current="page"],
+html[data-appearance="summit"] .ascend-nav-item[aria-current="page"] { background: rgb(var(--ascend-dashboard-accent) / 0.16) !important; color: rgb(var(--ascend-dashboard-accent)) !important; }
+html[data-appearance="cute-lift"] .ascend-nav-item[aria-current="page"] { color: #00796c !important; }
+html[data-appearance="gym-girl"] .ascend-shell-header .ascend-shell-brand-copy,
+html[data-appearance="cute-lift"] .ascend-shell-header .ascend-shell-brand-copy,
+html[data-appearance="iron"] .ascend-shell-header .ascend-shell-brand-copy,
+html[data-appearance="summit"] .ascend-shell-header .ascend-shell-brand-copy { letter-spacing: 0.13em; text-transform: uppercase; }
+html[data-appearance="gym-girl"] .ascend-account-strip,
+html[data-appearance="iron"] .ascend-account-strip,
+html[data-appearance="summit"] .ascend-account-strip { border-color: rgb(var(--ascend-dashboard-accent) / 0.3) !important; background: rgb(var(--ascend-dashboard-card) / 0.75) !important; backdrop-filter: blur(12px); }
+
+@media (max-width: 365px) {
+  html[data-appearance="gym-girl"] .ascend-themed-hero,
+  html[data-appearance="cute-lift"] .ascend-themed-hero,
+  html[data-appearance="iron"] .ascend-themed-hero,
+  html[data-appearance="summit"] .ascend-themed-hero { min-height: 24rem; padding-inline: 1rem; }
+  .ascend-themed-balance { padding-inline: 0.85rem; }
+  .ascend-themed-balance-main { gap: 0.65rem; }
+  .ascend-themed-calorie-ring { width: 4rem; height: 4rem; }
+  .ascend-themed-calorie-ring::after { width: 3rem; height: 3rem; }
 }
