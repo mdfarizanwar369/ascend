@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const { native, verify, config } = vi.hoisted(() => ({
-  native: { finish: vi.fn(), restore: vi.fn(), getTransactions: vi.fn() }, verify: vi.fn(), config: vi.fn()
+const { native, verify, config, auth } = vi.hoisted(() => ({
+  native: { finish: vi.fn(), restore: vi.fn(), getTransactions: vi.fn() }, verify: vi.fn(), config: vi.fn(), auth: { currentUser: { uid: "member-one" } }
 }));
 vi.mock("@capacitor/core", () => ({ registerPlugin: () => native }));
 vi.mock("./ascendApi", () => ({ verifyAppleSubscription: verify, getAppleBillingConfig: config }));
-import { confirmAppleTransaction, supportsAppleBilling, syncAppleTransactions } from "./appleBilling";
+vi.mock("./firebase", () => ({ getFirebaseClientAuth: () => auth }));
+import { clearAutomaticAppleSyncAttempts, confirmAppleTransaction, supportsAppleBilling, syncAppleTransactions } from "./appleBilling";
 const transaction = { transactionId: "1001", signedTransaction: "signed-by-apple", environment: "Production" as const };
-beforeEach(() => { vi.resetAllMocks(); config.mockResolvedValue({ enabled: true }); native.finish.mockResolvedValue(undefined); verify.mockResolvedValue({ subscription: { plan: "premium" } }); });
+beforeEach(() => { vi.resetAllMocks(); clearAutomaticAppleSyncAttempts(); auth.currentUser.uid = "member-one"; config.mockResolvedValue({ enabled: true }); native.finish.mockResolvedValue(undefined); verify.mockResolvedValue({ subscription: { plan: "premium" } }); });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe("native Apple purchase delivery", () => {
   it("finishes the native transaction only after the backend grants access", async () => {
@@ -29,6 +30,34 @@ describe("native Apple purchase delivery", () => {
     expect(native.restore).not.toHaveBeenCalled();
     expect(await syncAppleTransactions(true)).toBe(1);
     expect(native.restore).toHaveBeenCalledOnce();
+  });
+  it("verifies a repeatedly returned entitlement once during automatic sync", async () => {
+    native.getTransactions.mockResolvedValue({ transactions: [transaction] });
+    native.restore.mockResolvedValue({ transactions: [transaction] });
+    expect(await syncAppleTransactions()).toBe(1);
+    expect(await syncAppleTransactions()).toBe(0);
+    expect(verify).toHaveBeenCalledOnce();
+    expect(await syncAppleTransactions(true)).toBe(1);
+    expect(verify).toHaveBeenCalledTimes(2);
+  });
+  it("cools down an automatically rejected transaction while allowing an explicit restore", async () => {
+    native.getTransactions.mockResolvedValue({ transactions: [transaction] });
+    native.restore.mockResolvedValue({ transactions: [transaction] });
+    const forbidden = Object.assign(new Error("Sandbox purchase unavailable"), { status: 403 });
+    verify.mockRejectedValue(forbidden);
+    await expect(syncAppleTransactions()).rejects.toBe(forbidden);
+    expect(await syncAppleTransactions()).toBe(0);
+    expect(verify).toHaveBeenCalledOnce();
+    await expect(syncAppleTransactions(true)).rejects.toBe(forbidden);
+    expect(verify).toHaveBeenCalledTimes(2);
+    expect(native.finish).not.toHaveBeenCalled();
+  });
+  it("retries a signed transaction for a different account", async () => {
+    native.getTransactions.mockResolvedValue({ transactions: [transaction] });
+    expect(await syncAppleTransactions()).toBe(1);
+    auth.currentUser.uid = "member-two";
+    expect(await syncAppleTransactions()).toBe(1);
+    expect(verify).toHaveBeenCalledTimes(2);
   });
   it("does not open StoreKit when billing is disabled", async () => {
     config.mockResolvedValue({ enabled: false });

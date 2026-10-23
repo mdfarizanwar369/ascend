@@ -36,6 +36,15 @@ describe("Apple Health account isolation and protected uploads",() => {
     mocks.serverStatus.mockResolvedValue({ status:{ ...status,enabled:false } }); await runAppleHealthSync(true);
     expect(mocks.native.pause).toHaveBeenCalledOnce(); expect(mocks.native.disconnect).not.toHaveBeenCalled(); expect(mocks.import).not.toHaveBeenCalled();
   });
+  it("does not repeat disconnected checks on each navigation but checks a different account",async () => {
+    mocks.native.status.mockResolvedValue({ ...native,connected:false });
+    await runAppleHealthSync(true);
+    await runAppleHealthSync();
+    expect(mocks.serverStatus).toHaveBeenCalledOnce();
+    mocks.auth.currentUser={ uid:"two" };
+    await runAppleHealthSync();
+    expect(mocks.serverStatus).toHaveBeenCalledTimes(2);
+  });
   it("serializes foreground uploads and only acknowledges the exact accepted request",async () => {
     const packet={ requestId:"request",sequence:1 };
     mocks.native.peek.mockResolvedValueOnce({ packet }).mockResolvedValue({ packet:null }); mocks.import.mockResolvedValue({ accepted:true,requestId:"request" });

@@ -3,6 +3,7 @@
 import { isIosSubscriptionEdition } from "./appEdition";
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { getAppleBillingConfig, verifyAppleSubscription } from "./ascendApi";
+import { getFirebaseClientAuth } from "./firebase";
 import { getNativeCapacitorPlatform, isNativeCapacitorPlatform } from "./nativePlatform";
 
 export type AppleSubscriptionPeriod = { value: number; unit: "day" | "week" | "month" | "year" };
@@ -36,6 +37,18 @@ type AppleBillingPlugin = {
 };
 export const AppleBilling = registerPlugin<AppleBillingPlugin>("AppleBilling");
 
+// StoreKit can return the same unfinished or current entitlement on every app event.
+// Keep automatic retries bounded while leaving an explicit Restore or purchase immediate.
+const automaticAttempts = new Map<string, number>();
+const SUCCESS_RECHECK_MS = 60 * 60_000;
+const REJECTED_RECHECK_MS = 15 * 60_000;
+const TRANSIENT_RECHECK_MS = 60_000;
+const MAX_AUTOMATIC_ATTEMPTS = 100;
+
+export function clearAutomaticAppleSyncAttempts() {
+  automaticAttempts.clear();
+}
+
 export function supportsAppleBilling() {
   if (!isNativeCapacitorPlatform() || getNativeCapacitorPlatform() !== "ios") return false;
   return isIosSubscriptionEdition();
@@ -49,6 +62,8 @@ export async function confirmAppleTransaction(transaction: AppleTransaction) {
 }
 
 export async function syncAppleTransactions(restore = false) {
+  const uid = getFirebaseClientAuth().currentUser?.uid;
+  if (!uid) return 0;
   const config = await getAppleBillingConfig();
   if (!config.enabled) return 0;
   let result: { transactions: AppleTransaction[] };
@@ -71,8 +86,21 @@ export async function syncAppleTransactions(restore = false) {
   let restored = 0;
   let failure: unknown;
   for (const transaction of result.transactions) {
-    try { await confirmAppleTransaction(transaction); restored += 1; }
-    catch (error) { failure = error; }
+    const key = `${uid}:${transaction.transactionId}`;
+    const previous = automaticAttempts.get(key);
+    if (!restore && previous && previous > Date.now()) continue;
+    // Mark before awaiting so overlapping native events cannot verify the same purchase twice.
+    if (!restore) automaticAttempts.set(key, Date.now() + TRANSIENT_RECHECK_MS);
+    try {
+      await confirmAppleTransaction(transaction);
+      restored += 1;
+      automaticAttempts.set(key, Date.now() + SUCCESS_RECHECK_MS);
+    } catch (error) {
+      const status = error instanceof Error ? (error as Error & { status?: number }).status : undefined;
+      automaticAttempts.set(key, Date.now() + (status && status >= 400 && status < 500 && status !== 429 ? REJECTED_RECHECK_MS : TRANSIENT_RECHECK_MS));
+      failure = error;
+    }
+    if (automaticAttempts.size > MAX_AUTOMATIC_ATTEMPTS) automaticAttempts.delete(automaticAttempts.keys().next().value!);
   }
   if (failure) throw failure;
   return restored;

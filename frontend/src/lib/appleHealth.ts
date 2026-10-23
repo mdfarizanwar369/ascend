@@ -46,7 +46,8 @@ export function useAppleHealthCapability() {
 }
 
 let inFlight: Promise<void> | null = null;
-let lastSuccess = 0;
+let lastSuccess: { uid: string; at: number } | null = null;
+let lastAttempt: { uid: string; at: number } | null = null;
 export async function connectAppleHealth(select = false) {
   if (!hasAppleHealthBridge()) throw new Error("Update the Ascend iOS app to connect Apple Health.");
   const uid = getFirebaseClientAuth().currentUser?.uid;
@@ -64,7 +65,10 @@ export async function connectAppleHealth(select = false) {
 
 export function runAppleHealthSync(force = false): Promise<void> {
   if (inFlight) return inFlight;
-  if (!hasAppleHealthBridge() || (!force && Date.now()-lastSuccess < 60_000)) return Promise.resolve();
+  if (!hasAppleHealthBridge()) return Promise.resolve();
+  const currentUid = getFirebaseClientAuth().currentUser?.uid;
+  if (!force && currentUid && ((lastAttempt?.uid === currentUid && Date.now()-lastAttempt.at < 60_000) || (lastSuccess?.uid === currentUid && Date.now()-lastSuccess.at < 60_000))) return Promise.resolve();
+  if (currentUid) lastAttempt = { uid: currentUid, at: Date.now() };
   const work = async () => {
     const uid = getFirebaseClientAuth().currentUser?.uid;
     if (!uid) { await AppleHealth.disconnect(); return; }
@@ -107,7 +111,7 @@ export function runAppleHealthSync(force = false): Promise<void> {
       }
       if ((await AppleHealth.peek({ accountId:me.user.id })).packet) throw new Error("More Health updates are waiting. Sync again to finish uploading.");
     }
-    lastSuccess = Date.now();
+    lastSuccess = { uid, at: Date.now() };
     window.dispatchEvent(new Event("ascend:health-updated"));
   };
   inFlight = work().finally(() => { inFlight = null; });
@@ -117,7 +121,8 @@ export async function disconnectAppleHealth(deleteHistory = false) {
   const native = await AppleHealth.status();
   await AppleHealth.disconnect();
   await disconnectHealthActivity(native.installationId,deleteHistory);
-  lastSuccess = 0;
+  lastSuccess = null;
+  lastAttempt = null;
   window.dispatchEvent(new Event("ascend:health-updated"));
 }
 export async function alignAppleHealthTimezone() {
