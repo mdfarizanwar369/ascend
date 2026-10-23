@@ -52,6 +52,7 @@ import { claimTodayEssentialsColdLaunch } from "@/lib/todayEssentialsLaunch";
 import { isIosFreeEdition } from "@/lib/appEdition";
 import { AppleHealthInvitation,AppleHealthReminder,useAppleHealthInvitation } from "@/components/dashboard/AppleHealthInvitation";
 import { TodayWorkoutCard } from "@/components/dashboard/TodayWorkoutCard";
+import { ThemedDashboardHero } from "@/components/dashboard/ThemedDashboardHero";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { readWorkoutSessionDraft, type WorkoutSessionDraft } from "@/lib/workoutSessionDraft";
 import { consumeDashboardPanelLaunch } from "@/lib/dashboardPanelLaunch";
@@ -1680,6 +1681,13 @@ export function ClientDashboard() {
         </header>
 
         {status ? <p className="mt-3 overflow-hidden break-words rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+
+        <ThemedDashboardHero
+          calorieTarget={calorieTarget}
+          caloriesLogged={calories}
+          calorieProgress={calorieProgress}
+          guideNeedsProfile={needsGuideProfile}
+        />
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
 
