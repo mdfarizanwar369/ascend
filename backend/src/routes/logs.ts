@@ -691,6 +691,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       const { getIosWorkoutForCompletion } = await import("../services/iosDailyWorkoutService");
       const stored = await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
       if (!stored) return res.status(404).json({ error: "Open your generated workout in Zoe before saving it." });
+      if (stored.dismissed) return res.status(409).json({ error: "This workout was dismissed and cannot be saved." });
       if (stored.workout.experienceVersion === 2 && (
         input.exercises.length !== stored.workout.exercises.length ||
         input.exercises.some((exercise, index) => exercise.name !== stored.workout.exercises[index]?.name)
@@ -719,6 +720,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
           `select metadata->'workout' as workout from analytics_events
            where user_id = $1 and event_name = 'zoe_workout_plan_generated'
              and metadata->>'workoutCompletionKey' = $2
+             and not (metadata ? 'dismissedAt')
            order by created_at desc limit 1`,
           [req.user!.id, input.workoutCompletionKey]
         );

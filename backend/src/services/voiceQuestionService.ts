@@ -81,6 +81,7 @@ export async function getVoiceQuestionData(userId: string, input: z.infer<typeof
   else if (intent === "workout_plan" || intent === "workout_exercises") {
     const plan = await getIosDailyWorkout(userId);
     spokenText = !plan ? "You haven't generated a Zoe workout for today. Open Ascend to make one."
+      : plan.dismissed ? "You dismissed today's Zoe workout. Your next free workout is available tomorrow."
       : intent === "workout_exercises"
         ? `Today's Zoe workout includes ${plan.workout.exercises.map(exercise => exercise.name).join(", ")}.`
         : `Today's Zoe workout is ${plan.workout.title}, about ${plan.workout.estimatedDurationMinutes} minutes, with ${plan.workout.exercises.length} exercises.${plan.completed ? " You've completed it." : ""}`;

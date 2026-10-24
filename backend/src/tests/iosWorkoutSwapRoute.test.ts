@@ -4,9 +4,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 const mocks = vi.hoisted(() => ({
   usesDailyWorkout: vi.fn(),
-  swap: vi.fn()
+  swap: vi.fn(),
+  dismiss: vi.fn(),
+  query: vi.fn()
 }));
 
+vi.mock("../db/pool", () => ({ query: mocks.query }));
 vi.mock("../config/env", () => ({ env: {
   AI_PROVIDER: "gemini", MOMENTUM_V2: false,
   COACH_ZOE_WORKOUT_ENGINE_V2: false, COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT: false
@@ -26,6 +29,7 @@ vi.mock("../services/aiUsageService", () => ({
 }));
 vi.mock("../services/iosDailyWorkoutService", () => ({
   swapIosDailyWorkoutExercise: mocks.swap,
+  dismissIosDailyWorkout: mocks.dismiss,
   getIosDailyWorkout: vi.fn(), generateIosDailyWorkout: vi.fn()
 }));
 
@@ -49,6 +53,8 @@ describe("saved iPhone workout swaps after rollout rollback", () => {
     vi.clearAllMocks();
     mocks.usesDailyWorkout.mockResolvedValue(true);
     mocks.swap.mockResolvedValue({ workoutCompletionKey: completionKey, workout: { experienceVersion: 2 } });
+    mocks.dismiss.mockResolvedValue({ dismissed: true });
+    mocks.query.mockResolvedValue({ rowCount: 1, rows: [{ id: "33333333-3333-4333-8333-333333333333" }] });
   });
   afterAll(async () => closeServer?.());
 
@@ -70,5 +76,28 @@ describe("saved iPhone workout swaps after rollout rollback", () => {
     });
     expect(response.status).toBe(404);
     expect(mocks.swap).not.toHaveBeenCalled();
+  });
+
+  it("dismisses only the authenticated account's saved daily workout", async () => {
+    const response = await fetch(`${baseUrl}/ai/workout/dismiss`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workoutCompletionKey: completionKey })
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ dismissed: true });
+    expect(mocks.dismiss).toHaveBeenCalledWith("11111111-1111-4111-8111-111111111111", completionKey);
+  });
+
+  it("marks an account-owned paid workout dismissed without generating a replacement", async () => {
+    mocks.usesDailyWorkout.mockResolvedValue(false);
+    const response = await fetch(`${baseUrl}/ai/workout/dismiss`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workoutCompletionKey: completionKey })
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ dismissed: true });
+    expect(mocks.query).toHaveBeenCalledWith(expect.stringContaining("'dismissedAt'"),
+      ["11111111-1111-4111-8111-111111111111", completionKey]);
+    expect(mocks.dismiss).not.toHaveBeenCalled();
   });
 });

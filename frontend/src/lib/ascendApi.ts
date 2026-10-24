@@ -1585,6 +1585,7 @@ export type DailyWorkout = {
   workoutCompletionKey: string;
   resetsAt: string;
   completed: boolean;
+  dismissed?: boolean;
   completedExerciseIndexes?: number[] | null;
   request: {
     location: WorkoutPlannerLocation;
@@ -1596,6 +1597,13 @@ export type DailyWorkout = {
 
 export function getTodayWorkout() {
   return authed<{ dailyWorkout: DailyWorkout | null }>("/ai/workout/today");
+}
+
+export function dismissTodayWorkout(workoutCompletionKey: string) {
+  return authed<{ dismissed: boolean }>("/ai/workout/dismiss", {
+    method: "POST",
+    body: JSON.stringify({ workoutCompletionKey })
+  });
 }
 
 export function swapTodayWorkoutExercise(workoutCompletionKey: string, exerciseIndex: number) {

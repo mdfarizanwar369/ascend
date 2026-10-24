@@ -25,7 +25,7 @@ import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
 import { buildWorkoutBlueprint, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
-import { generateIosDailyWorkout, getIosDailyWorkout, swapIosDailyWorkoutExercise } from "../services/iosDailyWorkoutService";
+import { dismissIosDailyWorkout, generateIosDailyWorkout, getIosDailyWorkout, swapIosDailyWorkoutExercise } from "../services/iosDailyWorkoutService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
 import { deterministicTodayPriority } from "../services/todayPriorityService";
 import { dailyCoachingRolloutMode, resolveDailyCoachingDecision } from "../services/dailyCoachingDecisionService";
@@ -905,6 +905,24 @@ aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+aiRouter.post("/ai/workout/dismiss", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
+  try {
+    const { workoutCompletionKey } = z.object({ workoutCompletionKey: z.string().uuid() }).parse(req.body);
+    if (await usesIosDailyWorkout(req.user!.id)) {
+      return res.json(await dismissIosDailyWorkout(req.user!.id, workoutCompletionKey));
+    }
+    const result = await query(`update analytics_events e
+      set metadata = e.metadata || jsonb_build_object('dismissedAt', now())
+      where e.user_id = $1 and e.event_name = 'zoe_workout_plan_generated'
+        and e.metadata->>'workoutCompletionKey' = $2
+        and not exists (select 1 from analytics_events b where b.user_id = $1
+          and b.event_name = 'burn_log' and b.metadata->>'workoutCompletionKey' = $2)
+      returning e.id`, [req.user!.id, workoutCompletionKey]);
+    if (!result.rowCount) return res.status(404).json({ error: "This workout is no longer available to dismiss." });
+    return res.json({ dismissed: true });
+  } catch (error) { next(error); }
+});
+
 aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
   try {
     // A saved V2 workout must remain swappable even if the rollout is turned
@@ -1003,6 +1021,7 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
               select metadata, created_at
               from analytics_events
               where user_id = $1 and event_name = 'zoe_workout_plan_generated'
+                and not (metadata ? 'dismissedAt')
                 and created_at >= now() - interval '30 days'
               union all
               select jsonb_build_object('exercises', workout->'exercises', 'evidenceType', 'planned') as metadata,
