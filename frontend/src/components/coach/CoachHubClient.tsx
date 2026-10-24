@@ -14,6 +14,7 @@ import {
   CoachChatMode,
   GeneratedWorkout,
   DailyWorkout,
+  dismissTodayWorkout,
   WorkoutPlannerGoal,
   WorkoutPlannerLocation,
   getAscendMemory,
@@ -223,11 +224,14 @@ function WorkoutPlannerCard({
   onToggleExercise,
   onSwapExercise,
   onRegenerate,
+  onDismiss,
+  onSavePartial,
   setMessage,
   showExistingChoice,
   exerciseVisualsEnabled,
   workoutEngineV2Enabled,
   allowRegenerate = true,
+  isDismissing,
   workoutSaved,
   workout
 }: {
@@ -240,18 +244,24 @@ function WorkoutPlannerCard({
   onToggleExercise: (index: number) => void;
   onSwapExercise: (index: number) => void;
   onRegenerate: () => void;
+  onDismiss: () => Promise<boolean>;
+  onSavePartial: () => void;
   setMessage: (message: string) => void;
   showExistingChoice: boolean;
   exerciseVisualsEnabled: boolean;
   workoutEngineV2Enabled: boolean;
   allowRegenerate?: boolean;
+  isDismissing: boolean;
   workoutSaved: boolean;
   workout: GeneratedWorkout | null;
 }) {
   const nextStep = !answers.location ? "location" : !answers.timeAvailable ? "time" : !answers.goal ? "goal" : !answers.equipment ? "equipment" : "done";
   const equipmentOptions = answers.location ? (workoutEngineV2Enabled ? equipmentByLocationV2 : equipmentByLocation)[answers.location] : [];
   const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(0);
+  const [confirmDismiss, setConfirmDismiss] = useState(false);
+  useEffect(() => { if (!showExistingChoice || workoutSaved) setConfirmDismiss(false); }, [showExistingChoice, workoutSaved]);
   const completionPercent = workout?.exercises.length ? Math.round((checkedExercises.size / workout.exercises.length) * 100) : 0;
+  const canSaveChecked = checkedExercises.size > 0 && (workout?.experienceVersion === 2 || checkedExercises.size === workout?.exercises.length);
 
   if (showExistingChoice && workout) {
     return (
@@ -266,12 +276,12 @@ function WorkoutPlannerCard({
           </div>
         </div>
         <div className="mt-4 grid gap-2">
-          <button type="button" onClick={onCancel} className="rounded-xl bg-lime px-4 py-3 text-sm font-bold text-ink">
+          <button type="button" onClick={() => { setConfirmDismiss(false); onCancel(); }} className="rounded-xl bg-lime px-4 py-3 text-sm font-bold text-ink">
             Keep current workout
           </button>
           {allowRegenerate ? <button
             type="button"
-            onClick={onRegenerate}
+            onClick={() => { setConfirmDismiss(false); onRegenerate(); }}
             className="rounded-xl border border-line bg-ink px-4 py-3 text-sm font-semibold text-zinc-100"
           >
             {workout.experienceVersion === 2 ? "Refresh exercises" : "Regenerate"}
@@ -279,6 +289,7 @@ function WorkoutPlannerCard({
           <button
             type="button"
             onClick={() => {
+              setConfirmDismiss(false);
               setMessage("Can you modify today's workout to be ");
               onCancel();
             }}
@@ -286,6 +297,25 @@ function WorkoutPlannerCard({
           >
             Modify in chat
           </button>
+          {!workoutSaved && !confirmDismiss ? <button type="button" onClick={() => setConfirmDismiss(true)}
+            className="rounded-xl border border-line px-4 py-3 text-sm font-semibold text-zinc-300">
+            Dismiss workout
+          </button> : null}
+          {!workoutSaved && confirmDismiss ? <div className="rounded-xl border border-rose-300/25 bg-rose-300/5 p-3" aria-label="Dismiss workout confirmation">
+            <p className="text-sm font-semibold text-zinc-100">Dismiss this workout?</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">{checkedExercises.size > 0
+              ? `${checkedExercises.size} checked exercise${checkedExercises.size === 1 ? "" : "s"} will be ${canSaveChecked ? "lost unless you save what you did" : "discarded because this workout cannot be saved partially"}.`
+              : "This plan will not count as a completed workout."} {allowRegenerate ? "You can build another workout later." : "Your next free workout is available after today's reset."}</p>
+            {canSaveChecked ? <button type="button" onClick={() => { setConfirmDismiss(false); onSavePartial(); }}
+              className="mt-3 w-full rounded-xl bg-lime px-4 py-3 text-sm font-bold text-ink">
+              Save what I did
+            </button> : null}
+            <button type="button" disabled={isDismissing} onClick={() => { void onDismiss().then(dismissed => { if (dismissed) setConfirmDismiss(false); }); }}
+              className="mt-2 w-full rounded-xl border border-rose-300/30 px-4 py-3 text-sm font-semibold text-rose-200 disabled:opacity-60">
+              {isDismissing ? "Dismissing..." : checkedExercises.size > 0 ? "Discard checked progress" : "Discard workout"}
+            </button>
+            <button type="button" disabled={isDismissing} onClick={() => setConfirmDismiss(false)} className="mt-2 w-full px-4 py-2 text-sm text-zinc-300 disabled:opacity-60">Cancel</button>
+          </div> : null}
         </div>
       </section>
     );
@@ -571,7 +601,9 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
   const [isGeneratingWorkout, setIsGeneratingWorkout] = useState(false);
   const [isLoadingWorkout, setIsLoadingWorkout] = useState(false);
   const [dailyWorkoutCompleted, setDailyWorkoutCompleted] = useState(false);
+  const [dailyWorkoutDismissed, setDailyWorkoutDismissed] = useState(false);
   const [isSavingWorkout, setIsSavingWorkout] = useState(false);
+  const [isDismissingWorkout, setIsDismissingWorkout] = useState(false);
   const [savedWorkoutSummary, setSavedWorkoutSummary] = useState<WorkoutSaveSuccess | null>(null);
   const [effortRating, setEffortRating] = useState<"too_easy" | "about_right" | "too_hard" | null>(null);
   const [actualWorkoutMinutes, setActualWorkoutMinutes] = useState("");
@@ -698,6 +730,44 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
     });
   }
 
+  function clearActiveWorkout(dismissedToday = false) {
+    workoutSessionTouchedRef.current = true;
+    const ownerUid = workoutDraftOwnerUid ?? getFirebaseClientAuth().currentUser?.uid ?? null;
+    if (ownerUid) clearWorkoutSessionDraft(ownerUid);
+    setWorkout(null);
+    setWorkoutCompletionKey(null);
+    setWorkoutDraftExpiresAt(null);
+    setWorkoutRestored(false);
+    setCheckedExercises(new Set());
+    setObservedExercises({});
+    setEffortRating(null);
+    setActualWorkoutMinutes("");
+    setShowWorkoutDetails(false);
+    setAnswers({});
+    setSavedWorkoutSummary(null);
+    setWorkoutDebrief(null);
+    setDailyWorkoutCompleted(false);
+    setDailyWorkoutDismissed(dismissedToday);
+    setShowExistingChoice(false);
+    setPlannerOpen(false);
+  }
+
+  async function dismissCurrentWorkout() {
+    if (!workout || !workoutCompletionKey || savedWorkoutSummary || dailyWorkoutCompleted || isDismissingWorkout) return false;
+    setIsDismissingWorkout(true);
+    setStatus("");
+    try {
+      if (iosFree || workout.planCompletionKey) await dismissTodayWorkout(workoutCompletionKey);
+      clearActiveWorkout(iosFree);
+      return true;
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not dismiss this workout. Your progress is still saved.");
+      return false;
+    } finally {
+      setIsDismissingWorkout(false);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = message.trim();
@@ -746,6 +816,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
   }
 
   function applyDailyWorkout(daily: DailyWorkout) {
+    if (daily.dismissed) { clearActiveWorkout(true); return; }
     const changed = workoutCompletionKey !== daily.workoutCompletionKey;
     const draftOwnerUid = workoutDraftOwnerUid ?? getFirebaseClientAuth().currentUser?.uid ?? null;
     const savedProgress = draftOwnerUid
@@ -756,6 +827,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
     setWorkoutCompletionKey(daily.workoutCompletionKey);
     setWorkoutDraftExpiresAt(workoutDraftExpiration(daily.resetsAt));
     setDailyWorkoutCompleted(daily.completed);
+    setDailyWorkoutDismissed(false);
     if (daily.completed) {
       if (draftOwnerUid) clearWorkoutSessionDraft(draftOwnerUid);
       setShowWorkoutDetails(false);
@@ -799,8 +871,10 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
         const { dailyWorkout } = await getTodayWorkout();
         if (dailyWorkout) {
           applyDailyWorkout(dailyWorkout);
+          if (dailyWorkout.dismissed) setStatus("You dismissed today's workout. A new free workout is available after today's reset.");
           return;
         }
+        setDailyWorkoutDismissed(false);
         setWorkout(null);
         setWorkoutCompletionKey(null);
         setWorkoutDraftExpiresAt(null);
@@ -859,10 +933,12 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
       });
       if (iosFree && response.dailyWorkout) {
         applyDailyWorkout(response.dailyWorkout);
+        if (response.dailyWorkout.dismissed) return;
         setMessages((current) => [...current, { role: "assistant", text: response.workout.intro }]);
         return;
       }
       setWorkout(response.workout);
+      setDailyWorkoutDismissed(false);
       setWorkoutDraftExpiresAt(workoutDraftExpiration());
       setWorkoutRestored(false);
       setShowWorkoutDetails(false);
@@ -1111,7 +1187,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface text-calm">
                     <Icon size={17} />
                   </span>
-                  <span className="text-sm font-semibold text-zinc-100">{action.action === "workout" && iosFree ? isLoadingWorkout ? "Opening workout..." : workout ? "Open Today's Workout" : action.label : action.label}</span>
+                  <span className="text-sm font-semibold text-zinc-100">{action.action === "workout" && iosFree ? isLoadingWorkout ? "Opening workout..." : dailyWorkoutDismissed ? "Workout dismissed today" : workout ? "Open Today's Workout" : action.label : action.label}</span>
                 </button>
               );
             })}
@@ -1119,7 +1195,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
         </section>
 
         <div className="space-y-3 py-4">
-          {iosFree ? <p className="text-sm text-zinc-400">1 free workout per day. Reopen today's workout anytime. New workouts become available at local midnight.</p> : null}
+          {iosFree ? <p className="text-sm text-zinc-400">{dailyWorkoutDismissed ? "Today's workout was dismissed. Your next free workout is available after today's reset." : "1 free workout per day. Reopen today's workout anytime. New workouts become available at local midnight."}</p> : null}
           {plannerOpen ? (
             <WorkoutPlannerCard
               answers={answers}
@@ -1128,6 +1204,9 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
               onAnswer={(next) => setAnswers((current) => ({ ...current, ...next }))}
               onCancel={closeWorkoutPlanner}
               onGenerate={generateWorkout}
+              onDismiss={dismissCurrentWorkout}
+              onSavePartial={() => { setShowExistingChoice(false); void saveWorkoutCompletion(); }}
+              isDismissing={isDismissingWorkout}
               onRegenerate={() => {
                 setWorkoutRestored(false);
                 if (workout?.experienceVersion === 2) {

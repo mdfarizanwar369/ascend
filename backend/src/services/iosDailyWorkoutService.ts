@@ -19,6 +19,7 @@ type StoredWorkout = {
   workout: CoachWorkoutPlan;
   resets_at: Date | string;
   completed?: boolean;
+  dismissed?: boolean;
   completed_exercise_indexes?: number[] | null;
 };
 function toDailyWorkout(row: StoredWorkout) {
@@ -29,6 +30,7 @@ function toDailyWorkout(row: StoredWorkout) {
     workout,
     resetsAt: new Date(row.resets_at).toISOString(),
     completed: row.completed === true,
+    dismissed: row.dismissed === true,
     completedExerciseIndexes: Array.isArray(row.completed_exercise_indexes)
       ? row.completed_exercise_indexes.filter(index => Number.isInteger(index) && index >= 0 && index < workout.exercises.length)
       : null
@@ -37,7 +39,10 @@ function toDailyWorkout(row: StoredWorkout) {
 const selectWorkout = `select w.*, exists (
   select 1 from analytics_events e where e.user_id = w.user_id
     and e.event_name = 'burn_log' and e.metadata->>'workoutCompletionKey' = w.completion_key::text
-) as completed, (
+) as completed, exists (
+  select 1 from analytics_events e where e.user_id = w.user_id
+    and e.event_name = 'zoe_workout_plan_dismissed' and e.metadata->>'workoutCompletionKey' = w.completion_key::text
+) as dismissed, (
   select e.metadata->'completedExerciseIndexes' from analytics_events e where e.user_id = w.user_id
     and e.event_name = 'burn_log' and e.metadata->>'workoutCompletionKey' = w.completion_key::text
   order by e.created_at desc limit 1
@@ -55,6 +60,30 @@ export async function getIosWorkoutForCompletion(userId: string, completionKey: 
   return result.rows[0] ? toDailyWorkout(result.rows[0]) : null;
 }
 
+export async function dismissIosDailyWorkout(userId: string, completionKey: string) {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const result = await client.query<StoredWorkout>(`select * from ios_daily_workouts
+      where user_id = $1 and completion_key = $2 and resets_at > now() for update`, [userId, completionKey]);
+    if (!result.rows[0]) throw Object.assign(new Error("Today's workout is no longer available."), { status: 404 });
+    const completed = await client.query(`select 1 from analytics_events where user_id = $1
+      and event_name = 'burn_log' and metadata->>'workoutCompletionKey' = $2 limit 1`, [userId, completionKey]);
+    if (completed.rowCount) throw Object.assign(new Error("A completed workout cannot be dismissed."), { status: 409 });
+    await client.query(`insert into analytics_events (user_id, event_name, metadata)
+      select $1, 'zoe_workout_plan_dismissed', jsonb_build_object('workoutCompletionKey', $2::text)
+      where not exists (select 1 from analytics_events where user_id = $1
+        and event_name = 'zoe_workout_plan_dismissed' and metadata->>'workoutCompletionKey' = $2)`, [userId, completionKey]);
+    await client.query("commit");
+    return { dismissed: true };
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function swapIosDailyWorkoutExercise(userId: string, completionKey: string, exerciseIndex: number) {
   const client = await pool.connect();
   try {
@@ -66,6 +95,9 @@ export async function swapIosDailyWorkoutExercise(userId: string, completionKey:
     const completed = await client.query(`select 1 from analytics_events where user_id = $1
       and event_name = 'burn_log' and metadata->>'workoutCompletionKey' = $2 limit 1`, [userId, completionKey]);
     if (completed.rowCount) throw Object.assign(new Error("This workout is already complete."), { status: 409 });
+    const dismissed = await client.query(`select 1 from analytics_events where user_id = $1
+      and event_name = 'zoe_workout_plan_dismissed' and metadata->>'workoutCompletionKey' = $2 limit 1`, [userId, completionKey]);
+    if (dismissed.rowCount) throw Object.assign(new Error("This workout was dismissed."), { status: 409 });
     const workout = rotateWorkoutExercise(fillMissingWorkoutSwaps(stored.workout, stored.request), exerciseIndex);
     if (!workout) throw Object.assign(new Error("No suitable swap is available for that exercise."), { status: 400 });
     await client.query(`update ios_daily_workouts set workout = $3 where user_id = $1 and completion_key = $2`,

@@ -12,7 +12,7 @@ vi.mock("../db/pool", () => ({
   query: dbQuery, withQueryClient: withClient,
   pool: { connect: async () => ({ query: clientQuery, release }) }
 }));
-import { generateIosDailyWorkout, getIosDailyWorkout, getIosWorkoutForCompletion, swapIosDailyWorkoutExercise } from "../services/iosDailyWorkoutService";
+import { dismissIosDailyWorkout, generateIosDailyWorkout, getIosDailyWorkout, getIosWorkoutForCompletion, swapIosDailyWorkoutExercise } from "../services/iosDailyWorkoutService";
 import type { CoachWorkoutPlan } from "../integrations/openai";
 
 const now = new Date("2026-09-23T15:30:00Z");
@@ -34,6 +34,29 @@ beforeEach(() => {
 });
 
 describe("native daily workout allowance", () => {
+  it("marks a free workout dismissed once without granting a second generation", async () => {
+    const dismissed = { ...saved, completed: false, dismissed: true };
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("pg_try_advisory")) return { rows: [{ locked: true }], rowCount: 1 };
+      if (sql.includes("from ios_daily_workouts")) return { rows: [dismissed], rowCount: 1 };
+      if (sql.includes("from analytics_events")) return { rows: [], rowCount: 0 };
+      return { rows: [], rowCount: 1 };
+    });
+    expect(await dismissIosDailyWorkout("member", "saved-key")).toEqual({ dismissed: true });
+    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("insert into analytics_events") && sql.includes("zoe_workout_plan_dismissed"))).toBe(true);
+    const args = input();
+    expect(await generateIosDailyWorkout(args, now)).toMatchObject({ workoutCompletionKey: "saved-key", dismissed: true });
+    expect(args.generate).not.toHaveBeenCalled();
+  });
+  it("refuses to dismiss a completed free workout", async () => {
+    clientQuery.mockImplementation(async (sql: string) => {
+      if (sql.includes("from ios_daily_workouts")) return { rows: [saved], rowCount: 1 };
+      if (sql.includes("burn_log")) return { rows: [{}], rowCount: 1 };
+      return { rows: [], rowCount: 0 };
+    });
+    await expect(dismissIosDailyWorkout("member", "saved-key")).rejects.toMatchObject({ status: 409 });
+    expect(clientQuery.mock.calls.some(([sql]) => sql.includes("insert into analytics_events"))).toBe(false);
+  });
   it("commits the generated plan and usage together, resetting at local midnight", async () => {
     const args = input();
     const result = await generateIosDailyWorkout(args, now);
