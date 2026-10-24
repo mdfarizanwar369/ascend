@@ -62,7 +62,7 @@ const researchSchema = z.object({
 
 const emailDraftSchema = z.object({
   leadId: z.string().uuid().optional(),
-  research: z.record(z.unknown()).optional(),
+  research: z.record(z.string(), z.unknown()).optional(),
   outreachAngle: z.string().max(2000).optional()
 });
 

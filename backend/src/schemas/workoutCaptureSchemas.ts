@@ -14,7 +14,7 @@ const nullableInteger = (min: number, max: number) => z.number().int().min(min).
 const requiredNullableText = (max: number) => z.string().trim().max(max).nullable();
 const requiredNullableNumber = (min: number, max: number) => z.number().min(min).max(max).nullable();
 const requiredNullableInteger = (min: number, max: number) => z.number().int().min(min).max(max).nullable();
-const fieldConfidenceSchema = z.record(z.number().min(0).max(1)).optional().transform((value) => {
+const fieldConfidenceSchema = z.record(z.string(), z.number().min(0).max(1)).optional().transform((value) => {
   if (!value) return undefined;
   return Object.fromEntries(
     WORKOUT_CAPTURE_CONFIDENCE_FIELDS.flatMap((field) => value[field] === undefined ? [] : [[field, value[field]]])
