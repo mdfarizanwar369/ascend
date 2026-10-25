@@ -188,9 +188,15 @@ async function authedCached<T>(cacheKey: string, path: string, ttlMs: number) {
   }
 
   const request = authed<T>(path)
-    .then((response) => writeCached(cacheKey, response, ttlMs))
+    .then((response) => {
+      // An invalidation removes this request from the map. Its caller still
+      // receives the response, but the old response must not refill the cache.
+      if (inflightRequests.get(cacheKey) === request) writeCached(cacheKey, response, ttlMs);
+      return response;
+    })
     .finally(() => {
-      inflightRequests.delete(cacheKey);
+      // A newer request may have started for this key after invalidation.
+      if (inflightRequests.get(cacheKey) === request) inflightRequests.delete(cacheKey);
     });
 
   inflightRequests.set(cacheKey, request);

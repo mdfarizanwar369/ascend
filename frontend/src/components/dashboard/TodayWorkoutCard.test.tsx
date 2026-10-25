@@ -1,5 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { DailyWorkout } from "@/lib/ascendApi";
 import type { WorkoutSessionDraft } from "@/lib/workoutSessionDraft";
 import { TodayWorkoutCard } from "./TodayWorkoutCard";
@@ -59,6 +59,45 @@ describe("Today workout card", () => {
     render(<TodayWorkoutCard dailyWorkout={dailyWorkout} draft={draft([0, 1])} completedWorkout={null} />);
     expect(screen.getByText("Continue your workout")).toBeInTheDocument();
     expect(screen.getByText("2 of 3 exercises completed")).toBeInTheDocument();
+  });
+
+  it("does not offer a dismissed free workout, even when an old draft has checked progress", () => {
+    render(<TodayWorkoutCard dailyWorkout={{ ...dailyWorkout, dismissed: true }} draft={draft([0, 1])} completedWorkout={null} />);
+    expect(screen.getByRole("region", { name: "Today’s workout dismissed" })).toBeInTheDocument();
+    expect(screen.getByText("Workout dismissed")).toBeInTheDocument();
+    expect(screen.getByText("No workout is active. You can return to Zoe anytime.")).toBeInTheDocument();
+    expect(screen.getByText("Dismissed for today")).toBeInTheDocument();
+    expect(screen.queryByText("Continue your workout")).not.toBeInTheDocument();
+    expect(screen.queryByText("Done for today")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("does not present a dismissed plan as ready without a draft", () => {
+    render(<TodayWorkoutCard dailyWorkout={{ ...dailyWorkout, dismissed: true }} draft={null} completedWorkout={null} />);
+    expect(screen.getByText("Workout dismissed")).toBeInTheDocument();
+    expect(screen.queryByText("Your workout is ready")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("shows a neutral retry and Zoe link when the first workout lookup fails", () => {
+    const retry = vi.fn();
+    render(<TodayWorkoutCard dailyWorkout={null} draft={draft([0, 1])} completedWorkout={null} errorState="initial" onRetry={retry} />);
+    expect(screen.getByRole("region", { name: "Today’s workout unavailable" })).toBeInTheDocument();
+    expect(screen.getByText("Your saved workout status is unavailable right now.")).toBeInTheDocument();
+    expect(screen.queryByText("Continue your workout")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Coach Zoe" })).toHaveAttribute("href", "/coach?workout=1");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the last checked workout and offers retry after a refresh failure", () => {
+    const retry = vi.fn();
+    render(<TodayWorkoutCard dailyWorkout={dailyWorkout} draft={draft([0])} completedWorkout={null} errorState="refresh" onRetry={retry} />);
+    expect(screen.getByText("Continue your workout")).toBeInTheDocument();
+    expect(screen.getByText("1 of 3 exercises completed")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Couldn't refresh. Showing the last checked workout.");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it("shows completion without offering to generate another plan", () => {

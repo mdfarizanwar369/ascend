@@ -55,8 +55,8 @@ async function chooseWorkout() {
 describe("iPhone daily workout builder", () => {
   it("opens the workout planner directly from the Today screen card", async () => {
     render(<CoachHubClient openWorkout />);
+    await waitFor(() => expect(mocks.today).toHaveBeenCalledOnce());
     expect(await screen.findByRole("button", { name: "Home" })).toBeInTheDocument();
-    expect(mocks.today).toHaveBeenCalledOnce();
   });
 
   it("shows precise equipment choices only when the V2 planner is enabled for this account", async () => {
