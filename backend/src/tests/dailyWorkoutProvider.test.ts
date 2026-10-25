@@ -4,8 +4,8 @@ import type { Request, Response } from "express";
 const complete = {
   title: "Home mobility", intro: "An easy session for today.", estimatedDurationMinutes: 20,
   focus: "Mobility", intensity: "easy", warmup: ["Walk gently"],
-  exercises: [{ name: "Gentle walk", duration: "10 minutes" }], cooldown: ["Breathe slowly"],
-  coachTip: "Move comfortably."
+  exercises: [{ name: "Gentle walk", sets: null, reps: null, duration: "10 minutes", rest: null, note: null }], cooldown: ["Breathe slowly"],
+  coachTip: "Move comfortably.", disclaimer: "Adjust the workout to your experience level and stop if you experience pain."
 };
 const request = { location: "home", timeAvailable: "20", goal: "mobility", equipment: "Bodyweight", context: "Fictional test user." } as const;
 async function loadProvider(key = "test-key") {
@@ -27,8 +27,26 @@ describe("daily workout AI success requirement", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { createCoachWorkoutPlan } = await loadProvider();
     await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).resolves.toMatchObject(complete);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).generationConfig).toMatchObject({
-      maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json"
+      maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        required: expect.arrayContaining(["title", "intro", "estimatedDurationMinutes", "focus", "intensity", "warmup", "exercises", "cooldown", "coachTip"]),
+        properties: {
+          intensity: { type: "STRING", enum: ["easy", "moderate", "challenging"] },
+          warmup: { type: "ARRAY", minItems: 1, maxItems: 4, items: { type: "STRING" } },
+          cooldown: { type: "ARRAY", minItems: 1, maxItems: 4, items: { type: "STRING" } },
+          exercises: {
+            minItems: 1, maxItems: 8,
+            items: {
+              required: expect.arrayContaining(["name", "sets", "reps", "duration", "rest", "note"]),
+              properties: { name: { type: "STRING" }, sets: { type: "INTEGER", nullable: true },
+                reps: { type: "STRING", nullable: true }, duration: { type: "STRING", nullable: true } }
+            }
+          }
+        }
+      }
     });
   });
   it("uses the same Gemini JSON budget for web workouts instead of silently returning a fallback", async () => {
@@ -38,7 +56,8 @@ describe("daily workout AI success requirement", () => {
     const { createCoachWorkoutPlan } = await loadProvider();
     await expect(createCoachWorkoutPlan(request)).resolves.toMatchObject(generated);
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).generationConfig).toMatchObject({
-      maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json"
+      maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" }, responseMimeType: "application/json",
+      responseSchema: { type: "OBJECT" }
     });
   });
   it("uses one Gemini call and enforces the locally selected exercises for V2", async () => {
@@ -49,7 +68,7 @@ describe("daily workout AI success requirement", () => {
     const blueprint = buildWorkoutBlueprint({ goal: "strength", location: "home", equipment: "Bodyweight", timeAvailable: "20", recentWorkouts: [], today: "2026-10-03" });
     const result = await createCoachWorkoutPlan(request, { blueprint, requireAiSuccess: true });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(result.exercises.map(exercise => exercise.name)).toEqual(blueprint.exercises.map(exercise => exercise.name));
+    expect(result.exercises).toEqual(blueprint.exercises);
     expect(result.experienceVersion).toBe(2);
     expect(result.whyToday).toBe(blueprint.whyToday);
   });
@@ -71,9 +90,41 @@ describe("daily workout AI success requirement", () => {
     [JSON.stringify(complete), "MAX_TOKENS"], ["{ broken", "STOP"],
     [JSON.stringify({ ...complete, exercises: [] }), "STOP"], ["null", "STOP"]
   ])("rejects incomplete provider output without a fake successful workout", async (text, finish) => {
-    vi.stubGlobal("fetch", vi.fn(async () => response(text, finish)));
+    const fetchMock = vi.fn(async () => response(text, finish));
+    vi.stubGlobal("fetch", fetchMock);
     const { createCoachWorkoutPlan } = await loadProvider();
     await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    ["object reps", { exercises: [{ name: "Squat", reps: { count: 10 } }] }],
+    ["numeric duration", { exercises: [{ name: "Walk", duration: 10 }] }],
+    ["empty cleaned prescription", { exercises: [{ name: "Walk", reps: " ** ", duration: "  " }] }],
+    ["empty cleaned exercise name", { exercises: [{ name: " ** ", duration: "10 minutes" }] }],
+    ["empty cleaned title", { title: " ** " }],
+    ["invalid warmup item", { warmup: ["Walk gently", null] }],
+    ["invalid cooldown item", { cooldown: ["Breathe slowly", {}] }],
+    ["empty cleaned warmup", { warmup: [" ** "] }],
+    ["empty cleaned cooldown", { cooldown: [" ** "] }],
+    ["invalid intensity", { intensity: "extreme" }],
+    ["invalid sets", { exercises: [{ name: "Squat", sets: "3", reps: "10" }] }],
+    ["invalid rest", { exercises: [{ name: "Squat", reps: "10", rest: {} }] }]
+  ])("rejects %s before normalization can insert defaults", async (_label, overrides) => {
+    const fetchMock = vi.fn(async () => response(JSON.stringify({ ...complete, ...overrides })));
+    vi.stubGlobal("fetch", fetchMock);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("accepts valid cleaned rep prescriptions with nullable fields", async () => {
+    const generated = { ...complete, exercises: [{ name: "**Goblet Squat**", sets: 3, reps: "**10**", duration: null, rest: null, note: null }] };
+    const fetchMock = vi.fn(async () => response(JSON.stringify(generated)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).resolves.toMatchObject({
+      exercises: [{ name: "Goblet Squat", sets: 3, reps: "10", duration: null }]
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it("preserves other clients' offline fallback but does not spend a native daily allowance", async () => {
     const { createCoachWorkoutPlan } = await loadProvider("");
@@ -112,6 +163,52 @@ describe("daily workout AI success requirement", () => {
       { method: "POST", path: "/api/v1/ai/workout" } as Request, res as unknown as Response, vi.fn());
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: "Internal server error", detail: undefined });
+  });
+  it("records a failed response stage without logging member data or generated content", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubGlobal("fetch", vi.fn(async () => response("{ private malformed provider output")));
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan({ ...request, context: "private member details" }, { requireAiSuccess: true }))
+      .rejects.toMatchObject({ name: "WorkoutGenerationError", status: 503 });
+    expect(log).toHaveBeenCalledWith("[workout-ai] generation_failed", {
+      provider: "gemini", model: "gemini-3.6-flash", stage: "response_parse", category: "response_parse", durationMs: expect.any(Number)
+    });
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|test-key/);
+  });
+  it("distinguishes incomplete responses from provider or parsing failures", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response(JSON.stringify({ title: "Incomplete" }))));
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).rejects.toMatchObject({ status: 503 });
+    expect(log).toHaveBeenCalledWith("[workout-ai] generation_failed", expect.objectContaining({ stage: "response_validation" }));
+  });
+  it.each([
+    ["MAX_TOKENS", "MAX_TOKENS"], ["SAFETY", "SAFETY"], ["private arbitrary provider text", "UNKNOWN"]
+  ])("records only an allowlisted finish reason for %s", async (finishReason, expectedReason) => {
+    vi.stubEnv("NODE_ENV", "production");
+    const fetchMock = vi.fn(async () => response(JSON.stringify(complete), finishReason));
+    vi.stubGlobal("fetch", fetchMock);
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith("[workout-ai] generation_failed", expect.objectContaining({
+      stage: "provider", category: "incomplete_response", finishReason: expectedReason
+    }));
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|test-key/);
+  });
+  it("retains a blocked finish reason when Gemini returns no text", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const fetchMock = vi.fn(async () => response("", "SAFETY"));
+    vi.stubGlobal("fetch", fetchMock);
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).rejects.toMatchObject({ status: 503 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith("[workout-ai] generation_failed", expect.objectContaining({
+      category: "Empty response", finishReason: "SAFETY"
+    }));
   });
 });
 vi.mock("../services/aiWorkLeaseService", async importOriginal => ({

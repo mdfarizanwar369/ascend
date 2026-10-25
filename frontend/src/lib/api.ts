@@ -1,5 +1,24 @@
 import { appEditionHeaders } from "./appEdition";
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const READ_DEADLINE_MS = 20_000;
+
+function withReadDeadline<T>(options: RequestInit, work: (signal?: AbortSignal) => Promise<T>): Promise<T> {
+  const method = (options.method ?? "GET").toUpperCase();
+  if (options.signal || (method !== "GET" && method !== "HEAD")) return work(options.signal ?? undefined);
+
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error("Ascend is taking too long to respond. Please try again."));
+      controller.abort();
+    }, READ_DEADLINE_MS);
+  });
+
+  return Promise.race([work(controller.signal), deadline]).finally(() => {
+    if (timer !== null) clearTimeout(timer);
+  });
+}
 
 function apiTimingEnabled() {
   if (process.env.NEXT_PUBLIC_API_TIMING === "1") return true;
@@ -15,7 +34,7 @@ function bodyCompositionSaveDebugEnabled() {
   return window.localStorage.getItem("ascend:body-composition-save-debug") === "1";
 }
 
-export async function api<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+async function apiCore<T>(path: string, options: RequestInit, token?: string): Promise<T> {
   let response: Response;
   const url = `${API_URL}${path}`;
   const shouldLogBodyCompositionSave = path.includes("/body-composition/scans") && options.method === "POST" && bodyCompositionSaveDebugEnabled();
@@ -58,6 +77,7 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
       });
     }
   } catch (error) {
+    if (options.signal?.aborted) throw error;
     if (shouldLogBodyCompositionSave) {
       console.error("[body-composition-save] Fetch threw", {
         url,
@@ -100,7 +120,11 @@ export async function api<T>(path: string, options: RequestInit = {}, token?: st
   return parsed;
 }
 
-export async function apiBlob(path: string, options: RequestInit = {}, token?: string) {
+export function api<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+  return withReadDeadline(options, (signal) => apiCore<T>(path, { ...options, signal }, token));
+}
+
+async function apiBlobCore(path: string, options: RequestInit, token?: string) {
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
@@ -112,7 +136,8 @@ export async function apiBlob(path: string, options: RequestInit = {}, token?: s
         ...appEditionHeaders()
       }
     });
-  } catch {
+  } catch (error) {
+    if (options.signal?.aborted) throw error;
     throw new Error("Could not reach Ascend right now. Please check your internet connection and try again in a moment.");
   }
 
@@ -122,4 +147,8 @@ export async function apiBlob(path: string, options: RequestInit = {}, token?: s
     throw new Error(`${response.status}: ${message}`);
   }
   return response.blob();
+}
+
+export function apiBlob(path: string, options: RequestInit = {}, token?: string) {
+  return withReadDeadline(options, (signal) => apiBlobCore(path, { ...options, signal }, token));
 }
