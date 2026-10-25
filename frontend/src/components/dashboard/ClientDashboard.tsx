@@ -91,6 +91,11 @@ type CollapsibleKey =
 
 const momentumSignalFallbackOrder: MomentumSignalKey[] = ["fuel", "move", "recover"];
 
+function earlierDashboardEssentialsEnabled(isPlatformOwner = false) {
+  return process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_PUBLIC === "true"
+    || (process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && isPlatformOwner);
+}
+
 function sameMomentumSignalOrder(left: MomentumSignalKey[], right: MomentumSignalKey[]) {
   return left.length === right.length && left.every((key, index) => key === right[index]);
 }
@@ -404,8 +409,8 @@ export function ClientDashboard() {
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [sectionLoading, setSectionLoading] = useState({ core: true, secondary: true });
-  const [ownerEssentialsState, setOwnerEssentialsState] = useState<"loading" | "ready" | "error" | null>(null);
-  const [ownerEssentialsLoaded, setOwnerEssentialsLoaded] = useState(false);
+  const [essentialsState, setEssentialsState] = useState<"loading" | "ready" | "error" | null>(null);
+  const [essentialsLoaded, setEssentialsLoaded] = useState(false);
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
@@ -452,8 +457,8 @@ export function ClientDashboard() {
   const momentumHandoffTimerRef = useRef<number | null>(null);
   const momentumRewardTimerRef = useRef<number | null>(null);
   const momentumRewardResetTimerRef = useRef<number | null>(null);
-  const ownerEssentialsPilot = process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && user?.is_platform_owner === true;
-  const ownerSupportingLoading = ownerEssentialsPilot && sectionLoading.secondary;
+  const progressiveEssentialsEnabled = earlierDashboardEssentialsEnabled(user?.is_platform_owner === true);
+  const supportingInsightsLoading = progressiveEssentialsEnabled && sectionLoading.secondary;
 
   useEffect(() => {
     const launch = consumeDashboardPanelLaunch(new URL(window.location.href));
@@ -633,7 +638,10 @@ export function ClientDashboard() {
   const loadDashboard = useCallback(async function loadDashboardRequest(): Promise<void> {
     if (dashboardLoadInFlightRef.current) return;
     dashboardLoadInFlightRef.current = true;
-    if (!hasLoadedDashboardRef.current) setSectionLoading({ core: true, secondary: true });
+    if (!hasLoadedDashboardRef.current) {
+      setSectionLoading({ core: true, secondary: true });
+      setEssentialsState("loading");
+    }
     const requestId = ++dashboardRequestRef.current;
     const isCurrent = () => dashboardMountedRef.current && requestId === dashboardRequestRef.current;
     const comparisonRequest = getMyProgressComparison().catch(() => null);
@@ -700,14 +708,14 @@ export function ClientDashboard() {
         if (data.memory.status === "fulfilled") setAscendMemory(data.memory.value);
       }
       const cachedProfile = getCachedAccountProfile();
-      // A cached profile is display-only; fresh /me always decides pilot access.
-      if (cachedProfile && !(process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && cachedProfile.isPlatformOwner)) {
+      // Enabled mode waits for authoritative inputs; cached profile is display-only.
+      if (cachedProfile && !earlierDashboardEssentialsEnabled(cachedProfile.isPlatformOwner === true)) {
         setUser(current => current ?? ({ id: "", email: cachedProfile.email, full_name: cachedProfile.fullName, profile_photo_url: cachedProfile.profilePhotoUrl ?? null } as DashboardUser));
         setRoles(cachedProfile.roles);
       }
       const me = await getMe();
       if (!isCurrent()) return;
-      const ownerPilot = process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && me.user.is_platform_owner === true;
+      const useEssentialsLoading = earlierDashboardEssentialsEnabled(me.user.is_platform_owner === true);
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);
       cacheAccountProfile({ email: me.user.email, fullName: me.user.full_name, roles: Array.isArray(me.roles) ? me.roles : [], profilePhotoUrl: me.user.profile_photo_url, isPlatformOwner: me.user.is_platform_owner === true });
@@ -717,8 +725,8 @@ export function ClientDashboard() {
       void athleteDashboardRequest.then(response => { if (isCurrent()) setAthleteDashboard(response?.athlete ?? null); });
       void comparisonRequest.then(response => { if (isCurrent() && response) setProgressComparison(response.comparison); });
 
-      if (ownerPilot) {
-        if (!hasLoadedDashboardRef.current) setOwnerEssentialsState("loading");
+      if (useEssentialsLoading) {
+        if (!hasLoadedDashboardRef.current) setEssentialsState("loading");
         // Supporting cards can finish later; they never publish the daily inputs.
         void Promise.all([coreDataRequest, secondaryDataRequest]).then(([core, secondary]) => {
           if (!isCurrent() || dashboardDataRefreshQueuedRef.current) return;
@@ -733,7 +741,7 @@ export function ClientDashboard() {
         if (!isCurrent() || dashboardDataRefreshQueuedRef.current) return;
         if (daily.foods.status !== "fulfilled" || daily.weights.status !== "fulfilled" || daily.waters.status !== "fulfilled"
           || daily.burns.status !== "fulfilled" || daily.targets.status !== "fulfilled" || daily.health.status !== "fulfilled" || daily.recovery.status !== "fulfilled") {
-          setOwnerEssentialsState("error");
+          setEssentialsState("error");
           setSectionLoading(current => ({ ...current, core: false }));
           setStatus("Your dashboard could not refresh. Please try again.");
           return;
@@ -745,14 +753,14 @@ export function ClientDashboard() {
         setHealthSyncStatus(daily.health.value.status);
         setSleepQuality(daily.recovery.value.checkin?.sleep_quality ?? null);
         hasLoadedDashboardRef.current = true;
-        setOwnerEssentialsLoaded(true);
-        setOwnerEssentialsState("ready");
+        setEssentialsLoaded(true);
+        setEssentialsState("ready");
         setSectionLoading(current => ({ ...current, core: false }));
         setStatus("");
         return;
       }
 
-      // Public and disabled-pilot accounts retain the existing group boundaries.
+      // Disabled accounts retain the existing group boundaries.
       const core = await coreDataRequest;
       if (!isCurrent()) return;
       publishDaily(core);
@@ -772,6 +780,7 @@ export function ClientDashboard() {
       });
     } catch (error) {
       if (!isCurrent()) return;
+      setEssentialsState("error");
       setSectionLoading({ core: false, secondary: false });
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     } finally {
@@ -903,10 +912,10 @@ export function ClientDashboard() {
     if (loadedDayRef.current === today) return;
     loadedDayRef.current = today;
     dashboardRequestRef.current += 1;
-    if (process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && user?.is_platform_owner === true) {
+    if (earlierDashboardEssentialsEnabled(user?.is_platform_owner === true)) {
       hasLoadedDashboardRef.current = false;
-      setOwnerEssentialsLoaded(false);
-      setOwnerEssentialsState("loading");
+      setEssentialsLoaded(false);
+      setEssentialsState("loading");
       setSectionLoading({ core: true, secondary: true });
     }
     clearAscendResponseCache();
@@ -1538,7 +1547,7 @@ export function ClientDashboard() {
   }, [activeMomentumSignals, essentialsEntrancePhase, essentialsOpeningMode, finishEssentialsOpening, launchMorphV22]);
 
   useEffect(() => {
-    if (ownerEssentialsPilot && (ownerEssentialsState !== "ready" || ownerSupportingLoading)) {
+    if (progressiveEssentialsEnabled && (essentialsState !== "ready" || supportingInsightsLoading)) {
       previousMomentumDoneRef.current = null;
       return;
     }
@@ -1624,9 +1633,9 @@ export function ClientDashboard() {
     moveMomentumDone,
     recoverMomentumDone,
     priorityMomentumKey,
-    ownerEssentialsPilot,
-    ownerEssentialsState,
-    ownerSupportingLoading
+    progressiveEssentialsEnabled,
+    essentialsState,
+    supportingInsightsLoading
   ]);
 
   useLayoutEffect(() => {
@@ -1687,8 +1696,8 @@ export function ClientDashboard() {
     }
   }
 
-  const ownerInitialLoading = ownerEssentialsPilot && !ownerEssentialsLoaded;
-  const showDashboardSkeleton = ownerInitialLoading || (
+  const initialEssentialsLoading = progressiveEssentialsEnabled && !essentialsLoaded;
+  const showDashboardSkeleton = initialEssentialsLoading || (
     sectionLoading.core &&
     !user &&
     !foodLogs.length &&
@@ -1699,7 +1708,7 @@ export function ClientDashboard() {
 
   if (showDashboardSkeleton) {
     return (
-      <main data-dashboard-state={ownerInitialLoading ? ownerEssentialsState === "error" ? "error" : "loading" : undefined} className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
+      <main data-dashboard-state={initialEssentialsLoading ? essentialsState === "error" ? "error" : "loading" : undefined} className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
         <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
           <header className="flex items-center justify-between py-3">
             <Link href="/" className="flex items-center gap-2">
@@ -1736,7 +1745,7 @@ export function ClientDashboard() {
             <SkeletonCardList count={2} compact />
           </SectionShell>
           <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
-          {ownerInitialLoading && ownerEssentialsState === "error" ? (
+          {initialEssentialsLoading && essentialsState === "error" ? (
             <button type="button" className="ascend-pressable mt-3 min-h-11 rounded-lg bg-lime px-4 font-semibold text-ink" onClick={() => { void loadDashboard(); }}>Retry dashboard</button>
           ) : null}
         </div>
@@ -1745,7 +1754,7 @@ export function ClientDashboard() {
   }
 
   return (
-    <main data-dashboard-state={ownerEssentialsPilot ? "ready" : undefined} className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
+    <main data-dashboard-state={progressiveEssentialsEnabled ? "ready" : undefined} className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -1764,7 +1773,7 @@ export function ClientDashboard() {
         </header>
 
         {status ? <p className="mt-3 overflow-hidden break-words rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
-        {ownerEssentialsPilot && ownerEssentialsState === "error" ? (
+        {progressiveEssentialsEnabled && essentialsState === "error" ? (
           <button type="button" className="ascend-pressable mt-3 min-h-11 rounded-lg border border-line px-4 text-sm font-semibold" onClick={() => { void loadDashboard(); }}>Retry dashboard</button>
         ) : null}
 
@@ -1911,7 +1920,7 @@ export function ClientDashboard() {
           <AppleHealthReminder state={appleHealthInvitation.state} />
         </section>
 
-        {ownerSupportingLoading ? (
+        {supportingInsightsLoading ? (
           <section className="ascend-momentum-result mt-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label="Loading supporting insights" aria-busy="true">
             <p className="ascend-eyebrow">Your momentum</p>
             <SkeletonBlock className="mt-2 h-8 w-32" />
@@ -1927,7 +1936,7 @@ export function ClientDashboard() {
           <ArrowRight className="shrink-0 text-purple-200" size={17} />
         </Link>}
 
-        {ownerSupportingLoading ? (
+        {supportingInsightsLoading ? (
           <section className="ascend-today-focus relative mt-3 min-h-56 overflow-hidden rounded-2xl border px-4 py-5" aria-label="Loading today's focus" aria-busy="true">
             <p className="text-center text-[11px] font-bold uppercase tracking-[0.18em] text-purple-200">Today&apos;s focus</p>
             <SkeletonText className="mt-4" />
@@ -2080,9 +2089,9 @@ export function ClientDashboard() {
                     {
                       key: "momentum",
                       label: "Momentum",
-                      value: ownerSupportingLoading ? "Loading" : scoreLabel,
-                      target: ownerSupportingLoading ? "Checking your consistency" : `${score}/100 today`,
-                      progress: ownerSupportingLoading ? null : score
+                      value: supportingInsightsLoading ? "Loading" : scoreLabel,
+                      target: supportingInsightsLoading ? "Checking your consistency" : `${score}/100 today`,
+                      progress: supportingInsightsLoading ? null : score
                     }
                   ].map((item) => (
                     <div key={item.key} className={`ascend-inset relative overflow-hidden px-3.5 py-3.5 ${item.key === "momentum" ? "col-span-2 sm:col-span-1" : ""}`}>
@@ -2120,7 +2129,7 @@ export function ClientDashboard() {
               )}
             </CollapsibleSection>
 
-            {ownerSupportingLoading ? (
+            {supportingInsightsLoading ? (
               <section className="ascend-today-coach my-5 min-h-56 rounded-2xl border border-purple-400/25 p-5" aria-label="Loading coach insight" aria-busy="true">
                 <SkeletonBlock className="h-5 w-28" />
                 <SkeletonText className="mt-4" />
@@ -2165,8 +2174,8 @@ export function ClientDashboard() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>Your story</p>
-                  <h2 className="mt-1 text-lg font-semibold leading-7 text-white">{ownerSupportingLoading ? "Your journey" : progressPreview.title}</h2>
-                  {ownerSupportingLoading ? <SkeletonBlock className="mt-2 h-4 w-48" /> : <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{progressPreview.detail}</p>}
+                  <h2 className="mt-1 text-lg font-semibold leading-7 text-white">{supportingInsightsLoading ? "Your journey" : progressPreview.title}</h2>
+                  {supportingInsightsLoading ? <SkeletonBlock className="mt-2 h-4 w-48" /> : <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{progressPreview.detail}</p>}
                 </div>
                 <ArrowRight className="shrink-0 text-zinc-500" size={18} />
               </Link>

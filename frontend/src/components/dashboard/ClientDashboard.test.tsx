@@ -105,6 +105,7 @@ function expectCorrectEssentials() {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2026, 9, 25, 12));
+  vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_PUBLIC", "false");
   vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT", "true");
   Object.values(mocks.api).forEach((mock) => mock.mockReset());
   mocks.cachedProfile.mockReset().mockReturnValue(null);
@@ -126,6 +127,104 @@ beforeEach(() => {
     getMyProgressComparison: null, getTodayWorkout: { dailyWorkout: null }
   };
   Object.entries(responses).forEach(([name, response]) => mocks.api[name].mockResolvedValue(response));
+});
+
+describe("public dashboard essentials loading", () => {
+  const client = { ...owner, id: "fictional-client", email: "client@example.test", full_name: "Test Client", is_platform_owner: false };
+
+  it("waits for fresh identity and a coherent daily snapshot before replacing a cached client profile", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_PUBLIC", "true");
+    mocks.cachedProfile.mockReturnValue({ email: client.email, fullName: client.full_name, roles: ["client"], isPlatformOwner: false });
+    const freshMe = deferred<{ user: typeof client; roles: string[] }>();
+    const freshTargets = deferred<{ targets: typeof targets }>();
+    const freshHealth = deferred<{ status: typeof health }>();
+    mocks.api.getMe.mockReturnValueOnce(freshMe.promise);
+    mocks.api.getMyNutritionTargets.mockReturnValueOnce(freshTargets.promise);
+    mocks.api.getHealthSyncStatus.mockReturnValueOnce(freshHealth.promise);
+    const releaseSupporting = holdSupportingRequests();
+    render(<ClientDashboard />);
+    await act(async () => {});
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "loading");
+    expect(screen.getByText("Loading your dashboard")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /kcal left\. Open food log/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Move: No log yet/ })).not.toBeInTheDocument();
+    await act(async () => freshMe.resolve({ user: client, roles: ["client"] }));
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "loading");
+    expect(screen.queryByRole("link", { name: /kcal left\. Open food log/ })).not.toBeInTheDocument();
+    await act(async () => freshTargets.resolve({ targets }));
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "loading");
+    expect(screen.queryByRole("link", { name: /Move: No log yet/ })).not.toBeInTheDocument();
+    await act(async () => freshHealth.resolve({ status: health }));
+    await waitFor(() => expectCorrectEssentials());
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "ready");
+    expect(screen.getByLabelText("Loading supporting insights")).toBeInTheDocument();
+    expect(mocks.cacheProfile).toHaveBeenCalledWith(expect.objectContaining({ email: client.email, isPlatformOwner: false }));
+    await releaseSupporting();
+    await waitFor(() => expect(screen.queryByLabelText("Loading supporting insights")).not.toBeInTheDocument());
+    expectCorrectEssentials();
+    for (const name of ["getMe", "getFoodLogs", "getWaterLogs", "getMyNutritionTargets", "getHealthSyncStatus"]) {
+      expect(mocks.api[name]).toHaveBeenCalledOnce();
+    }
+  });
+
+  it.each([
+    ["a client", client, ["client"]],
+    ["an owner", owner, ["owner"]]
+  ])("loads essentials early for %s when the owner pilot flag is disabled", async (_label, user, roles) => {
+    vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_PUBLIC", "true");
+    vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT", "false");
+    mocks.api.getMe.mockResolvedValue({ user, roles });
+    const releaseSupporting = holdSupportingRequests();
+    render(<ClientDashboard />);
+    await waitFor(() => expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "ready"));
+    expectCorrectEssentials();
+    expect(screen.getByLabelText("Loading supporting insights")).toBeInTheDocument();
+    await releaseSupporting();
+    expectCorrectEssentials();
+  });
+
+  it("provides a working retry after fresh client identity fails instead of showing cached totals", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_PUBLIC", "true");
+    mocks.cachedProfile.mockReturnValue({ email: client.email, fullName: client.full_name, roles: ["client"], isPlatformOwner: false });
+    mocks.api.getMe.mockRejectedValueOnce(new Error("Synthetic identity unavailable"));
+    mocks.api.getMe.mockResolvedValue({ user: client, roles: ["client"] });
+    render(<ClientDashboard />);
+    await waitFor(() => expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "error"));
+    expect(screen.getByText("Synthetic identity unavailable")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /kcal left\. Open food log/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Move: No log yet/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry dashboard" }));
+    await waitFor(() => expectCorrectEssentials());
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "ready");
+    expect(mocks.api.getMe).toHaveBeenCalledTimes(2);
+    expect(mocks.api.getFoodLogs).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a public client's new-day view unloaded until yesterday's in-flight response is discarded", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_PUBLIC", "true");
+    vi.stubEnv("NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT", "false");
+    mocks.api.getMe.mockResolvedValue({ user: client, roles: ["client"] });
+    render(<ClientDashboard />);
+    await waitFor(() => expectCorrectEssentials());
+    const yesterdayFoods = deferred<{ foodLogs: typeof food[] }>();
+    const nextDayFoods = deferred<{ foodLogs: typeof food[] }>();
+    mocks.api.getFoodLogs.mockReturnValueOnce(yesterdayFoods.promise).mockReturnValueOnce(nextDayFoods.promise);
+    await act(async () => window.dispatchEvent(new Event("ascend:health-updated")));
+    vi.setSystemTime(new Date(2026, 9, 26, 0, 1));
+    await act(async () => window.dispatchEvent(new Event("pageshow")));
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "loading");
+    expect(screen.queryByRole("link", { name: /kcal left\. Open food log/ })).not.toBeInTheDocument();
+    await act(async () => yesterdayFoods.resolve({ foodLogs: [food] }));
+    await waitFor(() => expect(mocks.api.getFoodLogs).toHaveBeenCalledTimes(3));
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "loading");
+    expect(screen.queryByRole("link", { name: /kcal left\. Open food log/ })).not.toBeInTheDocument();
+    const nextDayFood = { ...food, id: "food-public-next-day", calories: 900, logged_at: new Date(2026, 9, 26, 0, 0).toISOString() };
+    await act(async () => nextDayFoods.resolve({ foodLogs: [nextDayFood] }));
+    await waitFor(() => expect(screen.getByRole("link", { name: "1,600 kcal left. Open food log." })).toBeInTheDocument());
+    expect(screen.getByRole("main")).toHaveAttribute("data-dashboard-state", "ready");
+    expect(screen.queryByText("650 of 2,500 kcal logged today")).not.toBeInTheDocument();
+    expect(screen.getByText("900 of 2,500 kcal logged today")).toBeInTheDocument();
+  });
 });
 
 afterEach(() => {
