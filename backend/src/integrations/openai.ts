@@ -69,7 +69,8 @@ class GeminiError extends Error {
   constructor(
     message: string,
     public readonly status?: number,
-    public readonly retryable = false
+    public readonly retryable = false,
+    public readonly terminalAccess = false
   ) {
     super(message);
   }
@@ -506,7 +507,31 @@ function sleep(ms: number) {
 }
 
 function isRetryableGeminiStatus(status: number) {
-  return status === 408 || status === 500 || status === 502 || status === 503 || status === 504;
+  return status === 408 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+function isTerminalGeminiAccessError(error: unknown): error is Error {
+  return error instanceof GeminiError && (
+    [401, 402, 403].includes(error.status ?? 0) || error.terminalAccess
+  );
+}
+
+function isTransientGeminiRateLimit(error: unknown): error is GeminiError {
+  return error instanceof GeminiError && error.status === 429 && !error.terminalAccess;
+}
+
+function isConfirmedGeminiQuotaOrBillingFailure(errorBody: string) {
+  const dailyQuota = /quota_exceeded|(?:daily|per[_ -]?day)[^\n]{0,60}(?:quota|limit)|(?:quota|limit)[^\n]{0,60}(?:daily|per[_ -]?day)|(?:requests?|tokens?)perday/i.test(errorBody);
+  const unavailableBilling = /(?:prepay |billing )?credits? (?:are |is )?(?:depleted|exhausted)|billing (?:account )?(?:is )?(?:disabled|not enabled|inactive|required)|payment (?:required|failed)/i.test(errorBody);
+  return dailyQuota || unavailableBilling;
+}
+
+function sanitizedTerminalGeminiError(error: Error) {
+  const status = error instanceof GeminiError ? error.status : undefined;
+  const message = status === 401 || status === 402 || status === 403
+    ? "Gemini authentication or billing was rejected."
+    : "Gemini quota or billing is temporarily unavailable.";
+  return new GeminiError(message, status, false, true);
 }
 
 function uniqueModels(models: string[]) {
@@ -581,10 +606,12 @@ async function callGeminiOnceReserved(model: string, parts: GeminiPart[], maxOut
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "");
+      const terminalAccess = isConfirmedGeminiQuotaOrBillingFailure(errorBody);
       throw new GeminiError(
         `Gemini ${model} request failed with status ${response.status}${errorBody ? `: ${errorBody.slice(0, 180)}` : ""}`,
         response.status,
-        isRetryableGeminiStatus(response.status)
+        isRetryableGeminiStatus(response.status) && !terminalAccess,
+        terminalAccess
       );
     }
 
@@ -632,7 +659,7 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
   const attemptsPerModel = options.attemptsPerModel ?? 1;
   const responseMode = options.responseMimeType === "application/json" ? "JSON" : "Flexible";
 
-  for (const model of models) {
+  for (const [modelIndex, model] of models.entries()) {
     for (let attempt = 0; attempt < attemptsPerModel; attempt += 1) {
       const startedAtEpochMs = Date.now();
       const attemptNumber = (options.performanceTrace?.geminiAttempts.length ?? 0) + 1;
@@ -662,19 +689,25 @@ async function callGeminiWithOptions(parts: GeminiPart[], maxOutputTokens = 700,
           status: error instanceof GeminiError ? error.status : undefined,
           timeout: error instanceof GeminiError && error.message.includes("timed out")
         });
-        lastError = error;
-        if (error instanceof Error) errors.push(error.message);
+        // A generic 429 may be a temporary model rate limit. Only proven daily
+        // quota, billing, or credential failures should stop recovery attempts.
+        if (isTerminalGeminiAccessError(error)) throw sanitizedTerminalGeminiError(error);
+        const safeError = isTransientGeminiRateLimit(error)
+          ? new GeminiError("Gemini is temporarily rate limited.", 429, true)
+          : error;
+        lastError = safeError;
+        if (safeError instanceof Error) errors.push(safeError.message);
         const retryable = error instanceof GeminiError ? error.retryable : false;
-        if (!retryable || attempt === attemptsPerModel - 1) break;
+        if (!retryable || attempt === attemptsPerModel - 1) {
+          if (isTransientGeminiRateLimit(error) && modelIndex < models.length - 1) await sleep(700);
+          break;
+        }
         await sleep(700 * (attempt + 1));
       }
     }
   }
 
   if (errors.length) {
-    if (errors.some((message) => /quota|RESOURCE_EXHAUSTED|429/i.test(message))) {
-      throw new Error("Gemini quota or credits are exhausted. Add Gemini billing credits or use another AI provider for reliable AI responses.");
-    }
     if (lastError instanceof Error) throw lastError;
     throw new Error(`All Gemini models failed: ${errors.join(" | ")}`);
   }
@@ -734,6 +767,7 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
     }
   ];
   const strongerModels = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash", "gemini-2.0-flash"]);
+  const rateLimitFallbackModel = strongerModels.find((model) => model !== env.GEMINI_MODEL) ?? env.GEMINI_MODEL;
   const foodEstimateResponseSchema = {
     type: "OBJECT",
     properties: {
@@ -785,6 +819,11 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
     return await generateEstimate([env.GEMINI_MODEL], "application/json");
   } catch (error) {
     if (error instanceof AiWorkBusyError) throw error;
+    if (isTerminalGeminiAccessError(error)) throw error;
+    if (isTransientGeminiRateLimit(error)) {
+      await sleep(700);
+      return generateEstimate([rateLimitFallbackModel], "application/json");
+    }
     foodAiErrorLog("primary_json_attempt_failed", {
       model: env.GEMINI_MODEL,
       error: error instanceof Error ? error.message : "Unknown error"
@@ -799,6 +838,11 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
     };
   } catch (error) {
     if (error instanceof AiWorkBusyError) throw error;
+    if (isTerminalGeminiAccessError(error)) throw error;
+    if (isTransientGeminiRateLimit(error)) {
+      await sleep(700);
+      return generateEstimate([rateLimitFallbackModel]);
+    }
     foodAiErrorLog("primary_flexible_attempt_failed", {
       model: env.GEMINI_MODEL,
       error: error instanceof Error ? error.message : "Unknown error"
@@ -813,6 +857,10 @@ async function estimateFoodWithGemini(imageUrl: string, performanceTrace?: FoodA
     };
   } catch (error) {
     if (error instanceof AiWorkBusyError) throw error;
+    if (isTerminalGeminiAccessError(error)) throw error;
+    // This stage already tried the bounded backup model list. A rate limit
+    // here should not restart the same list with another response format.
+    if (isTransientGeminiRateLimit(error)) throw error;
     foodAiErrorLog("backup_json_attempt_failed", {
       models: strongerModels,
       error: error instanceof Error ? error.message : "Unknown error"
@@ -1003,11 +1051,12 @@ async function estimateFoodTextWithGemini(description: string) {
   let lastError: unknown;
   // Parse inside the model loop so incomplete HTTP 200 responses also fall
   // back. Gemini's output budget includes reasoning as well as the final JSON.
-  for (const model of uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash"])) {
+  const models = uniqueModels([env.GEMINI_MODEL, "gemini-2.5-flash"]);
+  for (const [modelIndex, model] of models.entries()) {
     try {
       const result = await callGeminiWithOptions([{ text: prompt }], 2048, {
         models: [model],
-        attemptsPerModel: 1,
+        attemptsPerModel: models.length === 1 ? 2 : 1,
         timeoutMs: 18_000,
         thinkingLevel: "low",
         responseMimeType: "application/json",
@@ -1019,6 +1068,8 @@ async function estimateFoodTextWithGemini(description: string) {
       return parseFoodEstimate(result.text);
     } catch (error) {
       lastError = error;
+      if (isTerminalGeminiAccessError(error)) throw error;
+      if (isTransientGeminiRateLimit(error) && modelIndex < models.length - 1) await sleep(700);
       foodAiErrorLog("food_text_json_attempt_failed", {
         model,
         error: error instanceof Error ? error.message : "Unknown error"
@@ -1215,6 +1266,7 @@ async function estimateFoodFromImageReserved(
     const classified = classifyFoodAiError(error);
     foodAiErrorLog("food_analysis_failed", {
       category: classified.category,
+      status: error instanceof GeminiError ? error.status : undefined,
       message: classified.message,
       technicalDetail: classified.technicalDetail,
       imageHash,
@@ -1291,6 +1343,7 @@ async function estimateFoodFromTextReserved(
     const classified = classifyFoodAiError(error);
     foodAiErrorLog("food_text_analysis_failed", {
       category: classified.category,
+      status: error instanceof GeminiError ? error.status : undefined,
       message: classified.message,
       technicalDetail: classified.technicalDetail,
       provider: env.AI_PROVIDER,

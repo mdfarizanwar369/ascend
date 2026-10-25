@@ -9,7 +9,7 @@ type CompletedWorkout = {
 };
 
 export type TodayWorkoutCardView = {
-  state: "empty" | "ready" | "in_progress" | "completed";
+  state: "empty" | "ready" | "in_progress" | "completed" | "dismissed";
   title: string;
   detail: string;
   actionLabel: string | null;
@@ -45,6 +45,19 @@ export function buildTodayWorkoutCardView({
       actionLabel: null,
       completedCount: workout?.exercises.length ?? 0,
       exerciseCount: workout?.exercises.length ?? 0
+    };
+  }
+
+  // The server can still return a dismissed free plan until its daily reset.
+  // Ignore any local draft for that plan, including checked-off progress.
+  if (dailyWorkout?.dismissed) {
+    return {
+      state: "dismissed",
+      title: "Workout dismissed",
+      detail: "No workout is active. You can return to Zoe anytime.",
+      actionLabel: null,
+      completedCount: 0,
+      exerciseCount: 0
     };
   }
 
@@ -99,12 +112,16 @@ export function TodayWorkoutCard({
   dailyWorkout,
   draft,
   completedWorkout,
-  loading = false
+  loading = false,
+  errorState = null,
+  onRetry
 }: {
   dailyWorkout: DailyWorkout | null;
   draft: WorkoutSessionDraft | null;
   completedWorkout: CompletedWorkout | null;
   loading?: boolean;
+  errorState?: "initial" | "refresh" | null;
+  onRetry?: () => void;
 }) {
   if (loading) {
     return (
@@ -113,6 +130,20 @@ export function TodayWorkoutCard({
         <div className="mt-4 h-6 w-52 rounded-full bg-white/10" />
         <div className="mt-3 h-4 w-64 max-w-full rounded-full bg-white/[0.06]" />
         <div className="mt-5 h-12 rounded-xl bg-calm/10" />
+      </section>
+    );
+  }
+
+  if (errorState === "initial") {
+    return (
+      <section aria-label="Today’s workout unavailable" className="mt-3 rounded-2xl border border-zinc-500/25 bg-ink p-4 text-left">
+        <span className="block text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-400">Today&apos;s workout</span>
+        <h2 className="mt-2 text-xl font-semibold text-white">Couldn&apos;t check your workout</h2>
+        <p className="mt-1 text-sm leading-6 text-zinc-400">Your saved workout status is unavailable right now.</p>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          {onRetry ? <button type="button" onClick={onRetry} className="ascend-pressable rounded-xl bg-calm px-4 py-3 text-sm font-semibold text-ink">Try again</button> : null}
+          <Link href="/coach?workout=1" className="ascend-pressable text-sm font-semibold text-zinc-200 underline underline-offset-4">Open Coach Zoe</Link>
+        </div>
       </section>
     );
   }
@@ -142,6 +173,10 @@ export function TodayWorkoutCard({
         <span className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-calm text-sm font-semibold text-ink shadow-[0_14px_30px_rgba(53,242,208,0.14)]">
           {view.actionLabel} <ArrowRight size={17} />
         </span>
+      ) : view.state === "dismissed" ? (
+        <span className="mt-4 inline-flex min-h-9 items-center rounded-full border border-zinc-500/25 bg-zinc-500/[0.08] px-3 text-xs font-semibold text-zinc-300">
+          Dismissed for today
+        </span>
       ) : (
         <span className="mt-4 inline-flex min-h-9 items-center gap-2 rounded-full border border-calm/25 bg-calm/[0.08] px-3 text-xs font-semibold text-calm">
           <Check size={14} /> Done for today
@@ -152,13 +187,20 @@ export function TodayWorkoutCard({
 
   const className = "ascend-today-workout ascend-card-rise mt-3 block rounded-2xl border border-purple-400/30 bg-[linear-gradient(145deg,rgba(139,92,246,0.11),rgba(18,23,33,0.96)_54%,rgba(53,242,208,0.05))] p-4 text-left shadow-[0_18px_42px_rgba(0,0,0,0.18),0_0_28px_rgba(139,92,246,0.06)]";
 
-  if (view.state === "completed") {
-    return <section aria-label="Today’s workout completed" className={className}>{content}</section>;
-  }
-
+  const card = view.state === "completed" || view.state === "dismissed"
+    ? <section aria-label={view.state === "completed" ? "Today’s workout completed" : "Today’s workout dismissed"} className={className}>{content}</section>
+    : <Link href="/coach?workout=1" aria-label={`${view.actionLabel}: ${view.detail}`} className={`ascend-pressable ${className}`}>
+        {content}
+      </Link>;
   return (
-    <Link href="/coach?workout=1" aria-label={`${view.actionLabel}: ${view.detail}`} className={`ascend-pressable ${className}`}>
-      {content}
-    </Link>
+    <>
+      {card}
+      {errorState === "refresh" ? (
+        <div role="status" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-500/25 bg-ink px-3 py-2 text-xs text-zinc-300">
+          <span>Couldn&apos;t refresh. Showing the last checked workout.</span>
+          {onRetry ? <button type="button" onClick={onRetry} className="font-semibold text-calm underline underline-offset-4">Try again</button> : null}
+        </div>
+      ) : null}
+    </>
   );
 }

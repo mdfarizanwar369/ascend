@@ -89,6 +89,54 @@ const aiAllowanceQuerySchema = z.object({
   timezoneOffsetMinutes: z.coerce.number().int().min(-840).max(840).default(0)
 });
 
+const foodEstimateFailureCategories = new Set([
+  "configuration", "timeout", "empty_response", "invalid_json", "no_food_detected",
+  "service", "request_rejected", "network", "unknown", "busy"
+]);
+const optionalAllowanceLookupLimit = Math.max(1, Math.floor(env.DATABASE_POOL_MAX / 4));
+let activeOptionalAllowanceLookups = 0;
+
+function logFoodEstimateRouteFailure(route: string, stage: "analysis" | "allowance_refresh", error: unknown) {
+  const category = error && typeof error === "object" && "category" in error &&
+    typeof error.category === "string" && foodEstimateFailureCategories.has(error.category)
+    ? error.category
+    : "unexpected";
+  // Keep production diagnostics useful without logging food descriptions, images or provider bodies.
+  console.error("[food-ai-route]", { route, stage, category });
+}
+
+async function optionalFoodAiAllowance(userId: string, timezoneOffsetMinutes: number, route: string) {
+  if (activeOptionalAllowanceLookups >= optionalAllowanceLookupLimit) {
+    logFoodEstimateRouteFailure(route, "allowance_refresh", { category: "busy" });
+    return undefined;
+  }
+  activeOptionalAllowanceLookups += 1;
+  // Keep the slot until SQL actually settles, even if the HTTP response times out.
+  // A stalled optional display lookup therefore cannot consume the whole main pool.
+  const lookup = Promise.resolve().then(() => getFoodAiAllowance(userId, timezoneOffsetMinutes));
+  void lookup.then(
+    () => { activeOptionalAllowanceLookups -= 1; },
+    () => { activeOptionalAllowanceLookups -= 1; }
+  );
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const allowance = await Promise.race([
+      lookup,
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), 2_000);
+      })
+    ]);
+    if (allowance === undefined) logFoodEstimateRouteFailure(route, "allowance_refresh", { category: "timeout" });
+    return allowance;
+  } catch (error) {
+    // The allowance display is supplemental; the completed estimate is still valid.
+    logFoodEstimateRouteFailure(route, "allowance_refresh", error);
+    return undefined;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 const photoUploadDataSchema = z.object({
   imageDataUrl: imageDataUrlSchema
 });
@@ -302,7 +350,8 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireAiConsent, aiRateLimi
       })
     );
     recordPortionAnalysisCompleted(req.user!, estimate);
-    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes));
+    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () =>
+      optionalFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes, "image-url"));
     const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
       estimate,
       allowance
@@ -314,6 +363,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireAiConsent, aiRateLimi
   } catch (error) {
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
+    if (error instanceof z.ZodError) { next(error); return; }
     if (error instanceof AiWorkBusyError) { next(error); return; }
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
@@ -328,6 +378,7 @@ logsRouter.post("/food-logs/estimate", requireAuth, requireAiConsent, aiRateLimi
       return;
     }
     if (error instanceof Error) {
+      logFoodEstimateRouteFailure("image-url", "analysis", error);
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", ...(performance ? { performance } : {}) });
       return;
     }
@@ -349,7 +400,8 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireAiConsent, a
       })
     );
     recordPortionAnalysisCompleted(req.user!, estimate);
-    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () => getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes));
+    const allowance = await timeFoodAiStage(req.foodAiPerf, "Allowance update", () =>
+      optionalFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes, "image-data-url"));
     const payloadBase = timeFoodAiSyncStage(req.foodAiPerf, "Response generation", () => ({
       estimate,
       allowance
@@ -361,6 +413,7 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireAiConsent, a
   } catch (error) {
     const performance = finishFoodAiReport(req.foodAiPerf);
     logFoodAiReport(performance);
+    if (error instanceof z.ZodError) { next(error); return; }
     if (error instanceof AiWorkBusyError) { next(error); return; }
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance, ...(performance ? { performance } : {}) });
@@ -371,6 +424,7 @@ logsRouter.post("/food-logs/estimate-data-url", requireAuth, requireAiConsent, a
       return;
     }
     if (error instanceof Error) {
+      logFoodEstimateRouteFailure("image-data-url", "analysis", error);
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable.", ...(performance ? { performance } : {}) });
       return;
     }
@@ -382,15 +436,17 @@ logsRouter.post("/food-logs/estimate-text", requireAuth, requireAiConsent, aiRat
   try {
     const input = foodTextEstimateSchema.parse(req.body);
     const estimate = await estimateFoodFromText(input.description, { userId: req.user!.id, gymId: req.user!.gymId, timezoneOffsetMinutes: input.timezoneOffsetMinutes });
-    const allowance = await getFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes);
+    const allowance = await optionalFoodAiAllowance(req.user!.id, input.timezoneOffsetMinutes, "text");
     res.json({ estimate, allowance });
   } catch (error) {
+    if (error instanceof z.ZodError) { next(error); return; }
     if (error instanceof AiWorkBusyError) { next(error); return; }
     if (error instanceof FoodAiLimitError) {
       res.status(429).json({ error: error.message, allowance: error.allowance });
       return;
     }
     if (error instanceof Error) {
+      logFoodEstimateRouteFailure("text", "analysis", error);
       res.status(503).json({ error: "Food AI estimate is temporarily unavailable." });
       return;
     }

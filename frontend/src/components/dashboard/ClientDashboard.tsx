@@ -6,6 +6,7 @@ import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calcul
 import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, X, Zap } from "lucide-react";
 import {
   acknowledgeGoalMilestone,
+  clearAscendResponseCache,
   completeMission,
   getAscendMemory,
   getBurnLogs,
@@ -395,6 +396,7 @@ export function ClientDashboard() {
   const [todayWorkout, setTodayWorkout] = useState<DailyWorkout | null>(null);
   const [workoutSessionDraft, setWorkoutSessionDraft] = useState<WorkoutSessionDraft | null>(null);
   const [workoutCardLoading, setWorkoutCardLoading] = useState(true);
+  const [workoutCardError, setWorkoutCardError] = useState<"initial" | "refresh" | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
@@ -411,7 +413,14 @@ export function ClientDashboard() {
   const appleHealthInvitation = useAppleHealthInvitation(user?.id || null);
   const dashboardRequestRef = useRef(0);
   const dashboardLoadInFlightRef = useRef(false);
+  const dashboardDataRefreshQueuedRef = useRef(false);
   const hasLoadedDashboardRef = useRef(false);
+  const workoutCardLoadInFlightRef = useRef(false);
+  const workoutCardRefreshQueuedRef = useRef(false);
+  const hasLoadedWorkoutCardRef = useRef(false);
+  // A cold launch already fetches both surfaces. iOS can then emit pageshow
+  // and focus together, so only a later return should start another refresh.
+  const lastLifecycleRefreshAtRef = useRef(0);
   const missionLockRef = useRef(false);
   const goalCelebrateLockRef = useRef(false);
   const recoveryCloseRef = useRef<HTMLButtonElement>(null);
@@ -446,32 +455,45 @@ export function ClientDashboard() {
     window.history.replaceState(window.history.state, "", launch.cleanedPath);
   }, []);
 
-  const loadWorkoutCard = useCallback(async () => {
-    setWorkoutCardLoading(true);
+  const loadWorkoutCard = useCallback(async function refreshWorkoutCard(): Promise<void> {
+    if (workoutCardLoadInFlightRef.current) {
+      workoutCardRefreshQueuedRef.current = true;
+      return;
+    }
+    workoutCardLoadInFlightRef.current = true;
+    if (!hasLoadedWorkoutCardRef.current) setWorkoutCardLoading(true);
     try {
       const [{ dailyWorkout }] = await Promise.all([
-        getTodayWorkout().catch(() => ({ dailyWorkout: null })),
+        getTodayWorkout(),
         waitForFirebasePersistence().catch(() => undefined)
       ]);
       const ownerUid = getFirebaseClientAuth().currentUser?.uid ?? "";
       setTodayWorkout(dailyWorkout);
       setWorkoutSessionDraft(ownerUid ? readWorkoutSessionDraft(ownerUid) : null);
+      hasLoadedWorkoutCardRef.current = true;
+      setWorkoutCardError(null);
+    } catch {
+      if (hasLoadedWorkoutCardRef.current) {
+        setWorkoutCardError("refresh");
+      } else {
+        // A local draft alone cannot prove that the server plan is still active.
+        setTodayWorkout(null);
+        setWorkoutSessionDraft(null);
+        setWorkoutCardError("initial");
+      }
     } finally {
       setWorkoutCardLoading(false);
+      workoutCardLoadInFlightRef.current = false;
+      if (workoutCardRefreshQueuedRef.current) {
+        workoutCardRefreshQueuedRef.current = false;
+        void refreshWorkoutCard();
+      }
     }
   }, []);
 
   useEffect(() => {
+    lastLifecycleRefreshAtRef.current = Date.now();
     void loadWorkoutCard();
-    const refresh = () => {
-      if (document.visibilityState !== "hidden") void loadWorkoutCard();
-    };
-    window.addEventListener("focus", refresh);
-    window.addEventListener("pageshow", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("pageshow", refresh);
-    };
   }, [loadWorkoutCard]);
 
   const startEssentialsEntrance = useCallback(() => {
@@ -597,7 +619,7 @@ export function ClientDashboard() {
     };
   }, [recoverySheetOpen]);
 
-  const loadDashboard = useCallback(async () => {
+  const loadDashboard = useCallback(async function loadDashboardRequest(): Promise<void> {
     if (dashboardLoadInFlightRef.current) return;
     dashboardLoadInFlightRef.current = true;
     if (!hasLoadedDashboardRef.current) setSectionLoading({ core: true, secondary: true });
@@ -757,6 +779,13 @@ export function ClientDashboard() {
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     } finally {
       dashboardLoadInFlightRef.current = false;
+      if (dashboardDataRefreshQueuedRef.current) {
+        dashboardDataRefreshQueuedRef.current = false;
+        // A request started before the write can refill a short-lived cache
+        // after the mutation invalidated it. Refresh from the new source state.
+        clearAscendResponseCache();
+        void loadDashboardRequest();
+      }
     }
   }, []);
 
@@ -774,6 +803,10 @@ export function ClientDashboard() {
 
   useEffect(() => {
     function handleDashboardRecordUpdate() {
+      if (dashboardLoadInFlightRef.current) {
+        dashboardDataRefreshQueuedRef.current = true;
+        return;
+      }
       void loadDashboard();
     }
 
@@ -827,21 +860,34 @@ export function ClientDashboard() {
   }
 
   useEffect(() => {
-    function refreshDashboard() {
+    function refreshOnReturn() {
       if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastLifecycleRefreshAtRef.current < 1_000) return;
+      lastLifecycleRefreshAtRef.current = now;
+      void loadWorkoutCard();
       loadDashboard().catch(() => setStatus("Log in again if this page does not load your profile."));
     }
 
-    window.addEventListener("focus", refreshDashboard);
-    window.addEventListener("pageshow", refreshDashboard);
-    window.addEventListener("ascend:health-updated", refreshDashboard);
+    function refreshAfterHealthUpdate() {
+      if (document.visibilityState === "hidden") return;
+      if (dashboardLoadInFlightRef.current) {
+        dashboardDataRefreshQueuedRef.current = true;
+        return;
+      }
+      loadDashboard().catch(() => setStatus("Log in again if this page does not load your profile."));
+    }
+
+    window.addEventListener("focus", refreshOnReturn);
+    window.addEventListener("pageshow", refreshOnReturn);
+    window.addEventListener("ascend:health-updated", refreshAfterHealthUpdate);
 
     return () => {
-      window.removeEventListener("focus", refreshDashboard);
-      window.removeEventListener("pageshow", refreshDashboard);
-      window.removeEventListener("ascend:health-updated", refreshDashboard);
+      window.removeEventListener("focus", refreshOnReturn);
+      window.removeEventListener("pageshow", refreshOnReturn);
+      window.removeEventListener("ascend:health-updated", refreshAfterHealthUpdate);
     };
-  }, [loadDashboard]);
+  }, [loadDashboard, loadWorkoutCard]);
 
   useEffect(() => {
     setRecentAction(readRecentDashboardAction());
@@ -1849,6 +1895,8 @@ export function ClientDashboard() {
           draft={workoutSessionDraft}
           completedWorkout={completedWorkoutCard}
           loading={workoutCardLoading}
+          errorState={workoutCardError}
+          onRetry={() => { void loadWorkoutCard(); }}
         />
 
         {shouldShowProfileReminder ? (
