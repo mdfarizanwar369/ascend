@@ -404,6 +404,8 @@ export function ClientDashboard() {
   const [plan, setPlan] = useState<"free" | "premium" | "trainer_pro" | null>(null);
   const [status, setStatus] = useState("Loading your Ascend profile...");
   const [sectionLoading, setSectionLoading] = useState({ core: true, secondary: true });
+  const [ownerEssentialsState, setOwnerEssentialsState] = useState<"loading" | "ready" | "error" | null>(null);
+  const [ownerEssentialsLoaded, setOwnerEssentialsLoaded] = useState(false);
   const [missionStatus, setMissionStatus] = useState("");
   const [isCompletingMission, setIsCompletingMission] = useState(false);
   const [recentAction, setRecentAction] = useState<ReturnType<typeof readRecentDashboardAction>>(null);
@@ -418,6 +420,7 @@ export function ClientDashboard() {
   const dashboardLoadInFlightRef = useRef(false);
   const dashboardDataRefreshQueuedRef = useRef(false);
   const hasLoadedDashboardRef = useRef(false);
+  const dashboardMountedRef = useRef(true);
   const workoutCardLoadInFlightRef = useRef(false);
   const workoutCardRefreshQueuedRef = useRef(false);
   const hasLoadedWorkoutCardRef = useRef(false);
@@ -449,6 +452,8 @@ export function ClientDashboard() {
   const momentumHandoffTimerRef = useRef<number | null>(null);
   const momentumRewardTimerRef = useRef<number | null>(null);
   const momentumRewardResetTimerRef = useRef<number | null>(null);
+  const ownerEssentialsPilot = process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && user?.is_platform_owner === true;
+  const ownerSupportingLoading = ownerEssentialsPilot && sectionLoading.secondary;
 
   useEffect(() => {
     const launch = consumeDashboardPanelLaunch(new URL(window.location.href));
@@ -630,166 +635,149 @@ export function ClientDashboard() {
     dashboardLoadInFlightRef.current = true;
     if (!hasLoadedDashboardRef.current) setSectionLoading({ core: true, secondary: true });
     const requestId = ++dashboardRequestRef.current;
+    const isCurrent = () => dashboardMountedRef.current && requestId === dashboardRequestRef.current;
     const comparisonRequest = getMyProgressComparison().catch(() => null);
     const pendingFoodLog = readDashboardRecord<FoodLog>("food");
     const pendingWeightLog = readDashboardRecord<WeightLog>("weight");
     const pendingWaterLog = readDashboardRecord<WaterLog>("water");
     const pendingBurnLog = readDashboardRecord<BurnLog>("burn");
     const pendingHabitLog = readDashboardRecord<HabitLog>("habit");
-    if (pendingFoodLog) {
-      setFoodLogs((current) => [pendingFoodLog, ...current.filter((log) => log.id !== pendingFoodLog.id)]);
-    }
-    if (pendingWeightLog) setWeightLogs((current) => [pendingWeightLog, ...current.filter((log) => log.id !== pendingWeightLog.id)]);
-    if (pendingWaterLog) setWaterLogs((current) => [pendingWaterLog, ...current.filter((log) => log.id !== pendingWaterLog.id)]);
-    if (pendingBurnLog) setBurnLogs((current) => [pendingBurnLog, ...current.filter((log) => log.id !== pendingBurnLog.id)]);
-    if (pendingHabitLog) setHabitLogs((current) => [pendingHabitLog, ...current.filter((log) => log.id !== pendingHabitLog.id)]);
+    if (pendingFoodLog) setFoodLogs(current => [pendingFoodLog, ...current.filter(log => log.id !== pendingFoodLog.id)]);
+    if (pendingWeightLog) setWeightLogs(current => [pendingWeightLog, ...current.filter(log => log.id !== pendingWeightLog.id)]);
+    if (pendingWaterLog) setWaterLogs(current => [pendingWaterLog, ...current.filter(log => log.id !== pendingWaterLog.id)]);
+    if (pendingBurnLog) setBurnLogs(current => [pendingBurnLog, ...current.filter(log => log.id !== pendingBurnLog.id)]);
+    if (pendingHabitLog) setHabitLogs(current => [pendingHabitLog, ...current.filter(log => log.id !== pendingHabitLog.id)]);
 
     try {
       const subscriptionRequest = loadAccountPlan().catch(() => "free" as const);
       const priorityRequest = getTodayPriorityRecommendation().catch(() => null);
-      void priorityRequest.then((response) => {
-        if (requestId === dashboardRequestRef.current && response) {
+      void priorityRequest.then(response => {
+        if (isCurrent() && response) {
           setTodayPriorityRecommendation(response.priority);
           setDailyDecisionInsight(response.decision?.active ? response.decision.insight : null);
         }
       });
-      const coreDataRequest = Promise.allSettled([
-        getFoodLogs({ range: "30d", order: "newest", limit: 100 }),
-        getWeightLogs({ limit: 30 }),
-        getWaterLogs({ limit: 100 }),
-        getHabits(),
-        getHabitLogs(),
-        getBurnLogs({ limit: 30 }),
-        getComplianceToday(),
-        getTodayMission(),
-        getLatestRecognition(),
-        getMyStreak(),
-        getGoalStatus()
-      ]);
-      const secondaryDataRequest = Promise.allSettled([
-        getProgressPhotos({ limit: 12 }),
-        getMyNutritionTargets(),
-        getCoachPresence(),
-        getAscendMemory(),
-        getHealthSyncStatus(),
-        getTodayRecoveryCheckin()
-      ]);
+      // Start each existing read once. Groups share these same promises.
+      const reads = {
+        foods: getFoodLogs({ range: "30d", order: "newest", limit: 100 }),
+        weights: getWeightLogs({ limit: 30 }), waters: getWaterLogs({ limit: 100 }),
+        habits: getHabits(), habitLogs: getHabitLogs(), burns: getBurnLogs({ limit: 30 }),
+        compliance: getComplianceToday(), mission: getTodayMission(), recognition: getLatestRecognition(),
+        streak: getMyStreak(), goals: getGoalStatus(), photos: getProgressPhotos({ limit: 12 }),
+        targets: getMyNutritionTargets(), presence: getCoachPresence(), memory: getAscendMemory(),
+        health: getHealthSyncStatus(), recovery: getTodayRecoveryCheckin()
+      };
+      type SettledReads = { [K in keyof typeof reads]: PromiseSettledResult<Awaited<(typeof reads)[K]>> };
+      async function settle<K extends keyof typeof reads>(keys: readonly K[]): Promise<Pick<SettledReads, K>> {
+        const results = await Promise.allSettled(keys.map(key => reads[key]));
+        return Object.fromEntries(keys.map((key, index) => [key, results[index]])) as Pick<SettledReads, K>;
+      }
+      const coreDataRequest = settle(["foods", "weights", "waters", "habits", "habitLogs", "burns", "compliance", "mission", "recognition", "streak", "goals"]);
+      const secondaryDataRequest = settle(["photos", "targets", "presence", "memory", "health", "recovery"]);
+      function reconcile<T extends { id: string }>(fetched: T[], pending: T | null, kind: "food" | "weight" | "water" | "burn" | "habit") {
+        const includesPending = pending && fetched.some(log => log.id === pending.id);
+        if (pending && includesPending) clearDashboardRecord(kind, pending.id);
+        return pending && !includesPending ? [pending, ...fetched] : fetched;
+      }
+      function publishDaily(data: Pick<SettledReads, "foods" | "weights" | "waters" | "burns">) {
+        if (data.foods.status === "fulfilled") setFoodLogs(reconcile(Array.isArray(data.foods.value.foodLogs) ? data.foods.value.foodLogs : [], pendingFoodLog, "food"));
+        if (data.weights.status === "fulfilled") setWeightLogs(reconcile(Array.isArray(data.weights.value.weightLogs) ? data.weights.value.weightLogs : [], pendingWeightLog, "weight"));
+        if (data.waters.status === "fulfilled") setWaterLogs(reconcile(Array.isArray(data.waters.value.waterLogs) ? data.waters.value.waterLogs : [], pendingWaterLog, "water"));
+        if (data.burns.status === "fulfilled") setBurnLogs(reconcile(Array.isArray(data.burns.value.burnLogs) ? data.burns.value.burnLogs : [], pendingBurnLog, "burn"));
+      }
+      function publishCoreSupporting(data: Awaited<typeof coreDataRequest>) {
+        if (data.habits.status === "fulfilled") setHabits(Array.isArray(data.habits.value.habits) ? data.habits.value.habits : []);
+        if (data.habitLogs.status === "fulfilled") setHabitLogs(reconcile(Array.isArray(data.habitLogs.value.habitLogs) ? data.habitLogs.value.habitLogs : [], pendingHabitLog, "habit"));
+        if (data.mission.status === "fulfilled") setDailyMission(data.mission.value.mission);
+        if (data.recognition.status === "fulfilled") setLatestRecognition(data.recognition.value.recognition);
+        if (data.streak.status === "fulfilled") setStreak(data.streak.value.streak);
+        if (data.goals.status === "fulfilled") setGoalStatus(data.goals.value.goalStatus);
+        if (data.compliance.status === "fulfilled") setMomentumScore(data.compliance.value.compliance?.score ?? null);
+      }
+      function publishSecondarySupporting(data: Awaited<typeof secondaryDataRequest>) {
+        if (data.photos.status === "fulfilled") setProgressPhotos(Array.isArray(data.photos.value.progressPhotos) ? data.photos.value.progressPhotos : []);
+        if (data.presence.status === "fulfilled") setCoachPresence(data.presence.value);
+        if (data.memory.status === "fulfilled") setAscendMemory(data.memory.value);
+      }
       const cachedProfile = getCachedAccountProfile();
-      if (cachedProfile) {
-        setUser((current) => current ?? ({
-          id: "",
-          email: cachedProfile.email,
-          full_name: cachedProfile.fullName,
-          profile_photo_url: cachedProfile.profilePhotoUrl ?? null
-        } as DashboardUser));
+      // A cached profile is display-only; fresh /me always decides pilot access.
+      if (cachedProfile && !(process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && cachedProfile.isPlatformOwner)) {
+        setUser(current => current ?? ({ id: "", email: cachedProfile.email, full_name: cachedProfile.fullName, profile_photo_url: cachedProfile.profilePhotoUrl ?? null } as DashboardUser));
         setRoles(cachedProfile.roles);
       }
-
       const me = await getMe();
-      if (requestId !== dashboardRequestRef.current) return;
-
+      if (!isCurrent()) return;
+      const ownerPilot = process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && me.user.is_platform_owner === true;
       setUser(me.user);
       setRoles(Array.isArray(me.roles) ? me.roles : []);
-      cacheAccountProfile({
-        email: me.user.email,
-        fullName: me.user.full_name,
-        roles: Array.isArray(me.roles) ? me.roles : [],
-        profilePhotoUrl: me.user.profile_photo_url
-      });
+      cacheAccountProfile({ email: me.user.email, fullName: me.user.full_name, roles: Array.isArray(me.roles) ? me.roles : [], profilePhotoUrl: me.user.profile_photo_url, isPlatformOwner: me.user.is_platform_owner === true });
       setStatus("");
+      const athleteDashboardRequest = me.user.athlete_mode_enabled ? getAthleteDashboard().catch(() => null) : Promise.resolve(null);
+      void subscriptionRequest.then(nextPlan => { if (isCurrent()) setPlan(nextPlan); });
+      void athleteDashboardRequest.then(response => { if (isCurrent()) setAthleteDashboard(response?.athlete ?? null); });
+      void comparisonRequest.then(response => { if (isCurrent() && response) setProgressComparison(response.comparison); });
 
-      const athleteDashboardRequest = me.user.athlete_mode_enabled
-        ? getAthleteDashboard().catch(() => null)
-        : Promise.resolve(null);
-
-      void subscriptionRequest.then((nextPlan) => {
-        if (requestId === dashboardRequestRef.current) setPlan(nextPlan);
-      });
-
-      const [foods, weights, waters, nextHabits, nextHabitLogs, burns, compliance, mission, recognition, nextStreak, nextGoalStatus] = await coreDataRequest;
-      if (requestId !== dashboardRequestRef.current) return;
-
-      if (foods.status === "fulfilled") {
-        const fetchedFoodLogs = Array.isArray(foods.value.foodLogs) ? foods.value.foodLogs : [];
-        const includesPendingLog = pendingFoodLog && fetchedFoodLogs.some((log) => log.id === pendingFoodLog.id);
-        setFoodLogs(
-          pendingFoodLog && !includesPendingLog
-            ? [pendingFoodLog, ...fetchedFoodLogs]
-            : fetchedFoodLogs
-        );
-        if (pendingFoodLog && includesPendingLog) clearDashboardRecord("food", pendingFoodLog.id);
-      }
-      if (weights.status === "fulfilled") {
-        const fetched = Array.isArray(weights.value.weightLogs) ? weights.value.weightLogs : [];
-        const includesPending = pendingWeightLog && fetched.some((log) => log.id === pendingWeightLog.id);
-        setWeightLogs(pendingWeightLog && !includesPending ? [pendingWeightLog, ...fetched] : fetched);
-        if (pendingWeightLog && includesPending) clearDashboardRecord("weight", pendingWeightLog.id);
-      }
-      if (waters.status === "fulfilled") {
-        const fetched = Array.isArray(waters.value.waterLogs) ? waters.value.waterLogs : [];
-        const includesPending = pendingWaterLog && fetched.some((log) => log.id === pendingWaterLog.id);
-        setWaterLogs(pendingWaterLog && !includesPending ? [pendingWaterLog, ...fetched] : fetched);
-        if (pendingWaterLog && includesPending) clearDashboardRecord("water", pendingWaterLog.id);
-      }
-      if (nextHabits.status === "fulfilled") setHabits(Array.isArray(nextHabits.value.habits) ? nextHabits.value.habits : []);
-      if (nextHabitLogs.status === "fulfilled") {
-        const fetched = Array.isArray(nextHabitLogs.value.habitLogs) ? nextHabitLogs.value.habitLogs : [];
-        const includesPending = pendingHabitLog && fetched.some((log) => log.id === pendingHabitLog.id);
-        setHabitLogs(pendingHabitLog && !includesPending ? [pendingHabitLog, ...fetched] : fetched);
-        if (pendingHabitLog && includesPending) clearDashboardRecord("habit", pendingHabitLog.id);
-      }
-      if (burns.status === "fulfilled") {
-        const fetched = Array.isArray(burns.value.burnLogs) ? burns.value.burnLogs : [];
-        const includesPending = pendingBurnLog && fetched.some((log) => log.id === pendingBurnLog.id);
-        setBurnLogs(pendingBurnLog && !includesPending ? [pendingBurnLog, ...fetched] : fetched);
-        if (pendingBurnLog && includesPending) clearDashboardRecord("burn", pendingBurnLog.id);
-      }
-      if (mission.status === "fulfilled") setDailyMission(mission.value.mission);
-      if (recognition.status === "fulfilled") setLatestRecognition(recognition.value.recognition);
-      if (nextStreak.status === "fulfilled") setStreak(nextStreak.value.streak);
-      if (nextGoalStatus.status === "fulfilled") setGoalStatus(nextGoalStatus.value.goalStatus);
-      if (compliance.status === "fulfilled") {
-        const nextCompliance = compliance.value.compliance;
-        setMomentumScore(nextCompliance?.score ?? null);
-      }
-      hasLoadedDashboardRef.current = true;
-      setSectionLoading((current) => ({ ...current, core: false }));
-      setStatus("");
-
-      void secondaryDataRequest
-        .then(([photos, nutritionTargets, presence, memory, healthSync, recovery]) => {
-          if (requestId !== dashboardRequestRef.current) return;
-          if (photos.status === "fulfilled") setProgressPhotos(Array.isArray(photos.value.progressPhotos) ? photos.value.progressPhotos : []);
-          if (nutritionTargets.status === "fulfilled") setResolvedNutritionTargets(nutritionTargets.value.targets);
-          if (presence.status === "fulfilled") setCoachPresence(presence.value);
-          if (memory.status === "fulfilled") setAscendMemory(memory.value);
-          if (healthSync.status === "fulfilled") setHealthSyncStatus(healthSync.value.status);
-          if (recovery.status === "fulfilled") setSleepQuality(recovery.value.checkin?.sleep_quality ?? null);
-          setSectionLoading({ core: false, secondary: false });
-        })
-        .catch(() => {
-          if (requestId === dashboardRequestRef.current) setSectionLoading({ core: false, secondary: false });
+      if (ownerPilot) {
+        if (!hasLoadedDashboardRef.current) setOwnerEssentialsState("loading");
+        // Supporting cards can finish later; they never publish the daily inputs.
+        void Promise.all([coreDataRequest, secondaryDataRequest]).then(([core, secondary]) => {
+          if (!isCurrent() || dashboardDataRefreshQueuedRef.current) return;
+          publishCoreSupporting(core);
+          publishSecondarySupporting(secondary);
+          setSectionLoading(current => ({ ...current, secondary: false }));
+        }).catch(() => {
+          if (isCurrent()) setSectionLoading(current => ({ ...current, secondary: false }));
         });
+        const daily = await settle(["foods", "weights", "waters", "burns", "targets", "health", "recovery"]);
+        // A write or midnight can invalidate all of these reads together.
+        if (!isCurrent() || dashboardDataRefreshQueuedRef.current) return;
+        if (daily.foods.status !== "fulfilled" || daily.weights.status !== "fulfilled" || daily.waters.status !== "fulfilled"
+          || daily.burns.status !== "fulfilled" || daily.targets.status !== "fulfilled" || daily.health.status !== "fulfilled" || daily.recovery.status !== "fulfilled") {
+          setOwnerEssentialsState("error");
+          setSectionLoading(current => ({ ...current, core: false }));
+          setStatus("Your dashboard could not refresh. Please try again.");
+          return;
+        }
+        // React batches this coherent snapshot: intake/targets and manual/Health
+        // activity never appear as a half-loaded zero or provisional balance.
+        publishDaily(daily);
+        setResolvedNutritionTargets(daily.targets.value.targets);
+        setHealthSyncStatus(daily.health.value.status);
+        setSleepQuality(daily.recovery.value.checkin?.sleep_quality ?? null);
+        hasLoadedDashboardRef.current = true;
+        setOwnerEssentialsLoaded(true);
+        setOwnerEssentialsState("ready");
+        setSectionLoading(current => ({ ...current, core: false }));
+        setStatus("");
+        return;
+      }
 
-      void athleteDashboardRequest.then((response) => {
-        if (requestId !== dashboardRequestRef.current) return;
-        setAthleteDashboard(response?.athlete ?? null);
+      // Public and disabled-pilot accounts retain the existing group boundaries.
+      const core = await coreDataRequest;
+      if (!isCurrent()) return;
+      publishDaily(core);
+      publishCoreSupporting(core);
+      hasLoadedDashboardRef.current = true;
+      setSectionLoading(current => ({ ...current, core: false }));
+      setStatus("");
+      void secondaryDataRequest.then(secondary => {
+        if (!isCurrent()) return;
+        publishSecondarySupporting(secondary);
+        if (secondary.targets.status === "fulfilled") setResolvedNutritionTargets(secondary.targets.value.targets);
+        if (secondary.health.status === "fulfilled") setHealthSyncStatus(secondary.health.value.status);
+        if (secondary.recovery.status === "fulfilled") setSleepQuality(secondary.recovery.value.checkin?.sleep_quality ?? null);
+        setSectionLoading({ core: false, secondary: false });
+      }).catch(() => {
+        if (isCurrent()) setSectionLoading({ core: false, secondary: false });
       });
-      comparisonRequest
-        .then((response) => {
-          if (requestId === dashboardRequestRef.current && response) setProgressComparison(response.comparison);
-        })
-        .catch(() => undefined);
     } catch (error) {
-      if (requestId !== dashboardRequestRef.current) return;
+      if (!isCurrent()) return;
       setSectionLoading({ core: false, secondary: false });
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     } finally {
       dashboardLoadInFlightRef.current = false;
-      if (dashboardDataRefreshQueuedRef.current) {
+      if (dashboardDataRefreshQueuedRef.current && dashboardMountedRef.current) {
         dashboardDataRefreshQueuedRef.current = false;
-        // A request started before the write can refill a short-lived cache
-        // after the mutation invalidated it. Refresh from the new source state.
         clearAscendResponseCache();
         void loadDashboardRequest();
       }
@@ -798,6 +786,7 @@ export function ClientDashboard() {
 
   useEffect(() => {
     let isMounted = true;
+    dashboardMountedRef.current = true;
 
     loadDashboard().catch(() => {
       if (isMounted) setStatus("Log in again if this page does not load your profile.");
@@ -805,6 +794,7 @@ export function ClientDashboard() {
 
     return () => {
       isMounted = false;
+      dashboardMountedRef.current = false;
     };
   }, [loadDashboard]);
 
@@ -913,6 +903,12 @@ export function ClientDashboard() {
     if (loadedDayRef.current === today) return;
     loadedDayRef.current = today;
     dashboardRequestRef.current += 1;
+    if (process.env.NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT === "true" && user?.is_platform_owner === true) {
+      hasLoadedDashboardRef.current = false;
+      setOwnerEssentialsLoaded(false);
+      setOwnerEssentialsState("loading");
+      setSectionLoading({ core: true, secondary: true });
+    }
     clearAscendResponseCache();
     setSleepQuality(null);
     setHealthSyncStatus(null);
@@ -931,7 +927,7 @@ export function ClientDashboard() {
     void loadWorkoutCard();
     if (dashboardLoadInFlightRef.current) dashboardDataRefreshQueuedRef.current = true;
     else void loadDashboard();
-  }, [today, loadDashboard, loadWorkoutCard]);
+  }, [today, loadDashboard, loadWorkoutCard, user?.is_platform_owner]);
 
   const weekKeys = useMemo(() => lastSevenDateKeys(today), [today]);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
@@ -1542,6 +1538,10 @@ export function ClientDashboard() {
   }, [activeMomentumSignals, essentialsEntrancePhase, essentialsOpeningMode, finishEssentialsOpening, launchMorphV22]);
 
   useEffect(() => {
+    if (ownerEssentialsPilot && (ownerEssentialsState !== "ready" || ownerSupportingLoading)) {
+      previousMomentumDoneRef.current = null;
+      return;
+    }
     const nextDone = {
       fuel: fuelMomentumDone,
       move: moveMomentumDone,
@@ -1623,7 +1623,10 @@ export function ClientDashboard() {
     fuelMomentumDone,
     moveMomentumDone,
     recoverMomentumDone,
-    priorityMomentumKey
+    priorityMomentumKey,
+    ownerEssentialsPilot,
+    ownerEssentialsState,
+    ownerSupportingLoading
   ]);
 
   useLayoutEffect(() => {
@@ -1684,18 +1687,19 @@ export function ClientDashboard() {
     }
   }
 
-  const showDashboardSkeleton =
+  const ownerInitialLoading = ownerEssentialsPilot && !ownerEssentialsLoaded;
+  const showDashboardSkeleton = ownerInitialLoading || (
     sectionLoading.core &&
     !user &&
     !foodLogs.length &&
     !weightLogs.length &&
     !waterLogs.length &&
     !burnLogs.length &&
-    !habits.length;
+    !habits.length);
 
   if (showDashboardSkeleton) {
     return (
-      <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
+      <main data-dashboard-state={ownerInitialLoading ? ownerEssentialsState === "error" ? "error" : "loading" : undefined} className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
         <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
           <header className="flex items-center justify-between py-3">
             <Link href="/" className="flex items-center gap-2">
@@ -1732,13 +1736,16 @@ export function ClientDashboard() {
             <SkeletonCardList count={2} compact />
           </SectionShell>
           <p className="mt-4 rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p>
+          {ownerInitialLoading && ownerEssentialsState === "error" ? (
+            <button type="button" className="ascend-pressable mt-3 min-h-11 rounded-lg bg-lime px-4 font-semibold text-ink" onClick={() => { void loadDashboard(); }}>Retry dashboard</button>
+          ) : null}
         </div>
       </main>
     );
   }
 
   return (
-    <main className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
+    <main data-dashboard-state={ownerEssentialsPilot ? "ready" : undefined} className="ascend-today-canvas min-h-screen bg-ink pb-24 text-white">
       <div className="mx-auto min-h-screen w-full max-w-md px-4 pt-4">
         <header className="flex items-center justify-between py-3">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -1757,6 +1764,9 @@ export function ClientDashboard() {
         </header>
 
         {status ? <p className="mt-3 overflow-hidden break-words rounded-lg border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+        {ownerEssentialsPilot && ownerEssentialsState === "error" ? (
+          <button type="button" className="ascend-pressable mt-3 min-h-11 rounded-lg border border-line px-4 text-sm font-semibold" onClick={() => { void loadDashboard(); }}>Retry dashboard</button>
+        ) : null}
 
         <ThemedDashboardHero
           calorieTarget={calorieTarget}
@@ -1901,7 +1911,13 @@ export function ClientDashboard() {
           <AppleHealthReminder state={appleHealthInvitation.state} />
         </section>
 
-        <Link href="/momentum-score" data-ascend-opening-target="momentum" className="ascend-pressable ascend-momentum-result mt-3 flex items-center gap-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label={isFirstDayState ? "Your Momentum begins with your first check-in" : `Your Momentum is ${score} out of 100 based on seven-day consistency`}>
+        {ownerSupportingLoading ? (
+          <section className="ascend-momentum-result mt-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label="Loading supporting insights" aria-busy="true">
+            <p className="ascend-eyebrow">Your momentum</p>
+            <SkeletonBlock className="mt-2 h-8 w-32" />
+            <SkeletonBlock className="mt-2 h-4 w-4/5" />
+          </section>
+        ) : <Link href="/momentum-score" data-ascend-opening-target="momentum" className="ascend-pressable ascend-momentum-result mt-3 flex items-center gap-3 rounded-2xl border border-white/[0.08] px-4 py-3" aria-label={isFirstDayState ? "Your Momentum begins with your first check-in" : `Your Momentum is ${score} out of 100 based on seven-day consistency`}>
           <div className="min-w-0 flex-1">
             <p className="ascend-eyebrow">Your momentum</p>
             <p className="mt-1.5 text-lg font-semibold text-white">{isFirstDayState ? "Ready to build" : `${score}/100`}</p>
@@ -1909,16 +1925,22 @@ export function ClientDashboard() {
           </div>
           <AscendRiseMomentum compact score={score} label={isFirstDayState ? "Start here" : scoreLabel} isStarting={isFirstDayState} reward={momentumRewardActive} />
           <ArrowRight className="shrink-0 text-purple-200" size={17} />
-        </Link>
+        </Link>}
 
-        <section className="ascend-today-focus relative mt-3 overflow-hidden rounded-2xl border px-4 py-5 text-center">
+        {ownerSupportingLoading ? (
+          <section className="ascend-today-focus relative mt-3 min-h-56 overflow-hidden rounded-2xl border px-4 py-5" aria-label="Loading today's focus" aria-busy="true">
+            <p className="text-center text-[11px] font-bold uppercase tracking-[0.18em] text-purple-200">Today&apos;s focus</p>
+            <SkeletonText className="mt-4" />
+            <SkeletonBlock className="mt-4 h-12 w-full" />
+          </section>
+        ) : <section className="ascend-today-focus relative mt-3 overflow-hidden rounded-2xl border px-4 py-5 text-center">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-purple-200">Today&apos;s focus</p>
           <h2 className="mx-auto mt-2 max-w-[21rem] text-2xl font-semibold leading-8 text-white">{todayPriority.hero}</h2>
           <p className="mx-auto mt-2 max-w-[20rem] text-sm leading-6 text-zinc-400">{heroSupportingCopy}</p>
           <Link href={primaryAction.href} className="ascend-pressable ascend-cta-pulse mx-auto mt-4 flex h-[3.25rem] max-w-[21rem] items-center justify-center gap-2 rounded-xl bg-lime text-base font-semibold text-ink shadow-[0_16px_36px_rgba(61,230,209,0.18)]">
             {primaryAction.label} <ArrowRight size={18} />
           </Link>
-        </section>
+        </section>}
 
         <TodayWorkoutCard
           dailyWorkout={todayWorkout}
@@ -2058,9 +2080,9 @@ export function ClientDashboard() {
                     {
                       key: "momentum",
                       label: "Momentum",
-                      value: scoreLabel,
-                      target: `${score}/100 today`,
-                      progress: score
+                      value: ownerSupportingLoading ? "Loading" : scoreLabel,
+                      target: ownerSupportingLoading ? "Checking your consistency" : `${score}/100 today`,
+                      progress: ownerSupportingLoading ? null : score
                     }
                   ].map((item) => (
                     <div key={item.key} className={`ascend-inset relative overflow-hidden px-3.5 py-3.5 ${item.key === "momentum" ? "col-span-2 sm:col-span-1" : ""}`}>
@@ -2098,7 +2120,12 @@ export function ClientDashboard() {
               )}
             </CollapsibleSection>
 
-            <section className="ascend-stagger-enter ascend-branded-surface ascend-today-coach my-5 overflow-hidden rounded-2xl border border-purple-400/25 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.92)_52%,rgba(53,242,208,0.05))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.22),0_0_30px_rgba(139,92,246,0.08)]" style={{ animationDelay: "90ms" }}>
+            {ownerSupportingLoading ? (
+              <section className="ascend-today-coach my-5 min-h-56 rounded-2xl border border-purple-400/25 p-5" aria-label="Loading coach insight" aria-busy="true">
+                <SkeletonBlock className="h-5 w-28" />
+                <SkeletonText className="mt-4" />
+              </section>
+            ) : <section className="ascend-stagger-enter ascend-branded-surface ascend-today-coach my-5 overflow-hidden rounded-2xl border border-purple-400/25 bg-[linear-gradient(145deg,rgba(139,92,246,0.13),rgba(18,23,33,0.92)_52%,rgba(53,242,208,0.05))] p-5 shadow-[0_18px_42px_rgba(0,0,0,0.22),0_0_30px_rgba(139,92,246,0.08)]" style={{ animationDelay: "90ms" }}>
               <div className="flex items-start gap-3">
                 {hasHumanCoachSignal ? (
                   <span className="mt-0.5 grid h-11 w-11 shrink-0 place-items-center rounded-full bg-purple-400/12 text-purple-200"><Sparkles size={18} /></span>
@@ -2129,7 +2156,7 @@ export function ClientDashboard() {
                   </div>
                 </div>
               </div>
-            </section>
+            </section>}
 
             <section className="ascend-stagger-enter ascend-today-story border-t border-white/[0.07] py-6" style={{ animationDelay: "145ms" }}>
               <Link href="/journey" className="ascend-pressable flex items-center gap-3">
@@ -2138,8 +2165,8 @@ export function ClientDashboard() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className={`text-[10px] font-bold uppercase tracking-[0.16em] ${goalCompletedToday || weightLostFromStart >= 0.1 ? "text-amber" : "text-calm"}`}>Your story</p>
-                  <h2 className="mt-1 text-lg font-semibold leading-7 text-white">{progressPreview.title}</h2>
-                  <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{progressPreview.detail}</p>
+                  <h2 className="mt-1 text-lg font-semibold leading-7 text-white">{ownerSupportingLoading ? "Your journey" : progressPreview.title}</h2>
+                  {ownerSupportingLoading ? <SkeletonBlock className="mt-2 h-4 w-48" /> : <p className="mt-1 line-clamp-2 text-sm leading-6 text-zinc-500">{progressPreview.detail}</p>}
                 </div>
                 <ArrowRight className="shrink-0 text-zinc-500" size={18} />
               </Link>
