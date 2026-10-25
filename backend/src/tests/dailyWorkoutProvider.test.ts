@@ -113,6 +113,25 @@ describe("daily workout AI success requirement", () => {
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: "Internal server error", detail: undefined });
   });
+  it("records a failed response stage without logging member data or generated content", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubGlobal("fetch", vi.fn(async () => response("{ private malformed provider output")));
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan({ ...request, context: "private member details" }, { requireAiSuccess: true }))
+      .rejects.toMatchObject({ name: "WorkoutGenerationError", status: 503 });
+    expect(log).toHaveBeenCalledWith("[workout-ai] generation_failed", {
+      provider: "gemini", model: "gemini-3.6-flash", stage: "response_parse", category: "response_parse", durationMs: expect.any(Number)
+    });
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|test-key/);
+  });
+  it("distinguishes incomplete responses from provider or parsing failures", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => response(JSON.stringify({ title: "Incomplete" }))));
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { createCoachWorkoutPlan } = await loadProvider();
+    await expect(createCoachWorkoutPlan(request, { requireAiSuccess: true })).rejects.toMatchObject({ status: 503 });
+    expect(log).toHaveBeenCalledWith("[workout-ai] generation_failed", expect.objectContaining({ stage: "response_validation" }));
+  });
 });
 vi.mock("../services/aiWorkLeaseService", async importOriginal => ({
   ...await importOriginal<typeof import("../services/aiWorkLeaseService")>(),

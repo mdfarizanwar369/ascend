@@ -43,6 +43,7 @@ import { AccountBar } from "@/components/AccountBar";
 import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { localDateKey } from "@/lib/date";
+import { useLocalDateKey } from "@/lib/useLocalDateKey";
 import { clearDashboardRecord, DASHBOARD_RECORD_EVENT, DashboardActionType, readDashboardRecord, readRecentDashboardAction } from "@/lib/dataSync";
 import { cacheAccountProfile, getCachedAccountProfile, loadAccountPlan } from "@/lib/accountSession";
 import { AccountBarSkeleton, SectionShell, SkeletonBlock, SkeletonCardList, SkeletonStatGrid, SkeletonText } from "@/components/PerceivedLoading";
@@ -209,9 +210,9 @@ function progressCopy(goal?: string | null) {
   return "after you set a goal";
 }
 
-function lastSevenDateKeys() {
+function lastSevenDateKeys(today: string) {
   return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date();
+    const date = new Date(`${today}T12:00:00`);
     date.setDate(date.getDate() - (6 - index));
     return localDateKey(date.toISOString());
   });
@@ -358,6 +359,8 @@ function CollapsibleSection({
 
 export function ClientDashboard() {
   const launchMorphV22 = useAscendLaunchMorphV22();
+  const today = useLocalDateKey();
+  const loadedDayRef = useRef(today);
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
@@ -461,6 +464,7 @@ export function ClientDashboard() {
       return;
     }
     workoutCardLoadInFlightRef.current = true;
+    const requestDay = localDateKey();
     if (!hasLoadedWorkoutCardRef.current) setWorkoutCardLoading(true);
     try {
       const [{ dailyWorkout }] = await Promise.all([
@@ -468,11 +472,13 @@ export function ClientDashboard() {
         waitForFirebasePersistence().catch(() => undefined)
       ]);
       const ownerUid = getFirebaseClientAuth().currentUser?.uid ?? "";
+      if (requestDay !== localDateKey()) return;
       setTodayWorkout(dailyWorkout);
       setWorkoutSessionDraft(ownerUid ? readWorkoutSessionDraft(ownerUid) : null);
       hasLoadedWorkoutCardRef.current = true;
       setWorkoutCardError(null);
     } catch {
+      if (requestDay !== localDateKey()) return;
       if (hasLoadedWorkoutCardRef.current) {
         setWorkoutCardError("refresh");
       } else {
@@ -624,7 +630,7 @@ export function ClientDashboard() {
     dashboardLoadInFlightRef.current = true;
     if (!hasLoadedDashboardRef.current) setSectionLoading({ core: true, secondary: true });
     const requestId = ++dashboardRequestRef.current;
-    const comparisonRequest = getMyProgressComparison();
+    const comparisonRequest = getMyProgressComparison().catch(() => null);
     const pendingFoodLog = readDashboardRecord<FoodLog>("food");
     const pendingWeightLog = readDashboardRecord<WeightLog>("weight");
     const pendingWaterLog = readDashboardRecord<WaterLog>("water");
@@ -771,10 +777,11 @@ export function ClientDashboard() {
       });
       comparisonRequest
         .then((response) => {
-          if (requestId === dashboardRequestRef.current) setProgressComparison(response.comparison);
+          if (requestId === dashboardRequestRef.current && response) setProgressComparison(response.comparison);
         })
         .catch(() => undefined);
     } catch (error) {
+      if (requestId !== dashboardRequestRef.current) return;
       setSectionLoading({ core: false, secondary: false });
       setStatus(error instanceof Error ? error.message : "Log in again if this page does not load your profile.");
     } finally {
@@ -902,8 +909,31 @@ export function ClientDashboard() {
     return () => window.clearTimeout(timeout);
   }, [recentAction]);
 
-  const today = useMemo(() => localDateKey(), []);
-  const weekKeys = useMemo(() => lastSevenDateKeys(), []);
+  useEffect(() => {
+    if (loadedDayRef.current === today) return;
+    loadedDayRef.current = today;
+    dashboardRequestRef.current += 1;
+    clearAscendResponseCache();
+    setSleepQuality(null);
+    setHealthSyncStatus(null);
+    setTodayPriorityRecommendation(null);
+    setDailyDecisionInsight(null);
+    setDailyMission(null);
+    setRecentAction(null);
+    setStreak(null);
+    setMomentumScore(null);
+    setGoalStatus(null);
+    setTodayWorkout(null);
+    setWorkoutSessionDraft(null);
+    hasLoadedWorkoutCardRef.current = false;
+    setWorkoutCardError(null);
+    setWorkoutCardLoading(true);
+    void loadWorkoutCard();
+    if (dashboardLoadInFlightRef.current) dashboardDataRefreshQueuedRef.current = true;
+    else void loadDashboard();
+  }, [today, loadDashboard, loadWorkoutCard]);
+
+  const weekKeys = useMemo(() => lastSevenDateKeys(today), [today]);
   const todaysFood = foodLogs.filter((log) => localDateKey(log.logged_at) === today);
   const todaysWaterMl = waterLogs.filter((log) => localDateKey(log.logged_at) === today).reduce((total, log) => total + Number(log.amount_ml ?? 0), 0);
   const todaysBurnCalories = burnLogs
@@ -1081,10 +1111,10 @@ export function ClientDashboard() {
   const recentCelebration = recentAction ? AscendDNAService.getCelebration(toDnaAction(recentAction.type)) : null;
   const goalCompletedToday = Boolean(goalStatus?.milestone_id);
   const yesterday = useMemo(() => {
-    const date = new Date();
+    const date = new Date(`${today}T12:00:00`);
     date.setDate(date.getDate() - 1);
     return localDateKey(date.toISOString());
-  }, []);
+  }, [today]);
   const weightLostFromStart = startWeight && currentWeight && startWeight > currentWeight ? startWeight - currentWeight : 0;
   const latestBurnLog = burnLogs[0];
   const latestWorkoutTitle = typeof latestBurnLog?.metadata?.workoutTitle === "string" ? latestBurnLog.metadata.workoutTitle : null;

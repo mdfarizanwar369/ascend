@@ -118,6 +118,8 @@ const productionAiErrorMetadataKeys = new Set([
   "models",
   "provider",
   "responseMode",
+  "stage",
+  "durationMs",
   "status"
 ]);
 
@@ -1962,6 +1964,8 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
     return options.blueprint ? (await import("../services/workoutPlanQualityService")).applyWorkoutBlueprint(fallback, options.blueprint) : fallback;
   }
 
+  const startedAt = Date.now();
+  let stage = "provider";
   try {
     const useStructuredResponse = env.AI_PROVIDER === "gemini" || options.requireAiSuccess === true;
     const reply = await createTextReply(
@@ -1976,7 +1980,9 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
       useStructuredResponse ? 4096 : undefined,
       useStructuredResponse
     );
+    stage = "response_parse";
     const parsed = parseJsonObject(reply);
+    stage = "response_validation";
     if (options.requireAiSuccess && (
       !parsed || typeof parsed !== "object" || Array.isArray(parsed)
       || !["title", "intro", "focus", "coachTip"].every(key => typeof (parsed as Record<string, unknown>)[key] === "string" && String((parsed as Record<string, unknown>)[key]).trim())
@@ -1986,9 +1992,20 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
       || !("exercises" in parsed) || !Array.isArray(parsed.exercises) || !parsed.exercises.length
       || !parsed.exercises.every(exercise => typeof exercise?.name === "string" && exercise.name.trim() && (exercise.reps || exercise.duration))
     )) throw new Error("Incomplete workout response");
+    stage = "normalization";
     const normalized = normalizeWorkoutPlan(parsed, input);
     return options.blueprint ? (await import("../services/workoutPlanQualityService")).applyWorkoutBlueprint(normalized, options.blueprint) : normalized;
   } catch (error) {
+    // Keep provider output, prompts and member details out of telemetry.
+    // These coarse fields distinguish provider failures from invalid replies.
+    console.error("[workout-ai] generation_failed", safeAiErrorMetadata({
+      provider: env.AI_PROVIDER,
+      model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
+      stage,
+      category: error instanceof GeminiError ? geminiFailureReason(error) : stage,
+      ...(error instanceof GeminiError && error.status ? { status: error.status } : {}),
+      durationMs: Date.now() - startedAt
+    }));
     if (options.requireAiSuccess) throw Object.assign(new Error("Zoe couldn't build your workout. Please try again; your daily workout is still available."), {
       name: "WorkoutGenerationError", status: 503
     });
