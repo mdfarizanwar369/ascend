@@ -24,6 +24,7 @@ import { dailyCoachingTelemetry, safeDailyCoachingError } from "../services/dail
 import { ALLOWED_IMAGE_TYPES, MAX_IMAGE_BYTES } from "../utils/images";
 import { fetchPublicHttpUrl, readResponseBufferLimited } from "../utils/outboundUrl";
 import { AiWorkBusyError, createAiProviderGate, withAiWorkLease } from "../services/aiWorkLeaseService";
+import { workoutResponseSchema } from "./workoutResponseSchema";
 
 const openaiClient = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 const geminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta";
@@ -70,9 +71,26 @@ class GeminiError extends Error {
     message: string,
     public readonly status?: number,
     public readonly retryable = false,
-    public readonly terminalAccess = false
+    public readonly terminalAccess = false,
+    public readonly finishReason?: string
   ) {
     super(message);
+  }
+}
+
+const geminiFinishReasons = new Set([
+  "FINISH_REASON_UNSPECIFIED", "STOP", "MAX_TOKENS", "SAFETY", "RECITATION", "LANGUAGE", "OTHER",
+  "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "MALFORMED_FUNCTION_CALL", "UNEXPECTED_TOOL_CALL",
+  "TOO_MANY_TOOL_CALLS", "MALFORMED_RESPONSE", "CONTINUATION"
+]);
+
+function safeGeminiFinishReason(value: unknown) {
+  return typeof value === "string" && geminiFinishReasons.has(value) ? value : "UNKNOWN";
+}
+
+class IncompleteWorkoutResponseError extends Error {
+  constructor(public readonly finishReason: string) {
+    super("Incomplete workout response");
   }
 }
 
@@ -628,7 +646,8 @@ async function callGeminiOnceReserved(model: string, parts: GeminiPart[], maxOut
       responsePreview: text.slice(0, 400)
     });
     if (!text) {
-      throw new GeminiError(`Gemini ${model} returned an empty response.`, undefined, true);
+      throw new GeminiError(`Gemini ${model} returned an empty response.`, undefined, true, false,
+        safeGeminiFinishReason(data.candidates?.[0]?.finishReason));
     }
 
     return {
@@ -1471,7 +1490,7 @@ export async function extractBodyCompositionFromImages(imageDataUrls: string[]) 
   }
 }
 
-async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string, maxOutputTokens?: number, requireCompleteJson = false) {
+async function createTextReply(systemPrompt: string, userPrompt: string, fallback: string, maxOutputTokens?: number, requireCompleteJson = false, responseSchema?: Record<string, unknown>) {
   if (!providerConfigured()) {
     if (requireCompleteJson) throw new Error("AI provider unavailable");
     return fallback;
@@ -1480,9 +1499,9 @@ async function createTextReply(systemPrompt: string, userPrompt: string, fallbac
   if (env.AI_PROVIDER === "gemini") {
     if (requireCompleteJson) {
       const result = await callGeminiWithOptions([{ text: `${systemPrompt}\n\n${userPrompt}` }], maxOutputTokens ?? 4096, {
-        thinkingLevel: "low", responseMimeType: "application/json", timeoutMs: 22_000
+        thinkingLevel: "low", responseMimeType: "application/json", responseSchema, timeoutMs: 22_000
       });
-      if (result.finishReason !== "STOP") throw new Error("Incomplete workout response");
+      if (result.finishReason !== "STOP") throw new IncompleteWorkoutResponseError(safeGeminiFinishReason(result.finishReason));
       return result.text;
     }
     try {
@@ -1922,6 +1941,27 @@ function toStringArray(value: unknown, fallback: string[], maxItems = 5) {
   return items.length ? items : fallback;
 }
 
+function isCompleteWorkoutResponse(raw: unknown) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const source = raw as Record<string, unknown>;
+  const hasCleanText = (value: unknown) => Boolean(toCleanString(value, ""));
+  const isTextArray = (value: unknown) => Array.isArray(value) && value.length > 0 && value.every(hasCleanText);
+  const isOptionalText = (value: unknown) => value == null || typeof value === "string";
+  return ["title", "intro", "focus", "coachTip"].every(key => hasCleanText(source[key]))
+    && typeof source.estimatedDurationMinutes === "number" && Number.isFinite(source.estimatedDurationMinutes)
+    && ["easy", "moderate", "challenging"].includes(source.intensity as string)
+    && isTextArray(source.warmup) && isTextArray(source.cooldown)
+    && Array.isArray(source.exercises) && source.exercises.length > 0
+    && source.exercises.every(item => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const exercise = item as Record<string, unknown>;
+      return hasCleanText(exercise.name)
+        && [exercise.reps, exercise.duration, exercise.rest, exercise.note].every(isOptionalText)
+        && (hasCleanText(exercise.reps) || hasCleanText(exercise.duration))
+        && (exercise.sets == null || (typeof exercise.sets === "number" && Number.isFinite(exercise.sets)));
+    });
+}
+
 function normalizeWorkoutPlan(raw: unknown, input: WorkoutPlannerInput): CoachWorkoutPlan {
   const fallback = fallbackWorkoutPlan(input);
   const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -1978,20 +2018,13 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
       })}\n\nAscend context: ${input.context}${options.blueprint ? `\n\nThe prescribedSession is binding. Use its exact exercise names and order. Match the title, intro, intensity and tip to its focus. Do not add exercises. The selected time is a maximum available window; use prescribedSession.estimatedDurationMinutes for any workout-length claim.` : options.preferReviewedVisualNames ? `\n\nWhen an exercise is equally suitable for this member and available equipment, prefer its exact name from these reviewed visual exercises: ${PILOT_EXERCISE_VISUALS.map(item => item.canonicalName).join(", ")}. Do not choose an unsuitable exercise merely to get a visual.` : ""}\n\nGenerate today's workout as strict JSON now.`,
       JSON.stringify(fallbackWorkoutPlan(input)),
       useStructuredResponse ? 4096 : undefined,
-      useStructuredResponse
+      useStructuredResponse,
+      workoutResponseSchema
     );
     stage = "response_parse";
     const parsed = parseJsonObject(reply);
     stage = "response_validation";
-    if (options.requireAiSuccess && (
-      !parsed || typeof parsed !== "object" || Array.isArray(parsed)
-      || !["title", "intro", "focus", "coachTip"].every(key => typeof (parsed as Record<string, unknown>)[key] === "string" && String((parsed as Record<string, unknown>)[key]).trim())
-      || !("estimatedDurationMinutes" in parsed) || !Number.isFinite(parsed.estimatedDurationMinutes)
-      || !("warmup" in parsed) || !Array.isArray(parsed.warmup) || !parsed.warmup.length
-      || !("cooldown" in parsed) || !Array.isArray(parsed.cooldown) || !parsed.cooldown.length
-      || !("exercises" in parsed) || !Array.isArray(parsed.exercises) || !parsed.exercises.length
-      || !parsed.exercises.every(exercise => typeof exercise?.name === "string" && exercise.name.trim() && (exercise.reps || exercise.duration))
-    )) throw new Error("Incomplete workout response");
+    if (options.requireAiSuccess && !isCompleteWorkoutResponse(parsed)) throw new Error("Incomplete workout response");
     stage = "normalization";
     const normalized = normalizeWorkoutPlan(parsed, input);
     return options.blueprint ? (await import("../services/workoutPlanQualityService")).applyWorkoutBlueprint(normalized, options.blueprint) : normalized;
@@ -2002,8 +2035,11 @@ export async function createCoachWorkoutPlan(input: WorkoutPlannerInput, options
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       stage,
-      category: error instanceof GeminiError ? geminiFailureReason(error) : stage,
+      category: error instanceof IncompleteWorkoutResponseError ? "incomplete_response"
+        : error instanceof GeminiError ? geminiFailureReason(error) : stage,
       ...(error instanceof GeminiError && error.status ? { status: error.status } : {}),
+      ...(error instanceof IncompleteWorkoutResponseError || (error instanceof GeminiError && error.finishReason)
+        ? { finishReason: safeGeminiFinishReason(error.finishReason) } : {}),
       durationMs: Date.now() - startedAt
     }));
     if (options.requireAiSuccess) throw Object.assign(new Error("Zoe couldn't build your workout. Please try again; your daily workout is still available."), {
