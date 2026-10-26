@@ -6,6 +6,8 @@ on:
       - 'ios/**'
       - 'scripts/ios-*'
       - 'scripts/generate-ios-*'
+      - 'scripts/app-store-release.py'
+      - 'scripts/test_*release.py'
       - 'capacitor.config.ts'
       - 'package*.json'
       - 'mobile-shell/**'
@@ -28,7 +30,7 @@ on:
       build_number:
         description: Build number to check
         type: string
-        default: '66.1'
+        default: '222.1'
       assign_internal_build:
         description: Assign the selected build to the existing two-tester Ascend Internal group
         type: boolean
@@ -50,7 +52,7 @@ on:
         type: boolean
         default: false
       app_store_action:
-        description: Inspect, prepare, or submit the public iOS 1.5 App Store version
+        description: Inspect, prepare, or submit approved iOS 1.7 build 222.1
         type: choice
         options:
           - none
@@ -125,6 +127,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install 'PyJWT[crypto]==2.10.1'
+      - name: Validate App Store submission guards
+        run: python -m unittest discover -s scripts -p test_app_store_release.py
       - name: Prepare or submit App Store release
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -132,11 +136,11 @@ jobs:
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           ASC_APP_STORE_ACTION: ${{ inputs.app_store_action }}
           ASC_BUILD_NUMBER: ${{ inputs.build_number }}
-          ASC_VERSION_STRING: '1.5'
+          ASC_VERSION_STRING: '1.7'
           ASC_WHATS_NEW: >-
-            Ask Siri for your daily calories, water, food and workout progress.
-            Connect Apple Health to sync steps, active energy and workouts when you choose.
-            Coach Zoe workouts and personalized setup are now simpler and more useful.
+            Make Ascend yours with new appearance themes and matching Home Screen widgets.
+            Choose Gym Girl Club, Cute Lift Club, Iron Club, Summit Club or Ascend Club.
+            Enjoy faster Home loading and reliability improvements.
         run: python scripts/app-store-release.py
 
   simulator:
@@ -154,7 +158,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install 'PyJWT[crypto]==2.10.1'
       - run: npm ci
-      - run: python3 -m unittest discover -s scripts -p test_ios_release.py
+      - run: python3 -m unittest discover -s scripts -p 'test_*release.py'
       - run: npm run ios:prepare
       - run: npm run ios:check
       - name: Validate Xcode metadata
