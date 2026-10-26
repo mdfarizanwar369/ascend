@@ -16,7 +16,8 @@ import jwt
 
 
 BUNDLE_ID = "fit.getascend.app"
-DEFAULT_VERSION = "1.5"
+DEFAULT_VERSION = "1.7"
+RELEASE_BUILD = "222.1"
 ALLOWED_ACTIONS = {"inspect", "prepare", "submit"}
 RELEASABLE_STATES = {"PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW"}
 ACTIVE_REVIEW_STATES = {"READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW"}
@@ -114,15 +115,19 @@ def get_build(client, app_id, build_number, version_string):
     summary = {
         "id": build["id"],
         "version": pre_release.get("attributes", {}).get("version"),
+        "platform": pre_release.get("attributes", {}).get("platform"),
         "buildNumber": attrs.get("version"),
         "processingState": attrs.get("processingState"),
         "audience": attrs.get("buildAudienceType"),
+        "usesNonExemptEncryption": attrs.get("usesNonExemptEncryption"),
     }
     print("TARGET_BUILD", json.dumps(summary, sort_keys=True))
-    if summary["version"] != version_string or summary["buildNumber"] != build_number:
+    if summary["version"] != version_string or summary["buildNumber"] != build_number or summary["platform"] != "IOS":
         raise RuntimeError("The selected build does not match the requested App Store version")
     if summary["processingState"] != "VALID" or summary["audience"] != "APP_STORE_ELIGIBLE":
         raise RuntimeError("The selected build is not valid and App Store eligible")
+    if summary["usesNonExemptEncryption"] is not False:
+        raise RuntimeError("The approved build's export compliance is not confirmed")
     return build
 
 
@@ -219,6 +224,9 @@ def inspect_version_readiness(client, version):
 
 def submit_for_review(client, app_id, version):
     state = version_summary(version)["state"]
+    if state in {"WAITING_FOR_REVIEW", "IN_REVIEW"}:
+        print("ALREADY_SUBMITTED", json.dumps(version_summary(version), sort_keys=True))
+        return
     if state not in RELEASABLE_STATES:
         raise RuntimeError(f"Version is not ready to submit from state {state}")
 
@@ -249,8 +257,11 @@ def submit_for_review(client, app_id, version):
     version_ids = set()
     for item in items:
         related = client.get(f"/v1/reviewSubmissionItems/{item['id']}/appStoreVersion").get("data")
-        if related:
-            version_ids.add(related["id"])
+        if not related:
+            raise RuntimeError("The ready review submission contains an unrelated review item")
+        version_ids.add(related["id"])
+    if version_ids - {version["id"]}:
+        raise RuntimeError("The ready review submission contains a different App Store version")
     if version["id"] not in version_ids:
         client.post("/v1/reviewSubmissionItems", {
             "data": {
@@ -289,6 +300,8 @@ def main():
     build_number = os.environ["ASC_BUILD_NUMBER"].strip()
     if version_string != DEFAULT_VERSION:
         raise RuntimeError(f"This release automation is restricted to Ascend iOS {DEFAULT_VERSION}")
+    if build_number != RELEASE_BUILD:
+        raise RuntimeError(f"This release is restricted to the approved build {RELEASE_BUILD}")
 
     client = AppStoreConnect()
     app = get_app(client)
@@ -311,6 +324,8 @@ def main():
         return
 
     if action == "prepare":
+        if version_summary(target)["state"] not in RELEASABLE_STATES:
+            raise RuntimeError("Cannot modify release details after the version entered review or release")
         update_release_notes(client, target["id"])
         attach_build(client, target["id"], build["id"])
         target = client.get(f"/v1/appStoreVersions/{target['id']}")["data"]
