@@ -2,7 +2,7 @@
 
 import { Check, Moon, Palette, Sun, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { ASCEND_APPEARANCES, applyAscendAppearance, parseAscendAppearance, type AscendAppearance } from "@/lib/ascendAppearance";
+import { ASCEND_APPEARANCES, applyAscendAppearance, getAscendAppearanceRevision, parseAscendAppearance, type AscendAppearance } from "@/lib/ascendAppearance";
 import { ascendSiri } from "@/lib/ascendSiri";
 import { getNativeCapacitorPlatform, isNativeCapacitorPlatform } from "@/lib/nativePlatform";
 
@@ -24,22 +24,18 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     setAppearance(current);
     if (!isNativeCapacitorPlatform() || getNativeCapacitorPlatform() !== "ios") return;
 
-    void ascendSiri.getWidgetTheme().then(async ({ theme, availableThemes: nativeAvailableThemes }) => {
+    const revision = getAscendAppearanceRevision();
+    void ascendSiri.getWidgetTheme().then(({ theme, availableThemes: nativeAvailableThemes }) => {
       if (cancelled) return;
-      const nativeTheme = parseAscendAppearance(theme) ?? "classic";
+      const nativeTheme = parseAscendAppearance(theme);
+      if (!nativeTheme) return;
       const supportedThemes = Array.isArray(nativeAvailableThemes)
         ? nativeAvailableThemes.map(parseAscendAppearance).filter((item): item is AscendAppearance => item !== null)
         : legacyAvailableThemes;
-      const stored = parseAscendAppearance(localStorage.getItem("ascend-appearance"));
-      const candidate = stored ?? (localStorage.getItem("ascend-theme") === "light" ? "light" : nativeTheme);
-      const preferred = supportedThemes.includes(candidate) ? candidate : nativeTheme;
-      if (preferred !== nativeTheme) {
-        try { await ascendSiri.setWidgetTheme({ theme: preferred }); }
-        catch { return; }
-      }
-      if (cancelled) return;
-      applyAscendAppearance(preferred);
-      setAppearance(preferred);
+      // The device preference is shared with the widget. A stale web cache must
+      // not reset it when a different page or the picker mounts.
+      if (revision === getAscendAppearanceRevision()) applyAscendAppearance(nativeTheme);
+      setAppearance(parseAscendAppearance(document.documentElement.dataset.appearance) ?? nativeTheme);
       setAvailableThemes(supportedThemes);
       setNativePicker(true);
     }).catch(() => { /* Older iOS builds keep the existing light/dark toggle. */ });
