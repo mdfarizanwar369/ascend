@@ -9,6 +9,7 @@ vi.mock("@/lib/nativePlatform", () => ({
 vi.mock("@/lib/ascendSiri", () => ({ ascendSiri: mocks }));
 
 import { ThemeToggle } from "./ThemeToggle";
+import { applyAscendAppearance } from "@/lib/ascendAppearance";
 
 beforeEach(() => {
   localStorage.clear();
@@ -61,4 +62,26 @@ it("offers Ascend Club when the native widget reports support", async () => {
   fireEvent.click(screen.getByRole("button", { name: /Ascend Club/i }));
   await waitFor(() => expect(mocks.setWidgetTheme).toHaveBeenCalledWith({ theme: "ascend-club" }));
   expect(document.documentElement.dataset.appearance).toBe("ascend-club");
+});
+
+it("restores the widget theme instead of writing a stale Classic cache back to the widget", async () => {
+  localStorage.setItem("ascend-appearance", "classic");
+  mocks.getWidgetTheme.mockResolvedValue({ theme: "gym-girl" });
+  render(<ThemeToggle />);
+  await screen.findByRole("button", { name: "Choose Ascend appearance" });
+  expect(document.documentElement.dataset.appearance).toBe("gym-girl");
+  expect(localStorage.getItem("ascend-appearance")).toBe("gym-girl");
+  expect(mocks.setWidgetTheme).not.toHaveBeenCalled();
+});
+
+it("does not replace a more recent selection when the initial native read resolves late", async () => {
+  let resolveTheme!: (value: { theme: string }) => void;
+  mocks.getWidgetTheme.mockReturnValue(new Promise(resolve => { resolveTheme = resolve; }));
+  render(<ThemeToggle />);
+  applyAscendAppearance("summit");
+  resolveTheme({ theme: "gym-girl" });
+  fireEvent.click(await screen.findByRole("button", { name: "Choose Ascend appearance" }));
+  expect(document.documentElement.dataset.appearance).toBe("summit");
+  expect(screen.getByRole("button", { name: /Summit Club/i })).toHaveAttribute("aria-pressed", "true");
+  expect(mocks.setWidgetTheme).not.toHaveBeenCalled();
 });

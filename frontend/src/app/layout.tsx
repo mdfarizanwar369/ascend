@@ -13,6 +13,8 @@ import { ClientErrorReporter } from "@/components/ClientErrorReporter";
 import { AppleSubscriptionCoordinator } from "@/components/AppleSubscriptionCoordinator";
 import { AiConsentCoordinator } from "@/components/AiConsentCoordinator";
 import { AscendSiriCoordinator } from "@/components/AscendSiriCoordinator";
+import { AscendAppearanceCoordinator } from "@/components/AscendAppearanceCoordinator";
+import { ASCEND_APPEARANCE_BOOT_SCRIPT } from "@/lib/ascendAppearance";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -58,33 +60,15 @@ export const viewport: Viewport = {
   viewportFit: "cover"
 };
 
-const themeBootScript = `
-  (function () {
-    if (navigator.userAgent.indexOf("AscendAndroid/1") !== -1) {
-      document.documentElement.dataset.nativePlatform = "android";
-    }
-
-    try {
-      var saved = localStorage.getItem("ascend-appearance");
-      var supported = ["classic", "light", "gym-girl", "cute-lift", "iron", "summit"];
-      var appearance = supported.indexOf(saved) >= 0 ? saved : (localStorage.getItem("ascend-theme") === "light" ? "light" : "classic");
-      document.documentElement.dataset.appearance = appearance;
-      document.documentElement.dataset.theme = appearance === "light" || appearance === "cute-lift" ? "light" : "dark";
-    } catch (_) {
-      document.documentElement.dataset.appearance = "classic";
-      document.documentElement.dataset.theme = "dark";
-    }
-  })();
-`;
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        <script dangerouslySetInnerHTML={{ __html: ASCEND_APPEARANCE_BOOT_SCRIPT }} />
       </head>
       <body>
         <AscendLaunchMorphV22Provider>
+          <AscendAppearanceCoordinator />
           <CanonicalDomainGuard />
           <AuthStateGuard />
           <CapacitorAppUrlRouter />

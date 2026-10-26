@@ -10,6 +10,31 @@ export const ASCEND_APPEARANCES = [
 
 export type AscendAppearance = (typeof ASCEND_APPEARANCES)[number]["id"];
 
+// Share the supported list with the pre-hydration script, including new skins.
+export const ASCEND_APPEARANCE_BOOT_SCRIPT = `
+  (function () {
+    if (navigator.userAgent.indexOf("AscendAndroid/1") !== -1) {
+      document.documentElement.dataset.nativePlatform = "android";
+    }
+    try {
+      var saved = localStorage.getItem("ascend-appearance");
+      var supported = ${JSON.stringify(ASCEND_APPEARANCES.map(option => option.id))};
+      var appearance = supported.indexOf(saved) >= 0 ? saved : (localStorage.getItem("ascend-theme") === "light" ? "light" : "classic");
+      document.documentElement.dataset.appearance = appearance;
+      document.documentElement.dataset.theme = appearance === "light" || appearance === "cute-lift" ? "light" : "dark";
+    } catch (_) {
+      document.documentElement.dataset.appearance = "classic";
+      document.documentElement.dataset.theme = "dark";
+    }
+  })();
+`;
+
+let appearanceRevision = 0;
+
+export function getAscendAppearanceRevision() {
+  return appearanceRevision;
+}
+
 export function parseAscendAppearance(value: unknown): AscendAppearance | null {
   return typeof value === "string" && ASCEND_APPEARANCES.some(option => option.id === value)
     ? value as AscendAppearance
@@ -21,8 +46,13 @@ export function appearanceColorMode(appearance: AscendAppearance): "dark" | "lig
 }
 
 export function applyAscendAppearance(appearance: AscendAppearance) {
+  appearanceRevision++;
   document.documentElement.dataset.appearance = appearance;
   document.documentElement.dataset.theme = appearanceColorMode(appearance);
-  localStorage.setItem("ascend-appearance", appearance);
-  localStorage.setItem("ascend-theme", appearanceColorMode(appearance));
+  try {
+    localStorage.setItem("ascend-appearance", appearance);
+    localStorage.setItem("ascend-theme", appearanceColorMode(appearance));
+  } catch {
+    // The native preference and current page still work without browser storage.
+  }
 }
