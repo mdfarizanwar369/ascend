@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DailyWorkout } from "@/lib/ascendApi";
+import type { BeginnerProgrammeSummary, DailyWorkout } from "@/lib/ascendApi";
 import { writeWorkoutSessionDraft } from "@/lib/workoutSessionDraft";
 
-const mocks = vi.hoisted(() => ({ ios: true, visuals: false, workoutV2: false, pilot: false, today: vi.fn(), generate: vi.fn(), save: vi.fn(), swap: vi.fn(), dismiss: vi.fn(), persistence: vi.fn() }));
+const mocks = vi.hoisted(() => ({ ios: true, visuals: false, workoutV2: false, pilot: false, programmeEnabled: false, programme: vi.fn(), updateProgramme: vi.fn(), today: vi.fn(), generate: vi.fn(), save: vi.fn(), swap: vi.fn(), dismiss: vi.fn(), persistence: vi.fn() }));
 vi.mock("@/lib/appEdition", () => ({ useIosFreeEdition: () => mocks.ios, useIosApp: () => mocks.ios }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => null }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => null, StaggerItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
@@ -18,7 +18,8 @@ vi.mock("@/lib/firebase", () => ({
 vi.mock("@/lib/dataSync", () => ({ rememberDashboardRecord: vi.fn() }));
 vi.mock("@/lib/ascendApi", () => ({
   getTodayWorkout: mocks.today, generateTodayWorkout: mocks.generate, saveCompletedWorkout: mocks.save, swapTodayWorkoutExercise: mocks.swap, dismissTodayWorkout: mocks.dismiss,
-  getWorkoutVisualAccess: async () => ({ enabled: mocks.visuals, workoutEngineV2Enabled: mocks.workoutV2, planLoggingPilotEnabled: mocks.pilot }),
+  getWorkoutVisualAccess: async () => ({ enabled: mocks.visuals, workoutEngineV2Enabled: mocks.workoutV2, planLoggingPilotEnabled: mocks.pilot, beginnerProgrammePilotEnabled: mocks.programmeEnabled }),
+  getBeginnerProgramme: mocks.programme, updateBeginnerProgramme: mocks.updateProgramme,
   recordWorkoutVisualEvent: vi.fn().mockResolvedValue(undefined),
   getCoachPresence: async () => ({ latest: null }), getMyStreak: async () => ({ streak: { current: 0 } }),
   getBurnLogs: async () => ({ burnLogs: [] }), getFoodLogs: async () => ({ foodLogs: [] }),
@@ -37,11 +38,241 @@ const daily: DailyWorkout = {
 };
 beforeEach(() => {
   window.localStorage.clear();
-  vi.clearAllMocks(); mocks.ios = true; mocks.visuals = false; mocks.workoutV2 = false; mocks.pilot = false;
+  vi.clearAllMocks(); mocks.ios = true; mocks.visuals = false; mocks.workoutV2 = false; mocks.pilot = false; mocks.programmeEnabled = false;
   mocks.persistence.mockResolvedValue(undefined);
   mocks.today.mockResolvedValue({ dailyWorkout: null });
   mocks.generate.mockResolvedValue({ workout: daily.workout, dailyWorkout: daily });
   mocks.dismiss.mockResolvedValue({ dismissed: true });
+  mocks.programme.mockResolvedValue({ available: true, programme: null });
+});
+
+const routine: BeginnerProgrammeSummary = {
+  id: "routine-owner", status: "active", completedSessions: 0, nextSessionNumber: 1,
+  stage: "foundation", stageLabel: "Build your foundation", nextSessionKind: "A",
+  note: "Start with a comfortable session, then build from what you finish.", lastSetup: daily.request,
+  anchorExercises: [], lastCompletedAt: null
+};
+const routineDaily: DailyWorkout = { ...daily, workoutCompletionKey: "routine-session-key", workout: {
+  ...daily.workout, title: "Foundation A", experienceVersion: 2,
+  exercises: [{ name: "Wall Push-Up", sets: 2, reps: "8", alternatives: [{ name: "Incline Push-Up", sets: 2, reps: "8" }] }],
+  beginnerProgramme: {
+    programmeId: routine.id, sessionNumber: 1, sessionKind: "A", stage: "foundation",
+    stageLabel: routine.stageLabel, note: routine.note, coreExerciseIndexes: [0], supplementary: false
+  }
+} };
+
+describe("owner-only beginner routine pilot", () => {
+  beforeEach(() => {
+    mocks.ios = false;
+    mocks.programmeEnabled = true;
+    mocks.programme.mockResolvedValue({ available: true, programme: routine });
+    mocks.updateProgramme.mockImplementation(async (action: string) => ({ available: true,
+      programme: { ...routine, status: action === "pause" ? "paused" : action === "leave" ? "ended" : "active" }
+    }));
+  });
+
+  it("does not add routine UI or programme requests for ordinary accounts", async () => {
+    mocks.programmeEnabled = false;
+    render(<CoachHubClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Today's Workout" }));
+    expect(await screen.findByRole("button", { name: "Home" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Your Zoe routine")).not.toBeInTheDocument();
+    expect(screen.queryByText("Keep building with Zoe")).not.toBeInTheDocument();
+    expect(mocks.programme).not.toHaveBeenCalled();
+    expect(mocks.updateProgramme).not.toHaveBeenCalled();
+    expect(mocks.today).not.toHaveBeenCalled();
+  });
+
+  it("starts the optional routine without replacing an existing workout or generating AI", async () => {
+    mocks.programme.mockResolvedValue({ available: true, programme: null });
+    const page = render(<CoachHubClient />);
+    await screen.findByRole("button", { name: "Start my routine" });
+    await chooseWorkout();
+    await screen.findByRole("heading", { name: "Home mobility" });
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Gentle walk" }));
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Start my routine" }));
+    await waitFor(() => expect(mocks.updateProgramme).toHaveBeenCalledWith("start"));
+    expect(await screen.findByText(/Finish or dismiss your current workout/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Home mobility" })).toBeInTheDocument();
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Continue workout" }));
+    expect(await screen.findByRole("button", { name: "Keep current workout" })).toBeInTheDocument();
+    expect(screen.getByText("1/1 exercises checked")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Keep current workout" }));
+    expect(screen.getByRole("heading", { name: "Home mobility" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark incomplete: Gentle walk" })).toBeInTheDocument();
+    expect(mocks.today).not.toHaveBeenCalled();
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    page.unmount();
+  });
+
+  it("reuses the previous setup and generates the next session only after an explicit tap", async () => {
+    mocks.generate.mockResolvedValue({ workout: routineDaily.workout, dailyWorkout: routineDaily });
+    render(<CoachHubClient openWorkout />);
+    const generateNext = await screen.findByRole("button", { name: "Generate next workout" });
+    expect(screen.queryByRole("button", { name: "Home" })).not.toBeInTheDocument();
+    expect(mocks.today).toHaveBeenCalledOnce();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    fireEvent.click(generateNext);
+    await screen.findByRole("heading", { name: "Foundation A" });
+    expect(mocks.generate).toHaveBeenCalledWith({ ...daily.request, programmeMode: "routine" });
+  });
+
+  it.each(["completed", "dismissed"] as const)("explains the next-day availability of a %s routine without offering generation", async (outcome) => {
+    mocks.today.mockResolvedValue({ dailyWorkout: { ...routineDaily,
+      completed: outcome === "completed", dismissed: outcome === "dismissed"
+    } });
+    render(<CoachHubClient openWorkout />);
+    expect(await screen.findByText("Next routine session available tomorrow. Your routine keeps its place.")).toBeInTheDocument();
+    expect(screen.getByText(/Your next routine session is available tomorrow; your progress is saved/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Today's workout" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generate next workout" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Routine options" }));
+    expect(screen.queryByRole("button", { name: "Change today's setup" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "One-off workout" })).toBeInTheDocument();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Today's workout" }));
+    await waitFor(() => expect(mocks.today).toHaveBeenCalledTimes(2));
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it("pauses and resumes without discarding checked progress or calling AI", async () => {
+    mocks.today.mockResolvedValue({ dailyWorkout: routineDaily });
+    render(<CoachHubClient openWorkout />);
+    await screen.findByRole("heading", { name: "Foundation A" });
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Wall Push-Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Routine options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pause routine" }));
+    expect(await screen.findByText("Routine paused · Your place is saved")).toBeInTheDocument();
+    expect(screen.getByText("1/1 exercises checked")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Routine options" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume routine" }));
+    await waitFor(() => expect(mocks.updateProgramme).toHaveBeenLastCalledWith("resume"));
+    expect(screen.getByText("1/1 exercises checked")).toBeInTheDocument();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.dismiss).not.toHaveBeenCalled();
+  });
+
+  it("protects unfinished progress before a one-off workout or setup change", async () => {
+    mocks.today.mockResolvedValue({ dailyWorkout: routineDaily });
+    render(<CoachHubClient openWorkout />);
+    await screen.findByRole("heading", { name: "Foundation A" });
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Wall Push-Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Routine options" }));
+    fireEvent.click(screen.getByRole("button", { name: "One-off workout" }));
+    expect(await screen.findByText(/Finish or dismiss the current workout before changing/)).toBeInTheDocument();
+    expect(screen.getByText("1/1 exercises checked")).toBeInTheDocument();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.dismiss).not.toHaveBeenCalled();
+  });
+
+  it("uses the server session key for web swaps and disables local plan regeneration", async () => {
+    mocks.today.mockResolvedValue({ dailyWorkout: routineDaily });
+    mocks.swap.mockResolvedValue({ dailyWorkout: { ...routineDaily, workout: { ...routineDaily.workout,
+      exercises: [{ name: "Incline Push-Up", sets: 2, reps: "8" }]
+    } } });
+    render(<CoachHubClient openWorkout />);
+    await screen.findByRole("heading", { name: "Foundation A" });
+    fireEvent.click(screen.getByRole("button", { name: "Swap exercise" }));
+    await screen.findByText("Incline Push-Up");
+    expect(mocks.swap).toHaveBeenCalledWith("routine-session-key", 0);
+    fireEvent.click(screen.getByRole("button", { name: "Options" }));
+    expect(screen.queryByRole("button", { name: "Refresh exercises" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss workout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard workout" }));
+    await waitFor(() => expect(mocks.dismiss).toHaveBeenCalledWith("routine-session-key"));
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps one-off generation separate from routine progression", async () => {
+    render(<CoachHubClient />);
+    fireEvent.click(await screen.findByRole("button", { name: "Routine options" }));
+    fireEvent.click(screen.getByRole("button", { name: "One-off workout" }));
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    fireEvent.click(screen.getByRole("button", { name: "20 minutes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mobility" }));
+    expect(mocks.generate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Bodyweight" }));
+    await screen.findByRole("heading", { name: "Home mobility" });
+    expect(mocks.generate).toHaveBeenCalledWith({ ...daily.request, programmeMode: "one_off" });
+    expect(mocks.updateProgramme).not.toHaveBeenCalled();
+  });
+
+  it("saves effort with the programme session and refreshes progress without generating the next workout", async () => {
+    mocks.today.mockResolvedValue({ dailyWorkout: routineDaily });
+    mocks.save.mockResolvedValue({
+      burnLog: { id: "routine-burn", metadata: { caloriesBurned: 30 }, created_at: new Date().toISOString() },
+      summary: { workoutTitle: "Foundation A", durationMinutes: 20, workoutType: "Strength", difficulty: "Easy",
+        estimatedCaloriesBurned: 30, caloriesLabel: "Estimated Calories Burned", coachMessage: "Saved", momentumEarned: 8 },
+      debrief: null
+    });
+    render(<CoachHubClient openWorkout />);
+    await screen.findByRole("heading", { name: "Foundation A" });
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Wall Push-Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "About right" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete & Save Workout" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      workoutCompletionKey: "routine-session-key", effortRating: "about_right", completedExerciseIndexes: [0]
+    })));
+    await waitFor(() => expect(mocks.programme).toHaveBeenCalledTimes(2));
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it("fails closed if the eligibility flag is present but programme access fails", async () => {
+    mocks.programme.mockRejectedValue(new Error("Unavailable"));
+    render(<CoachHubClient openWorkout />);
+    expect(await screen.findByRole("button", { name: "Home" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Your Zoe routine")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start my routine" })).not.toBeInTheDocument();
+    expect(mocks.today).not.toHaveBeenCalled();
+  });
+
+  it("keeps a saved routine session completable after the pilot flag is disabled", async () => {
+    mocks.programmeEnabled = false;
+    writeWorkoutSessionDraft("member-one", {
+      workoutCompletionKey: routineDaily.workoutCompletionKey, workout: routineDaily.workout,
+      answers: routineDaily.request, checkedExerciseIndexes: [0], observedExercises: {},
+      effortRating: "about_right", actualWorkoutMinutes: "15", showWorkoutDetails: false,
+      expiresAt: new Date(Date.now() + 60_000).toISOString()
+    });
+    mocks.save.mockResolvedValue({
+      burnLog: { id: "routine-burn", metadata: { caloriesBurned: 30 }, created_at: new Date().toISOString() },
+      summary: { workoutTitle: "Foundation A", durationMinutes: 15, workoutType: "Strength", difficulty: "Easy",
+        estimatedCaloriesBurned: 30, caloriesLabel: "Estimated Calories Burned", coachMessage: "Saved", momentumEarned: 8 },
+      debrief: null
+    });
+    render(<CoachHubClient />);
+    await screen.findByRole("heading", { name: "Foundation A" });
+    fireEvent.click(screen.getByRole("button", { name: "Complete & Save Workout" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      workoutCompletionKey: "routine-session-key", completedExerciseIndexes: [0], effortRating: "about_right", actualDurationMinutes: 15
+    })));
+    expect(mocks.programme).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Your Zoe routine")).not.toBeInTheDocument();
+  });
+
+  it("uses a returned routine server key after rollback even without a local draft", async () => {
+    mocks.programmeEnabled = false;
+    mocks.generate.mockResolvedValue({ workout: routineDaily.workout, dailyWorkout: routineDaily });
+    mocks.save.mockResolvedValue({
+      burnLog: { id: "routine-burn", metadata: { caloriesBurned: 30 }, created_at: new Date().toISOString() },
+      summary: { workoutTitle: "Foundation A", durationMinutes: 15, workoutType: "Strength", difficulty: "Easy",
+        estimatedCaloriesBurned: 30, caloriesLabel: "Estimated Calories Burned", coachMessage: "Saved", momentumEarned: 8 },
+      debrief: null
+    });
+    render(<CoachHubClient />);
+    await chooseWorkout();
+    await screen.findByRole("heading", { name: "Foundation A" });
+    fireEvent.click(screen.getByRole("button", { name: "Mark complete: Wall Push-Up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete & Save Workout" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({
+      workoutCompletionKey: "routine-session-key", completedExerciseIndexes: [0]
+    })));
+    expect(mocks.programme).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Your Zoe routine")).not.toBeInTheDocument();
+  });
 });
 afterEach(cleanup);
 

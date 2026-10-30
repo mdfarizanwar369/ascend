@@ -14,6 +14,7 @@ import {
   CoachChatMode,
   GeneratedWorkout,
   DailyWorkout,
+  BeginnerProgrammeSummary,
   dismissTodayWorkout,
   WorkoutPlannerGoal,
   WorkoutPlannerLocation,
@@ -21,6 +22,8 @@ import {
   generateTodayWorkout,
   recordWorkoutVisualEvent,
   getTodayWorkout,
+  getBeginnerProgramme,
+  updateBeginnerProgramme,
   swapTodayWorkoutExercise,
   getBurnLogs,
   getCoachPresence,
@@ -233,6 +236,8 @@ function WorkoutPlannerCard({
   allowRegenerate = true,
   isDismissing,
   workoutSaved,
+  reuseSetup = false,
+  onChangeSetup,
   workout
 }: {
   answers: WorkoutAnswers;
@@ -253,6 +258,8 @@ function WorkoutPlannerCard({
   allowRegenerate?: boolean;
   isDismissing: boolean;
   workoutSaved: boolean;
+  reuseSetup?: boolean;
+  onChangeSetup?: () => void;
   workout: GeneratedWorkout | null;
 }) {
   const nextStep = !answers.location ? "location" : !answers.timeAvailable ? "time" : !answers.goal ? "goal" : !answers.equipment ? "equipment" : "done";
@@ -272,7 +279,7 @@ function WorkoutPlannerCard({
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold">You already have today&apos;s workout.</h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-400">{allowRegenerate ? workout.experienceVersion === 2 ? "Keep it, refresh its exercises, or ask Zoe to adjust it in chat." : "Keep it, regenerate it, or ask Zoe to adjust it in chat." : "Your daily workout is ready. You can build a new one after midnight, or ask Zoe for guidance in chat."}</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">{workout.beginnerProgramme ? "Keep your session, swap a move below, or dismiss it without advancing your routine." : allowRegenerate ? workout.experienceVersion === 2 ? "Keep it, refresh its exercises, or ask Zoe to adjust it in chat." : "Keep it, regenerate it, or ask Zoe to adjust it in chat." : "Your daily workout is ready. You can build a new one after midnight, or ask Zoe for guidance in chat."}</p>
           </div>
         </div>
         <div className="mt-4 grid gap-2">
@@ -305,7 +312,7 @@ function WorkoutPlannerCard({
             <p className="text-sm font-semibold text-zinc-100">Dismiss this workout?</p>
             <p className="mt-1 text-xs leading-5 text-zinc-400">{checkedExercises.size > 0
               ? `${checkedExercises.size} checked exercise${checkedExercises.size === 1 ? "" : "s"} will be ${canSaveChecked ? "lost unless you save what you did" : "discarded because this workout cannot be saved partially"}.`
-              : "This plan will not count as a completed workout."} {allowRegenerate ? "You can build another workout later." : "Your next free workout is available after today's reset."}</p>
+              : "This plan will not count as a completed workout."} {workout.beginnerProgramme ? "Your routine will keep its place." : allowRegenerate ? "You can build another workout later." : "Your next free workout is available after today's reset."}</p>
             {canSaveChecked ? <button type="button" onClick={() => { setConfirmDismiss(false); onSavePartial(); }}
               className="mt-3 w-full rounded-xl bg-lime px-4 py-3 text-sm font-bold text-ink">
               Save what I did
@@ -342,6 +349,7 @@ function WorkoutPlannerCard({
         </div>
 
         <div className="p-4">
+        {workout.beginnerProgramme ? <p className="mb-2 text-xs font-semibold text-purple-200">{workout.beginnerProgramme.supplementary ? "Easy movement · Your routine keeps its place" : `Session ${workout.beginnerProgramme.sessionNumber} · ${workout.beginnerProgramme.stageLabel}`}</p> : null}
         <p className="text-sm leading-6 text-zinc-300">{workout.intro}</p>
         {workout.experienceVersion === 2 && workout.whyToday ? (
           <div className="mt-4 rounded-xl border border-lime/30 bg-lime/10 p-3">
@@ -541,6 +549,12 @@ function WorkoutPlannerCard({
         </div>
       )}
 
+      {reuseSetup && nextStep === "done" ? <div className="mt-4 space-y-3">
+        <p className="text-sm text-zinc-400">{answers.location} · {answers.timeAvailable} minutes · {answers.equipment}</p>
+        <button type="button" disabled={isGenerating} onClick={() => { if (answers.equipment) onGenerate(answers.equipment); }} className="w-full rounded-xl bg-lime px-4 py-3 text-sm font-bold text-ink disabled:opacity-60">Generate next workout</button>
+        <button type="button" onClick={onChangeSetup} className="text-sm font-semibold text-purple-200">Change today&apos;s setup</button>
+      </div> : null}
+
       {Object.keys(answers).length ? (
         <button type="button" onClick={onCancel} className="mt-4 text-sm font-semibold text-zinc-400">
           Cancel
@@ -557,6 +571,15 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
   const [exerciseVisualsEnabled, setExerciseVisualsEnabled] = useState(false);
   const [workoutEngineV2Enabled, setWorkoutEngineV2Enabled] = useState(false);
   const [planLoggingPilotEnabled, setPlanLoggingPilotEnabled] = useState(false);
+  const [programmePilotEnabled, setProgrammePilotEnabled] = useState(false);
+  const [programme, setProgramme] = useState<BeginnerProgrammeSummary | null>(null);
+  const [programmeMode, setProgrammeMode] = useState<"routine" | "one_off">("routine");
+  const [programmeInviteDismissed, setProgrammeInviteDismissed] = useState(false);
+  const [programmeOptionsOpen, setProgrammeOptionsOpen] = useState(false);
+  const [isUpdatingProgramme, setIsUpdatingProgramme] = useState(false);
+  const [workoutAccessLoaded, setWorkoutAccessLoaded] = useState(false);
+  const [reuseProgrammeSetup, setReuseProgrammeSetup] = useState(false);
+  const [routineClosedToday, setRoutineClosedToday] = useState(false);
   const iosFree = freeEdition || (iosApp && !nativePaid);
   useEffect(() => {
     if (!iosApp || freeEdition) return;
@@ -571,11 +594,19 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
   useEffect(() => {
     let active = true;
     void getWorkoutVisualAccess()
-      .then(({ enabled, workoutEngineV2Enabled, planLoggingPilotEnabled }) => {
+      .then(async ({ enabled, workoutEngineV2Enabled, planLoggingPilotEnabled, beginnerProgrammePilotEnabled }) => {
         if (active) {
           setExerciseVisualsEnabled(enabled === true);
           setWorkoutEngineV2Enabled(workoutEngineV2Enabled === true);
           setPlanLoggingPilotEnabled(planLoggingPilotEnabled === true);
+        }
+        if (active && beginnerProgrammePilotEnabled === true) {
+          const response = await getBeginnerProgramme().catch(() => null);
+          if (active && response?.available) {
+            setProgrammePilotEnabled(true);
+            setProgramme(response.programme);
+            setProgrammeMode(response.programme?.status === "active" ? "routine" : "one_off");
+          }
         }
       })
       .catch(() => {
@@ -586,7 +617,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
           .catch(() => {
             if (active) setExerciseVisualsEnabled(false);
           });
-      });
+      }).finally(() => { if (active) setWorkoutAccessLoaded(true); });
     return () => { active = false; };
   }, []);
   const [messages, setMessages] = useState<ChatMessage[]>(starterMessages);
@@ -750,6 +781,9 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
     setDailyWorkoutDismissed(dismissedToday);
     setShowExistingChoice(false);
     setPlannerOpen(false);
+    setReuseProgrammeSetup(false);
+    setRoutineClosedToday(false);
+    if (programmePilotEnabled) setProgrammeMode(programme?.status === "active" ? "routine" : "one_off");
   }
 
   async function dismissCurrentWorkout() {
@@ -757,8 +791,9 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
     setIsDismissingWorkout(true);
     setStatus("");
     try {
-      if (iosFree || workout.planCompletionKey) await dismissTodayWorkout(workoutCompletionKey);
-      clearActiveWorkout(iosFree);
+      if (iosFree || workout.planCompletionKey || workout.beginnerProgramme) await dismissTodayWorkout(workoutCompletionKey);
+      clearActiveWorkout(iosFree && !workout.beginnerProgramme);
+      if (workout.beginnerProgramme) setRoutineClosedToday(true);
       return true;
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not dismiss this workout. Your progress is still saved.");
@@ -859,22 +894,73 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
     }
     setShowExistingChoice(false);
     setPlannerOpen(true);
+    setReuseProgrammeSetup(false);
+  }
+
+  async function changeProgramme(action: "start" | "pause" | "resume" | "leave") {
+    if (!programmePilotEnabled || isUpdatingProgramme) return;
+    setIsUpdatingProgramme(true);
+    setStatus("");
+    try {
+      const response = await updateBeginnerProgramme(action);
+      if (!response.available) return;
+      setProgramme(response.programme);
+      setProgrammeOptionsOpen(false);
+      setProgrammeMode(action === "pause" || action === "leave" ? "one_off" : "routine");
+      setProgrammeInviteDismissed(false);
+      if (action === "start") setStatus(workout && !savedWorkoutSummary && !dailyWorkoutCompleted
+        ? "Your routine is on. Keep or finish the current workout; Zoe will build your next session from there."
+        : "Your routine is on. Open today's workout when you're ready.");
+      if (action === "pause") setStatus("Your routine is paused. Your workout and history are still saved.");
+      if (action === "leave") setStatus("Your routine is stopped. Your workout and history are still saved.");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not update your routine. Please try again.");
+    } finally { setIsUpdatingProgramme(false); }
+  }
+
+  function changeProgrammeSetup(oneOff = false) {
+    if (workout && !savedWorkoutSummary && !dailyWorkoutCompleted) {
+      setShowExistingChoice(true);
+      setPlannerOpen(true);
+      setStatus("Finish or dismiss the current workout before changing today's setup. Your checked progress is still saved.");
+      return;
+    }
+    clearActiveWorkout();
+    setProgrammeMode(oneOff ? "one_off" : "routine");
+    setProgrammeOptionsOpen(false);
+    setAnswers({});
+    setPlannerOpen(true);
   }
 
   async function startWorkoutPlanner() {
     if (isLoadingWorkout || isGeneratingWorkout) return;
     workoutSessionTouchedRef.current = true;
     setStatus("");
-    if (iosFree) {
+    // Joining a routine must not replace a legacy web plan or one-off session.
+    // Those plans can live in the local draft and analytics rather than /today.
+    if (programmePilotEnabled && workout && !workout.beginnerProgramme && !savedWorkoutSummary && !dailyWorkoutCompleted) {
+      setShowExistingChoice(true);
+      setPlannerOpen(true);
+      return;
+    }
+    if (iosFree || programmePilotEnabled && programme !== null) {
       setIsLoadingWorkout(true);
       try {
-        const { dailyWorkout } = await getTodayWorkout();
-        if (dailyWorkout) {
+        const { dailyWorkout } = await getTodayWorkout(programmePilotEnabled ? { timezoneOffsetMinutes: new Date().getTimezoneOffset() } : undefined);
+        if (programmePilotEnabled && programme?.status === "active" && dailyWorkout &&
+          (dailyWorkout.workout.beginnerProgramme || iosFree) && (dailyWorkout.completed || dailyWorkout.dismissed)) {
           applyDailyWorkout(dailyWorkout);
-          if (dailyWorkout.dismissed) setStatus("You dismissed today's workout. A new free workout is available after today's reset.");
+          setRoutineClosedToday(true);
+          setStatus(`${dailyWorkout.dismissed ? "You dismissed today's workout." : "Today's workout is saved."} Your next routine session is available tomorrow; your progress is saved.`);
+          return;
+        }
+        if (dailyWorkout && (!(dailyWorkout.completed || dailyWorkout.dismissed) || programme?.status !== "active" || programmeMode === "one_off")) {
+          applyDailyWorkout(dailyWorkout);
+          if (dailyWorkout.dismissed && !programmePilotEnabled) setStatus("You dismissed today's workout. A new free workout is available after today's reset.");
           return;
         }
         setDailyWorkoutDismissed(false);
+        setRoutineClosedToday(false);
         setWorkout(null);
         setWorkoutCompletionKey(null);
         setWorkoutDraftExpiresAt(null);
@@ -883,7 +969,9 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
         setWorkoutDebrief(null);
         setDailyWorkoutCompleted(false);
         setCheckedExercises(new Set());
-        setAnswers({});
+        const savedSetup = programme?.status === "active" && programmeMode === "routine" ? programme.lastSetup : null;
+        setAnswers(savedSetup ?? {});
+        setReuseProgrammeSetup(Boolean(savedSetup));
         setShowExistingChoice(false);
         setPlannerOpen(true);
       } catch (error) {
@@ -901,12 +989,12 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
   }
 
   useEffect(() => {
-    if (!openWorkout || !workoutDraftHydrated || plannerOpen || autoWorkoutOpenRef.current) return;
+    if (!openWorkout || !workoutDraftHydrated || !workoutAccessLoaded || plannerOpen || autoWorkoutOpenRef.current) return;
     autoWorkoutOpenRef.current = true;
     void startWorkoutPlanner();
     // This is a one-time navigation action. The ref prevents query-driven re-entry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openWorkout, plannerOpen, workoutDraftHydrated]);
+  }, [openWorkout, plannerOpen, workoutDraftHydrated, workoutAccessLoaded]);
 
   function closeWorkoutPlanner() {
     setShowExistingChoice(false);
@@ -929,9 +1017,10 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
         location: nextAnswers.location,
         timeAvailable: nextAnswers.timeAvailable,
         goal: nextAnswers.goal,
-        equipment: nextAnswers.equipment
+        equipment: nextAnswers.equipment,
+        ...(programmePilotEnabled && programme !== null ? { programmeMode } : {})
       });
-      if (iosFree && response.dailyWorkout) {
+      if ((iosFree || programmePilotEnabled || response.dailyWorkout?.workout.beginnerProgramme) && response.dailyWorkout) {
         applyDailyWorkout(response.dailyWorkout);
         if (response.dailyWorkout.dismissed) return;
         setMessages((current) => [...current, { role: "assistant", text: response.workout.intro }]);
@@ -961,7 +1050,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
   async function swapWorkoutExercise(index: number) {
     if (workout?.experienceVersion !== 2 || checkedExercises.has(index) || savedWorkoutSummary || dailyWorkoutCompleted) return;
     workoutSessionTouchedRef.current = true;
-    if (iosFree) {
+    if (iosFree || workout.beginnerProgramme) {
       if (!workoutCompletionKey) return;
       try {
         setWorkoutRestored(false);
@@ -1053,7 +1142,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
         ...(workout.experienceVersion === 2 && effortRating ? { effortRating } : {}),
         ...(workout.experienceVersion === 2 ? { completedExerciseIndexes,
           ...(actualDurationMinutes !== undefined ? { actualDurationMinutes } : {}) } : {}),
-        ...(planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey) && observed.length ? { observedExercises: observed } : {})
+        ...(planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey || workout.beginnerProgramme) && observed.length ? { observedExercises: observed } : {})
       });
 
       rememberDashboardRecord("burn", response.burnLog);
@@ -1061,7 +1150,12 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
       if (draftOwnerUid) clearWorkoutSessionDraft(draftOwnerUid);
       setWorkoutRestored(false);
       setSavedWorkoutSummary(response.summary);
-      if (iosFree) setDailyWorkoutCompleted(true);
+      if (iosFree || workout.beginnerProgramme) setDailyWorkoutCompleted(true);
+      if (workout.beginnerProgramme) setRoutineClosedToday(true);
+      if (programmePilotEnabled) setProgrammeMode(programme?.status === "active" ? "routine" : "one_off");
+      if (programmePilotEnabled) void getBeginnerProgramme().then(response => {
+        if (response.available) setProgramme(response.programme);
+      }).catch(() => undefined);
       setWorkoutDebrief(response.debrief);
       if (response.debrief?.enabled && (response.debrief.status === "pending" || response.debrief.status === "generating")) {
         void waitForWorkoutDebrief(response.burnLog.id)
@@ -1187,7 +1281,9 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-surface text-calm">
                     <Icon size={17} />
                   </span>
-                  <span className="text-sm font-semibold text-zinc-100">{action.action === "workout" && iosFree ? isLoadingWorkout ? "Opening workout..." : dailyWorkoutDismissed ? "Workout dismissed today" : workout ? "Open Today's Workout" : action.label : action.label}</span>
+                  <span className="text-sm font-semibold text-zinc-100">{action.action === "workout" && programmePilotEnabled && programme?.status === "active"
+                    ? isLoadingWorkout ? "Opening workout..." : routineClosedToday ? "Today's workout" : workout && !savedWorkoutSummary && !dailyWorkoutCompleted ? "Continue workout" : "My next workout"
+                    : action.action === "workout" && iosFree ? isLoadingWorkout ? "Opening workout..." : dailyWorkoutDismissed ? "Workout dismissed today" : workout ? "Open Today's Workout" : action.label : action.label}</span>
                 </button>
               );
             })}
@@ -1195,7 +1291,31 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
         </section>
 
         <div className="space-y-3 py-4">
-          {iosFree ? <p className="text-sm text-zinc-400">{dailyWorkoutDismissed ? "Today's workout was dismissed. Your next free workout is available after today's reset." : "1 free workout per day. Reopen today's workout anytime. New workouts become available at local midnight."}</p> : null}
+          {programmePilotEnabled && (!programme || programme.status === "ended") && !programmeInviteDismissed ? <section className="rounded-2xl border border-lime/25 bg-surface p-4">
+            <p className="text-sm font-semibold text-zinc-100">Keep building with Zoe</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-400">A simple beginner routine that builds from what you finish. Your current workout stays as it is.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" disabled={isUpdatingProgramme} onClick={() => void changeProgramme("start")} className="rounded-xl bg-lime px-4 py-2 text-sm font-bold text-ink disabled:opacity-60">{isUpdatingProgramme ? "Starting..." : "Start my routine"}</button>
+              <button type="button" onClick={() => setProgrammeInviteDismissed(true)} className="rounded-xl border border-line px-4 py-2 text-sm font-semibold text-zinc-300">Just today</button>
+            </div>
+          </section> : null}
+          {programmePilotEnabled && programme && programme.status !== "ended" ? <section className="rounded-2xl border border-line bg-surface p-4" aria-label="Your Zoe routine">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-zinc-100">{programme.status === "paused" ? "Routine paused · Your place is saved" : "Your routine with Zoe"}</p>
+                <p className="mt-1 text-xs text-zinc-400">{workout?.beginnerProgramme && !dailyWorkoutCompleted && !savedWorkoutSummary ? `Session ${workout.beginnerProgramme.sessionNumber} · ${workout.beginnerProgramme.stageLabel}` : `Next: session ${programme.nextSessionNumber} · ${programme.stageLabel}`}</p>
+              </div>
+              {!showExistingChoice ? <button type="button" aria-expanded={programmeOptionsOpen} onClick={() => setProgrammeOptionsOpen(value => !value)} className="text-xs font-semibold text-purple-300">Routine options</button> : null}
+            </div>
+            {routineClosedToday ? <p className="mt-2 text-xs leading-5 text-zinc-400">Next routine session available tomorrow. Your routine keeps its place.</p> : !workout?.beginnerProgramme && workout && !dailyWorkoutCompleted && !savedWorkoutSummary ? <p className="mt-2 text-xs leading-5 text-zinc-400">Finish or dismiss your current workout. Your routine starts with the next new session.</p> : <p className="mt-2 text-xs leading-5 text-zinc-400">{programme.note}</p>}
+            {programmeOptionsOpen || showExistingChoice ? <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" disabled={isUpdatingProgramme} onClick={() => void changeProgramme(programme.status === "paused" ? "resume" : "pause")} className="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-zinc-200 disabled:opacity-60">{programme.status === "paused" ? "Resume routine" : "Pause routine"}</button>
+              {!routineClosedToday ? <button type="button" disabled={isUpdatingProgramme} onClick={() => changeProgrammeSetup()} className="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-zinc-200">Change today&apos;s setup</button> : null}
+              <button type="button" disabled={isUpdatingProgramme} onClick={() => changeProgrammeSetup(true)} className="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-zinc-200">One-off workout</button>
+              <button type="button" disabled={isUpdatingProgramme} onClick={() => void changeProgramme("leave")} className="rounded-lg px-3 py-2 text-xs text-zinc-400 disabled:opacity-60">Stop routine</button>
+            </div> : null}
+          </section> : null}
+          {iosFree && !(programmePilotEnabled && programme?.status === "active") ? <p className="text-sm text-zinc-400">{dailyWorkoutDismissed ? "Today's workout was dismissed. Your next free workout is available after today's reset." : "1 free workout per day. Reopen today's workout anytime. New workouts become available at local midnight."}</p> : null}
           {plannerOpen ? (
             <WorkoutPlannerCard
               answers={answers}
@@ -1255,7 +1375,9 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
               showExistingChoice={showExistingChoice}
               exerciseVisualsEnabled={exerciseVisualsEnabled}
               workoutEngineV2Enabled={workoutEngineV2Enabled}
-              allowRegenerate={!iosFree}
+              allowRegenerate={!iosFree && !workout?.beginnerProgramme}
+              reuseSetup={reuseProgrammeSetup}
+              onChangeSetup={() => changeProgrammeSetup()}
               workoutSaved={Boolean(savedWorkoutSummary) || dailyWorkoutCompleted}
               workout={workout}
             />
@@ -1334,7 +1456,7 @@ export function CoachHubClient({ openWorkout = false }: { openWorkout?: boolean 
               ) : canSaveWorkout ? (
                 <div className="mt-4 space-y-3">
                 {workout.experienceVersion === 2 && !allExercisesCompleted ? <p className="text-sm leading-5 text-zinc-300">You can stop here. Zoe will remember only the exercises you checked.</p> : null}
-                {planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey) ? <div className="rounded-xl border border-line bg-ink/55 p-3">
+                {planLoggingPilotEnabled && workout.experienceVersion === 2 && (iosFree || workout.planCompletionKey || workout.beginnerProgramme) ? <div className="rounded-xl border border-line bg-ink/55 p-3">
                   <button type="button" onClick={() => setShowWorkoutDetails(value => !value)} aria-expanded={showWorkoutDetails}
                     className="flex w-full items-center justify-between text-left text-sm font-semibold text-zinc-200">
                     <span>Add your actual reps or weight <span className="font-normal text-zinc-500">Optional</span></span>

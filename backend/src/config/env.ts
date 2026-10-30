@@ -104,6 +104,8 @@ const schema = z.object({
   WORKOUT_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   COACH_ZOE_WORKOUT_ENGINE_V2: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  ZOE_BEGINNER_PROGRAMME_SCHEMA: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  ZOE_BEGINNER_PROGRAMME_OWNER_PILOT: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_PROGRESSION_INTELLIGENCE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   WORKOUT_PROGRESSION_INTELLIGENCE_V3: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   COACH_ZOE_WORKOUT_DEBRIEF_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),

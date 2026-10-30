@@ -384,7 +384,16 @@ export function buildWorkoutBlueprint(input: {
   timezoneOffsetMinutes?: number;
   avoidExercises?: string[];
   completedWorkoutToday?: boolean;
+  now?: Date;
+  beginnerProgramme?: {
+    nextSessionKind: "A" | "B";
+    completedSessions: number;
+    anchorExercises: string[];
+    lastCompletedAt: string | null;
+  };
 }): WorkoutBlueprint {
+  const programme = input.beginnerProgramme;
+  const conservative = input.conservative === true || Boolean(programme);
   const history = summarizeWorkoutExerciseHistory(input.recentWorkouts, input.timezoneOffsetMinutes);
   const today = input.today ?? localDateKeyAtOffset(new Date(), input.timezoneOffsetMinutes);
   const latestCompleted = history.find(session => session.evidence !== "planned");
@@ -394,12 +403,19 @@ export function buildWorkoutBlueprint(input: {
   const yesterday = localDateKeyAtOffset(new Date(Date.parse(`${today}T12:00:00Z`) - 86_400_000), 0);
   const recentTooHard = latest?.effort === "too_hard" && (latest.date === today || latest.date === yesterday);
   const requestedGoal = workoutGoal(input.goal);
-  const goal: Goal = requestedGoal === "mobility" ? "mobility" : trainedToday || recentTooHard ? "recovery" : requestedGoal;
+  const programmeRecoveryHours = programme?.lastCompletedAt
+    ? ((input.now ?? new Date()).getTime() - Date.parse(programme.lastCompletedAt)) / 3_600_000 : null;
+  const programmeNeedsRecovery = programmeRecoveryHours !== null && Number.isFinite(programmeRecoveryHours) && programmeRecoveryHours < 48;
+  const returningToProgramme = programmeRecoveryHours !== null && programmeRecoveryHours >= 14 * 24;
+  const goal: Goal = requestedGoal === "mobility" ? "mobility" : trainedToday || recentTooHard || programmeNeedsRecovery ? "recovery" : requestedGoal;
   const gentle = goal === "recovery" || goal === "mobility";
   const latestLower = latest?.patterns.filter(pattern => ["squat", "hinge", "single_leg"].includes(pattern)).length ?? 0;
   const latestUpper = latest?.patterns.filter(pattern => ["push", "pull"].includes(pattern)).length ?? 0;
   const minutes = Number.parseInt(input.timeAvailable, 10) || 30;
-  const patterns = goalPatterns(goal, minutes);
+  const patterns: Pattern[] = programme && !gentle
+    ? [...(programme.nextSessionKind === "A" ? ["squat", "push", "pull", "hinge"] : ["hinge", "pull", "push", "single_leg"]) as Pattern[],
+      ...(minutes >= 60 ? ["core"] as Pattern[] : []), ...(minutes > 20 ? ["cardio"] as Pattern[] : [])]
+    : goalPatterns(goal, minutes);
   if (input.location === "outdoors" && gentle) {
     for (const [index, pattern] of patterns.entries()) {
       if (pattern === "core") patterns[index] = goal === "mobility" ? "cardio" : "mobility";
@@ -408,8 +424,8 @@ export function buildWorkoutBlueprint(input: {
   }
   // Recent completed training changes emphasis, but does not erase the goal's
   // strength/conditioning balance. Planned sessions only affect variety.
-  const emphasis = !gentle && latestLower > latestUpper ? "upper"
-    : !gentle && latestUpper > latestLower ? "lower" : "balanced";
+  const emphasis = !programme && !gentle && latestLower > latestUpper ? "upper"
+    : !programme && !gentle && latestUpper > latestLower ? "lower" : "balanced";
   if (emphasis === "upper") {
     const lowerIndex = patterns.findIndex(pattern => ["squat", "hinge", "single_leg"].includes(pattern));
     if (lowerIndex >= 0) patterns[lowerIndex] = patterns.includes("pull") ? "push" : "pull";
@@ -454,7 +470,7 @@ export function buildWorkoutBlueprint(input: {
   const hasRunningHistory = history.some(session => session.evidence !== "planned" && session.names.some(name => /\brun(?:ning)?\b|\bjog(?:ging)?\b/i.test(name)));
   const eligibleChoices = (pattern: Pattern) => V2_WORKOUT_CATALOG.filter(item => item.pattern === pattern
     && suitableForSetting(item, kit, input.location)
-    && (!(input.conservative || gentle) || !item.advanced)
+    && (!(conservative || gentle) || !item.advanced)
     && (!gentle || item.pattern !== "cardio" || !["Brisk Walk", "Walk Intervals", "Walk-Jog Intervals", "Rowing Machine"].includes(item.name)));
   const swapEligible = (item: CatalogExercise) =>
     !(["Pull-Up", "Hanging Knee Raise", "Barbell Back Squat", "Barbell Romanian Deadlift", "Barbell Bench Press"].includes(item.name) && !completedNames.has(key(item.name)))
@@ -471,7 +487,7 @@ export function buildWorkoutBlueprint(input: {
   const recentAccessoryTargets = history.slice(0, 4).flatMap(session => session.names.map(catalogItemFor)
     .filter((item): item is CatalogExercise => item?.pattern === "accessory" && Boolean(item.target)).map(item => item.target!));
   const availableSquats = eligibleChoices("squat");
-  if (patterns.includes("squat") && availableSquats.length === 1 && mostRecentDayNames.has(key(availableSquats[0].name))) {
+  if (!programme && patterns.includes("squat") && availableSquats.length === 1 && mostRecentDayNames.has(key(availableSquats[0].name))) {
     // A single suitable squat would otherwise repeat every day. Rotate that
     // slot to another lower-body pattern, or cardio if both are already in the plan.
     patterns[patterns.indexOf("squat")] = !patterns.includes("single_leg") ? "single_leg"
@@ -504,8 +520,8 @@ export function buildWorkoutBlueprint(input: {
       : item.name === "Standing Upper-Back Squeeze" ? 1
       : ["core", "mobility", "balance"].includes(item.pattern) ? 2
       : latest?.effort === "too_hard" && latest.names.some(name => key(name) === key(item.name)) ? 2
-      : input.conservative || gentle || minutes <= 20 ? 2 : goal === "muscle_gain" || minutes >= 45 ? 3 : 2,
-    reps: goal === "strength" && !input.conservative && item.reps && ["squat", "hinge", "push", "pull", "single_leg"].includes(item.pattern)
+      : conservative || gentle || minutes <= 20 ? 2 : goal === "muscle_gain" || minutes >= 45 ? 3 : 2,
+    reps: goal === "strength" && !conservative && item.reps && ["squat", "hinge", "push", "pull", "single_leg"].includes(item.pattern)
       && item.kit.some(value => value === "dumbbells" || value === "gym")
       ? item.reps.includes("each side") ? "6-10 each side" : "6-10" : item.reps ?? null,
     duration: item.name === "Short Bar Hang" ? (() => {
@@ -519,7 +535,8 @@ export function buildWorkoutBlueprint(input: {
       : gentle || item.pattern === "mobility" || item.pattern === "balance" ? "As needed"
         : item.pattern === "core" ? "30-60 sec"
           : goal === "strength" ? "90-120 sec" : goal === "fat_loss" || goal === "general_fitness" ? "45-75 sec" : "60-90 sec",
-    note: [item.note, recentObservedNote(item.name, input.recentWorkouts, item.reps)].filter(Boolean).join(" ")
+    note: [item.note, returningToProgramme ? "Use a comfortable starting effort as you return to your routine."
+      : recentObservedNote(item.name, input.recentWorkouts, item.reps)].filter(Boolean).join(" ")
   });
   const exercises = patterns.map((pattern, index) => {
     const choices = eligibleChoices(pattern);
@@ -530,6 +547,7 @@ export function buildWorkoutBlueprint(input: {
       // available equipment offers one. An explicit avoid still ranks higher.
       (mostRecentDayNames.has(key(item.name)) ? 90 : 0) +
       (anchorNames.has(key(item.name)) ? -180 : 0) +
+      (programme && !gentle && !returningToProgramme && programme.anchorExercises.some(name => key(name) === key(item.name)) ? -220 : 0) +
       // Prefer a different angle after the last session, while keeping each
       // movement family available again once enough recovery time has passed.
       (mostRecentDayFamilies.has(movementFamily(item)) ? 14 : 0) +
@@ -579,7 +597,7 @@ export function buildWorkoutBlueprint(input: {
     if (cardio?.duration) {
       const bounds = cardio.duration.match(/(\d+)(?:-(\d+))?/);
       const midpoint = bounds ? (Number(bounds[1]) + Number(bounds[2] ?? bounds[1])) / 2 : 0;
-      cardio.duration = `${Math.max(5, Math.floor(midpoint - (projectedMinutes - minutes)))} min`;
+      cardio.duration = `${Math.max(programme ? 3 : 5, Math.floor(midpoint - (projectedMinutes - minutes)))} min`;
     }
   }
   if ([20, 30, 45, 60].includes(minutes)) {
@@ -694,6 +712,14 @@ export function buildWorkoutBlueprint(input: {
       const prescription = prescribe(chosen);
       exercises.push({ ...prescription, note: prescription.note, duration: `${durationMinutes} min`, alternatives });
     }
+    if (programme && estimateWorkoutDurationMinutes(exercises) > minutes + 1) {
+      // A final gentle block can round the estimate up. Trim that timed block
+      // rather than increasing or removing the routine's main strength work.
+      const cardio = [...exercises].reverse().find(exercise => catalogItemFor(exercise.name)?.pattern === "cardio"
+        && Number.parseInt(exercise.duration ?? "0", 10) > 3);
+      if (cardio) setCardioMinutes(cardio, Math.max(3, Number.parseInt(cardio.duration!, 10)
+        - (estimateWorkoutDurationMinutes(exercises) - minutes)));
+    }
   }
   if (input.location === "hotel") {
     for (const [index, exercise] of exercises.entries()) {
@@ -766,8 +792,15 @@ export function buildWorkoutBlueprint(input: {
     ? avoided.size ? "This session is shorter than your chosen time because the remaining easy movements are on your avoid list."
       : input.location === "hotel" ? "This session is shorter than your chosen time because a compact hotel room has limited distinct movements for this session."
         : "" : "";
-  const whyToday = `${whyTodayBase} ${goalExplanation}${anchorReason ? ` ${anchorReason}` : ""}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}${timeReason ? ` ${timeReason}` : ""}`;
-  const upcoming = gentle ? ["Balanced strength", "Mobility or easy cardio"]
+  const programmeReason = !programme ? "" : programmeNeedsRecovery
+    ? "Your last routine strength session was recent, so this easy session leaves time to recover and does not advance your routine."
+    : returningToProgramme ? "Welcome back. This session uses a comfortable starting effort while keeping your routine history."
+      : gentle ? "This easy session supports your routine without moving you to the next strength session."
+        : programme.anchorExercises.length ? "Familiar main movements return so you can practise and build on your own recorded performance."
+          : "This full-body session establishes comfortable movements for your ongoing routine.";
+  const whyToday = `${programmeReason || whyTodayBase} ${goalExplanation}${anchorReason ? ` ${anchorReason}` : ""}${settingReason ? ` ${settingReason}` : ""}${equipmentReason ? ` ${equipmentReason}` : ""}${barIntroduction ? ` ${barIntroduction}` : ""}${timeReason ? ` ${timeReason}` : ""}`;
+  const upcoming = programme ? [gentle ? "Your next full-body routine session" : `Full-body routine ${programme.nextSessionKind === "A" ? "B" : "A"} after recovery`, "Easy movement as needed"]
+    : gentle ? ["Balanced strength", "Mobility or easy cardio"]
     : focus.startsWith("Upper") ? ["Lower body and core", "Recovery and mobility"]
       : focus.startsWith("Lower") ? ["Upper body and easy conditioning", "Recovery and mobility"]
         : ["Recovery and mobility", "Strength with rotated movements"];
@@ -775,7 +808,7 @@ export function buildWorkoutBlueprint(input: {
   return {
     exercises, location: input.location, equipment: input.equipment, timeAvailableMinutes: minutes, focus, whyToday,
     estimatedDurationMinutes: coreMinutes,
-    conservative: input.conservative === true,
+    conservative,
     nextSessionPreview: `Next: ${upcoming[0].toLowerCase()}. This may change with your next check-in.`,
     sessionRoadmap: [{ step: "Today", focus }, { step: "Next", focus: upcoming[0] }, { step: "Then", focus: upcoming[1] }],
     history: history.slice(0, 6)

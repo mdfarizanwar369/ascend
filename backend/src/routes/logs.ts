@@ -3,6 +3,7 @@ import { Router } from "express";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { query } from "../db/pool";
+import { getBeginnerProgrammeWorkoutForCompletion, withBeginnerProgrammeCompletion } from "../services/beginnerProgrammeService";
 import { requireAuth } from "../middleware/auth";
 import type { AuthUser } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
@@ -737,15 +738,17 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
   try {
     const input = completedWorkoutSchema.parse(req.body);
     const isDailyWorkout = await usesIosDailyWorkout(req.user!.id);
-    const v2Enabled = workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
+    const programmeWorkout = env.ZOE_BEGINNER_PROGRAMME_SCHEMA && req.user!.isPlatformOwner === true
+      ? await getBeginnerProgrammeWorkoutForCompletion(req.user!.id, input.workoutCompletionKey) : null;
+    const v2Enabled = Boolean(programmeWorkout) || workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
       ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT,
       isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER });
     if ((input.completedExerciseIndexes || input.actualDurationMinutes !== undefined) && !v2Enabled) {
       return res.status(403).json({ error: "Partial workout logging is not available for this account yet." });
     }
-    if (isDailyWorkout) {
+    if (isDailyWorkout || programmeWorkout) {
       const { getIosWorkoutForCompletion } = await import("../services/iosDailyWorkoutService");
-      const stored = await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
+      const stored = programmeWorkout ?? await getIosWorkoutForCompletion(req.user!.id, input.workoutCompletionKey);
       if (!stored) return res.status(404).json({ error: "Open your generated workout in Zoe before saving it." });
       if (stored.dismissed) return res.status(409).json({ error: "This workout was dismissed and cannot be saved." });
       if (stored.workout.experienceVersion === 2 && (
@@ -771,7 +774,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
         input.observedExercises.some(exercise => exercise.exerciseIndex >= input.exercises.length))) {
         return res.status(400).json({ error: "The logged exercises do not match this workout." });
       }
-      if (!isDailyWorkout) {
+      if (!isDailyWorkout && !programmeWorkout) {
         const planResult = await query<{ workout: unknown }>(
           `select metadata->'workout' as workout from analytics_events
            where user_id = $1 and event_name = 'zoe_workout_plan_generated'
@@ -831,7 +834,8 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       confidence: 1,
       exerciseOrder: observed.exerciseIndex + 1
     }));
-    const result = await persistCompletedWorkout({
+    const deferredSideEffects: Array<() => void> = [];
+    const persist = () => persistCompletedWorkout({
       userId: req.user!.id,
       gymId: req.user!.gymId ?? null,
       workoutCompletionKey: input.workoutCompletionKey,
@@ -843,6 +847,7 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
       exercises: loggedExercises ?? plannedExercises,
       healthProviderCaloriesBurned: input.healthProviderCaloriesBurned ?? null,
       source: loggedExercises ? "coach_zoe_workout_observed" : "coach_zoe_workout_planner",
+      ...(programmeWorkout ? { deferredSideEffects } : {}),
       extraMetadata: {
         ...(input.effortRating ? { effortRating: input.effortRating } : {}),
         ...(input.completedExerciseIndexes || input.actualDurationMinutes !== undefined ? {
@@ -857,6 +862,10 @@ logsRouter.post("/burn-logs/completed-workout", requireAuth, async (req, res, ne
         ...(loggedExercises ? { completedPlanExercises: plannedExercises.map(exercise => ({ name: exercise.name })) } : {})
       }
     });
+    const result = programmeWorkout
+      ? await withBeginnerProgrammeCompletion(req.user!.id, input.workoutCompletionKey, persist, programmeWorkout.workout)
+      : await persist();
+    for (const sideEffect of deferredSideEffects) sideEffect();
 
     const initializedDebrief = await initializeWorkoutDebrief({
       workoutEventId: result.burnLog.id,

@@ -1853,6 +1853,7 @@ export type CoachWorkoutPlan = {
   nextSessionPreview?: string;
   sessionRoadmap?: Array<{ step: "Today" | "Next" | "Then"; focus: string }>;
   experienceVersion?: 2;
+  beginnerProgramme?: import("@ascend/shared").BeginnerProgrammePrescription;
 };
 
 export type TrainerHomeworkWorkoutPlan = CoachWorkoutPlan & {
