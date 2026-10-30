@@ -1,6 +1,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ClientDashboard } from "./ClientDashboard";
+import type { DailyWorkout } from "@/lib/ascendApi";
+import type { WorkoutSessionDraft } from "@/lib/workoutSessionDraft";
 
 const mocks = vi.hoisted(() => ({
   api: Object.fromEntries([
@@ -15,7 +17,8 @@ const mocks = vi.hoisted(() => ({
   cacheProfile: vi.fn(),
   loadPlan: vi.fn(),
   pendingRecord: vi.fn(),
-  clearRecord: vi.fn()
+  clearRecord: vi.fn(),
+  workoutDraft: vi.fn()
 }));
 
 vi.mock("@/lib/ascendApi", () => mocks.api);
@@ -34,7 +37,7 @@ vi.mock("@/lib/dataSync", () => ({
   readDashboardRecord: mocks.pendingRecord,
   readRecentDashboardAction: () => null
 }));
-vi.mock("@/lib/workoutSessionDraft", () => ({ readWorkoutSessionDraft: () => null }));
+vi.mock("@/lib/workoutSessionDraft", () => ({ readWorkoutSessionDraft: mocks.workoutDraft }));
 vi.mock("@/lib/dashboardPanelLaunch", () => ({ consumeDashboardPanelLaunch: () => null }));
 vi.mock("@/lib/todayEssentialsLaunch", () => ({ claimTodayEssentialsColdLaunch: () => false }));
 vi.mock("@/lib/appEdition", () => ({ isIosFreeEdition: () => false }));
@@ -43,7 +46,6 @@ vi.mock("@/components/BrandMark", () => ({ BrandMark: () => <span>Ascend mark</s
 vi.mock("@/components/ThemeToggle", () => ({ ThemeToggle: () => <button>Change theme</button> }));
 vi.mock("@/components/ExperienceVisuals", () => ({ ZoeAvatar: () => <span>Coach avatar</span> }));
 vi.mock("@/components/dashboard/AscendRiseMomentum", () => ({ AscendRiseMomentum: () => null }));
-vi.mock("@/components/dashboard/TodayWorkoutCard", () => ({ TodayWorkoutCard: () => <section aria-label="Today's workout" /> }));
 vi.mock("@/components/dashboard/AppleHealthInvitation", () => ({
   AppleHealthInvitation: () => null,
   AppleHealthReminder: () => null,
@@ -113,6 +115,7 @@ beforeEach(() => {
   mocks.loadPlan.mockReset().mockResolvedValue("free");
   mocks.pendingRecord.mockReset().mockReturnValue(null);
   mocks.clearRecord.mockReset();
+  mocks.workoutDraft.mockReset().mockReturnValue(null);
   const responses: Record<string, unknown> = {
     getMe: { user: owner, roles: ["owner"] },
     getFoodLogs: { foodLogs: [food] }, getWeightLogs: { weightLogs: [] },
@@ -231,6 +234,52 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe("dashboard workout local-day requests", () => {
+  const saved: DailyWorkout = {
+    workoutCompletionKey: "fictional-session", resetsAt: "2026-11-25T00:00:00Z", completed: true,
+    request: { location: "gym", equipment: "Full Gym", goal: "general_fitness", timeAvailable: "30" },
+    workout: {
+      title: "Fictional routine session", intro: "Fixture", focus: "Full body strength", intensity: "easy",
+      estimatedDurationMinutes: 30, experienceVersion: 2, warmup: ["Walk"], cooldown: ["Walk"],
+      coachTip: "Fixture", disclaimer: "Fixture", exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "8" }],
+      beginnerProgramme: { programmeId: "fictional-routine", sessionNumber: 1, sessionKind: "A",
+        stage: "foundation", stageLabel: "Getting comfortable", note: "Fixture", coreExerciseIndexes: [0], supplementary: false }
+    }
+  };
+
+  it("sends Singapore's local offset so yesterday's closed routine is not shown after local midnight", async () => {
+    vi.setSystemTime(new Date(2026, 9, 26, 0, 1));
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-480);
+    // A local-day-aware server has no closed workout for the new day. A UTC
+    // request would still include the previous evening's completed session.
+    mocks.api.getTodayWorkout.mockImplementation(async (input?: { timezoneOffsetMinutes?: number }) => ({
+      dailyWorkout: input?.timezoneOffsetMinutes === -480 ? null : saved
+    }));
+    render(<ClientDashboard />);
+    expect(await screen.findByRole("link", { name: "Build my workout: Built for your time, location and equipment." })).toBeInTheDocument();
+    expect(mocks.api.getTodayWorkout).toHaveBeenCalledWith({ timezoneOffsetMinutes: -480 });
+    expect(screen.queryByLabelText("Today’s workout completed")).not.toBeInTheDocument();
+  });
+
+  it.each(["completed", "dismissed"] as const)("keeps the server's %s state authoritative over a stale checked draft", async (state) => {
+    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-480);
+    const current = { ...saved, completed: state === "completed", dismissed: state === "dismissed" };
+    mocks.api.getTodayWorkout.mockResolvedValue({ dailyWorkout: current });
+    const draft: WorkoutSessionDraft = {
+      version: 1, workoutCompletionKey: current.workoutCompletionKey, workout: current.workout,
+      answers: current.request, checkedExerciseIndexes: [0], observedExercises: {}, effortRating: null,
+      actualWorkoutMinutes: "", showWorkoutDetails: false, savedAt: todayTimestamp, expiresAt: current.resetsAt
+    };
+    mocks.workoutDraft.mockReturnValue(draft);
+    render(<ClientDashboard />);
+    expect(await screen.findByLabelText(`Today’s workout ${state}`)).toBeInTheDocument();
+    expect(mocks.api.getTodayWorkout).toHaveBeenCalledWith({ timezoneOffsetMinutes: -480 });
+    expect(screen.queryByRole("link", { name: /Continue workout/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Continue your workout")).not.toBeInTheDocument();
+  });
 });
 
 describe("owner dashboard essentials loading", () => {

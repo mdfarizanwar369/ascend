@@ -478,7 +478,7 @@ export function ClientDashboard() {
     if (!hasLoadedWorkoutCardRef.current) setWorkoutCardLoading(true);
     try {
       const [{ dailyWorkout }] = await Promise.all([
-        getTodayWorkout(),
+        getTodayWorkout({ timezoneOffsetMinutes: new Date().getTimezoneOffset() }),
         waitForFirebasePersistence().catch(() => undefined)
       ]);
       const ownerUid = getFirebaseClientAuth().currentUser?.uid ?? "";

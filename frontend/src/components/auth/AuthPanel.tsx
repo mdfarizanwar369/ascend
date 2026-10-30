@@ -203,6 +203,8 @@ export function AuthPanel() {
   const iosFree = useIosFreeEdition();
   const router = useRouter();
   const hasProcessedRedirectAuth = useRef(false);
+  // A late mount-time recovery probe must not overwrite interactive sign-in.
+  const interactiveAuthStarted = useRef(false);
   const [mode, setMode] = useState<Mode>("signup");
   const [signupRole, setSignupRole] = useState<SignupRole>("client");
   const [fullName, setFullName] = useState("");
@@ -342,7 +344,7 @@ export function AuthPanel() {
     let cancelled = false;
 
     async function completeRedirectSignIn() {
-      if (hasProcessedRedirectAuth.current) return;
+      if (hasProcessedRedirectAuth.current || interactiveAuthStarted.current) return;
       try {
         const auth = getFirebaseClientAuth();
         const hasFirebaseRedirectParams = /[?&](apiKey|authType|providerId|oauth_token|oauth_verifier|code|state)=/.test(window.location.search);
@@ -369,6 +371,7 @@ export function AuthPanel() {
         } finally {
           authStateProbe();
         }
+        if (cancelled || interactiveAuthStarted.current) return;
         authTrace("getRedirectResult completed", {
           hasResult: Boolean(result),
           providerId: result?.providerId ?? null,
@@ -378,6 +381,7 @@ export function AuthPanel() {
         if (!result || cancelled) {
           const redirectWasPending = wasGoogleRedirectPending();
           const fallbackUser = auth.currentUser ?? (await waitForAuthStateUser());
+          if (cancelled || interactiveAuthStarted.current) return;
           authTrace("Auth state fallback checked", {
             redirectWasPending,
             hasFallbackUser: Boolean(fallbackUser),
@@ -411,9 +415,9 @@ export function AuthPanel() {
         const errorDetails = describeUnknownError(error);
         authDebug("redirect_result_error", errorDetails);
         authTrace("Google redirect flow failed", errorDetails);
-        if (!cancelled) setStatus(getFriendlyAuthError(error));
+        if (!cancelled && !interactiveAuthStarted.current) setStatus(getFriendlyAuthError(error));
       } finally {
-        if (!cancelled) setIsSubmitting(false);
+        if (!cancelled && !interactiveAuthStarted.current) setIsSubmitting(false);
       }
     }
 
@@ -426,6 +430,7 @@ export function AuthPanel() {
 
   async function handleAuthAction() {
     if (isSubmitting) return;
+    interactiveAuthStarted.current = true;
     setIsSubmitting(true);
     setStatus(null);
 
@@ -564,6 +569,7 @@ export function AuthPanel() {
 
   async function handleGoogleSignIn() {
     if (isSubmitting) return;
+    interactiveAuthStarted.current = true;
     setIsSubmitting(true);
     setStatus(null);
 
@@ -621,11 +627,10 @@ export function AuthPanel() {
       authDebug("google_popup_opening", { authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN });
       let userCredential;
       try {
-        userCredential = await withTimeout(
-          signInWithPopup(auth, provider),
-          "Google sign-in is taking too long. Please check your connection and try again.",
-          25_000
-        );
+        // Account selection and verification are user-paced. Firebase handles
+        // network failures and popup closure; an app timer must not abandon a
+        // sign-in that can still succeed and leave provisioning unfinished.
+        userCredential = await signInWithPopup(auth, provider);
       } catch (error) {
         const code = getAuthErrorCode(error);
         authDebug("google_popup_error", {
@@ -668,6 +673,7 @@ export function AuthPanel() {
 
   async function handleAppleSignIn() {
     if (isSubmitting) return;
+    interactiveAuthStarted.current = true;
     setIsSubmitting(true);
     setStatus("Opening secure Apple sign-in...");
     try {
