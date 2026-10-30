@@ -18,6 +18,12 @@ export async function ensureRuntimeSchema() {
 }
 
 export async function verifyRuntimeSchema() {
+  if (env.ZOE_BEGINNER_PROGRAMME_SCHEMA || env.ZOE_BEGINNER_PROGRAMME_OWNER_PILOT) {
+    const programme = await query("select filename from schema_migrations where filename=$1", ["047_zoe_beginner_programmes.sql"]);
+    if (!programme.rows.length) throw new Error("Zoe's beginner programme requires its additive migration before activation.");
+    await query("select id from zoe_beginner_programmes limit 0");
+    await query("select completion_key from zoe_beginner_programme_sessions limit 0");
+  }
   if (env.ZOE_SMART_NUDGES_SCHEMA || env.ZOE_SMART_NUDGES_ENABLED) {
     const nudges = await query("select filename from schema_migrations where filename=$1", ["046_zoe_smart_nudges.sql"]);
     if (!nudges.rows.length) throw new Error("Smart Nudges requires its additive migration before activation.");

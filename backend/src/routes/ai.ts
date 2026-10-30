@@ -13,7 +13,8 @@ import {
   TODAY_PRIORITY_LEGACY_PROMPT_VERSION,
   TODAY_PRIORITY_PROMPT_VERSION
 } from "../integrations/openai";
-import { requireAuth } from "../middleware/auth";
+import { requireAuth, type AuthUser } from "../middleware/auth";
+import type { BeginnerProgrammeSummary } from "@ascend/shared";
 import { requireActivePlan } from "../middleware/subscription";
 import { query } from "../db/pool";
 import { getCoachZoeAccess, logAiUsage, usesIosDailyWorkout } from "../services/aiUsageService";
@@ -23,7 +24,7 @@ import { z } from "zod";
 import { getHealthSyncSummary } from "../services/healthSyncService";
 import { buildWorkoutMemorySummary } from "../services/workoutMemoryService";
 import { buildWorkoutPlannerContext } from "../services/workoutPlannerPersonalizationService";
-import { buildWorkoutBlueprint, workoutEngineV2Enabled } from "../services/workoutPlanQualityService";
+import { buildWorkoutBlueprint, workoutEngineV2Enabled, V2_WORKOUT_CATALOG } from "../services/workoutPlanQualityService";
 import { getWorkoutCaptureAccess } from "../services/workoutCaptureAccess";
 import { dismissIosDailyWorkout, generateIosDailyWorkout, getIosDailyWorkout, swapIosDailyWorkoutExercise } from "../services/iosDailyWorkoutService";
 import { resolveNutritionTargets } from "../services/nutritionTargetService";
@@ -35,6 +36,11 @@ import { localDateKeyAtOffset, localDateKeyDaysAgo, localWeekKeyAtOffset } from 
 import { bodyCompositionScanFromDb, buildBodyCompositionSummary, getTrustedBodyCompositionHistory } from "../services/bodyCompositionService";
 import { recordGeneratedWorkoutVisuals, recordVisualUiEvent } from "../services/exerciseVisualTelemetry";
 import { hasExerciseVisualAccess } from "../services/exerciseVisualAccess";
+import {
+  getBeginnerProgramme, setBeginnerProgrammeStatus, getBeginnerProgrammeWorkout,
+  getBeginnerProgrammeWorkoutForCompletion, generateBeginnerProgrammeWorkout,
+  dismissBeginnerProgrammeWorkout, swapBeginnerProgrammeWorkoutExercise
+} from "../services/beginnerProgrammeService";
 
 export const aiRouter = Router();
 const momentumScoreTable = env.MOMENTUM_V2 ? "momentum_scores_v2" : "compliance_scores";
@@ -53,6 +59,7 @@ const workoutPlannerSchema = z.object({
   timeAvailable: z.enum(["20", "30", "45", "60"]),
   goal: z.enum(["fat_loss", "muscle_gain", "strength", "general_fitness", "recovery", "mobility"]),
   equipment: z.string().trim().min(2).max(80),
+  programmeMode: z.enum(["routine", "one_off"]).optional(),
   timezoneOffsetMinutes: z.number().int().min(-840).max(840).default(0)
 });
 
@@ -899,8 +906,44 @@ aiRouter.post("/ai/workout-capture", requireAuth, requireAiConsent, aiRateLimit,
   }
 });
 
+function canReadBeginnerProgramme(user: AuthUser) {
+  return env.ZOE_BEGINNER_PROGRAMME_SCHEMA && user.isPlatformOwner === true;
+}
+
+function beginnerProgrammePilotAvailable(user: AuthUser) {
+  return canReadBeginnerProgramme(user) && env.ZOE_BEGINNER_PROGRAMME_OWNER_PILOT && env.AI_PROVIDER === "gemini";
+}
+
+async function assertNoAssignedTrainerWorkout(userId: string) {
+  const assigned = await query(`select 1 from trainer_homework_assignments
+    where client_id=$1 and status='assigned'
+      and due_date >= current_date limit 1`, [userId]);
+  if (assigned.rows.length) throw Object.assign(new Error("Your trainer's assigned workout takes priority. Complete it before starting a Zoe routine session."), { status: 409 });
+}
+
+aiRouter.get("/ai/workout/programme", requireAuth, async (req, res, next) => {
+  try {
+    if (!canReadBeginnerProgramme(req.user!)) return res.json({ available: false, programme: null });
+    return res.json({ available: beginnerProgrammePilotAvailable(req.user!), programme: await getBeginnerProgramme(req.user!.id) });
+  } catch (error) { next(error); }
+});
+
+aiRouter.post("/ai/workout/programme", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
+  try {
+    if (!beginnerProgrammePilotAvailable(req.user!)) return res.status(403).json({ error: "This routine is available only in the owner's preview." });
+    const { action } = z.object({ action: z.enum(["start", "pause", "resume", "leave"]) }).strict().parse(req.body);
+    if (action === "start" || action === "resume") await assertNoAssignedTrainerWorkout(req.user!.id);
+    return res.json({ available: true, programme: await setBeginnerProgrammeStatus(req.user!.id, action) });
+  } catch (error) { next(error); }
+});
+
 aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
   try {
+    if (canReadBeginnerProgramme(req.user!)) {
+      const offset = z.coerce.number().int().min(-840).max(840).default(0).parse(req.query.timezoneOffsetMinutes);
+      const saved = await getBeginnerProgrammeWorkout(req.user!.id, new Date(), offset);
+      if (saved) return res.json({ dailyWorkout: saved });
+    }
     res.json({ dailyWorkout: await usesIosDailyWorkout(req.user!.id) ? await getIosDailyWorkout(req.user!.id) : null });
   } catch (error) { next(error); }
 });
@@ -908,6 +951,9 @@ aiRouter.get("/ai/workout/today", requireAuth, async (req, res, next) => {
 aiRouter.post("/ai/workout/dismiss", requireAuth, todayPriorityRateLimit, async (req, res, next) => {
   try {
     const { workoutCompletionKey } = z.object({ workoutCompletionKey: z.string().uuid() }).parse(req.body);
+    if (canReadBeginnerProgramme(req.user!) && await getBeginnerProgrammeWorkoutForCompletion(req.user!.id, workoutCompletionKey)) {
+      return res.json(await dismissBeginnerProgrammeWorkout(req.user!.id, workoutCompletionKey));
+    }
     if (await usesIosDailyWorkout(req.user!.id)) {
       return res.json(await dismissIosDailyWorkout(req.user!.id, workoutCompletionKey));
     }
@@ -927,19 +973,26 @@ aiRouter.post("/ai/workout/today/swap", requireAuth, todayPriorityRateLimit, asy
   try {
     // A saved V2 workout must remain swappable even if the rollout is turned
     // off after it was generated. The service checks ownership and V2 status.
-    if (!await usesIosDailyWorkout(req.user!.id)) {
+    const programmeReadable = canReadBeginnerProgramme(req.user!);
+    const dailyLimited = await usesIosDailyWorkout(req.user!.id);
+    if (!programmeReadable && !dailyLimited) {
       return res.status(404).json({ error: "Not found" });
     }
     const input = z.object({
       workoutCompletionKey: z.string().uuid(),
       exerciseIndex: z.number().int().min(0).max(7)
     }).parse(req.body);
+    if (programmeReadable && await getBeginnerProgrammeWorkoutForCompletion(req.user!.id, input.workoutCompletionKey)) {
+      return res.json({ dailyWorkout: await swapBeginnerProgrammeWorkoutExercise(req.user!.id, input.workoutCompletionKey, input.exerciseIndex) });
+    }
+    if (!dailyLimited) return res.status(404).json({ error: "Not found" });
     return res.json({ dailyWorkout: await swapIosDailyWorkoutExercise(req.user!.id, input.workoutCompletionKey, input.exerciseIndex) });
   } catch (error) { next(error); }
 });
 
 aiRouter.get("/ai/workout/visual-access", requireAuth, async (req, res) => {
   res.json({
+    beginnerProgrammePilotEnabled: beginnerProgrammePilotAvailable(req.user!),
     enabled: hasExerciseVisualAccess(req.user!),
     planLoggingPilotEnabled: workoutEngineV2Enabled({
       globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2,
@@ -969,8 +1022,20 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
   try {
     const input = workoutPlannerSchema.parse(req.body);
     const dailyLimited = await usesIosDailyWorkout(req.user!.id);
-    const workoutV2 = workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2, ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT, isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER });
-    const generate = async () => {
+    if (canReadBeginnerProgramme(req.user!)) {
+      const savedProgrammeWorkout = await getBeginnerProgrammeWorkout(req.user!.id, new Date(), input.timezoneOffsetMinutes);
+      if (savedProgrammeWorkout && !savedProgrammeWorkout.completed && !savedProgrammeWorkout.dismissed && input.programmeMode === "one_off") {
+        return res.status(409).json({ error: "Finish or dismiss your current routine workout before creating a one-off session." });
+      }
+      if (savedProgrammeWorkout && (dailyLimited || !savedProgrammeWorkout.completed && !savedProgrammeWorkout.dismissed)) {
+        return res.json({ workout: savedProgrammeWorkout.workout, dailyWorkout: savedProgrammeWorkout });
+      }
+    }
+    const programme = beginnerProgrammePilotAvailable(req.user!) && input.programmeMode !== "one_off"
+      ? await getBeginnerProgramme(req.user!.id) : null;
+    const routine = programme?.status === "active";
+    const workoutV2 = routine || workoutEngineV2Enabled({ globallyEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2, ownerPilotEnabled: env.COACH_ZOE_WORKOUT_ENGINE_V2_OWNER_PILOT, isPlatformOwner: req.user!.isPlatformOwner, provider: env.AI_PROVIDER });
+    const generate = async (programmeContext?: BeginnerProgrammeSummary) => {
       const [coachAccess, profileResult, latestWeightResult, recentFoodResult, recentBurnResult, recentPlanResult, athleteResult, bodyScanResult, recentMessagesResult, healthSyncSummary, momentumResult] =
         await Promise.all([
           getCoachZoeAccess(req.user!.id, input.timezoneOffsetMinutes),
@@ -1129,7 +1194,8 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
           Date.parse(String(b.created_at ?? "")) - Date.parse(String(a.created_at ?? ""))),
         timezoneOffsetMinutes: input.timezoneOffsetMinutes,
         conservative: plannerContext.personalization.coachingProfiles.volumeProfile === "conservative",
-        completedWorkoutToday: healthSyncSummary?.workoutCompletedToday === true && !isIosFreeEdition()
+        completedWorkoutToday: healthSyncSummary?.workoutCompletedToday === true && !isIosFreeEdition(),
+        ...(programmeContext ? { beginnerProgramme: programmeContext } : {})
       }) : null;
       // The V2 prompt replaces broad context with the facts used for planning. It is
       // smaller than the legacy prompt and still makes only one Gemini request.
@@ -1150,6 +1216,10 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
           recommendation: workoutMemory.recommendation,
           latestVerifiedProgression: workoutMemory.latestVerifiedProgression
         },
+        ...(programmeContext ? { beginnerProgramme: {
+          sessionNumber: programmeContext.nextSessionNumber, sessionKind: programmeContext.nextSessionKind,
+          stage: programmeContext.stage, note: programmeContext.note
+        } } : {}),
         prescribedSession: { focus: blueprint.focus, estimatedDurationMinutes: blueprint.estimatedDurationMinutes,
           whyToday: blueprint.whyToday, exercises: blueprint.exercises.map(exercise => ({
           name: exercise.name, sets: exercise.sets, reps: exercise.reps, duration: exercise.duration, rest: exercise.rest
@@ -1163,11 +1233,24 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
         equipment: input.equipment,
         context: promptContext
       }, { requireAiSuccess: isIosNativeEdition(), preferReviewedVisualNames: hasExerciseVisualAccess(req.user!), blueprint: blueprint ?? undefined });
+      if (programmeContext && blueprint) {
+        const resistance = new Set(["squat", "hinge", "push", "pull", "single_leg"]);
+        const coreExerciseIndexes = workout.exercises.flatMap((exercise, index) => {
+          const item = V2_WORKOUT_CATALOG.find(candidate => candidate.name === exercise.name);
+          return item && resistance.has(item.pattern) ? [index] : [];
+        }).slice(0, 3);
+        workout.beginnerProgramme = {
+          programmeId: programmeContext.id, sessionNumber: programmeContext.nextSessionNumber,
+          sessionKind: programmeContext.nextSessionKind, stage: programmeContext.stage,
+          stageLabel: programmeContext.stageLabel, note: blueprint.whyToday,
+          coreExerciseIndexes, supplementary: /recovery|mobility/i.test(blueprint.focus) || coreExerciseIndexes.length === 0
+        };
+      }
 
-      const planCompletionKey = workoutV2 && !dailyLimited ? randomUUID() : null;
+      const planCompletionKey = workoutV2 && !dailyLimited && !programmeContext ? randomUUID() : null;
       // Web plans have no daily-workout row. Save the names so a second request
       // can rotate them without mistaking a planned workout for a completed one.
-      if (workoutV2 && !dailyLimited) await query(
+      if (workoutV2 && !dailyLimited && !programmeContext) await query(
         `insert into analytics_events (user_id, gym_id, event_name, metadata)
          values ($1, $2, 'zoe_workout_plan_generated', $3)`,
         [req.user!.id, req.user!.gymId ?? null, {
@@ -1194,6 +1277,22 @@ aiRouter.post("/ai/workout", requireAuth, requireAiConsent, aiRateLimit, async (
 
       return planCompletionKey ? { ...workout, planCompletionKey } : workout;
     };
+    if (routine) {
+      const pending = await getBeginnerProgrammeWorkout(req.user!.id, new Date(), input.timezoneOffsetMinutes);
+      if (pending) return res.json({ workout: pending.workout, dailyWorkout: pending });
+      // Joining never replaces an existing daily workout or increases its allowance.
+      if (dailyLimited) {
+        const existing = await getIosDailyWorkout(req.user!.id);
+        if (existing) return res.json({ workout: existing.workout, dailyWorkout: existing });
+      }
+      await assertNoAssignedTrainerWorkout(req.user!.id);
+      const dailyWorkout = await generateBeginnerProgrammeWorkout({
+        userId: req.user!.id, gymId: req.user!.gymId,
+        request: { location: input.location, timeAvailable: input.timeAvailable, goal: input.goal, equipment: input.equipment },
+        timezoneOffsetMinutes: input.timezoneOffsetMinutes, generate, recordUsage: dailyLimited
+      });
+      return res.json({ workout: dailyWorkout.workout, dailyWorkout });
+    }
     if (dailyLimited) {
       const dailyWorkout = await generateIosDailyWorkout({
         userId: req.user!.id, gymId: req.user!.gymId,

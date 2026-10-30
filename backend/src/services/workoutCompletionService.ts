@@ -65,6 +65,9 @@ export type PersistCompletedWorkoutInput = {
   healthProviderCaloriesBurned?: number | null;
   source: "coach_zoe_workout_planner" | "coach_zoe_workout_observed" | "coach_homework" | "ai_workout_capture" | "trainer_logged_session";
   extraMetadata?: Record<string, unknown>;
+  // Programme completion collects these until its database transaction commits.
+  // Ordinary workout saves keep their existing immediate side effects.
+  deferredSideEffects?: Array<() => void>;
 };
 
 export type PersistedWorkoutCompletion = {
@@ -483,8 +486,12 @@ export async function persistCompletedWorkout(input: PersistCompletedWorkoutInpu
   const progressionV3 = enriched.progressionV3;
   const savedBurnLog = enriched.burnLog;
 
-  void createCoachPresenceForEvent(input.userId, "workout_logged").catch(() => undefined);
-  void recordNudgeAction(input.userId, "workout", new Date(input.completedAt ?? Date.now())).catch(() => undefined);
+  const sideEffects = () => {
+    void createCoachPresenceForEvent(input.userId, "workout_logged").catch(() => undefined);
+    void recordNudgeAction(input.userId, "workout", new Date(input.completedAt ?? Date.now())).catch(() => undefined);
+  };
+  if (input.deferredSideEffects) input.deferredSideEffects.push(sideEffects);
+  else sideEffects();
 
   return {
     burnLog: savedBurnLog,

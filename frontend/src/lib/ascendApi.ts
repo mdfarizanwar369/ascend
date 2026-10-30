@@ -25,6 +25,8 @@ import {
 import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
 import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
+import type { BeginnerProgrammePrescription, BeginnerProgrammeSummary } from "@ascend/shared";
+export type { BeginnerProgrammeSummary } from "@ascend/shared";
 
 export interface ProgressComparison {
   periodDays: number;
@@ -1533,8 +1535,10 @@ export function getTodayPriorityRecommendation() {
 
 export type WorkoutPlannerLocation = "gym" | "home" | "hotel" | "outdoors";
 export type WorkoutPlannerGoal = "fat_loss" | "muscle_gain" | "strength" | "general_fitness" | "recovery" | "mobility";
+export type BeginnerProgrammeWorkout = BeginnerProgrammePrescription;
 export type GeneratedWorkout = {
   planCompletionKey?: string;
+  beginnerProgramme?: BeginnerProgrammeWorkout;
   title: string;
   intro: string;
   estimatedDurationMinutes: number;
@@ -1601,8 +1605,9 @@ export type DailyWorkout = {
   };
 };
 
-export function getTodayWorkout() {
-  return authed<{ dailyWorkout: DailyWorkout | null }>("/ai/workout/today");
+export function getTodayWorkout(input?: { timezoneOffsetMinutes?: number }) {
+  const query = input?.timezoneOffsetMinutes !== undefined ? `?timezoneOffsetMinutes=${encodeURIComponent(input.timezoneOffsetMinutes)}` : "";
+  return authed<{ dailyWorkout: DailyWorkout | null }>(`/ai/workout/today${query}`);
 }
 
 export function dismissTodayWorkout(workoutCompletionKey: string) {
@@ -1620,7 +1625,18 @@ export function swapTodayWorkoutExercise(workoutCompletionKey: string, exerciseI
 }
 
 export function getWorkoutVisualAccess() {
-  return authed<{ enabled: boolean; workoutEngineV2Enabled: boolean; planLoggingPilotEnabled: boolean }>("/ai/workout/visual-access");
+  return authed<{ enabled: boolean; workoutEngineV2Enabled: boolean; planLoggingPilotEnabled: boolean; beginnerProgrammePilotEnabled?: boolean }>("/ai/workout/visual-access");
+}
+
+export function getBeginnerProgramme() {
+  return authed<{ available: boolean; programme: BeginnerProgrammeSummary | null }>("/ai/workout/programme");
+}
+
+export function updateBeginnerProgramme(action: "start" | "pause" | "resume" | "leave") {
+  return authed<{ available: boolean; programme: BeginnerProgrammeSummary | null }>("/ai/workout/programme", {
+    method: "POST",
+    body: JSON.stringify({ action })
+  });
 }
 
 export function generateTodayWorkout(input: {
@@ -1628,6 +1644,7 @@ export function generateTodayWorkout(input: {
   timeAvailable: "20" | "30" | "45" | "60";
   goal: WorkoutPlannerGoal;
   equipment: string;
+  programmeMode?: "routine" | "one_off";
 }) {
   return authed<{ workout: GeneratedWorkout; dailyWorkout?: DailyWorkout }>("/ai/workout", {
     method: "POST",
