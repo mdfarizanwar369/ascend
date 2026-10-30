@@ -1117,8 +1117,8 @@ logsRouter.delete("/burn-logs/:burnLogId", requireAuth, async (req, res, next) =
       `
       with homework_reset as (
         update trainer_homework_assignments
-        set status = 'assigned', completed_at = null, completion_percent = 0, completed_burn_log_id = null
-        where completed_burn_log_id = $1 and client_user_id = $2
+        set status = 'assigned', completed_at = null, completed_burn_log_id = null
+        where completed_burn_log_id = $1 and client_id = $2
         returning id
       )
       delete from analytics_events
