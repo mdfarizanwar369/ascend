@@ -1662,14 +1662,35 @@ type TodayPriorityRefinementInput = {
   facts: unknown;
 };
 
-async function requestTodayPriorityRefinement(prompt: string, promptVersion: string) {
+async function requestTodayPriorityRefinement(
+  prompt: string,
+  promptVersion: string,
+  candidates: TodayPriorityRefinementInput["candidates"]
+) {
   try {
     if (env.AI_PROVIDER === "gemini") {
-      const response = await callGeminiWithOptions([{ text: prompt }], 180, {
+      const legacy = promptVersion === TODAY_PRIORITY_LEGACY_PROMPT_VERSION;
+      const responseSchema = {
+        type: "OBJECT",
+        properties: {
+          selectedKey: { type: "STRING", enum: [...new Set(candidates.map(candidate => candidate.key))] },
+          ...(legacy ? { title: { type: "STRING" }, reason: { type: "STRING" } } : {})
+        },
+        required: legacy ? ["selectedKey", "title", "reason"] : ["selectedKey"]
+      };
+      // Reasoning shares the output budget with JSON. Bound thinking and leave
+      // room for a complete choice without extending the Today screen deadline.
+      const response = await callGeminiWithOptions([{ text: prompt }], 1024, {
         attemptsPerModel: 1,
         timeoutMs: 2_500,
-        responseMimeType: "application/json"
+        thinkingLevel: "low",
+        responseMimeType: "application/json",
+        responseSchema
       });
+      if (response.finishReason && response.finishReason !== "STOP") {
+        throw new GeminiError("Gemini returned an incomplete Today priority response.", undefined, false, false,
+          safeGeminiFinishReason(response.finishReason));
+      }
       return response.text;
     }
     if (env.AI_PROVIDER === "openai" && openaiClient) {
@@ -1686,6 +1707,7 @@ async function requestTodayPriorityRefinement(prompt: string, promptVersion: str
       provider: env.AI_PROVIDER,
       model: env.AI_PROVIDER === "gemini" ? env.GEMINI_MODEL : env.OPENAI_MODEL,
       promptVersion,
+      finishReason: error instanceof GeminiError ? error.finishReason ?? null : null,
       ...safeDailyCoachingError(error)
     }, "warn");
     return null;
@@ -1702,7 +1724,7 @@ export async function refineTodayPriority(input: TodayPriorityRefinementInput) {
     "Return strict JSON only with selectedKey. Do not rewrite the supplied candidate because Ascend refreshes its wording from live data.\n\n" +
     `Current facts: ${JSON.stringify(input.facts)}\nEligible candidates: ${JSON.stringify(input.candidates.map(({ key, title, reason, rank }) => ({ key, title, reason, rank })))}`;
 
-  const reply = await requestTodayPriorityRefinement(prompt, TODAY_PRIORITY_PROMPT_VERSION);
+  const reply = await requestTodayPriorityRefinement(prompt, TODAY_PRIORITY_PROMPT_VERSION, input.candidates);
   if (!reply) return null;
 
   try {
@@ -1750,7 +1772,7 @@ export async function refineLegacyTodayPriority(input: TodayPriorityRefinementIn
     "Return strict JSON only with selectedKey, title, and reason. Title must be under 55 characters. Reason must be one sentence under 120 characters.\n\n" +
     `Current facts: ${JSON.stringify(input.facts)}\nEligible candidates: ${JSON.stringify(input.candidates.map(({ key, title, reason, rank }) => ({ key, title, reason, rank })))}`;
 
-  const reply = await requestTodayPriorityRefinement(prompt, TODAY_PRIORITY_LEGACY_PROMPT_VERSION);
+  const reply = await requestTodayPriorityRefinement(prompt, TODAY_PRIORITY_LEGACY_PROMPT_VERSION, input.candidates);
   if (!reply) return null;
 
   try {
