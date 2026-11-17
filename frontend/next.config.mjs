@@ -1,4 +1,14 @@
+import { fileURLToPath } from "node:url";
+
 const isDevelopment = process.env.NODE_ENV !== "production";
+const northflankBuild = process.env.ASCEND_NORTHFLANK_BUILD === "true";
+const apiProxyOrigin = process.env.ASCEND_API_PROXY_ORIGIN?.replace(/\/+$/, "");
+if (apiProxyOrigin) {
+  const proxy = new URL(apiProxyOrigin);
+  if (!["http:", "https:"].includes(proxy.protocol) || proxy.username || proxy.password || proxy.search || proxy.hash || proxy.pathname !== "/") {
+    throw new Error("ASCEND_API_PROXY_ORIGIN must be an HTTP(S) origin without credentials, query, or path");
+  }
+}
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -20,10 +30,18 @@ const contentSecurityPolicy = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  ...(northflankBuild ? {
+    output: "standalone",
+    outputFileTracingRoot: fileURLToPath(new URL("../", import.meta.url))
+  } : {}),
   transpilePackages: ["@ascend/shared"],
   poweredByHeader: false,
   async rewrites() {
     return [
+      ...(apiProxyOrigin ? [{
+        source: "/api/v1/:path*",
+        destination: `${apiProxyOrigin}/api/v1/:path*`
+      }] : []),
       {
         source: "/__/auth/:path*",
         destination: "https://ascend-b2850.firebaseapp.com/__/auth/:path*"

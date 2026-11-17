@@ -1,0 +1,42 @@
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY backend/package.json backend/package.json
+COPY frontend/package.json frontend/package.json
+COPY shared/package.json shared/package.json
+RUN npm ci --no-audit --no-fund
+COPY shared shared
+COPY frontend frontend
+
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_ASCEND_COACH_V1
+ARG NEXT_PUBLIC_ASCEND_ESSENTIALS_MORPH_V2
+ARG NEXT_PUBLIC_DASHBOARD_ESSENTIALS_OWNER_PILOT
+ARG NEXT_PUBLIC_DASHBOARD_ESSENTIALS_PUBLIC
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
+ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_VAPID_KEY
+ARG NEXT_PUBLIC_FOOD_AI_PERFORMANCE_LOGS
+ARG NEXT_PUBLIC_FOOD_SHARE_PUBLIC
+ARG NEXT_PUBLIC_GOOGLE_SIGN_IN_ENABLED
+ARG NEXT_PUBLIC_IOS_BILLING_ENABLED
+ARG NEXT_PUBLIC_RETURN_MODE_V1
+ARG NEXT_PUBLIC_WORKOUT_CAPTURE_V1
+ARG NEXT_PUBLIC_WORKOUT_PROGRESSION_INTELLIGENCE_V1
+ARG NEXT_PUBLIC_WORKOUT_PROGRESSION_INTELLIGENCE_V3
+ARG ASCEND_API_PROXY_ORIGIN
+ENV NODE_ENV=production ASCEND_NORTHFLANK_BUILD=true
+RUN npm run build --workspace shared && npm run build --workspace frontend -- --webpack
+
+FROM node:22-bookworm-slim AS runner
+WORKDIR /app
+ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NODE_OPTIONS="--max-old-space-size=256"
+COPY --from=build --chown=node:node /app/frontend/.next/standalone ./
+COPY --from=build --chown=node:node /app/frontend/.next/static ./frontend/.next/static
+COPY --from=build --chown=node:node /app/frontend/public ./frontend/public
+USER node
+EXPOSE 3000
+CMD ["node", "frontend/server.js"]

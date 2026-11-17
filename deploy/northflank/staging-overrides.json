@@ -1,0 +1,22 @@
+{
+  "frontend": {
+    "NEXT_PUBLIC_API_URL": "/api/v1",
+    "ASCEND_NORTHFLANK_BUILD": "true",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "backend": {
+    "NODE_ENV": "production",
+    "PORT": "4000",
+    "DATABASE_POOL_MAX": "5",
+    "ZOE_SMART_NUDGES_WORKER": "false",
+    "APNS_ENABLED": "false"
+  },
+  "notes": [
+    "Supply the isolated Northflank database URL, never the Railway production database URL.",
+    "Supply ASCEND_API_PROXY_ORIGIN as the Northflank backend origin during the frontend build.",
+    "Keep notification workers disabled while the source database and live Railway worker remain active.",
+    "Copy existing application feature settings and credentials through the protected local settings export.",
+    "Do not promote the restored test snapshot without taking a fresh final copy under a verified write freeze.",
+    "Legacy Railway API URLs used by saved shortcuts and external billing webhooks require a transition bridge or verified URL updates before retirement."
+  ]
+}

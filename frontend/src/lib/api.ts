@@ -1,5 +1,9 @@
 import { appEditionHeaders } from "./appEdition";
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+const configuredApiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+// Resolve the same-origin deployment path before passing it to native Siri/widget code.
+export const API_URL = configuredApiUrl.startsWith("/") && typeof window !== "undefined"
+  ? new URL(configuredApiUrl, window.location.origin).href
+  : configuredApiUrl;
 const READ_DEADLINE_MS = 20_000;
 
 function withReadDeadline<T>(options: RequestInit, work: (signal?: AbortSignal) => Promise<T>): Promise<T> {
