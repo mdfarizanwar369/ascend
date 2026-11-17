@@ -30,6 +30,8 @@ The image supports both `node server.cjs` and the former `node backend/dist/src/
 
 Native Siri reconciliation runs on sign-in and app focus and passes the current absolute API URL to the native plugin. Opening the updated app therefore replaces a saved Railway API origin. Retain the bridge until the Apple notification URLs and remaining saved connections are verified. A running bridge and old test deployments can still incur Railway charges.
 
+Stripe and both Apple production and sandbox notification URLs were moved directly to the Northflank API during cutover. Keep the bridge for saved legacy connections until their retirement is separately verified.
+
 ## Data and rollback
 
 Before moving production writes, stop the old writer, hold its database read-only, take a fresh verified dump, replace only the isolated target copy, and compare all table row fingerprints. Enable a single production notification worker only after the old worker has stopped.

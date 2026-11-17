@@ -2,7 +2,7 @@ import { LegalPage } from "./LegalPage";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
 
 export function IosPrivacyPolicy() {
-  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="6 October 2026"
+  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="17 November 2026"
     introduction="This policy describes Ascend's iPhone and iPad app: personal fitness tracking and optional AI guidance. It explains what we collect, how we use it, and your choices."
     sections={[
       { title: "Information we collect", bullets: [
@@ -21,7 +21,7 @@ export function IosPrivacyPolicy() {
         "Google's paid Gemini API processes prompts and responses under its data-processing terms and does not use them to improve Google's products. We do not use unpaid Gemini services for personal fitness data. Providers may retain limited records for abuse prevention or legal requirements."
       ], bullets: [...iosAiDataCategories] },
       { title: "Service providers and protection", paragraphs: [
-        "Ascend uses Firebase for authentication, Railway and PostgreSQL infrastructure for hosting and data storage, and Cloudflare R2 or compatible storage for uploaded images. Device or browser speech recognition may require a network connection under that provider's settings. Ascend receives the resulting text and does not retain microphone audio.",
+        "Ascend uses Firebase for authentication, Northflank with PostgreSQL for application hosting and data storage, Cloudflare for secure traffic routing, Cloudflare R2 or compatible storage for uploaded images, and Railway for temporary legacy connections and retained recovery backups. Device or browser speech recognition may require a network connection under that provider's settings. Ascend receives the resulting text and does not retain microphone audio.",
         "We share only information needed for each service. Providers handling personal data must provide the same or equal protection described here: processing limited to the specified service, confidentiality, access controls, secure transfer, and applicable retention and deletion obligations. We do not send your password or payment card details to AI providers."
       ] },
       { title: "Existing account relationships", paragraphs: [

@@ -9,7 +9,7 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Your data"
       title="Privacy Policy"
-      updatedAt="6 October 2026"
+      updatedAt="17 November 2026"
       introduction="Ascend helps members, trainers, and gym owners stay aligned between sessions. This policy explains what information we collect, how we use it, and the choices available to you."
       sections={[
         {
@@ -65,7 +65,7 @@ export default function PrivacyPage() {
         {
           title: "AI and service providers",
           paragraphs: [
-            "Ascend uses Firebase for authentication and Android crash diagnostics, Railway and PostgreSQL infrastructure for hosting and data storage, Cloudflare R2 or compatible storage for uploaded images, Stripe for web payments, Google Play for Android purchases and Apple for iOS purchases where available. We share only information needed for each service.",
+            "Ascend uses Firebase for authentication and Android crash diagnostics, Northflank with PostgreSQL for application hosting and data storage, Cloudflare for secure traffic routing, Cloudflare R2 or compatible storage for uploaded images, and Railway for temporary legacy connections and retained recovery backups. Stripe handles web payments, Google Play handles Android purchases and Apple handles iOS purchases where available. We share only information needed for each service.",
             "AI features use Google Gemini, provided by Google, or OpenAI when configured. Before personal data is sent, the in-app AI privacy screen names the current provider, describes the data and purpose, and asks you to allow or decline. No AI sharing permission is inferred from registration, a subscription, or agreeing to this policy. Changing provider or materially changing the disclosure requires a new choice.",
             "With your permission, relevant information listed below is sent to the named AI provider for meal estimates, workout interpretation, body composition explanations and personalized fitness guidance, including daily suggestions and progress reflections. Your choice also applies when an assigned trainer requests AI guidance using your records. A trainer cannot grant consent for you. AI estimates can be inaccurate and are not medical advice.",
             "We require service providers handling personal data to provide the same or equal protection described in this policy: limited processing for the specified service, confidentiality, access controls, secure transfer and applicable retention and deletion obligations. Google's paid Gemini API processes prompts and responses under its data-processing terms and does not use them to improve Google's products. Providers may retain limited records for abuse prevention or legal requirements. We do not use unpaid Gemini services for personal fitness data.",

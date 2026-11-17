@@ -25,7 +25,7 @@ export function BootstrapOwnerClient() {
     } catch (error) {
       setStatus(
         error instanceof Error
-          ? `${error.message}. Check BOOTSTRAP_OWNER_EMAIL on the backend Railway service.`
+          ? `${error.message}. Check BOOTSTRAP_OWNER_EMAIL on the backend service.`
           : "Could not enable owner access."
       );
     } finally {
