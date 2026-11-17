@@ -1,0 +1,19 @@
+{
+  "name": "ascend-northflank-router",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-17",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "www.getascend.fit/*",
+      "zone_name": "getascend.fit"
+    },
+    {
+      "pattern": "getascend.fit/*",
+      "zone_name": "getascend.fit"
+    }
+  ],
+  "observability": {
+    "enabled": false
+  }
+}
