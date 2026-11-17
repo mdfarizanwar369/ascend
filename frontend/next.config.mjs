@@ -32,7 +32,15 @@ const contentSecurityPolicy = [
 const nextConfig = {
   ...(northflankBuild ? {
     output: "standalone",
-    outputFileTracingRoot: fileURLToPath(new URL("../", import.meta.url))
+    outputFileTracingRoot: fileURLToPath(new URL("../", import.meta.url)),
+    experimental: { cpus: 2 },
+    webpack(config) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@ascend/shared": fileURLToPath(new URL("../shared/src/index.ts", import.meta.url))
+      };
+      return config;
+    }
   } : {}),
   transpilePackages: ["@ascend/shared"],
   poweredByHeader: false,

@@ -27,7 +27,7 @@
         "./src/*"
       ],
       "@ascend/shared": [
-        "../shared/src"
+        "../shared/src/index.ts"
       ]
     }
   },

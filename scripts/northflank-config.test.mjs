@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const cwd=fileURLToPath(new URL('../',import.meta.url));
-const inspect=`const c=(await import('./frontend/next.config.mjs')).default; console.log(JSON.stringify({output:c.output,rewrites:await c.rewrites()}));`;
+const inspect=`const c=(await import('./frontend/next.config.mjs')).default; const webpack=c.webpack?.({resolve:{alias:{}}}); console.log(JSON.stringify({output:c.output,rewrites:await c.rewrites(),sharedSource:webpack?.resolve.alias['@ascend/shared']}));`;
 function config(extra={}) {
   const env={...process.env};
   delete env.ASCEND_NORTHFLANK_BUILD;
@@ -20,6 +20,7 @@ test('existing deployments retain their Firebase auth rewrites',()=>{
 test('Northflank serves the existing app API path and preserves Firebase auth',()=>{
   const staged=config({ASCEND_NORTHFLANK_BUILD:'true',ASCEND_API_PROXY_ORIGIN:'https://ascend-api.example.com/'});
   assert.equal(staged.output,'standalone');
+  assert.ok(staged.sharedSource.replaceAll('\\','/').endsWith('/shared/src/index.ts'));
   assert.deepEqual(staged.rewrites[0],{source:'/api/v1/:path*',destination:'https://ascend-api.example.com/api/v1/:path*'});
   assert.equal(staged.rewrites[1].source,'/__/auth/:path*');
   assert.equal(staged.rewrites[2].source,'/__/firebase/:path*');
