@@ -117,10 +117,13 @@ export default function HomePage() {
               Ascend turns meals, movement, recovery, and progress into one clear next action. Coach Zoe supports you between sessions, and your trainer stays connected when you have one.
             </p>
 
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link href="/login" className="ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-xl bg-lime px-6 font-bold text-ink shadow-[0_18px_40px_rgba(53,242,208,0.2)]">
                 Start free <ArrowRight size={19} />
               </Link>
+              <a href="https://apps.apple.com/my/app/ascend-fitness-nutrition/id6810864942" className="ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-xl border border-white/20 bg-black/35 px-6 font-semibold text-white backdrop-blur">
+                Download on the App Store
+              </a>
               <Link href="/demo" className="ascend-pressable flex min-h-14 items-center justify-center gap-2 rounded-xl border border-white/20 bg-black/35 px-6 font-semibold text-white backdrop-blur">
                 <Play size={18} /> See the real product
               </Link>
@@ -129,7 +132,7 @@ export default function HomePage() {
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-zinc-300 sm:text-sm">
               <span className="inline-flex items-center gap-1.5"><Check className="text-lime" size={15} /> Free to start</span>
               <span className="inline-flex items-center gap-1.5"><Check className="text-lime" size={15} /> No credit card required</span>
-              <span className="inline-flex items-center gap-1.5"><Check className="text-lime" size={15} /> Web and Android</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="text-lime" size={15} /> Web, Android and iOS</span>
             </div>
           </div>
 
