@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage } from "@/components/legal/LegalPage";
 
-export const metadata: Metadata = { title: "Delete Account | Ascend" };
+export const metadata: Metadata = {
+  title: "Delete Account | Ascend",
+  alternates: { canonical: "/delete-account" }
+};
 
 export default async function DeleteAccountPage({
   searchParams

@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/LegalPage";
 import { AI_DATA_CATEGORIES } from "@ascend/shared";
 
-export const metadata: Metadata = { title: "Privacy Policy | Ascend" };
+export const metadata: Metadata = {
+  title: "Privacy Policy | Ascend",
+  alternates: { canonical: "/privacy" }
+};
 
 export default function PrivacyPage() {
   return (

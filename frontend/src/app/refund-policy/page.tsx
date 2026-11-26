@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/LegalPage";
 
-export const metadata: Metadata = { title: "Refund and Cancellation Policy | Ascend" };
+export const metadata: Metadata = {
+  title: "Refund and Cancellation Policy | Ascend",
+  alternates: { canonical: "/refund-policy" }
+};
 
 export default function RefundPolicyPage() {
   return (

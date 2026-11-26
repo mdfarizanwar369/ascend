@@ -4,7 +4,10 @@ import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { PublicFooter } from "@/components/legal/PublicFooter";
 
-export const metadata: Metadata = { title: "Support | Ascend" };
+export const metadata: Metadata = {
+  title: "Support | Ascend",
+  alternates: { canonical: "/contact" }
+};
 
 const supportItems = [
   { icon: MessageCircle, title: "Account and app help", text: "Login, onboarding, tracking, trainer connection, or account access." },
