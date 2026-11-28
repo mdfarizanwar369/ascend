@@ -114,6 +114,7 @@ const schema = z.object({
   PT_BOOKING_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PT_BOOKING_NOTIFICATIONS_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PT_SESSION_WELLBEING_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  PT_BOOKING_OUTCOME_ALERTS_PILOT_GYM_ID: z.uuid().optional(),
   RETURN_MODE_V1: z.string().default(returnModeDefault).transform((value) => value.toLowerCase() === "true"),
   DAILY_COACHING_DECISION_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   DAILY_COACHING_DECISION_SHADOW: z.string().default("false").transform((value) => value.toLowerCase() === "true"),

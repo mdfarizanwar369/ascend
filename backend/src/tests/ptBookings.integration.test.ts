@@ -349,7 +349,7 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(2));
     expect((await decision("cancel", cancelled.body.id)).status).toBe(200);
     const cancelledEvents = (await db.query("select status from pt_booking_notifications where booking_id=$1", [cancelled.body.id])).rows;
-    expect(cancelledEvents).toEqual([{ status: "skipped" }, { status: "skipped" }]);
+    expect(cancelledEvents.map(({ status }) => status).sort()).toEqual(["queued", "skipped", "skipped"]);
     await dispatchPtBookingNotifications(originalReminder.due_at);
     expect(push).toHaveBeenCalledTimes(2);
 
@@ -399,6 +399,10 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect((await sharing(client, version, { ...wellbeing, period: true })).status).toBe(400);
     expect((await sharing(client, version, { feeling: null, preference: null })).status).toBe(400);
     expect((await sharing(client, version)).status).toBe(200);
+    const betaRead = await call(trainer, `${trainerApi}?week=${day}`, "GET", undefined, {
+      "user-agent": "Mozilla AscendIOS/6 AscendSubscriptions/1 AscendCycle/1 Capacitor"
+    });
+    expect(betaRead.body.bookings.find((row: { id: string }) => row.id === id).wellbeing).toEqual(wellbeing);
     expect((await calendarBooking(client, clientApi)).wellbeing).toEqual(wellbeing);
     expect((await calendarBooking(trainer, trainerApi)).wellbeing).toEqual(wellbeing);
     expect(await calendarBooking(otherTrainer, trainerApi)).toBeUndefined();
@@ -440,5 +444,32 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     });
     expect(far.status).toBe(201);
     expect((await call(client, `${clientApi}/requests/${far.body.id}/wellbeing`, "PUT", { version: 1, wellbeing })).status).toBe(409);
+  });
+
+  it("sends one outcome alert to the other participant for declines and cancellations", async () => {
+    await db.query("delete from pt_bookings where gym_id=$1", [gym]);
+    await db.query("delete from notification_preferences where user_id = any($1::uuid[])", [[trainer, client]]);
+    const { dispatchPtBookingNotifications } = await import("../services/ptBookingNotificationWorker");
+    const ask = (startsAt: string) => call(client, `${clientApi}/requests`, "POST", { trainerId: trainerProfile, startsAt });
+    const change = (actor: string, path: string, id: string, action: string) =>
+      call(actor, `${path}/requests/${id}`, "PATCH", { action });
+    const declined = (await ask(firstTime)).body.id;
+    const clientCancelled = (await ask(secondTime)).body.id;
+    const trainerCancelled = (await ask(thirdTime)).body.id;
+    expect((await change(trainer, trainerApi, declined, "decline")).status).toBe(200);
+    expect((await change(trainer, trainerApi, declined, "decline")).status).toBe(200);
+    expect((await change(client, clientApi, clientCancelled, "cancel")).status).toBe(200);
+    expect((await change(trainer, trainerApi, trainerCancelled, "cancel")).status).toBe(200);
+    push.mockClear();
+    await Promise.all([dispatchPtBookingNotifications(new Date(), gym), dispatchPtBookingNotifications(new Date(), gym)]);
+    expect(push).toHaveBeenCalledTimes(3);
+    for (const [recipient, id, title, path] of [
+      [client, declined, "Your PT booking request was declined", "/pt-bookings"],
+      [trainer, clientCancelled, "A client cancelled their PT booking", "/trainer/schedule"],
+      [client, trainerCancelled, "Your PT booking was cancelled", "/pt-bookings"]
+    ]) {
+      expect(push).toHaveBeenCalledWith(expect.objectContaining({ user_id: recipient }),
+        expect.objectContaining({ title, href: `${path}?day=${date}&booking=${id}` }));
+    }
   });
 });

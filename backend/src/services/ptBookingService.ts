@@ -448,5 +448,11 @@ export function changePtBooking(user: AuthUser, role: Participant, bookingId: st
       return notice;
     }
     await query("update pt_bookings set status = $2, updated_at = now(), version = version + 1 where id = $1", [bookingId, target]);
+    if (action === "cancel") {
+      await query(`
+        insert into pt_booking_notifications (booking_id, booking_version, kind, due_at, expires_at)
+        values ($1, $2, $3, now(), now() + interval '1 hour')
+      `, [bookingId, booking.version + 1, role === "client" ? "trainer_cancelled" : "client_cancelled"]);
+    }
   });
 }

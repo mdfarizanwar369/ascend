@@ -42,8 +42,9 @@ it.each(["Mozilla AscendAndroid/1 Capacitor", "Mozilla iPhone Safari"])("preserv
 it.each([
   ["Mozilla iPhone Safari", true],
   ["Mozilla AscendIOS/6 AscendSubscriptions/1 Capacitor", false],
+  ["Mozilla AscendIOS/6 AscendSubscriptions/1 AscendCycle/1 Capacitor", true],
   ["Mozilla AscendAndroid/1 Capacitor", false]
-])("shows the cycle pilot only to web clients, including iPhone Safari (%s)", async (ua, visible) => {
+])("shows the cycle pilot to the web and supported iPhone build (%s)", async (ua, visible) => {
   vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(ua);
   render(<ProfileClient />);
   await screen.findByText("Test member");

@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { useCycleTrackingPilot } from "@/lib/useCycleTrackingPilot";
+import { CycleBackup } from "./CycleBackup";
 import {
   cycleEnergy, cycleFlows, cycleStorageKey, cycleSymptoms, emptyCycleEntry, hasCycleEntry,
   readCycleEntries, writeCycleEntry, type CycleEntry
@@ -192,6 +193,10 @@ export function CycleCalendar({ accountId }: { accountId: string }) {
         </div>
       </form>
     </div>
+    {ready && <CycleBackup accountId={accountId} today={today} hasEntries={Object.keys(entries).length > 0} onImport={(imported) => {
+      setEntries(imported);
+      setDraft(imported[selected] ?? emptyCycleEntry);
+    }} />}
     <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-zinc-400">
       <p>Each device has its own log.</p>
       {(Object.keys(entries).length > 0 || !ready && error) && <button type="button" className="inline-flex min-h-11 items-center gap-2 font-semibold text-zinc-300"

@@ -42,6 +42,10 @@ export function isAscendNativeUserAgent(userAgent: string) {
   return /\bAscend(?:IOS|Android)\/\d+\b/.test(userAgent);
 }
 
+export function supportsAscendIosCycle(userAgent: string) {
+  return /\bAscendIOS\/\d+\b/.test(userAgent) && /\bAscendCycle\/1\b/.test(userAgent);
+}
+
 export function detectInstallPlatform(userAgent: string, platform = "", maxTouchPoints = 0): InstallPlatform {
   const isIpadOs = platform === "MacIntel" && maxTouchPoints > 1;
   if (/iPad|iPhone|iPod/i.test(userAgent) || isIpadOs) return "ios";

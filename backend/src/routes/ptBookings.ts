@@ -1,6 +1,6 @@
 import { Router, type Request, type RequestHandler } from "express";
 import { z } from "zod";
-import { isAscendNativeUserAgent, ptSessionFeelings, ptSessionPreferences } from "@ascend/shared";
+import { isAscendNativeUserAgent, ptSessionFeelings, ptSessionPreferences, supportsAscendIosCycle } from "@ascend/shared";
 import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { isIosFreeEdition, isIosNativeRequest } from "../services/appEdition";
@@ -27,7 +27,8 @@ const managerOnly = requireRole(["admin", "owner"]);
 const access = { client: clientOnly, trainer: trainerOnly, manager: managerOnly };
 
 function canUseWellbeingPilot(req: Request) {
-  return env.PT_SESSION_WELLBEING_V1 && !isIosNativeRequest(req) && !isAscendNativeUserAgent(req.get("User-Agent") ?? "");
+  const agent = req.get("User-Agent") ?? "";
+  return env.PT_SESSION_WELLBEING_V1 && (supportsAscendIosCycle(agent) || (!isIosNativeRequest(req) && !isAscendNativeUserAgent(agent)));
 }
 
 const time = z.string().regex(/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/);

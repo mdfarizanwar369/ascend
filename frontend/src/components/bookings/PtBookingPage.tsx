@@ -172,6 +172,8 @@ function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingC
   const blocks = schedule?.blocks;
   const pending = bookings.filter((booking) => booking.status === "pending");
   const confirmed = bookings.filter((booking) => booking.status === "confirmed");
+  const openedCancellation = role === "trainer" ? bookings.find((booking) =>
+    booking.id === notificationTarget?.booking && booking.status === "cancelled") : undefined;
   const datesWithEntries = new Set((role === "client" ? slots : [...pending, ...confirmed]).map((item) => dateFor(item.startsAt)));
   const firstSlotDay = slots[0] && dateFor(slots[0].startsAt);
   const day = selectedDay ?? (role === "client" ? firstSlotDay ?? (days.includes(schedule?.today ?? "") ? schedule?.today : days[0]) : undefined);
@@ -412,6 +414,10 @@ function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingC
               </section>
             </div>
           )}
+          {openedCancellation && <section className={panel} aria-labelledby="cancelled-booking-title">
+            <h2 id="cancelled-booking-title" className="text-lg font-semibold">Booking update</h2>
+            <ul className="mt-3">{renderBooking(openedCancellation)}</ul>
+          </section>}
           {role === "manager" && schedule.needsRebooking && <section className={panel} aria-labelledby="rebooking-title">
             <div className="flex items-center gap-2"><CalendarClock size={19} className="text-calm" aria-hidden="true" />
               <h2 id="rebooking-title" className="text-lg font-semibold">Needs rebooking</h2></div>

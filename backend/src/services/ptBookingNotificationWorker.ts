@@ -3,9 +3,17 @@ import { env } from "../config/env";
 import { query } from "../db/pool";
 import { providerReady, sendNudgePush, type NudgePushDevice } from "../integrations/nudgePush";
 
+const notificationCopy = {
+  trainer_request: { title: "New PT booking request", body: "Open Ascend to review the request.", path: "/trainer/schedule" },
+  client_reminder: { title: "Your PT session is coming up", body: "Your session starts in about 24 hours. Open Ascend for details.", path: "/pt-bookings" },
+  client_declined: { title: "Your PT booking request was declined", body: "Open Ascend to see the update or choose another time.", path: "/pt-bookings" },
+  client_cancelled: { title: "Your PT booking was cancelled", body: "Open Ascend to see the update or choose another time.", path: "/pt-bookings" },
+  trainer_cancelled: { title: "A client cancelled their PT booking", body: "Open Ascend to see the booking update.", path: "/trainer/schedule" }
+};
+
 type QueuedNotification = {
   id: string;
-  kind: "trainer_request" | "client_reminder";
+  kind: keyof typeof notificationCopy;
   expires_at: Date;
 };
 type BookingDevice = NudgePushDevice & { booking_id: string; starts_at: Date; gym_zone: string };
@@ -18,7 +26,7 @@ async function updateResult(id: string, status: string, now: Date) {
   `, [id, status, now]);
 }
 
-async function deliver(event: QueuedNotification, now: Date) {
+async function deliver(event: QueuedNotification, now: Date, pilotGymId?: string) {
   // Check the current assignment, booking version, and consent after claiming the event.
   const { rows } = await query<BookingDevice>(`
     select device.id, device.user_id, device.fcm_token, device.provider, device.platform,
@@ -31,23 +39,29 @@ async function deliver(event: QueuedNotification, now: Date) {
     join users client on client.id = booking.client_id and client.status = 'active' and client.primary_role = 'client'
       and client.assigned_trainer_id = trainer.id and client.gym_id = gym.id
     join notification_devices device on device.enabled
-      and device.user_id = case when event.kind = 'trainer_request' then coach.id else client.id end
+      and device.user_id = case when event.kind in ('trainer_request', 'trainer_cancelled') then coach.id else client.id end
     left join notification_preferences prefs on prefs.user_id = device.user_id
-    where event.id = $1 and event.status = 'dispatching' and event.expires_at > $2 and booking.starts_at > $2
-      and booking.status = case when event.kind = 'trainer_request' then 'pending' else 'confirmed' end
+    where event.id = $1 and event.status = 'dispatching' and event.expires_at > $2
+      and (
+        (event.kind = 'trainer_request' and booking.status = 'pending' and booking.starts_at > $2)
+        or (event.kind = 'client_reminder' and booking.status = 'confirmed' and booking.starts_at > $2)
+        or (booking.gym_id = $3 and (
+          (event.kind = 'client_declined' and booking.status = 'declined')
+          or (event.kind in ('client_cancelled', 'trainer_cancelled') and booking.status = 'cancelled')
+        ))
+      )
       and (prefs.settings->>'enabled') is distinct from 'false'
     order by device.last_seen_at desc limit 5
-  `, [event.id, now]);
+  `, [event.id, now, pilotGymId ?? null]);
   const devices = rows.filter(providerReady);
   if (devices.length === 0) return updateResult(event.id, "skipped", now);
   const booking = devices[0];
   const day = ptLocalDate(booking.starts_at, booking.gym_zone);
-  const request = event.kind === "trainer_request";
-  const path = request ? "/trainer/schedule" : "/pt-bookings";
+  const { title, body, path } = notificationCopy[event.kind];
   const results = await Promise.all(devices.map((device) => sendNudgePush(device, {
     eventId: event.id,
-    title: request ? "New PT booking request" : "Your PT session is coming up",
-    body: request ? "Open Ascend to review the request." : "Your session starts in about 24 hours. Open Ascend for details.",
+    title,
+    body,
     href: `${path}?day=${day}&booking=${booking.booking_id}`,
     expiresAt: event.expires_at
   })));
@@ -58,7 +72,7 @@ async function deliver(event: QueuedNotification, now: Date) {
   await updateResult(event.id, status, now);
 }
 
-export async function dispatchPtBookingNotifications(now = new Date()) {
+export async function dispatchPtBookingNotifications(now = new Date(), pilotGymId = env.PT_BOOKING_OUTCOME_ALERTS_PILOT_GYM_ID) {
   await query(`
     update pt_booking_notifications set status = 'unknown', updated_at = $1
     where (status = 'dispatching' and updated_at < $1::timestamptz - interval '2 minutes')
@@ -78,7 +92,7 @@ export async function dispatchPtBookingNotifications(now = new Date()) {
     from due where event.id = due.id
     returning event.id, event.kind, event.expires_at
   `, [now]);
-  const results = await Promise.allSettled(rows.map((event) => deliver(event, now)));
+  const results = await Promise.allSettled(rows.map((event) => deliver(event, now, pilotGymId)));
   if (results.some((result) => result.status === "rejected")) {
     console.warn("[pt-bookings] Notification dispatch outcome unavailable");
   }

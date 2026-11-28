@@ -1,10 +1,16 @@
 import { LegalPage } from "./LegalPage";
+import { headers } from "next/headers";
+import { supportsAscendIosCycle } from "@ascend/shared";
+import { cyclePrivacySection } from "./cyclePrivacySection";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
+import { cycleTrackingEnabled } from "@/lib/cycleTrackingFlag";
 
-export function IosPrivacyPolicy() {
-  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="17 November 2026"
+export async function IosPrivacyPolicy() {
+  const cycleAvailable = cycleTrackingEnabled && supportsAscendIosCycle((await headers()).get("user-agent") ?? "");
+  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt={cycleAvailable ? "29 November 2026" : "17 November 2026"}
     introduction="This policy describes Ascend's iPhone and iPad app: personal fitness tracking and optional AI guidance. It explains what we collect, how we use it, and your choices."
     sections={[
+      ...(cycleAvailable ? [cyclePrivacySection] : []),
       { title: "Information we collect", bullets: [
         "Account information such as your name, email address and authentication identifier, provided when you register or sign in.",
         "Fitness profile information such as goals, age, sex selection, height, weight, target weight and activity level.",
