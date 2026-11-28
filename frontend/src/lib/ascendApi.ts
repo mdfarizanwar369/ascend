@@ -28,6 +28,7 @@ import { getFirebaseToken } from "./authToken";
 import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
 import type { BeginnerProgrammePrescription, BeginnerProgrammeSummary } from "@ascend/shared";
 import type { PtBookingAction, PtBookingRole, PtBookingWeek, PtCalendarBlockInput, PtSessionWellbeing, PtTrainerOpenings } from "@ascend/shared";
+import type { ChallengeDetail, ChallengeList, ChallengeRole, ChallengeRules } from "@ascend/shared";
 export type { BeginnerProgrammeSummary } from "@ascend/shared";
 
 export interface ProgressComparison {
@@ -370,6 +371,34 @@ export function getVoiceToday(intent: VoiceTodayIntent) {
     totals: { calories: number; proteinG: number; waterMl: number; meals: number };
     targets: { calories: number; proteinG: number; waterMl: number };
   }>(`/me/voice/today?intent=${encodeURIComponent(intent)}&timezoneOffsetMinutes=${offset}`);
+}
+
+export function listMonthlyChallenges(role: ChallengeRole) {
+  return authed<ChallengeList>(`/monthly-challenges/${role}`);
+}
+
+export function getMonthlyChallenge(role: ChallengeRole, id: string) {
+  return authed<ChallengeDetail>(`/monthly-challenges/${role}/${id}`);
+}
+
+export function saveMonthlyChallenge(role: "trainer" | "gym", rules: ChallengeRules & { gymId: string; publish: boolean }, edit?: { id: string; version: number }) {
+  return authed<{ id: string }>(`/monthly-challenges/${role}${edit ? `/${edit.id}` : ""}`, {
+    method: edit ? "PUT" : "POST",
+    body: JSON.stringify({ ...rules, version: edit?.version })
+  });
+}
+
+export function setMonthlyChallengeMembership(id: string, membership: { displayName: string | null } | null) {
+  return authed<{ saved: boolean }>(`/monthly-challenges/member/${id}/membership`, {
+    method: membership ? "PUT" : "DELETE",
+    body: membership ? JSON.stringify(membership) : undefined
+  });
+}
+
+export function confirmChallengeMealDay(id: string, day: string) {
+  return authed<{ saved: boolean }>(`/monthly-challenges/member/${id}/meal-day`, {
+    method: "PUT", body: JSON.stringify({ day })
+  });
 }
 
 export function getVoiceTodayAudio(intent: VoiceTodayIntent) {

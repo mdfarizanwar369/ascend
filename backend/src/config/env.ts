@@ -112,6 +112,7 @@ const schema = z.object({
   COACH_ZOE_WORKOUT_DEBRIEF_OWNER_PILOT: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   TRAINER_SESSION_CAPTURE_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PT_BOOKING_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
+  MONTHLY_CHALLENGES_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PT_BOOKING_NOTIFICATIONS_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PT_SESSION_WELLBEING_V1: z.string().default("false").transform((value) => value.toLowerCase() === "true"),
   PT_BOOKING_OUTCOME_ALERTS_PILOT_GYM_ID: z.uuid().optional(),

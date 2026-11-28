@@ -37,6 +37,7 @@ export * from "./returnMode";
 export * from "./portionNutrition";
 export * from "./healthActivity";
 export * from "./beginnerProgramme";
+export * from "./monthlyChallenges";
 
 export function isAscendNativeUserAgent(userAgent: string) {
   return /\bAscend(?:IOS|Android)\/\d+\b/.test(userAgent);

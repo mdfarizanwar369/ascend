@@ -3,8 +3,9 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, calculateTodayRecoverySignal, CoachingMode, combineTodayActivityCalories } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, CalendarDays, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, X, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, CalendarDays, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, Trophy, UserRound, X, Zap } from "lucide-react";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
+import { useMonthlyChallengesOnWeb } from "@/lib/useMonthlyChallengesOnWeb";
 import {
   acknowledgeGoalMilestone,
   clearAscendResponseCache,
@@ -364,6 +365,7 @@ function CollapsibleSection({
 }
 
 export function ClientDashboard() {
+  const monthlyChallengesEnabled = useMonthlyChallengesOnWeb();
   const launchMorphV22 = useAscendLaunchMorphV22();
   const today = useLocalDateKey();
   const loadedDayRef = useRef(today);
@@ -1792,6 +1794,11 @@ export function ClientDashboard() {
           </Link>
         ) : null}
 
+        {monthlyChallengesEnabled && !isIosFreeEdition() && user?.primary_role === "client" && user.gym_id && (
+          <Link href="/challenges" prefetch={false} className="ascend-pressable mt-3 flex min-h-12 items-center gap-2 rounded-xl border border-lime/25 bg-lime/5 px-4 text-sm font-semibold text-lime">
+            <Trophy size={18} aria-hidden /> Challenges <ArrowRight className="ml-auto" size={16} aria-hidden />
+          </Link>
+        )}
         <AppleHealthInvitation state={appleHealthInvitation.state} onPostpone={appleHealthInvitation.postpone} />
 
         {goalStatus?.milestone_id && !goalStatus.acknowledged_at ? (

@@ -8,6 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       disallow: [
         "/admin",
         "/athlete",
+        "/challenges",
         "/coach",
         "/dashboard",
         "/founder",

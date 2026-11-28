@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import QRCode from "qrcode";
-import { ArrowRight, CalendarDays, Check, ChevronRight, CircleAlert, CircleCheck, Clock3, Copy, MessageCircle, Search, Share2, Sparkles, TrendingUp, Users, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronRight, CircleAlert, CircleCheck, Clock3, Copy, MessageCircle, Search, Share2, Sparkles, TrendingUp, Trophy, Users, X } from "lucide-react";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
+import { useMonthlyChallengesOnWeb } from "@/lib/useMonthlyChallengesOnWeb";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { TrainerClientInsightsPanel } from "@/components/trainer/TrainerClientInsights";
 import {
@@ -40,6 +41,7 @@ function queueActionText(task: TrainerAction) {
 }
 
 export function TrainerActionDesk() {
+  const monthlyChallengesEnabled = useMonthlyChallengesOnWeb();
   const [clients, setClients] = useState<TrainerQueueClient[]>([]);
   const [alerts, setAlerts] = useState<TrainerQueueAlert[]>([]);
   const [dispositions, setDispositions] = useState<TrainerWorkQueueDisposition[]>([]);
@@ -190,6 +192,9 @@ export function TrainerActionDesk() {
 
     {ptBookingEnabled && <Link href="/trainer/schedule" prefetch={false} className="ascend-pressable mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-calm/25 bg-calm/5 px-3 text-sm font-semibold text-calm">
       <CalendarDays size={17} aria-hidden="true" /> PT schedule <ArrowRight size={15} aria-hidden="true" />
+    </Link>}
+    {monthlyChallengesEnabled && <Link href="/trainer/challenges" prefetch={false} className="ascend-pressable mt-4 mr-2 inline-flex min-h-11 items-center gap-2 rounded-xl border border-lime/25 bg-lime/5 px-3 text-sm font-semibold text-lime">
+      <Trophy size={17} aria-hidden /> Challenges <ArrowRight size={15} aria-hidden />
     </Link>}
 
     <div className="mt-5 flex gap-6 border-b border-line" role="tablist" aria-label="Trainer workspace views">
