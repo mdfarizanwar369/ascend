@@ -1786,9 +1786,9 @@ export function ClientDashboard() {
         />
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
-        {ptBookingEnabled && !isIosFreeEdition() && user?.primary_role === "client" && user.assigned_trainer_id ? (
+        {ptBookingEnabled && !isIosFreeEdition() && user?.primary_role === "client" && (user.assigned_trainer_id || user.pt_booking_update) ? (
           <Link href="/pt-bookings" prefetch={false} className="ascend-pressable mt-3 flex min-h-12 items-center gap-2 rounded-xl border border-calm/25 bg-calm/5 px-4 text-sm font-semibold text-calm">
-            <CalendarDays size={18} aria-hidden="true" /> Book a PT session <ArrowRight className="ml-auto" size={16} aria-hidden="true" />
+            <CalendarDays size={18} aria-hidden="true" /> {user.pt_booking_update ? "You have a PT booking update" : "Book a PT session"} <ArrowRight className="ml-auto" size={16} aria-hidden="true" />
           </Link>
         ) : null}
 

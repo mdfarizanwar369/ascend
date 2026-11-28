@@ -7,6 +7,11 @@ import type { AuthUser } from "../middleware/auth";
 import { errorHandler } from "../middleware/errors";
 
 const actors = vi.hoisted(() => new Map<string, AuthUser>());
+const push = vi.hoisted(() => vi.fn());
+vi.mock("../integrations/nudgePush", async (original) => ({
+  ...await original<typeof import("../integrations/nudgePush")>(),
+  sendNudgePush: push
+}));
 vi.mock("../middleware/auth", async (original) => {
   const middleware = await original<typeof import("../middleware/auth")>();
   const requireAuth: typeof middleware.requireAuth = async (req, res, next) => {
@@ -55,6 +60,7 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     vi.stubEnv("PT_BOOKING_V1", "true");
     db = await import("../db/pool");
     const { ptBookingsRouter } = await import("../routes/ptBookings");
+    const { meRouter } = await import("../routes/me");
     await db.query("insert into gyms (id,name,slug,location,timezone) values ($1,'Pilot',$3,'Test',$5),($2,'Other',$4,'Test',$5)",
       [gym, otherGym, gym, otherGym, timeZone]);
     for (const [id, role, home, profile] of [
@@ -68,7 +74,7 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     }
     await db.query("insert into trainers (id,user_id,gym_id) values ($1,$2,$3),($4,$5,$6)", [trainerProfile, trainer, gym, otherTrainerProfile, otherTrainer, otherGym]);
     await db.query("update users set assigned_trainer_id = $1 where id = any($2::uuid[])", [trainerProfile, [client, peer]]);
-    const app = express().use(express.json()).use(ptBookingsRouter).use(errorHandler);
+    const app = express().use(express.json()).use(ptBookingsRouter).use(meRouter).use(errorHandler);
     server = await new Promise((resolve) => {
       const listening = app.listen(0, "127.0.0.1", () => resolve(listening));
     });
@@ -155,5 +161,74 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect(released.status).toBe(201);
     expect((await call(otherClient, `${clientApi}/requests/${released.body.id}`, "PATCH", { action: "cancel" })).status).toBe(200);
     expect((await ask(otherClient, firstTime)).status).toBe(201);
+  });
+
+  it("books and moves a next session, publishes its updates, and derives manager follow-up from completed coaching", async () => {
+    await db.query("delete from pt_bookings where gym_id = $1", [gym]);
+    await db.query("update users set assigned_trainer_id = $1 where id = any($2::uuid[])", [trainerProfile, [client, peer]]);
+    await db.query(`
+      insert into trainer_coaching_sessions (client_id, trainer_id, created_by_user_id, gym_id, status, completed_at, workout_event_id)
+      values ($1,$2,$3,$4,'completed',now() - interval '1 hour', $5)
+    `, [client, trainerProfile, trainer, gym, randomUUID()]);
+    await db.query("insert into notification_devices (user_id,fcm_token,platform) values ($1,$2,'android')",
+      [client, `test-booking-device-${randomUUID()}`]);
+    push.mockClear();
+
+    const openingsPath = `${trainerApi}/clients/${client}/openings`;
+    const bookingPath = `${trainerApi}/clients/${client}/bookings`;
+    const clientWeek = `${clientApi}?week=${date}`;
+    expect((await call(otherTrainer, openingsPath)).status).toBe(403);
+    expect((await call(otherTrainer, bookingPath, "POST", { startsAt: secondTime })).status).toBe(403);
+    expect((await call(manager, bookingPath, "POST", { startsAt: secondTime })).status).toBe(403);
+    expect((await call(trainer, `${openingsPath}?week=${date}`)).body.slots).toHaveLength(3);
+    expect((await call(manager, managerApi)).body.needsRebooking).toEqual([
+      expect.objectContaining({ clientId: client })
+    ]);
+    expect((await call(otherManager, managerApi)).body.needsRebooking).toEqual([]);
+
+    const request = await call(client, `${clientApi}/requests`, "POST", { trainerId: trainerProfile, startsAt: secondTime });
+    expect(request.status).toBe(201);
+    expect((await call(manager, managerApi)).body.needsRebooking).toEqual([]);
+    const direct = await call(trainer, bookingPath, "POST", { startsAt: secondTime });
+    expect(direct).toEqual({ status: 201, body: { id: request.body.id } });
+    expect((await call(trainer, bookingPath, "POST", { startsAt: secondTime })).body.id).toBe(direct.body.id);
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(push).toHaveBeenLastCalledWith(expect.objectContaining({ user_id: client }), expect.objectContaining({
+      title: "Your PT booking is confirmed", href: "/pt-bookings"
+    }));
+    const beforeMove = await call(client, clientWeek);
+    const initialUpdate = beforeMove.body.updates[0].id;
+    const move = { id: direct.body.id, version: beforeMove.body.bookings[0].version };
+    expect((await call(client, "/me")).body.user.pt_booking_update).toBe(true);
+    expect((await call(peer, `${clientApi}/updates/${initialUpdate}`, "PATCH")).status).toBe(200);
+    expect((await call(client, clientWeek)).body.updates).toHaveLength(1);
+
+    expect((await call(trainer, `${trainerApi}/clients/${peer}/bookings`, "POST", { startsAt: firstTime })).status).toBe(201);
+    expect((await call(trainer, bookingPath, "POST", { startsAt: firstTime, move })).status).toBe(409);
+    expect((await call(client, clientWeek)).body.bookings[0].startsAt).toBe(new Date(secondTime).toISOString());
+    expect(await call(trainer, bookingPath, "POST", { startsAt: thirdTime, move }))
+      .toEqual({ status: 200, body: { id: direct.body.id } });
+    expect((await call(trainer, bookingPath, "POST", { startsAt: thirdTime, move })).status).toBe(200);
+    expect((await call(trainer, bookingPath, "POST", { startsAt: secondTime, move })).status).toBe(409);
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(2));
+    expect(push).toHaveBeenLastCalledWith(expect.objectContaining({ user_id: client }), expect.objectContaining({
+      title: "Your PT booking was moved", href: "/pt-bookings"
+    }));
+    const afterMove = await call(client, clientWeek);
+    expect(afterMove.body.bookings).toEqual([expect.objectContaining({
+      id: direct.body.id, startsAt: new Date(thirdTime).toISOString(), status: "confirmed"
+    })]);
+    expect(afterMove.body.updates).toEqual([expect.objectContaining({
+      kind: "moved", startsAt: new Date(thirdTime).toISOString()
+    })]);
+    await call(client, `${clientApi}/updates/${initialUpdate}`, "PATCH");
+    expect((await call(client, clientWeek)).body.updates).toHaveLength(1);
+    await call(client, `${clientApi}/updates/${afterMove.body.updates[0].id}`, "PATCH");
+    expect((await call(client, "/me")).body.user.pt_booking_update).toBe(false);
+    expect((await call(client, clientWeek)).body.updates).toEqual([]);
+    expect((await call(manager, managerApi)).body.needsRebooking).toEqual([]);
+    expect((await call(client, `${clientApi}/requests/${direct.body.id}`, "PATCH", { action: "cancel", version: move.version })).status).toBe(409);
+    expect((await call(client, `${clientApi}/requests/${direct.body.id}`, "PATCH", { action: "cancel" })).status).toBe(200);
+    expect((await call(manager, managerApi)).body.needsRebooking).toEqual([expect.objectContaining({ clientId: client })]);
   });
 });

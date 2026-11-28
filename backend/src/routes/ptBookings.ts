@@ -3,7 +3,10 @@ import { z } from "zod";
 import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { isIosFreeEdition } from "../services/appEdition";
-import { changePtBooking, getPtBookingWeek, requestPtBooking, savePtAvailability } from "../services/ptBookingService";
+import {
+  bookPtForClient, changePtBooking, dismissPtBookingUpdate, getPtBookingWeek, getTrainerPtOpenings, requestPtBooking, savePtAvailability
+} from "../services/ptBookingService";
+import { notifyPtBookingClient } from "../services/ptBookingPushService";
 
 export const ptBookingsRouter = Router();
 
@@ -59,6 +62,34 @@ ptBookingsRouter.put("/pt-bookings/trainer/availability", requireAuth, bookable,
   } catch (error) { next(error); }
 });
 
+ptBookingsRouter.get("/pt-bookings/trainer/clients/:clientId/openings", requireAuth, bookable, trainerOnly, async (req, res, next) => {
+  try {
+    const clientId = z.uuid().parse(req.params.clientId);
+    const { week, bookingId } = z.object({ week: z.iso.date().optional(), bookingId: z.uuid().optional() }).parse(req.query);
+    res.json(await getTrainerPtOpenings(req.user!, clientId, week, bookingId));
+  } catch (error) { next(error); }
+});
+
+ptBookingsRouter.post("/pt-bookings/trainer/clients/:clientId/bookings", requireAuth, bookable, trainerOnly, async (req, res, next) => {
+  try {
+    const clientId = z.uuid().parse(req.params.clientId);
+    const { startsAt, move } = z.object({
+      startsAt: z.iso.datetime({ offset: true }),
+      move: z.object({ id: z.uuid(), version: z.int().positive() }).optional()
+    }).parse(req.body);
+    const { id, notice } = await bookPtForClient(req.user!, clientId, startsAt, move);
+    notifyPtBookingClient(notice);
+    res.status(move ? 200 : 201).json({ id });
+  } catch (error) { next(error); }
+});
+
+ptBookingsRouter.patch("/pt-bookings/client/updates/:id", requireAuth, bookable, clientOnly, async (req, res, next) => {
+  try {
+    await dismissPtBookingUpdate(req.user!.id, z.uuid().parse(req.params.id));
+    res.json({ saved: true });
+  } catch (error) { next(error); }
+});
+
 ptBookingsRouter.patch("/pt-bookings/:role/requests/:id", requireAuth, bookable, (req, res, next) => {
   const role = req.params.role;
   if (role === "client" || role === "trainer") return access[role](req, res, next);
@@ -67,9 +98,9 @@ ptBookingsRouter.patch("/pt-bookings/:role/requests/:id", requireAuth, bookable,
   try {
     const role = z.enum(["client", "trainer"]).parse(req.params.role);
     const id = z.uuid().parse(req.params.id);
-    const { action } = z.object({ action: z.enum(["confirm", "decline", "cancel"]) }).parse(req.body);
+    const { action, version } = z.object({ action: z.enum(["confirm", "decline", "cancel"]), version: z.int().positive().optional() }).parse(req.body);
     if (role === "client" && action !== "cancel") return res.status(403).json({ error: "Your trainer handles booking approvals." });
-    await changePtBooking(req.user!, role, id, action);
+    notifyPtBookingClient(await changePtBooking(req.user!, role, id, action, version));
     res.json({ saved: true });
   } catch (error) { next(error); }
 });

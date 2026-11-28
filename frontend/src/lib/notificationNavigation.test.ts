@@ -19,7 +19,8 @@ it("service-worker clicks and foreground routing enforce the same destination al
   const sandbox: Record<string,unknown>={self:{addEventListener:()=>{}}};
   runInNewContext(readFileSync("public/sw.js","utf8"),sandbox);
   const worker=sandbox.notificationHref as (value:unknown)=>string;
-  for(const href of [null,`/notifications/open?id=${id}`,"/food-log?meal=lunch","/workout-schedule","/journey","/coach","//evil.test","https://evil.test","/\\evil.test","/%2F%2Fevil","/notifications/open?id=bad","/admin"]) {
+  expect(worker("/pt-bookings")).toBe("/pt-bookings");
+  for(const href of [null,`/notifications/open?id=${id}`,"/food-log?meal=lunch","/workout-schedule","/pt-bookings","/pt-bookings?next=unsafe","/journey","/coach","//evil.test","https://evil.test","/\\evil.test","/%2F%2Fevil","/notifications/open?id=bad","/admin"]) {
     expect(worker(href)).toBe(safeNotificationHref(href));
   }
 });

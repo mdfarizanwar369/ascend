@@ -1,10 +1,11 @@
 import { connect } from "node:http2";
 import { createPrivateKey, sign } from "node:crypto";
+import { safeNotificationHref } from "@ascend/shared";
 import { getFirebaseMessaging } from "./firebase";
 import { env } from "../config/env";
 
 export type NudgePushDevice = { id: string; user_id: string; fcm_token: string; provider: string; platform: string; apns_environment: string | null; token_version: number };
-export type NudgePushPayload = { eventId: string; title: string; body: string; expiresAt: Date };
+export type NudgePushPayload = { eventId: string; title: string; body: string; expiresAt: Date; href?: string };
 export type NudgePushResult = { status: "accepted" | "retry" | "failed" | "unknown"; code: string; invalidToken?: boolean };
 export function apnsReady() { return Boolean(env.APNS_ENABLED && env.APNS_TEAM_ID && env.APNS_KEY_ID && env.APNS_PRIVATE_KEY); }
 export function providerReady(device: Pick<NudgePushDevice, "provider" | "apns_environment">) {
@@ -55,13 +56,14 @@ async function sendApns(device: NudgePushDevice, payload: NudgePushPayload): Pro
       let reason = ""; try { reason = JSON.parse(body).reason ?? ""; } catch { /* empty accepted response */ }
       finish(status ? classifyApns(status, reason) : { status: "unknown", code: "provider_empty_response" });
     });
-    request.end(JSON.stringify({ aps: { alert: { title: payload.title, body: payload.body }, sound: "default" }, href: `/notifications/open?id=${payload.eventId}` }));
+    request.end(JSON.stringify({ aps: { alert: { title: payload.title, body: payload.body }, sound: "default" },
+      href: safeNotificationHref(payload.href ?? `/notifications/open?id=${payload.eventId}`) }));
   });
 }
 export async function sendNudgePush(device: NudgePushDevice, payload: NudgePushPayload): Promise<NudgePushResult> {
   if (device.provider === "apns") return sendApns(device, payload);
   if (device.provider !== "fcm") return { status: "failed", code: "unsupported_provider" };
-  const href = `/notifications/open?id=${payload.eventId}`;
+  const href = safeNotificationHref(payload.href ?? `/notifications/open?id=${payload.eventId}`);
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([

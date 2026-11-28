@@ -56,6 +56,10 @@ meRouter.get("/me", requireAuth, async (req, res) => {
     `
     select u.*, trainer_user.full_name as assigned_trainer_name, current_trainer.status as trainer_status,
       coalesce(athlete_profile.enabled, false) as athlete_mode_enabled
+      ${env.PT_BOOKING_V1 && !isIosFreeEdition() && req.user!.primaryRole === "client" ? `, exists (
+        select 1 from pt_bookings booking where booking.client_id = u.id and booking.starts_at > now()
+          and booking.status = 'confirmed' and booking.client_update_id is not null and booking.client_update_read_at is null
+      ) as pt_booking_update` : ""}
     from users u
     left join trainers current_trainer on current_trainer.user_id = u.id
     left join trainers t on t.id = u.assigned_trainer_id

@@ -2,8 +2,11 @@ import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { TrainerClientDetailClient } from "@/components/trainer/TrainerClientDetailClient";
 
-export default async function TrainerClientDetailPage({ params }: { params: Promise<{ clientId: string }> }) {
-  const { clientId } = await params;
+export default async function TrainerClientDetailPage({ params, searchParams }: {
+  params: Promise<{ clientId: string }>;
+  searchParams?: Promise<{ ptDraft?: string }>;
+}) {
+  const [{ clientId }, query] = await Promise.all([params, searchParams]);
 
   return (
     <AppShell active="trainer">
@@ -14,7 +17,7 @@ export default async function TrainerClientDetailPage({ params }: { params: Prom
         requiredPlan="trainer_pro"
         planFeature="Trainer client profile"
       >
-        <TrainerClientDetailClient clientId={clientId} />
+        <TrainerClientDetailClient clientId={clientId} draftJustSaved={query?.ptDraft === "saved"} />
       </RoleGate>
     </AppShell>
   );

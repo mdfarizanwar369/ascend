@@ -8,11 +8,13 @@ import {
 } from "lucide-react";
 import {
   ptLocalDate, ptWeekStart, shiftPtDate, type PtAppointment, type PtAvailability, type PtBookingAction,
-  type PtBookingRole, type PtBookingSlot, type PtBookingWeek
+  type PtBookingRole, type PtBookingSlot, type PtBookingUpdate, type PtBookingWeek, type PtTrainerOpenings
 } from "@ascend/shared";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
-import { getPtBookingWeek, requestPtBooking, savePtAvailability, updatePtBooking } from "@/lib/ascendApi";
+import {
+  bookPtForClient, dismissPtBookingUpdate, getPtBookingWeek, getTrainerPtOpenings, requestPtBooking, savePtAvailability, updatePtBooking
+} from "@/lib/ascendApi";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 
@@ -26,6 +28,13 @@ const dayShort = new Intl.DateTimeFormat("en-SG", { weekday: "short", month: "sh
 const monthDay = new Intl.DateTimeFormat("en-SG", { month: "short", day: "numeric", timeZone: "UTC" });
 const weekdayFormat = new Intl.DateTimeFormat("en-SG", { weekday: "short", timeZone: "UTC" });
 const dayDate = (day: string) => new Date(`${day}T00:00:00Z`);
+type BookingEditor = { clientId: string; move?: PtAppointment };
+
+function formatAppointmentTime(value: string, timeZone: string) {
+  return new Intl.DateTimeFormat("en-SG", {
+    timeZone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true
+  }).format(new Date(value));
+}
 const statusStyle: Record<PtAppointment["status"], { label: string; className: string }> = {
   pending: { label: "Pending", className: "border-amber/25 bg-amber/10 text-amber" },
   confirmed: { label: "Confirmed", className: "border-lime/25 bg-lime/10 text-lime" },
@@ -39,18 +48,19 @@ const roleCopy = {
   manager: { title: "Gym PT schedule", eyebrow: "Gym operations", shell: "admin", roles: ["admin", "owner"] }
 } as const;
 
-export function PtBookingPage({ role }: { role: PtBookingRole }) {
+export function PtBookingPage({ role, bookingClientId }: { role: PtBookingRole; bookingClientId?: string }) {
   const copy = roleCopy[role];
   return (
     <AppShell active={copy.shell} showQuickCapture={false}>
       <RoleGate allowedRoles={[...copy.roles]} fallbackTitle="Schedule access required" fallbackMessage="Open the schedule from the Ascend account for your role.">
-        {ptBookingEnabled ? <BookingCalendar role={role} /> : <p className={`${panel} mt-4 text-sm text-zinc-400`}>PT booking is currently unavailable.</p>}
+        {ptBookingEnabled ? <BookingCalendar key={bookingClientId ?? role} role={role} bookingClientId={bookingClientId} />
+          : <p className={`${panel} mt-4 text-sm text-zinc-400`}>PT booking is currently unavailable.</p>}
       </RoleGate>
     </AppShell>
   );
 }
 
-function BookingCalendar({ role }: { role: PtBookingRole }) {
+function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; bookingClientId?: string }) {
   const [schedule, setSchedule] = useState<PtBookingWeek>();
   const [week, setWeek] = useState<string>();
   const [gymId, setGymId] = useState<string>();
@@ -63,6 +73,9 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
   const [editAvailability, setEditAvailability] = useState(false);
+  const [editor, setEditor] = useState<BookingEditor | undefined>(bookingClientId ? { clientId: bookingClientId } : undefined);
+  const [focusBookings, setFocusBookings] = useState(false);
+  const [rebookingLimit, setRebookingLimit] = useState(12);
 
   useEffect(() => {
     let current = true;
@@ -78,6 +91,12 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
     });
     return () => { current = false; };
   }, [role, week, gymId, refresh]);
+
+  useEffect(() => {
+    if (!focusBookings || loading) return;
+    document.getElementById("my-bookings-title")?.focus();
+    setFocusBookings(false);
+  }, [focusBookings, loading]);
 
   async function change(work: () => Promise<unknown>, success: string, onSuccess?: () => void) {
     setBusy(true);
@@ -132,11 +151,24 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
     selectDay();
   }
 
+  function closeEditor() {
+    setEditor(undefined);
+    setRefresh((value) => value + 1);
+    if (bookingClientId) window.history.replaceState(null, "", "/trainer/schedule");
+  }
+
+  function viewUpdate(update: PtBookingUpdate) {
+    void change(() => dismissPtBookingUpdate(update.id), "", () => {
+      selectWeek(ptWeekStart(dateFor(update.startsAt)));
+      setFocusBookings(true);
+    });
+  }
+
   function update(booking: PtAppointment, action: PtBookingAction) {
     if (role === "manager") return;
     if (action === "cancel" && !window.confirm("Cancel this PT booking?")) return;
     const message = { confirm: "Booking confirmed.", decline: "Request declined.", cancel: "Booking cancelled." };
-    void change(() => updatePtBooking(role, booking.id, action), message[action]);
+    void change(() => updatePtBooking(role, booking.id, action, booking.version), message[action]);
   }
 
   function renderBooking(booking: PtAppointment) {
@@ -145,6 +177,7 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
     const canCancel = role !== "manager" && future && (booking.status === "confirmed" || booking.status === "pending");
     const canConfirm = role === "trainer" && future && booking.status === "pending";
     const canOpenWorksheet = role === "trainer" && trainerSessionCaptureEnabled() && booking.status === "confirmed" && date === schedule?.today;
+    const canMove = role === "trainer" && future && booking.status === "confirmed";
     const state = statusStyle[booking.status];
     return (
       <li key={booking.id} className="rounded-2xl border border-line bg-ink/55 p-3.5">
@@ -163,12 +196,14 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
           <button type="button" className={primary} disabled={disabled} onClick={() => update(booking, "confirm")}><Check size={16} /> Confirm</button>
           <button type="button" className={secondary} disabled={disabled} onClick={() => update(booking, "decline")}>Decline</button>
         </div>}
-        {!canConfirm && (canCancel || canOpenWorksheet) && (
+        {!canConfirm && (canCancel || canOpenWorksheet || canMove) && (
             <div className="mt-2 flex flex-wrap items-center gap-x-4">
               {canOpenWorksheet &&
                 <Link prefetch={false} href={`/trainer/clients/${booking.clientId}/session`} className="inline-flex min-h-11 items-center gap-1.5 text-xs font-bold text-lime">
                   Open worksheet <ArrowRight size={14} aria-hidden="true" />
                 </Link>}
+              {canMove && <button type="button" className="min-h-11 text-xs font-semibold text-calm hover:underline" disabled={disabled}
+                onClick={() => { setEditAvailability(false); setEditor({ clientId: booking.clientId, move: booking }); }}>Move booking</button>}
               {canCancel && <button type="button" className="min-h-11 text-xs font-semibold text-zinc-300 underline-offset-4 hover:underline disabled:opacity-50" disabled={disabled} onClick={() => update(booking, "cancel")}>
                 {booking.status === "pending" ? "Withdraw request" : "Cancel booking"}
               </button>}
@@ -196,7 +231,7 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
           </div>
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-calm/25 bg-calm/10 text-calm"><CalendarDays size={24} aria-hidden="true" /></span>
         </div>
-        {role === "trainer" && schedule?.gym && (
+        {role === "trainer" && schedule?.gym && !editor && (
           <button type="button" onClick={() => setEditAvailability((value) => !value)} className={`${secondary} mt-4`} aria-expanded={editAvailability}>
             <SlidersHorizontal size={16} aria-hidden="true" /> {editAvailability ? "Close availability" : "Edit availability"}
           </button>
@@ -206,6 +241,7 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
             <select value={schedule?.gym?.id} onChange={(event) => {
               setWeek(undefined);
               setGymId(event.target.value);
+              setRebookingLimit(12);
               setLoading(true);
               selectDay();
             }} className={`${secondary} max-w-full`} disabled={disabled}>
@@ -216,12 +252,30 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
       </header>
       {notice && <p role="status" className="rounded-xl border border-lime/25 bg-lime/10 px-4 py-3 text-sm text-lime">{notice}</p>}
       {actionError && <p role="alert" className="rounded-xl border border-amber/25 bg-amber/10 px-4 py-3 text-sm text-amber">{actionError}</p>}
+      {editor && <TrainerBookingEditor key={editor.move?.id ?? editor.clientId} editor={editor} onClose={closeEditor}
+        onMove={(move) => setEditor({ clientId: move.clientId, move })}
+        onSaved={(startsAt, zone) => {
+          const nextWeek = ptWeekStart(ptLocalDate(new Date(startsAt), zone));
+          closeEditor();
+          selectWeek(nextWeek);
+          setNotice(editor.move ? "Booking moved. Your client has an update in Ascend." : "Session booked. Your client has an update in Ascend.");
+        }} />}
       {loadError && <div role="alert" className={panel}><p className="text-sm text-zinc-300">{loadError}</p><button type="button" className={`${secondary} mt-3`} onClick={() => setRefresh((value) => value + 1)}>Try again</button></div>}
       {!schedule && !loadError && <p role="status" className={`${panel} text-sm text-zinc-400`}>Loading PT schedule…</p>}
       {schedule && !schedule.gym && <p className={`${panel} text-sm text-zinc-300`}>{role === "client" ? "You need an assigned PT to request a session." : "There’s no active gym schedule for this account."}</p>}
       {schedule?.gym && editAvailability && role === "trainer" && <AvailabilityEditor initial={schedule.availability ?? []} disabled={disabled}
         onSave={(availability) => change(() => savePtAvailability(availability), "Availability saved.", () => setEditAvailability(false))} />}
-      {schedule && (schedule.gym || (role === "client" && bookings.length > 0)) && (
+      {role === "client" && Boolean(schedule?.updates?.length) && <section className={panel} aria-labelledby="pt-updates-title">
+        <h2 id="pt-updates-title" className="text-lg font-semibold">Booking updates</h2>
+        <ul className="mt-3 grid gap-2">
+          {schedule?.updates?.map((update) => <li key={update.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-lime/25 bg-lime/5 px-3 py-2">
+            <div><p className="text-sm font-semibold text-lime">{update.kind === "moved" ? "Your PT booking moved" : "Your PT booking is confirmed"}</p>
+              <p className="mt-1 text-xs text-zinc-300">{formatAppointmentTime(update.startsAt, update.timeZone)}</p></div>
+            <button type="button" className={secondary} disabled={disabled} onClick={() => viewUpdate(update)}>View booking</button>
+          </li>)}
+        </ul>
+      </section>}
+      {!editor && schedule && (schedule.gym || (role === "client" && bookings.length > 0)) && (
         <>
           <section className={panel} aria-label="Calendar week" aria-busy={loading}>
             <div className="flex items-center justify-between gap-2">
@@ -276,7 +330,7 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
                   onClick={() => { if (selectedSlot) requestSlot(selectedSlot); }}>Request session <ArrowRight size={16} aria-hidden="true" /></button>}
               </section>}
               <section className={panel} aria-labelledby="my-bookings-title">
-                <h2 id="my-bookings-title" className="text-lg font-semibold">My bookings</h2>
+                <h2 id="my-bookings-title" tabIndex={-1} className="scroll-mt-24 text-lg font-semibold">My bookings</h2>
                 {bookings.length ? <ul className="mt-3 grid gap-2">{bookings.map(renderBooking)}</ul> : <p className="mt-1 text-sm text-zinc-400">No PT bookings this week.</p>}
               </section>
             </>
@@ -297,10 +351,130 @@ function BookingCalendar({ role }: { role: PtBookingRole }) {
               </section>
             </div>
           )}
+          {role === "manager" && schedule.needsRebooking && <section className={panel} aria-labelledby="rebooking-title">
+            <div className="flex items-center gap-2"><CalendarClock size={19} className="text-calm" aria-hidden="true" />
+              <h2 id="rebooking-title" className="text-lg font-semibold">Needs rebooking</h2></div>
+            <p className="mt-1 text-sm text-zinc-400">Clients coached in the last 14 days with no upcoming booking or request.</p>
+            {schedule.needsRebooking.length ? <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+              {schedule.needsRebooking.slice(0, rebookingLimit).map((client) => <li key={client.clientId} className="rounded-xl border border-line bg-ink/55 p-3">
+                <p className="font-semibold">{client.clientName}</p>
+                <p className="mt-1 text-xs text-zinc-300">PT {client.trainerName} · Last coached {dayShort.format(dayDate(dateFor(client.lastSessionAt)))}</p>
+              </li>)}
+            </ul> : <p className="mt-3 text-sm text-zinc-300">No clients need rebooking.</p>}
+            {schedule.needsRebooking.length > rebookingLimit && <button type="button" className={`${secondary} mt-3`}
+              onClick={() => setRebookingLimit((limit) => limit + 12)}>Show more clients</button>}
+          </section>}
         </>
       )}
     </div>
   );
+}
+
+function TrainerBookingEditor({ editor, onClose, onMove, onSaved }: {
+  editor: BookingEditor;
+  onClose: () => void;
+  onMove: (booking: PtAppointment) => void;
+  onSaved: (startsAt: string, timeZone: string) => void;
+}) {
+  const [openings, setOpenings] = useState<PtTrainerOpenings>();
+  const [week, setWeek] = useState<string>();
+  const [day, setDay] = useState<string>();
+  const [selected, setSelected] = useState<string>();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+
+  useEffect(() => {
+    let current = true;
+    setLoading(true);
+    getTrainerPtOpenings(editor.clientId, week, editor.move?.id).then((result) => {
+      if (current) setOpenings(result);
+    }).catch((error: unknown) => {
+      if (current) {
+        setOpenings(undefined);
+        setError(error instanceof Error ? error.message : "Could not load available times.");
+      }
+    }).finally(() => { if (current) setLoading(false); });
+    return () => { current = false; };
+  }, [editor.clientId, editor.move?.id, week, refresh]);
+
+  const timeZone = openings?.timeZone ?? "Asia/Kuala_Lumpur";
+  const dateFor = (startsAt: string) => ptLocalDate(new Date(startsAt), timeZone);
+  const slots = (openings?.slots ?? []).filter((slot) => !editor.move || Date.parse(slot.startsAt) !== Date.parse(editor.move.startsAt));
+  const dates = [...new Set(slots.map((slot) => dateFor(slot.startsAt)))];
+  const selectedDay = day ?? dates[0];
+  const currentSlots = slots.filter((slot) => dateFor(slot.startsAt) === selectedDay);
+  const timeFormat = new Intl.DateTimeFormat("en-SG", { timeZone, hour: "numeric", minute: "2-digit", hour12: true });
+  const disabled = loading || saving;
+
+  function changeWeek(next: string) {
+    setLoading(true);
+    setError("");
+    setSelected(undefined);
+    setDay(undefined);
+    setWeek(next);
+  }
+
+  async function save() {
+    if (!selected || disabled) return;
+    setSaving(true);
+    setError("");
+    try {
+      await bookPtForClient(editor.clientId, selected, editor.move ? { id: editor.move.id, version: editor.move.version } : undefined);
+      onSaved(selected, timeZone);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not save this booking.");
+      setSelected(undefined);
+      setDay(undefined);
+      setRefresh((value) => value + 1);
+    } finally { setSaving(false); }
+  }
+
+  return <section className={panel} aria-labelledby="trainer-booking-editor-title">
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 id="trainer-booking-editor-title" className="text-xl font-semibold">{editor.move ? "Move PT booking" : "Book next session"}</h2>
+        {openings && <p className="mt-1 text-sm text-zinc-400">{openings.clientName} · 60 min · Gym local time</p>}
+      </div>
+      <button type="button" className={secondary} disabled={saving} onClick={onClose}>Close</button>
+    </div>
+    {editor.move && openings && <p className="mt-3 text-sm text-zinc-300">Current time · {formatAppointmentTime(editor.move.startsAt, timeZone)}</p>}
+    {!editor.move && openings?.nextBooking && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-calm/25 bg-calm/5 p-3">
+      <p className="text-sm text-zinc-300">Already booked · {formatAppointmentTime(openings.nextBooking.startsAt, timeZone)}</p>
+      <button type="button" className={secondary} disabled={disabled} onClick={() => { if (openings.nextBooking) onMove(openings.nextBooking); }}>Move that session</button>
+    </div>}
+    {error && <p role="alert" className="mt-3 rounded-xl border border-amber/25 bg-amber/10 p-3 text-sm text-amber">{error}</p>}
+    {loading && !openings && <p role="status" className="mt-3 text-sm text-zinc-400">Loading available times…</p>}
+    {openings && <>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">{monthDay.format(dayDate(openings.week))} – {monthDay.format(dayDate(shiftPtDate(openings.week, 6)))}</p>
+        <div className="flex gap-2">
+          <button type="button" className={`${secondary} w-11 px-0`} aria-label="Previous available week"
+            disabled={disabled || openings.week <= ptWeekStart(openings.today)} onClick={() => changeWeek(shiftPtDate(openings.week, -7))}><ChevronLeft size={18} /></button>
+          <button type="button" className={`${secondary} w-11 px-0`} aria-label="Next available week"
+            disabled={disabled || openings.week >= ptWeekStart(shiftPtDate(openings.today, 27))} onClick={() => changeWeek(shiftPtDate(openings.week, 7))}><ChevronRight size={18} /></button>
+        </div>
+      </div>
+      {dates.length ? <>
+        <div className="mt-3 flex flex-wrap gap-2" aria-label="Available days">
+          {dates.map((date) => <button type="button" key={date} aria-pressed={selectedDay === date} disabled={disabled}
+            className={selectedDay === date ? selectedButton : secondary} onClick={() => { setDay(date); setSelected(undefined); }}>
+            {dayShort.format(dayDate(date))}
+          </button>)}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 min-[370px]:grid-cols-3 sm:grid-cols-4" aria-label="Available times">
+          {currentSlots.map((slot) => <button type="button" key={slot.startsAt} aria-pressed={selected === slot.startsAt} disabled={disabled}
+            className={selected === slot.startsAt ? selectedButton : secondary} onClick={() => setSelected(slot.startsAt)}>
+            {timeFormat.format(new Date(slot.startsAt)).toUpperCase()}
+          </button>)}
+        </div>
+        <button type="button" disabled={disabled || !selected} className={`${primary} mt-4 w-full sm:w-auto`} onClick={() => void save()}>
+          <Check size={17} aria-hidden="true" /> {editor.move ? "Confirm new time" : "Confirm booking"}
+        </button>
+      </> : <p className="mt-3 text-sm text-zinc-400">No openings this week. Try the next week or adjust weekly availability.</p>}
+    </>}
+  </section>;
 }
 
 function AvailabilityEditor({ initial, disabled, onSave }: {

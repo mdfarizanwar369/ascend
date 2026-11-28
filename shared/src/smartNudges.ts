@@ -83,7 +83,7 @@ export function safeNotificationHref(input: unknown): string {
   if (path === "/food-log") return !params || /^meal=(breakfast|lunch|dinner)$/.test(params) ? input : "/food-log";
   if (path === "/coach" && params === "workout=1") return input;
   if (path.startsWith("/coach-homework/") && !params && nudgeUuid.test(path.slice("/coach-homework/".length))) return path;
-  return !params && ["/dashboard", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score"].includes(path) ? path : "/dashboard";
+  return !params && ["/dashboard", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score", "/pt-bookings"].includes(path) ? path : "/dashboard";
 }
 export type NudgeEligibilityFacts = {
   now: Date; due: Date; expires: Date; category: NudgeCategory; rollout: boolean; device: boolean;

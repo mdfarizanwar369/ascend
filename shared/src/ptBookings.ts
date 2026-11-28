@@ -1,6 +1,7 @@
 export type PtBookingRole = "client" | "trainer" | "manager";
 export type PtBookingStatus = "pending" | "confirmed" | "declined" | "cancelled" | "expired";
 export type PtBookingAction = "confirm" | "decline" | "cancel";
+export type PtBookingUpdateKind = "confirmed" | "moved";
 
 export interface PtAvailability {
   weekday: number;
@@ -16,9 +17,33 @@ export interface PtAppointment {
   startsAt: string;
   endsAt: string;
   status: PtBookingStatus;
+  version: number;
 }
 
 export type PtBookingSlot = Pick<PtAppointment, "startsAt" | "endsAt">;
+
+export interface PtBookingUpdate {
+  id: string;
+  kind: PtBookingUpdateKind;
+  startsAt: string;
+  timeZone: string;
+}
+
+export interface PtRebookingClient {
+  clientId: string;
+  clientName: string;
+  trainerName: string;
+  lastSessionAt: string;
+}
+
+export interface PtTrainerOpenings {
+  clientName: string;
+  today: string;
+  week: string;
+  timeZone: string;
+  slots: PtBookingSlot[];
+  nextBooking: PtAppointment | null;
+}
 
 export interface PtBookingWeek {
   enabled: boolean;
@@ -31,6 +56,8 @@ export interface PtBookingWeek {
   availability?: PtAvailability[];
   slots?: PtBookingSlot[];
   bookings: PtAppointment[];
+  updates?: PtBookingUpdate[];
+  needsRebooking?: PtRebookingClient[];
 }
 
 const dayMilliseconds = 86_400_000;

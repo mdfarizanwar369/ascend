@@ -48,7 +48,6 @@ import {
   CoachPresenceSettings,
   AscendMemoryResponse
 } from "@/lib/ascendApi";
-import { BackButton } from "@/components/BackButton";
 import { localDateKey } from "@/lib/date";
 import { ProgressComparisonCard } from "@/components/ProgressComparisonCard";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
@@ -58,6 +57,7 @@ import { buildCoachingTimelineGroups, CoachingTimelineGroups } from "@/component
 import { TrainerHomeworkPanel } from "@/components/trainer/TrainerHomeworkPanel";
 import { TrainerClientInsightsPanel } from "@/components/trainer/TrainerClientInsights";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
+import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import { trainerInsightsEnabled } from "@/lib/trainerInsightsFlag";
 
 type ClientProfile = Awaited<ReturnType<typeof getTrainerClient>>["client"];
@@ -290,7 +290,7 @@ function WorkoutDetail({ workout }: { workout: BurnLog }) {
   );
 }
 
-export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
+export function TrainerClientDetailClient({ clientId, draftJustSaved = false }: { clientId: string; draftJustSaved?: boolean }) {
   const sessionCaptureEnabled = trainerSessionCaptureEnabled();
   const [client, setClient] = useState<ClientProfile | null>(null);
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
@@ -639,9 +639,6 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
   return (
     <>
       <section className="sticky top-0 z-30 -mx-1 rounded-b-2xl border-b border-line bg-ink/95 px-1 pb-3 pt-3 backdrop-blur md:top-4 md:mx-0 md:rounded-2xl md:border md:px-4">
-        <div className="mb-3">
-          <BackButton fallbackHref="/trainer" />
-        </div>
         <div className="flex items-center gap-3">
           <ProfileAvatar src={client?.profile_photo_url} name={client?.full_name} size="md" />
           <div className="min-w-0">
@@ -659,11 +656,28 @@ export function TrainerClientDetailClient({ clientId }: { clientId: string }) {
         ) : null}
         {client?.id ? (
           <div className="mt-4 grid grid-cols-3 gap-2">
-            {sessionCaptureEnabled ? (
+            {sessionCaptureEnabled && draftJustSaved ? (
+              <div className="col-span-3 rounded-2xl border border-lime/30 bg-lime/10 p-3 sm:p-4">
+                <div role="status" className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lime/15 text-lime"><CheckCircle2 size={21} aria-hidden="true" /></span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white">PT draft saved</p>
+                    <p className="mt-0.5 text-sm text-zinc-300">Pick up where you left off.</p>
+                  </div>
+                </div>
+                <Link href={`/trainer/clients/${client.id}/session`} className="ascend-pressable mt-3 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-lime px-4 text-sm font-bold text-ink">
+                  Resume PT draft <ArrowRight size={17} aria-hidden="true" />
+                </Link>
+              </div>
+            ) : sessionCaptureEnabled ? (
               <Link href={`/trainer/clients/${client.id}/session`} className="col-span-3 flex h-14 items-center justify-center gap-2 rounded-2xl bg-lime text-base font-bold text-ink">
                 <Dumbbell size={19} /> Record PT Session
               </Link>
             ) : null}
+            {ptBookingEnabled && <Link href={`/trainer/schedule?clientId=${client.id}`} prefetch={false}
+              className="col-span-3 flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-calm/30 bg-calm/5 text-sm font-semibold text-calm">
+              Book PT session <ArrowRight size={16} aria-hidden="true" />
+            </Link>}
             <Link
               href={`/messages?userId=${client.id}`}
               className="flex h-12 items-center justify-center rounded-2xl bg-lime font-semibold text-ink"

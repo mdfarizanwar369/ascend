@@ -16,7 +16,7 @@ function notificationHref(value) {
   if (new RegExp("^/(notifications/open|workout-schedule)\\?id=" + uuid + "$", "i").test(value)) return value;
   if (/^\/food-log\?meal=(breakfast|lunch|dinner)$/.test(value)) return value;
   if (value === "/coach?workout=1" || new RegExp("^/coach-homework/" + uuid + "$", "i").test(value)) return value;
-  if (["/dashboard", "/food-log", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score", "/workout-schedule"].includes(value)) return value;
+  if (["/dashboard", "/food-log", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score", "/workout-schedule", "/pt-bookings"].includes(value)) return value;
   return "/dashboard";
 }
 

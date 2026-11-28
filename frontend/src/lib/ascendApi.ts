@@ -27,7 +27,7 @@ import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
 import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
 import type { BeginnerProgrammePrescription, BeginnerProgrammeSummary } from "@ascend/shared";
-import type { PtAvailability, PtBookingAction, PtBookingRole, PtBookingWeek } from "@ascend/shared";
+import type { PtAvailability, PtBookingAction, PtBookingRole, PtBookingWeek, PtTrainerOpenings } from "@ascend/shared";
 export type { BeginnerProgrammeSummary } from "@ascend/shared";
 
 export interface ProgressComparison {
@@ -337,6 +337,7 @@ export function getMe() {
       goal_version?: string | number | null;
       gym_id?: string | null;
       assigned_trainer_id?: string | null;
+      pt_booking_update?: boolean;
       assigned_trainer_name?: string | null;
       trainer_status?: string | null;
       profile_photo_url?: string | null;
@@ -2646,15 +2647,37 @@ export function requestPtBooking(trainerId: string, startsAt: string) {
   });
 }
 
+export function getTrainerPtOpenings(clientId: string, week?: string, bookingId?: string) {
+  const params = new URLSearchParams();
+  if (week) params.set("week", week);
+  if (bookingId) params.set("bookingId", bookingId);
+  const search = params.toString();
+  return authed<PtTrainerOpenings>(`/pt-bookings/trainer/clients/${clientId}/openings${search ? `?${search}` : ""}`);
+}
+
+export function bookPtForClient(clientId: string, startsAt: string, move?: { id: string; version: number }) {
+  return authed<{ id: string }>(`/pt-bookings/trainer/clients/${clientId}/bookings`, {
+    method: "POST", body: JSON.stringify({ startsAt, move })
+  });
+}
+
+export function dismissPtBookingUpdate(id: string) {
+  return authed<{ saved: boolean }>(`/pt-bookings/client/updates/${id}`, { method: "PATCH" })
+    .then((response) => {
+      invalidateCached("me:");
+      return response;
+    });
+}
+
 export function savePtAvailability(availability: PtAvailability[]) {
   return authed<{ saved: boolean }>("/pt-bookings/trainer/availability", {
     method: "PUT", body: JSON.stringify({ availability })
   });
 }
 
-export function updatePtBooking(role: Exclude<PtBookingRole, "manager">, id: string, action: PtBookingAction) {
+export function updatePtBooking(role: Exclude<PtBookingRole, "manager">, id: string, action: PtBookingAction, version: number) {
   return authed<{ saved: boolean }>(`/pt-bookings/${role}/requests/${id}`, {
-    method: "PATCH", body: JSON.stringify({ action })
+    method: "PATCH", body: JSON.stringify({ action, version })
   });
 }
 export function saveWorkoutSchedule(input: { id?: string; version?: number; title: string; startsAt: string; leadMinutes: number; status: ScheduledWorkout["status"] }) {

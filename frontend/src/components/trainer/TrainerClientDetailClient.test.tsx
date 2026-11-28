@@ -25,7 +25,6 @@ const api = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/ascendApi", () => api);
-vi.mock("@/components/BackButton", () => ({ BackButton: () => <button type="button">Back</button> }));
 vi.mock("@/components/ProfileAvatar", () => ({ ProfileAvatar: () => <span>Avatar</span> }));
 vi.mock("@/components/ProgressComparisonCard", () => ({ ProgressComparisonCard: () => <div>Progress comparison loaded</div> }));
 vi.mock("@/components/athlete/AthleteCoachPanel", () => ({ AthleteCoachPanel: () => <div>Athlete panel loaded</div> }));
@@ -99,6 +98,12 @@ describe("TrainerClientDetailClient progressive workflow", () => {
   });
 
   afterEach(cleanup);
+
+  it("shows the saved draft confirmation and a direct way back to the worksheet", async () => {
+    render(<TrainerClientDetailClient clientId="client-1" draftJustSaved />);
+    expect(await screen.findByText("PT draft saved")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Resume PT draft" })).toHaveAttribute("href", "/trainer/clients/client-1/session");
+  });
 
   it("keeps secondary tools lazy and marks messages read only when Messages opens", async () => {
     render(<TrainerClientDetailClient clientId="client-1" />);

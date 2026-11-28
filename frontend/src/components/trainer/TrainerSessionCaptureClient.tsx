@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatTrainerSessionPackageProgress, TRAINER_SESSION_FOCUSES, TRAINER_SESSION_RESPONSES, type TrainerCoachingSession, type TrainerSessionNarratives, type TrainerSessionWorksheet, type WorkoutCaptureDraft, type WorkoutCaptureExercise } from "@ascend/shared";
-import { Check, ChevronDown, ChevronUp, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
+import { Bookmark, CalendarPlus, Check, ChevronDown, ChevronUp, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
+import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import {
   cancelTrainerCoachingSession,
   completeTrainerCoachingSession,
@@ -61,6 +62,7 @@ function readLocalDraft(clientId: string, sessionId: string, version: number) {
 export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) {
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("loading");
+  const [resumedDraft, setResumedDraft] = useState(false);
   const [session, setSession] = useState<TrainerCoachingSession | null>(null);
   const [previousWorkout, setPreviousWorkout] = useState<WorkoutCaptureDraft | null>(null);
   const [lastSession, setLastSession] = useState<TrainerCoachingSession | null>(null);
@@ -103,8 +105,10 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
           setPhase("unavailable");
           return;
         }
-        if (overview.activeSession) resumeSession(overview.activeSession);
-        else setPhase("start");
+        if (overview.activeSession) {
+          setResumedDraft(true);
+          resumeSession(overview.activeSession);
+        } else setPhase("start");
       })
       .catch((error) => {
         if (!mounted) return;
@@ -164,7 +168,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       const saved = await saveDraftSnapshot(session);
       clearLocalDraft(session.id);
       setSession(saved.session);
-      router.push(`/trainer/clients/${clientId}`);
+      router.push(`/trainer/clients/${clientId}?ptDraft=saved`);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not save your draft. Try again.");
     } finally {
@@ -275,7 +279,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       if (!result.cancelled) throw new Error("This session changed elsewhere. Reopen it to continue.");
       clearLocalDraft(session.id);
       setSession(null); setDraft(null); setRawInput(""); setNarratives(emptyNarratives);
-      setWorksheet({}); setShareClientRecap(false); setExpandedExercise(null); setShorthandOpen(false);
+      setWorksheet({}); setShareClientRecap(false); setExpandedExercise(null); setShorthandOpen(false); setResumedDraft(false);
       setPhase("start"); setStatus("Draft discarded.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Could not discard the draft."); }
     finally { setBusy(false); }
@@ -286,10 +290,15 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       <div className="ascend-workspace-frame space-y-4">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref={`/trainer/clients/${clientId}`} disabled={busy} />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-sm text-zinc-400">PT session{session ? ` · ${new Date(session.startedAt).toLocaleDateString()}` : ""}</p>
-            <h1 className="text-2xl font-semibold">{title}</h1>
+            <h1 className="truncate text-2xl font-semibold">{title}</h1>
           </div>
+          {resumedDraft && (phase === "capture" || phase === "review") ? (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-lime/25 bg-lime/10 px-2.5 py-1.5 text-xs font-semibold text-lime">
+              <Bookmark size={13} aria-hidden="true" /> Draft resumed
+            </span>
+          ) : null}
         </header>
 
         {status ? <p role="status" className="rounded-xl border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
@@ -346,7 +355,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               </button>
             </details>
             <div className="mt-3 flex flex-wrap gap-x-5">
-              <button type="button" disabled={busy || !validPackageNumbers} onClick={saveDraftAndExit} className="min-h-11 text-sm font-semibold text-calm disabled:opacity-40">Save draft & exit</button>
+              <button type="button" disabled={busy || !validPackageNumbers} onClick={saveDraftAndExit} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-calm disabled:opacity-40"><Bookmark size={16} aria-hidden="true" /> Save draft & exit</button>
               <button type="button" disabled={busy} onClick={discard} className="min-h-11 text-sm text-zinc-400"><Trash2 className="mr-2 inline" size={16} />Discard draft</button>
             </div>
           </section>
@@ -476,7 +485,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               <button disabled={busy || !canSave} onClick={complete} className="min-h-12 w-full rounded-xl bg-lime px-4 font-bold text-ink disabled:opacity-40">
                 <Save className="mr-2 inline" size={17} />{shareClientRecap ? "Save & share recap" : "Save session"}
               </button>
-              <button type="button" disabled={busy || !validPackageNumbers} onClick={saveDraftAndExit} className="min-h-11 w-full rounded-xl border border-line px-4 text-sm font-semibold text-white disabled:opacity-40">Save draft & exit</button>
+              <button type="button" disabled={busy || !validPackageNumbers} onClick={saveDraftAndExit} className={`ascend-pressable flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold disabled:opacity-40 ${canSave ? "border-line bg-ink text-white" : "border-lime bg-lime text-ink"}`}><Bookmark size={17} aria-hidden="true" /> Save draft & exit</button>
             </section>
           </div>
         ) : null}
@@ -486,7 +495,10 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
             <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-lime text-ink"><Check size={26} /></span>
             <h2 className="mt-3 text-xl font-semibold">Session saved</h2>
             <p className="mt-2 text-zinc-300">{session?.shareClientRecap ? "The recap is available to the client." : "The next-session plan is ready for the coach."}</p>
-            <Link href={`/trainer/clients/${clientId}`} className="mx-auto mt-4 flex min-h-12 max-w-md items-center justify-center rounded-xl bg-lime font-bold text-ink">Return to client</Link>
+            {ptBookingEnabled && <Link href={`/trainer/schedule?clientId=${clientId}`} prefetch={false} className="mx-auto mt-4 flex min-h-12 max-w-md items-center justify-center gap-2 rounded-xl bg-lime font-bold text-ink">
+              <CalendarPlus size={19} aria-hidden="true" /> Book next session
+            </Link>}
+            <Link href={`/trainer/clients/${clientId}`} className={`mx-auto mt-3 flex min-h-12 max-w-md items-center justify-center rounded-xl font-bold ${ptBookingEnabled ? "border border-lime/30 text-lime" : "bg-lime text-ink"}`}>Return to client</Link>
           </section>
         ) : null}
       </div>

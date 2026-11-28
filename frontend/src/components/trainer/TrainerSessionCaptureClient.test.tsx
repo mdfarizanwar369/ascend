@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   push: vi.fn()
 }));
 vi.mock("@/lib/ascendApi", () => api);
+vi.mock("@/lib/ptBookingFlag", () => ({ ptBookingEnabled: true }));
 vi.mock("@/components/BackButton", () => ({ BackButton: () => <button type="button">Back</button> }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: api.push }) }));
 
@@ -58,6 +59,7 @@ describe("trainer session continuity", () => {
     })));
     expect(api.interpretTrainerCoachingSession).not.toHaveBeenCalled();
     expect(await screen.findByRole("heading", { name: "Session saved" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Book next session" })).toHaveAttribute("href", "/trainer/schedule?clientId=client-1");
   });
 
   it("requires a client-facing message before sharing a recap", async () => {
@@ -111,7 +113,7 @@ describe("trainer session continuity", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Share a recap with the client" }));
     expect(screen.getByRole("button", { name: "Save & share recap" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Save draft & exit" }));
-    await waitFor(() => expect(api.push).toHaveBeenCalledWith("/trainer/clients/client-1"));
+    await waitFor(() => expect(api.push).toHaveBeenCalledWith("/trainer/clients/client-1?ptDraft=saved"));
     expect(api.updateTrainerCoachingSession).toHaveBeenCalledWith("client-1", "session-1", expect.objectContaining({
       version: 1,
       worksheet: { sessionNumber: 3, sessionsPurchased: 10 },
@@ -124,6 +126,7 @@ describe("trainer session continuity", () => {
     window.localStorage.setItem("ascend:trainer-session-draft:client-1:session-1", JSON.stringify({ version: 1, rawInput: "Old shorthand", durationMinutes: 20 }));
     render(<TrainerSessionCaptureClient clientId="client-1" />);
     expect(await screen.findByLabelText("Session number")).toHaveValue(3);
+    expect(screen.getByText("Draft resumed")).toBeVisible();
     expect(screen.getByLabelText("Plan for next session")).toHaveValue("Check the new setup.");
     expect(screen.getByRole("button", { name: /New exercise/ })).toBeVisible();
     expect(screen.getByRole("checkbox", { name: "Share a recap with the client" })).toBeChecked();

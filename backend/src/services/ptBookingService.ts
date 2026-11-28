@@ -1,18 +1,20 @@
 import {
   ptLocalDate, ptWeekStart, shiftPtDate,
-  type PtAppointment, type PtAvailability, type PtBookingAction, type PtBookingRole, type PtBookingSlot, type PtBookingWeek
+  type PtAppointment, type PtAvailability, type PtBookingAction, type PtBookingRole, type PtBookingSlot, type PtBookingWeek,
+  type PtBookingUpdate, type PtBookingUpdateKind, type PtRebookingClient, type PtTrainerOpenings
 } from "@ascend/shared";
 import { pool, query, withQueryClient } from "../db/pool";
 import type { AuthUser } from "../middleware/auth";
 import { getAdminGymScope, scopeAllowsGym } from "./adminScopeService";
 
 type Gym = NonNullable<PtBookingWeek["gym"]>;
-type Coach = Gym & { trainerId: string; trainerName: string };
+type Coach = Gym & { trainerId: string; trainerName: string; clientName: string };
 type Participant = "client" | "trainer";
+export type PtClientNotice = { id: string; clientId: string; kind: PtBookingUpdateKind };
 
 const gymFields = 'gym.id, gym.name, gym.timezone as "timeZone"';
 const appointmentFields = `booking.id, booking.client_id as "clientId", member.full_name as "clientName",
-  trainer_user.full_name as "trainerName", booking.starts_at as "startsAt", booking.ends_at as "endsAt",
+  trainer_user.full_name as "trainerName", booking.starts_at as "startsAt", booking.ends_at as "endsAt", booking.version,
   case when booking.status = 'pending' and booking.starts_at <= now() then 'expired' else booking.status end as status`;
 
 function bookingError(status: number, message: string) {
@@ -28,23 +30,27 @@ async function inTransaction<T>(work: () => Promise<T>) {
     return result;
   } catch (error) {
     await connection.query("rollback");
+    if ((error as { code?: string }).code === "23P01") {
+      throw bookingError(409, "This time overlaps a confirmed booking. Pick another time.");
+    }
     throw error;
   } finally {
     connection.release();
   }
 }
 
-async function clientCoach(clientId: string, lock = false) {
+async function clientCoach(clientId: string, lock = false, trainerId?: string) {
   const result = await query<Coach>(`
-    select ${gymFields}, trainer.id as "trainerId", trainer_user.full_name as "trainerName"
+    select ${gymFields}, trainer.id as "trainerId", trainer_user.full_name as "trainerName", member.full_name as "clientName"
     from users member
     join trainers trainer on trainer.id = member.assigned_trainer_id and trainer.gym_id = member.gym_id
     join users trainer_user on trainer_user.id = trainer.user_id
     join gyms gym on gym.id = trainer.gym_id
     where member.id = $1 and member.status = 'active' and member.primary_role = 'client'
       and trainer.status = 'active' and trainer_user.status = 'active'
+      and ($2::uuid is null or trainer.id = $2)
     ${lock ? "for no key update of trainer for share of member, trainer_user" : ""}
-  `, [clientId]);
+  `, [clientId, trainerId ?? null]);
   return result.rows[0] ?? null;
 }
 
@@ -58,7 +64,8 @@ async function trainerGym(user: AuthUser, lock = false) {
   return result.rows[0] ?? null;
 }
 
-async function getSlots(coach: Coach, clientId: string, week: string, today: string, at?: string) {
+async function getSlots(coach: Coach, clientId: string, week: string, today: string,
+  options: { at?: string; ignoreBookingId?: string; trainerBooking?: boolean } = {}) {
   const result = await query<PtBookingSlot>(`
     with days as (
       select $3::date + day_offset as day
@@ -79,17 +86,63 @@ async function getSlots(coach: Coach, clientId: string, week: string, today: str
       and not exists (
         select 1 from pt_bookings booking
         where booking.trainer_id = $1 and booking.status = 'confirmed'
+          and booking.id is distinct from $7::uuid
           and booking.starts_at > slots.starts_at - interval '1 hour'
           and booking.starts_at < slots.starts_at + interval '1 hour'
       )
       and not exists (
         select 1 from pt_bookings booking
-        where booking.client_id = $2 and booking.status in ('pending', 'confirmed')
+        where booking.client_id = $2 and (booking.status = 'confirmed' or ($8 and booking.status = 'pending'))
+          and booking.id is distinct from $7::uuid
           and booking.starts_at > slots.starts_at - interval '1 hour'
           and booking.starts_at < slots.starts_at + interval '1 hour'
       )
     order by starts_at
-  `, [coach.trainerId, clientId, week, today, coach.timeZone, at ?? null]);
+  `, [coach.trainerId, clientId, week, today, coach.timeZone, options.at ?? null, options.ignoreBookingId ?? null, !options.trainerBooking]);
+  return result.rows;
+}
+
+export async function listPtBookingUpdates(clientId: string) {
+  const result = await query<PtBookingUpdate>(`
+    select booking.client_update_id as id, booking.client_update_kind as kind, booking.starts_at as "startsAt",
+      gym.timezone as "timeZone"
+    from pt_bookings booking join gyms gym on gym.id = booking.gym_id
+    where booking.client_id = $1 and booking.client_update_id is not null and booking.client_update_read_at is null
+      and booking.status = 'confirmed' and booking.starts_at > now()
+    order by booking.updated_at desc limit 5
+  `, [clientId]);
+  return result.rows;
+}
+
+export async function dismissPtBookingUpdate(clientId: string, updateId: string) {
+  await query(`
+    update pt_bookings set client_update_read_at = now()
+    where client_id = $1 and client_update_id = $2 and client_update_read_at is null
+  `, [clientId, updateId]);
+}
+
+async function getRebookingClients(gymId: string) {
+  const result = await query<PtRebookingClient>(`
+    with latest as (
+      select client_id, max(completed_at) as completed_at
+      from trainer_coaching_sessions
+      where gym_id = $1 and status = 'completed' and completed_at between now() - interval '14 days' and now()
+      group by client_id
+    )
+    select member.id as "clientId", member.full_name as "clientName", trainer_user.full_name as "trainerName",
+      latest.completed_at as "lastSessionAt"
+    from latest
+    join users member on member.id = latest.client_id and member.primary_role = 'client'
+      and member.status = 'active' and member.gym_id = $1
+    join trainers trainer on trainer.id = member.assigned_trainer_id and trainer.gym_id = $1 and trainer.status = 'active'
+    join users trainer_user on trainer_user.id = trainer.user_id and trainer_user.status = 'active'
+    where not exists (
+      select 1 from pt_bookings booking
+      where booking.client_id = member.id and booking.trainer_id = trainer.id and booking.gym_id = $1
+        and booking.starts_at > now() and booking.status in ('pending', 'confirmed')
+    )
+    order by latest.completed_at desc, member.id
+  `, [gymId]);
   return result.rows;
 }
 
@@ -136,10 +189,15 @@ export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date
         : "booking.gym_id = $4"}
     order by booking.starts_at, booking.id
   `, [week, shiftPtDate(week, 7), gym?.timeZone ?? "Asia/Kuala_Lumpur", role === "client" ? user.id : role === "trainer" ? user.trainerId : gym?.id]) : null;
-  const [savedAvailability, availableSlots, schedule] = await Promise.all([availability, slots, bookings]);
+  const [savedAvailability, availableSlots, schedule, updates, rebooking] = await Promise.all([
+    availability, slots, bookings,
+    role === "client" ? listPtBookingUpdates(user.id) : undefined,
+    role === "manager" && gym && week === ptWeekStart(today) ? getRebookingClients(gym.id) : undefined
+  ]);
   return {
     enabled: true, gym, gyms, week, today, trainerId: coach?.trainerId, trainerName: coach?.trainerName,
-    availability: savedAvailability?.rows, slots: availableSlots ?? undefined, bookings: schedule?.rows ?? []
+    availability: savedAvailability?.rows, slots: availableSlots ?? undefined, bookings: schedule?.rows ?? [],
+    updates, needsRebooking: rebooking
   };
 }
 
@@ -169,7 +227,7 @@ export function requestPtBooking(user: AuthUser, trainerId: string, startsAt: st
     const today = ptLocalDate(new Date(), coach.timeZone);
     const startDate = ptLocalDate(new Date(startsAt), coach.timeZone);
     if (startDate < today || startDate > shiftPtDate(today, 27)) throw bookingError(409, "This time is outside the booking window.");
-    const [slot] = await getSlots(coach, user.id, ptWeekStart(startDate), today, startsAt);
+    const [slot] = await getSlots(coach, user.id, ptWeekStart(startDate), today, { at: startsAt });
     if (!slot) throw bookingError(409, "This time is no longer available. Please pick another.");
 
     const result = await query<{ id: string }>(`
@@ -182,45 +240,132 @@ export function requestPtBooking(user: AuthUser, trainerId: string, startsAt: st
   });
 }
 
-export async function changePtBooking(user: AuthUser, role: Participant, bookingId: string, action: PtBookingAction) {
-  const target = ({ confirm: "confirmed", decline: "declined", cancel: "cancelled" } as const)[action];
-  try {
-    return await inTransaction(async () => {
-      const gym = role === "trainer" ? await trainerGym(user, true) : null;
-      if (role === "trainer" && !gym) throw bookingError(403, "An active trainer profile is required.");
-      if (role === "trainer") {
-        const assigned = await query(`
-          select 1 from pt_bookings booking join users member on member.id = booking.client_id
-          where booking.id = $1 and booking.trainer_id = $2 and booking.gym_id = $3
-            and member.assigned_trainer_id = $2 and member.gym_id = $3 and member.status = 'active' and member.primary_role = 'client'
-          for share of member
-        `, [bookingId, user.trainerId, gym?.id]);
-        if (!assigned.rowCount) throw bookingError(404, "This booking was not found.");
-      }
-      const result = await query<{ status: string; future: boolean }>(`
-        select status, starts_at > now() as future from pt_bookings where id = $1
-        and ${role === "client" ? "client_id" : "trainer_id"} = $2 for update
-      `, [bookingId, role === "client" ? user.id : user.trainerId]);
-      const booking = result.rows[0];
-      if (!booking) throw bookingError(404, "This booking was not found.");
-      if (booking.status === target) return;
-      if (!booking.future || (booking.status !== "pending" && !(action === "cancel" && booking.status === "confirmed"))) {
-        throw bookingError(409, "This booking has changed or the time has passed. Refresh to see its current status.");
-      }
-      await query("update pt_bookings set status = $2, updated_at = now() where id = $1", [bookingId, target]);
-      if (action === "confirm") {
-        await query(`
-          update pt_bookings other set status = 'declined', updated_at = now()
-          from pt_bookings confirmed
-          where confirmed.id = $1 and other.trainer_id = confirmed.trainer_id and other.status = 'pending'
-            and other.starts_at < confirmed.ends_at and other.ends_at > confirmed.starts_at
-        `, [bookingId]);
-      }
-    });
-  } catch (error) {
-    if ((error as { code?: string }).code === "23P01") {
-      throw bookingError(409, "This time overlaps a confirmed booking.");
-    }
-    throw error;
+async function coachForTrainer(user: AuthUser, clientId: string, lock = false) {
+  const coach = user.trainerId && await clientCoach(clientId, lock, user.trainerId);
+  if (!coach) throw bookingError(403, "You can only book sessions for your assigned clients.");
+  return coach;
+}
+
+export async function getTrainerPtOpenings(user: AuthUser, clientId: string, date?: string, bookingId?: string): Promise<PtTrainerOpenings> {
+  const coach = await coachForTrainer(user, clientId);
+  const today = ptLocalDate(new Date(), coach.timeZone);
+  const week = ptWeekStart(date ?? today);
+  if (week < ptWeekStart(today) || week > ptWeekStart(shiftPtDate(today, 27))) {
+    throw bookingError(400, "Choose a week within the booking window.");
   }
+  if (bookingId) {
+    const valid = await query(`
+      select 1 from pt_bookings where id = $1 and client_id = $2 and trainer_id = $3 and gym_id = $4
+        and status = 'confirmed' and starts_at > now()
+    `, [bookingId, clientId, coach.trainerId, coach.id]);
+    if (!valid.rowCount) throw bookingError(404, "This upcoming booking was not found.");
+  }
+  const [slots, next] = await Promise.all([
+    getSlots(coach, clientId, week, today, { trainerBooking: true, ignoreBookingId: bookingId }),
+    query<PtAppointment>(`
+      select ${appointmentFields}
+      from pt_bookings booking
+      join users member on member.id = booking.client_id
+      join trainers trainer on trainer.id = booking.trainer_id
+      join users trainer_user on trainer_user.id = trainer.user_id
+      where booking.client_id = $1 and booking.trainer_id = $2 and booking.gym_id = $3
+        and booking.status = 'confirmed' and booking.starts_at > now()
+      order by booking.starts_at limit 1
+    `, [clientId, coach.trainerId, coach.id])
+  ]);
+  return { slots, nextBooking: next.rows[0] ?? null, today, week, clientName: coach.clientName, timeZone: coach.timeZone };
+}
+
+async function declineOverlappingRequests(trainerId: string, startsAt: string, endsAt: string, excludingId?: string) {
+  await query(`
+    update pt_bookings set status = 'declined', updated_at = now(), version = version + 1
+    where trainer_id = $1 and status = 'pending' and id is distinct from $4::uuid
+      and starts_at < $3 and ends_at > $2
+  `, [trainerId, startsAt, endsAt, excludingId ?? null]);
+}
+
+async function confirmedUpdate(id: string, clientId: string, kind: PtBookingUpdateKind, slot?: PtBookingSlot) {
+  const result = await query<{ updateId: string }>(`
+    update pt_bookings set status = 'confirmed', updated_at = now(), version = version + 1,
+      client_update_id = uuid_generate_v4(), client_update_kind = $2, client_update_read_at = null,
+      starts_at = coalesce($3, starts_at), ends_at = coalesce($4, ends_at)
+    where id = $1 returning client_update_id as "updateId"
+  `, [id, kind, slot?.startsAt ?? null, slot?.endsAt ?? null]);
+  return { id: result.rows[0].updateId, clientId, kind } satisfies PtClientNotice;
+}
+
+export function bookPtForClient(user: AuthUser, clientId: string, startsAt: string, move?: { id: string; version: number }) {
+  return inTransaction(async (): Promise<{ id: string; notice?: PtClientNotice }> => {
+    const coach = await coachForTrainer(user, clientId, true);
+    const existing = await query<{ id: string; status: string; version: number; startsAt: string }>(`
+      select id, status, version, starts_at as "startsAt" from pt_bookings
+      where client_id = $1 and trainer_id = $2 and gym_id = $3 and starts_at > now()
+      and (case when $4::uuid is null then starts_at = $5 and status in ('pending', 'confirmed') else id = $4 end)
+      for update
+    `, [clientId, coach.trainerId, coach.id, move?.id ?? null, startsAt]);
+    const current = existing.rows[0];
+    if (move && (!current || current.status !== "confirmed")) {
+      throw bookingError(409, "This booking is no longer confirmed and upcoming.");
+    }
+    if (current?.status === "confirmed" && new Date(current.startsAt).getTime() === new Date(startsAt).getTime()) {
+      return { id: current.id };
+    }
+    if (move && current?.version !== move.version) {
+      throw bookingError(409, "This booking changed. Reopen it to move the latest booking.");
+    }
+
+    const today = ptLocalDate(new Date(), coach.timeZone);
+    const date = ptLocalDate(new Date(startsAt), coach.timeZone);
+    const [slot] = await getSlots(coach, clientId, ptWeekStart(date), today, {
+      at: startsAt, ignoreBookingId: move?.id, trainerBooking: true
+    });
+    if (!slot) throw bookingError(409, "This time is no longer available. Please pick another.");
+    await declineOverlappingRequests(coach.trainerId, slot.startsAt, slot.endsAt, current?.id);
+    if (current) {
+      const notice = await confirmedUpdate(current.id, clientId, move ? "moved" : "confirmed", slot);
+      return { id: current.id, notice };
+    }
+    const created = await query<{ id: string; updateId: string }>(`
+      insert into pt_bookings (gym_id, trainer_id, client_id, starts_at, ends_at, status, client_update_id, client_update_kind)
+      values ($1, $2, $3, $4, $5, 'confirmed', uuid_generate_v4(), 'confirmed')
+      returning id, client_update_id as "updateId"
+    `, [coach.id, coach.trainerId, clientId, slot.startsAt, slot.endsAt]);
+    const { id, updateId } = created.rows[0];
+    return { id, notice: { id: updateId, clientId, kind: "confirmed" } };
+  });
+}
+
+export function changePtBooking(user: AuthUser, role: Participant, bookingId: string, action: PtBookingAction, version?: number) {
+  const target = ({ confirm: "confirmed", decline: "declined", cancel: "cancelled" } as const)[action];
+  return inTransaction(async () => {
+    const gym = role === "trainer" ? await trainerGym(user, true) : null;
+    if (role === "trainer" && !gym) throw bookingError(403, "An active trainer profile is required.");
+    if (role === "trainer") {
+      const assigned = await query(`
+        select 1 from pt_bookings booking join users member on member.id = booking.client_id
+        where booking.id = $1 and booking.trainer_id = $2 and booking.gym_id = $3
+          and member.assigned_trainer_id = $2 and member.gym_id = $3 and member.status = 'active' and member.primary_role = 'client'
+        for share of member
+      `, [bookingId, user.trainerId, gym?.id]);
+      if (!assigned.rowCount) throw bookingError(404, "This booking was not found.");
+    }
+    const result = await query<{ status: string; future: boolean; clientId: string; startsAt: string; endsAt: string; version: number }>(`
+      select status, starts_at > now() as future, client_id as "clientId", starts_at as "startsAt", ends_at as "endsAt", version
+      from pt_bookings where id = $1
+      and ${role === "client" ? "client_id" : "trainer_id"} = $2 for update
+    `, [bookingId, role === "client" ? user.id : user.trainerId]);
+    const booking = result.rows[0];
+    if (!booking) throw bookingError(404, "This booking was not found.");
+    if (booking.status === target) return;
+    if ((version !== undefined && version !== booking.version) || !booking.future
+      || (booking.status !== "pending" && !(action === "cancel" && booking.status === "confirmed"))) {
+      throw bookingError(409, "This booking has changed or the time has passed. Refresh to see its current status.");
+    }
+    if (action === "confirm") {
+      const notice = await confirmedUpdate(bookingId, booking.clientId, "confirmed");
+      await declineOverlappingRequests(user.trainerId!, booking.startsAt, booking.endsAt);
+      return notice;
+    }
+    await query("update pt_bookings set status = $2, updated_at = now(), version = version + 1 where id = $1", [bookingId, target]);
+  });
 }
