@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { TRAINER_SESSION_FOCUSES, TRAINER_SESSION_RESPONSES, type TrainerCoachingSession, type TrainerSessionNarratives, type TrainerSessionWorksheet, type WorkoutCaptureDraft, type WorkoutCaptureExercise } from "@ascend/shared";
+import { formatTrainerSessionPackageProgress, TRAINER_SESSION_FOCUSES, TRAINER_SESSION_RESPONSES, type TrainerCoachingSession, type TrainerSessionNarratives, type TrainerSessionWorksheet, type WorkoutCaptureDraft, type WorkoutCaptureExercise } from "@ascend/shared";
 import { Check, ChevronDown, ChevronUp, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
@@ -117,8 +117,14 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   const title = session?.clientName || lastSession?.clientName || "PT Session";
   const priorNote = lastSession?.narratives?.trainerNextSessionNote;
   const priorPriority = previousWorkout?.exercises.find((exercise) => exercise.name.toLowerCase() === lastSession?.worksheet?.priority?.toLowerCase()) ?? previousWorkout?.exercises[0];
-  const recapReady = !shareClientRecap || Boolean(narratives.clientRecap.trim() || narratives.betweenSessionFocus.trim());
-  const canSave = recapReady && Boolean(draft?.title.trim() && draft.workoutType.trim() && draft.exercises.length && draft.exercises.every((exercise) => exercise.name.trim() && !exercise.needsConfirmation));
+  const priorPackageProgress = formatTrainerSessionPackageProgress(lastSession?.worksheet);
+  const packageProgress = formatTrainerSessionPackageProgress(worksheet);
+  const { sessionNumber, sessionsPurchased } = worksheet;
+  const validPackageNumbers = [sessionNumber, sessionsPurchased].every((value) => value === undefined || Number.isSafeInteger(value) && value > 0);
+  const sessionWithinPackage = sessionNumber === undefined || sessionsPurchased === undefined || sessionNumber <= sessionsPurchased;
+  const packageError = !validPackageNumbers ? "Enter whole numbers greater than zero." : !sessionWithinPackage ? "The session number must be within the package." : "";
+  const recapReady = !shareClientRecap || Boolean(narratives.clientRecap.trim() || narratives.betweenSessionFocus.trim() || packageProgress);
+  const canSave = !packageError && recapReady && Boolean(draft?.title.trim() && draft.workoutType.trim() && draft.exercises.length && draft.exercises.every((exercise) => exercise.name.trim() && !exercise.needsConfirmation));
 
   async function start(mode: "repeat_last" | "blank") {
     setBusy(true);
@@ -259,9 +265,10 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
         {status ? <p role="status" className="rounded-xl border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
         {phase === "loading" ? <div className="h-40 animate-pulse rounded-2xl bg-surface" /> : null}
 
-        {["start", "capture", "review"].includes(phase) && (priorNote || lastSession?.worksheet?.response || previousWorkout) ? (
+        {["start", "capture", "review"].includes(phase) && (priorNote || priorPackageProgress || lastSession?.worksheet?.response || previousWorkout) ? (
           <section className="ascend-workspace-section p-4 sm:p-5">
             <h2 className="text-lg font-semibold">From the last session</h2>
+            {priorPackageProgress ? <p className="mt-1 text-sm text-calm">{priorPackageProgress}</p> : null}
             {priorNote ? <p className="mt-2 whitespace-pre-wrap text-zinc-100">{priorNote}</p> : null}
             {priorPriority ? <p className="mt-2 text-sm text-zinc-300">{priorPriority.name} · {exerciseSummary(priorPriority)}</p> : null}
             {lastSession?.worksheet?.response ? <p className="mt-1 text-sm text-zinc-400">Client response · {lastSession.worksheet.response}</p> : null}
@@ -313,6 +320,19 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
           <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
             <section className="ascend-workspace-section p-4 sm:p-5">
               <h2 className="text-xl font-semibold">Today’s session</h2>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <label className="text-sm">Session number
+                  <input type="number" min={1} step={1} inputMode="numeric" className={`${inputClass} mt-2`} value={sessionNumber ?? ""}
+                    aria-invalid={Boolean(packageError)} aria-describedby={packageError ? "pt-package-error" : undefined}
+                    onChange={(e) => setWorksheet({ ...worksheet, sessionNumber: e.target.value === "" ? undefined : e.target.valueAsNumber })} />
+                </label>
+                <label className="text-sm">Sessions purchased
+                  <input type="number" min={1} step={1} inputMode="numeric" className={`${inputClass} mt-2`} value={sessionsPurchased ?? ""}
+                    aria-invalid={Boolean(packageError)} aria-describedby={packageError ? "pt-package-error" : undefined}
+                    onChange={(e) => setWorksheet({ ...worksheet, sessionsPurchased: e.target.value === "" ? undefined : e.target.valueAsNumber })} />
+                </label>
+              </div>
+              {packageError ? <p id="pt-package-error" className="mt-2 text-sm text-amber">{packageError}</p> : null}
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className="text-sm">Focus
                   <select className={`${inputClass} mt-2`} value={worksheet.focus ?? ""} onChange={(e) => setWorksheet({ ...worksheet, focus: (e.target.value || undefined) as TrainerSessionWorksheet["focus"] })}>
@@ -399,6 +419,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               <p className="text-xs text-zinc-400">The client can see their completed exercises. The recap and between-session focus are shared when you choose to send them.</p>
               {shareClientRecap ? (
                 <div className="space-y-3 rounded-xl border border-line p-3">
+                  {packageProgress && !packageError ? <p className="text-sm text-calm">Package progress shared with client · {packageProgress}</p> : null}
                   <label className="block text-sm">Client recap
                     <textarea rows={2} maxLength={600} value={narratives.clientRecap} onChange={(e) => setNarratives({ ...narratives, clientRecap: e.target.value })} className={noteClass} />
                   </label>
@@ -408,7 +429,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
                 </div>
               ) : null}
               {draft.exercises.some((exercise) => exercise.needsConfirmation) ? <p className="text-sm text-amber">Confirm the highlighted exercises before saving.</p> : null}
-              {!recapReady ? <p className="text-sm text-zinc-400">Add a recap or between-session focus to share.</p> : null}
+              {!recapReady ? <p className="text-sm text-zinc-400">Add a recap, between-session focus, or package progress to share.</p> : null}
               <button disabled={busy || !canSave} onClick={complete} className="min-h-12 w-full rounded-xl bg-lime px-4 font-bold text-ink disabled:opacity-40">
                 <Save className="mr-2 inline" size={17} />{shareClientRecap ? "Save & share recap" : "Save session"}
               </button>

@@ -46,7 +46,7 @@ const record = {
     clientRecap: "Your technique looked smoother.",
     betweenSessionFocus: "Practise the tempo."
   },
-  worksheet: { focus: "Technique", priority: "Leg press", response: "Average", win: "Steadier foot position" }
+  worksheet: { focus: "Technique", priority: "Leg press", response: "Average", win: "Steadier foot position", sessionNumber: 2, sessionsPurchased: 10 }
 };
 
 describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
@@ -124,6 +124,9 @@ describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
     expect(started.status, JSON.stringify(started.body)).toBe(201);
     firstSession = started.body.session.id;
     const complete = `${sessionPath}/${firstSession}/complete`;
+    const invalid = await call(trainer, complete, { ...record, worksheet: { ...record.worksheet, sessionNumber: 11 } });
+    expect(invalid.status).toBe(400);
+    expect(invalid.body.issues[0]).toMatchObject({ path: ["worksheet", "sessionNumber"] });
     const requests = await Promise.all([call(trainer, complete, record), call(trainer, complete, record)]);
     for (const result of requests) expect(result.status, JSON.stringify(result.body)).toBe(200);
     const retry = await call(trainer, complete, { ...record, shareClientRecap: true });
@@ -134,10 +137,11 @@ describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
       clientRecap: null, betweenSessionFocus: null,
       exercises: [{ name: "Leg press", sets: 3, reps: "10", load: 80 }]
     });
+    expect(receipt.body.sessions[0]).not.toHaveProperty("packageProgress");
     expect(JSON.stringify(receipt.body)).not.toMatch(/Private|Steadier|slow reps|smoother/);
     const events = await db.query("select metadata from analytics_events where user_id=$1 and event_name='burn_log'", [client]);
     expect(events.rows).toHaveLength(1);
-    expect(JSON.stringify(events.rows)).not.toMatch(/Private|Steadier|slow reps|smoother/);
+    expect(JSON.stringify(events.rows)).not.toMatch(/Private|Steadier|slow reps|smoother|sessionsPurchased|sessionNumber/);
   });
 
   it("carries coaching forward and shares only the approved member recap", async () => {
@@ -153,11 +157,14 @@ describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
     expect(repeat.status, JSON.stringify(repeat.body)).toBe(201);
     expect(repeat.body.session).toMatchObject({ rawInput: "", workoutDraft: { sourceMode: "repeat", exercises: [{ load: 80 }] } });
     expect((await call(manager, ownerPath)).body.sessions).toHaveLength(1);
-    const completed = await call(trainer, `${sessionPath}/${repeat.body.session.id}/complete`, { ...record, shareClientRecap: true });
+    const completed = await call(trainer, `${sessionPath}/${repeat.body.session.id}/complete`, {
+      ...record, worksheet: { ...record.worksheet, sessionNumber: 1, sessionsPurchased: 6 }, shareClientRecap: true
+    });
     expect(completed.status, JSON.stringify(completed.body)).toBe(200);
     const member = await call(client, "/me/coaching-sessions");
     expect(member.body.sessions[0]).toMatchObject({
-      clientRecap: record.narratives.clientRecap, betweenSessionFocus: record.narratives.betweenSessionFocus
+      clientRecap: record.narratives.clientRecap, betweenSessionFocus: record.narratives.betweenSessionFocus,
+      packageProgress: { sessionNumber: 1, sessionsPurchased: 6 }
     });
     expect(JSON.stringify(member.body)).not.toMatch(/Private|Steadier|slow reps/);
   });

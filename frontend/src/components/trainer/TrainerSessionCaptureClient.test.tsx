@@ -28,7 +28,7 @@ describe("trainer session continuity", () => {
     window.localStorage.clear();
     api.getTrainerSessionOverview.mockResolvedValue({
       enabled: true, activeSession: null, previousWorkout: workout,
-      recentSessions: [{ clientName: "Alex", narratives: { trainerNextSessionNote: "Start with slow reps." } }]
+      recentSessions: [{ clientName: "Alex", narratives: { trainerNextSessionNote: "Start with slow reps." }, worksheet: { sessionNumber: 2, sessionsPurchased: 10 } }]
     });
     api.startTrainerCoachingSession.mockResolvedValue({ session: active });
     api.completeTrainerCoachingSession.mockResolvedValue({ session: { ...active, shareClientRecap: false } });
@@ -38,6 +38,7 @@ describe("trainer session continuity", () => {
   it("shows the previous plan immediately and saves edited sets without AI or a shared recap", async () => {
     render(<TrainerSessionCaptureClient clientId="client-1" />);
     expect(await screen.findByText("Start with slow reps.")).toBeVisible();
+    expect(screen.getByText("Session 2 of 10")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Repeat last session" }));
     expect(await screen.findByRole("heading", { name: "Today’s session" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Leg press/ }));
@@ -69,5 +70,22 @@ describe("trainer session continuity", () => {
       shareClientRecap: true, narratives: expect.objectContaining({ clientRecap: "Good tempo today." })
     })));
     expect(await screen.findByText("The recap is available to the client.")).toBeVisible();
+  });
+
+  it("validates manually entered counts and lets the trainer share just the progress", async () => {
+    api.getTrainerSessionOverview.mockResolvedValue({ enabled: true, activeSession: active, previousWorkout: null, recentSessions: [] });
+    render(<TrainerSessionCaptureClient clientId="client-1" />);
+    fireEvent.change(await screen.findByLabelText("Sessions purchased"), { target: { value: "10" } });
+    fireEvent.change(screen.getByLabelText("Session number"), { target: { value: "11" } });
+    expect(screen.getByText("The session number must be within the package.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Save session" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Session number"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Share a recap with the client" }));
+    expect(screen.getByText(/Session 3 of 10/)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Save & share recap" }));
+    await waitFor(() => expect(api.completeTrainerCoachingSession).toHaveBeenCalledWith("client-1", "session-1", expect.objectContaining({
+      shareClientRecap: true,
+      worksheet: { sessionNumber: 3, sessionsPurchased: 10 }
+    })));
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatTrainerSessionPackageProgress } from "@ascend/shared";
 import { getGymClientCoachingSessions } from "@/lib/ascendApi";
 
 type Sessions = Awaited<ReturnType<typeof getGymClientCoachingSessions>>["sessions"];
@@ -34,6 +35,7 @@ export function GymCoachingSessions({ clientId }: { clientId: string }) {
           </summary>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
             {([
+              ["Package progress", formatTrainerSessionPackageProgress(session.worksheet)],
               ["Focus", session.worksheet?.focus],
               ["Main movement or priority", session.worksheet?.priority],
               ["Client response", session.worksheet?.response],

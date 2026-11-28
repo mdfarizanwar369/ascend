@@ -540,6 +540,7 @@ export async function cancelTrainerSession(sessionId: string, clientId: string, 
 export function toClientCoachedSession(session: TrainerCoachingSession): ClientCoachedSession {
   const draft = session.workoutDraft!;
   const shared = session.shareClientRecap !== false;
+  const { sessionNumber, sessionsPurchased } = session.worksheet ?? {};
   return {
     id: session.id,
     trainerName: session.trainerName,
@@ -554,6 +555,9 @@ export function toClientCoachedSession(session: TrainerCoachingSession): ClientC
     betweenSessionFocus: shared ? session.narratives?.betweenSessionFocus || null : null,
     progressHighlights: shared ? session.intelligence?.highlights ?? [] : [],
     clientCelebration: shared ? session.intelligence?.clientCelebration ?? null : null,
+    ...(shared && (sessionNumber !== undefined || sessionsPurchased !== undefined) ? {
+      packageProgress: { sessionNumber, sessionsPurchased }
+    } : {}),
     completedAt: session.completedAt!
   };
 }

@@ -7,7 +7,20 @@ export type TrainerSessionStartMode = "repeat_last" | "blank";
 export const TRAINER_SESSION_FOCUSES = ["Strength", "Fat loss", "Technique", "Mobility", "Conditioning"] as const;
 export const TRAINER_SESSION_RESPONSES = ["Strong", "Average", "Fatigued", "Good recovery", "Pain / tightness"] as const;
 
-export type TrainerSessionWorksheet = {
+export type TrainerSessionPackageProgress = {
+  sessionNumber?: number;
+  sessionsPurchased?: number;
+};
+
+export function formatTrainerSessionPackageProgress(progress?: TrainerSessionPackageProgress) {
+  const { sessionNumber, sessionsPurchased } = progress ?? {};
+  if (sessionNumber !== undefined && sessionsPurchased !== undefined) return `Session ${sessionNumber} of ${sessionsPurchased}`;
+  if (sessionNumber !== undefined) return `Session ${sessionNumber}`;
+  if (sessionsPurchased !== undefined) return `${sessionsPurchased} ${sessionsPurchased === 1 ? "session" : "sessions"} purchased`;
+  return "";
+}
+
+export type TrainerSessionWorksheet = TrainerSessionPackageProgress & {
   focus?: (typeof TRAINER_SESSION_FOCUSES)[number];
   priority?: string;
   response?: (typeof TRAINER_SESSION_RESPONSES)[number];
@@ -76,5 +89,6 @@ export type ClientCoachedSession = {
   betweenSessionFocus: string | null;
   progressHighlights: string[];
   clientCelebration: string | null;
+  packageProgress?: TrainerSessionPackageProgress;
   completedAt: string;
 };

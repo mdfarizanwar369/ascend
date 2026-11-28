@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ClientCoachedSession } from "@ascend/shared";
+import { formatTrainerSessionPackageProgress, type ClientCoachedSession } from "@ascend/shared";
 import { CheckCircle2, ChevronDown, ChevronUp, Dumbbell } from "lucide-react";
 import { getMyCoachedSessions } from "@/lib/ascendApi";
 
@@ -26,7 +26,12 @@ export function CoachedSessionsCard() {
         {sessions.slice(0, 3).map((session) => (
           <article key={session.id} className="rounded-xl border border-white/5 bg-ink p-3">
             <button type="button" onClick={() => setExpanded(expanded === session.id ? null : session.id)} className="flex min-h-12 w-full items-center justify-between gap-3 text-left">
-              <div className="min-w-0"><p className="truncate font-semibold">{session.title}</p><p className="mt-1 text-sm text-zinc-400">{session.durationMinutes} min / ~{session.estimatedCaloriesBurned} kcal / {new Date(session.completedAt).toLocaleDateString([], { day: "numeric", month: "short" })}</p></div>{expanded === session.id ? <ChevronUp /> : <ChevronDown />}
+              <div className="min-w-0">
+                <p className="truncate font-semibold">{session.title}</p>
+                {session.packageProgress ? <p className="mt-1 text-sm text-calm">{formatTrainerSessionPackageProgress(session.packageProgress)}</p> : null}
+                <p className="mt-1 text-sm text-zinc-400">{session.durationMinutes} min / ~{session.estimatedCaloriesBurned} kcal / {new Date(session.completedAt).toLocaleDateString([], { day: "numeric", month: "short" })}</p>
+              </div>
+              {expanded === session.id ? <ChevronUp /> : <ChevronDown />}
             </button>
             {expanded === session.id ? (
               <div className="mt-3 border-t border-line pt-3">

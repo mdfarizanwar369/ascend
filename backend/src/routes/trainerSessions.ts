@@ -33,7 +33,14 @@ const worksheetSchema = z.object({
   focus: z.enum(TRAINER_SESSION_FOCUSES).optional(),
   priority: z.string().trim().max(160).optional(),
   response: z.enum(TRAINER_SESSION_RESPONSES).optional(),
-  win: z.string().trim().max(400).optional()
+  win: z.string().trim().max(400).optional(),
+  sessionNumber: z.int().positive().optional(),
+  sessionsPurchased: z.int().positive().optional()
+}).refine(({ sessionNumber, sessionsPurchased }) => (
+  sessionNumber === undefined || sessionsPurchased === undefined || sessionNumber <= sessionsPurchased
+), {
+  message: "The session number must be within the package.",
+  path: ["sessionNumber"]
 });
 
 const trainerGuard = [requireAuth, requireRole(["trainer"]), requireActivePlan("trainer_pro")] as const;
@@ -113,8 +120,10 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessio
       worksheet: worksheetSchema.default({}),
       shareClientRecap: z.boolean().default(false),
       completedAt: z.string().datetime().nullable().optional()
-    }).refine((input) => !input.shareClientRecap || Boolean(input.narratives.clientRecap || input.narratives.betweenSessionFocus), {
-      message: "Add a recap or a between-session focus to share.",
+    }).refine((input) => !input.shareClientRecap || Boolean(
+      input.narratives.clientRecap || input.narratives.betweenSessionFocus || input.worksheet.sessionNumber || input.worksheet.sessionsPurchased
+    ), {
+      message: "Add a recap, between-session focus, or package progress to share.",
       path: ["narratives"]
     }).parse(req.body);
     const result = await completeTrainerSession({ ...body, sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, trainerId: req.user!.trainerId, gymId: client.gym_id });

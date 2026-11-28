@@ -13,8 +13,8 @@ Both default to `false`. Turning either flag off leaves existing workout logging
 
 1. Open an assigned client’s profile and choose **Record PT Session**. The previous plan and exercise history appear before capture.
 2. Repeat the last detailed session and edit the relevant results, or start fresh. Direct entry and repeat use the workout capture contract without an AI request. Shorthand such as `Bench 60kg 10,10,8` still uses workout capture AI for interpretation.
-3. Record the session focus, main movement, coaching cues, client response, win, and next-session plan as needed.
-4. Save the session. Confirmed exercise results appear in the client’s history. **Share a recap with the client** is an opt-in for the edited recap and between-session focus.
+3. Record the session focus, main movement, coaching cues, client response, win, and next-session plan as needed. The optional session number and sessions purchased form a coach-entered package reference, such as **Session 3 of 10**. Use the last recorded count as a reference and enter the current numbers, including when a new package starts.
+4. Save the session. Confirmed exercise results appear in the client’s history. **Share a recap with the client** is an opt-in for the recorded package progress, edited recap, and between-session focus.
 5. An authorized gym admin or owner can open **Admin → Users → Manage → View coaching sessions** for an active client in their gym and read completed records.
 
 The existing completion service calculates estimated calories using workout MET, duration, intensity, and the latest available client weight. Its analytics event immediately feeds workout history, Today, Momentum, reports, Journey, and coaching context.
