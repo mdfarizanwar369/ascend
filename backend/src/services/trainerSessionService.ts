@@ -6,11 +6,12 @@ import {
   TrainerSessionIntelligence,
   TrainerSessionNarratives,
   TrainerSessionStartMode,
+  TrainerSessionWorksheet,
   WorkoutProgressionIntelligenceV3,
   WorkoutCaptureDraft,
   createRepeatWorkoutCaptureDraft
 } from "@ascend/shared";
-import { query } from "../db/pool";
+import { pool, query, withQueryClient } from "../db/pool";
 import { createWorkoutCaptureDraft } from "../integrations/openai";
 import { PersistedWorkoutCompletion, persistCompletedWorkout, resolveWorkoutWeightKg, createWorkoutCompletionSummary } from "./workoutCompletionService";
 import { buildWorkoutProgression, ProgressionWorkoutInput } from "./workoutProgressionEngine";
@@ -32,6 +33,8 @@ type SessionRow = {
   between_session_focus: string | null;
   trainer_next_session_note: string | null;
   session_intelligence: TrainerSessionIntelligence | null;
+  worksheet: TrainerSessionWorksheet;
+  share_client_recap: boolean;
   workout_event_id: string | null;
   workout_completion_key: string;
   estimated_calories_burned?: string | number | null;
@@ -62,11 +65,11 @@ function cleanText(value: string | null | undefined, maxLength: number) {
 }
 
 function mapSession(row: SessionRow): TrainerCoachingSession {
-  const narratives = row.client_recap && row.between_session_focus && row.trainer_next_session_note
+  const narratives = row.client_recap !== null || row.between_session_focus !== null || row.trainer_next_session_note !== null
     ? {
-        clientRecap: row.client_recap,
-        betweenSessionFocus: row.between_session_focus,
-        trainerNextSessionNote: row.trainer_next_session_note
+        clientRecap: row.client_recap ?? "",
+        betweenSessionFocus: row.between_session_focus ?? "",
+        trainerNextSessionNote: row.trainer_next_session_note ?? ""
       }
     : null;
   const estimatedCalories = Number(row.estimated_calories_burned ?? 0);
@@ -91,22 +94,15 @@ function mapSession(row: SessionRow): TrainerCoachingSession {
     caloriesLabel: row.calories_label ?? null,
     version: row.version,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    worksheet: row.worksheet,
+    shareClientRecap: row.share_client_recap
   };
 }
 
 function sessionTitle(draft: WorkoutCaptureDraft) {
   const title = cleanText(draft.title, 120);
   return title && title !== "My Workout" ? title : `${draft.workoutType || "Training"} Session`;
-}
-
-export function trainerSessionDraftText(draft: WorkoutCaptureDraft) {
-  return draft.exercises.map((exercise) => {
-    const volume = exercise.sets && exercise.reps ? `${exercise.sets}x${exercise.reps}` : exercise.sets ? `${exercise.sets} sets` : exercise.reps ?? "";
-    const load = exercise.load !== null ? `${exercise.load}${exercise.loadUnit ?? ""}` : "";
-    const duration = exercise.durationMinutes ? `${exercise.durationMinutes} min` : "";
-    return [exercise.name, volume, load, duration].filter(Boolean).join(" ");
-  }).join("\n");
 }
 
 function firstProgression(previous: WorkoutCaptureDraft | null, current: WorkoutCaptureDraft) {
@@ -237,16 +233,18 @@ export function buildTrainerSessionNarratives(
   return { clientRecap, betweenSessionFocus, trainerNextSessionNote };
 }
 
-async function findPreviousDraft(clientId: string, excludeSessionId?: string) {
+async function findPreviousDraft(clientId: string, gymId: string | null, actorUserId: string, excludeSessionId?: string) {
   const completed = await query<{ structured_workout: WorkoutCaptureDraft | null }>(
     `
     select structured_workout
     from trainer_coaching_sessions
-    where client_id = $1 and status = 'completed' and ($2::uuid is null or id <> $2)
+    where client_id = $1 and gym_id is not distinct from $2::uuid
+      and ($2::uuid is not null or created_by_user_id = $3)
+      and status = 'completed' and ($4::uuid is null or id <> $4)
     order by completed_at desc
     limit 1
     `,
-    [clientId, excludeSessionId ?? null]
+    [clientId, gymId, actorUserId, excludeSessionId ?? null]
   );
   if (completed.rows[0]?.structured_workout) return completed.rows[0].structured_workout;
 
@@ -255,6 +253,7 @@ async function findPreviousDraft(clientId: string, excludeSessionId?: string) {
     select metadata
     from analytics_events
     where user_id = $1 and event_name = 'burn_log' and jsonb_typeof(metadata->'exercises') = 'array'
+      and metadata->>'source' is distinct from 'trainer_logged_session'
     order by created_at desc
     limit 1
     `,
@@ -263,25 +262,40 @@ async function findPreviousDraft(clientId: string, excludeSessionId?: string) {
   return workout.rows[0]?.metadata ? createRepeatWorkoutCaptureDraft(workout.rows[0].metadata) : null;
 }
 
-export async function getTrainerSession(sessionId: string, clientId: string, actorUserId: string) {
+async function getTrainerSession(sessionId: string, clientId: string, actorUserId: string, gymId: string | null) {
   const result = await query<SessionRow>(
-    `${SESSION_SELECT} where session.id = $1 and session.client_id = $2 and session.created_by_user_id = $3 limit 1`,
-    [sessionId, clientId, actorUserId]
+    `${SESSION_SELECT} where session.id = $1 and session.client_id = $2 and session.created_by_user_id = $3
+      and session.gym_id is not distinct from $4::uuid limit 1`,
+    [sessionId, clientId, actorUserId, gymId]
   );
   return result.rows[0] ? mapSession(result.rows[0]) : null;
 }
 
-export async function getTrainerSessionOverview(clientId: string, actorUserId: string) {
+export async function getTrainerSessionOverview(clientId: string, actorUserId: string, gymId: string | null) {
   const [active, recent, previousDraft] = await Promise.all([
-    query<SessionRow>(`${SESSION_SELECT} where session.client_id = $1 and session.created_by_user_id = $2 and session.status = 'draft' order by session.updated_at desc limit 1`, [clientId, actorUserId]),
-    query<SessionRow>(`${SESSION_SELECT} where session.client_id = $1 and session.status = 'completed' order by session.completed_at desc limit 5`, [clientId]),
-    findPreviousDraft(clientId)
+    query<SessionRow>(`${SESSION_SELECT} where session.client_id = $1 and session.created_by_user_id = $2 and session.gym_id is not distinct from $3::uuid and session.status = 'draft' order by session.updated_at desc limit 1`, [clientId, actorUserId, gymId]),
+    query<SessionRow>(`${SESSION_SELECT} where session.client_id = $1 and session.gym_id is not distinct from $2::uuid
+      and ($2::uuid is not null or session.created_by_user_id = $3)
+      and session.status = 'completed' order by session.completed_at desc limit 5`, [clientId, gymId, actorUserId]),
+    findPreviousDraft(clientId, gymId, actorUserId)
   ]);
   return {
     activeSession: active.rows[0] ? mapSession(active.rows[0]) : null,
     recentSessions: recent.rows.map(mapSession),
     previousWorkout: previousDraft
   };
+}
+
+export async function getGymClientCoachingSessions(clientId: string, gymIds: string[] | null) {
+  const result = await query<SessionRow>(
+    `${SESSION_SELECT}
+    where session.client_id = $1 and client.primary_role = 'client' and client.status = 'active'
+      and session.status = 'completed' and session.gym_id = client.gym_id
+      and ($2::uuid[] is null or client.gym_id = any($2::uuid[]))
+    order by session.completed_at desc limit 25`,
+    [clientId, gymIds]
+  );
+  return result.rows.map(mapSession);
 }
 
 export async function startTrainerSession(input: {
@@ -291,36 +305,34 @@ export async function startTrainerSession(input: {
   gymId?: string | null;
   mode: TrainerSessionStartMode;
 }) {
-  const previousDraft = input.mode === "repeat_last" ? await findPreviousDraft(input.clientId) : null;
+  const previous = input.mode === "repeat_last" ? await findPreviousDraft(input.clientId, input.gymId ?? null, input.actorUserId) : null;
+  const previousDraft: WorkoutCaptureDraft | null = previous ? {
+    ...previous, sourceMode: "repeat", originalInput: "", uncertainties: [],
+    exercises: previous.exercises.map(({ name, sets, reps, load, loadUnit, durationMinutes, note, restSeconds, movementPattern }) => ({
+      name, sets, reps, load, loadUnit, durationMinutes, note, restSeconds, movementPattern,
+      originalText: null, confidence: 1, needsConfirmation: false
+    }))
+  } : null;
   const result = await query<{ id: string }>(
     `
     insert into trainer_coaching_sessions (
       client_id, trainer_id, created_by_user_id, gym_id, structured_workout, duration_minutes, raw_input
     ) values ($1, $2, $3, $4, $5, $6, $7)
-    on conflict (created_by_user_id, client_id) where status = 'draft'
+    on conflict (created_by_user_id, client_id, (coalesce(gym_id, '00000000-0000-0000-0000-000000000000'::uuid))) where status = 'draft'
     do update set updated_at = now()
     returning id
     `,
-    [input.clientId, input.trainerId ?? null, input.actorUserId, input.gymId ?? null, previousDraft, previousDraft?.durationMinutes ?? null, previousDraft ? trainerSessionDraftText(previousDraft) : ""]
+    [input.clientId, input.trainerId ?? null, input.actorUserId, input.gymId ?? null, previousDraft, previousDraft?.durationMinutes ?? null, ""]
   );
-  if (previousDraft) {
-    const session = await getTrainerSession(result.rows[0].id, input.clientId, input.actorUserId);
-    if (session && !session.narratives) {
-      const narratives = buildTrainerSessionNarratives(previousDraft, session.clientName, previousDraft);
-      const intelligence = buildTrainerSessionIntelligence(previousDraft, previousDraft);
-      await query(
-        `update trainer_coaching_sessions set client_recap = $2, between_session_focus = $3, trainer_next_session_note = $4, session_intelligence = $5, updated_at = now() where id = $1 and status = 'draft'`,
-        [result.rows[0].id, narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote, intelligence]
-      );
-    }
-  }
-  return getTrainerSession(result.rows[0].id, input.clientId, input.actorUserId);
+  if (!result.rows[0]) return null;
+  return getTrainerSession(result.rows[0].id, input.clientId, input.actorUserId, input.gymId ?? null);
 }
 
 export async function updateTrainerSessionDraft(input: {
   sessionId: string;
   clientId: string;
   actorUserId: string;
+  gymId: string | null;
   version: number;
   rawInput: string;
   durationMinutes?: number | null;
@@ -336,12 +348,12 @@ export async function updateTrainerSessionDraft(input: {
         updated_at = now()
     from users creator, users client
     where session.id = $1 and session.client_id = $2 and session.created_by_user_id = $3
-      and session.status = 'draft' and session.version = $4
+      and session.status = 'draft' and session.version = $4 and session.gym_id is not distinct from $8::uuid
       and creator.id = session.created_by_user_id and client.id = session.client_id
     returning session.*, creator.full_name as trainer_name, client.full_name as client_name,
       null::text as estimated_calories_burned, null::text as calories_label
     `,
-    [input.sessionId, input.clientId, input.actorUserId, input.version, cleanText(input.rawInput, 5_000), input.durationMinutes ?? null, input.workoutDraft ?? null]
+    [input.sessionId, input.clientId, input.actorUserId, input.version, cleanText(input.rawInput, 5_000), input.durationMinutes ?? null, input.workoutDraft ?? null, input.gymId]
   );
   return result.rows[0] ? mapSession(result.rows[0]) : null;
 }
@@ -355,7 +367,7 @@ export async function interpretTrainerSession(input: {
   durationMinutes: number;
   sourceMode: "text" | "dictation";
 }) {
-  const session = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId);
+  const session = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId, input.actorGymId ?? null);
   if (!session || session.status !== "draft") return null;
 
   const recent = await query<{ metadata: Record<string, unknown> | null }>(
@@ -374,7 +386,7 @@ export async function interpretTrainerSession(input: {
     gymId: input.actorGymId ?? null
   }));
   if (!draft.durationMinutes) draft.durationMinutes = clamp(Math.round(input.durationMinutes), 5, 300);
-  const previous = await findPreviousDraft(input.clientId, input.sessionId);
+  const previous = await findPreviousDraft(input.clientId, input.actorGymId ?? null, input.actorUserId, input.sessionId);
   const narratives = buildTrainerSessionNarratives(draft, session.clientName, previous);
   const intelligence = buildTrainerSessionIntelligence(draft, previous);
   const weightKg = await resolveWorkoutWeightKg(input.clientId);
@@ -387,49 +399,81 @@ export async function interpretTrainerSession(input: {
     weightKg
   });
 
-  await query(
+  const saved = await query(
     `
     update trainer_coaching_sessions
     set raw_input = $4, duration_minutes = $5, structured_workout = $6,
       client_recap = $7, between_session_focus = $8, trainer_next_session_note = $9,
       ai_confidence = $10, uncertain_fields = $11, session_intelligence = $12,
       version = version + 1, updated_at = now()
-    where id = $1 and client_id = $2 and created_by_user_id = $3 and status = 'draft'
+    where id = $1 and client_id = $2 and created_by_user_id = $3 and status = 'draft' and version = $13
     `,
-    [input.sessionId, input.clientId, input.actorUserId, cleanText(input.rawInput, 5_000), draft.durationMinutes, draft, narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote, draft.confidence, draft.uncertainties, intelligence]
+    [input.sessionId, input.clientId, input.actorUserId, cleanText(input.rawInput, 5_000), draft.durationMinutes, draft, narratives.clientRecap, narratives.betweenSessionFocus, "", draft.confidence, JSON.stringify(draft.uncertainties), intelligence, session.version]
   );
+  if (!saved.rowCount) return null;
 
-  return { draft, narratives, intelligence, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
+  return { draft, narratives: { ...narratives, trainerNextSessionNote: "" }, intelligence, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
 }
 
-export async function completeTrainerSession(input: {
+type CompleteTrainerSessionInput = {
   sessionId: string;
   clientId: string;
   actorUserId: string;
-  trainerId?: string | null;
-  actorGymId?: string | null;
+  trainerId: string;
+  gymId: string | null;
   draft: WorkoutCaptureDraft;
   narratives: TrainerSessionNarratives;
+  worksheet: TrainerSessionWorksheet;
+  shareClientRecap: boolean;
   completedAt?: string | null;
-}) : Promise<{ session: TrainerCoachingSession; completion: PersistedWorkoutCompletion } | null> {
-  const session = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId);
-  if (!session || session.status === "cancelled") return null;
-  const completionKeyResult = await query<{ workout_completion_key: string }>("select workout_completion_key from trainer_coaching_sessions where id = $1", [input.sessionId]);
-  const workoutCompletionKey = completionKeyResult.rows[0]?.workout_completion_key;
-  if (!workoutCompletionKey) return null;
-  const previous = await findPreviousDraft(input.clientId, input.sessionId);
-  const intelligence = buildTrainerSessionIntelligence(input.draft, previous);
+};
+
+export async function completeTrainerSession(input: CompleteTrainerSessionInput) {
+  const db = await pool.connect();
+  const deferredSideEffects: (() => void)[] = [];
+  try {
+    await db.query("begin");
+    const result = await withQueryClient(db, () => completeLockedTrainerSession(input, deferredSideEffects));
+    await db.query("commit");
+    deferredSideEffects.forEach((effect) => effect());
+    return result;
+  } catch (error) {
+    await db.query("rollback");
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+
+async function completeLockedTrainerSession(input: CompleteTrainerSessionInput, deferredSideEffects: (() => void)[]) : Promise<{ session: TrainerCoachingSession; completion: PersistedWorkoutCompletion } | null> {
+  const locked = await query<SessionRow>(
+    `${SESSION_SELECT}
+    where session.id = $1 and session.client_id = $2 and session.created_by_user_id = $3
+      and session.gym_id is not distinct from $4::uuid and client.gym_id is not distinct from $4::uuid
+      and client.assigned_trainer_id = $5 and client.primary_role = 'client' and client.status = 'active'
+      and session.status in ('draft', 'completed')
+    for update of session for share of client`,
+    [input.sessionId, input.clientId, input.actorUserId, input.gymId, input.trainerId]
+  );
+  const row = locked.rows[0];
+  if (!row) return null;
+  const session = mapSession(row);
+  const alreadyCompleted = session.status === "completed";
+  const draft = alreadyCompleted ? session.workoutDraft! : input.draft;
+  const completedAt = alreadyCompleted ? session.completedAt : input.completedAt ?? null;
+  const previous = alreadyCompleted ? null : await findPreviousDraft(input.clientId, input.gymId, input.actorUserId, input.sessionId);
+  const intelligence = session.intelligence && alreadyCompleted ? session.intelligence : buildTrainerSessionIntelligence(draft, previous);
 
   const completion = await persistCompletedWorkout({
     userId: input.clientId,
-    gymId: input.actorGymId ?? null,
-    workoutCompletionKey,
-    workoutTitle: sessionTitle(input.draft),
-    workoutType: input.draft.workoutType,
-    workoutDifficulty: input.draft.difficulty,
-    durationMinutes: input.draft.durationMinutes ?? 5,
-    completedAt: input.completedAt ?? null,
-    exercises: input.draft.exercises.map((exercise) => ({
+    gymId: input.gymId,
+    workoutCompletionKey: row.workout_completion_key,
+    workoutTitle: sessionTitle(draft),
+    workoutType: draft.workoutType,
+    workoutDifficulty: draft.difficulty,
+    durationMinutes: draft.durationMinutes ?? 5,
+    completedAt,
+    exercises: draft.exercises.map((exercise) => ({
       name: exercise.name,
       sets: exercise.sets,
       reps: exercise.reps,
@@ -437,60 +481,65 @@ export async function completeTrainerSession(input: {
       loadUnit: exercise.loadUnit,
       duration: exercise.durationMinutes ? `${exercise.durationMinutes} min` : null,
       rest: exercise.restSeconds !== null ? `${exercise.restSeconds} sec` : null,
-      note: exercise.note,
       movementPattern: exercise.movementPattern,
       confidence: exercise.confidence
     })),
     source: "trainer_logged_session",
+    deferredSideEffects,
     extraMetadata: {
       coachingSessionId: input.sessionId,
       trainerId: input.trainerId ?? null,
       trainerUserId: input.actorUserId,
       trainerName: session.trainerName,
-      clientRecap: cleanText(input.narratives.clientRecap, 600),
-      betweenSessionFocus: cleanText(input.narratives.betweenSessionFocus, 400),
-      sessionIntelligence: intelligence,
-      captureVersion: input.draft.version,
+      sessionIntelligence: { headline: intelligence.headline },
+      captureVersion: draft.version,
       userConfirmed: true
     }
   });
+  if (alreadyCompleted) return { session, completion };
   const finalIntelligence = trainerIntelligenceFromProgressionV3(completion.summary.progressionV3, intelligence);
 
   if (completion.summary.progressionV3) {
     await query(
       `update analytics_events set metadata = metadata || jsonb_build_object('sessionIntelligence', $2::jsonb)
        where id = $1 and user_id = $3`,
-      [completion.burnLog.id, JSON.stringify(finalIntelligence), input.clientId]
+      [completion.burnLog.id, JSON.stringify({ headline: finalIntelligence.headline }), input.clientId]
     );
   }
 
   await query(
     `
     update trainer_coaching_sessions
-    set status = 'completed', completed_at = coalesce(session.completed_at, $4, now()), duration_minutes = $5,
+    set status = 'completed', completed_at = coalesce($4, now()), duration_minutes = $5,
       raw_input = '', structured_workout = $6, client_recap = $7,
       between_session_focus = $8, trainer_next_session_note = $9,
       workout_event_id = $10, ai_confidence = $11, uncertain_fields = $12,
       session_intelligence = $13,
+      worksheet = $14, share_client_recap = $15,
       version = version + 1, updated_at = now()
-    where id = $1 and client_id = $2 and created_by_user_id = $3 and status in ('draft', 'completed')
+    where id = $1 and client_id = $2 and created_by_user_id = $3 and status = 'draft'
     `,
-    [input.sessionId, input.clientId, input.actorUserId, input.completedAt ?? null, input.draft.durationMinutes, input.draft, cleanText(input.narratives.clientRecap, 600), cleanText(input.narratives.betweenSessionFocus, 400), cleanText(input.narratives.trainerNextSessionNote, 600), completion.burnLog.id, input.draft.confidence, input.draft.uncertainties, finalIntelligence]
+    [input.sessionId, input.clientId, input.actorUserId, completedAt, draft.durationMinutes, draft,
+      cleanText(input.narratives.clientRecap, 600), cleanText(input.narratives.betweenSessionFocus, 400),
+      cleanText(input.narratives.trainerNextSessionNote, 600), completion.burnLog.id, draft.confidence, JSON.stringify(draft.uncertainties),
+      finalIntelligence, input.worksheet, input.shareClientRecap]
   );
-  const completedSession = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId);
+  const completedSession = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId, input.gymId);
   return completedSession ? { session: completedSession, completion } : null;
 }
 
-export async function cancelTrainerSession(sessionId: string, clientId: string, actorUserId: string) {
+export async function cancelTrainerSession(sessionId: string, clientId: string, actorUserId: string, gymId: string | null) {
   const result = await query(
-    `update trainer_coaching_sessions set status = 'cancelled', raw_input = '', updated_at = now(), version = version + 1 where id = $1 and client_id = $2 and created_by_user_id = $3 and status = 'draft' returning id`,
-    [sessionId, clientId, actorUserId]
+    `update trainer_coaching_sessions set status = 'cancelled', raw_input = '', updated_at = now(), version = version + 1
+     where id = $1 and client_id = $2 and created_by_user_id = $3 and gym_id is not distinct from $4::uuid and status = 'draft' returning id`,
+    [sessionId, clientId, actorUserId, gymId]
   );
   return Boolean(result.rowCount);
 }
 
 export function toClientCoachedSession(session: TrainerCoachingSession): ClientCoachedSession {
   const draft = session.workoutDraft!;
+  const shared = session.shareClientRecap !== false;
   return {
     id: session.id,
     trainerName: session.trainerName,
@@ -500,11 +549,11 @@ export function toClientCoachedSession(session: TrainerCoachingSession): ClientC
     durationMinutes: draft.durationMinutes ?? session.durationMinutes ?? 5,
     estimatedCaloriesBurned: session.estimatedCaloriesBurned ?? 0,
     caloriesLabel: session.caloriesLabel ?? "Estimated Calories Burned",
-    exercises: draft.exercises,
-    clientRecap: session.narratives?.clientRecap ?? "Your coached workout has been saved.",
-    betweenSessionFocus: session.narratives?.betweenSessionFocus ?? "Keep building on today's session.",
-    progressHighlights: session.intelligence?.highlights ?? [],
-    clientCelebration: session.intelligence?.clientCelebration ?? "Your completed session is now part of your progress.",
+    exercises: draft.exercises.map(({ name, sets, reps, load, loadUnit, durationMinutes }) => ({ name, sets, reps, load, loadUnit, durationMinutes })),
+    clientRecap: shared ? session.narratives?.clientRecap || null : null,
+    betweenSessionFocus: shared ? session.narratives?.betweenSessionFocus || null : null,
+    progressHighlights: shared ? session.intelligence?.highlights ?? [] : [],
+    clientCelebration: shared ? session.intelligence?.clientCelebration ?? null : null,
     completedAt: session.completedAt!
   };
 }

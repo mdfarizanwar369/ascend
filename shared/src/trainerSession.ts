@@ -4,6 +4,16 @@ export const TRAINER_SESSION_VERSION = "trainer_session_v1" as const;
 export type TrainerSessionStatus = "draft" | "completed" | "cancelled";
 export type TrainerSessionStartMode = "repeat_last" | "blank";
 
+export const TRAINER_SESSION_FOCUSES = ["Strength", "Fat loss", "Technique", "Mobility", "Conditioning"] as const;
+export const TRAINER_SESSION_RESPONSES = ["Strong", "Average", "Fatigued", "Good recovery", "Pain / tightness"] as const;
+
+export type TrainerSessionWorksheet = {
+  focus?: (typeof TRAINER_SESSION_FOCUSES)[number];
+  priority?: string;
+  response?: (typeof TRAINER_SESSION_RESPONSES)[number];
+  win?: string;
+};
+
 export type TrainerSessionNarratives = {
   clientRecap: string;
   betweenSessionFocus: string;
@@ -48,6 +58,8 @@ export type TrainerCoachingSession = {
   version: number;
   createdAt: string;
   updatedAt: string;
+  worksheet?: TrainerSessionWorksheet;
+  shareClientRecap?: boolean;
 };
 
 export type ClientCoachedSession = {
@@ -59,10 +71,10 @@ export type ClientCoachedSession = {
   durationMinutes: number;
   estimatedCaloriesBurned: number;
   caloriesLabel: string;
-  exercises: WorkoutCaptureDraft["exercises"];
-  clientRecap: string;
-  betweenSessionFocus: string;
+  exercises: Pick<WorkoutCaptureDraft["exercises"][number], "name" | "sets" | "reps" | "load" | "loadUnit" | "durationMinutes">[];
+  clientRecap: string | null;
+  betweenSessionFocus: string | null;
   progressHighlights: string[];
-  clientCelebration: string;
+  clientCelebration: string | null;
   completedAt: string;
 };

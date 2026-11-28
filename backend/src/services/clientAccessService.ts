@@ -2,6 +2,15 @@ import { query } from "../db/pool";
 import { AuthUser } from "../middleware/auth";
 import { getAdminGymScope, scopeAllowsGym } from "./adminScopeService";
 
+export async function getAssignedTrainerClient(user: AuthUser, clientId: string) {
+  if (!user.roles.includes("trainer") || !user.trainerId) return null;
+  const result = await query<{ gym_id: string | null }>(
+    "select gym_id from users where id = $1 and assigned_trainer_id = $2 and primary_role = 'client' and status = 'active'",
+    [clientId, user.trainerId]
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function canManageClient(user: AuthUser, clientId: string) {
   const result = await query<{ assigned_trainer_id: string | null; gym_id: string | null; primary_role: string; status: string }>(
     "select assigned_trainer_id, gym_id, primary_role, status from users where id = $1",

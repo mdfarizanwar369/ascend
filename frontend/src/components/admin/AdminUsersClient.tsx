@@ -19,6 +19,8 @@ import { CoachingMode, SubscriptionPlan } from "@ascend/shared";
 import { ChevronDown, ChevronUp, Search, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { Field, inputClass, selectClass } from "@/components/Field";
+import { GymCoachingSessions } from "./GymCoachingSessions";
+import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 
 type AdminUser = Awaited<ReturnType<typeof getAdminUsers>>["users"][number];
 type AdminTrainer = Awaited<ReturnType<typeof getAdminTrainers>>["trainers"][number];
@@ -71,6 +73,7 @@ export function trainersForUser(user: AdminUser, trainers: AdminTrainer[]) {
 }
 
 export function AdminUsersClient() {
+  const [coachingHistoryClientId, setCoachingHistoryClientId] = useState<string | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [trainers, setTrainers] = useState<AdminTrainer[]>([]);
   const [gyms, setGyms] = useState<Gym[]>([]);
@@ -515,6 +518,15 @@ export function AdminUsersClient() {
                   </button>
                 </div>
               </div>
+
+              {expandedUserId === user.id && trainerSessionCaptureEnabled() && user.primary_role === "client" && user.status === "active" && user.gym_id ? (
+                <div className="mt-3 rounded-xl border border-line p-3">
+                  <button type="button" aria-expanded={coachingHistoryClientId === user.id} onClick={() => setCoachingHistoryClientId((current) => current === user.id ? null : user.id)} className="min-h-11 text-sm font-semibold text-calm">
+                    {coachingHistoryClientId === user.id ? "Hide coaching sessions" : "View coaching sessions"}
+                  </button>
+                  {coachingHistoryClientId === user.id ? <GymCoachingSessions key={user.id} clientId={user.id} /> : null}
+                </div>
+              ) : null}
 
               {expandedUserId === user.id ? user.status !== "active" ? (
                 <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">

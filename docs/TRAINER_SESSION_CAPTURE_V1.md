@@ -1,6 +1,6 @@
 # Trainer Session Capture V1
 
-Trainer Session Capture lets an assigned trainer record a coached workout with shorthand or phone-keyboard dictation, review the interpreted receipt, and share one confirmed record with the client.
+Trainer Session Capture lets the currently assigned trainer see the last coach’s plan, record today’s workout, and leave a plan for the next appointment. Trainers can edit an exercise list directly or use shorthand or phone-keyboard dictation.
 
 ## Feature flags
 
@@ -11,20 +11,19 @@ Both default to `false`. Turning either flag off leaves existing workout logging
 
 ## Flow
 
-1. The trainer opens an assigned client's profile and chooses **Record PT Session**.
-2. They repeat the last detailed session or start fresh.
-3. They enter compact notes such as `Bench 60kg 10,10,8` or use the phone keyboard microphone.
-4. Existing workout-capture AI converts the notes to Ascend's structured workout contract.
-5. The trainer reviews exercises, client recap, and between-session focus.
-6. **Confirm & Share** persists through the existing workout-completion service.
+1. Open an assigned client’s profile and choose **Record PT Session**. The previous plan and exercise history appear before capture.
+2. Repeat the last detailed session and edit the relevant results, or start fresh. Direct entry and repeat use the workout capture contract without an AI request. Shorthand such as `Bench 60kg 10,10,8` still uses workout capture AI for interpretation.
+3. Record the session focus, main movement, coaching cues, client response, win, and next-session plan as needed.
+4. Save the session. Confirmed exercise results appear in the client’s history. **Share a recap with the client** is an opt-in for the edited recap and between-session focus.
+5. An authorized gym admin or owner can open **Admin → Users → Manage → View coaching sessions** for an active client in their gym and read completed records.
 
 The existing completion service calculates estimated calories using workout MET, duration, intensity, and the latest available client weight. Its analytics event immediately feeds workout history, Today, Momentum, reports, Journey, and coaching context.
 
 ## Storage
 
-Migration `020_trainer_coaching_sessions.sql` adds one table for draft lifecycle, trainer attribution, review copy, and the stable completion key. It does not modify existing workout or analytics tables.
+Migration `020_trainer_coaching_sessions.sql` adds the session table. Migration `048_trainer_session_worksheet.sql` adds worksheet fields, recap visibility, and gym-specific draft uniqueness. Existing completed recaps keep their prior visibility. A single transaction commits the completed session and its workout history together, and retries keep the first saved visibility choice.
 
-The raw trainer note is cleared after completion. The trainer's private next-session note and raw capture input are never returned by the client endpoint.
+The member-facing session projection contains the confirmed exercise facts and any opted-in recap, with coaching cues, raw captures, worksheet responses, and next-session plans kept in the coaching record.
 
 ## API
 
@@ -33,8 +32,9 @@ The raw trainer note is cleared after completion. The trainer's private next-ses
 - `POST /api/v1/trainer/clients/:clientId/coaching-sessions/:sessionId/interpret`
 - `POST /api/v1/trainer/clients/:clientId/coaching-sessions/:sessionId/complete`
 - `GET /api/v1/me/coaching-sessions`
+- `GET /api/v1/admin/users/:clientId/coaching-sessions`
 
-Every trainer mutation requires Trainer Pro access and server-side assigned-client authorization. Completion is idempotent through `workout_completion_key`.
+Every trainer route requires Trainer Pro access and a current client assignment on the server. Gym manager history is read-only and limited to completed sessions recorded at the client’s current gym. A same-gym reassignment carries completed history to the new trainer; independent trainer history follows the original trainer’s assignment.
 
 ## Rollback
 

@@ -1,14 +1,17 @@
 import { isIosFreeEdition } from "../services/appEdition";
-import { Request, Router } from "express";
+import { Router } from "express";
 import { z } from "zod";
+import { TRAINER_SESSION_FOCUSES, TRAINER_SESSION_RESPONSES } from "@ascend/shared";
 import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { requireActivePlan } from "../middleware/subscription";
-import { canManageClient } from "../services/clientAccessService";
+import { getAssignedTrainerClient } from "../services/clientAccessService";
+import { getAdminGymScope, getUserGymId, scopeAllowsGym } from "../services/adminScopeService";
 import {
   cancelTrainerSession,
   completeTrainerSession,
   getClientCoachedSessions,
+  getGymClientCoachingSessions,
   getTrainerSessionOverview,
   interpretTrainerSession,
   startTrainerSession,
@@ -21,31 +24,55 @@ export const trainerSessionsRouter = Router();
 const draftSchema = workoutCaptureDraftSchema;
 
 const narrativesSchema = z.object({
-  clientRecap: z.string().trim().min(1).max(600),
-  betweenSessionFocus: z.string().trim().min(1).max(400),
-  trainerNextSessionNote: z.string().trim().min(1).max(600)
+  clientRecap: z.string().trim().max(600),
+  betweenSessionFocus: z.string().trim().max(400),
+  trainerNextSessionNote: z.string().trim().max(600)
 });
 
-const trainerGuard = [requireAuth, requireActivePlan("trainer_pro"), requireRole(["trainer", "admin", "owner"])] as const;
+const worksheetSchema = z.object({
+  focus: z.enum(TRAINER_SESSION_FOCUSES).optional(),
+  priority: z.string().trim().max(160).optional(),
+  response: z.enum(TRAINER_SESSION_RESPONSES).optional(),
+  win: z.string().trim().max(400).optional()
+});
 
-async function ensureClientAccess(req: Request, clientId: string) {
-  return Boolean(req.user && await canManageClient(req.user, clientId));
-}
+const trainerGuard = [requireAuth, requireRole(["trainer"]), requireActivePlan("trainer_pro")] as const;
+
+trainerSessionsRouter.get("/admin/users/:clientId/coaching-sessions", requireAuth, requireRole(["admin", "owner"]), async (req, res, next) => {
+  try {
+    res.set("Cache-Control", "private, no-store");
+    if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ enabled: false, sessions: [] });
+    const clientId = z.uuid().parse(req.params.clientId);
+    const [scope, gymId] = await Promise.all([getAdminGymScope(req.user!), getUserGymId(clientId)]);
+    if (!gymId || !scopeAllowsGym(scope, gymId)) return res.status(403).json({ error: "You cannot view this client's coaching sessions." });
+    const sessions = await getGymClientCoachingSessions(clientId, scope.gymIds);
+    res.json({ enabled: true, sessions: sessions.map(({ id, trainerName, completedAt, worksheet, narratives, workoutDraft, shareClientRecap }) => ({
+      id, trainerName, completedAt, worksheet, narratives, shareClientRecap,
+      title: workoutDraft?.title,
+      exercises: workoutDraft?.exercises.map(({ name, sets, reps, load, loadUnit, durationMinutes, note }) => ({
+        name, sets, reps, load, loadUnit, durationMinutes, note
+      })) ?? []
+    })) });
+  } catch (error) { next(error); }
+});
 
 trainerSessionsRouter.get("/trainer/clients/:clientId/coaching-sessions", ...trainerGuard, async (req, res, next) => {
   try {
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ enabled: false, activeSession: null, recentSessions: [], previousWorkout: null });
-    if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
-    res.json({ enabled: true, ...await getTrainerSessionOverview(req.params.clientId, req.user!.id) });
+    res.set("Cache-Control", "private, no-store");
+    const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
+    if (!client) return res.status(403).json({ error: "You cannot manage this client." });
+    res.json({ enabled: true, ...await getTrainerSessionOverview(req.params.clientId, req.user!.id, client.gym_id) });
   } catch (error) { next(error); }
 });
 
 trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions", ...trainerGuard, async (req, res, next) => {
   try {
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.status(404).json({ error: "Session capture is not available." });
-    if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
+    const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
+    if (!client) return res.status(403).json({ error: "You cannot manage this client." });
     const body = z.object({ mode: z.enum(["repeat_last", "blank"]) }).parse(req.body);
-    const session = await startTrainerSession({ clientId: req.params.clientId, actorUserId: req.user!.id, trainerId: req.user!.trainerId ?? null, gymId: req.user!.gymId ?? null, mode: body.mode });
+    const session = await startTrainerSession({ clientId: req.params.clientId, actorUserId: req.user!.id, trainerId: req.user!.trainerId, gymId: client.gym_id, mode: body.mode });
     res.status(201).json({ session });
   } catch (error) { next(error); }
 });
@@ -53,9 +80,10 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions", ...tr
 trainerSessionsRouter.patch("/trainer/clients/:clientId/coaching-sessions/:sessionId", ...trainerGuard, async (req, res, next) => {
   try {
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.status(404).json({ error: "Session capture is not available." });
-    if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
+    const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
+    if (!client) return res.status(403).json({ error: "You cannot manage this client." });
     const body = z.object({ version: z.number().int().min(1), rawInput: z.string().max(5_000), durationMinutes: z.number().int().min(5).max(300).nullable().optional(), workoutDraft: draftSchema.nullable().optional() }).parse(req.body);
-    const session = await updateTrainerSessionDraft({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, ...body });
+    const session = await updateTrainerSessionDraft({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, gymId: client.gym_id, ...body });
     if (!session) return res.status(409).json({ error: "This session changed elsewhere. Refresh to continue." });
     res.json({ session });
   } catch (error) { next(error); }
@@ -64,9 +92,10 @@ trainerSessionsRouter.patch("/trainer/clients/:clientId/coaching-sessions/:sessi
 trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessionId/interpret", ...trainerGuard, async (req, res, next) => {
   try {
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.status(404).json({ error: "Session capture is not available." });
-    if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
+    const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
+    if (!client) return res.status(403).json({ error: "You cannot manage this client." });
     const body = z.object({ rawInput: z.string().trim().min(2).max(5_000), durationMinutes: z.number().int().min(5).max(300), sourceMode: z.enum(["text", "dictation"]).default("text") }).parse(req.body);
-    const result = await interpretTrainerSession({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, actorGymId: req.user!.gymId ?? null, ...body });
+    const result = await interpretTrainerSession({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, actorGymId: client.gym_id, ...body });
     if (!result) return res.status(404).json({ error: "Session draft not found." });
     res.json(result);
   } catch (error) { next(error); }
@@ -75,9 +104,20 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessio
 trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessionId/complete", ...trainerGuard, async (req, res, next) => {
   try {
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.status(404).json({ error: "Session capture is not available." });
-    if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
-    const body = z.object({ userConfirmed: z.literal(true), draft: draftSchema, narratives: narrativesSchema, completedAt: z.string().datetime().nullable().optional() }).parse(req.body);
-    const result = await completeTrainerSession({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, trainerId: req.user!.trainerId ?? null, actorGymId: req.user!.gymId ?? null, draft: body.draft, narratives: body.narratives, completedAt: body.completedAt });
+    const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
+    if (!client || !req.user!.trainerId) return res.status(403).json({ error: "You cannot manage this client." });
+    const body = z.object({
+      userConfirmed: z.literal(true),
+      draft: draftSchema.refine((draft) => draft.exercises.every((exercise) => !exercise.needsConfirmation), "Confirm the highlighted exercises first."),
+      narratives: narrativesSchema,
+      worksheet: worksheetSchema.default({}),
+      shareClientRecap: z.boolean().default(false),
+      completedAt: z.string().datetime().nullable().optional()
+    }).refine((input) => !input.shareClientRecap || Boolean(input.narratives.clientRecap || input.narratives.betweenSessionFocus), {
+      message: "Add a recap or a between-session focus to share.",
+      path: ["narratives"]
+    }).parse(req.body);
+    const result = await completeTrainerSession({ ...body, sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, trainerId: req.user!.trainerId, gymId: client.gym_id });
     if (!result) return res.status(404).json({ error: "Session draft not found." });
     res.json(result);
   } catch (error) { next(error); }
@@ -86,13 +126,15 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessio
 trainerSessionsRouter.delete("/trainer/clients/:clientId/coaching-sessions/:sessionId", ...trainerGuard, async (req, res, next) => {
   try {
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ cancelled: false });
-    if (!await ensureClientAccess(req, req.params.clientId)) return res.status(403).json({ error: "You cannot manage this client." });
-    res.json({ cancelled: await cancelTrainerSession(req.params.sessionId, req.params.clientId, req.user!.id) });
+    const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
+    if (!client) return res.status(403).json({ error: "You cannot manage this client." });
+    res.json({ cancelled: await cancelTrainerSession(req.params.sessionId, req.params.clientId, req.user!.id, client.gym_id) });
   } catch (error) { next(error); }
 });
 
 trainerSessionsRouter.get("/me/coaching-sessions", requireAuth, async (req, res, next) => {
   try {
+    res.set("Cache-Control", "private, no-store");
     if (isIosFreeEdition()) return res.json({ enabled: false, sessions: [] });
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ enabled: false, sessions: [] });
     const { limit } = z.object({ limit: z.coerce.number().int().min(1).max(25).default(10) }).parse(req.query);

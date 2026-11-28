@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import type { TrainerCoachingSession, TrainerSessionIntelligence, TrainerSessionNarratives, WorkoutCaptureDraft, WorkoutCaptureExercise } from "@ascend/shared";
-import { Check, ChevronDown, ChevronUp, Clock3, Dumbbell, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
+import { TRAINER_SESSION_FOCUSES, TRAINER_SESSION_RESPONSES, type TrainerCoachingSession, type TrainerSessionNarratives, type TrainerSessionWorksheet, type WorkoutCaptureDraft, type WorkoutCaptureExercise } from "@ascend/shared";
+import { Check, ChevronDown, ChevronUp, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import {
   cancelTrainerCoachingSession,
@@ -14,16 +14,26 @@ import {
   updateTrainerCoachingSession
 } from "@/lib/ascendApi";
 
-type Phase = "loading" | "start" | "capture" | "review" | "success";
+type Phase = "loading" | "unavailable" | "start" | "capture" | "review" | "success";
 
 const inputClass = "h-12 w-full rounded-xl border border-line bg-ink px-3 text-base text-white outline-none focus:border-lime";
+const noteClass = "mt-2 w-full rounded-xl border border-line bg-ink p-3 text-base text-white outline-none focus:border-lime";
+const emptyNarratives: TrainerSessionNarratives = { clientRecap: "", betweenSessionFocus: "", trainerNextSessionNote: "" };
+
+function blankExercise(): WorkoutCaptureExercise {
+  return {
+    name: "", sets: null, reps: null, load: null, loadUnit: null, note: null,
+    durationMinutes: null, restSeconds: null, movementPattern: "other",
+    originalText: null, confidence: 1, needsConfirmation: false
+  };
+}
 
 function elapsedMinutes(startedAt: string) {
   return Math.max(5, Math.round((Date.now() - new Date(startedAt).getTime()) / 60_000));
 }
 
 function exerciseSummary(exercise: WorkoutCaptureExercise) {
-  return [exercise.sets ? `${exercise.sets} sets` : null, exercise.reps ? `${exercise.reps} reps` : null, exercise.load !== null ? `${exercise.load}${exercise.loadUnit ?? ""}` : null]
+  return [exercise.sets ? `${exercise.sets} sets` : null, exercise.reps ? `${exercise.reps} reps` : null, exercise.load !== null ? `${exercise.load}${exercise.loadUnit ?? ""}` : null, exercise.durationMinutes ? `${exercise.durationMinutes} min` : null]
     .filter(Boolean)
     .join(" / ") || "Details not captured";
 }
@@ -50,16 +60,16 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   const [phase, setPhase] = useState<Phase>("loading");
   const [session, setSession] = useState<TrainerCoachingSession | null>(null);
   const [previousWorkout, setPreviousWorkout] = useState<WorkoutCaptureDraft | null>(null);
+  const [lastSession, setLastSession] = useState<TrainerCoachingSession | null>(null);
   const [rawInput, setRawInput] = useState("");
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [draft, setDraft] = useState<WorkoutCaptureDraft | null>(null);
-  const [narratives, setNarratives] = useState<TrainerSessionNarratives | null>(null);
-  const [intelligence, setIntelligence] = useState<TrainerSessionIntelligence | null>(null);
-  const [estimatedCalories, setEstimatedCalories] = useState<number | null>(null);
+  const [narratives, setNarratives] = useState(emptyNarratives);
+  const [worksheet, setWorksheet] = useState<TrainerSessionWorksheet>({});
+  const [shareClientRecap, setShareClientRecap] = useState(false);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
-  const [completion, setCompletion] = useState<{ calories: number; momentum: number } | null>(null);
   const completeLock = useRef(false);
 
   useEffect(() => {
@@ -68,20 +78,21 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       .then((overview) => {
         if (!mounted) return;
         setPreviousWorkout(overview.previousWorkout);
+        setLastSession(overview.recentSessions[0] ?? null);
         if (!overview.enabled) {
           setStatus("Session capture is not available in this build.");
-          setPhase("start");
+          setPhase("unavailable");
           return;
         }
         if (overview.activeSession) {
           const localDraft = readLocalDraft(clientId, overview.activeSession.id);
           setSession(overview.activeSession);
-          setRawInput(localDraft?.rawInput || overview.activeSession.rawInput);
+          const input = localDraft?.rawInput ?? overview.activeSession.rawInput;
+          setRawInput(input);
           setDurationMinutes(localDraft?.durationMinutes ?? overview.activeSession.durationMinutes ?? elapsedMinutes(overview.activeSession.startedAt));
           setDraft(overview.activeSession.workoutDraft);
-          setNarratives(overview.activeSession.narratives);
-          setIntelligence(overview.activeSession.intelligence);
-          setPhase(overview.activeSession.rawInput.trim() && overview.activeSession.workoutDraft?.sourceMode !== "repeat" && overview.activeSession.narratives ? "review" : "capture");
+          setNarratives(overview.activeSession.narratives ?? emptyNarratives);
+          setPhase(overview.activeSession.workoutDraft && input === overview.activeSession.rawInput ? "review" : "capture");
         } else {
           setPhase("start");
         }
@@ -89,7 +100,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       .catch((error) => {
         if (!mounted) return;
         setStatus(error instanceof Error ? error.message : "Could not load session capture.");
-        setPhase("start");
+        setPhase("unavailable");
       });
     return () => { mounted = false; };
   }, [clientId]);
@@ -103,9 +114,11 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     }
   }, [clientId, durationMinutes, phase, rawInput, session]);
 
-  const canInterpret = rawInput.trim().length >= 2 || Boolean(session?.workoutDraft?.exercises.length);
-  const title = session?.clientName ? `Session with ${session.clientName}` : "Record PT Session";
-  const previousSummary = useMemo(() => previousWorkout ? `${previousWorkout.title} / ${previousWorkout.exercises.length} exercises` : "No earlier detailed session", [previousWorkout]);
+  const title = session?.clientName || lastSession?.clientName || "PT Session";
+  const priorNote = lastSession?.narratives?.trainerNextSessionNote;
+  const priorPriority = previousWorkout?.exercises.find((exercise) => exercise.name.toLowerCase() === lastSession?.worksheet?.priority?.toLowerCase()) ?? previousWorkout?.exercises[0];
+  const recapReady = !shareClientRecap || Boolean(narratives.clientRecap.trim() || narratives.betweenSessionFocus.trim());
+  const canSave = recapReady && Boolean(draft?.title.trim() && draft.workoutType.trim() && draft.exercises.length && draft.exercises.every((exercise) => exercise.name.trim() && !exercise.needsConfirmation));
 
   async function start(mode: "repeat_last" | "blank") {
     setBusy(true);
@@ -115,42 +128,42 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
       setSession(response.session);
       setRawInput(response.session.rawInput);
       setDraft(response.session.workoutDraft);
+      setNarratives(response.session.narratives ?? emptyNarratives);
       setDurationMinutes(response.session.durationMinutes ?? 45);
-      setPhase("capture");
-      setStatus("Session started. Type shorthand or use your keyboard microphone.");
+      setPhase(response.session.workoutDraft ? "review" : "capture");
+      setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not start the session.");
     } finally { setBusy(false); }
   }
 
   async function finishAndReview() {
-    if (!session || !canInterpret) return;
+    if (!session || rawInput.trim().length < 2) return;
     setBusy(true);
     setStatus("Turning your notes into a clean session...");
     try {
-      let currentSession = session;
-      if (rawInput.trim()) {
-        const saved = await updateTrainerCoachingSession(clientId, session.id, { version: session.version, rawInput, durationMinutes });
-        currentSession = saved.session;
-        setSession(saved.session);
-      }
-      if (!rawInput.trim() && currentSession.workoutDraft) {
-        setDraft({ ...currentSession.workoutDraft, durationMinutes });
-        setNarratives(currentSession.narratives);
-        setIntelligence(currentSession.intelligence);
-        setPhase("review");
-      } else {
-        const result = await interpretTrainerCoachingSession(clientId, session.id, { rawInput, durationMinutes, sourceMode: "dictation" });
-        setDraft(result.draft);
-        setNarratives(result.narratives);
-        setIntelligence(result.intelligence);
-        setEstimatedCalories(result.estimatedCaloriesBurned);
-        setPhase("review");
-      }
-      setStatus("Review only what needs changing, then share it with the client.");
+      const saved = await updateTrainerCoachingSession(clientId, session.id, { version: session.version, rawInput, durationMinutes });
+      setSession(saved.session);
+      const result = await interpretTrainerCoachingSession(clientId, session.id, { rawInput, durationMinutes, sourceMode: "dictation" });
+      setSession({ ...saved.session, version: saved.session.version + 1 });
+      setDraft(result.draft);
+      setNarratives((current) => ({ ...result.narratives, trainerNextSessionNote: current.trainerNextSessionNote }));
+      setPhase("review");
+      setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Ascend could not read these notes. Your draft is still saved.");
     } finally { setBusy(false); }
+  }
+
+  function enterExercises() {
+    setDraft((current) => current ?? {
+      version: "workout_capture_v1", sourceMode: "text", originalInput: "",
+      title: "PT Session", workoutType: "Training", difficulty: "moderate", durationMinutes,
+      exercises: [blankExercise()], confidence: 1, uncertainties: [], requiresReview: true
+    });
+    setExpandedExercise(0);
+    setPhase("review");
+    setStatus("");
   }
 
   function updateExercise(index: number, changes: Partial<WorkoutCaptureExercise>) {
@@ -167,20 +180,41 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
             fieldConfidence[field as keyof typeof fieldConfidence] = 1;
           }
         });
-        return { ...exercise, ...changes, uncertainFields, fieldConfidence, needsConfirmation: uncertainFields.length > 0 };
+        const editsPerformance = resolvedFields.some((field) => ["sets", "reps", "load", "loadUnit"].includes(field));
+        const changedExercise = {
+          ...exercise, ...changes, uncertainFields, fieldConfidence,
+          needsConfirmation: changes.needsConfirmation ?? (resolvedFields.includes("name") || editsPerformance || "durationMinutes" in changes ? uncertainFields.length > 0 : exercise.needsConfirmation)
+        };
+        if (editsPerformance) {
+          changedExercise.setDetails = undefined;
+          changedExercise.loadSteps = undefined;
+          if ("sets" in changes) changedExercise.completedSets = undefined;
+          if ("reps" in changes) {
+            changedExercise.repRangeMin = undefined;
+            changedExercise.repRangeMax = undefined;
+            changedExercise.approximateReps = undefined;
+          }
+          if ("load" in changes || "loadUnit" in changes) {
+            changedExercise.topLoad = undefined;
+            changedExercise.workingLoad = undefined;
+            changedExercise.startingLoad = undefined;
+            changedExercise.backoffLoad = undefined;
+            changedExercise.loadText = undefined;
+          }
+        }
+        return changedExercise;
       })
     });
   }
 
   async function complete() {
-    if (!session || !draft || !narratives || draft.exercises.some((exercise) => exercise.needsConfirmation) || completeLock.current) return;
+    if (!session || !draft || !canSave || completeLock.current) return;
     completeLock.current = true;
     setBusy(true);
-    setStatus("Saving and sharing the session...");
+    setStatus("Saving the session…");
     try {
-      const response = await completeTrainerCoachingSession(clientId, session.id, { userConfirmed: true, draft, narratives });
-      window.localStorage.removeItem(localDraftKey(clientId, session.id));
-      setCompletion({ calories: response.completion.summary.estimatedCaloriesBurned, momentum: response.completion.summary.momentumEarned });
+      const response = await completeTrainerCoachingSession(clientId, session.id, { userConfirmed: true, draft, narratives, worksheet, shareClientRecap });
+      clearLocalDraft(session.id);
       setSession(response.session);
       setPhase("success");
       setStatus("");
@@ -190,105 +224,206 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     } finally { setBusy(false); }
   }
 
+  function clearLocalDraft(sessionId: string) {
+    try {
+      window.localStorage.removeItem(localDraftKey(clientId, sessionId));
+    } catch {
+      // Session state is already saved on the server.
+    }
+  }
+
   async function discard() {
     if (!session || busy) return;
     setBusy(true);
     try {
       await cancelTrainerCoachingSession(clientId, session.id);
-      window.localStorage.removeItem(localDraftKey(clientId, session.id));
-      setSession(null); setDraft(null); setRawInput(""); setPhase("start"); setStatus("Draft discarded.");
+      clearLocalDraft(session.id);
+      setSession(null); setDraft(null); setRawInput(""); setNarratives(emptyNarratives);
+      setWorksheet({}); setShareClientRecap(false); setExpandedExercise(null);
+      setPhase("start"); setStatus("Draft discarded.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Could not discard the draft."); }
     finally { setBusy(false); }
   }
 
   return (
     <main className="ascend-page px-4 py-3 text-white sm:py-5">
-      <div className="ascend-workspace-frame">
+      <div className="ascend-workspace-frame space-y-4">
         <header className="flex items-center gap-3 py-3">
           <BackButton fallbackHref={`/trainer/clients/${clientId}`} disabled={busy} />
-          <div><p className="text-sm text-zinc-400">Coached workout</p><h1 className="text-2xl font-semibold">{title}</h1></div>
+          <div>
+            <p className="text-sm text-zinc-400">PT session{session ? ` · ${new Date(session.startedAt).toLocaleDateString()}` : ""}</p>
+            <h1 className="text-2xl font-semibold">{title}</h1>
+          </div>
         </header>
 
-        {status ? <p role="status" className="mt-3 rounded-xl border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+        {status ? <p role="status" className="rounded-xl border border-line bg-surface p-3 text-sm text-zinc-300">{status}</p> : null}
+        {phase === "loading" ? <div className="h-40 animate-pulse rounded-2xl bg-surface" /> : null}
 
-        <ol className="mt-4 grid grid-cols-3 gap-2" aria-label="Session capture progress">
-          {["Capture", "Review", "Save"].map((label, index) => {
-            const activeIndex = phase === "review" ? 1 : phase === "success" ? 2 : 0;
-            const complete = index < activeIndex;
-            const active = index === activeIndex;
-            return <li key={label} className={`rounded-xl border px-3 py-2 text-center text-xs font-semibold ${complete ? "border-lime/30 bg-lime/10 text-lime" : active ? "border-calm/40 bg-calm/10 text-calm" : "border-line bg-surface text-zinc-500"}`}>{complete ? "Done" : label}</li>;
-          })}
-        </ol>
-
-        {phase === "loading" ? <div className="mt-5 h-56 animate-pulse rounded-2xl bg-surface" /> : null}
+        {["start", "capture", "review"].includes(phase) && (priorNote || lastSession?.worksheet?.response || previousWorkout) ? (
+          <section className="ascend-workspace-section p-4 sm:p-5">
+            <h2 className="text-lg font-semibold">From the last session</h2>
+            {priorNote ? <p className="mt-2 whitespace-pre-wrap text-zinc-100">{priorNote}</p> : null}
+            {priorPriority ? <p className="mt-2 text-sm text-zinc-300">{priorPriority.name} · {exerciseSummary(priorPriority)}</p> : null}
+            {lastSession?.worksheet?.response ? <p className="mt-1 text-sm text-zinc-400">Client response · {lastSession.worksheet.response}</p> : null}
+            {previousWorkout?.exercises.length ? (
+              <details className="mt-3 text-sm text-zinc-300">
+                <summary className="cursor-pointer text-calm">Previous exercises</summary>
+                <ul className="mt-2 space-y-2">
+                  {previousWorkout.exercises.map((exercise, index) => (
+                    <li key={index}>{exercise.name} · {exerciseSummary(exercise)}{exercise.note ? <span className="block text-zinc-400">{exercise.note}</span> : null}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </section>
+        ) : null}
 
         {phase === "start" ? (
-          <section className="ascend-workspace-section mt-5 p-5">
-            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-lime text-ink"><Dumbbell /></span>
-            <h2 className="mt-5 text-2xl font-semibold">Capture the session without slowing it down.</h2>
-            <p className="mt-2 max-w-xl leading-7 text-zinc-400">Use quick shorthand during training. Ascend will organize it before anything reaches the client.</p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <button disabled={busy || !previousWorkout} onClick={() => start("repeat_last")} className="min-h-14 rounded-xl bg-lime px-4 font-bold text-ink disabled:opacity-40"><RotateCcw className="mr-2 inline" size={18} />Repeat last session</button>
-              <button disabled={busy} onClick={() => start("blank")} className="min-h-14 rounded-xl border border-line bg-ink px-4 font-semibold text-white disabled:opacity-40">Start fresh</button>
-            </div>
-            <p className="mt-4 text-sm text-zinc-500">Last session: {previousSummary}</p>
+          <section className="ascend-workspace-section grid gap-3 p-4 sm:grid-cols-2">
+            {previousWorkout ? <button disabled={busy} onClick={() => start("repeat_last")} className="min-h-12 rounded-xl bg-lime px-4 font-bold text-ink disabled:opacity-40"><RotateCcw className="mr-2 inline" size={18} />Repeat last session</button> : null}
+            <button disabled={busy} onClick={() => start("blank")} className="min-h-12 rounded-xl border border-line bg-ink px-4 font-semibold text-white disabled:opacity-40">Start fresh</button>
           </section>
         ) : null}
 
         {phase === "capture" && session ? (
-          <div className="mt-5 grid gap-4 lg:grid-cols-[0.7fr_1.3fr]">
-            <aside className="ascend-workspace-section p-4 sm:p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">Last session</p>
-              <h2 className="mt-2 text-lg font-semibold">{previousWorkout?.title ?? "A clean starting point"}</h2>
-              <p className="mt-2 text-sm text-zinc-400">{previousSummary}</p>
-              {session.workoutDraft?.exercises.slice(0, 6).map((exercise) => <p key={exercise.name} className="mt-3 rounded-xl bg-ink p-3 text-sm">{exercise.name}<span className="block text-zinc-500">{exerciseSummary(exercise)}</span></p>)}
-            </aside>
-            <section className="rounded-2xl border border-lime/30 bg-surface p-4 sm:p-5">
-              <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.16em] text-lime">Live session</p><h2 className="mt-1 text-xl font-semibold">Add what happened</h2></div><Clock3 className="text-lime" /></div>
-              <label className="mt-5 block text-sm font-semibold">Session notes</label>
-              <textarea value={rawInput} onChange={(event) => setRawInput(event.target.value)} rows={9} autoFocus placeholder={'Bench 60kg 10,10,8\nLat pulldown 45kg 3x12\nBike 8 min'} className="mt-2 w-full resize-none rounded-xl border border-line bg-ink p-4 text-lg leading-8 text-white outline-none focus:border-lime" />
-              <p className="mt-2 text-sm text-zinc-500">Fastest option: tap your phone keyboard microphone and speak naturally.</p>
-              <label className="mt-4 block text-sm font-semibold">Duration</label>
-              <div className="mt-2 flex items-center gap-2"><input type="number" min={5} max={300} value={durationMinutes} onChange={(event) => setDurationMinutes(Math.max(5, Number(event.target.value) || 5))} className={`${inputClass} max-w-28`} /><span className="text-zinc-400">minutes</span></div>
-              <button disabled={busy || !canInterpret} onClick={finishAndReview} className="mt-5 min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink disabled:opacity-40"><Sparkles className="mr-2 inline" size={19} />{busy ? "Preparing..." : "Finish & Review"}</button>
-              <button disabled={busy} onClick={discard} className="mt-3 min-h-12 w-full text-sm text-zinc-400"><Trash2 className="mr-2 inline" size={16} />Discard draft</button>
-            </section>
-          </div>
+          <section className="ascend-workspace-section p-4 sm:p-5">
+            <h2 className="text-xl font-semibold">Record exercises</h2>
+            <button type="button" disabled={busy} onClick={enterExercises} className="mt-3 min-h-12 rounded-xl bg-lime px-4 font-semibold text-ink disabled:opacity-40">
+              {draft ? "Edit exercise list" : "Enter exercises"}
+            </button>
+            <details className="mt-4 rounded-xl border border-line p-3">
+              <summary className="cursor-pointer font-semibold">Use shorthand or dictation</summary>
+              <label className="mt-3 block text-sm">
+                Workout shorthand
+                <textarea value={rawInput} maxLength={5000} onChange={(event) => setRawInput(event.target.value)} rows={4} placeholder={"Bench 60kg 10,10,8\nBike 8 min"} className={noteClass} />
+              </label>
+              <label className="mt-2 block text-sm">
+                Duration in minutes
+                <input type="number" min={5} max={300} value={durationMinutes} onChange={(event) => setDurationMinutes(Math.max(5, Math.min(300, Number(event.target.value) || 5)))} className={`${inputClass} mt-2 block max-w-28`} />
+              </label>
+              <button disabled={busy || rawInput.trim().length < 2} onClick={finishAndReview} className="mt-3 min-h-12 rounded-xl border border-line px-4 font-semibold disabled:opacity-40">
+                <Sparkles className="mr-2 inline" size={17} />Review shorthand
+              </button>
+            </details>
+            <button disabled={busy} onClick={discard} className="mt-3 min-h-11 text-sm text-zinc-400"><Trash2 className="mr-2 inline" size={16} />Discard draft</button>
+          </section>
         ) : null}
 
-        {phase === "review" && draft && narratives ? (
-          <div className="mt-5 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+        {phase === "review" && draft ? (
+          <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
             <section className="ascend-workspace-section p-4 sm:p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-calm">Review receipt</p>
-              <input aria-label="Workout title" value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="mt-3 w-full bg-transparent text-2xl font-semibold outline-none" />
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <input aria-label="Workout type" value={draft.workoutType} onChange={(event) => setDraft({ ...draft, workoutType: event.target.value })} className={inputClass} />
-                <select aria-label="Difficulty" value={draft.difficulty} onChange={(event) => setDraft({ ...draft, difficulty: event.target.value as WorkoutCaptureDraft["difficulty"] })} className={inputClass}><option value="easy">Easy</option><option value="moderate">Moderate</option><option value="challenging">Challenging</option></select>
-                <input aria-label="Duration in minutes" type="number" min={5} max={300} value={draft.durationMinutes ?? durationMinutes} onChange={(event) => setDraft({ ...draft, durationMinutes: Number(event.target.value) })} className={inputClass} />
+              <h2 className="text-xl font-semibold">Today’s session</h2>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="text-sm">Focus
+                  <select className={`${inputClass} mt-2`} value={worksheet.focus ?? ""} onChange={(e) => setWorksheet({ ...worksheet, focus: (e.target.value || undefined) as TrainerSessionWorksheet["focus"] })}>
+                    <option value="">Choose focus</option>
+                    {TRAINER_SESSION_FOCUSES.map((focus) => <option key={focus}>{focus}</option>)}
+                  </select>
+                </label>
+                <label className="text-sm">Main movement or priority
+                  <input className={`${inputClass} mt-2`} maxLength={160} value={worksheet.priority ?? ""} onChange={(e) => setWorksheet({ ...worksheet, priority: e.target.value })} />
+                </label>
               </div>
-              <div className="mt-5 space-y-2">
+              <div className="mt-4 space-y-2">
                 {draft.exercises.map((exercise, index) => (
-                  <article key={`${exercise.name}-${index}`} className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber/50 bg-amber/5" : "border-line bg-ink"}`}>
-                    <button type="button" onClick={() => setExpandedExercise(expandedExercise === index ? null : index)} className="flex min-h-11 w-full items-center justify-between gap-3 text-left">
-                      <div><p className="font-semibold">{exercise.name}</p><p className="text-sm text-zinc-400">{exerciseSummary(exercise)}</p></div>{expandedExercise === index ? <ChevronUp /> : <ChevronDown />}
+                  <article key={index} className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber/50 bg-amber/5" : "border-line bg-ink"}`}>
+                    <button type="button" aria-expanded={expandedExercise === index} onClick={() => setExpandedExercise(expandedExercise === index ? null : index)} className="flex min-h-11 w-full items-center justify-between gap-3 text-left">
+                      <div>
+                        <p className="font-semibold">{exercise.name || "New exercise"}</p>
+                        <p className="text-sm text-zinc-400">{exerciseSummary(exercise)}</p>
+                      </div>
+                      {expandedExercise === index ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                     </button>
-                    {expandedExercise === index ? <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"><input aria-label="Exercise name" value={exercise.name} onChange={(e) => updateExercise(index, { name: e.target.value })} className={`${inputClass} col-span-2 sm:col-span-4`} /><input aria-label="Sets" type="number" placeholder="Sets" value={exercise.sets ?? ""} onChange={(e) => updateExercise(index, { sets: e.target.value ? Number(e.target.value) : null })} className={inputClass} /><input aria-label="Reps" placeholder="Reps" value={exercise.reps ?? ""} onChange={(e) => updateExercise(index, { reps: e.target.value || null })} className={inputClass} /><input aria-label="Load" type="number" placeholder="Load" value={exercise.load ?? ""} onChange={(e) => updateExercise(index, { load: e.target.value ? Number(e.target.value) : null })} className={inputClass} /><select aria-label="Load unit" value={exercise.loadUnit ?? "kg"} onChange={(e) => updateExercise(index, { loadUnit: e.target.value as "kg" | "lb" })} className={inputClass}><option value="kg">kg</option><option value="lb">lb</option></select></div> : null}
+                    {expandedExercise === index ? (
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <label className="col-span-2 text-sm sm:col-span-4">Exercise name
+                          <input value={exercise.name} maxLength={120} onChange={(e) => updateExercise(index, { name: e.target.value })} className={`${inputClass} mt-1`} />
+                        </label>
+                        <label className="text-sm">Sets
+                          <input type="number" min={1} max={100} value={exercise.sets ?? ""} onChange={(e) => updateExercise(index, { sets: e.target.value ? Number(e.target.value) : null })} className={`${inputClass} mt-1`} />
+                        </label>
+                        <label className="text-sm">Reps
+                          <input value={exercise.reps ?? ""} maxLength={80} onChange={(e) => updateExercise(index, { reps: e.target.value || null })} className={`${inputClass} mt-1`} />
+                        </label>
+                        <label className="text-sm">Load
+                          <input type="number" min={0} max={2000} step="any" value={exercise.load ?? ""} onChange={(e) => updateExercise(index, { load: e.target.value ? Number(e.target.value) : null, loadUnit: e.target.value ? exercise.loadUnit ?? "kg" : null })} className={`${inputClass} mt-1`} />
+                        </label>
+                        <label className="text-sm">Unit
+                          <select value={exercise.loadUnit ?? "kg"} onChange={(e) => updateExercise(index, { loadUnit: e.target.value as "kg" | "lb" })} className={`${inputClass} mt-1`}><option value="kg">kg</option><option value="lb">lb</option></select>
+                        </label>
+                        <label className="text-sm">Minutes
+                          <input type="number" min={1} max={300} value={exercise.durationMinutes ?? ""} onChange={(e) => updateExercise(index, { durationMinutes: e.target.value ? Number(e.target.value) : null, durationValue: undefined, durationUnit: undefined })} className={`${inputClass} mt-1`} />
+                        </label>
+                        <label className="col-span-2 text-sm sm:col-span-3">Coaching cue
+                          <input maxLength={500} value={exercise.note ?? ""} onChange={(e) => updateExercise(index, { note: e.target.value || null })} className={`${inputClass} mt-1`} />
+                        </label>
+                        {exercise.needsConfirmation ? <button type="button" onClick={() => updateExercise(index, { needsConfirmation: false, uncertainFields: [] })} className="col-span-2 min-h-11 rounded-xl border border-amber/40 text-sm text-amber">Confirm exercise details</button> : null}
+                        <button type="button" onClick={() => { setDraft({ ...draft, exercises: draft.exercises.filter((_, item) => item !== index) }); setExpandedExercise(null); }} className="col-span-2 min-h-11 text-left text-sm text-zinc-400">Remove exercise</button>
+                      </div>
+                    ) : null}
                   </article>
                 ))}
               </div>
+              <button type="button" disabled={busy || draft.exercises.length >= 30} onClick={() => { setExpandedExercise(draft.exercises.length); setDraft({ ...draft, exercises: [...draft.exercises, blankExercise()] }); }} className="mt-3 min-h-11 rounded-xl border border-line px-4 text-sm font-semibold disabled:opacity-40">Add exercise</button>
+              <details className="mt-3 rounded-xl border border-line p-3 text-sm">
+                <summary className="cursor-pointer font-semibold">Session details</summary>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <label>Workout title<input value={draft.title} maxLength={120} onChange={(e) => setDraft({ ...draft, title: e.target.value })} className={`${inputClass} mt-1`} /></label>
+                  <label>Workout type<input value={draft.workoutType} maxLength={80} onChange={(e) => setDraft({ ...draft, workoutType: e.target.value })} className={`${inputClass} mt-1`} /></label>
+                  <label>Difficulty<select value={draft.difficulty} onChange={(e) => setDraft({ ...draft, difficulty: e.target.value as WorkoutCaptureDraft["difficulty"] })} className={`${inputClass} mt-1`}><option value="easy">Easy</option><option value="moderate">Moderate</option><option value="challenging">Challenging</option></select></label>
+                  <label>Duration in minutes<input type="number" min={5} max={300} value={draft.durationMinutes ?? ""} onChange={(e) => setDraft({ ...draft, durationMinutes: e.target.value ? Number(e.target.value) : null })} className={`${inputClass} mt-1`} /></label>
+                </div>
+              </details>
+              <button type="button" disabled={busy} onClick={() => setPhase("capture")} className="mt-2 min-h-11 text-sm text-calm">Shorthand or draft options</button>
             </section>
-            <aside className="space-y-4">
-              {intelligence ? <section className="rounded-2xl border border-calm/30 bg-calm/10 p-4"><div className="flex items-center gap-2 text-calm"><Sparkles size={18} /><p className="text-xs font-bold uppercase tracking-[0.16em]">Session Copilot</p></div><h3 className="mt-2 text-lg font-semibold">{intelligence.headline}</h3>{intelligence.highlights.length ? <div className="mt-3 space-y-2">{intelligence.highlights.map((highlight) => <p key={highlight} className="rounded-xl bg-ink/70 p-3 text-sm text-zinc-200"><Check className="mr-2 inline text-lime" size={16} />{highlight}</p>)}</div> : null}{intelligence.watchouts.length ? <div className="mt-3 rounded-xl border border-amber/30 bg-amber/10 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber">Check next time</p>{intelligence.watchouts.map((watchout) => <p key={watchout} className="mt-2 text-sm leading-6 text-zinc-200">{watchout}</p>)}</div> : null}<div className="mt-3 rounded-xl bg-ink/70 p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">Next-session starting point</p><p className="mt-2 text-sm leading-6 text-zinc-200">{intelligence.nextSessionStartingPoint}</p></div></section> : null}
-              <section className="ascend-workspace-section p-4"><p className="text-sm text-zinc-400">Estimated Calories Burned</p><p className="mt-1 text-3xl font-semibold">~{estimatedCalories ?? "--"} kcal</p><p className="mt-2 text-xs text-zinc-500">Estimated from session type, effort, duration and client weight when available.</p></section>
-              <section className="rounded-2xl border border-purple-400/30 bg-purple-500/10 p-4"><p className="text-xs font-bold uppercase tracking-[0.16em] text-purple-200">Client recap</p><textarea value={narratives.clientRecap} onChange={(e) => setNarratives({ ...narratives, clientRecap: e.target.value })} rows={4} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /><p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-calm">Between-session focus</p><textarea value={narratives.betweenSessionFocus} onChange={(e) => setNarratives({ ...narratives, betweenSessionFocus: e.target.value })} rows={3} className="mt-2 w-full resize-none bg-transparent text-sm leading-6 outline-none" /></section>
-              {draft.exercises.some((exercise) => exercise.needsConfirmation) ? <p className="rounded-xl border border-amber/30 bg-amber/10 p-3 text-sm text-amber">Confirm the highlighted workout details before sharing.</p> : null}
-              <button disabled={busy || !draft.title.trim() || draft.exercises.some((exercise) => exercise.needsConfirmation)} onClick={complete} className="sticky bottom-[calc(1rem+env(safe-area-inset-bottom))] z-20 min-h-14 w-full rounded-xl bg-lime px-4 text-lg font-bold text-ink shadow-[0_16px_40px_rgba(0,0,0,0.45)] disabled:opacity-40"><Save className="mr-2 inline" size={19} />{busy ? "Saving..." : "Confirm & Share"}</button>
-              <button disabled={busy} onClick={() => setPhase("capture")} className="min-h-12 w-full rounded-xl border border-line bg-ink font-semibold">Back to notes</button>
-            </aside>
+
+            <section className="ascend-workspace-section space-y-3 p-4 sm:p-5">
+              <h2 className="text-xl font-semibold">Finish session</h2>
+              <label className="block text-sm">How did the client feel?
+                <select className={`${inputClass} mt-2`} value={worksheet.response ?? ""} onChange={(e) => setWorksheet({ ...worksheet, response: (e.target.value || undefined) as TrainerSessionWorksheet["response"] })}>
+                  <option value="">Choose response</option>
+                  {TRAINER_SESSION_RESPONSES.map((response) => <option key={response}>{response}</option>)}
+                </select>
+              </label>
+              <label className="block text-sm">Win today
+                <input className={`${inputClass} mt-2`} maxLength={400} value={worksheet.win ?? ""} onChange={(e) => setWorksheet({ ...worksheet, win: e.target.value })} />
+              </label>
+              <label className="block text-sm">Plan for next session
+                <textarea rows={2} maxLength={600} value={narratives.trainerNextSessionNote} onChange={(e) => setNarratives({ ...narratives, trainerNextSessionNote: e.target.value })} className={noteClass} />
+              </label>
+              <p className="text-xs text-zinc-400">Coaching notes are visible to the assigned trainer and authorized gym managers.</p>
+              <label className="flex min-h-11 items-center gap-2 text-sm font-semibold">
+                <input type="checkbox" checked={shareClientRecap} onChange={(e) => setShareClientRecap(e.target.checked)} className="h-4 w-4 accent-lime" />
+                Share a recap with the client
+              </label>
+              <p className="text-xs text-zinc-400">The client can see their completed exercises. The recap and between-session focus are shared when you choose to send them.</p>
+              {shareClientRecap ? (
+                <div className="space-y-3 rounded-xl border border-line p-3">
+                  <label className="block text-sm">Client recap
+                    <textarea rows={2} maxLength={600} value={narratives.clientRecap} onChange={(e) => setNarratives({ ...narratives, clientRecap: e.target.value })} className={noteClass} />
+                  </label>
+                  <label className="block text-sm">Between-session focus
+                    <textarea rows={2} maxLength={400} value={narratives.betweenSessionFocus} onChange={(e) => setNarratives({ ...narratives, betweenSessionFocus: e.target.value })} className={noteClass} />
+                  </label>
+                </div>
+              ) : null}
+              {draft.exercises.some((exercise) => exercise.needsConfirmation) ? <p className="text-sm text-amber">Confirm the highlighted exercises before saving.</p> : null}
+              {!recapReady ? <p className="text-sm text-zinc-400">Add a recap or between-session focus to share.</p> : null}
+              <button disabled={busy || !canSave} onClick={complete} className="min-h-12 w-full rounded-xl bg-lime px-4 font-bold text-ink disabled:opacity-40">
+                <Save className="mr-2 inline" size={17} />{shareClientRecap ? "Save & share recap" : "Save session"}
+              </button>
+            </section>
           </div>
         ) : null}
 
-        {phase === "success" ? <section className="mt-5 rounded-2xl border border-lime/40 bg-lime/10 p-6 text-center"><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-lime text-ink"><Check size={34} /></span><h2 className="mt-4 text-2xl font-semibold">Session shared</h2><p className="mt-2 text-zinc-300">The client can now see what they completed and what to focus on next.</p><div className="mx-auto mt-5 grid max-w-md grid-cols-2 gap-3"><div className="rounded-xl bg-ink p-3"><p className="text-sm text-zinc-500">Estimated burn</p><p className="text-xl font-semibold">~{completion?.calories ?? 0} kcal</p></div><div className="rounded-xl bg-ink p-3"><p className="text-sm text-zinc-500">Momentum</p><p className="text-xl font-semibold text-lime">+{completion?.momentum ?? 0}</p></div></div><Link href={`/trainer/clients/${clientId}`} className="mx-auto mt-5 flex min-h-14 max-w-md items-center justify-center rounded-xl bg-lime font-bold text-ink">Return to client</Link></section> : null}
+        {phase === "success" ? (
+          <section className="rounded-2xl border border-lime/40 bg-lime/10 p-6 text-center">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-lime text-ink"><Check size={26} /></span>
+            <h2 className="mt-3 text-xl font-semibold">Session saved</h2>
+            <p className="mt-2 text-zinc-300">{session?.shareClientRecap ? "The recap is available to the client." : "The next-session plan is ready for the coach."}</p>
+            <Link href={`/trainer/clients/${clientId}`} className="mx-auto mt-4 flex min-h-12 max-w-md items-center justify-center rounded-xl bg-lime font-bold text-ink">Return to client</Link>
+          </section>
+        ) : null}
       </div>
     </main>
   );

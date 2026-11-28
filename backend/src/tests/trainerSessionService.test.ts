@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorkoutCaptureDraft } from "@ascend/shared";
-import { buildTrainerSessionIntelligence, buildTrainerSessionNarratives, toClientCoachedSession, trainerIntelligenceFromProgressionV3, trainerSessionDraftText } from "../services/trainerSessionService";
+import { buildTrainerSessionIntelligence, buildTrainerSessionNarratives, toClientCoachedSession, trainerIntelligenceFromProgressionV3 } from "../services/trainerSessionService";
 
 function draft(overrides: Partial<WorkoutCaptureDraft> = {}): WorkoutCaptureDraft {
   return {
@@ -56,10 +56,6 @@ describe("trainer session narratives", () => {
     expect(result.trainerNextSessionNote).toContain("bench press load is unclear");
   });
 
-  it("turns a repeated session into editable gym-floor shorthand", () => {
-    const text = trainerSessionDraftText(draft());
-    expect(text).toBe("Bench Press 3x10 60kg");
-  });
 });
 
 describe("trainer session copilot", () => {

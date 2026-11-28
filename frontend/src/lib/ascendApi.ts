@@ -16,6 +16,7 @@ import {
   TrainerSessionNarratives,
   TrainerSessionIntelligence,
   TrainerSessionStartMode,
+  TrainerSessionWorksheet,
   WorkoutCaptureDraft,
   WorkoutProgressionSnapshot,
   WorkoutProgressionHistoryItem,
@@ -1797,6 +1798,8 @@ export function completeTrainerCoachingSession(clientId: string, sessionId: stri
   userConfirmed: true;
   draft: WorkoutCaptureDraft;
   narratives: TrainerSessionNarratives;
+  worksheet: TrainerSessionWorksheet;
+  shareClientRecap: boolean;
   completedAt?: string | null;
 }) {
   invalidateCached("trainer:");
@@ -1816,6 +1819,19 @@ export function cancelTrainerCoachingSession(clientId: string, sessionId: string
 
 export function getMyCoachedSessions(limit = 10) {
   return authed<{ enabled: boolean; sessions: ClientCoachedSession[] }>(`/me/coaching-sessions?limit=${Math.min(25, Math.max(1, limit))}`);
+}
+
+export function getGymClientCoachingSessions(clientId: string) {
+  return authed<{ enabled: boolean; sessions: Array<{
+    id: string;
+    trainerName: string;
+    completedAt: string;
+    title?: string;
+    worksheet?: TrainerSessionWorksheet;
+    narratives: TrainerSessionNarratives | null;
+    shareClientRecap?: boolean;
+    exercises: (ClientCoachedSession["exercises"][number] & { note: string | null })[];
+  }> }>(`/admin/users/${encodeURIComponent(clientId)}/coaching-sessions`);
 }
 
 export function getCurrentWeeklyReport() {
