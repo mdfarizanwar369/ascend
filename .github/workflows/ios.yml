@@ -31,6 +31,10 @@ on:
         description: Build number to check
         type: string
         default: '222.1'
+      build_version:
+        description: Expected marketing version for TestFlight assignment
+        type: string
+        default: '1.7'
       assign_internal_build:
         description: Assign the selected build to the existing two-tester Ascend Internal group
         type: boolean
@@ -108,6 +112,7 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           ASC_BUILD_NUMBER: ${{ inputs.build_number }}
+          ASC_TESTFLIGHT_EXPECTED_VERSION: ${{ inputs.build_version }}
           ASC_ASSIGN_INTERNAL_BUILD: ${{ inputs.assign_internal_build }}
           ASC_ASSIGN_OWNER_BUILD: ${{ inputs.assign_owner_build }}
           ASC_ASSIGN_OWNER_GROUP_BUILD: ${{ inputs.assign_owner_group_build }}

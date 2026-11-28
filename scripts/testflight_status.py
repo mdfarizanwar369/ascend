@@ -11,7 +11,7 @@ import urllib.request
 import jwt
 
 
-EXPECTED_VERSION = "1.7"
+EXPECTED_VERSION = os.environ.get("ASC_TESTFLIGHT_EXPECTED_VERSION", "1.7")
 
 
 def get(path, **params):
