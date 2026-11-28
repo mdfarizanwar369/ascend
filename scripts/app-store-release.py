@@ -16,11 +16,12 @@ import jwt
 
 
 BUNDLE_ID = "fit.getascend.app"
-DEFAULT_VERSION = "1.7"
-RELEASE_BUILD = "222.1"
+DEFAULT_VERSION = "1.8"
+RELEASE_BUILD = "237.1"
 ALLOWED_ACTIONS = {"inspect", "prepare", "submit"}
 RELEASABLE_STATES = {"PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW"}
 ACTIVE_REVIEW_STATES = {"READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW"}
+PT_REVIEW_HEADER = "Ascend 1.8 cycle tracker and personal training"
 
 
 def apple_error(method, path, error):
@@ -190,6 +191,41 @@ def attach_build(client, version_id, build_id):
     print("BUILD_ATTACHMENT", json.dumps({"buildId": build_id, "verified": True}))
 
 
+def update_review_notes(client, version_id):
+    accounts = json.loads(os.environ["ASC_PT_REVIEW_ACCOUNTS"])
+    if not all(accounts[role].get(field) for role in ("client", "trainer") for field in ("email", "password")):
+        raise RuntimeError("Both protected App Review accounts are required")
+    detail = client.get(f"/v1/appStoreVersions/{version_id}/appStoreReviewDetail")["data"]
+    previous = (detail.get("attributes", {}).get("notes") or "").split(PT_REVIEW_HEADER, 1)[0].rstrip()
+    extra = f"""{PT_REVIEW_HEADER}
+
+Additional demo client email: {accounts['client']['email']}
+Additional demo client password: {accounts['client']['password']}
+Additional demo trainer email: {accounts['trainer']['email']}
+Additional demo trainer password: {accounts['trainer']['password']}
+
+These demo accounts are paired within an isolated Ascend review gym. No purchase or real health information is needed.
+1. Sign in as the demo client and open Profile > App settings > Cycle tracker. The client profile is set to Female. Log a sample day and open Move or back up your log to export or import a password-protected file using Files. The cycle log and backup processing stay on the device. Ascend has no copy of the log or backup password.
+2. As the client, open Book a PT session on Home to request an hour. After the trainer confirms, open the booking to share a short optional check-in with that trainer. Sharing sends only the selected feeling and training preference to Ascend for delivery to the assigned trainer. The client can withdraw the check-in. Cycle dates and symptoms are not included, and managers cannot see the check-in.
+3. Sign in as the demo trainer to confirm or decline the request in Schedule, or open the assigned client's profile to record a PT session and save a draft. Booking outcome push delivery is currently limited to a pilot gym.
+4. Apple Health, the cycle log, and the PT check-in are separate features. The cycle tracker does not read or write Apple Health.
+"""
+    notes = f"{previous}\n\n{extra}" if previous else extra
+    try:
+        client.patch(f"/v1/appStoreReviewDetails/{detail['id']}", {
+            "data": {
+                "type": "appStoreReviewDetails", "id": detail["id"],
+                "attributes": {"notes": notes},
+            }
+        })
+    except RuntimeError:
+        raise RuntimeError("App Store Connect rejected the protected review notes") from None
+    confirmed = client.get(f"/v1/appStoreReviewDetails/{detail['id']}")["data"]
+    if PT_REVIEW_HEADER not in (confirmed.get("attributes", {}).get("notes") or ""):
+        raise RuntimeError("Could not verify the App Review notes")
+    print("PT_REVIEW_NOTES_VERIFIED")
+
+
 def inspect_version_readiness(client, version):
     version_id = version["id"]
     localizations = client.get(f"/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations", limit=200)["data"]
@@ -313,7 +349,7 @@ def main():
 
     target = targets[0] if targets else None
     if action in {"prepare", "submit"} and not target:
-        sources = [item for item in versions if item.get("attributes", {}).get("appStoreState") == "READY_FOR_SALE"]
+        sources = [item for item in versions if version_summary(item)["state"] in {"READY_FOR_SALE", "READY_FOR_DISTRIBUTION"}]
         if not sources:
             raise RuntimeError("No live App Store version is available to transfer metadata from")
         source = max(sources, key=lambda item: tuple(int(part) for part in item["attributes"]["versionString"].split(".")))
@@ -326,15 +362,25 @@ def main():
     if action == "prepare":
         if version_summary(target)["state"] not in RELEASABLE_STATES:
             raise RuntimeError("Cannot modify release details after the version entered review or release")
+        if not os.environ.get("ASC_PT_REVIEW_ACCOUNTS"):
+            raise RuntimeError("Missing protected App Review accounts")
+        if version_summary(target)["releaseType"] != "MANUAL":
+            client.patch(f"/v1/appStoreVersions/{target['id']}", {"data": {
+                "type": "appStoreVersions", "id": target["id"], "attributes": {"releaseType": "MANUAL"},
+            }})
         update_release_notes(client, target["id"])
         attach_build(client, target["id"], build["id"])
+        update_review_notes(client, target["id"])
         target = client.get(f"/v1/appStoreVersions/{target['id']}")["data"]
+        print("PREPARED_VERSION", json.dumps(version_summary(target), sort_keys=True))
 
     readiness = inspect_version_readiness(client, target)
     if readiness["attachedBuildId"] != build["id"]:
         if action == "submit":
             raise RuntimeError(f"The exact requested build is not attached to iOS {DEFAULT_VERSION}")
     if action == "submit":
+        if version_summary(target)["releaseType"] != "MANUAL":
+            raise RuntimeError("The App Store version is not configured for manual release")
         submit_for_review(client, app["id"], target)
 
 

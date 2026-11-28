@@ -56,7 +56,7 @@ on:
         type: boolean
         default: false
       app_store_action:
-        description: Inspect, prepare, or submit approved iOS 1.7 build 222.1
+        description: Inspect, prepare, or submit approved iOS 1.8 build 237.1
         type: choice
         options:
           - none
@@ -141,11 +141,12 @@ jobs:
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
           ASC_APP_STORE_ACTION: ${{ inputs.app_store_action }}
           ASC_BUILD_NUMBER: ${{ inputs.build_number }}
-          ASC_VERSION_STRING: '1.7'
+          ASC_VERSION_STRING: '1.8'
+          ASC_PT_REVIEW_ACCOUNTS: ${{ secrets.ASC_PT_REVIEW_ACCOUNTS }}
           ASC_WHATS_NEW: >-
-            Make Ascend yours with new appearance themes and matching Home Screen widgets.
-            Choose Gym Girl Club, Cute Lift Club, Iron Club, Summit Club or Ascend Club.
-            Enjoy faster Home loading and reliability improvements.
+            Eligible clients can log periods and symptoms privately and move their log using a password-protected backup.
+            Clients with an assigned personal trainer can request sessions and choose to share a short pre-session check-in.
+            Trainers can record session notes, save drafts, and manage their booking calendar.
         run: python scripts/app-store-release.py
 
   simulator:

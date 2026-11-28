@@ -15,12 +15,12 @@ release = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(release)
 
 APP = "fictional-app"
-BUILD = "fictional-build-222"
-VERSION = "fictional-version-17"
+BUILD = "fictional-build-237"
+VERSION = "fictional-version-18"
 SUBMISSION = "fictional-submission"
 
 
-def version(state="PREPARE_FOR_SUBMISSION", number="1.7", identity=VERSION):
+def version(state="PREPARE_FOR_SUBMISSION", number="1.8", identity=VERSION):
     return {"id": identity, "attributes": {
         "versionString": number, "platform": "IOS", "appStoreState": state, "releaseType": "MANUAL",
     }}
@@ -28,7 +28,7 @@ def version(state="PREPARE_FOR_SUBMISSION", number="1.7", identity=VERSION):
 
 def build():
     return {"id": BUILD, "attributes": {
-        "version": "222.1", "processingState": "VALID", "buildAudienceType": "APP_STORE_ELIGIBLE",
+        "version": "237.1", "processingState": "VALID", "buildAudienceType": "APP_STORE_ELIGIBLE",
         "usesNonExemptEncryption": False,
     }}
 
@@ -68,7 +68,7 @@ def release_client(target=None, attached=BUILD):
     return FakeClient({
         "/v1/apps": {"data": [{"id": APP, "attributes": {"name": "Ascend", "bundleId": "fit.getascend.app"}}]},
         "/v1/builds": {"data": [build()]},
-        f"/v1/builds/{BUILD}/preReleaseVersion": {"data": {"attributes": {"version": "1.7", "platform": "IOS"}}},
+        f"/v1/builds/{BUILD}/preReleaseVersion": {"data": {"attributes": {"version": "1.8", "platform": "IOS"}}},
         f"/v1/apps/{APP}/appStoreVersions": {"data": versions},
         f"/v1/appStoreVersions/{VERSION}/appStoreVersionLocalizations": {"data": [{"id": "locale", "attributes": {"locale": "en-US"}}]},
         "/v1/appStoreVersionLocalizations/locale/appScreenshotSets": {"data": [{"id": "screenshots"}]},
@@ -101,8 +101,8 @@ class ReleaseTestCase(unittest.TestCase):
     def invoke_main(self, client, **overrides):
         settings = {
             "ASC_KEY_ID": "fictional-key", "ASC_ISSUER_ID": "fictional-issuer",
-            "ASC_PRIVATE_KEY_BASE64": "fictional-value-not-a-key", "ASC_BUILD_NUMBER": "222.1",
-            "ASC_VERSION_STRING": "1.7", "ASC_APP_STORE_ACTION": "inspect",
+            "ASC_PRIVATE_KEY_BASE64": "fictional-value-not-a-key", "ASC_BUILD_NUMBER": "237.1",
+            "ASC_VERSION_STRING": "1.8", "ASC_APP_STORE_ACTION": "inspect",
             "ASC_WHATS_NEW": "Appearance themes and matching widgets.",
         }
         settings.update(overrides)
@@ -114,10 +114,10 @@ class ReleaseTestCase(unittest.TestCase):
 class BuildSelectionTests(ReleaseTestCase):
     def test_exact_valid_ios_release_build_is_accepted_without_mutation(self):
         client = release_client()
-        chosen = release.get_build(client, APP, "222.1", "1.7")
+        chosen = release.get_build(client, APP, "237.1", "1.8")
         self.assertEqual(chosen["id"], BUILD)
         self.assertEqual(client.calls[0][2]["filter[app]"], APP)
-        self.assertEqual(client.calls[0][2]["filter[version]"], "222.1")
+        self.assertEqual(client.calls[0][2]["filter[version]"], "237.1")
         self.assertEqual(client.mutations, [])
 
     def test_wrong_version_build_or_platform_is_rejected(self):
@@ -126,12 +126,12 @@ class BuildSelectionTests(ReleaseTestCase):
                 client = release_client()
                 client.reads[f"/v1/builds/{BUILD}/preReleaseVersion"]["data"]["attributes"][field] = value
                 with self.assertRaises(RuntimeError):
-                    release.get_build(client, APP, "222.1", "1.7")
+                    release.get_build(client, APP, "237.1", "1.8")
                 self.assertEqual(client.mutations, [])
         client = release_client()
         client.reads["/v1/builds"]["data"][0]["attributes"]["version"] = "223.1"
         with self.assertRaises(RuntimeError):
-            release.get_build(client, APP, "222.1", "1.7")
+            release.get_build(client, APP, "237.1", "1.8")
 
     def test_unprocessed_or_ineligible_build_is_rejected(self):
         for field, value in (("processingState", "PROCESSING"), ("processingState", "FAILED"),
@@ -140,7 +140,7 @@ class BuildSelectionTests(ReleaseTestCase):
                 client = release_client()
                 client.reads["/v1/builds"]["data"][0]["attributes"][field] = value
                 with self.assertRaises(RuntimeError):
-                    release.get_build(client, APP, "222.1", "1.7")
+                    release.get_build(client, APP, "237.1", "1.8")
                 self.assertEqual(client.mutations, [])
 
     def test_export_compliance_must_be_explicit_false(self):
@@ -149,7 +149,7 @@ class BuildSelectionTests(ReleaseTestCase):
                 client = release_client()
                 client.reads["/v1/builds"]["data"][0]["attributes"]["usesNonExemptEncryption"] = value
                 with self.assertRaisesRegex(RuntimeError, "export compliance"):
-                    release.get_build(client, APP, "222.1", "1.7")
+                    release.get_build(client, APP, "237.1", "1.8")
                 self.assertEqual(client.mutations, [])
 
     def test_missing_or_ambiguous_build_does_not_query_an_arbitrary_build(self):
@@ -158,18 +158,18 @@ class BuildSelectionTests(ReleaseTestCase):
                 client = release_client()
                 client.reads["/v1/builds"] = {"data": candidates}
                 with self.assertRaises(RuntimeError):
-                    release.get_build(client, APP, "222.1", "1.7")
+                    release.get_build(client, APP, "237.1", "1.8")
                 self.assertEqual(len(client.calls), 1)
 
 
 class MainActionBoundaryTests(ReleaseTestCase):
     def test_unapproved_version_or_build_fails_before_client_construction(self):
         for override in ({"ASC_VERSION_STRING": "1.5"}, {"ASC_BUILD_NUMBER": "214.1"},
-                         {"ASC_VERSION_STRING": "1.8"}, {"ASC_BUILD_NUMBER": "222.2"}):
+                         {"ASC_VERSION_STRING": "1.7"}, {"ASC_BUILD_NUMBER": "237.2"}):
             with self.subTest(override=override):
                 with patch.dict(os.environ, {
                     "ASC_KEY_ID": "key", "ASC_ISSUER_ID": "issuer", "ASC_PRIVATE_KEY_BASE64": "not-a-key",
-                    "ASC_BUILD_NUMBER": "222.1", "ASC_VERSION_STRING": "1.7", **override,
+                    "ASC_BUILD_NUMBER": "237.1", "ASC_VERSION_STRING": "1.8", **override,
                 }, clear=True), patch.object(release, "AppStoreConnect") as constructor:
                     with self.assertRaises(RuntimeError):
                         release.main()
