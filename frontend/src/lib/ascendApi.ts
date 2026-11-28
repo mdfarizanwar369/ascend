@@ -315,45 +315,49 @@ export function bootstrapOwner() {
   });
 }
 
-export function getMe() {
-  return authedCached<{
-    user: {
-      id: string;
-      email: string;
-      full_name: string;
-      status?: string | null;
-      primary_role?: "client" | "trainer" | "admin" | "owner";
-      coaching_mode?: CoachingMode | string | null;
-      goal_type?: GoalType | null;
-      goal_updated_at?: string | null;
-      gender?: "female" | "male" | "prefer_not_to_say" | string | null;
-      age_years?: string | number | null;
-      activity_level?: "low" | "moderate" | "high" | string | null;
-      height_cm?: string | number | null;
-      starting_weight_kg?: string | number | null;
-      target_weight_kg?: string | number | null;
-      primary_barrier?: PrimaryBarrier | null;
-      motivation_anchor?: MotivationAnchor | null;
-      goal_version?: string | number | null;
-      gym_id?: string | null;
-      assigned_trainer_id?: string | null;
-      pt_booking_update?: boolean;
-      assigned_trainer_name?: string | null;
-      trainer_status?: string | null;
-      profile_photo_url?: string | null;
-      is_platform_owner?: boolean;
-      voice_beta_enabled?: boolean;
-      exercise_visuals_enabled?: boolean;
-      body_scan_owner_preview_enabled?: boolean;
-      body_scan_introductory_enabled?: boolean;
-      athlete_mode_enabled?: boolean;
-      body_composition_nutrition?: BodyCompositionNutrition | null;
-      last_meaningful_activity_at?: string | null;
-      return_mode_last_shown_at?: string | null;
-      return_mode_shown_for_activity_at?: string | null;
-    };
-    roles: string[];
-  }>("me:profile", "/me", 15_000);
+type MyProfileResponse = {
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    firebase_uid?: string;
+    status?: string | null;
+    primary_role?: "client" | "trainer" | "admin" | "owner";
+    coaching_mode?: CoachingMode | string | null;
+    goal_type?: GoalType | null;
+    goal_updated_at?: string | null;
+    gender?: "female" | "male" | "prefer_not_to_say" | string | null;
+    age_years?: string | number | null;
+    activity_level?: "low" | "moderate" | "high" | string | null;
+    height_cm?: string | number | null;
+    starting_weight_kg?: string | number | null;
+    target_weight_kg?: string | number | null;
+    primary_barrier?: PrimaryBarrier | null;
+    motivation_anchor?: MotivationAnchor | null;
+    goal_version?: string | number | null;
+    gym_id?: string | null;
+    assigned_trainer_id?: string | null;
+    pt_booking_update?: boolean;
+    assigned_trainer_name?: string | null;
+    trainer_status?: string | null;
+    profile_photo_url?: string | null;
+    is_platform_owner?: boolean;
+    voice_beta_enabled?: boolean;
+    exercise_visuals_enabled?: boolean;
+    body_scan_owner_preview_enabled?: boolean;
+    body_scan_introductory_enabled?: boolean;
+    athlete_mode_enabled?: boolean;
+    body_composition_nutrition?: BodyCompositionNutrition | null;
+    last_meaningful_activity_at?: string | null;
+    return_mode_last_shown_at?: string | null;
+    return_mode_shown_for_activity_at?: string | null;
+  };
+  roles: string[];
+};
+
+export function getMe({ fresh = false } = {}) {
+  if (fresh) return authed<MyProfileResponse>("/me");
+  return authedCached<MyProfileResponse>("me:profile", "/me", 15_000);
 }
 
 export type VoiceTodayIntent = "calories_consumed" | "calories_remaining" | "protein_remaining" | "water_logged" | "today_summary";

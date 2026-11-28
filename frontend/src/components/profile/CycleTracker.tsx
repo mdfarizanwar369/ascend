@@ -6,7 +6,10 @@ import { onAuthStateChanged } from "firebase/auth";
 import { CalendarHeart, ChevronLeft, ChevronRight, LockKeyhole, Trash2 } from "lucide-react";
 import { ptLocalDate, ptWeekStart } from "@ascend/shared";
 import { AppShell } from "@/components/AppShell";
-import { RoleGate } from "@/components/RoleGate";
+import { FreeFeatureUnavailable } from "@/components/IosFreeEditionBoundary";
+import { useIosFreeEdition } from "@/lib/appEdition";
+import { getMe } from "@/lib/ascendApi";
+import { canUseCycleTracker } from "@/lib/cycleTrackingFlag";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
 import { useCycleTrackingPilot } from "@/lib/useCycleTrackingPilot";
 import { CycleBackup } from "./CycleBackup";
@@ -43,29 +46,60 @@ function ChoiceRow<T extends string>({ label, options, selected, onSelect }: {
 
 export function CycleTracker() {
   const available = useCycleTrackingPilot();
+  const iosFree = useIosFreeEdition();
   if (!available) return null;
+  if (iosFree) return <FreeFeatureUnavailable />;
   return <AppShell active="client" showQuickCapture={false}>
-    <RoleGate allowedRoles={["client"]} fallbackTitle="Client access required" fallbackMessage="Open cycle tracking from your client account.">
-      <CycleAccount />
-    </RoleGate>
+    <CycleAccount />
   </AppShell>;
 }
 
+type CycleAccess = "loading" | "blocked" | "error" | { accountId: string };
+
 function CycleAccount() {
-  const [accountId, setAccountId] = useState<string>();
-  const [loadFailed, setLoadFailed] = useState(false);
+  const [access, setAccess] = useState<CycleAccess>("loading");
   useEffect(() => {
     let active = true;
+    let checkId = 0;
     let unsubscribe: (() => void) | undefined;
+
+    async function checkAccount(accountId: string | undefined) {
+      const currentCheck = ++checkId;
+      if (!accountId) { setAccess("blocked"); return; }
+      setAccess("loading");
+      try {
+        const { user } = await getMe({ fresh: true });
+        if (active && currentCheck === checkId) {
+          setAccess(user.firebase_uid === accountId && canUseCycleTracker(user) ? { accountId } : "blocked");
+        }
+      } catch {
+        if (active && currentCheck === checkId) setAccess("error");
+      }
+    }
+
+    function recheckRestoredPage(event: PageTransitionEvent) {
+      if (event.persisted) void checkAccount(getFirebaseClientAuth().currentUser?.uid);
+    }
+
     waitForFirebasePersistence().then(() => {
-      if (active) unsubscribe = onAuthStateChanged(getFirebaseClientAuth(), (user) => setAccountId(user?.uid));
+      if (!active) return;
+      unsubscribe = onAuthStateChanged(getFirebaseClientAuth(), (user) => { void checkAccount(user?.uid); });
+      window.addEventListener("pageshow", recheckRestoredPage);
     })
-      .catch(() => { if (active) setLoadFailed(true); });
-    return () => { active = false; unsubscribe?.(); };
+      .catch(() => { if (active) setAccess("error"); });
+    return () => {
+      active = false;
+      unsubscribe?.();
+      window.removeEventListener("pageshow", recheckRestoredPage);
+    };
   }, []);
-  if (loadFailed) return <p role="alert" className={`${panel} m-4`}>Ascend couldn’t open the tracker. Reload to try again.</p>;
-  if (!accountId) return <p role="status" className={`${panel} m-4`}>Opening your tracker…</p>;
-  return <CycleCalendar key={accountId} accountId={accountId} />;
+  if (access === "error") return <p role="alert" className={`${panel} m-4`}>Ascend couldn’t open the tracker. Reload to try again.</p>;
+  if (access === "loading") return <p role="status" className={`${panel} m-4`}>Checking account access…</p>;
+  if (access === "blocked") return <section className={`${panel} mt-4`}>
+    <h1 className="text-xl font-semibold">This page is unavailable</h1>
+    <Link href="/profile" className="mt-3 inline-flex min-h-11 items-center font-semibold text-calm">Back to Profile</Link>
+  </section>;
+  return <CycleCalendar key={access.accountId} accountId={access.accountId} />;
 }
 
 export function CycleCalendar({ accountId }: { accountId: string }) {

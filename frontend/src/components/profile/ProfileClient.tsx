@@ -19,6 +19,7 @@ import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
 import { AppleBilling, supportsAppleBilling } from "@/lib/appleBilling";
 import { useAppleHealthCapability } from "@/lib/appleHealth";
 import { useCycleTrackingPilot } from "@/lib/useCycleTrackingPilot";
+import { canUseCycleTracker } from "@/lib/cycleTrackingFlag";
 
 const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1";
 
@@ -56,7 +57,7 @@ export function ProfileClient() {
   const [trainerPreview, setTrainerPreview] = useState<TrainerConnectionPreview | null>(null);
 
   async function loadProfile() {
-    const [me, subscription] = await Promise.all([getMe(), getMySubscription()]);
+    const [me, subscription] = await Promise.all([getMe({ fresh: true }), getMySubscription()]);
     setUser(me.user);
     setRoles(me.roles);
     setRawPlan(subscription.subscription.plan);
@@ -481,7 +482,7 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
-            {showCycleTracker && user?.primary_role === "client" && <Link href="/profile/cycle" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+            {showCycleTracker && !iosFree && canUseCycleTracker(user) && <Link href="/profile/cycle" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
               <CalendarHeart size={17} /> Cycle tracker
             </Link>}
             {(!iosApp || appleHealth) && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
