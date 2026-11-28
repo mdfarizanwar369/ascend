@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowRight, CalendarCheck, CalendarClock, CalendarDays, CalendarMinus, Check, ChevronLeft, ChevronRight, Clock3, Dumbbell
 } from "lucide-react";
@@ -31,6 +31,8 @@ const weekdayFormat = new Intl.DateTimeFormat("en-SG", { weekday: "short", timeZ
 const dayDate = (day: string) => new Date(`${day}T00:00:00Z`);
 const blockClock = new Intl.DateTimeFormat("en-SG", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" });
 type BookingEditor = { clientId: string; move?: PtAppointment };
+type NotificationTarget = { day: string; booking: string };
+type BookingCalendarProps = { role: PtBookingRole; bookingClientId?: string; notificationTarget?: NotificationTarget };
 
 function blockFallsOn(block: PtCalendarBlock, date: string) {
   if (date < block.startsOn) return false;
@@ -56,21 +58,22 @@ const roleCopy = {
   manager: { title: "Gym PT schedule", eyebrow: "Gym operations", shell: "admin", roles: ["admin", "owner"] }
 } as const;
 
-export function PtBookingPage({ role, bookingClientId }: { role: PtBookingRole; bookingClientId?: string }) {
+export function PtBookingPage({ role, bookingClientId, notificationTarget }: BookingCalendarProps) {
   const copy = roleCopy[role];
   return (
     <AppShell active={copy.shell} showQuickCapture={false}>
       <RoleGate allowedRoles={[...copy.roles]} fallbackTitle="Schedule access required" fallbackMessage="Open the schedule from the Ascend account for your role.">
-        {ptBookingEnabled ? <BookingCalendar key={bookingClientId ?? role} role={role} bookingClientId={bookingClientId} />
+        {ptBookingEnabled ? <BookingCalendar key={bookingClientId ?? notificationTarget?.booking ?? role}
+          role={role} bookingClientId={bookingClientId} notificationTarget={notificationTarget} />
           : <p className={`${panel} mt-4 text-sm text-zinc-400`}>PT booking is currently unavailable.</p>}
       </RoleGate>
     </AppShell>
   );
 }
 
-function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; bookingClientId?: string }) {
+function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingCalendarProps) {
   const [schedule, setSchedule] = useState<PtBookingWeek>();
-  const [week, setWeek] = useState<string>();
+  const [week, setWeek] = useState<string | undefined>(notificationTarget?.day);
   const [gymId, setGymId] = useState<string>();
   const [selectedDay, setSelectedDay] = useState<string>();
   const [selectedTime, setSelectedTime] = useState<string>();
@@ -83,6 +86,7 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
   const [editBlocks, setEditBlocks] = useState(false);
   const [editor, setEditor] = useState<BookingEditor | undefined>(bookingClientId ? { clientId: bookingClientId } : undefined);
   const [focusBookings, setFocusBookings] = useState(false);
+  const focusTarget = useRef(notificationTarget?.booking);
   const [rebookingLimit, setRebookingLimit] = useState(12);
 
   useEffect(() => {
@@ -93,18 +97,30 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
       if (!current) return;
       setSchedule(next);
     }).catch((error: unknown) => {
-      if (current) setLoadError(error instanceof Error ? error.message : "Could not load the schedule.");
+      if (!current) return;
+      if (focusTarget.current && week === notificationTarget?.day) {
+        focusTarget.current = undefined;
+        setWeek(undefined);
+      } else {
+        setLoadError(error instanceof Error ? error.message : "Could not load the schedule.");
+      }
     }).finally(() => {
       if (current) setLoading(false);
     });
     return () => { current = false; };
-  }, [role, week, gymId, refresh]);
+  }, [role, week, gymId, refresh, notificationTarget?.day]);
 
   useEffect(() => {
     if (!focusBookings || loading) return;
     document.getElementById("my-bookings-title")?.focus();
     setFocusBookings(false);
   }, [focusBookings, loading]);
+
+  useEffect(() => {
+    if (!focusTarget.current || loading || !schedule) return;
+    document.getElementById(`pt-booking-${focusTarget.current}`)?.focus();
+    focusTarget.current = undefined;
+  }, [loading, schedule]);
 
   async function change(work: () => Promise<unknown>, success: string, onSuccess?: () => void) {
     setBusy(true);
@@ -189,7 +205,8 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
     const canMove = role === "trainer" && future && booking.status === "confirmed";
     const state = statusStyle[booking.status];
     return (
-      <li key={booking.id} className="rounded-2xl border border-line bg-ink/55 p-3.5">
+      <li key={booking.id} id={`pt-booking-${booking.id}`} tabIndex={-1}
+        className="scroll-mt-24 rounded-2xl border border-line bg-ink/55 p-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-calm">
         <div className="flex items-start gap-3">
           <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${booking.status === "pending" ? "bg-amber/10 text-amber" : "bg-lime/10 text-lime"}`}>
             {booking.status === "pending" ? <CalendarClock size={18} aria-hidden="true" /> : <CalendarCheck size={18} aria-hidden="true" />}

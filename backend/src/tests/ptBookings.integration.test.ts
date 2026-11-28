@@ -291,4 +291,73 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect(await slotsOn(date)).toHaveLength(24);
     expect((await request(local(date, "13:00"))).status).toBe(201);
   });
+
+  it("dispatches a trainer request once and follows the current time of a confirmed client booking", async () => {
+    await db.query("delete from pt_bookings where gym_id = $1", [gym]);
+    await db.query("insert into notification_devices (user_id, fcm_token) values ($1, $2) on conflict do nothing",
+      [trainer, randomUUID()]);
+    push.mockClear();
+    push.mockResolvedValue({ status: "accepted", code: "test_accepted" });
+    const { dispatchPtBookingNotifications } = await import("../services/ptBookingNotificationWorker");
+    const firstDay = shiftPtDate(date, 3);
+    const movedDay = shiftPtDate(firstDay, 2);
+    const first = `${firstDay}T17:00:00+08:00`;
+    const moved = `${movedDay}T18:00:00+08:00`;
+    const request = (startsAt: string) => call(client, `${clientApi}/requests`, "POST", { trainerId: trainerProfile, startsAt });
+    const result = await request(first);
+    expect(result.status).toBe(201);
+    expect(await request(first)).toEqual(result);
+    const id = result.body.id;
+    const events = async () => (await db.query<{
+      id: string; kind: string; status: string; due_at: Date;
+    }>("select id, kind, status, due_at from pt_booking_notifications where booking_id=$1 order by due_at", [id])).rows;
+    expect(await events()).toMatchObject([{ kind: "trainer_request", status: "queued" }]);
+    await Promise.all([dispatchPtBookingNotifications(), dispatchPtBookingNotifications()]);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenLastCalledWith(expect.objectContaining({ user_id: trainer }), expect.objectContaining({
+      title: "New PT booking request", href: `/trainer/schedule?day=${firstDay}&booking=${id}`
+    }));
+    expect((await events())[0].status).toBe("accepted");
+
+    const decision = (action: string, bookingId = id) => call(trainer, `${trainerApi}/requests/${bookingId}`, "PATCH", { action });
+    expect((await decision("confirm")).status).toBe(200);
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(2));
+    const originalReminder = (await events())[1];
+    expect(originalReminder.due_at.getTime()).toBe(Date.parse(first) - 24 * 3600_000);
+    const booking = (await call(client, `${clientApi}?week=${firstDay}`)).body.bookings[0];
+    expect((await call(trainer, `${trainerApi}/clients/${client}/bookings`, "POST", {
+      startsAt: moved, move: { id, version: booking.version }
+    })).status).toBe(200);
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(3));
+    const afterMove = await events();
+    expect(afterMove[1]).toMatchObject({ id: originalReminder.id, status: "skipped" });
+    expect(afterMove[2]).toMatchObject({ kind: "client_reminder", status: "queued" });
+    expect(afterMove[2].due_at.getTime()).toBe(Date.parse(moved) - 24 * 3600_000);
+
+    push.mockClear();
+    await dispatchPtBookingNotifications(originalReminder.due_at);
+    expect(push).not.toHaveBeenCalled();
+    await Promise.all([dispatchPtBookingNotifications(afterMove[2].due_at), dispatchPtBookingNotifications(afterMove[2].due_at)]);
+    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenLastCalledWith(expect.objectContaining({ user_id: client }), expect.objectContaining({
+      title: "Your PT session is coming up", href: `/pt-bookings?day=${movedDay}&booking=${id}`
+    }));
+
+    const cancelled = await request(first);
+    expect((await decision("confirm", cancelled.body.id)).status).toBe(200);
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(2));
+    expect((await decision("cancel", cancelled.body.id)).status).toBe(200);
+    const cancelledEvents = (await db.query("select status from pt_booking_notifications where booking_id=$1", [cancelled.body.id])).rows;
+    expect(cancelledEvents).toEqual([{ status: "skipped" }, { status: "skipped" }]);
+    await dispatchPtBookingNotifications(originalReminder.due_at);
+    expect(push).toHaveBeenCalledTimes(2);
+
+    await db.query(`insert into notification_preferences (user_id,settings) values ($1,'{"enabled":false}')`, [trainer]);
+    const optedOut = await request(first);
+    expect(optedOut.status).toBe(201);
+    await dispatchPtBookingNotifications();
+    expect(push).toHaveBeenCalledTimes(2);
+    expect((await db.query("select status from pt_booking_notifications where booking_id=$1", [optedOut.body.id])).rows)
+      .toEqual([{ status: "skipped" }]);
+  });
 });

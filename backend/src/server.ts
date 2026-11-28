@@ -42,6 +42,7 @@ import { errorHandler } from "./middleware/errors";
 import { verifyRuntimeSchema } from "./db/bootstrap";
 import { pool } from "./db/pool";
 import { startSmartNudgeWorker } from "./services/smartNudgeWorker";
+import { startPtBookingNotificationWorker } from "./services/ptBookingNotificationWorker";
 
 export const app = express();
 const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
@@ -119,6 +120,7 @@ app.use(errorHandler);
 verifyRuntimeSchema()
   .then(() => {
     const stopNudges = startSmartNudgeWorker();
+    const stopBookingNotifications = startPtBookingNotificationWorker();
     const server = app.listen(env.PORT, () => {
       console.log(`Ascend API listening on ${env.PORT}`);
     });
@@ -126,10 +128,10 @@ verifyRuntimeSchema()
     const stop = () => {
       if (stopping) return;
       stopping = true;
-      const nudgesDrained = stopNudges();
+      const notificationsDrained = Promise.all([stopNudges(), stopBookingNotifications()]);
       const deadline = setTimeout(() => process.exit(1), 110_000);
       deadline.unref();
-      server.close(() => { void nudgesDrained.then(() => pool.end()).finally(() => process.exit(0)); });
+      server.close(() => { void notificationsDrained.then(() => pool.end()).finally(() => process.exit(0)); });
     };
     process.once("SIGTERM", stop);
     process.once("SIGINT", stop);

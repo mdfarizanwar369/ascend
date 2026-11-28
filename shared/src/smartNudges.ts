@@ -74,6 +74,13 @@ export const nudgeTemplates: Record<NudgeCategory, { title: string; body: string
   milestone: { title: "A moment worth recognising", body: "You have reached a recorded workout milestone. Take a look at your progress.", href: "/progress" }
 };
 export const nudgeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export function ptBookingNotificationTarget(day: unknown, booking: unknown) {
+  if (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day) ||
+    typeof booking !== "string" || !nudgeUuid.test(booking)) return undefined;
+  const date = new Date(`${day}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== day) return undefined;
+  return { day, booking };
+}
 /** Reject all external, protocol-relative, encoded and unrecognised destinations. */
 export function safeNotificationHref(input: unknown): string {
   if (typeof input !== "string" || input.length > 200 || !input.startsWith("/") || input.startsWith("//") || /[%\\#\s]/.test(input)) return "/dashboard";
@@ -83,7 +90,12 @@ export function safeNotificationHref(input: unknown): string {
   if (path === "/food-log") return !params || /^meal=(breakfast|lunch|dinner)$/.test(params) ? input : "/food-log";
   if (path === "/coach" && params === "workout=1") return input;
   if (path.startsWith("/coach-homework/") && !params && nudgeUuid.test(path.slice("/coach-homework/".length))) return path;
-  return !params && ["/dashboard", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score", "/pt-bookings"].includes(path) ? path : "/dashboard";
+  if (path === "/trainer/schedule" || path === "/pt-bookings") {
+    if (input === path) return path;
+    const target = /^day=([^&]+)&booking=([^&]+)$/.exec(input.slice(path.length + 1));
+    return target && ptBookingNotificationTarget(target[1], target[2]) ? input : "/dashboard";
+  }
+  return !params && ["/dashboard", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score"].includes(path) ? path : "/dashboard";
 }
 export type NudgeEligibilityFacts = {
   now: Date; due: Date; expires: Date; category: NudgeCategory; rollout: boolean; device: boolean;

@@ -16,7 +16,13 @@ function notificationHref(value) {
   if (new RegExp("^/(notifications/open|workout-schedule)\\?id=" + uuid + "$", "i").test(value)) return value;
   if (/^\/food-log\?meal=(breakfast|lunch|dinner)$/.test(value)) return value;
   if (value === "/coach?workout=1" || new RegExp("^/coach-homework/" + uuid + "$", "i").test(value)) return value;
-  if (["/dashboard", "/food-log", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score", "/workout-schedule", "/pt-bookings"].includes(value)) return value;
+  const bookingUuid = uuid.replaceAll("a-f", "a-fA-F").replace("89ab", "89abAB");
+  const booking = new RegExp("^/(?:pt-bookings|trainer/schedule)\\?day=(\\d{4}-\\d{2}-\\d{2})&booking=" + bookingUuid + "$").exec(value);
+  if (booking) {
+    const day = new Date(booking[1] + "T00:00:00Z");
+    if (Number.isFinite(day.getTime()) && day.toISOString().slice(0, 10) === booking[1]) return value;
+  }
+  if (["/dashboard", "/food-log", "/water-log", "/burn-log", "/journey", "/progress", "/coach", "/messages", "/reports", "/trainer", "/weight-log", "/habits", "/momentum-score", "/workout-schedule", "/pt-bookings", "/trainer/schedule"].includes(value)) return value;
   return "/dashboard";
 }
 
