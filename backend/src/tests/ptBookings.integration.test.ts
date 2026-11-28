@@ -359,5 +359,17 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect(push).toHaveBeenCalledTimes(2);
     expect((await db.query("select status from pt_booking_notifications where booking_id=$1", [optedOut.body.id])).rows)
       .toEqual([{ status: "skipped" }]);
+
+    await db.query("delete from notification_preferences where user_id=$1", [trainer]);
+    const ambiguous = await request(`${firstDay}T19:00:00+08:00`);
+    expect(ambiguous.status).toBe(201);
+    push.mockClear();
+    push.mockResolvedValueOnce({ status: "retry", code: "provider_unavailable" });
+    const beforeRetry = new Date();
+    await dispatchPtBookingNotifications(beforeRetry);
+    await dispatchPtBookingNotifications(new Date(beforeRetry.getTime() + 180_000));
+    expect(push).toHaveBeenCalledTimes(1);
+    expect((await db.query("select status,attempts from pt_booking_notifications where booking_id=$1", [ambiguous.body.id])).rows)
+      .toEqual([{ status: "unknown", attempts: 1 }]);
   });
 });

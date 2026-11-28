@@ -6,7 +6,6 @@ import { providerReady, sendNudgePush, type NudgePushDevice } from "../integrati
 type QueuedNotification = {
   id: string;
   kind: "trainer_request" | "client_reminder";
-  attempts: number;
   expires_at: Date;
 };
 type BookingDevice = NudgePushDevice & { booking_id: string; starts_at: Date; gym_zone: string };
@@ -14,8 +13,7 @@ type BookingDevice = NudgePushDevice & { booking_id: string; starts_at: Date; gy
 async function updateResult(id: string, status: string, now: Date) {
   await query(`
     update pt_booking_notifications
-    set status = $2, updated_at = $3,
-      due_at = case when $2 = 'queued' then $3::timestamptz + interval '2 minutes' else due_at end
+    set status = $2, updated_at = $3
     where id = $1 and status = 'dispatching'
   `, [id, status, now]);
 }
@@ -54,17 +52,17 @@ async function deliver(event: QueuedNotification, now: Date) {
     expiresAt: event.expires_at
   })));
   const states = results.map((result) => result.status);
-  // Only retry when acceptance is ruled out. An unknown reply can follow a real send.
-  const status = states.includes("accepted") ? "accepted" : states.includes("unknown") ? "unknown"
-    : states.includes("retry") && event.attempts < 3 && event.expires_at.getTime() > now.getTime() + 120_000
-      ? "queued" : "failed";
+  // Record ambiguous provider replies without another attempt. The device may have received the alert.
+  const status = states.includes("accepted") ? "accepted"
+    : states.includes("unknown") || states.includes("retry") ? "unknown" : "failed";
   await updateResult(event.id, status, now);
 }
 
 export async function dispatchPtBookingNotifications(now = new Date()) {
   await query(`
     update pt_booking_notifications set status = 'unknown', updated_at = $1
-    where status = 'dispatching' and updated_at < $1::timestamptz - interval '2 minutes'
+    where (status = 'dispatching' and updated_at < $1::timestamptz - interval '2 minutes')
+      or (status = 'queued' and attempts > 0)
   `, [now]);
   await query(`
     update pt_booking_notifications set status = 'skipped', updated_at = $1
@@ -73,12 +71,12 @@ export async function dispatchPtBookingNotifications(now = new Date()) {
   const { rows } = await query<QueuedNotification>(`
     with due as (
       select id from pt_booking_notifications
-      where status = 'queued' and due_at <= $1 and expires_at > $1
+      where status = 'queued' and attempts = 0 and due_at <= $1 and expires_at > $1
       order by due_at, id limit 20 for update skip locked
     )
     update pt_booking_notifications event set status = 'dispatching', attempts = attempts + 1, updated_at = $1
     from due where event.id = due.id
-    returning event.id, event.kind, event.attempts, event.expires_at
+    returning event.id, event.kind, event.expires_at
   `, [now]);
   const results = await Promise.allSettled(rows.map((event) => deliver(event, now)));
   if (results.some((result) => result.status === "rejected")) {
