@@ -84,13 +84,24 @@ export async function dispatchPtBookingNotifications(now = new Date()) {
   }
 }
 
-export function startPtBookingNotificationWorker() {
-  if (!env.PT_BOOKING_V1 || !env.PT_BOOKING_NOTIFICATIONS_V1) return async () => {};
+export function startPtBookingWorker() {
+  if (!env.PT_BOOKING_V1) return async () => {};
   let active: Promise<void> | undefined;
+  let nextWellbeingCleanup = 0;
   const tick = () => {
-    active ??= dispatchPtBookingNotifications()
-      .catch(() => console.warn("[pt-bookings] Notification queue check failed"))
-      .finally(() => { active = undefined; });
+    active ??= (async () => {
+      if (Date.now() >= nextWellbeingCleanup) {
+        try {
+          await query("delete from pt_session_wellbeing where expires_at <= now()");
+          nextWellbeingCleanup = Date.now() + 15 * 60_000;
+        } catch {
+          console.warn("[pt-bookings] Session check-in cleanup failed");
+        }
+      }
+      if (env.PT_BOOKING_NOTIFICATIONS_V1) {
+        await dispatchPtBookingNotifications().catch(() => console.warn("[pt-bookings] Notification queue check failed"));
+      }
+    })().finally(() => { active = undefined; });
   };
   const timer = setInterval(tick, 30_000);
   timer.unref();

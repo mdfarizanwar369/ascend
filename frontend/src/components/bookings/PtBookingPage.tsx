@@ -6,7 +6,7 @@ import {
   ArrowRight, CalendarCheck, CalendarClock, CalendarDays, CalendarMinus, Check, ChevronLeft, ChevronRight, Clock3, Dumbbell
 } from "lucide-react";
 import {
-  ptLocalDate, ptWeekStart, shiftPtDate, type PtAppointment, type PtBookingAction,
+  ptLocalDate, ptSessionWellbeingWindowMs, ptWeekStart, shiftPtDate, type PtAppointment, type PtBookingAction,
   type PtBookingRole, type PtBookingSlot, type PtBookingUpdate, type PtBookingWeek, type PtCalendarBlock,
   type PtCalendarBlockInput, type PtTrainerOpenings
 } from "@ascend/shared";
@@ -14,8 +14,10 @@ import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import {
   addPtCalendarBlock, bookPtForClient, dismissPtBookingUpdate, getPtBookingWeek, getTrainerPtOpenings,
-  removePtCalendarBlock, requestPtBooking, updatePtBooking
+  removePtCalendarBlock, requestPtBooking, savePtSessionWellbeing, updatePtBooking
 } from "@/lib/ascendApi";
+import { PtWellbeingCheckIn, PtWellbeingSummary } from "@/components/bookings/PtWellbeingCheckIn";
+import { cycleTrackingEnabled } from "@/lib/cycleTrackingFlag";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 
@@ -88,6 +90,8 @@ function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingC
   const [focusBookings, setFocusBookings] = useState(false);
   const focusTarget = useRef(notificationTarget?.booking);
   const [rebookingLimit, setRebookingLimit] = useState(12);
+  const showWellbeing = cycleTrackingEnabled && Boolean(schedule?.wellbeingEnabled);
+  const hasSharedCheckIn = schedule?.bookings.some((booking) => booking.wellbeing && Date.parse(booking.endsAt) > Date.now());
 
   useEffect(() => {
     let current = true;
@@ -109,6 +113,19 @@ function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingC
     });
     return () => { current = false; };
   }, [role, week, gymId, refresh, notificationTarget?.day]);
+
+  useEffect(() => {
+    if (!showWellbeing || busy || editor) return;
+    const refreshVisible = () => {
+      if (document.visibilityState === "visible") setRefresh((value) => value + 1);
+    };
+    document.addEventListener("visibilitychange", refreshVisible);
+    const timer = hasSharedCheckIn ? window.setInterval(refreshVisible, 30_000) : undefined;
+    return () => {
+      document.removeEventListener("visibilitychange", refreshVisible);
+      window.clearInterval(timer);
+    };
+  }, [showWellbeing, hasSharedCheckIn, busy, editor]);
 
   useEffect(() => {
     if (!focusBookings || loading) return;
@@ -198,12 +215,17 @@ function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingC
 
   function renderBooking(booking: PtAppointment) {
     const date = dateFor(booking.startsAt);
-    const future = Date.parse(booking.startsAt) > Date.now();
+    const now = Date.now();
+    const startsIn = Date.parse(booking.startsAt) - now;
+    const future = startsIn > 0;
     const canCancel = role !== "manager" && future && (booking.status === "confirmed" || booking.status === "pending");
     const canConfirm = role === "trainer" && future && booking.status === "pending";
     const canOpenWorksheet = role === "trainer" && trainerSessionCaptureEnabled() && booking.status === "confirmed" && date === schedule?.today;
     const canMove = role === "trainer" && future && booking.status === "confirmed";
     const state = statusStyle[booking.status];
+    const wellbeing = showWellbeing && Date.parse(booking.endsAt) > now ? booking.wellbeing ?? null : null;
+    const canShareWellbeing = showWellbeing && role === "client" && booking.status === "confirmed"
+      && future && startsIn <= ptSessionWellbeingWindowMs;
     return (
       <li key={booking.id} id={`pt-booking-${booking.id}`} tabIndex={-1}
         className="scroll-mt-24 rounded-2xl border border-line bg-ink/55 p-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-calm">
@@ -235,6 +257,12 @@ function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingC
               </button>}
             </div>
         )}
+        {role === "trainer" && wellbeing && <div className="mt-3"><PtWellbeingSummary value={wellbeing} trainer /></div>}
+        {role === "client" && (canShareWellbeing || wellbeing) && <PtWellbeingCheckIn key={booking.version} bookingId={booking.id}
+          trainerName={booking.trainerName} value={wellbeing} canShare={canShareWellbeing} disabled={disabled}
+          onSave={(next, onSaved) => {
+            void change(() => savePtSessionWellbeing(booking.id, booking.version, next), next ? "Check-in shared." : "Check-in removed.", onSaved);
+          }} />}
       </li>
     );
   }

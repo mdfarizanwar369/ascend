@@ -1,9 +1,10 @@
 import {
-  ptLocalDate, ptWeekStart, shiftPtDate,
+  ptLocalDate, ptSessionWellbeingWindowMs, ptWeekStart, shiftPtDate,
   type PtAppointment, type PtBookingAction, type PtBookingRole, type PtBookingSlot, type PtBookingWeek,
   type PtCalendarBlock, type PtCalendarBlockInput,
-  type PtBookingUpdate, type PtBookingUpdateKind, type PtRebookingClient, type PtTrainerOpenings
+  type PtBookingUpdate, type PtBookingUpdateKind, type PtRebookingClient, type PtSessionWellbeing, type PtTrainerOpenings
 } from "@ascend/shared";
+import { env } from "../config/env";
 import { pool, query, withQueryClient } from "../db/pool";
 import type { AuthUser } from "../middleware/auth";
 import { getAdminGymScope, scopeAllowsGym } from "./adminScopeService";
@@ -183,12 +184,21 @@ export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date
     order by starts_on, starts_at nulls first, id
   `, [user.trainerId, gym.id, today]) : null;
   const slots = coach ? getSlots(coach, user.id, week, today) : null;
+  const wellbeingEnabled = env.PT_SESSION_WELLBEING_V1 && role !== "manager";
   const bookings = gym || role === "client" ? query<PtAppointment>(`
-    select ${appointmentFields}
+    select ${appointmentFields}${wellbeingEnabled ? `,
+      case when checkin.booking_id is not null then
+        json_build_object('feeling', checkin.feeling, 'preference', checkin.preference)
+      end as wellbeing` : ""}
     from pt_bookings booking
     join users member on member.id = booking.client_id
     join trainers trainer on trainer.id = booking.trainer_id
     join users trainer_user on trainer_user.id = trainer.user_id
+    ${wellbeingEnabled ? `left join pt_session_wellbeing checkin on checkin.booking_id = booking.id and checkin.booking_version = booking.version
+      and checkin.expires_at > now() and booking.status = 'confirmed'
+      and member.status = 'active' and member.primary_role = 'client' and member.assigned_trainer_id = trainer.id
+      and member.gym_id = booking.gym_id and trainer.gym_id = booking.gym_id
+      and trainer.status = 'active' and trainer_user.status = 'active'` : ""}
     where booking.starts_at >= ($1::date::timestamp at time zone $3)
       and booking.starts_at < ($2::date::timestamp at time zone $3)
       and ${role === "client" ? "booking.client_id = $4"
@@ -204,8 +214,38 @@ export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date
   return {
     enabled: true, gym, gyms, week, today, trainerId: coach?.trainerId, trainerName: coach?.trainerName,
     blocks: savedBlocks?.rows, slots: availableSlots ?? undefined, bookings: schedule?.rows ?? [],
-    updates, needsRebooking: rebooking
+    updates, needsRebooking: rebooking, ...(wellbeingEnabled ? { wellbeingEnabled: true } : {})
   };
+}
+
+export function savePtSessionWellbeing(user: AuthUser, id: string, version: number, wellbeing: PtSessionWellbeing | null) {
+  return inTransaction(async () => {
+    const coach = await clientCoach(user.id, true);
+    if (!coach) throw bookingError(404, "This PT booking was not found.");
+    const result = await query<{ version: number; status: string; starts_at: Date; ends_at: Date; current_time: Date }>(`
+      select version, status, starts_at, ends_at, clock_timestamp() as current_time
+      from pt_bookings where id = $1 and client_id = $2 and trainer_id = $3 and gym_id = $4 for update
+    `, [id, user.id, coach.trainerId, coach.id]);
+    const booking = result.rows[0];
+    if (!booking) throw bookingError(404, "This PT booking was not found.");
+    if (booking.version !== version) {
+      throw bookingError(409, "This booking changed. Open the latest booking to share a check-in.");
+    }
+    if (!wellbeing) {
+      await query("delete from pt_session_wellbeing where booking_id = $1", [id]);
+      return;
+    }
+    const timeUntilStart = booking.starts_at.getTime() - booking.current_time.getTime();
+    if (booking.status !== "confirmed" || timeUntilStart <= 0 || timeUntilStart > ptSessionWellbeingWindowMs) {
+      throw bookingError(409, "You can share in the 24 hours before a confirmed session.");
+    }
+    await query(`
+      insert into pt_session_wellbeing (booking_id, booking_version, feeling, preference, expires_at)
+      values ($1, $2, $3, $4, $5)
+      on conflict (booking_id) do update set booking_version = excluded.booking_version,
+        feeling = excluded.feeling, preference = excluded.preference, expires_at = excluded.expires_at
+    `, [id, version, wellbeing.feeling, wellbeing.preference, booking.ends_at]);
+  });
 }
 
 export function addPtCalendarBlock(user: AuthUser, block: PtCalendarBlockInput) {

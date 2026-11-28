@@ -27,7 +27,7 @@ import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
 import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
 import type { BeginnerProgrammePrescription, BeginnerProgrammeSummary } from "@ascend/shared";
-import type { PtBookingAction, PtBookingRole, PtBookingWeek, PtCalendarBlockInput, PtTrainerOpenings } from "@ascend/shared";
+import type { PtBookingAction, PtBookingRole, PtBookingWeek, PtCalendarBlockInput, PtSessionWellbeing, PtTrainerOpenings } from "@ascend/shared";
 export type { BeginnerProgrammeSummary } from "@ascend/shared";
 
 export interface ProgressComparison {
@@ -2644,6 +2644,12 @@ export function getPtBookingWeek(role: PtBookingRole, week?: string, gymId?: str
 export function requestPtBooking(trainerId: string, startsAt: string) {
   return authed<{ id: string }>("/pt-bookings/client/requests", {
     method: "POST", body: JSON.stringify({ trainerId, startsAt })
+  });
+}
+
+export function savePtSessionWellbeing(id: string, version: number, wellbeing: PtSessionWellbeing | null) {
+  return authed<{ saved: boolean }>(`/pt-bookings/client/requests/${encodeURIComponent(id)}/wellbeing`, {
+    method: "PUT", body: JSON.stringify({ version, wellbeing })
   });
 }
 

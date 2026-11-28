@@ -1,11 +1,12 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
+import { ptSessionFeelings, ptSessionPreferences } from "@ascend/shared";
 import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { isIosFreeEdition } from "../services/appEdition";
 import {
   addPtCalendarBlock, bookPtForClient, changePtBooking, dismissPtBookingUpdate, getPtBookingWeek,
-  getTrainerPtOpenings, removePtCalendarBlock, requestPtBooking
+  getTrainerPtOpenings, removePtCalendarBlock, requestPtBooking, savePtSessionWellbeing
 } from "../services/ptBookingService";
 import { notifyPtBookingClient } from "../services/ptBookingPushService";
 
@@ -55,6 +56,24 @@ ptBookingsRouter.post("/pt-bookings/client/requests", requireAuth, bookable, cli
     const { trainerId, startsAt } = z.object({ trainerId: z.uuid(), startsAt: z.iso.datetime({ offset: true }) }).parse(req.body);
     const id = await requestPtBooking(req.user!, trainerId, startsAt);
     res.status(201).json({ id });
+  } catch (error) { next(error); }
+});
+
+const wellbeingSchema = z.strictObject({
+  version: z.int().positive(),
+  wellbeing: z.strictObject({
+    feeling: z.enum(ptSessionFeelings).nullable(),
+    preference: z.enum(ptSessionPreferences).nullable()
+  }).refine(({ feeling, preference }) => Boolean(feeling || preference), "Choose something to share.").nullable()
+});
+
+ptBookingsRouter.put("/pt-bookings/client/requests/:id/wellbeing", requireAuth, bookable, clientOnly, async (req, res, next) => {
+  try {
+    if (!env.PT_SESSION_WELLBEING_V1) return res.status(404).json({ error: "Session check-ins are unavailable." });
+    const id = z.uuid().parse(req.params.id);
+    const { version, wellbeing } = wellbeingSchema.parse(req.body);
+    await savePtSessionWellbeing(req.user!, id, version, wellbeing);
+    res.json({ saved: true });
   } catch (error) { next(error); }
 });
 

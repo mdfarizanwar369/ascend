@@ -25,6 +25,7 @@ export async function verifyRuntimeSchema() {
     await query("select version, client_update_id, client_update_read_at from pt_bookings limit 0");
     await query("select trainer_id from pt_calendar_blocks limit 0");
     await query("select id, due_at from pt_booking_notifications limit 0");
+    await query("select booking_id, expires_at from pt_session_wellbeing limit 0");
     await query("select provider, apns_environment, token_version from notification_devices limit 0");
   }
   if (env.ZOE_BEGINNER_PROGRAMME_SCHEMA || env.ZOE_BEGINNER_PROGRAMME_OWNER_PILOT) {

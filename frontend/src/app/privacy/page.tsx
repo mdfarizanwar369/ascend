@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { LegalPage } from "@/components/legal/LegalPage";
+import { cyclePrivacySection } from "@/components/legal/cyclePrivacySection";
+import { cycleTrackingEnabled } from "@/lib/cycleTrackingFlag";
 import { AI_DATA_CATEGORIES } from "@ascend/shared";
 
 export const metadata: Metadata = {
@@ -12,7 +14,7 @@ export default function PrivacyPage() {
     <LegalPage
       eyebrow="Your data"
       title="Privacy Policy"
-      updatedAt="17 November 2026"
+      updatedAt={cycleTrackingEnabled ? "28 November 2026" : "17 November 2026"}
       introduction="Ascend helps members, trainers, and gym owners stay aligned between sessions. This policy explains what information we collect, how we use it, and the choices available to you."
       sections={[
         {
@@ -59,6 +61,7 @@ export default function PrivacyPage() {
             "Ascend answers only after you invoke its shortcut. It does not listen in the background. Your spoken request is handled by Apple's Siri services under your Apple settings; Ascend receives the shortcut question or category needed to produce the answer. These answers use your Ascend records and deterministic calculations and are not sent to an AI provider."
           ]
         },
+        ...(cycleTrackingEnabled ? [cyclePrivacySection] : []),
         {
           title: "Trainer and gym visibility",
           paragraphs: [

@@ -7,6 +7,8 @@ import { AlertTriangle, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { requestAccountDeletion } from "@/lib/ascendApi";
 import { clearLocalAscendSession } from "@/lib/authSession";
+import { getFirebaseClientAuth } from "@/lib/firebase";
+import { cycleStorageKey } from "@/lib/cycleLog";
 
 const retainItems = [
   "Payment processor records, invoices, and tax/accounting records that we are required to keep.",
@@ -28,7 +30,11 @@ export function AccountClient() {
     setStatus("Submitting your account deletion request...");
 
     try {
+      const accountId = getFirebaseClientAuth().currentUser?.uid;
       const response = await requestAccountDeletion(confirmationText.trim());
+      if (accountId) {
+        try { localStorage.removeItem(cycleStorageKey(accountId)); } catch { /* Storage may already be unavailable. */ }
+      }
       await clearLocalAscendSession();
       const destination = response.outcome === "deleted" ? "/delete-account?status=deleted" : "/delete-account?status=requested";
       router.replace(destination);

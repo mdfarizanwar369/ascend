@@ -2,6 +2,14 @@ export type PtBookingRole = "client" | "trainer" | "manager";
 export type PtBookingStatus = "pending" | "confirmed" | "declined" | "cancelled" | "expired";
 export type PtBookingAction = "confirm" | "decline" | "cancel";
 export type PtBookingUpdateKind = "confirmed" | "moved";
+export const ptSessionFeelings = ["good", "low_energy", "sore", "uncomfortable"] as const;
+export const ptSessionPreferences = ["lighter", "talk_first"] as const;
+export const ptSessionWellbeingWindowMs = 24 * 60 * 60 * 1000;
+
+export interface PtSessionWellbeing {
+  feeling: typeof ptSessionFeelings[number] | null;
+  preference: typeof ptSessionPreferences[number] | null;
+}
 
 export interface PtCalendarBlockInput {
   startsOn: string;
@@ -24,6 +32,7 @@ export interface PtAppointment {
   endsAt: string;
   status: PtBookingStatus;
   version: number;
+  wellbeing?: PtSessionWellbeing | null;
 }
 
 export type PtBookingSlot = Pick<PtAppointment, "startsAt" | "endsAt">;
@@ -64,6 +73,7 @@ export interface PtBookingWeek {
   bookings: PtAppointment[];
   updates?: PtBookingUpdate[];
   needsRebooking?: PtRebookingClient[];
+  wellbeingEnabled?: boolean;
 }
 
 const dayMilliseconds = 86_400_000;

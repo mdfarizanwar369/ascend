@@ -57,6 +57,7 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     }
     vi.stubEnv("DATABASE_URL", testUrl!);
     vi.stubEnv("PT_BOOKING_V1", "true");
+    vi.stubEnv("PT_SESSION_WELLBEING_V1", "true");
     db = await import("../db/pool");
     const { ptBookingsRouter } = await import("../routes/ptBookings");
     const { meRouter } = await import("../routes/me");
@@ -371,5 +372,62 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect(push).toHaveBeenCalledTimes(1);
     expect((await db.query("select status,attempts from pt_booking_notifications where booking_id=$1", [ambiguous.body.id])).rows)
       .toEqual([{ status: "unknown", attempts: 1 }]);
+  });
+
+  it("shares only selected wellbeing with the booked PT and removes it on revoke, move, and expiry", async () => {
+    await db.query("delete from pt_bookings where gym_id=$1", [gym]);
+    const startsAt = new Date(Math.floor(Date.now() / 3600_000) * 3600_000 + 2 * 3600_000).toISOString();
+    const movesTo = new Date(Date.parse(startsAt) + 3600_000).toISOString();
+    const day = ptLocalDate(new Date(startsAt), timeZone);
+    const request = await call(client, `${clientApi}/requests`, "POST", { trainerId: trainerProfile, startsAt });
+    expect(request.status).toBe(201);
+    const id = request.body.id;
+    const endpoint = `${clientApi}/requests/${id}/wellbeing`;
+    const wellbeing = { feeling: "low_energy", preference: "lighter" };
+    const sharing = (actor: string, version: number, value: unknown = wellbeing) => call(actor, endpoint, "PUT", { version, wellbeing: value });
+    const calendarBooking = async (actor: string, endpoint: string, bookingDay = day) => {
+      const response = await call(actor, `${endpoint}?week=${bookingDay}`);
+      expect(response.status).toBe(200);
+      return response.body.bookings.find((item: { id: string }) => item.id === id);
+    };
+    expect((await sharing(client, 1)).status).toBe(409);
+    expect((await call(trainer, `${trainerApi}/requests/${id}`, "PATCH", { action: "confirm" })).status).toBe(200);
+    const version = (await calendarBooking(client, clientApi)).version;
+    expect((await sharing(peer, version)).status).toBe(404);
+    expect((await sharing(manager, version)).status).toBe(403);
+    expect((await sharing(trainer, version)).status).toBe(403);
+    expect((await sharing(client, version, { ...wellbeing, period: true })).status).toBe(400);
+    expect((await sharing(client, version, { feeling: null, preference: null })).status).toBe(400);
+    expect((await sharing(client, version)).status).toBe(200);
+    expect((await calendarBooking(client, clientApi)).wellbeing).toEqual(wellbeing);
+    expect((await calendarBooking(trainer, trainerApi)).wellbeing).toEqual(wellbeing);
+    expect(await calendarBooking(otherTrainer, trainerApi)).toBeUndefined();
+    expect(await calendarBooking(manager, managerApi)).not.toHaveProperty("wellbeing");
+
+    expect((await sharing(client, version, null)).status).toBe(200);
+    expect((await calendarBooking(trainer, trainerApi)).wellbeing).toBeNull();
+    expect((await sharing(client, version)).status).toBe(200);
+    expect((await call(trainer, `${trainerApi}/clients/${client}/bookings`, "POST", {
+      startsAt: movesTo, move: { id, version }
+    })).status).toBe(200);
+    const movedDay = ptLocalDate(new Date(movesTo), timeZone);
+    const moved = await calendarBooking(trainer, trainerApi, movedDay);
+    expect(moved.wellbeing).toBeNull();
+    expect((await sharing(client, version)).status).toBe(409);
+    expect((await sharing(client, moved.version)).status).toBe(200);
+    await db.query("update pt_session_wellbeing set expires_at=now()-interval '1 second' where booking_id=$1", [id]);
+    expect((await calendarBooking(trainer, trainerApi, movedDay)).wellbeing).toBeNull();
+    const { startPtBookingWorker } = await import("../services/ptBookingNotificationWorker");
+    await startPtBookingWorker()();
+    expect((await db.query("select booking_id from pt_session_wellbeing where booking_id=$1", [id])).rowCount).toBe(0);
+    expect((await sharing(client, moved.version)).status).toBe(200);
+    expect((await call(client, `${clientApi}/requests/${id}`, "PATCH", { action: "cancel" })).status).toBe(200);
+    expect((await db.query("select booking_id from pt_session_wellbeing where booking_id=$1", [id])).rowCount).toBe(0);
+
+    const far = await call(trainer, `${trainerApi}/clients/${client}/bookings`, "POST", {
+      startsAt: `${shiftPtDate(date, 3)}T17:00:00+08:00`
+    });
+    expect(far.status).toBe(201);
+    expect((await call(client, `${clientApi}/requests/${far.body.id}/wellbeing`, "PUT", { version: 1, wellbeing })).status).toBe(409);
   });
 });

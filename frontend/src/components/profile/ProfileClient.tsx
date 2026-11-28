@@ -5,7 +5,7 @@ import { FreeAppFeatures } from "@/components/IosFreeEditionBoundary";
 
 import { ChangeEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Camera, Check, CreditCard, ExternalLink, Trash2, XCircle } from "lucide-react";
+import { Activity, CalendarHeart, Camera, Check, CreditCard, ExternalLink, Trash2, XCircle } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { InstallAscendButton } from "@/components/InstallAscendButton";
@@ -18,6 +18,7 @@ import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayB
 import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
 import { AppleBilling, supportsAppleBilling } from "@/lib/appleBilling";
 import { useAppleHealthCapability } from "@/lib/appleHealth";
+import { cycleTrackingEnabled } from "@/lib/cycleTrackingFlag";
 
 const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1";
 
@@ -479,6 +480,9 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
+            {cycleTrackingEnabled && user?.primary_role === "client" && <Link href="/profile/cycle" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+              <CalendarHeart size={17} /> Cycle tracker
+            </Link>}
             {(!iosApp || appleHealth) && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
               <Activity size={17} /> {appleHealth ? "Apple Health" : "Health Sync"}
             </Link>}
