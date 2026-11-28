@@ -9,7 +9,12 @@ import { BrandMark } from "@/components/BrandMark";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { getCachedAccountProfile, loadAccountPlan, loadAccountProfile } from "@/lib/accountSession";
 
-export function AppShell({ children, active, lockViewport = false }: { children: React.ReactNode; active: "client" | "trainer" | "admin" | "founder"; lockViewport?: boolean }) {
+export function AppShell({ children, active, lockViewport = false, showQuickCapture = true }: {
+  children: React.ReactNode;
+  active: "client" | "trainer" | "admin" | "founder";
+  lockViewport?: boolean;
+  showQuickCapture?: boolean;
+}) {
   const [account, setAccount] = useState<{
     email?: string;
     fullName?: string;
@@ -137,7 +142,7 @@ export function AppShell({ children, active, lockViewport = false }: { children:
           })}
         </div>
       </nav>
-      {active === "client" ? (
+      {active === "client" && showQuickCapture ? (
         <Link
           href="/food-log"
           className="ascend-pressable fixed bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-lime text-ink shadow-xl shadow-lime/20 md:bottom-6 md:right-6"

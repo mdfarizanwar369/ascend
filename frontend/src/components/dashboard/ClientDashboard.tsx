@@ -3,7 +3,8 @@
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, calculateTodayRecoverySignal, CoachingMode, combineTodayActivityCalories } from "@ascend/shared";
-import { Activity, ArrowRight, Beef, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, X, Zap } from "lucide-react";
+import { Activity, ArrowRight, Beef, CalendarDays, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, UserRound, X, Zap } from "lucide-react";
+import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import {
   acknowledgeGoalMilestone,
   clearAscendResponseCache,
@@ -1785,6 +1786,11 @@ export function ClientDashboard() {
         />
 
         <AccountBar email={user?.email} fullName={user?.full_name} roles={safeRoles} plan={plan} profilePhotoUrl={user?.profile_photo_url} />
+        {ptBookingEnabled && !isIosFreeEdition() && user?.primary_role === "client" && user.assigned_trainer_id ? (
+          <Link href="/pt-bookings" prefetch={false} className="ascend-pressable mt-3 flex min-h-12 items-center gap-2 rounded-xl border border-calm/25 bg-calm/5 px-4 text-sm font-semibold text-calm">
+            <CalendarDays size={18} aria-hidden="true" /> Book a PT session <ArrowRight className="ml-auto" size={16} aria-hidden="true" />
+          </Link>
+        ) : null}
 
         <AppleHealthInvitation state={appleHealthInvitation.state} onPostpone={appleHealthInvitation.postpone} />
 

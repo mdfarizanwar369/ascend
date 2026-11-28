@@ -27,6 +27,7 @@ import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
 import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
 import type { BeginnerProgrammePrescription, BeginnerProgrammeSummary } from "@ascend/shared";
+import type { PtAvailability, PtBookingAction, PtBookingRole, PtBookingWeek } from "@ascend/shared";
 export type { BeginnerProgrammeSummary } from "@ascend/shared";
 
 export interface ProgressComparison {
@@ -2630,6 +2631,32 @@ export function saveSmartNudgePreferences(preferences: import("@ascend/shared").
 }
 export type ScheduledWorkout = { id: string; title: string; starts_at: string; lead_minutes: number; status: "planned" | "completed" | "cancelled"; version: number };
 export function getWorkoutSchedule() { return authed<{ sessions: ScheduledWorkout[] }>("/notifications/workout-schedule"); }
+
+export function getPtBookingWeek(role: PtBookingRole, week?: string, gymId?: string) {
+  const params = new URLSearchParams();
+  if (week) params.set("week", week);
+  if (gymId) params.set("gymId", gymId);
+  const search = params.toString();
+  return authed<PtBookingWeek>(`/pt-bookings/${role}${search ? `?${search}` : ""}`);
+}
+
+export function requestPtBooking(trainerId: string, startsAt: string) {
+  return authed<{ id: string }>("/pt-bookings/client/requests", {
+    method: "POST", body: JSON.stringify({ trainerId, startsAt })
+  });
+}
+
+export function savePtAvailability(availability: PtAvailability[]) {
+  return authed<{ saved: boolean }>("/pt-bookings/trainer/availability", {
+    method: "PUT", body: JSON.stringify({ availability })
+  });
+}
+
+export function updatePtBooking(role: Exclude<PtBookingRole, "manager">, id: string, action: PtBookingAction) {
+  return authed<{ saved: boolean }>(`/pt-bookings/${role}/requests/${id}`, {
+    method: "PATCH", body: JSON.stringify({ action })
+  });
+}
 export function saveWorkoutSchedule(input: { id?: string; version?: number; title: string; startsAt: string; leadMinutes: number; status: ScheduledWorkout["status"] }) {
   return authed<{ id: string }>("/notifications/workout-schedule", { method: "PUT", body: JSON.stringify(input) });
 }

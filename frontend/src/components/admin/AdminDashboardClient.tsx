@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import {
   AlertTriangle,
   BadgeDollarSign,
   Bell,
   Bot,
   Building2,
+  CalendarDays,
   ChevronRight,
   ClipboardCheck,
   QrCode,
@@ -239,6 +241,9 @@ export function AdminDashboardClient() {
           </DelightBadge>
         </div>
       </AscendHeroPanel>
+      {ptBookingEnabled && <Link href="/admin/pt-schedule" prefetch={false} className="ascend-pressable mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-calm/25 bg-calm/5 px-4 text-sm font-semibold text-calm">
+        <CalendarDays size={18} aria-hidden="true" /> Gym PT schedule <ChevronRight size={16} aria-hidden="true" />
+      </Link>}
 
       <section className="mt-5">
         <div className="flex items-center justify-between gap-3">

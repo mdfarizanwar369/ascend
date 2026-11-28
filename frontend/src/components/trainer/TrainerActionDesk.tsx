@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import QRCode from "qrcode";
-import { ArrowRight, Check, ChevronRight, CircleAlert, CircleCheck, Clock3, Copy, MessageCircle, Search, Share2, Sparkles, TrendingUp, Users, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, ChevronRight, CircleAlert, CircleCheck, Clock3, Copy, MessageCircle, Search, Share2, Sparkles, TrendingUp, Users, X } from "lucide-react";
+import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { TrainerClientInsightsPanel } from "@/components/trainer/TrainerClientInsights";
 import {
@@ -186,6 +187,10 @@ export function TrainerActionDesk() {
       <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-300">Trainer workspace</p><h1 className="mt-2 text-[1.75rem] font-semibold leading-tight tracking-tight text-white">{view === "today" ? "Your day" : view === "clients" ? "Your clients" : "Insights"}</h1><p className="mt-1 text-sm text-zinc-400">{view === "today" ? `${workCount} ${workCount === 1 ? "client needs" : "clients need"} you · ${clients.length} assigned` : view === "clients" ? "Find the client you need" : "Keep the coaching picture in view"}</p></div>
       {view === "today" ? <button type="button" onClick={() => switchView("clients")} aria-label="Find a client" className="ascend-pressable grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line bg-surface text-white"><Search size={19} /></button> : null}
     </header>
+
+    {ptBookingEnabled && <Link href="/trainer/schedule" prefetch={false} className="ascend-pressable mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-calm/25 bg-calm/5 px-3 text-sm font-semibold text-calm">
+      <CalendarDays size={17} aria-hidden="true" /> PT schedule <ArrowRight size={15} aria-hidden="true" />
+    </Link>}
 
     <div className="mt-5 flex gap-6 border-b border-line" role="tablist" aria-label="Trainer workspace views">
       {(["today", "clients", "insights"] as const).map((item) => <button key={item} type="button" role="tab" aria-selected={view === item} onClick={() => switchView(item)} className={`min-h-11 border-b-2 px-1 text-sm font-semibold ${view === item ? "border-lime text-white" : "border-transparent text-zinc-400"}`}>{item === "today" ? "Today" : item === "clients" ? "Clients" : "Insights"}</button>)}
