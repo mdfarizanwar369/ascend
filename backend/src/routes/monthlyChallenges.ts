@@ -1,6 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
-import { challengeTemplates, isAscendNativeUserAgent, shiftPtDate } from "@ascend/shared";
+import { challengeTemplates, isAscendNativeUserAgent, shiftPtDate, supportsAscendIosCycle } from "@ascend/shared";
 import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { isIosNativeRequest } from "../services/appEdition";
@@ -12,8 +12,9 @@ const access = { member: requireRole(["client"]), trainer: requireRole(["trainer
 const guard: RequestHandler = (req, res, next) => {
   res.set("Cache-Control", "private, no-store");
   const role = roleSchema.safeParse(req.params.role);
-  if (!env.MONTHLY_CHALLENGES_V1 || !role.success
-    || isIosNativeRequest(req) || isAscendNativeUserAgent(req.get("User-Agent") ?? "")) {
+  const userAgent = req.get("User-Agent") ?? "";
+  const native = isIosNativeRequest(req) || isAscendNativeUserAgent(userAgent);
+  if (!env.MONTHLY_CHALLENGES_V1 || !role.success || (native && !supportsAscendIosCycle(userAgent))) {
     res.status(404).json({ error: "Challenges are currently unavailable." });
     return;
   }

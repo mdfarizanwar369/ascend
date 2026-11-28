@@ -6,7 +6,7 @@ import Image from "next/image";
 import QRCode from "qrcode";
 import { ArrowRight, CalendarDays, Check, ChevronRight, CircleAlert, CircleCheck, Clock3, Copy, MessageCircle, Search, Share2, Sparkles, TrendingUp, Trophy, Users, X } from "lucide-react";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
-import { useMonthlyChallengesOnWeb } from "@/lib/useMonthlyChallengesOnWeb";
+import { useMonthlyChallengesAvailable } from "@/lib/useMonthlyChallengesAvailable";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { TrainerClientInsightsPanel } from "@/components/trainer/TrainerClientInsights";
 import {
@@ -41,7 +41,7 @@ function queueActionText(task: TrainerAction) {
 }
 
 export function TrainerActionDesk() {
-  const monthlyChallengesEnabled = useMonthlyChallengesOnWeb();
+  const monthlyChallengesEnabled = useMonthlyChallengesAvailable();
   const [clients, setClients] = useState<TrainerQueueClient[]>([]);
   const [alerts, setAlerts] = useState<TrainerQueueAlert[]>([]);
   const [dispositions, setDispositions] = useState<TrainerWorkQueueDisposition[]>([]);

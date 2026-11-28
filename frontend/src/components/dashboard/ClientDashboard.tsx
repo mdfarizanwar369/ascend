@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AscendDNAService, AscendDnaEvent, buildCoachZoeProactiveInsight, calculateAdaptiveNutritionTargets, calculateTodayRecoverySignal, CoachingMode, combineTodayActivityCalories } from "@ascend/shared";
 import { Activity, ArrowRight, Beef, CalendarDays, Check, ChevronDown, Droplets, Flame, HeartPulse, Home, Plus, Scale, Sparkles, Target, Trophy, UserRound, X, Zap } from "lucide-react";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
-import { useMonthlyChallengesOnWeb } from "@/lib/useMonthlyChallengesOnWeb";
+import { useMonthlyChallengesAvailable } from "@/lib/useMonthlyChallengesAvailable";
 import {
   acknowledgeGoalMilestone,
   clearAscendResponseCache,
@@ -365,7 +365,7 @@ function CollapsibleSection({
 }
 
 export function ClientDashboard() {
-  const monthlyChallengesEnabled = useMonthlyChallengesOnWeb();
+  const monthlyChallengesEnabled = useMonthlyChallengesAvailable();
   const launchMorphV22 = useAscendLaunchMorphV22();
   const today = useLocalDateKey();
   const loadedDayRef = useRef(today);

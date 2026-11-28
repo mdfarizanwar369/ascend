@@ -1,7 +1,7 @@
 import { MonthlyChallengesPage } from "@/components/challenges/MonthlyChallengesPage";
-import { requireMonthlyChallengesOnWeb } from "@/lib/monthlyChallengeServer";
+import { requireMonthlyChallengesAvailable } from "@/lib/monthlyChallengeServer";
 
 export default async function Page() {
-  await requireMonthlyChallengesOnWeb();
+  await requireMonthlyChallengesAvailable();
   return <MonthlyChallengesPage role="gym" />;
 }

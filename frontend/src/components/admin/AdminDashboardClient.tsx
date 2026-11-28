@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
-import { useMonthlyChallengesOnWeb } from "@/lib/useMonthlyChallengesOnWeb";
+import { useMonthlyChallengesAvailable } from "@/lib/useMonthlyChallengesAvailable";
 import {
   AlertTriangle,
   BadgeDollarSign,
@@ -124,7 +124,7 @@ function SummaryCard({ label, value, detail, tone = "plain" }: { label: string; 
 }
 
 export function AdminDashboardClient() {
-  const monthlyChallengesEnabled = useMonthlyChallengesOnWeb();
+  const monthlyChallengesEnabled = useMonthlyChallengesAvailable();
   const [revenue, setRevenue] = useState<Revenue>({ byGym: [], byTrainer: [] });
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [compliance, setCompliance] = useState<ComplianceRow[]>([]);

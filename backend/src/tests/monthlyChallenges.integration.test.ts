@@ -23,6 +23,7 @@ const [gym, otherGym, owner, otherOwner, coach, otherCoach, trainerId, otherTrai
   Array.from({ length: 11 }, () => randomUUID());
 const zone = "Asia/Kuala_Lumpur";
 const today = ptLocalDate(new Date(), zone);
+const ios18 = { "user-agent": "AscendIOS/6 AscendSubscriptions/1 AscendHealth/1 AscendPush/1 AscendCycle/1 Capacitor", "x-ascend-edition": "ios-subscriptions-v1" };
 const body = {
   gymId: gym, title: "Build your routine", template: "meals", actions: ["meals", "hydration", "movement"],
   requiredActions: 3, startsOn: today, endsOn: shiftPtDate(today, 20), goalDays: 1, leaderboard: true, publish: true
@@ -78,17 +79,17 @@ describe.skipIf(!testUrl)("Monthly challenge permissions and scoring", () => {
   });
 
   it("keeps drafts private, locks published rules and limits trainer entries to assigned clients", async () => {
-    expect((await call(coach, "trainer", "POST", body, { "user-agent": "AscendIOS/6 AscendSubscriptions/1 AscendCycle/1 Capacitor" })).status).toBe(404);
+    expect((await call(coach, "trainer", "POST", body, { "user-agent": "AscendIOS/6 AscendSubscriptions/1 AscendPush/1 Capacitor" })).status).toBe(404);
     expect((await call(coach, "trainer", "GET", undefined, { "user-agent": "AscendAndroid/1 Capacitor" })).status).toBe(404);
     expect((await call(coach, "trainer", "GET", undefined, { "x-ascend-edition": "ios-subscriptions-v1" })).status).toBe(404);
-    const saved = await call(coach, "trainer", "POST", { ...body, publish: false });
+    const saved = await call(coach, "trainer", "POST", { ...body, publish: false }, ios18);
     expect(saved.status).toBe(201);
     const id = saved.data.id;
     expect((await call(coached, "member/" + id)).status).toBe(404);
     expect((await call(otherCoach, "trainer/" + id)).status).toBe(404);
     expect((await call(owner, "gym/" + id)).status).toBe(404);
     expect((await call(coach, "trainer/" + id)).data.challenge).toMatchObject({ status: "draft", version: 1 });
-    expect((await call(coach, "trainer/" + id, "PUT", { ...body, version: 1 })).status).toBe(200);
+    expect((await call(coach, "trainer/" + id, "PUT", { ...body, version: 1 }, ios18)).status).toBe(200);
     expect((await call(coach, "trainer/" + id, "PUT", { ...body, version: 2 })).status).toBe(409);
     expect((await call(solo, "member/" + id + "/membership", "PUT", { displayName: null })).status).toBe(404);
     expect((await call(coached, "member/" + id + "/membership", "PUT", { displayName: null })).status).toBe(200);
@@ -97,11 +98,11 @@ describe.skipIf(!testUrl)("Monthly challenge permissions and scoring", () => {
 
   it("lets a gym member without a trainer join, scores actual logs once per day and shares only an opted-in name", async () => {
     expect((await call(otherOwner, "gym", "POST", body)).status).toBe(403);
-    const created = await call(owner, "gym", "POST", body);
+    const created = await call(owner, "gym", "POST", body, ios18);
     expect(created.status).toBe(201);
     const id = created.data.id;
     expect((await call(outsider, "member/" + id)).status).toBe(404);
-    expect((await call(solo, "member/" + id + "/membership", "PUT", { displayName: null })).status).toBe(200);
+    expect((await call(solo, "member/" + id + "/membership", "PUT", { displayName: null }, ios18)).status).toBe(200);
     expect((await call(solo, "member/" + id + "/meal-day", "PUT", { day: today })).status).toBe(400);
     const personal = (await call(solo, "member/" + id)).data.membership;
     expect(personal.waterTargetMl).toBeGreaterThan(0);
@@ -112,7 +113,7 @@ describe.skipIf(!testUrl)("Monthly challenge permissions and scoring", () => {
     expect((await call(solo, "member/" + id + "/meal-day", "PUT", { day: shiftPtDate(today, -1) })).status).toBe(409);
     expect((await call(solo, "member/" + id + "/meal-day", "PUT", { day: today })).status).toBe(200);
     expect((await call(solo, "member/" + id + "/meal-day", "PUT", { day: today })).status).toBe(200);
-    expect((await call(solo, "member/" + id)).data.membership).toMatchObject({ score: 1 });
+    expect((await call(solo, "member/" + id, "GET", undefined, ios18)).data.membership).toMatchObject({ score: 1 });
     const privateState = (await call(owner, "gym/" + id)).data;
     expect(privateState).toMatchObject({ joinedCount: 1, completedCount: 1, leaderboard: [], membership: null });
     expect(JSON.stringify(privateState)).not.toContain("Private meal");
