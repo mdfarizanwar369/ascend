@@ -58,6 +58,11 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     vi.stubEnv("DATABASE_URL", testUrl!);
     vi.stubEnv("PT_BOOKING_V1", "true");
     vi.stubEnv("PT_SESSION_WELLBEING_V1", "true");
+    vi.stubEnv("APNS_ENABLED", "true");
+    vi.stubEnv("APNS_TEAM_ID", "test-team");
+    vi.stubEnv("APNS_KEY_ID", "test-key");
+    vi.stubEnv("APNS_PRIVATE_KEY", "test-private-key");
+    vi.stubEnv("APNS_ENVIRONMENT", "production");
     db = await import("../db/pool");
     const { ptBookingsRouter } = await import("../routes/ptBookings");
     const { meRouter } = await import("../routes/me");
@@ -446,9 +451,21 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect((await call(client, `${clientApi}/requests/${far.body.id}/wellbeing`, "PUT", { version: 1, wellbeing })).status).toBe(409);
   });
 
-  it("sends one outcome alert to the other participant for declines and cancellations", async () => {
+  it.each(["pilot", "iOS 1.8"])("sends decline and cancellation alerts to eligible %s devices", async (audience) => {
     await db.query("delete from pt_bookings where gym_id=$1", [gym]);
     await db.query("delete from notification_preferences where user_id = any($1::uuid[])", [[trainer, client]]);
+    const releaseDeviceIds = new Map<string, string>();
+    if (audience === "iOS 1.8") {
+      for (const userId of [client, trainer]) {
+        const releaseDeviceId = randomUUID();
+        releaseDeviceIds.set(userId, releaseDeviceId);
+        await db.query(`
+          insert into notification_devices (id, user_id, fcm_token, provider, platform, apns_environment, user_agent)
+          values ($1,$2,$1::uuid::text,'apns','ios','production','AscendIOS/6 AscendPush/1 AscendCycle/1 Capacitor'),
+            ($3,$2,$3::uuid::text,'apns','ios','production','AscendIOS/6 AscendPush/1 Capacitor')
+        `, [releaseDeviceId, userId, randomUUID()]);
+      }
+    }
     const { dispatchPtBookingNotifications } = await import("../services/ptBookingNotificationWorker");
     const ask = (startsAt: string) => call(client, `${clientApi}/requests`, "POST", { trainerId: trainerProfile, startsAt });
     const change = (actor: string, path: string, id: string, action: string) =>
@@ -461,14 +478,16 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect((await change(client, clientApi, clientCancelled, "cancel")).status).toBe(200);
     expect((await change(trainer, trainerApi, trainerCancelled, "cancel")).status).toBe(200);
     push.mockClear();
-    await Promise.all([dispatchPtBookingNotifications(new Date(), gym), dispatchPtBookingNotifications(new Date(), gym)]);
+    const pilot = audience === "pilot" ? gym : otherGym;
+    await Promise.all([dispatchPtBookingNotifications(new Date(), pilot), dispatchPtBookingNotifications(new Date(), pilot)]);
     expect(push).toHaveBeenCalledTimes(3);
     for (const [recipient, id, title, path] of [
       [client, declined, "Your PT booking request was declined", "/pt-bookings"],
       [trainer, clientCancelled, "A client cancelled their PT booking", "/trainer/schedule"],
       [client, trainerCancelled, "Your PT booking was cancelled", "/pt-bookings"]
     ]) {
-      expect(push).toHaveBeenCalledWith(expect.objectContaining({ user_id: recipient }),
+      const device = releaseDeviceIds.has(recipient) ? { id: releaseDeviceIds.get(recipient), provider: "apns" } : { provider: "fcm" };
+      expect(push).toHaveBeenCalledWith(expect.objectContaining({ user_id: recipient, ...device }),
         expect.objectContaining({ title, href: `${path}?day=${date}&booking=${id}` }));
     }
   });

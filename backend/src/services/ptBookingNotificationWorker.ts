@@ -45,7 +45,14 @@ async function deliver(event: QueuedNotification, now: Date, pilotGymId?: string
       and (
         (event.kind = 'trainer_request' and booking.status = 'pending' and booking.starts_at > $2)
         or (event.kind = 'client_reminder' and booking.status = 'confirmed' and booking.starts_at > $2)
-        or (booking.gym_id = $3 and (
+        or ((
+          booking.gym_id = $3
+          or (
+            device.platform = 'ios' and device.provider = 'apns'
+            and device.user_agent ~ '\\mAscendIOS/[0-9]+\\M'
+            and device.user_agent ~ '\\mAscendCycle/1\\M'
+          )
+        ) and (
           (event.kind = 'client_declined' and booking.status = 'declined')
           or (event.kind in ('client_cancelled', 'trainer_cancelled') and booking.status = 'cancelled')
         ))
