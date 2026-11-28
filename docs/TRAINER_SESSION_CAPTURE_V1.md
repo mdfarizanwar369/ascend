@@ -17,6 +17,8 @@ Both default to `false`. Turning either flag off leaves existing workout logging
 4. Save the session. Confirmed exercise results appear in the client’s history. **Share a recap with the client** is an opt-in for the recorded package progress, edited recap, and between-session focus.
 5. An authorized gym admin or owner can open **Admin → Users → Manage → View coaching sessions** for an active client in their gym and read completed records.
 
+Use **Save draft & exit** to pause the worksheet. Reopen it from the same client’s profile to continue with the saved exercises, notes, counts and sharing selection. Saving a draft leaves it with the trainer. The client and gym manager history appear when the trainer completes it.
+
 The existing completion service calculates estimated calories using workout MET, duration, intensity, and the latest available client weight. Its analytics event immediately feeds workout history, Today, Momentum, reports, Journey, and coaching context.
 
 ## Storage

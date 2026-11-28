@@ -58,9 +58,9 @@ describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
   const sessionPath = `/trainer/clients/${client}/coaching-sessions`;
   const ownerPath = `/admin/users/${client}/coaching-sessions`;
 
-  async function call(actor: string, path: string, body?: unknown) {
+  async function call(actor: string, path: string, body?: unknown, method = body === undefined ? "GET" : "POST") {
     const response = await fetch(origin + path, {
-      method: body === undefined ? "GET" : "POST",
+      method,
       headers: { "x-test-actor": actor, "content-type": "application/json" },
       body: body === undefined ? undefined : JSON.stringify(body)
     });
@@ -74,6 +74,8 @@ describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
     }
     vi.stubEnv("DATABASE_URL", testUrl!);
     vi.stubEnv("TRAINER_SESSION_CAPTURE_V1", "true");
+    vi.stubEnv("AI_PROVIDER", "openai");
+    vi.stubEnv("OPENAI_API_KEY", "");
     vi.stubEnv("WORKOUT_PROGRESSION_INTELLIGENCE_V1", "true");
     vi.stubEnv("WORKOUT_PROGRESSION_INTELLIGENCE_V3", "true");
     db = await import("../db/pool");
@@ -123,13 +125,42 @@ describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
     const started = await call(trainer, sessionPath, { mode: "blank" });
     expect(started.status, JSON.stringify(started.body)).toBe(201);
     firstSession = started.body.session.id;
-    const complete = `${sessionPath}/${firstSession}/complete`;
+    const draftPath = `${sessionPath}/${firstSession}`;
+    const complete = `${draftPath}/complete`;
+    const partial = {
+      version: started.body.session.version, rawInput: "Leg press 80kg 3x10", durationMinutes: 45,
+      workoutDraft: { ...record.draft, title: "", exercises: [{ ...record.draft.exercises[0], name: "" }] },
+      narratives: record.narratives, worksheet: { ...record.worksheet, sessionNumber: 11 }, shareClientRecap: true
+    };
+    expect((await call(otherTrainer, draftPath, partial, "PATCH")).status).toBe(403);
+    const draftSaved = await call(trainer, draftPath, partial, "PATCH");
+    expect(draftSaved.status, JSON.stringify(draftSaved.body)).toBe(200);
+    const savedVersion = draftSaved.body.session.version;
+    const resumed = await call(trainer, sessionPath);
+    expect(resumed.body.activeSession).toMatchObject({
+      id: firstSession, rawInput: partial.rawInput, version: savedVersion,
+      worksheet: partial.worksheet, narratives: record.narratives, shareClientRecap: true,
+      workoutDraft: { title: "", exercises: [{ name: "" }] }
+    });
+    expect((await call(manager, ownerPath)).body.sessions).toEqual([]);
+    expect((await call(client, "/me/coaching-sessions")).body.sessions).toEqual([]);
+    expect((await call(trainer, draftPath, partial, "PATCH")).status).toBe(409);
+    expect((await call(trainer, complete, { ...record, version: partial.version })).status).toBe(409);
+    expect((await call(trainer, `${draftPath}?version=${partial.version}`, undefined, "DELETE")).body.cancelled).toBe(false);
+    const interpret = await call(trainer, `${draftPath}/interpret`, {
+      version: savedVersion, rawInput: partial.rawInput, durationMinutes: 45
+    });
+    expect(interpret.status, JSON.stringify(interpret.body)).toBe(200);
+    expect(interpret.body).toMatchObject({
+      version: savedVersion + 1, draft: { originalInput: partial.rawInput }, narratives: record.narratives
+    });
     const invalid = await call(trainer, complete, { ...record, worksheet: { ...record.worksheet, sessionNumber: 11 } });
     expect(invalid.status).toBe(400);
     expect(invalid.body.issues[0]).toMatchObject({ path: ["worksheet", "sessionNumber"] });
-    const requests = await Promise.all([call(trainer, complete, record), call(trainer, complete, record)]);
+    const currentRecord = { ...record, version: interpret.body.version };
+    const requests = await Promise.all([call(trainer, complete, currentRecord), call(trainer, complete, currentRecord)]);
     for (const result of requests) expect(result.status, JSON.stringify(result.body)).toBe(200);
-    const retry = await call(trainer, complete, { ...record, shareClientRecap: true });
+    const retry = await call(trainer, complete, { ...currentRecord, shareClientRecap: true });
     expect(retry.body.session.shareClientRecap).toBe(false);
     const receipt = await call(client, "/me/coaching-sessions");
     expect(receipt.body.sessions).toHaveLength(1);
@@ -180,5 +211,14 @@ describe.skipIf(!testUrl)("trainer worksheet on isolated PostgreSQL", () => {
     expect((await call(manager, ownerPath)).status).toBe(403);
     expect((await call(otherManager, ownerPath)).body.sessions).toEqual([]);
     expect((await call(otherTrainer, sessionPath)).body).toMatchObject({ recentSessions: [], previousWorkout: null });
+    const started = await call(otherTrainer, sessionPath, { mode: "blank" });
+    const path = `${sessionPath}/${started.body.session.id}`;
+    const saved = await call(otherTrainer, path, {
+      version: started.body.session.version, rawInput: "", worksheet: { sessionNumber: 1 }, narratives: record.narratives
+    }, "PATCH");
+    expect((await call(otherTrainer, `${path}?version=${saved.body.session.version}`, undefined, "DELETE")).body.cancelled).toBe(true);
+    expect((await call(otherTrainer, sessionPath)).body.activeSession).toBeNull();
+    const discarded = await db.query("select trainer_next_session_note, worksheet from trainer_coaching_sessions where id=$1", [started.body.session.id]);
+    expect(discarded.rows[0]).toEqual({ trainer_next_session_note: null, worksheet: {} });
   });
 });

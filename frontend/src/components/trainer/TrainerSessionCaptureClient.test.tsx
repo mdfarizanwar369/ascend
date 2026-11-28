@@ -8,18 +8,20 @@ const api = vi.hoisted(() => ({
   getTrainerSessionOverview: vi.fn(),
   interpretTrainerCoachingSession: vi.fn(),
   startTrainerCoachingSession: vi.fn(),
-  updateTrainerCoachingSession: vi.fn()
+  updateTrainerCoachingSession: vi.fn(),
+  push: vi.fn()
 }));
 vi.mock("@/lib/ascendApi", () => api);
 vi.mock("@/components/BackButton", () => ({ BackButton: () => <button type="button">Back</button> }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: api.push }) }));
 
 const workout = {
-  title: "Leg day", workoutType: "Strength", durationMinutes: 45,
+  title: "Leg day", workoutType: "Strength", durationMinutes: 45, originalInput: "",
   exercises: [{ name: "Leg press", sets: 3, reps: "8", load: 80, loadUnit: "kg", needsConfirmation: false }]
 };
 const active = {
   id: "session-1", clientName: "Alex", startedAt: "2026-11-28T01:00:00.000Z", rawInput: "",
-  durationMinutes: 45, workoutDraft: workout, narratives: null
+  durationMinutes: 45, workoutDraft: workout, narratives: null, version: 1
 };
 
 describe("trainer session continuity", () => {
@@ -42,6 +44,7 @@ describe("trainer session continuity", () => {
     fireEvent.click(screen.getByRole("button", { name: "Repeat last session" }));
     expect(await screen.findByRole("heading", { name: "Today’s session" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: /Leg press/ }));
+    expect(screen.getByText(/Last session · 3 sets \/ 8 reps \/ 80kg/)).toBeVisible();
     fireEvent.change(screen.getByLabelText("Reps"), { target: { value: "10" } });
     fireEvent.change(screen.getByLabelText("Plan for next session"), { target: { value: "Keep the new tempo." } });
     fireEvent.change(screen.getByLabelText("How did the client feel?"), { target: { value: "Strong" } });
@@ -87,5 +90,42 @@ describe("trainer session continuity", () => {
       shareClientRecap: true,
       worksheet: { sessionNumber: 3, sessionsPurchased: 10 }
     })));
+  });
+
+  it("saves the unfinished worksheet and restores it from the server", async () => {
+    api.updateTrainerCoachingSession.mockImplementation(async (_client, _id, input) => {
+      api.getTrainerSessionOverview.mockResolvedValue({
+        enabled: true, previousWorkout: workout, recentSessions: [],
+        activeSession: { ...active, ...input, version: 2 }
+      });
+      return { session: { ...active, ...input, version: 2 } };
+    });
+    const view = render(<TrainerSessionCaptureClient clientId="client-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Repeat last session" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Use last package total of 10" }));
+    expect(screen.getByLabelText("Sessions purchased")).toHaveValue(10);
+    expect(screen.getByLabelText("Session number")).toHaveValue(null);
+    fireEvent.change(screen.getByLabelText("Session number"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add exercise" }));
+    fireEvent.change(screen.getByLabelText("Plan for next session"), { target: { value: "Check the new setup." } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Share a recap with the client" }));
+    expect(screen.getByRole("button", { name: "Save & share recap" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save draft & exit" }));
+    await waitFor(() => expect(api.push).toHaveBeenCalledWith("/trainer/clients/client-1"));
+    expect(api.updateTrainerCoachingSession).toHaveBeenCalledWith("client-1", "session-1", expect.objectContaining({
+      version: 1,
+      worksheet: { sessionNumber: 3, sessionsPurchased: 10 },
+      narratives: expect.objectContaining({ trainerNextSessionNote: "Check the new setup." }),
+      workoutDraft: expect.objectContaining({ exercises: [expect.objectContaining({ name: "Leg press" }), expect.objectContaining({ name: "" })] }),
+      shareClientRecap: true
+    }));
+    expect(api.completeTrainerCoachingSession).not.toHaveBeenCalled();
+    view.unmount();
+    window.localStorage.setItem("ascend:trainer-session-draft:client-1:session-1", JSON.stringify({ version: 1, rawInput: "Old shorthand", durationMinutes: 20 }));
+    render(<TrainerSessionCaptureClient clientId="client-1" />);
+    expect(await screen.findByLabelText("Session number")).toHaveValue(3);
+    expect(screen.getByLabelText("Plan for next session")).toHaveValue("Check the new setup.");
+    expect(screen.getByRole("button", { name: /New exercise/ })).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: "Share a recap with the client" })).toBeChecked();
   });
 });

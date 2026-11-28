@@ -337,6 +337,9 @@ export async function updateTrainerSessionDraft(input: {
   rawInput: string;
   durationMinutes?: number | null;
   workoutDraft?: WorkoutCaptureDraft | null;
+  worksheet?: TrainerSessionWorksheet;
+  narratives?: TrainerSessionNarratives;
+  shareClientRecap?: boolean;
 }) {
   const result = await query<SessionRow>(
     `
@@ -344,6 +347,11 @@ export async function updateTrainerSessionDraft(input: {
     set raw_input = $5,
         duration_minutes = $6,
         structured_workout = coalesce($7, structured_workout),
+        worksheet = coalesce($9, worksheet),
+        client_recap = coalesce($10, client_recap),
+        between_session_focus = coalesce($11, between_session_focus),
+        trainer_next_session_note = coalesce($12, trainer_next_session_note),
+        share_client_recap = coalesce($13, share_client_recap),
         version = version + 1,
         updated_at = now()
     from users creator, users client
@@ -353,7 +361,10 @@ export async function updateTrainerSessionDraft(input: {
     returning session.*, creator.full_name as trainer_name, client.full_name as client_name,
       null::text as estimated_calories_burned, null::text as calories_label
     `,
-    [input.sessionId, input.clientId, input.actorUserId, input.version, cleanText(input.rawInput, 5_000), input.durationMinutes ?? null, input.workoutDraft ?? null, input.gymId]
+    [input.sessionId, input.clientId, input.actorUserId, input.version, cleanText(input.rawInput, 5_000),
+      input.durationMinutes ?? null, input.workoutDraft ?? null, input.gymId, input.worksheet ?? null,
+      input.narratives?.clientRecap ?? null, input.narratives?.betweenSessionFocus ?? null,
+      input.narratives?.trainerNextSessionNote ?? null, input.shareClientRecap ?? null]
   );
   return result.rows[0] ? mapSession(result.rows[0]) : null;
 }
@@ -366,9 +377,11 @@ export async function interpretTrainerSession(input: {
   rawInput: string;
   durationMinutes: number;
   sourceMode: "text" | "dictation";
+  version?: number;
 }) {
   const session = await getTrainerSession(input.sessionId, input.clientId, input.actorUserId, input.actorGymId ?? null);
   if (!session || session.status !== "draft") return null;
+  if (input.version !== undefined && input.version !== session.version) throw staleDraftError();
 
   const recent = await query<{ metadata: Record<string, unknown> | null }>(
     `select metadata from analytics_events where user_id = $1 and event_name = 'burn_log' and jsonb_typeof(metadata->'exercises') = 'array' order by created_at desc limit 10`,
@@ -385,9 +398,15 @@ export async function interpretTrainerSession(input: {
     userId: input.actorUserId,
     gymId: input.actorGymId ?? null
   }));
+  draft.originalInput = cleanText(input.rawInput, 5_000);
   if (!draft.durationMinutes) draft.durationMinutes = clamp(Math.round(input.durationMinutes), 5, 300);
   const previous = await findPreviousDraft(input.clientId, input.actorGymId ?? null, input.actorUserId, input.sessionId);
-  const narratives = buildTrainerSessionNarratives(draft, session.clientName, previous);
+  const suggested = buildTrainerSessionNarratives(draft, session.clientName, previous);
+  const narratives = {
+    clientRecap: session.narratives?.clientRecap || suggested.clientRecap,
+    betweenSessionFocus: session.narratives?.betweenSessionFocus || suggested.betweenSessionFocus,
+    trainerNextSessionNote: session.narratives?.trainerNextSessionNote ?? ""
+  };
   const intelligence = buildTrainerSessionIntelligence(draft, previous);
   const weightKg = await resolveWorkoutWeightKg(input.clientId);
   const calories = createWorkoutCompletionSummary({
@@ -399,7 +418,7 @@ export async function interpretTrainerSession(input: {
     weightKg
   });
 
-  const saved = await query(
+  const saved = await query<{ version: number }>(
     `
     update trainer_coaching_sessions
     set raw_input = $4, duration_minutes = $5, structured_workout = $6,
@@ -407,12 +426,19 @@ export async function interpretTrainerSession(input: {
       ai_confidence = $10, uncertain_fields = $11, session_intelligence = $12,
       version = version + 1, updated_at = now()
     where id = $1 and client_id = $2 and created_by_user_id = $3 and status = 'draft' and version = $13
+    returning version
     `,
-    [input.sessionId, input.clientId, input.actorUserId, cleanText(input.rawInput, 5_000), draft.durationMinutes, draft, narratives.clientRecap, narratives.betweenSessionFocus, "", draft.confidence, JSON.stringify(draft.uncertainties), intelligence, session.version]
+    [input.sessionId, input.clientId, input.actorUserId, draft.originalInput, draft.durationMinutes, draft,
+      narratives.clientRecap, narratives.betweenSessionFocus, narratives.trainerNextSessionNote,
+      draft.confidence, JSON.stringify(draft.uncertainties), intelligence, session.version]
   );
-  if (!saved.rowCount) return null;
+  if (!saved.rows[0]) throw staleDraftError();
 
-  return { draft, narratives: { ...narratives, trainerNextSessionNote: "" }, intelligence, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
+  return { draft, narratives, version: saved.rows[0].version, intelligence, estimatedCaloriesBurned: calories.estimatedCaloriesBurned, caloriesLabel: "Estimated Calories Burned" };
+}
+
+function staleDraftError() {
+  return Object.assign(new Error("This session changed elsewhere. Reopen it to continue."), { status: 409 });
 }
 
 type CompleteTrainerSessionInput = {
@@ -425,6 +451,7 @@ type CompleteTrainerSessionInput = {
   narratives: TrainerSessionNarratives;
   worksheet: TrainerSessionWorksheet;
   shareClientRecap: boolean;
+  version?: number;
   completedAt?: string | null;
 };
 
@@ -459,6 +486,7 @@ async function completeLockedTrainerSession(input: CompleteTrainerSessionInput, 
   if (!row) return null;
   const session = mapSession(row);
   const alreadyCompleted = session.status === "completed";
+  if (!alreadyCompleted && input.version !== undefined && input.version !== session.version) throw staleDraftError();
   const draft = alreadyCompleted ? session.workoutDraft! : input.draft;
   const completedAt = alreadyCompleted ? session.completedAt : input.completedAt ?? null;
   const previous = alreadyCompleted ? null : await findPreviousDraft(input.clientId, input.gymId, input.actorUserId, input.sessionId);
@@ -528,11 +556,15 @@ async function completeLockedTrainerSession(input: CompleteTrainerSessionInput, 
   return completedSession ? { session: completedSession, completion } : null;
 }
 
-export async function cancelTrainerSession(sessionId: string, clientId: string, actorUserId: string, gymId: string | null) {
+export async function cancelTrainerSession(sessionId: string, clientId: string, actorUserId: string, gymId: string | null, version?: number) {
   const result = await query(
-    `update trainer_coaching_sessions set status = 'cancelled', raw_input = '', updated_at = now(), version = version + 1
-     where id = $1 and client_id = $2 and created_by_user_id = $3 and gym_id is not distinct from $4::uuid and status = 'draft' returning id`,
-    [sessionId, clientId, actorUserId, gymId]
+    `update trainer_coaching_sessions set status = 'cancelled', raw_input = '', structured_workout = null,
+       client_recap = null, between_session_focus = null, trainer_next_session_note = null, session_intelligence = null,
+       worksheet = '{}'::jsonb, share_client_recap = false, uncertain_fields = '[]'::jsonb,
+       updated_at = now(), version = version + 1
+     where id = $1 and client_id = $2 and created_by_user_id = $3 and gym_id is not distinct from $4::uuid
+       and status = 'draft' and ($5::int is null or version = $5) returning id`,
+    [sessionId, clientId, actorUserId, gymId, version ?? null]
   );
   return Boolean(result.rowCount);
 }

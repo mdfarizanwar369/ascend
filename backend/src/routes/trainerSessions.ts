@@ -17,11 +17,16 @@ import {
   startTrainerSession,
   updateTrainerSessionDraft
 } from "../services/trainerSessionService";
-import { workoutCaptureDraftSchema } from "../schemas/workoutCaptureSchemas";
+import { workoutCaptureDraftSchema, workoutCaptureExerciseSchema } from "../schemas/workoutCaptureSchemas";
 
 export const trainerSessionsRouter = Router();
 
 const draftSchema = workoutCaptureDraftSchema;
+const worksheetWorkoutDraftSchema = draftSchema.extend({
+  title: z.string().trim().max(120),
+  workoutType: z.string().trim().max(80),
+  exercises: z.array(workoutCaptureExerciseSchema.extend({ name: z.string().trim().max(120) })).max(30)
+});
 
 const narrativesSchema = z.object({
   clientRecap: z.string().trim().max(600),
@@ -29,14 +34,16 @@ const narrativesSchema = z.object({
   trainerNextSessionNote: z.string().trim().max(600)
 });
 
-const worksheetSchema = z.object({
+const worksheetFields = z.object({
   focus: z.enum(TRAINER_SESSION_FOCUSES).optional(),
   priority: z.string().trim().max(160).optional(),
   response: z.enum(TRAINER_SESSION_RESPONSES).optional(),
   win: z.string().trim().max(400).optional(),
   sessionNumber: z.int().positive().optional(),
   sessionsPurchased: z.int().positive().optional()
-}).refine(({ sessionNumber, sessionsPurchased }) => (
+});
+
+const worksheetSchema = worksheetFields.refine(({ sessionNumber, sessionsPurchased }) => (
   sessionNumber === undefined || sessionsPurchased === undefined || sessionNumber <= sessionsPurchased
 ), {
   message: "The session number must be within the package.",
@@ -89,7 +96,15 @@ trainerSessionsRouter.patch("/trainer/clients/:clientId/coaching-sessions/:sessi
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.status(404).json({ error: "Session capture is not available." });
     const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
     if (!client) return res.status(403).json({ error: "You cannot manage this client." });
-    const body = z.object({ version: z.number().int().min(1), rawInput: z.string().max(5_000), durationMinutes: z.number().int().min(5).max(300).nullable().optional(), workoutDraft: draftSchema.nullable().optional() }).parse(req.body);
+    const body = z.object({
+      version: z.int().positive(),
+      rawInput: z.string().max(5_000),
+      durationMinutes: z.int().min(5).max(300).nullable().optional(),
+      workoutDraft: worksheetWorkoutDraftSchema.nullable().optional(),
+      worksheet: worksheetFields.optional(),
+      narratives: narrativesSchema.optional(),
+      shareClientRecap: z.boolean().optional()
+    }).parse(req.body);
     const session = await updateTrainerSessionDraft({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, gymId: client.gym_id, ...body });
     if (!session) return res.status(409).json({ error: "This session changed elsewhere. Refresh to continue." });
     res.json({ session });
@@ -101,7 +116,12 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessio
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.status(404).json({ error: "Session capture is not available." });
     const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
     if (!client) return res.status(403).json({ error: "You cannot manage this client." });
-    const body = z.object({ rawInput: z.string().trim().min(2).max(5_000), durationMinutes: z.number().int().min(5).max(300), sourceMode: z.enum(["text", "dictation"]).default("text") }).parse(req.body);
+    const body = z.object({
+      version: z.int().positive().optional(),
+      rawInput: z.string().trim().min(2).max(5_000),
+      durationMinutes: z.int().min(5).max(300),
+      sourceMode: z.enum(["text", "dictation"]).default("text")
+    }).parse(req.body);
     const result = await interpretTrainerSession({ sessionId: req.params.sessionId, clientId: req.params.clientId, actorUserId: req.user!.id, actorGymId: client.gym_id, ...body });
     if (!result) return res.status(404).json({ error: "Session draft not found." });
     res.json(result);
@@ -115,6 +135,7 @@ trainerSessionsRouter.post("/trainer/clients/:clientId/coaching-sessions/:sessio
     if (!client || !req.user!.trainerId) return res.status(403).json({ error: "You cannot manage this client." });
     const body = z.object({
       userConfirmed: z.literal(true),
+      version: z.int().positive().optional(),
       draft: draftSchema.refine((draft) => draft.exercises.every((exercise) => !exercise.needsConfirmation), "Confirm the highlighted exercises first."),
       narratives: narrativesSchema,
       worksheet: worksheetSchema.default({}),
@@ -137,7 +158,8 @@ trainerSessionsRouter.delete("/trainer/clients/:clientId/coaching-sessions/:sess
     if (!env.TRAINER_SESSION_CAPTURE_V1) return res.json({ cancelled: false });
     const client = await getAssignedTrainerClient(req.user!, req.params.clientId);
     if (!client) return res.status(403).json({ error: "You cannot manage this client." });
-    res.json({ cancelled: await cancelTrainerSession(req.params.sessionId, req.params.clientId, req.user!.id, client.gym_id) });
+    const { version } = z.object({ version: z.coerce.number().int().positive().optional() }).parse(req.query);
+    res.json({ cancelled: await cancelTrainerSession(req.params.sessionId, req.params.clientId, req.user!.id, client.gym_id, version) });
   } catch (error) { next(error); }
 });
 

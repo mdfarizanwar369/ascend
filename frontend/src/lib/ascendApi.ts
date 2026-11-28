@@ -1776,6 +1776,9 @@ export function updateTrainerCoachingSession(clientId: string, sessionId: string
   rawInput: string;
   durationMinutes?: number | null;
   workoutDraft?: WorkoutCaptureDraft | null;
+  worksheet?: TrainerSessionWorksheet;
+  narratives?: TrainerSessionNarratives;
+  shareClientRecap?: boolean;
 }) {
   return authed<{ session: TrainerCoachingSession }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}`, {
     method: "PATCH",
@@ -1784,11 +1787,12 @@ export function updateTrainerCoachingSession(clientId: string, sessionId: string
 }
 
 export function interpretTrainerCoachingSession(clientId: string, sessionId: string, input: {
+  version?: number;
   rawInput: string;
   durationMinutes: number;
   sourceMode: "text" | "dictation";
 }) {
-  return authed<{ draft: WorkoutCaptureDraft; narratives: TrainerSessionNarratives; intelligence: TrainerSessionIntelligence; estimatedCaloriesBurned: number; caloriesLabel: string }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/interpret`, {
+  return authed<{ draft: WorkoutCaptureDraft; narratives: TrainerSessionNarratives; version: number; intelligence: TrainerSessionIntelligence; estimatedCaloriesBurned: number; caloriesLabel: string }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}/interpret`, {
     method: "POST",
     body: JSON.stringify(input)
   });
@@ -1796,6 +1800,7 @@ export function interpretTrainerCoachingSession(clientId: string, sessionId: str
 
 export function completeTrainerCoachingSession(clientId: string, sessionId: string, input: {
   userConfirmed: true;
+  version?: number;
   draft: WorkoutCaptureDraft;
   narratives: TrainerSessionNarratives;
   worksheet: TrainerSessionWorksheet;
@@ -1813,8 +1818,9 @@ export function completeTrainerCoachingSession(clientId: string, sessionId: stri
   });
 }
 
-export function cancelTrainerCoachingSession(clientId: string, sessionId: string) {
-  return authed<{ cancelled: boolean }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}`, { method: "DELETE" });
+export function cancelTrainerCoachingSession(clientId: string, sessionId: string, version?: number) {
+  const query = version === undefined ? "" : `?version=${version}`;
+  return authed<{ cancelled: boolean }>(`/trainer/clients/${clientId}/coaching-sessions/${sessionId}${query}`, { method: "DELETE" });
 }
 
 export function getMyCoachedSessions(limit = 10) {

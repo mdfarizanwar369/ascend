@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatTrainerSessionPackageProgress, TRAINER_SESSION_FOCUSES, TRAINER_SESSION_RESPONSES, type TrainerCoachingSession, type TrainerSessionNarratives, type TrainerSessionWorksheet, type WorkoutCaptureDraft, type WorkoutCaptureExercise } from "@ascend/shared";
 import { Check, ChevronDown, ChevronUp, RotateCcw, Save, Sparkles, Trash2 } from "lucide-react";
 import { BackButton } from "@/components/BackButton";
@@ -42,11 +43,12 @@ function localDraftKey(clientId: string, sessionId: string) {
   return `ascend:trainer-session-draft:${clientId}:${sessionId}`;
 }
 
-function readLocalDraft(clientId: string, sessionId: string) {
+function readLocalDraft(clientId: string, sessionId: string, version: number) {
   try {
     const raw = window.localStorage.getItem(localDraftKey(clientId, sessionId));
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { rawInput?: unknown; durationMinutes?: unknown };
+    const parsed = JSON.parse(raw) as { version?: number; rawInput?: unknown; durationMinutes?: unknown };
+    if ((parsed.version ?? 1) !== version) return null;
     return {
       rawInput: typeof parsed.rawInput === "string" ? parsed.rawInput : "",
       durationMinutes: Number.isFinite(Number(parsed.durationMinutes)) ? Math.max(5, Number(parsed.durationMinutes)) : null
@@ -57,6 +59,7 @@ function readLocalDraft(clientId: string, sessionId: string) {
 }
 
 export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) {
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("loading");
   const [session, setSession] = useState<TrainerCoachingSession | null>(null);
   const [previousWorkout, setPreviousWorkout] = useState<WorkoutCaptureDraft | null>(null);
@@ -67,10 +70,26 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   const [narratives, setNarratives] = useState(emptyNarratives);
   const [worksheet, setWorksheet] = useState<TrainerSessionWorksheet>({});
   const [shareClientRecap, setShareClientRecap] = useState(false);
+  const [shorthandOpen, setShorthandOpen] = useState(false);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [expandedExercise, setExpandedExercise] = useState<number | null>(null);
   const completeLock = useRef(false);
+
+  const resumeSession = useCallback((active: TrainerCoachingSession) => {
+    const local = readLocalDraft(clientId, active.id, active.version);
+    const input = local?.rawInput ?? active.rawInput;
+    const pendingShorthand = input.trim() && input.trim() !== (active.workoutDraft?.originalInput ?? "").trim();
+    setSession(active);
+    setRawInput(input);
+    setDurationMinutes(local?.durationMinutes ?? active.durationMinutes ?? (input ? elapsedMinutes(active.startedAt) : 45));
+    setDraft(active.workoutDraft);
+    setNarratives(active.narratives ?? emptyNarratives);
+    setWorksheet(active.worksheet ?? {});
+    setShareClientRecap(active.shareClientRecap ?? false);
+    setShorthandOpen(Boolean(pendingShorthand));
+    setPhase(active.workoutDraft && !pendingShorthand ? "review" : "capture");
+  }, [clientId]);
 
   useEffect(() => {
     let mounted = true;
@@ -84,18 +103,8 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
           setPhase("unavailable");
           return;
         }
-        if (overview.activeSession) {
-          const localDraft = readLocalDraft(clientId, overview.activeSession.id);
-          setSession(overview.activeSession);
-          const input = localDraft?.rawInput ?? overview.activeSession.rawInput;
-          setRawInput(input);
-          setDurationMinutes(localDraft?.durationMinutes ?? overview.activeSession.durationMinutes ?? elapsedMinutes(overview.activeSession.startedAt));
-          setDraft(overview.activeSession.workoutDraft);
-          setNarratives(overview.activeSession.narratives ?? emptyNarratives);
-          setPhase(overview.activeSession.workoutDraft && input === overview.activeSession.rawInput ? "review" : "capture");
-        } else {
-          setPhase("start");
-        }
+        if (overview.activeSession) resumeSession(overview.activeSession);
+        else setPhase("start");
       })
       .catch((error) => {
         if (!mounted) return;
@@ -103,14 +112,14 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
         setPhase("unavailable");
       });
     return () => { mounted = false; };
-  }, [clientId]);
+  }, [clientId, resumeSession]);
 
   useEffect(() => {
     if (!session || phase !== "capture") return;
     try {
-      window.localStorage.setItem(localDraftKey(clientId, session.id), JSON.stringify({ rawInput, durationMinutes, savedAt: new Date().toISOString() }));
+      window.localStorage.setItem(localDraftKey(clientId, session.id), JSON.stringify({ version: session.version, rawInput, durationMinutes }));
     } catch {
-      // The server save on review remains available when device storage is unavailable.
+      // Save draft & exit also works when device storage is unavailable.
     }
   }, [clientId, durationMinutes, phase, rawInput, session]);
 
@@ -118,6 +127,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   const priorNote = lastSession?.narratives?.trainerNextSessionNote;
   const priorPriority = previousWorkout?.exercises.find((exercise) => exercise.name.toLowerCase() === lastSession?.worksheet?.priority?.toLowerCase()) ?? previousWorkout?.exercises[0];
   const priorPackageProgress = formatTrainerSessionPackageProgress(lastSession?.worksheet);
+  const lastPackageTotal = lastSession?.worksheet?.sessionsPurchased;
   const packageProgress = formatTrainerSessionPackageProgress(worksheet);
   const { sessionNumber, sessionsPurchased } = worksheet;
   const validPackageNumbers = [sessionNumber, sessionsPurchased].every((value) => value === undefined || Number.isSafeInteger(value) && value > 0);
@@ -131,29 +141,48 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     setStatus(mode === "repeat_last" ? "Preparing the last session..." : "Starting session...");
     try {
       const response = await startTrainerCoachingSession(clientId, mode);
-      setSession(response.session);
-      setRawInput(response.session.rawInput);
-      setDraft(response.session.workoutDraft);
-      setNarratives(response.session.narratives ?? emptyNarratives);
-      setDurationMinutes(response.session.durationMinutes ?? 45);
-      setPhase(response.session.workoutDraft ? "review" : "capture");
+      resumeSession(response.session);
       setStatus("");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Could not start the session.");
     } finally { setBusy(false); }
   }
 
+  function saveDraftSnapshot(active: TrainerCoachingSession) {
+    return updateTrainerCoachingSession(clientId, active.id, {
+      version: active.version, rawInput: phase === "review" && draft ? draft.originalInput : rawInput,
+      durationMinutes: phase === "review" ? draft?.durationMinutes ?? null : durationMinutes,
+      workoutDraft: draft, narratives, worksheet, shareClientRecap
+    });
+  }
+
+  async function saveDraftAndExit() {
+    if (!session || busy || !validPackageNumbers) return;
+    setBusy(true);
+    setStatus("Saving your draft…");
+    try {
+      const saved = await saveDraftSnapshot(session);
+      clearLocalDraft(session.id);
+      setSession(saved.session);
+      router.push(`/trainer/clients/${clientId}`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not save your draft. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function finishAndReview() {
-    if (!session || rawInput.trim().length < 2) return;
+    if (!session || rawInput.trim().length < 2 || !validPackageNumbers) return;
     setBusy(true);
     setStatus("Turning your notes into a clean session...");
     try {
-      const saved = await updateTrainerCoachingSession(clientId, session.id, { version: session.version, rawInput, durationMinutes });
+      const saved = await saveDraftSnapshot(session);
       setSession(saved.session);
-      const result = await interpretTrainerCoachingSession(clientId, session.id, { rawInput, durationMinutes, sourceMode: "dictation" });
-      setSession({ ...saved.session, version: saved.session.version + 1 });
+      const result = await interpretTrainerCoachingSession(clientId, session.id, { version: saved.session.version, rawInput, durationMinutes, sourceMode: "dictation" });
+      setSession({ ...saved.session, version: result.version });
       setDraft(result.draft);
-      setNarratives((current) => ({ ...result.narratives, trainerNextSessionNote: current.trainerNextSessionNote }));
+      setNarratives(result.narratives);
       setPhase("review");
       setStatus("");
     } catch (error) {
@@ -219,7 +248,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
     setBusy(true);
     setStatus("Saving the session…");
     try {
-      const response = await completeTrainerCoachingSession(clientId, session.id, { userConfirmed: true, draft, narratives, worksheet, shareClientRecap });
+      const response = await completeTrainerCoachingSession(clientId, session.id, { userConfirmed: true, version: session.version, draft, narratives, worksheet, shareClientRecap });
       clearLocalDraft(session.id);
       setSession(response.session);
       setPhase("success");
@@ -239,13 +268,14 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
   }
 
   async function discard() {
-    if (!session || busy) return;
+    if (!session || busy || !window.confirm("Discard this session draft?")) return;
     setBusy(true);
     try {
-      await cancelTrainerCoachingSession(clientId, session.id);
+      const result = await cancelTrainerCoachingSession(clientId, session.id, session.version);
+      if (!result.cancelled) throw new Error("This session changed elsewhere. Reopen it to continue.");
       clearLocalDraft(session.id);
       setSession(null); setDraft(null); setRawInput(""); setNarratives(emptyNarratives);
-      setWorksheet({}); setShareClientRecap(false); setExpandedExercise(null);
+      setWorksheet({}); setShareClientRecap(false); setExpandedExercise(null); setShorthandOpen(false);
       setPhase("start"); setStatus("Draft discarded.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Could not discard the draft."); }
     finally { setBusy(false); }
@@ -267,7 +297,10 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
 
         {["start", "capture", "review"].includes(phase) && (priorNote || priorPackageProgress || lastSession?.worksheet?.response || previousWorkout) ? (
           <section className="ascend-workspace-section p-4 sm:p-5">
-            <h2 className="text-lg font-semibold">From the last session</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <h2 className="text-lg font-semibold">From the last session</h2>
+              {lastSession?.completedAt ? <p className="text-sm text-zinc-400">{new Date(lastSession.completedAt).toLocaleDateString(undefined, { dateStyle: "medium" })}</p> : null}
+            </div>
             {priorPackageProgress ? <p className="mt-1 text-sm text-calm">{priorPackageProgress}</p> : null}
             {priorNote ? <p className="mt-2 whitespace-pre-wrap text-zinc-100">{priorNote}</p> : null}
             {priorPriority ? <p className="mt-2 text-sm text-zinc-300">{priorPriority.name} · {exerciseSummary(priorPriority)}</p> : null}
@@ -298,7 +331,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
             <button type="button" disabled={busy} onClick={enterExercises} className="mt-3 min-h-12 rounded-xl bg-lime px-4 font-semibold text-ink disabled:opacity-40">
               {draft ? "Edit exercise list" : "Enter exercises"}
             </button>
-            <details className="mt-4 rounded-xl border border-line p-3">
+            <details className="mt-4 rounded-xl border border-line p-3" open={shorthandOpen} onToggle={(event) => setShorthandOpen(event.currentTarget.open)}>
               <summary className="cursor-pointer font-semibold">Use shorthand or dictation</summary>
               <label className="mt-3 block text-sm">
                 Workout shorthand
@@ -308,11 +341,14 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
                 Duration in minutes
                 <input type="number" min={5} max={300} value={durationMinutes} onChange={(event) => setDurationMinutes(Math.max(5, Math.min(300, Number(event.target.value) || 5)))} className={`${inputClass} mt-2 block max-w-28`} />
               </label>
-              <button disabled={busy || rawInput.trim().length < 2} onClick={finishAndReview} className="mt-3 min-h-12 rounded-xl border border-line px-4 font-semibold disabled:opacity-40">
+              <button disabled={busy || !validPackageNumbers || rawInput.trim().length < 2} onClick={finishAndReview} className="mt-3 min-h-12 rounded-xl border border-line px-4 font-semibold disabled:opacity-40">
                 <Sparkles className="mr-2 inline" size={17} />Review shorthand
               </button>
             </details>
-            <button disabled={busy} onClick={discard} className="mt-3 min-h-11 text-sm text-zinc-400"><Trash2 className="mr-2 inline" size={16} />Discard draft</button>
+            <div className="mt-3 flex flex-wrap gap-x-5">
+              <button type="button" disabled={busy || !validPackageNumbers} onClick={saveDraftAndExit} className="min-h-11 text-sm font-semibold text-calm disabled:opacity-40">Save draft & exit</button>
+              <button type="button" disabled={busy} onClick={discard} className="min-h-11 text-sm text-zinc-400"><Trash2 className="mr-2 inline" size={16} />Discard draft</button>
+            </div>
           </section>
         ) : null}
 
@@ -332,6 +368,9 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
                     onChange={(e) => setWorksheet({ ...worksheet, sessionsPurchased: e.target.value === "" ? undefined : e.target.valueAsNumber })} />
                 </label>
               </div>
+              {lastPackageTotal !== undefined && sessionsPurchased === undefined ? (
+                <button type="button" disabled={busy} onClick={() => setWorksheet((current) => ({ ...current, sessionsPurchased: lastPackageTotal }))} className="mt-1 min-h-11 text-sm font-semibold text-calm">Use last package total of {lastPackageTotal}</button>
+              ) : null}
               {packageError ? <p id="pt-package-error" className="mt-2 text-sm text-amber">{packageError}</p> : null}
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <label className="text-sm">Focus
@@ -345,44 +384,48 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
                 </label>
               </div>
               <div className="mt-4 space-y-2">
-                {draft.exercises.map((exercise, index) => (
-                  <article key={index} className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber/50 bg-amber/5" : "border-line bg-ink"}`}>
-                    <button type="button" aria-expanded={expandedExercise === index} onClick={() => setExpandedExercise(expandedExercise === index ? null : index)} className="flex min-h-11 w-full items-center justify-between gap-3 text-left">
-                      <div>
-                        <p className="font-semibold">{exercise.name || "New exercise"}</p>
-                        <p className="text-sm text-zinc-400">{exerciseSummary(exercise)}</p>
-                      </div>
-                      {expandedExercise === index ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                    </button>
-                    {expandedExercise === index ? (
-                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                        <label className="col-span-2 text-sm sm:col-span-4">Exercise name
-                          <input value={exercise.name} maxLength={120} onChange={(e) => updateExercise(index, { name: e.target.value })} className={`${inputClass} mt-1`} />
-                        </label>
-                        <label className="text-sm">Sets
-                          <input type="number" min={1} max={100} value={exercise.sets ?? ""} onChange={(e) => updateExercise(index, { sets: e.target.value ? Number(e.target.value) : null })} className={`${inputClass} mt-1`} />
-                        </label>
-                        <label className="text-sm">Reps
-                          <input value={exercise.reps ?? ""} maxLength={80} onChange={(e) => updateExercise(index, { reps: e.target.value || null })} className={`${inputClass} mt-1`} />
-                        </label>
-                        <label className="text-sm">Load
-                          <input type="number" min={0} max={2000} step="any" value={exercise.load ?? ""} onChange={(e) => updateExercise(index, { load: e.target.value ? Number(e.target.value) : null, loadUnit: e.target.value ? exercise.loadUnit ?? "kg" : null })} className={`${inputClass} mt-1`} />
-                        </label>
-                        <label className="text-sm">Unit
-                          <select value={exercise.loadUnit ?? "kg"} onChange={(e) => updateExercise(index, { loadUnit: e.target.value as "kg" | "lb" })} className={`${inputClass} mt-1`}><option value="kg">kg</option><option value="lb">lb</option></select>
-                        </label>
-                        <label className="text-sm">Minutes
-                          <input type="number" min={1} max={300} value={exercise.durationMinutes ?? ""} onChange={(e) => updateExercise(index, { durationMinutes: e.target.value ? Number(e.target.value) : null, durationValue: undefined, durationUnit: undefined })} className={`${inputClass} mt-1`} />
-                        </label>
-                        <label className="col-span-2 text-sm sm:col-span-3">Coaching cue
-                          <input maxLength={500} value={exercise.note ?? ""} onChange={(e) => updateExercise(index, { note: e.target.value || null })} className={`${inputClass} mt-1`} />
-                        </label>
-                        {exercise.needsConfirmation ? <button type="button" onClick={() => updateExercise(index, { needsConfirmation: false, uncertainFields: [] })} className="col-span-2 min-h-11 rounded-xl border border-amber/40 text-sm text-amber">Confirm exercise details</button> : null}
-                        <button type="button" onClick={() => { setDraft({ ...draft, exercises: draft.exercises.filter((_, item) => item !== index) }); setExpandedExercise(null); }} className="col-span-2 min-h-11 text-left text-sm text-zinc-400">Remove exercise</button>
-                      </div>
-                    ) : null}
-                  </article>
-                ))}
+                {draft.exercises.map((exercise, index) => {
+                  const earlier = previousWorkout?.exercises.filter((previous) => previous.name.trim().toLowerCase() === exercise.name.trim().toLowerCase());
+                  return (
+                    <article key={index} className={`rounded-xl border p-3 ${exercise.needsConfirmation ? "border-amber/50 bg-amber/5" : "border-line bg-ink"}`}>
+                      <button type="button" aria-expanded={expandedExercise === index} onClick={() => setExpandedExercise(expandedExercise === index ? null : index)} className="flex min-h-11 w-full items-center justify-between gap-3 text-left">
+                        <div>
+                          <p className="font-semibold">{exercise.name || "New exercise"}</p>
+                          <p className="text-sm text-zinc-400">{exerciseSummary(exercise)}</p>
+                        </div>
+                        {expandedExercise === index ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                      </button>
+                      {expandedExercise === index ? (
+                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {earlier?.length === 1 ? <p className="col-span-full text-sm text-zinc-400">Last session · {exerciseSummary(earlier[0])}</p> : null}
+                          <label className="col-span-2 text-sm sm:col-span-4">Exercise name
+                            <input value={exercise.name} maxLength={120} onChange={(e) => updateExercise(index, { name: e.target.value })} className={`${inputClass} mt-1`} />
+                          </label>
+                          <label className="text-sm">Sets
+                            <input type="number" min={1} max={100} value={exercise.sets ?? ""} onChange={(e) => updateExercise(index, { sets: e.target.value ? Number(e.target.value) : null })} className={`${inputClass} mt-1`} />
+                          </label>
+                          <label className="text-sm">Reps
+                            <input value={exercise.reps ?? ""} maxLength={80} onChange={(e) => updateExercise(index, { reps: e.target.value || null })} className={`${inputClass} mt-1`} />
+                          </label>
+                          <label className="text-sm">Load
+                            <input type="number" min={0} max={2000} step="any" value={exercise.load ?? ""} onChange={(e) => updateExercise(index, { load: e.target.value ? Number(e.target.value) : null, loadUnit: e.target.value ? exercise.loadUnit ?? "kg" : null })} className={`${inputClass} mt-1`} />
+                          </label>
+                          <label className="text-sm">Unit
+                            <select value={exercise.loadUnit ?? "kg"} onChange={(e) => updateExercise(index, { loadUnit: e.target.value as "kg" | "lb" })} className={`${inputClass} mt-1`}><option value="kg">kg</option><option value="lb">lb</option></select>
+                          </label>
+                          <label className="text-sm">Minutes
+                            <input type="number" min={1} max={300} value={exercise.durationMinutes ?? ""} onChange={(e) => updateExercise(index, { durationMinutes: e.target.value ? Number(e.target.value) : null, durationValue: undefined, durationUnit: undefined })} className={`${inputClass} mt-1`} />
+                          </label>
+                          <label className="col-span-2 text-sm sm:col-span-3">Coaching cue
+                            <input maxLength={500} value={exercise.note ?? ""} onChange={(e) => updateExercise(index, { note: e.target.value || null })} className={`${inputClass} mt-1`} />
+                          </label>
+                          {exercise.needsConfirmation ? <button type="button" onClick={() => updateExercise(index, { needsConfirmation: false, uncertainFields: [] })} className="col-span-2 min-h-11 rounded-xl border border-amber/40 text-sm text-amber">Confirm exercise details</button> : null}
+                          <button type="button" onClick={() => { setDraft({ ...draft, exercises: draft.exercises.filter((_, item) => item !== index) }); setExpandedExercise(null); }} className="col-span-2 min-h-11 text-left text-sm text-zinc-400">Remove exercise</button>
+                        </div>
+                      ) : null}
+                    </article>
+                  );
+                })}
               </div>
               <button type="button" disabled={busy || draft.exercises.length >= 30} onClick={() => { setExpandedExercise(draft.exercises.length); setDraft({ ...draft, exercises: [...draft.exercises, blankExercise()] }); }} className="mt-3 min-h-11 rounded-xl border border-line px-4 text-sm font-semibold disabled:opacity-40">Add exercise</button>
               <details className="mt-3 rounded-xl border border-line p-3 text-sm">
@@ -433,6 +476,7 @@ export function TrainerSessionCaptureClient({ clientId }: { clientId: string }) 
               <button disabled={busy || !canSave} onClick={complete} className="min-h-12 w-full rounded-xl bg-lime px-4 font-bold text-ink disabled:opacity-40">
                 <Save className="mr-2 inline" size={17} />{shareClientRecap ? "Save & share recap" : "Save session"}
               </button>
+              <button type="button" disabled={busy || !validPackageNumbers} onClick={saveDraftAndExit} className="min-h-11 w-full rounded-xl border border-line px-4 text-sm font-semibold text-white disabled:opacity-40">Save draft & exit</button>
             </section>
           </div>
         ) : null}
