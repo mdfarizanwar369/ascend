@@ -29,7 +29,6 @@ const [gym, otherGym, trainer, otherTrainer, trainerProfile, otherTrainerProfile
 const people = [trainer, otherTrainer, client, peer, manager, otherManager];
 const timeZone = "Asia/Kuala_Lumpur";
 const date = shiftPtDate(ptLocalDate(new Date(), timeZone), 1);
-const weekday = new Date(`${date}T00:00:00Z`).getUTCDay() || 7;
 const firstTime = `${date}T17:00:00+08:00`;
 const secondTime = `${date}T18:00:00+08:00`;
 const thirdTime = `${date}T19:00:00+08:00`;
@@ -97,18 +96,15 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect((await call(client, trainerApi)).status).toBe(403);
     expect((await call(trainer, managerApi)).status).toBe(403);
     expect((await call(otherManager, `${managerApi}?gymId=${gym}`)).status).toBe(403);
-    expect((await call(trainer, `${trainerApi}/availability`, "PUT", {
-      availability: [{ weekday, opensAt: "07:00", closesAt: "07:30" }]
-    })).status).toBe(400);
-
-    const availability = [{ weekday, opensAt: "17:00", closesAt: "20:00" }];
-    expect(await call(trainer, `${trainerApi}/availability`, "PUT", { availability }))
-      .toEqual({ status: 200, body: { saved: true } });
     const available = await call(client, `${clientApi}?week=${date}`);
     expect(available.status, JSON.stringify(available.body)).toBe(200);
     expect(available.body.gym.timeZone).toBe(timeZone);
-    expect(available.body.slots.map((slot: { startsAt: string }) => slot.startsAt))
-      .toEqual([firstTime, secondTime, thirdTime].map((local) => new Date(local).toISOString()));
+    const daySlots = available.body.slots.filter((slot: { startsAt: string }) => ptLocalDate(new Date(slot.startsAt), timeZone) === date);
+    expect(daySlots).toHaveLength(24);
+    expect(daySlots[0].startsAt).toBe(new Date(`${date}T00:00:00+08:00`).toISOString());
+    expect(daySlots[23].endsAt).toBe(new Date(`${shiftPtDate(date, 1)}T00:00:00+08:00`).toISOString());
+    expect(daySlots.every((slot: { startsAt: string; endsAt: string }) =>
+      Date.parse(slot.endsAt) - Date.parse(slot.startsAt) === 3_600_000)).toBe(true);
 
     const ask = (actor: string, startsAt: string, profile = trainerProfile) =>
       call(actor, `${clientApi}/requests`, "POST", { trainerId: profile, startsAt });
@@ -180,7 +176,10 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect((await call(otherTrainer, openingsPath)).status).toBe(403);
     expect((await call(otherTrainer, bookingPath, "POST", { startsAt: secondTime })).status).toBe(403);
     expect((await call(manager, bookingPath, "POST", { startsAt: secondTime })).status).toBe(403);
-    expect((await call(trainer, `${openingsPath}?week=${date}`)).body.slots).toHaveLength(3);
+    const openings = await call(trainer, `${openingsPath}?week=${date}`);
+    expect(openings.status).toBe(200);
+    expect(openings.body.slots.filter((slot: { startsAt: string }) => ptLocalDate(new Date(slot.startsAt), timeZone) === date))
+      .toHaveLength(24);
     expect((await call(manager, managerApi)).body.needsRebooking).toEqual([
       expect.objectContaining({ clientId: client })
     ]);
@@ -230,5 +229,66 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect((await call(client, `${clientApi}/requests/${direct.body.id}`, "PATCH", { action: "cancel", version: move.version })).status).toBe(409);
     expect((await call(client, `${clientApi}/requests/${direct.body.id}`, "PATCH", { action: "cancel" })).status).toBe(200);
     expect((await call(manager, managerApi)).body.needsRebooking).toEqual([expect.objectContaining({ clientId: client })]);
+  });
+
+  it("blocks lunch and leave, protects confirmed sessions, and restores availability on removal", async () => {
+    await db.query("delete from pt_bookings where gym_id = $1", [gym]);
+    const blocksPath = `${trainerApi}/blocks`;
+    const request = (startsAt: string) => call(client, `${clientApi}/requests`, "POST", { trainerId: trainerProfile, startsAt });
+    const local = (day: string, time: string) => `${day}T${time}:00+08:00`;
+    const slotsOn = async (day: string) => {
+      const response = await call(client, `${clientApi}?week=${day}`);
+      expect(response.status, JSON.stringify(response.body)).toBe(200);
+      expect(response.body).not.toHaveProperty("blocks");
+      return response.body.slots.filter((slot: { startsAt: string }) => ptLocalDate(new Date(slot.startsAt), timeZone) === day)
+        .map((slot: { startsAt: string }) => slot.startsAt);
+    };
+
+    const lunch = { startsOn: date, endsOn: date, startsAt: "12:30", endsAt: "13:30", repeat: "daily" };
+    const lunchRequest = await request(local(date, "12:00"));
+    expect(lunchRequest.status).toBe(201);
+    expect((await call(trainer, blocksPath, "POST", { ...lunch, endsAt: "11:00" })).status).toBe(400);
+    expect((await call(client, blocksPath, "POST", lunch)).status).toBe(403);
+    const saved = await call(trainer, blocksPath, "POST", lunch);
+    expect(saved.status, JSON.stringify(saved.body)).toBe(201);
+    expect(await call(trainer, blocksPath, "POST", lunch)).toEqual(saved);
+    expect((await call(trainer, trainerApi)).body.blocks).toEqual([{ ...lunch, id: saved.body.id }]);
+    expect((await call(manager, managerApi)).body).not.toHaveProperty("blocks");
+    expect((await call(otherTrainer, `${blocksPath}/${saved.body.id}`, "DELETE")).status).toBe(404);
+    expect((await call(client, `${clientApi}?week=${date}`)).body.bookings)
+      .toContainEqual(expect.objectContaining({ id: lunchRequest.body.id, status: "declined" }));
+    expect((await call(trainer, `${trainerApi}/requests/${lunchRequest.body.id}`, "PATCH", { action: "confirm" })).status).toBe(409);
+    for (const day of [date, shiftPtDate(date, 1)]) {
+      const slots = await slotsOn(day);
+      expect(slots).toHaveLength(22);
+      for (const time of ["12:00", "13:00"]) expect(slots).not.toContain(new Date(local(day, time)).toISOString());
+      for (const time of ["11:00", "14:00"]) expect(slots).toContain(new Date(local(day, time)).toISOString());
+    }
+    expect((await request(local(date, "13:00"))).status).toBe(409);
+    expect((await call(trainer, `${trainerApi}/clients/${client}/bookings`, "POST", { startsAt: local(date, "13:00") })).status).toBe(409);
+
+    const confirmed = await request(firstTime);
+    expect(confirmed.status).toBe(201);
+    expect((await call(trainer, `${trainerApi}/requests/${confirmed.body.id}`, "PATCH", { action: "confirm" })).status).toBe(200);
+    const leave = { startsOn: date, endsOn: shiftPtDate(date, 2), startsAt: null, endsAt: null, repeat: "none" };
+    expect((await call(trainer, blocksPath, "POST", leave)).status).toBe(409);
+    expect((await call(trainer, trainerApi)).body.blocks).toHaveLength(1);
+    expect((await call(trainer, `${trainerApi}/requests/${confirmed.body.id}`, "PATCH", { action: "cancel" })).status).toBe(200);
+    const savedLeave = await call(trainer, blocksPath, "POST", leave);
+    expect(savedLeave.status, JSON.stringify(savedLeave.body)).toBe(201);
+    for (const day of [date, shiftPtDate(date, 1), leave.endsOn]) expect(await slotsOn(day)).toEqual([]);
+    expect(await slotsOn(shiftPtDate(date, 3))).toHaveLength(22);
+    expect((await call(trainer, `${blocksPath}/${savedLeave.body.id}`, "DELETE")).status).toBe(200);
+
+    const weekly = { ...lunch, startsAt: null, endsAt: null, repeat: "weekly" };
+    const savedWeekly = await call(trainer, blocksPath, "POST", weekly);
+    expect(savedWeekly.status, JSON.stringify(savedWeekly.body)).toBe(201);
+    expect(await slotsOn(shiftPtDate(date, 7))).toEqual([]);
+    expect(await slotsOn(shiftPtDate(date, 8))).toHaveLength(22);
+    for (const id of [saved.body.id, savedWeekly.body.id]) {
+      expect((await call(trainer, `${blocksPath}/${id}`, "DELETE")).status).toBe(200);
+    }
+    expect(await slotsOn(date)).toHaveLength(24);
+    expect((await request(local(date, "13:00"))).status).toBe(201);
   });
 });

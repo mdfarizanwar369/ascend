@@ -4,7 +4,8 @@ import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
 import { isIosFreeEdition } from "../services/appEdition";
 import {
-  bookPtForClient, changePtBooking, dismissPtBookingUpdate, getPtBookingWeek, getTrainerPtOpenings, requestPtBooking, savePtAvailability
+  addPtCalendarBlock, bookPtForClient, changePtBooking, dismissPtBookingUpdate, getPtBookingWeek,
+  getTrainerPtOpenings, removePtCalendarBlock, requestPtBooking
 } from "../services/ptBookingService";
 import { notifyPtBookingClient } from "../services/ptBookingPushService";
 
@@ -25,14 +26,17 @@ const managerOnly = requireRole(["admin", "owner"]);
 const access = { client: clientOnly, trainer: trainerOnly, manager: managerOnly };
 
 const time = z.string().regex(/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/);
-const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
-const availabilitySchema = z.array(z.object({
-  weekday: z.int().min(1).max(7),
-  opensAt: time,
-  closesAt: time
-})).max(7).refine((items) => new Set(items.map((item) => item.weekday)).size === items.length, "Choose one window per day.")
-  .refine((items) => items.every(({ opensAt, closesAt }) => minutes(closesAt) - minutes(opensAt) >= 60),
-    "Each available day needs at least one hour between opening and closing.");
+const blockSchema = z.object({
+  startsOn: z.iso.date(),
+  endsOn: z.iso.date(),
+  startsAt: time.nullable(),
+  endsAt: time.nullable(),
+  repeat: z.enum(["none", "daily", "weekly"])
+}).refine(({ startsOn, endsOn, repeat }) => endsOn >= startsOn && (repeat === "none" || startsOn === endsOn),
+  "Choose a valid date range. Repeating blocks start on one day.")
+  .refine(({ startsOn, endsOn, startsAt, endsAt }) => (startsAt === null && endsAt === null)
+    || (startsAt !== null && endsAt !== null && startsOn === endsOn && startsAt < endsAt),
+  "Choose a start time before the end time on the same day.");
 
 ptBookingsRouter.get("/pt-bookings/:role", requireAuth, bookable, (req, res, next) => {
   const role = roleSchema.safeParse(req.params.role);
@@ -54,10 +58,15 @@ ptBookingsRouter.post("/pt-bookings/client/requests", requireAuth, bookable, cli
   } catch (error) { next(error); }
 });
 
-ptBookingsRouter.put("/pt-bookings/trainer/availability", requireAuth, bookable, trainerOnly, async (req, res, next) => {
+ptBookingsRouter.post("/pt-bookings/trainer/blocks", requireAuth, bookable, trainerOnly, async (req, res, next) => {
   try {
-    const { availability } = z.object({ availability: availabilitySchema }).parse(req.body);
-    await savePtAvailability(req.user!, availability);
+    res.status(201).json(await addPtCalendarBlock(req.user!, blockSchema.parse(req.body)));
+  } catch (error) { next(error); }
+});
+
+ptBookingsRouter.delete("/pt-bookings/trainer/blocks/:id", requireAuth, bookable, trainerOnly, async (req, res, next) => {
+  try {
+    await removePtCalendarBlock(req.user!, z.uuid().parse(req.params.id));
     res.json({ saved: true });
   } catch (error) { next(error); }
 });

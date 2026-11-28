@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
-  ArrowRight, CalendarCheck, CalendarClock, CalendarDays, Check, ChevronLeft, ChevronRight, Clock3, Dumbbell,
-  SlidersHorizontal
+  ArrowRight, CalendarCheck, CalendarClock, CalendarDays, CalendarMinus, Check, ChevronLeft, ChevronRight, Clock3, Dumbbell
 } from "lucide-react";
 import {
-  ptLocalDate, ptWeekStart, shiftPtDate, type PtAppointment, type PtAvailability, type PtBookingAction,
-  type PtBookingRole, type PtBookingSlot, type PtBookingUpdate, type PtBookingWeek, type PtTrainerOpenings
+  ptLocalDate, ptWeekStart, shiftPtDate, type PtAppointment, type PtBookingAction,
+  type PtBookingRole, type PtBookingSlot, type PtBookingUpdate, type PtBookingWeek, type PtCalendarBlock,
+  type PtCalendarBlockInput, type PtTrainerOpenings
 } from "@ascend/shared";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import {
-  bookPtForClient, dismissPtBookingUpdate, getPtBookingWeek, getTrainerPtOpenings, requestPtBooking, savePtAvailability, updatePtBooking
+  addPtCalendarBlock, bookPtForClient, dismissPtBookingUpdate, getPtBookingWeek, getTrainerPtOpenings,
+  removePtCalendarBlock, requestPtBooking, updatePtBooking
 } from "@/lib/ascendApi";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
@@ -28,7 +29,14 @@ const dayShort = new Intl.DateTimeFormat("en-SG", { weekday: "short", month: "sh
 const monthDay = new Intl.DateTimeFormat("en-SG", { month: "short", day: "numeric", timeZone: "UTC" });
 const weekdayFormat = new Intl.DateTimeFormat("en-SG", { weekday: "short", timeZone: "UTC" });
 const dayDate = (day: string) => new Date(`${day}T00:00:00Z`);
+const blockClock = new Intl.DateTimeFormat("en-SG", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" });
 type BookingEditor = { clientId: string; move?: PtAppointment };
+
+function blockFallsOn(block: PtCalendarBlock, date: string) {
+  if (date < block.startsOn) return false;
+  if (block.repeat === "none") return date <= block.endsOn;
+  return block.repeat === "daily" || dayDate(date).getUTCDay() === dayDate(block.startsOn).getUTCDay();
+}
 
 function formatAppointmentTime(value: string, timeZone: string) {
   return new Intl.DateTimeFormat("en-SG", {
@@ -72,7 +80,7 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [notice, setNotice] = useState("");
-  const [editAvailability, setEditAvailability] = useState(false);
+  const [editBlocks, setEditBlocks] = useState(false);
   const [editor, setEditor] = useState<BookingEditor | undefined>(bookingClientId ? { clientId: bookingClientId } : undefined);
   const [focusBookings, setFocusBookings] = useState(false);
   const [rebookingLimit, setRebookingLimit] = useState(12);
@@ -127,6 +135,7 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
   const days = schedule ? Array.from({ length: 7 }, (_, index) => shiftPtDate(schedule.week, index)) : [];
   const slots = schedule?.slots ?? [];
   const bookings = schedule?.bookings ?? [];
+  const blocks = schedule?.blocks;
   const pending = bookings.filter((booking) => booking.status === "pending");
   const confirmed = bookings.filter((booking) => booking.status === "confirmed");
   const datesWithEntries = new Set((role === "client" ? slots : [...pending, ...confirmed]).map((item) => dateFor(item.startsAt)));
@@ -203,7 +212,7 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
                   Open worksheet <ArrowRight size={14} aria-hidden="true" />
                 </Link>}
               {canMove && <button type="button" className="min-h-11 text-xs font-semibold text-calm hover:underline" disabled={disabled}
-                onClick={() => { setEditAvailability(false); setEditor({ clientId: booking.clientId, move: booking }); }}>Move booking</button>}
+                onClick={() => { setEditBlocks(false); setEditor({ clientId: booking.clientId, move: booking }); }}>Move booking</button>}
               {canCancel && <button type="button" className="min-h-11 text-xs font-semibold text-zinc-300 underline-offset-4 hover:underline disabled:opacity-50" disabled={disabled} onClick={() => update(booking, "cancel")}>
                 {booking.status === "pending" ? "Withdraw request" : "Cancel booking"}
               </button>}
@@ -231,9 +240,9 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
           </div>
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-calm/25 bg-calm/10 text-calm"><CalendarDays size={24} aria-hidden="true" /></span>
         </div>
-        {role === "trainer" && schedule?.gym && !editor && (
-          <button type="button" onClick={() => setEditAvailability((value) => !value)} className={`${secondary} mt-4`} aria-expanded={editAvailability}>
-            <SlidersHorizontal size={16} aria-hidden="true" /> {editAvailability ? "Close availability" : "Edit availability"}
+        {role === "trainer" && blocks && !editor && (
+          <button type="button" onClick={() => setEditBlocks((value) => !value)} className={`${secondary} mt-4`} aria-expanded={editBlocks}>
+            <CalendarMinus size={16} aria-hidden="true" /> {editBlocks ? "Close calendar blocks" : "Block time"}
           </button>
         )}
         {role === "manager" && Boolean(schedule?.gyms.length && schedule.gyms.length > 1) && (
@@ -263,8 +272,10 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
       {loadError && <div role="alert" className={panel}><p className="text-sm text-zinc-300">{loadError}</p><button type="button" className={`${secondary} mt-3`} onClick={() => setRefresh((value) => value + 1)}>Try again</button></div>}
       {!schedule && !loadError && <p role="status" className={`${panel} text-sm text-zinc-400`}>Loading PT schedule…</p>}
       {schedule && !schedule.gym && <p className={`${panel} text-sm text-zinc-300`}>{role === "client" ? "You need an assigned PT to request a session." : "There’s no active gym schedule for this account."}</p>}
-      {schedule?.gym && editAvailability && role === "trainer" && <AvailabilityEditor initial={schedule.availability ?? []} disabled={disabled}
-        onSave={(availability) => change(() => savePtAvailability(availability), "Availability saved.", () => setEditAvailability(false))} />}
+      {schedule && blocks && editBlocks && role === "trainer" && <CalendarBlocksEditor
+        startDate={day && day >= schedule.today ? day : schedule.today} today={schedule.today} blocks={blocks} disabled={disabled}
+        onSave={(block) => change(() => addPtCalendarBlock(block), "Time blocked.")}
+        onRemove={(id) => change(() => removePtCalendarBlock(id), "Block removed.")} />}
       {role === "client" && Boolean(schedule?.updates?.length) && <section className={panel} aria-labelledby="pt-updates-title">
         <h2 id="pt-updates-title" className="text-lg font-semibold">Booking updates</h2>
         <ul className="mt-3 grid gap-2">
@@ -294,13 +305,17 @@ function BookingCalendar({ role, bookingClientId }: { role: PtBookingRole; booki
             </div>
             <div className="mt-3 grid grid-cols-7 gap-1.5 sm:gap-2">
               {days.map((date) => {
+                const hasBlock = blocks?.some((block) => blockFallsOn(block, date));
                 return (
-                  <button type="button" key={date} aria-label={`${dayFull.format(dayDate(date))}${date === schedule.today ? ", today" : ""}`}
+                  <button type="button" key={date} aria-label={`${dayFull.format(dayDate(date))}${date === schedule.today ? ", today" : ""}${hasBlock ? ", blocked time" : ""}`}
                     aria-pressed={day === date} disabled={disabled} onClick={() => selectDay(date)}
                     className={`ascend-pressable relative flex min-h-[57px] min-w-0 flex-col items-center justify-center rounded-xl border pb-1 text-xs ${day === date ? "border-calm/55 bg-calm/10 text-calm" : "border-line bg-ink/55 text-zinc-300"}`}>
                     <span className="text-[10px]">{weekdayFormat.format(dayDate(date))}</span>
                     <strong className="text-sm tabular-nums">{Number(date.slice(-2))}</strong>
-                    <span aria-hidden="true" className={`absolute bottom-1.5 h-1 w-1 rounded-full ${datesWithEntries.has(date) ? "bg-calm" : "bg-transparent"}`} />
+                    <span aria-hidden="true" className="absolute bottom-1.5 flex gap-1">
+                      {datesWithEntries.has(date) && <span className="size-1 rounded-full bg-calm" />}
+                      {hasBlock && <span className="size-1 rounded-full bg-amber" />}
+                    </span>
                   </button>
                 );
               })}
@@ -472,46 +487,91 @@ function TrainerBookingEditor({ editor, onClose, onMove, onSaved }: {
         <button type="button" disabled={disabled || !selected} className={`${primary} mt-4 w-full sm:w-auto`} onClick={() => void save()}>
           <Check size={17} aria-hidden="true" /> {editor.move ? "Confirm new time" : "Confirm booking"}
         </button>
-      </> : <p className="mt-3 text-sm text-zinc-400">No openings this week. Try the next week or adjust weekly availability.</p>}
+      </> : <p className="mt-3 text-sm text-zinc-400">No openings this week. Try the next week or check your calendar blocks.</p>}
     </>}
   </section>;
 }
 
-function AvailabilityEditor({ initial, disabled, onSave }: {
-  initial: PtAvailability[];
+function CalendarBlocksEditor({ today, startDate, blocks, disabled, onSave, onRemove }: {
+  today: string;
+  startDate: string;
+  blocks: PtCalendarBlock[];
   disabled: boolean;
-  onSave: (availability: PtAvailability[]) => Promise<void>;
+  onSave: (block: PtCalendarBlockInput) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
 }) {
-  const [windows, setWindows] = useState(initial);
-  const labels = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const [startsOn, setStartsOn] = useState(startDate);
+  const [endsOn, setEndsOn] = useState(startDate);
+  const [startsAt, setStartsAt] = useState("12:00");
+  const [endsAt, setEndsAt] = useState("13:00");
+  const [repeat, setRepeat] = useState<PtCalendarBlockInput["repeat"]>("none");
+  const [allDay, setAllDay] = useState(false);
+  const showEndDate = allDay && repeat === "none";
+  const field = "grid min-w-0 gap-1 text-xs font-semibold text-zinc-300";
+  const control = `${secondary} w-full min-w-0`;
   return (
-    <form className={panel} onSubmit={(event) => { event.preventDefault(); void onSave(windows); }}>
-      <h2 className="text-lg font-semibold">Weekly availability</h2>
-      <p className="mt-1 text-sm text-zinc-400">Choose your bookable hours. Clients can request 60-minute sessions in gym local time.</p>
-      <div className="mt-3 divide-y divide-white/10">
-        {labels.map((label, index) => {
-          const weekday = index + 1;
-          const entry = windows.find((item) => item.weekday === weekday);
-          return (
-            <div key={label} className="grid gap-1 py-2 sm:grid-cols-[8rem_1fr] sm:items-center">
-              <label className="flex min-h-9 items-center gap-2 text-sm font-semibold">
-                <input type="checkbox" checked={Boolean(entry)} disabled={disabled} className="size-4 accent-lime"
-                  onChange={(event) => setWindows(event.target.checked
-                    ? [...windows, { weekday, opensAt: "09:00", closesAt: "17:00" }]
-                    : windows.filter((item) => item.weekday !== weekday))} /> {label}
-              </label>
-              {entry && <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 pl-6 sm:pl-0">
-                <input type="time" aria-label={`${label} start`} required className={`${secondary} w-full min-w-0`} disabled={disabled} value={entry.opensAt}
-                  onChange={(event) => setWindows(windows.map((item) => item.weekday === weekday ? { ...item, opensAt: event.target.value } : item))} />
-                <span className="text-xs text-zinc-400">to</span>
-                <input type="time" aria-label={`${label} end`} required className={`${secondary} w-full min-w-0`} disabled={disabled} value={entry.closesAt}
-                  onChange={(event) => setWindows(windows.map((item) => item.weekday === weekday ? { ...item, closesAt: event.target.value } : item))} />
-              </div>}
-            </div>
-          );
-        })}
-      </div>
-      <button type="submit" disabled={disabled} className={`${primary} mt-3`}>Save availability</button>
-    </form>
+    <section className={panel} aria-labelledby="pt-calendar-blocks-title">
+      <h2 id="pt-calendar-blocks-title" className="text-lg font-semibold">Block your calendar</h2>
+      <p className="mt-1 text-sm text-zinc-400">Clients can request any open hour. Blocking time hides it from clients and declines any pending requests that overlap.</p>
+      <form className="mt-4" onSubmit={(event) => {
+        event.preventDefault();
+        void onSave({
+          startsOn, endsOn: showEndDate ? endsOn : startsOn, repeat,
+          startsAt: allDay ? null : startsAt, endsAt: allDay ? null : endsAt
+        });
+      }}>
+        <fieldset disabled={disabled} className="grid gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className={field}>{repeat === "none" ? "Date" : "Starts on"}
+              <input type="date" required min={today} value={startsOn} className={control} onChange={(event) => {
+                setStartsOn(event.target.value);
+                if (event.target.value > endsOn) setEndsOn(event.target.value);
+              }} />
+            </label>
+            <label className={field}>Repeats
+              <select value={repeat} className={control} onChange={(event) => setRepeat(event.target.value as typeof repeat)}>
+                <option value="none">Once</option>
+                <option value="daily">Every day</option>
+                <option value="weekly">Every week</option>
+              </select>
+            </label>
+          </div>
+          <label className="flex min-h-9 items-center gap-2 text-sm font-semibold">
+            <input type="checkbox" checked={allDay} className="size-4 accent-lime" onChange={(event) => setAllDay(event.target.checked)} /> All day
+          </label>
+          {showEndDate && <label className={`${field} max-w-xs`}>Last day
+            <input type="date" required min={startsOn} value={endsOn} className={control} onChange={(event) => setEndsOn(event.target.value)} />
+          </label>}
+          {!allDay && <div className="grid grid-cols-2 gap-3">
+            <label className={field}>Start time
+              <input type="time" required value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className={control} />
+            </label>
+            <label className={field}>End time
+              <input type="time" required value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className={control} />
+            </label>
+          </div>}
+          {repeat === "daily" && allDay && <p className="text-xs text-zinc-300">Every day from this date will be unavailable until you remove the block.</p>}
+          <button type="submit" className={`${primary} justify-self-start`}>Save block</button>
+        </fieldset>
+      </form>
+      {blocks.length > 0 && <div className="mt-5 border-t border-white/10 pt-4">
+        <h3 className="text-sm font-semibold">Saved blocks</h3>
+        <ul className="mt-2 grid gap-2">
+          {blocks.map((block) => {
+            const start = dayShort.format(dayDate(block.startsOn));
+            const timing = block.startsAt && block.endsAt
+              ? [block.startsAt, block.endsAt].map((time) => blockClock.format(new Date(`2000-01-01T${time}Z`))).join(" – ")
+              : "All day";
+            const dates = block.startsOn === block.endsOn ? start : `${start} – ${dayShort.format(dayDate(block.endsOn))}`;
+            const repeatLabel = { none: "", daily: "Daily from ", weekly: "Weekly from " }[block.repeat];
+            return <li key={block.id} className="flex items-center justify-between gap-3 rounded-xl border border-line bg-ink/55 px-3 py-2">
+              <div><p className="text-sm font-semibold">{repeatLabel}{dates}</p><p className="mt-0.5 text-xs text-zinc-300">{timing}</p></div>
+              <button type="button" className={secondary} aria-label={`Remove block for ${dates}, ${timing}`} disabled={disabled}
+                onClick={() => void onRemove(block.id)}>Remove</button>
+            </li>;
+          })}
+        </ul>
+      </div>}
+    </section>
   );
 }

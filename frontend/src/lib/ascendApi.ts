@@ -27,7 +27,7 @@ import { api, apiBlob } from "./api";
 import { getFirebaseToken } from "./authToken";
 import type { DailyActivitySummary, HealthActivityConnection, HealthActivityImport, HealthActivityStatus,MomentumV2Breakdown,HealthExternalWorkout } from "@ascend/shared";
 import type { BeginnerProgrammePrescription, BeginnerProgrammeSummary } from "@ascend/shared";
-import type { PtAvailability, PtBookingAction, PtBookingRole, PtBookingWeek, PtTrainerOpenings } from "@ascend/shared";
+import type { PtBookingAction, PtBookingRole, PtBookingWeek, PtCalendarBlockInput, PtTrainerOpenings } from "@ascend/shared";
 export type { BeginnerProgrammeSummary } from "@ascend/shared";
 
 export interface ProgressComparison {
@@ -2669,10 +2669,14 @@ export function dismissPtBookingUpdate(id: string) {
     });
 }
 
-export function savePtAvailability(availability: PtAvailability[]) {
-  return authed<{ saved: boolean }>("/pt-bookings/trainer/availability", {
-    method: "PUT", body: JSON.stringify({ availability })
+export function addPtCalendarBlock(block: PtCalendarBlockInput) {
+  return authed<{ id: string }>("/pt-bookings/trainer/blocks", {
+    method: "POST", body: JSON.stringify(block)
   });
+}
+
+export function removePtCalendarBlock(id: string) {
+  return authed<{ saved: boolean }>(`/pt-bookings/trainer/blocks/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function updatePtBooking(role: Exclude<PtBookingRole, "manager">, id: string, action: PtBookingAction, version: number) {

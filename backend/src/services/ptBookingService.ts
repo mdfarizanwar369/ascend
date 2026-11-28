@@ -1,6 +1,7 @@
 import {
   ptLocalDate, ptWeekStart, shiftPtDate,
-  type PtAppointment, type PtAvailability, type PtBookingAction, type PtBookingRole, type PtBookingSlot, type PtBookingWeek,
+  type PtAppointment, type PtBookingAction, type PtBookingRole, type PtBookingSlot, type PtBookingWeek,
+  type PtCalendarBlock, type PtCalendarBlockInput,
   type PtBookingUpdate, type PtBookingUpdateKind, type PtRebookingClient, type PtTrainerOpenings
 } from "@ascend/shared";
 import { pool, query, withQueryClient } from "../db/pool";
@@ -74,15 +75,18 @@ async function getSlots(coach: Coach, clientId: string, week: string, today: str
     ), slots as (
       select tick at time zone $5 as starts_at, tick as local_start
       from days
-      join pt_weekly_availability availability on availability.trainer_id = $1
-        and availability.weekday = extract(isodow from days.day)
-      cross join lateral generate_series(days.day + availability.opens_at,
-        days.day + availability.closes_at - interval '1 hour', interval '1 hour') tick
+      cross join lateral generate_series(days.day::timestamp,
+        days.day + interval '23 hours', interval '1 hour') tick
     )
     select starts_at as "startsAt", starts_at + interval '1 hour' as "endsAt"
     from slots
     where starts_at > now() and ($6::timestamptz is null or starts_at = $6)
       and starts_at at time zone $5 = local_start
+      and not exists (
+        select 1 from pt_calendar_blocks block
+        where block.trainer_id = $1 and block.gym_id = $9
+          and pt_calendar_block_overlaps(block, slots.starts_at, slots.starts_at + interval '1 hour', $5)
+      )
       and not exists (
         select 1 from pt_bookings booking
         where booking.trainer_id = $1 and booking.status = 'confirmed'
@@ -98,7 +102,7 @@ async function getSlots(coach: Coach, clientId: string, week: string, today: str
           and booking.starts_at < slots.starts_at + interval '1 hour'
       )
     order by starts_at
-  `, [coach.trainerId, clientId, week, today, coach.timeZone, options.at ?? null, options.ignoreBookingId ?? null, !options.trainerBooking]);
+  `, [coach.trainerId, clientId, week, today, coach.timeZone, options.at ?? null, options.ignoreBookingId ?? null, !options.trainerBooking, coach.id]);
   return result.rows;
 }
 
@@ -171,10 +175,13 @@ export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date
   if (week < shiftPtDate(today, -35) || week > shiftPtDate(today, 28)) {
     throw bookingError(400, "Choose a week closer to today.");
   }
-  const availability = role === "trainer" && gym ? query<PtAvailability>(`
-    select weekday, left(opens_at::text, 5) as "opensAt", left(closes_at::text, 5) as "closesAt"
-    from pt_weekly_availability where trainer_id = $1 order by weekday
-  `, [user.trainerId]) : null;
+  const blocks = role === "trainer" && gym ? query<PtCalendarBlock>(`
+    select id, to_char(starts_on, 'YYYY-MM-DD') as "startsOn", to_char(ends_on, 'YYYY-MM-DD') as "endsOn",
+      left(starts_at::text, 5) as "startsAt", left(ends_at::text, 5) as "endsAt", repeat_pattern as repeat
+    from pt_calendar_blocks
+    where trainer_id = $1 and gym_id = $2 and (repeat_pattern != 'none' or ends_on >= $3::date)
+    order by starts_on, starts_at nulls first, id
+  `, [user.trainerId, gym.id, today]) : null;
   const slots = coach ? getSlots(coach, user.id, week, today) : null;
   const bookings = gym || role === "client" ? query<PtAppointment>(`
     select ${appointmentFields}
@@ -189,27 +196,62 @@ export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date
         : "booking.gym_id = $4"}
     order by booking.starts_at, booking.id
   `, [week, shiftPtDate(week, 7), gym?.timeZone ?? "Asia/Kuala_Lumpur", role === "client" ? user.id : role === "trainer" ? user.trainerId : gym?.id]) : null;
-  const [savedAvailability, availableSlots, schedule, updates, rebooking] = await Promise.all([
-    availability, slots, bookings,
+  const [savedBlocks, availableSlots, schedule, updates, rebooking] = await Promise.all([
+    blocks, slots, bookings,
     role === "client" ? listPtBookingUpdates(user.id) : undefined,
     role === "manager" && gym && week === ptWeekStart(today) ? getRebookingClients(gym.id) : undefined
   ]);
   return {
     enabled: true, gym, gyms, week, today, trainerId: coach?.trainerId, trainerName: coach?.trainerName,
-    availability: savedAvailability?.rows, slots: availableSlots ?? undefined, bookings: schedule?.rows ?? [],
+    blocks: savedBlocks?.rows, slots: availableSlots ?? undefined, bookings: schedule?.rows ?? [],
     updates, needsRebooking: rebooking
   };
 }
 
-export function savePtAvailability(user: AuthUser, availability: PtAvailability[]) {
+export function addPtCalendarBlock(user: AuthUser, block: PtCalendarBlockInput) {
   return inTransaction(async () => {
-    if (!await trainerGym(user, true)) throw bookingError(403, "An active trainer profile is required.");
-    await query("delete from pt_weekly_availability where trainer_id = $1", [user.trainerId]);
+    const gym = await trainerGym(user, true);
+    if (!gym) throw bookingError(403, "An active trainer profile is required.");
+    if (block.startsOn < ptLocalDate(new Date(), gym.timeZone)) {
+      throw bookingError(400, "Choose today or a future date.");
+    }
+    const values = [user.trainerId, gym.id, block.startsOn, block.endsOn, block.startsAt, block.endsAt, block.repeat];
+    const existing = await query<{ id: string }>(`
+      select id from pt_calendar_blocks where trainer_id = $1 and gym_id = $2 and starts_on = $3 and ends_on = $4
+        and starts_at is not distinct from $5::time and ends_at is not distinct from $6::time and repeat_pattern = $7
+    `, values);
+    if (existing.rows[0]) return existing.rows[0];
+    const { rows: [saved] } = await query<{ id: string }>(`
+      insert into pt_calendar_blocks (trainer_id, gym_id, starts_on, ends_on, starts_at, ends_at, repeat_pattern)
+      values ($1, $2, $3, $4, $5, $6, $7) returning id
+    `, values);
+    const conflict = await query(`
+      select 1 from pt_bookings booking join pt_calendar_blocks block on block.id = $1
+      where booking.trainer_id = block.trainer_id and booking.gym_id = block.gym_id and booking.status = 'confirmed'
+        and booking.ends_at > now() and pt_calendar_block_overlaps(block, booking.starts_at, booking.ends_at, $2)
+      limit 1
+    `, [saved.id, gym.timeZone]);
+    if (conflict.rowCount) {
+      throw bookingError(409, "A confirmed session overlaps this block. Move or cancel it first.");
+    }
     await query(`
-      insert into pt_weekly_availability (trainer_id, weekday, opens_at, closes_at)
-      select $1, day.weekday, day.opens_at, day.closes_at
-      from unnest($2::smallint[], $3::time[], $4::time[]) as day(weekday, opens_at, closes_at)
-    `, [user.trainerId, availability.map((item) => item.weekday), availability.map((item) => item.opensAt), availability.map((item) => item.closesAt)]);
+      update pt_bookings booking set status = 'declined', updated_at = now(), version = version + 1
+      from pt_calendar_blocks block
+      where block.id = $1 and booking.trainer_id = block.trainer_id and booking.gym_id = block.gym_id
+        and booking.status = 'pending' and booking.starts_at > now()
+        and pt_calendar_block_overlaps(block, booking.starts_at, booking.ends_at, $2)
+    `, [saved.id, gym.timeZone]);
+    return saved;
+  });
+}
+
+export function removePtCalendarBlock(user: AuthUser, id: string) {
+  return inTransaction(async () => {
+    const gym = await trainerGym(user, true);
+    if (!gym) throw bookingError(403, "An active trainer profile is required.");
+    const removed = await query("delete from pt_calendar_blocks where id = $1 and trainer_id = $2 and gym_id = $3",
+      [id, user.trainerId, gym.id]);
+    if (!removed.rowCount) throw bookingError(404, "This calendar block was not found.");
   });
 }
 

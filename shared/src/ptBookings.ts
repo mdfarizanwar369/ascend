@@ -3,10 +3,16 @@ export type PtBookingStatus = "pending" | "confirmed" | "declined" | "cancelled"
 export type PtBookingAction = "confirm" | "decline" | "cancel";
 export type PtBookingUpdateKind = "confirmed" | "moved";
 
-export interface PtAvailability {
-  weekday: number;
-  opensAt: string;
-  closesAt: string;
+export interface PtCalendarBlockInput {
+  startsOn: string;
+  endsOn: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  repeat: "none" | "daily" | "weekly";
+}
+
+export interface PtCalendarBlock extends PtCalendarBlockInput {
+  id: string;
 }
 
 export interface PtAppointment {
@@ -53,7 +59,7 @@ export interface PtBookingWeek {
   today: string;
   trainerId?: string;
   trainerName?: string;
-  availability?: PtAvailability[];
+  blocks?: PtCalendarBlock[];
   slots?: PtBookingSlot[];
   bookings: PtAppointment[];
   updates?: PtBookingUpdate[];
