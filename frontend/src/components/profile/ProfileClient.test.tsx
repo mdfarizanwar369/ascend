@@ -7,6 +7,7 @@ vi.mock("@/lib/ascendApi", () => ({
     user: {
       full_name: "Test member",
       email: "demo@example.test",
+      primary_role: "client",
       athlete_mode_enabled: true,
       body_scan_introductory_enabled: true
     },
@@ -20,6 +21,7 @@ vi.mock("@/components/ProfileAvatar", () => ({ ProfileAvatar: () => null }));
 vi.mock("@/components/InstallAscendButton", () => ({ InstallAscendButton: () => null }));
 vi.mock("@/components/EnableCoachNotificationsButton", () => ({ EnableCoachNotificationsButton: () => null }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/profile", useRouter: () => ({ replace: vi.fn() }) }));
+vi.mock("@/lib/cycleTrackingFlag", () => ({ cycleTrackingEnabled: true }));
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("does not offer the rejected Health Sync screen on an iOS profile, even before the bridge loads", async () => {
@@ -35,6 +37,18 @@ it.each(["Mozilla AscendAndroid/1 Capacitor", "Mozilla iPhone Safari"])("preserv
   render(<ProfileClient />);
   await screen.findByText("Test member");
   expect(screen.getByRole("link", { name: "Health Sync" })).toHaveAttribute("href", "/profile/health-sync");
+});
+
+it.each([
+  ["Mozilla iPhone Safari", true],
+  ["Mozilla AscendIOS/6 AscendSubscriptions/1 Capacitor", false],
+  ["Mozilla AscendAndroid/1 Capacitor", false]
+])("shows the cycle pilot only to web clients, including iPhone Safari (%s)", async (ua, visible) => {
+  vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(ua);
+  render(<ProfileClient />);
+  await screen.findByText("Test member");
+  if (visible) expect(screen.getByRole("link", { name: "Cycle tracker" })).toHaveAttribute("href", "/profile/cycle");
+  else expect(screen.queryByRole("link", { name: "Cycle tracker" })).not.toBeInTheDocument();
 });
 
 it("does not expose Body Scan from Profile even when body-scan account flags are enabled", async () => {

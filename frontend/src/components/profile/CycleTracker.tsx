@@ -8,6 +8,7 @@ import { ptLocalDate, ptWeekStart } from "@ascend/shared";
 import { AppShell } from "@/components/AppShell";
 import { RoleGate } from "@/components/RoleGate";
 import { getFirebaseClientAuth, waitForFirebasePersistence } from "@/lib/firebase";
+import { useCycleTrackingPilot } from "@/lib/useCycleTrackingPilot";
 import {
   cycleEnergy, cycleFlows, cycleStorageKey, cycleSymptoms, emptyCycleEntry, hasCycleEntry,
   readCycleEntries, writeCycleEntry, type CycleEntry
@@ -40,6 +41,8 @@ function ChoiceRow<T extends string>({ label, options, selected, onSelect }: {
 }
 
 export function CycleTracker() {
+  const available = useCycleTrackingPilot();
+  if (!available) return null;
   return <AppShell active="client" showQuickCapture={false}>
     <RoleGate allowedRoles={["client"]} fallbackTitle="Client access required" fallbackMessage="Open cycle tracking from your client account.">
       <CycleAccount />

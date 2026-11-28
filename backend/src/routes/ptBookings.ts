@@ -1,9 +1,9 @@
-import { Router, type RequestHandler } from "express";
+import { Router, type Request, type RequestHandler } from "express";
 import { z } from "zod";
-import { ptSessionFeelings, ptSessionPreferences } from "@ascend/shared";
+import { isAscendNativeUserAgent, ptSessionFeelings, ptSessionPreferences } from "@ascend/shared";
 import { env } from "../config/env";
 import { requireAuth, requireRole } from "../middleware/auth";
-import { isIosFreeEdition } from "../services/appEdition";
+import { isIosFreeEdition, isIosNativeRequest } from "../services/appEdition";
 import {
   addPtCalendarBlock, bookPtForClient, changePtBooking, dismissPtBookingUpdate, getPtBookingWeek,
   getTrainerPtOpenings, removePtCalendarBlock, requestPtBooking, savePtSessionWellbeing
@@ -26,6 +26,10 @@ const trainerOnly = requireRole(["trainer"]);
 const managerOnly = requireRole(["admin", "owner"]);
 const access = { client: clientOnly, trainer: trainerOnly, manager: managerOnly };
 
+function canUseWellbeingPilot(req: Request) {
+  return env.PT_SESSION_WELLBEING_V1 && !isIosNativeRequest(req) && !isAscendNativeUserAgent(req.get("User-Agent") ?? "");
+}
+
 const time = z.string().regex(/^(?:[01][0-9]|2[0-3]):[0-5][0-9]$/);
 const blockSchema = z.object({
   startsOn: z.iso.date(),
@@ -47,7 +51,7 @@ ptBookingsRouter.get("/pt-bookings/:role", requireAuth, bookable, (req, res, nex
   try {
     const role = roleSchema.parse(req.params.role);
     const { week, gymId } = z.object({ week: z.iso.date().optional(), gymId: z.uuid().optional() }).parse(req.query);
-    res.json(await getPtBookingWeek(req.user!, role, week, gymId));
+    res.json(await getPtBookingWeek(req.user!, role, week, gymId, canUseWellbeingPilot(req)));
   } catch (error) { next(error); }
 });
 
@@ -69,7 +73,7 @@ const wellbeingSchema = z.strictObject({
 
 ptBookingsRouter.put("/pt-bookings/client/requests/:id/wellbeing", requireAuth, bookable, clientOnly, async (req, res, next) => {
   try {
-    if (!env.PT_SESSION_WELLBEING_V1) return res.status(404).json({ error: "Session check-ins are unavailable." });
+    if (!canUseWellbeingPilot(req)) return res.status(404).json({ error: "Session check-ins are unavailable." });
     const id = z.uuid().parse(req.params.id);
     const { version, wellbeing } = wellbeingSchema.parse(req.body);
     await savePtSessionWellbeing(req.user!, id, version, wellbeing);

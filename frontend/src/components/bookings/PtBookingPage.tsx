@@ -17,7 +17,7 @@ import {
   removePtCalendarBlock, requestPtBooking, savePtSessionWellbeing, updatePtBooking
 } from "@/lib/ascendApi";
 import { PtWellbeingCheckIn, PtWellbeingSummary } from "@/components/bookings/PtWellbeingCheckIn";
-import { cycleTrackingEnabled } from "@/lib/cycleTrackingFlag";
+import { useCycleTrackingPilot } from "@/lib/useCycleTrackingPilot";
 import { ptBookingEnabled } from "@/lib/ptBookingFlag";
 import { trainerSessionCaptureEnabled } from "@/lib/trainerSessionFlag";
 
@@ -90,7 +90,8 @@ function BookingCalendar({ role, bookingClientId, notificationTarget }: BookingC
   const [focusBookings, setFocusBookings] = useState(false);
   const focusTarget = useRef(notificationTarget?.booking);
   const [rebookingLimit, setRebookingLimit] = useState(12);
-  const showWellbeing = cycleTrackingEnabled && Boolean(schedule?.wellbeingEnabled);
+  const cyclePilot = useCycleTrackingPilot();
+  const showWellbeing = cyclePilot && Boolean(schedule?.wellbeingEnabled);
   const hasSharedCheckIn = schedule?.bookings.some((booking) => booking.wellbeing && Date.parse(booking.endsAt) > Date.now());
 
   useEffect(() => {

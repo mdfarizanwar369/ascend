@@ -41,10 +41,10 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
   let server: ReturnType<ReturnType<typeof express>["listen"]>;
   let origin: string;
 
-  async function call(actor: string, path: string, method = "GET", data?: unknown) {
+  async function call(actor: string, path: string, method = "GET", data?: unknown, headers: Record<string, string> = {}) {
     const response = await fetch(origin + path, {
       method,
-      headers: { "x-test-actor": actor, "content-type": "application/json" },
+      headers: { "x-test-actor": actor, "content-type": "application/json", ...headers },
       body: data === undefined ? undefined : JSON.stringify(data)
     });
     return { status: response.status, body: await response.json() };
@@ -403,6 +403,17 @@ describe.skipIf(!testUrl)("PT booking routes on isolated PostgreSQL", () => {
     expect((await calendarBooking(trainer, trainerApi)).wellbeing).toEqual(wellbeing);
     expect(await calendarBooking(otherTrainer, trainerApi)).toBeUndefined();
     expect(await calendarBooking(manager, managerApi)).not.toHaveProperty("wellbeing");
+    for (const headers of [
+      { "user-agent": "Mozilla AscendIOS/6 AscendSubscriptions/1 Capacitor" },
+      { "user-agent": "Mozilla AscendAndroid/1 Capacitor" },
+      { "x-ascend-edition": "ios-subscriptions-v1" }
+    ] as Record<string, string>[]) {
+      const nativeCalendar = await call(trainer, `${trainerApi}?week=${day}`, "GET", undefined, headers);
+      expect(nativeCalendar.status).toBe(200);
+      expect(nativeCalendar.body).not.toHaveProperty("wellbeingEnabled");
+      expect(nativeCalendar.body.bookings.find((item: { id: string }) => item.id === id)).not.toHaveProperty("wellbeing");
+      expect((await call(client, endpoint, "PUT", { version, wellbeing }, headers)).status).toBe(404);
+    }
 
     expect((await sharing(client, version, null)).status).toBe(200);
     expect((await calendarBooking(trainer, trainerApi)).wellbeing).toBeNull();

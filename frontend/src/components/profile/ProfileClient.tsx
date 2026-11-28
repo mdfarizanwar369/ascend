@@ -18,7 +18,7 @@ import { getNativeBillingMessage, shouldHideHostedBilling, shouldUseAndroidPlayB
 import { openNativeGooglePlaySubscriptions } from "@/lib/googlePlayBilling";
 import { AppleBilling, supportsAppleBilling } from "@/lib/appleBilling";
 import { useAppleHealthCapability } from "@/lib/appleHealth";
-import { cycleTrackingEnabled } from "@/lib/cycleTrackingFlag";
+import { useCycleTrackingPilot } from "@/lib/useCycleTrackingPilot";
 
 const pendingTrainerReferralKey = "ascend.pendingTrainerReferral.v1";
 
@@ -34,6 +34,7 @@ function formatBillingDate(value: string | null | undefined) {
 }
 
 export function ProfileClient() {
+  const showCycleTracker = useCycleTrackingPilot();
   const iosFree = useIosFreeEdition();
   const iosApp = useIosApp();
   const appleHealth = useAppleHealthCapability();
@@ -480,7 +481,7 @@ export function ProfileClient() {
           <div className="mt-4 space-y-3">
             <InstallAscendButton />
             <EnableCoachNotificationsButton />
-            {cycleTrackingEnabled && user?.primary_role === "client" && <Link href="/profile/cycle" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
+            {showCycleTracker && user?.primary_role === "client" && <Link href="/profile/cycle" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">
               <CalendarHeart size={17} /> Cycle tracker
             </Link>}
             {(!iosApp || appleHealth) && <Link href="/profile/health-sync" className="flex h-11 items-center justify-center gap-2 rounded-lg border border-line bg-ink text-sm font-semibold text-zinc-200">

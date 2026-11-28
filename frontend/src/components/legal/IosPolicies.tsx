@@ -1,13 +1,10 @@
 import { LegalPage } from "./LegalPage";
-import { cyclePrivacySection } from "./cyclePrivacySection";
 import { iosAiDataCategories } from "@/lib/iosPrivacyCopy";
-import { cycleTrackingEnabled } from "@/lib/cycleTrackingFlag";
 
 export function IosPrivacyPolicy() {
-  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt={cycleTrackingEnabled ? "28 November 2026" : "17 November 2026"}
+  return <LegalPage iosEdition eyebrow="Your data" title="Privacy Policy" updatedAt="17 November 2026"
     introduction="This policy describes Ascend's iPhone and iPad app: personal fitness tracking and optional AI guidance. It explains what we collect, how we use it, and your choices."
     sections={[
-      ...(cycleTrackingEnabled ? [cyclePrivacySection] : []),
       { title: "Information we collect", bullets: [
         "Account information such as your name, email address and authentication identifier, provided when you register or sign in.",
         "Fitness profile information such as goals, age, sex selection, height, weight, target weight and activity level.",

@@ -4,7 +4,6 @@ import {
   type PtCalendarBlock, type PtCalendarBlockInput,
   type PtBookingUpdate, type PtBookingUpdateKind, type PtRebookingClient, type PtSessionWellbeing, type PtTrainerOpenings
 } from "@ascend/shared";
-import { env } from "../config/env";
 import { pool, query, withQueryClient } from "../db/pool";
 import type { AuthUser } from "../middleware/auth";
 import { getAdminGymScope, scopeAllowsGym } from "./adminScopeService";
@@ -151,7 +150,7 @@ async function getRebookingClients(gymId: string) {
   return result.rows;
 }
 
-export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date?: string, gymId?: string): Promise<PtBookingWeek> {
+export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date?: string, gymId?: string, allowWellbeing = false): Promise<PtBookingWeek> {
   let gym: Gym | null;
   let coach: Coach | null = null;
   let gyms: PtBookingWeek["gyms"] = [];
@@ -184,7 +183,7 @@ export async function getPtBookingWeek(user: AuthUser, role: PtBookingRole, date
     order by starts_on, starts_at nulls first, id
   `, [user.trainerId, gym.id, today]) : null;
   const slots = coach ? getSlots(coach, user.id, week, today) : null;
-  const wellbeingEnabled = env.PT_SESSION_WELLBEING_V1 && role !== "manager";
+  const wellbeingEnabled = allowWellbeing && role !== "manager";
   const bookings = gym || role === "client" ? query<PtAppointment>(`
     select ${appointmentFields}${wellbeingEnabled ? `,
       case when checkin.booking_id is not null then
