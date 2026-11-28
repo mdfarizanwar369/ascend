@@ -18,6 +18,14 @@ export async function ensureRuntimeSchema() {
 }
 
 export async function verifyRuntimeSchema() {
+  if (env.TRAINER_SESSION_CAPTURE_V1) {
+    await query("select worksheet, share_client_recap from trainer_coaching_sessions limit 0");
+  }
+  if (env.PT_BOOKING_V1) {
+    await query("select version, client_update_id, client_update_read_at from pt_bookings limit 0");
+    await query("select trainer_id from pt_weekly_availability limit 0");
+    await query("select provider, apns_environment, token_version from notification_devices limit 0");
+  }
   if (env.ZOE_BEGINNER_PROGRAMME_SCHEMA || env.ZOE_BEGINNER_PROGRAMME_OWNER_PILOT) {
     const programme = await query("select filename from schema_migrations where filename=$1", ["047_zoe_beginner_programmes.sql"]);
     if (!programme.rows.length) throw new Error("Zoe's beginner programme requires its additive migration before activation.");
